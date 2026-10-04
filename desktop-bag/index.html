@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Desktop Bag · Vibe Coded Slopware</title>
+<meta name="description" content="A plastic bag drifts across your desktop while you work. Your mouse is the wind. Free for Windows.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛍️</text></svg>">
+<style>
+:root{--bg:#f4f0e6;--fg:#1f1d1a;--dim:#6b665c;--card:#fffdf7;--line:#ddd5c4;--accent:#3f7d4e;--accent-fg:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#15171a;--fg:#ece8df;--dim:#9a958a;--card:#1d2024;--line:#2e3238;--accent:#8fc46a;--accent-fg:#15171a}}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}
+main{max-width:760px;margin:0 auto;padding:40px 16px 120px;position:relative}
+.back{color:var(--dim);text-decoration:none;font-size:14px}
+.back:hover{color:var(--accent)}
+h1{font-size:clamp(38px,8vw,64px);line-height:1.02;margin:28px 0 12px;letter-spacing:-1.5px}
+.lede{font-size:clamp(18px,2.6vw,21px);margin:0 0 8px;max-width:600px}
+.hint{color:var(--dim);font-style:italic;font-family:Georgia,serif;margin:0 0 32px}
+.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px}
+.btn{display:inline-flex;flex-direction:column;padding:13px 20px;border-radius:12px;text-decoration:none;border:1px solid var(--line);color:inherit;background:var(--card);transition:transform .15s,border-color .15s}
+.btn:hover{transform:translateY(-2px);border-color:var(--accent)}
+.btn b{font-size:16.5px}
+.btn small{color:var(--dim);font-size:12.5px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.primary small{color:inherit;opacity:.8}
+.smart{color:var(--dim);font-size:13.5px;max-width:600px;margin:0 0 44px}
+h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:36px 0 12px;font-weight:600}
+ul{margin:0;padding-left:20px}
+li{margin:6px 0}
+li b{font-weight:600}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:15px}
+kbd{font:12.5px Consolas,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;background:var(--card)}
+footer{margin-top:56px;color:var(--dim);font-size:13px}
+canvas#sky{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<main>
+  <a class="back" href="/">← vibe coded slopware</a>
+  <h1>Desktop Bag</h1>
+  <p class="lede">A plastic bag drifts across your desktop while you work. Your mouse is the wind.</p>
+  <p class="hint">There’s one on this page. Move your mouse near it.</p>
+
+  <div class="cta">
+    <a class="btn primary" href="/desktop-bag/DesktopBag-0.1.0-portable.exe" download>
+      <b>Download for Windows</b><small>v0.1.0 · 71 MB · free · nothing to install</small>
+    </a>
+    <a class="btn" href="/desktop-bag/demo/">
+      <b>Try it in your browser</b><small>on a fake desktop</small>
+    </a>
+  </div>
+  <p class="smart">It’s unsigned, so Windows will probably say “Windows protected your PC.” Click <b>More info</b>, then <b>Run anyway</b>. The first launch takes about ten seconds while it unpacks.</p>
+
+  <h2>How it plays</h2>
+  <ul>
+    <li>The bag floats in a see-through layer over everything. Clicks go straight through to your apps, and the taskbar is the ground.</li>
+    <li>While it’s in the air it earns <b>beauty</b>. The longer it stays up, the more grace builds.</li>
+    <li>Moments pay extra: <i>a loop</i>, <i>suspended</i> (hanging almost perfectly still), <i>it almost landed</i>, <i>you lifted it</i>, <i>dancing with a leaf</i>.</li>
+    <li>Hover the little counter in the bottom-right corner to spend beauty on more wind, warm pavement, eddies, company, and better cameras. It goes phone → camcorder → 16mm → 35mm → your own eyes.</li>
+    <li>End the tape to put it on the shelf and start a new season: October, first snow, April, midsummer fireflies.</li>
+  </ul>
+
+  <h2>Controls</h2>
+  <div class="keys">
+    <span><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>B</kbd></span><span>hide or show the bag</span>
+    <span>Tray icon</span><span>pause, open the shop, float above or below windows, quit</span>
+    <span>Your mouse</span><span>weather</span>
+  </div>
+
+  <footer>Made with questionable judgment and an AI pair programmer. Somewhere, a leaf blower is taking this personally.</footer>
+</main>
+
+<script src="/desktop-bag/demo/bag.js"></script>
+<script>
+(() => {
+  'use strict';
+  const cv = document.getElementById('sky'), cx = cv.getContext('2d');
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = Math.min(devicePixelRatio || 1, 2);
+    W = Math.max(320, innerWidth); H = Math.max(240, innerHeight);   // hidden tabs report 0
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  }
+  addEventListener('resize', resize); resize();
+
+  const scale = W < 600 ? 0.8 : 1.05;
+  let bag = Bag.make(W * 0.78, H * 0.45, scale);
+  const leaf = { x: W * 0.2, y: H * 0.3, vx: 0, vy: 0, a: 0, ph: Math.random() * 6 };
+  const cur = { x: -9999, y: -9999, lx: null, ly: null, vx: 0, vy: 0 };
+  const move = (x, y) => { cur.x = x; cur.y = y; };
+  addEventListener('mousemove', (e) => move(e.clientX, e.clientY));
+  addEventListener('touchmove', (e) => { const t = e.touches[0]; if (t) move(t.clientX, t.clientY); }, { passive: true });
+  addEventListener('mouseleave', () => { cur.x = cur.y = -9999; cur.lx = null; });
+
+  let T = Math.random() * 50;
+  function wind(x, y, o) {
+    let wx = 45 * Bag.noise3(T * 0.04, 1.3, 2.2), wy = 10 * Bag.noise3(T * 0.07, 4.1, 0.7);
+    const s = 1 / 220, X = x * s, Y = y * s, Z = T * 0.1, e = 0.06, A = 32 / (2 * e) * 0.5;
+    wx += A * (Bag.noise3(X, Y + e, Z) - Bag.noise3(X, Y - e, Z));
+    wy -= A * (Bag.noise3(X + e, Y, Z) - Bag.noise3(X - e, Y, Z));
+    wy -= 78 * Math.exp(-Math.max(0, H - y) / 200);            // warm floor
+    wx += (W * 0.5 - x) / (W * 0.5) * 26;                       // keep it on screen
+    if (x < 120) wx += (120 - x) * 1.6; else if (x > W - 120) wx -= (x - (W - 120)) * 1.6;
+    if (y < H * 0.1) wy += (H * 0.1 - y) * 0.8;
+    const dx = x - cur.x, dy = y - cur.y, f = Math.exp(-(dx * dx + dy * dy) / 14400) * 0.6;
+    wx += cur.vx * f; wy += cur.vy * f;
+    o.x = wx; o.y = wy;
+  }
+
+  const LW = { x: 0, y: 0 };
+  function draw() {
+    cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    cx.clearRect(0, 0, W, H);
+    cx.save(); cx.translate(leaf.x, leaf.y); cx.rotate(leaf.a);
+    cx.scale(1, 0.55 + 0.45 * Math.abs(Math.sin(leaf.a * 2 + leaf.ph)));
+    cx.beginPath(); cx.moveTo(-9, 0); cx.quadraticCurveTo(0, -6, 9, 0); cx.quadraticCurveTo(0, 6, -9, 0);
+    cx.fillStyle = '#d9822b'; cx.shadowColor = 'rgba(0,0,0,.25)'; cx.shadowBlur = 3; cx.fill(); cx.restore();
+    Bag.draw(cx, bag, { fill: 'rgba(250,250,252,0.72)' });
+  }
+
+  if (still) { draw(); return; }   // reduced motion: a bag, resting in the air
+
+  const STEP = 1 / 120;
+  let last = performance.now(), acc = 0;
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    T += dt;
+    if (cur.lx != null) {
+      const k = Math.min(1, dt * 10), cl = (v) => Math.max(-900, Math.min(900, v));
+      cur.vx += (cl((cur.x - cur.lx) / Math.max(dt, 1e-3)) - cur.vx) * k;
+      cur.vy += (cl((cur.y - cur.ly) / Math.max(dt, 1e-3)) - cur.vy) * k;
+    }
+    if (cur.x > -9000) { cur.lx = cur.x; cur.ly = cur.y; }
+    if (!isFinite(bag.cx)) bag = Bag.make(W * 0.78, H * 0.45, scale);   // recover from a bad first frame
+    acc += dt;
+    const box = { left: 4, right: W - 4, top: -60, bottom: H - 2 };
+    let n = 0;
+    while (acc >= STEP && n < 8) { Bag.step(bag, STEP, wind, box); acc -= STEP; n++; }
+    if (n === 8) acc = 0;
+    wind(leaf.x, leaf.y, LW);
+    leaf.vx += (LW.x - leaf.vx) * 2.4 * dt + Math.sin(T * 2.3 + leaf.ph) * 40 * dt;
+    leaf.vy += (LW.y - leaf.vy) * 2.4 * dt + 60 * dt;
+    leaf.x += leaf.vx * dt; leaf.y += leaf.vy * dt; leaf.a += (leaf.vx * 0.012 + Math.sin(T * 1.7 + leaf.ph)) * dt;
+    if (leaf.y > H - 3) { leaf.y = H - 3; leaf.vy = Math.min(0, leaf.vy); leaf.vx *= 0.9; }
+    if (leaf.x < -20) leaf.x = W + 20; else if (leaf.x > W + 20) leaf.x = -20;
+    if (leaf.y < 0) { leaf.y = 0; leaf.vy = 0; }
+    draw();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
