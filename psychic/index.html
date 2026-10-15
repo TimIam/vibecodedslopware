@@ -60,12 +60,13 @@ canvas#sprite{position:relative;z-index:1;width:192px;height:180px;image-renderi
 .menu{padding:14px 14px 12px;display:grid;gap:6px}
 .menu.two{grid-template-columns:1fr 1fr;gap:10px}
 .menu.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 8px}
-.menu.wrap{display:flex;flex-wrap:wrap;gap:4px 10px}
+.menu.inline{display:flex;flex-wrap:wrap;gap:4px 10px}
 .item{display:grid;grid-template-columns:18px auto 1fr;gap:0 10px;align-items:center;text-align:left;padding:8px 10px;border:0;background:none;color:var(--text);font:inherit;text-shadow:inherit;cursor:pointer;border-radius:4px}
 .item:hover,.item:focus,.item.sel{background:rgba(255,255,255,.08);outline:0}
 .item .cur{visibility:hidden;color:var(--gold);font:12px var(--pix)}
 .item:hover .cur,.item:focus .cur,.item.sel .cur{visibility:visible;animation:blinkcur .5s steps(2) infinite}
 .item .ic{font-size:28px;line-height:1;width:34px;text-align:center}
+.item .ic:empty{display:none}
 .item .ic canvas{width:32px;height:32px;image-rendering:pixelated;display:block;margin:auto}
 .item .ic.sg{font-size:30px;color:#9fd0ff}
 .item .t b{display:block;font-size:20px;line-height:1.2}
@@ -75,7 +76,7 @@ canvas#sprite{position:relative;z-index:1;width:192px;height:180px;image-renderi
 .menu.two .item .ic{width:48px}
 .menu.two .item .ic canvas{width:48px;height:48px}
 .menu.two .item .t b{font-size:26px;margin-bottom:4px}
-.menu.wrap .item{grid-template-columns:18px 1fr;padding:8px 12px}
+.menu.inline .item{grid-template-columns:18px 1fr;padding:8px 12px}
 @keyframes blinkcur{to{opacity:0}}
 .startover{display:block;margin:14px auto 0;background:none;border:0;color:var(--dim);font:10px var(--pix);cursor:pointer;text-shadow:2px 2px 0 #000}
 .startover:hover{color:var(--gold)}
@@ -701,7 +702,7 @@ function chooseSign() {
 function chooseFocus(sign) {
   say(`${sign}. I thought so. And what shall we look at?`, { wait: false });
   return showPanel((done) => {
-    const m = el("div", "menu wrap win");
+    const m = el("div", "menu inline win");
     for (const [key, label] of Object.entries(FOCUSES)) m.append(item("", esc(label), "", () => done(key)));
     return m;
   });
