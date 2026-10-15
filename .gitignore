@@ -8,3 +8,6 @@ node_modules
 .claude/
 
 .playwright-mcp/
+matrix/mac/build/
+matrix/mac/dist/
+matrix/mac/for-apple/

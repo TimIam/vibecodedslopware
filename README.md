@@ -11,7 +11,7 @@ Plain static site, no build step. Each project lives in its own folder and gets 
 | `bonsai-idle/` | Bonsai Idle |
 | `strange-weather/` | Strange Weather, a Godot 4.7 web export. Source lives in `C:\Projects\NewerGameIdeas\strange-weather`; rebuild with its `tools/publish_web.sh`, then copy `build/web/*` here |
 | `desktop-bag/` | Desktop Bag: landing page, browser demo, Windows download |
-| `matrix/` | Matrix Rain, a screensaver for every monitor. `rain.html` is the whole web version (one file; `#saver`, `#embed`, `#backdrop` modes in its header comment). `MatrixRain.scr` is the native Windows one, built from `src/MatrixRain.cs` with `powershell -File matrix/src/build.ps1` (uses the C# compiler inside Windows, no SDK) |
+| `matrix/` | Matrix Rain, a screensaver for every monitor. `rain.html` is the whole web version (one file; `#saver`, `#embed`, `#backdrop` modes in its header comment). `MatrixRain.scr` is the native Windows one, built from `src/MatrixRain.cs` with `powershell -File matrix/src/build.ps1` (uses the C# compiler inside Windows, no SDK). `mac/` is the native macOS screensaver, built and signed on a Mac with `build.sh` and `signing/*.sh`; `mac/SIGNING.md` walks through Developer ID signing and notarization |
 | `psychic/` | Madame Haiku, a 16-bit fortune teller: tarot spreads and horoscopes read one beat at a time. Cards are shuffled in the browser (`deck.js` is shared with the API) |
 | `api/` | Vercel Functions (Node). `reading.js` streams a tarot or astrology reading; `horoscopes.js` writes all twelve signs once a day (CDN-cached per date). Both pick the newest `claude-haiku-*` model via `lib/haiku.js`. Need `ANTHROPIC_API_KEY` |
 

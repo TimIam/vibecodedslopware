@@ -77,8 +77,9 @@ function buildAtlas(dpr) {
       g.fillText(GLYPHS[i][0], 0, fontPx * 0.04); g.restore();
     }
   }
-  glow = document.createElement('canvas'); glow.width = cw * 3; glow.height = ch * 3;
-  const gg = glow.getContext('2d'), r = gg.createRadialGradient(cw * 1.5, ch * 1.5, 0, cw * 1.5, ch * 1.5, ch * 1.4);
+  const R = Math.round(ch * 1.4);   // a square as wide as the gradient, so it fades out before the edges
+  glow = document.createElement('canvas'); glow.width = glow.height = R * 2;
+  const gg = glow.getContext('2d'), r = gg.createRadialGradient(R, R, 0, R, R, R);
   r.addColorStop(0, 'rgba(120,255,160,.4)'); r.addColorStop(1, 'rgba(0,255,65,0)');
   gg.fillStyle = r; gg.fillRect(0, 0, glow.width, glow.height);
 }
@@ -116,7 +117,7 @@ function render() {
   for (const d of drops) {
     const h = Math.floor(d.y);
     if (h < 0 || h >= rows || d.gain < 0.7) continue;
-    ctx.globalAlpha = d.gain; ctx.drawImage(glow, d.c * cw - cw, h * ch - ch);
+    ctx.globalAlpha = d.gain; ctx.drawImage(glow, d.c * cw + cw / 2 - glow.width / 2, h * ch + ch / 2 - glow.height / 2);
   }
   ctx.globalAlpha = 1;
   for (const d of drops) {
