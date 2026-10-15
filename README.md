@@ -11,8 +11,8 @@ Plain static site, no build step. Each project lives in its own folder and gets 
 | `bonsai-idle/` | Bonsai Idle |
 | `strange-weather/` | Strange Weather, a Godot 4.7 web export. Source lives in `C:\Projects\NewerGameIdeas\strange-weather`; rebuild with its `tools/publish_web.sh`, then copy `build/web/*` here |
 | `desktop-bag/` | Desktop Bag: landing page, browser demo, Windows download |
-| `psychic/` | Madame Haiku: tarot spreads and horoscopes. Cards are shuffled in the browser (`deck.js` is shared with the API); the reading streams from `api/reading.js` |
-| `api/` | Vercel Functions (Node). `reading.js` picks the newest `claude-haiku-*` model and streams a reading. Needs `ANTHROPIC_API_KEY` |
+| `psychic/` | Madame Haiku, a 16-bit fortune teller: tarot spreads and horoscopes read one beat at a time. Cards are shuffled in the browser (`deck.js` is shared with the API) |
+| `api/` | Vercel Functions (Node). `reading.js` streams a tarot or astrology reading; `horoscopes.js` writes all twelve signs once a day (CDN-cached per date). Both pick the newest `claude-haiku-*` model via `lib/haiku.js`. Need `ANTHROPIC_API_KEY` |
 
 ## Adding a project
 1. Put it in its own folder with an `index.html`.

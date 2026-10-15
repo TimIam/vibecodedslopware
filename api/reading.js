@@ -7,11 +7,9 @@
 // Needs ANTHROPIC_API_KEY in the environment. The cards are drawn in the browser; this
 // function only validates them against the deck and asks the model to interpret them.
 
-import Anthropic from "@anthropic-ai/sdk";
 import { DECK, SPREADS, SIGNS, FOCUSES, moonPhase } from "../psychic/deck.js";
+import { PERSONA, getClient, newestHaiku, fail, isoDate, clip, clientIp, rateLimited, apiFailure, longDate } from "../lib/haiku.js";
 
-const FALLBACK_MODEL = "claude-haiku-5-5";
-const MODEL_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_QUESTION = 300;
 const MAX_PLACE = 80;
 const MAX_TOKENS = 3000;
@@ -30,16 +28,6 @@ const FOCUS_SECTIONS = {
   big: ["Who you are", "Where this is going", "What stands in the way"],
 };
 
-const PERSONA = `You are Madame Haiku, the house psychic at vibe coded slopware. You are a small language model who has fully committed to the bit: theatrical, warm, a little wry, and genuinely good at this.
-
-Across every reading:
-- If the querent asked a question, answer it. Do not retreat into generalities.
-- Be specific and concrete. Leave the querent with something they can do, notice, or sit with.
-- Be kind but not saccharine. You may be funny. You are never cruel.
-- You read patterns and possibilities, never certainties. Never predict literal death, illness, accidents, or disaster.
-- Stay in character. Do not lecture about this being unscientific and do not add disclaimers; the website handles that.
-- Write in plain Markdown. No preamble about yourself, no sign-off, no closing questions.`;
-
 const TAROT_SYSTEM = `${PERSONA}
 
 How you read the cards:
@@ -50,7 +38,8 @@ How you read the cards:
 Format:
 - Open with one or two sentences that set the scene for this particular spread.
 - Then one "## " heading per position, in the order given, written as "## Position — Card Name" (add " (reversed)" when the card is reversed). Under each heading, two to four sentences.
-- Finish with a "## The thread" section of three to six sentences tying the cards together, then one final line in bold: a single-sentence takeaway.
+- Then a "## The thread" section of three to six sentences tying the cards together.
+- Finish with a "## To carry with you" section containing exactly one bold sentence: the takeaway.
 - Keep to the word count you are given.`;
 
 const ASTRO_SYSTEM = `${PERSONA}
@@ -63,48 +52,10 @@ How you read the sky:
 Format:
 - Open with one or two sentences about the sky right now for this sign.
 - Then exactly three "## " sections using the headings you are given, in order, two to four sentences each.
-- Finish with one final line in bold: a single-sentence mantra for the querent.
+- Finish with a "## A line to carry" section containing exactly one bold sentence: a mantra for the querent.
 - Keep to the word count you are given.`;
 
-let client = null;
-let modelCache = { id: null, at: 0 };
-const hits = new Map();
-
 class Bad extends Error {}
-const fail = (error, status = 400) => Response.json({ error }, { status });
-const clip = (v, n) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, n) : "");
-const isoDate = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
-
-function getClient() {
-  return (client ??= new Anthropic());
-}
-
-function limited(ip) {
-  const now = Date.now();
-  const recent = (hits.get(ip) ?? []).filter((t) => now - t < RATE.windowMs);
-  if (recent.length >= RATE.max) { hits.set(ip, recent); return true; }
-  recent.push(now);
-  hits.set(ip, recent);
-  if (hits.size > 5000) hits.clear();
-  return false;
-}
-
-/** The newest model whose id starts with claude-haiku-, cached for a few hours. */
-async function newestHaiku(anthropic) {
-  if (modelCache.id && Date.now() - modelCache.at < MODEL_TTL_MS) return modelCache.id;
-  let best = null;
-  try {
-    for await (const m of anthropic.models.list()) {
-      if (!m.id.startsWith("claude-haiku-")) continue;
-      const dt = best ? new Date(m.created_at) - new Date(best.created_at) : 1;
-      if (dt > 0 || (dt === 0 && m.id.length < best.id.length)) best = m; // ties go to the alias, not the dated id
-    }
-  } catch (err) {
-    console.warn("models.list failed, using the fallback model:", err?.message ?? err);
-  }
-  modelCache = { id: best?.id ?? FALLBACK_MODEL, at: Date.now() };
-  return modelCache.id;
-}
 
 function buildTarot(body) {
   const spread = SPREADS[body.spread];
@@ -145,15 +96,12 @@ function buildAstrology(body) {
   const birthPlace = clip(body.birthPlace, MAX_PLACE);
   const question = clip(body.question, MAX_QUESTION);
   const today = isoDate(body.today) ? body.today : new Date().toISOString().slice(0, 10);
-  const todayText = new Date(`${today}T12:00:00Z`).toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC",
-  });
   const moon = moonPhase(new Date());
 
   const user = [
     `Sign: ${sign.name} ${sign.glyph} (${sign.element}, ${sign.modality}; ${sign.dates}).`,
     birthDate ? `Birthday: ${birthDate}${birthTime ? ` at ${birthTime}` : ""}${birthPlace ? ` in ${birthPlace}` : ""}.` : undefined,
-    `Today: ${todayText}. Moon: ${moon.name} ${moon.glyph}, ${moon.illumination}% illuminated, day ${moon.age} of the cycle.`,
+    `Today: ${longDate(today)}. Moon: ${moon.name} ${moon.glyph}, ${moon.illumination}% illuminated, day ${moon.age} of the cycle.`,
     `Focus: ${FOCUSES[focus]}.`,
     question ? `The querent asks: "${question}"` : "The querent asked no question.",
     `Use these three section headings, in order: ${FOCUS_SECTIONS[focus].map((s) => `"${s}"`).join(", ")}.`,
@@ -163,20 +111,8 @@ function buildAstrology(body) {
   return { system: ASTRO_SYSTEM, user };
 }
 
-function apiFailure(err) {
-  // 401 from the API, or the SDK finding no credentials at all before it ever sends a request.
-  const noKey = err instanceof Anthropic.AuthenticationError || /auth|api.?key|credential/i.test(err?.message ?? "");
-  if (noKey) return fail("The crystal ball isn't plugged in (API key missing or invalid).", 500);
-  if (err instanceof Anthropic.RateLimitError) return fail("Too many seekers at once. Try again in a moment.", 429);
-  if (err instanceof Anthropic.APIConnectionError) return fail("Couldn't reach the beyond. Try again.", 502);
-  if (err instanceof Anthropic.APIError) return fail(`The beyond answered with an error (${err.status}).`, 502);
-  console.error("reading failed", err);
-  return fail("Something unexpected happened.", 500);
-}
-
 export async function POST(request) {
-  const ip = (request.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "local";
-  if (limited(ip)) return fail("The spirits need a minute. Try again shortly.", 429);
+  if (rateLimited("reading", clientIp(request), RATE)) return fail("The spirits need a minute. Try again shortly.", 429);
 
   let body;
   try { body = await request.json(); } catch { return fail("Send JSON."); }
@@ -218,11 +154,11 @@ export async function POST(request) {
         if (!first.done) push(first.value);
         for (let r = await events.next(); !r.done; r = await events.next()) push(r.value);
         const final = await stream.finalMessage();
-        if (final.stop_reason === "refusal") controller.enqueue(enc.encode("\n\n*Madame Haiku sets the cards down. The spirits decline to speak on this one.*"));
+        if (final.stop_reason === "refusal") controller.enqueue(enc.encode("\n\n## A disturbance\nMadame Haiku sets the cards down. The spirits decline to speak on this one."));
         else if (final.stop_reason === "max_tokens") controller.enqueue(enc.encode("\n\n*…and the vision fades before the end.*"));
       } catch (err) {
         console.error("reading stream failed", err);
-        controller.enqueue(enc.encode("\n\n*The connection to the beyond dropped mid-reading.*"));
+        controller.enqueue(enc.encode("\n\n## A disturbance\nThe connection to the beyond dropped mid-reading."));
       } finally {
         controller.close();
       }
