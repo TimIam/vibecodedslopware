@@ -38,6 +38,6 @@ vercel link --yes --project vibecodedslopware   # once per machine
 vercel deploy --prod --yes
 ```
 
-`vercel deploy` replaces the whole site with this folder's contents. If anything was deployed from somewhere else, pull it into this folder and commit it first.
+`vercel deploy` replaces the whole site with this folder's contents. It uploads git-ignored files too, so anything that must stay off the public site goes in `.vercelignore` (currently `matrix/mac/` and local secrets). If anything was deployed from somewhere else, pull it into this folder and commit it first.
 
 `api/reading.js` needs `ANTHROPIC_API_KEY` set on the Vercel project (Settings → Environment Variables, or `npx vercel env add ANTHROPIC_API_KEY production`). Without it the psychic page loads but every reading fails with "the crystal ball isn't plugged in".

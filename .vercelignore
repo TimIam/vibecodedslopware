@@ -1,0 +1,10 @@
+# Files in this folder that must not be served by vibecodedslopware.com.
+# `vercel deploy` uploads everything else here, including git-ignored files.
+
+# Mac screensaver source, signing scripts and guide (names the Apple ID, team and home network)
+matrix/mac/
+
+# Local secrets and tool scratch
+.env*
+.claude/
+.playwright-mcp/
