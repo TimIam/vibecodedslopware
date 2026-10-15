@@ -405,7 +405,8 @@ function showPanel(build, { startOver = true, menu = true } = {}) {
     hydrateIcons(panel);
     content.append(panel);
     if (menu) activeMenu = panel;
-    requestAnimationFrame(() => requestAnimationFrame(() => panel.classList.remove("enter")));
+    void panel.offsetHeight;                    // commit the "enter" state, then transition out of it
+    panel.classList.remove("enter");
   });
 }
 function button(cls, html, onClick) { const b = el("button", cls, html); b.type = "button"; b.addEventListener("click", onClick); return b; }
