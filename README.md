@@ -19,6 +19,7 @@ Plain static site, no build step. Each project lives in its own folder and gets 
 ## Adding a project
 1. Put it in its own folder with an `index.html`.
 2. Add a card to `index.html` linking to it **with a trailing slash** (`/my-thing/`), so relative paths resolve.
+3. If the page has a header with the back link, put the Buy Me a Coffee link (`https://buymeacoffee.com/twilliamja0`) beside it, as the other header pages do. Full-screen games skip it.
 
 ## Local dev
 The static pages work from any file server. To run the API too:

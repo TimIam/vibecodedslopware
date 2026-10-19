@@ -25,6 +25,12 @@ button{font:inherit;color:inherit}
 .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px 0;font-size:13px}
 .back{color:var(--dim);text-decoration:none}
 .back:hover{color:var(--fg)}
+.tr{display:flex;align-items:center;gap:8px}
+.coffee{white-space:nowrap;padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--fg);text-decoration:none;transition:border-color .2s}
+.coffee:hover{border-color:var(--tile-on)}
+.coffee:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+@media (max-width:480px){.vc{display:none}}
+@media (max-width:380px){.bm{display:none}}
 .spooky{display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 8px;border:1px solid var(--line);border-radius:999px;color:var(--dim);cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .2s,color .2s,border-color .2s}
 .spooky input{margin:0;width:15px;height:15px;accent-color:#8e1c1c;cursor:pointer}
 .spooky:has(input:checked){background:#2b0c0c;border-color:#7a1d1d;color:#ffd9d2}
@@ -134,8 +140,11 @@ dialog p{margin:6px 0;font-size:14.5px}
 <body>
 <div class="app">
   <div class="topbar">
-    <a class="back" href="/">← vibe coded slopware</a>
-    <label class="spooky" title="Opt-in: a startling image may appear after some guesses. Silent, no strobing."><input type="checkbox" id="spooky" autocomplete="off">Spooky time</label>
+    <a class="back" href="/" aria-label="Back to vibe coded slopware">← <span class="vc">vibe coded </span>slopware</a>
+    <div class="tr">
+      <a class="coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee" title="Opens in a new tab"><span aria-hidden="true">☕</span> <span class="bm">Buy Me a </span>Coffee</a>
+      <label class="spooky" title="Opt-in: a startling image may appear after some guesses. Silent, no strobing."><input type="checkbox" id="spooky" autocomplete="off">Spooky time</label>
+    </div>
   </div>
   <header class="hdr">
     <img class="logo" id="logo" src="kitty.svg" alt="" width="46" height="46">
