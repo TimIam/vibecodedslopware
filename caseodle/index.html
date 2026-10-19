@@ -250,7 +250,10 @@ body{background:#000;isolation:isolate}
 // Answer pool: food, cooking, kitchen words and playful size jokes; audited conservatively.
 // The page never names the theme; players find it.
 const ANSWERS = `
-  aioli anise apron arepa bacon bagel baker baste basil blini bread brine broil broth bundt cakes candy caper carob carve chili chips chive chops clams clove cocoa crabs cream crepe crust cumin curds curry diner dolma donut dough elote feast filet flour fries fryer fudge glaze gouda grate gravy grill grits gruel gumbo gummy gyoza gyros herbs honey icing jelly jerky kebab knead knife knish korma kugel ladle laksa latke liver lunch maple matzo mince mixer mochi morel nacho panko pasta patty penne pesto pilaf pizza plate poach prawn queso raita ramen ranch roast salsa satay sauce scone sieve slice snack spice spoon spuds squid steak steam stock stove sugar sushi syrup tacos taffy tapas tarts tater thyme tikka toast tongs torta torte tripe unagi wafer whisk wings wurst yeast heavy giant large jumbo hefty bulky beefy stout ounce pound chomp fresh stale fried fatty`.trim().split(/\s+/);
+  aioli apron bacon bagel baker baste basil bread brine broil broth bundt cakes candy caper carve chili chips chive chops clams clove cocoa crabs cream crepe crust cumin curds curry diner donut dough feast filet flour fries fryer fudge glaze gouda grate gravy grill grits gruel gumbo gummy gyros herbs honey icing jelly jerky kebab knead knife ladle liver lunch maple mince mixer mochi nacho panko pasta patty penne pesto pilaf pizza plate poach queso ramen ranch roast salsa sauce scone sieve slice snack spice spoon spuds squid steak steam stock stove sugar sushi syrup tacos taffy tapas tarts tater thyme toast tongs wafer whisk wings yeast heavy giant large jumbo hefty bulky beefy stout ounce pound chomp fresh stale fried fatty`.trim().split(/\s+/);
+
+// Retired answers remain valid guesses, including in unfinished saved rounds.
+const RETIRED_ANSWERS = `anise arepa blini carob dolma elote gyoza knish korma kugel laksa latke matzo morel prawn raita satay tikka torta torte tripe unagi wurst`.split(/\s+/);
 
 // Every player's first puzzle is #1, set by request and kept out of the pool. After that each
 // finished game deals a fresh random one, as many as you like.
@@ -271,7 +274,7 @@ let winCelebration = null;
 
 const GUESSES = new Set((window.CASEODLE_GUESSES || '').match(/[a-z]{5}/g) || []);
 const haveDict = GUESSES.size > 0;
-[...ANSWERS, INAUGURAL, ALWAYS_SCARE].forEach(w => GUESSES.add(w));
+[...ANSWERS, ...RETIRED_ANSWERS, INAUGURAL, ALWAYS_SCARE].forEach(w => GUESSES.add(w));
 const isWord = w => !haveDict || GUESSES.has(w);   // if words.js failed to load, don't block play
 
 // Saves carry their answer, so a stale or mismatched save can't stand in for another puzzle.
