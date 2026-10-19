@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>CaseOdle</title>
-<meta name="description" content="A daily five-letter word game. Six guesses. Fan-made for CaseOh's chat; not affiliated with CaseOh.">
+<meta name="description" content="A five-letter word game with unlimited puzzles. Six guesses each. Fan-made for CaseOh's chat; not affiliated with CaseOh.">
 <link rel="icon" href="kitty.svg" type="image/svg+xml">
 <meta name="theme-color" content="#fbf4e6" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#17120e" media="(prefers-color-scheme: dark)">
@@ -20,6 +20,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 "Segoe UI",sys
 .app::before{content:"";display:block;height:10px;flex:none;background-color:#fff6e3;
   background-image:linear-gradient(90deg,rgba(216,70,47,.55) 50%,transparent 50%),linear-gradient(rgba(216,70,47,.55) 50%,transparent 50%);background-size:16px 16px}
 button{font:inherit;color:inherit}
+[hidden]{display:none!important}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px 0;font-size:13px}
@@ -116,7 +117,6 @@ dialog p{margin:6px 0;font-size:14.5px}
 .btns{display:flex;gap:8px;margin-top:14px}
 .btn{flex:1;appearance:none;border:0;border-radius:11px;padding:12px 10px;font-weight:700;cursor:pointer;background:var(--red);color:#fff}
 .btn.alt{background:var(--key);color:var(--key-fg)}
-#next{text-align:center;color:var(--dim);font-size:13px!important;margin-top:12px!important;font-variant-numeric:tabular-nums}
 
 /* Spooky time. One lunge, no flashing, no sound. */
 #scare{position:fixed;inset:0;z-index:50;display:none;place-items:center;overflow:hidden;pointer-events:none;
@@ -153,7 +153,7 @@ dialog p{margin:6px 0;font-size:14.5px}
       <p id="sub">Guess the word in six</p>
     </div>
     <div class="actions">
-      <button class="ibtn" id="modeBtn" type="button"></button>
+      <button class="ibtn" id="newBtn" type="button" aria-label="New puzzle" hidden>🎲<span class="lbl">New puzzle</span></button>
       <button class="ibtn" id="statsBtn" type="button" aria-label="Statistics"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="2" y="10" width="4" height="8" rx="1"/><rect x="8" y="4" width="4" height="14" rx="1"/><rect x="14" y="7" width="4" height="11" rx="1"/></svg></button>
       <button class="ibtn" id="helpBtn" type="button" aria-label="How to play">?</button>
     </div>
@@ -198,7 +198,7 @@ dialog p{margin:6px 0;font-size:14.5px}
   <div class="ex" aria-hidden="true"><div class="tile filled">b</div><div class="tile filled">r</div><div class="tile filled">i</div><div class="tile filled">c</div><div class="tile" data-s="absent">k</div></div>
   <p class="note"><b>Grey</b>: no K anywhere. A letter only lights up as many times as the answer uses it, so a repeat can go grey.</p>
   <h3>Puzzles</h3>
-  <p>Everyone starts with puzzle #1. After that you get the daily puzzle, the same for everyone and new at midnight your time. <b>Random</b> serves extra rounds.</p>
+  <p>Everyone starts with puzzle #1. Finish it and a fresh puzzle is dealt every time: hit <b>Next puzzle</b> (or 🎲) for as many rounds as you like.</p>
   <h3>Spooky time</h3>
   <p>Opt-in and off by default. Tick it (top right) and a startling image may jump onto the screen after some guesses. Silent, no strobing; untick to stop it at once.</p>
   <p class="note">Fan-made by vibe coded slopware. Not affiliated with, sponsored or endorsed by CaseOh or the brands linked on this page. Kitty is an original illustration.</p>
@@ -217,11 +217,10 @@ dialog p{margin:6px 0;font-size:14.5px}
     <div><b id="sBest">0</b><span>Best</span></div>
   </div>
   <div class="dist" id="dist" aria-label="Guess distribution"></div>
-  <div class="btns">
-    <button class="btn" type="button" id="againBtn">Play again</button>
+  <div class="btns" id="endBtns">
+    <button class="btn" type="button" id="againBtn">Next puzzle</button>
     <button class="btn alt" type="button" id="shareBtn">Copy result</button>
   </div>
-  <p id="next"></p>
 </dialog>
 
 <script src="words.js"></script>
@@ -229,7 +228,8 @@ dialog p{margin:6px 0;font-size:14.5px}
 (() => {
 'use strict';
 
-// Rotation answers: food, kitchen and cooking words. The page never names the theme; players find it.
+// Answer pool: food, kitchen and cooking words, plus playful size, strength and opposite words.
+// The page never names the theme; players find it.
 const ANSWERS = `
   aioli anise apple apron arepa bacon bagel baker baste basil beans beets berry bison blini bread
   brine broil broth bundt cakes candy caper carob carve chard chili chips chive chops clams clove
@@ -241,10 +241,14 @@ const ANSWERS = `
   prawn prune quail queso raita ramen ranch roast salad salsa satay sauce scone seeds sieve slice
   snack spice spoon spuds squid steak steam stock stove sugar sushi swede syrup tacos taffy tapas
   tarts tater thyme tikka toast tongs torta torte tripe trout unagi wafer wheat whisk wings wurst
-  yeast`.trim().split(/\s+/);
+  yeast
+  globe heavy built giant large jumbo hefty bulky beefy burly stout brawn might power force tough
+  hardy solid dense grand great titan macro micro scale ounce pound champ chomp
+  light small teeny minor major inner outer upper lower above below early later sharp blunt fresh
+  stale empty tight loose quick first final`.trim().split(/\s+/);
 
-// Puzzle #1 is set by request, not drawn from the rotation. Every player's first daily is #1,
-// whatever the date, until they finish it; dated puzzles (#2 onward) come after.
+// Every player's first puzzle is #1, set by request and kept out of the pool. After that each
+// finished game deals a fresh random one, as many as you like.
 const INAUGURAL = 'obese';
 // Submitting this word always sets off a scare while Spooky time is on.
 const ALWAYS_SCARE = 'plead';
@@ -254,7 +258,8 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem('caseodle:' + k); return v ? JSON.parse(v) : d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem('caseodle:' + k, JSON.stringify(v)); } catch {} },
 };
-try { localStorage.removeItem('caseodle:daily'); } catch {}   // pre-#1 save format; never restored
+// Saves from the old daily-puzzle versions (#1 keeps its key).
+try { for (const k of Object.keys(localStorage)) if (/^caseodle:(daily|puzzle:(?!1$)\d+)$/.test(k)) localStorage.removeItem(k); } catch {}
 const calm = matchMedia('(prefers-reduced-motion: reduce)');
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
@@ -263,25 +268,19 @@ const haveDict = GUESSES.size > 0;
 [...ANSWERS, INAUGURAL, ALWAYS_SCARE].forEach(w => GUESSES.add(w));
 const isWord = w => !haveDict || GUESSES.has(w);   // if words.js failed to load, don't block play
 
-// Dated puzzles: a fixed shuffle of the rotation, one per local calendar day after launch day.
-function mulberry32(a) { return () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-const DAILY = (() => { const r = mulberry32(0xCA5E0D1E), a = ANSWERS.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; })();
-const LAUNCH = Date.UTC(2026, 9, 19);
-function todayNum() { const d = new Date(); return 1 + Math.max(0, Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - LAUNCH) / 864e5)); }
-const answerFor = n => n === 1 ? INAUGURAL : DAILY[(n - 2) % DAILY.length];
-
-// Saves are per puzzle and carry their answer, so an old or mismatched save can't stand in for this one.
-function savedRows(n) {
-  const s = store.get('puzzle:' + n, null), answer = answerFor(n), rows = [];
-  if (!s || s.answer !== answer || !Array.isArray(s.guesses)) return rows;
-  for (const w of s.guesses) {
+// Saves carry their answer, so a stale or mismatched save can't stand in for another puzzle.
+function savedRows(save, answer) {
+  const rows = [];
+  if (!save || save.answer !== answer || !Array.isArray(save.guesses)) return rows;
+  for (const w of save.guesses) {
     if (typeof w !== 'string' || !/^[a-z]{5}$/.test(w)) break;
     rows.push(w);
     if (w === answer || rows.length === 6) break;
   }
   return rows;
 }
-const finished = n => { const r = savedRows(n); return r.length === 6 || r.includes(answerFor(n)); };
+const isDone = (rows, answer) => rows.length === 6 || rows.includes(answer);
+const firstDone = () => isDone(savedRows(store.get('puzzle:1', null), INAUGURAL), INAUGURAL);
 
 // Two passes so repeated letters are only credited as often as the answer has them.
 function score(guess, answer) {
@@ -351,36 +350,52 @@ const announce = msg => { $('#sr').textContent = msg; };
 // ---------- game ----------
 let game, busy = false;
 
-function reset(mode, answer, num) {
+function setup(answer, num, guesses) {
   cancelScare();
-  game = { mode, answer, num, rows: [], cur: '', over: false, won: false };
+  game = { answer, num, key: num === 1 ? 'puzzle:1' : 'current', rows: [], cur: '', over: false, won: false };
   busy = false;
   tiles.flat().forEach(t => { t.textContent = ''; t.className = 'tile'; t.style.animationDelay = ''; delete t.dataset.s; t.removeAttribute('aria-label'); });
   Object.values(keys).forEach(k => delete k.dataset.s);
-  $('#sub').textContent = mode === 'daily' ? `Puzzle #${num}` : 'Random round';
-  $('#modeBtn').innerHTML = mode === 'daily' ? '🎲<span class="lbl">Random</span>' : '📅<span class="lbl">Daily</span>';
-  $('#modeBtn').setAttribute('aria-label', mode === 'daily' ? 'Play a random round' : 'Back to the daily puzzle');
-}
-
-function playPuzzle(n, showEndIfDone) {
-  reset('daily', answerFor(n), n);
-  for (const w of savedRows(n)) {
-    const marks = score(w, game.answer), r = game.rows.length;
+  $('#sub').textContent = `Puzzle #${num}`;
+  for (const w of guesses) {
+    const marks = score(w, answer), r = game.rows.length;
     game.rows.push({ word: w, marks });
     reveal(r, w, marks, false);
     paintKeys(w, marks);
   }
-  game.won = game.rows.some(x => x.word === game.answer);
+  game.won = game.rows.some(x => x.word === answer);
   game.over = game.won || game.rows.length === 6;
-  if (game.over && showEndIfDone) setTimeout(openEnd, 400);
+  syncNewBtn();
 }
 
-const startDaily = showEndIfDone => playPuzzle(finished(1) ? todayNum() : 1, showEndIfDone);
+const save = g => store.set(g.key, { answer: g.answer, num: g.num, guesses: g.rows.map(x => x.word) });
 
-function startRandom() {
-  let w;
-  do { w = ANSWERS[Math.floor(Math.random() * ANSWERS.length)]; } while (game && w === game.answer);
-  reset('random', w, 0);
+// The new-puzzle button stays hidden until #1 is finished, so #1 really is everyone's first.
+function syncNewBtn() { $('#newBtn').hidden = game.num === 1 && !game.over; }
+
+function nextPuzzle() {
+  // Deal from words this player hasn't had yet; once they've had them all, start over.
+  let seen = store.get('seen', []);
+  if (!Array.isArray(seen)) seen = [];
+  let fresh = ANSWERS.filter(w => !seen.includes(w) && w !== game?.answer);
+  if (!fresh.length) { seen = []; fresh = ANSWERS.filter(w => w !== game?.answer); }
+  const w = fresh[Math.floor(Math.random() * fresh.length)];
+  store.set('seen', [...seen, w]);
+  const num = Math.max(2, (store.get('count', 1) | 0) + 1);
+  store.set('count', num);
+  setup(w, num, []);
+  save(game);
+}
+
+// On load: #1 until it's finished, then whatever unfinished puzzle was in progress, else a new one.
+function start() {
+  if (!firstDone()) return setup(INAUGURAL, 1, savedRows(store.get('puzzle:1', null), INAUGURAL));
+  const cur = store.get('current', null);
+  if (cur && ANSWERS.includes(cur.answer) && Number.isInteger(cur.num)) {
+    const rows = savedRows(cur, cur.answer);
+    if (!isDone(rows, cur.answer)) return setup(cur.answer, Math.max(2, cur.num), rows);
+  }
+  nextPuzzle();
 }
 
 function addLetter(ch) {
@@ -432,8 +447,8 @@ async function submit() {
   g.cur = '';
   g.won = w === g.answer;
   g.over = g.won || g.rows.length === 6;
-  if (g.mode === 'daily') store.set('puzzle:' + g.num, { answer: g.answer, guesses: g.rows.map(x => x.word) });
-  if (g.over) recordStats(g.won, g.rows.length);
+  save(g);
+  if (g.over) { recordStats(g.won, g.rows.length); syncNewBtn(); }
 
   busy = true;
   await reveal(r, w, marks, true);
@@ -472,14 +487,13 @@ function recordStats(won, n) {
   store.set('stats', s);
 }
 
-let nextTimer = 0;
 function openEnd() {
-  const s = store.get('stats', blankStats()), done = game.over, today = todayNum();
+  const s = store.get('stats', blankStats()), done = game.over;
   $('#endTitle').textContent = !done ? 'Your stats' : game.won ? 'Solved!' : 'Out of guesses';
   const msg = $('#endMsg'), ans = $('#endWord');
   ans.replaceChildren();
-  if (!done) msg.textContent = 'Finish this round to add to them.';
-  else if (game.won) msg.textContent = `You got ${game.mode === 'daily' ? `puzzle #${game.num}` : 'it'} in ${game.rows.length}/6.`;
+  if (!done) msg.textContent = 'Finish this puzzle to add to them.';
+  else if (game.won) msg.textContent = `You got puzzle #${game.num} in ${game.rows.length}/6.`;
   else {
     msg.innerHTML = `The answer was:<span class="sr"> ${game.answer}</span>`;
     for (const ch of game.answer) {
@@ -504,25 +518,7 @@ function openEnd() {
     return row;
   }));
 
-  // After an earlier puzzle (usually #1), point at today's if it's still unplayed.
-  const nextNum = game.mode === 'daily' && done && game.num !== today && !finished(today) ? today : 0;
-  const again = $('#againBtn');
-  again.dataset.next = nextNum || '';
-  again.textContent = nextNum ? 'Today’s puzzle' : done ? 'Play again' : 'Random round';
-  $('#shareBtn').hidden = !done;
-
-  clearInterval(nextTimer);
-  const next = $('#next');
-  next.textContent = '';
-  if (game.mode === 'daily' && done && game.num === today) {
-    const tick = () => {
-      const now = new Date(), mid = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-      const t = Math.max(0, Math.floor((mid - now) / 1000));
-      next.textContent = `Next daily puzzle in ${String(Math.floor(t / 3600)).padStart(2, '0')}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
-    };
-    tick();
-    nextTimer = setInterval(tick, 1000);
-  }
+  $('#endBtns').hidden = !done;
   const dlg = $('#end');
   if (!dlg.open) dlg.showModal();
 }
@@ -530,7 +526,7 @@ function openEnd() {
 function resultText() {
   const grid = game.rows.map(r => r.marks.map(m => m === 'correct' ? '🟩' : m === 'present' ? '🟨' : '⬛').join('')).join('\n');
   const score = `${game.won ? game.rows.length : 'X'}/6`;
-  const head = game.mode === 'daily' ? `CaseOdle #${game.num} ${score}` : `CaseOdle (random) ${score}`;
+  const head = game.num === 1 ? `CaseOdle #1 ${score}` : `CaseOdle ${score}`;
   return `${head}${spooky.checked ? ' · Spooky time' : ''}\n\n${grid}\nvibecodedslopware.com/caseodle/`;
 }
 
@@ -628,22 +624,17 @@ document.querySelectorAll('dialog').forEach(d => {
     const outside = e.target === d && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom);
     if (outside || e.target.closest('[data-close]')) d.close();
   });
-  d.addEventListener('close', () => clearInterval(nextTimer));
 });
 $('#helpBtn').addEventListener('click', () => $('#help').showModal());
 $('#statsBtn').addEventListener('click', openEnd);
-$('#modeBtn').addEventListener('click', e => {
+$('#newBtn').addEventListener('click', e => {
   if (e.detail) e.currentTarget.blur();
-  game.mode === 'daily' ? startRandom() : startDaily(false);
+  nextPuzzle();
 });
-$('#againBtn').addEventListener('click', e => {
-  const n = +e.currentTarget.dataset.next;
-  $('#end').close();
-  n ? playPuzzle(n, false) : startRandom();
-});
+$('#againBtn').addEventListener('click', () => { $('#end').close(); nextPuzzle(); });
 $('#shareBtn').addEventListener('click', copyResult);
 
-startDaily(true);
+start();
 if (!store.get('seenHelp', false)) { store.set('seenHelp', true); $('#help').showModal(); }
 })();
 </script>
