@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>CaseOdle</title>
-<meta name="description" content="A five-letter word game with unlimited puzzles. Six guesses each. Fan-made for CaseOh's chat; not affiliated with CaseOh.">
+<title>Caseodle</title>
+<meta name="description" content="Caseodle: a five-letter word game with unlimited puzzles. Six guesses each. Fan-made for CaseOh's chat; not affiliated with CaseOh.">
 <link rel="icon" href="kitty.svg" type="image/svg+xml">
 <meta name="theme-color" content="#fbf4e6" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#17120e" media="(prefers-color-scheme: dark)">
@@ -165,7 +165,7 @@ body{background:#000;isolation:isolate}
   <header class="hdr">
     <img class="logo" id="logo" src="kitty.svg" alt="" width="46" height="46">
     <div class="brand">
-      <h1>Case<span>Odle</span></h1>
+      <h1>Case<span>odle</span></h1>
       <p id="sub">Guess the word in six</p>
     </div>
     <div class="actions">
@@ -775,7 +775,7 @@ function openEnd() {
 function resultText() {
   const grid = game.rows.map(r => r.marks.map(m => m === 'correct' ? '🟩' : m === 'present' ? '🟨' : '⬛').join('')).join('\n');
   const score = `${game.won ? game.rows.length : 'X'}/6`;
-  const head = game.num === 1 ? `CaseOdle #1 ${score}` : `CaseOdle ${score}`;
+  const head = game.num === 1 ? `Caseodle #1 ${score}` : `Caseodle ${score}`;
   return `${head}${spooky.checked ? ' · Spooky time' : ''}\n\n${grid}\nvibecodedslopware.com/caseodle/`;
 }
 
