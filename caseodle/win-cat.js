@@ -90,12 +90,15 @@
       if (!active || document.hidden) return cancel();
       if (reduced.matches) return finale();
       const dt = Math.min(0.04, Math.max(0, (now - state.last) / 1000)); state.last = now;
+      state.elapsed += dt;
+      // A continuous ramp starts gently and accelerates travel and spin until the finale.
+      const speed = 0.28 + state.elapsed * 0.18;
       const b = bounds();
       const small = Math.max(58, Math.min(145, Math.min(b.width, b.height) * 0.2));
       const target = state.bounces < 8 ? small : Math.min(b.width, b.height) * (state.bounces === 8 ? 0.5 : 0.85);
       state.size += (target - state.size) * Math.min(1, dt * 13);
       const maxX = Math.max(0, b.width - state.size), maxY = Math.max(0, b.height - state.size);
-      state.x += state.vx * dt; state.y += state.vy * dt;
+      state.x += state.vx * dt * speed; state.y += state.vy * dt * speed;
       let hit = false;
       if (state.x < 0) { state.x = 0; state.vx = Math.abs(state.vx); hit = true; }
       else if (state.x > maxX) { state.x = maxX; state.vx = -Math.abs(state.vx); hit = true; }
@@ -105,7 +108,7 @@
         state.lastBounce = now; state.bounces++;
         if (state.bounces >= 10) return finale();
       }
-      state.angle += dt * 610;
+      state.angle += dt * 610 * speed;
       state.hue = (state.hue + dt * 105) % 360;
       sprite.style.setProperty('--neon', `hsl(${state.hue} 100% 65%)`);
       draw(); frame = requestAnimationFrame(tick);
@@ -125,7 +128,7 @@
       dialog.dataset.phase = reduced.matches ? 'calm' : 'bounce';
       dialog.showModal(); closeButton.focus({ preventScroll: true });
       const b = bounds(), small = Math.max(58, Math.min(145, Math.min(b.width, b.height) * 0.2));
-      state = { x: b.width * 0.2, y: b.height * 0.2, size: small, vx: Math.max(360, b.width * 0.9), vy: Math.max(330, b.height * 1.25), angle: 0, hue: 160, bounces: 0, lastBounce: -1000, last: performance.now() };
+      state = { x: b.width * 0.2, y: b.height * 0.2, size: small, vx: Math.max(360, b.width * 0.9), vy: Math.max(330, b.height * 1.25), angle: 0, hue: 160, elapsed: 0, bounces: 0, lastBounce: -1000, last: performance.now() };
       sprite.style.setProperty('--neon', '#38ffcf');
       const result = new Promise(resolve => { finish = resolve; });
       if (reduced.matches) {
