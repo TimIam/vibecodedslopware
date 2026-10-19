@@ -118,7 +118,7 @@ dialog p{margin:6px 0;font-size:14.5px}
 .btn{flex:1;appearance:none;border:0;border-radius:11px;padding:12px 10px;font-weight:700;cursor:pointer;background:var(--red);color:#fff}
 .btn.alt{background:var(--key);color:var(--key-fg)}
 
-/* Spooky time. One lunge, no flashing, no sound. */
+/* Spooky time. One lunge with opt-in procedural audio, no flashing. */
 #scare{position:fixed;inset:0;z-index:50;display:none;place-items:center;overflow:hidden;pointer-events:none;
   background:radial-gradient(ellipse at 50% 45%,rgba(45,4,4,.6),rgba(0,0,0,.94) 70%)}
 #scare.on{display:grid;animation:dim 1.15s ease-out both}
@@ -135,15 +135,28 @@ dialog p{margin:6px 0;font-size:14.5px}
   #scare.on{animation:fade .9s ease-in-out both}
   #scare img{animation:fade .9s ease-in-out both;transform:none}
 }
+
+/* Black base in every color scheme. Only Spooky time shows the moon and mist. */
+:root{--bg:#000;--fg:#f3e9da;--dim:#b8aa9c;--line:#493d34;--card:#211a15;--tile:#655345;--tile-on:#aa927b;--key:#493d32;--key-fg:#f3e9da;--absent:#3d3631;--shadow:0 10px 40px #0008}
+body{background:#000;isolation:isolate}
+#night{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;display:none}
+.spooky-on #night{display:block}
+#moon{position:absolute;right:14%;top:12%;width:clamp(68px,13vw,150px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 32% 29%,#c8cbc4,#969e96 62%,#69756e);box-shadow:0 0 40px #bbc9bc18;opacity:.7}
+#mist{position:absolute;inset:0;width:140%;height:65%;opacity:.28;animation:drift 110s linear infinite alternate;will-change:transform}
+.page-hidden #mist{animation-play-state:paused}
+@keyframes drift{from{transform:translateX(-20%)}to{transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){#mist{animation:none;will-change:auto}}
+
 </style>
 </head>
 <body>
+<div id="night" aria-hidden="true"><div id="moon"></div><svg id="mist" viewBox="0 0 600 240" preserveAspectRatio="none"><defs><filter id="cloud-noise" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".008 .055" numOctaves="3" seed="17"/><feColorMatrix type="matrix" values="0 0 0 0 .55 0 0 0 0 .6 0 0 0 0 .57 0 0 0 2.8 -1.25"/><feGaussianBlur stdDeviation="1.5"/></filter></defs><rect width="600" height="240" filter="url(#cloud-noise)"/></svg></div>
 <div class="app">
   <div class="topbar">
-    <a class="back" href="/" aria-label="Back to vibe coded slopware">← <span class="vc">vibe coded </span>slopware</a>
+    <a class="back" href="/" aria-label="Back to vibe coded slopware"> <span class="vc">vibe coded </span>slopware</a>
     <div class="tr">
-      <a class="coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee" title="Opens in a new tab"><span aria-hidden="true">☕</span> <span class="bm">Buy Me a </span>Coffee</a>
-      <label class="spooky" title="Opt-in: a startling image may appear after some guesses. Silent, no strobing."><input type="checkbox" id="spooky" autocomplete="off">Spooky time</label>
+      <a class="coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee" title="Opens in a new tab"><span aria-hidden="true">?</span> <span class="bm">Buy Me a </span>Coffee</a>
+      <label class="spooky" title="Opt-in: a startling image may appear after some guesses. Includes a sudden loud scream; no strobing."><input type="checkbox" id="spooky" autocomplete="off">Spooky time</label>
     </div>
   </div>
   <header class="hdr">
@@ -153,7 +166,7 @@ dialog p{margin:6px 0;font-size:14.5px}
       <p id="sub">Guess the word in six</p>
     </div>
     <div class="actions">
-      <button class="ibtn" id="newBtn" type="button" aria-label="New puzzle" hidden>🎲<span class="lbl">New puzzle</span></button>
+      <button class="ibtn" id="newBtn" type="button" aria-label="New puzzle" hidden>??<span class="lbl">New puzzle</span></button>
       <button class="ibtn" id="statsBtn" type="button" aria-label="Statistics"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="2" y="10" width="4" height="8" rx="1"/><rect x="8" y="4" width="4" height="14" rx="1"/><rect x="14" y="7" width="4" height="11" rx="1"/></svg></button>
       <button class="ibtn" id="helpBtn" type="button" aria-label="How to play">?</button>
     </div>
@@ -168,17 +181,17 @@ dialog p{margin:6px 0;font-size:14.5px}
   <a class="pc" href="https://starforgesystems.com/" target="_blank" rel="noopener">
     <span class="pi" style="background:#2f3b73" aria-hidden="true">SF</span>
     <span><b>Starforge Systems</b><small>Gaming PCs</small></span>
-    <span class="go" aria-hidden="true">↗</span><span class="sr"> (opens in a new tab)</span>
+    <span class="go" aria-hidden="true">?</span><span class="sr"> (opens in a new tab)</span>
   </a>
   <a class="pc" href="https://gamersupps.gg/products/caseoh" target="_blank" rel="noopener">
     <span class="pi" style="background:#1f7f56" aria-hidden="true">GS</span>
-    <span><b>Gamer Supps × CaseOh</b><small>Collab on gamersupps.gg</small></span>
-    <span class="go" aria-hidden="true">↗</span><span class="sr"> (opens in a new tab)</span>
+    <span><b>Gamer Supps x CaseOh</b><small>Collab on gamersupps.gg</small></span>
+    <span class="go" aria-hidden="true">?</span><span class="sr"> (opens in a new tab)</span>
   </a>
   <a class="pc" href="https://usecheeky.com/products/caseohs-cocomo" target="_blank" rel="noopener">
     <span class="pi" style="background:#b0506f" aria-hidden="true">C</span>
     <span><b>CaseOh's Cocomo</b><small>Soap from Cheeky</small></span>
-    <span class="go" aria-hidden="true">↗</span><span class="sr"> (opens in a new tab)</span>
+    <span class="go" aria-hidden="true">?</span><span class="sr"> (opens in a new tab)</span>
   </a>
 </aside>
 
@@ -187,7 +200,7 @@ dialog p{margin:6px 0;font-size:14.5px}
 <div id="scare" aria-hidden="true"><img alt=""></div>
 
 <dialog id="help" aria-labelledby="helpTitle">
-  <button class="x" type="button" aria-label="Close" data-close>×</button>
+  <button class="x" type="button" aria-label="Close" data-close>x</button>
   <h2 id="helpTitle">How to play</h2>
   <p>Guess the five-letter word in six tries. Any real five-letter word counts as a guess.</p>
   <p>Type or tap letters, then hit <b>Enter</b>. Each tile then shows how close you were:</p>
@@ -198,15 +211,16 @@ dialog p{margin:6px 0;font-size:14.5px}
   <div class="ex" aria-hidden="true"><div class="tile filled">b</div><div class="tile filled">r</div><div class="tile filled">i</div><div class="tile filled">c</div><div class="tile" data-s="absent">k</div></div>
   <p class="note"><b>Grey</b>: no K anywhere. A letter only lights up as many times as the answer uses it, so a repeat can go grey.</p>
   <h3>Puzzles</h3>
-  <p>Everyone starts with puzzle #1. Finish it and a fresh puzzle is dealt every time: hit <b>Next puzzle</b> (or 🎲) for as many rounds as you like.</p>
+  <p>Everyone starts with puzzle #1. Finish it and a fresh puzzle is dealt every time: hit <b>Next puzzle</b> (or ??) for as many rounds as you like.</p>
   <h3>Spooky time</h3>
-  <p>Opt-in and off by default. Tick it (top right) and a startling image may jump onto the screen after some guesses. Silent, no strobing; untick to stop it at once.</p>
+  <p>Opt-in and off by default. Tick it (top right) and a startling image may jump onto the screen after some guesses. Includes a sudden loud scream, with no strobing; untick to stop it at once.</p>
+  <p class="note">Scream synthesis adapted from Anthony / TioMothy's <a href="https://corn-maze-horror.vercel.app/" target="_blank" rel="noopener">corn maze game</a>. A short fart plays on each correct solve; use your device or tab volume.</p>
   <p class="note">Fan-made by vibe coded slopware. Not affiliated with, sponsored or endorsed by CaseOh or the brands linked on this page. Kitty is an original illustration.</p>
   <div class="btns"><button class="btn" type="button" data-close>Let's play</button></div>
 </dialog>
 
 <dialog id="end" aria-labelledby="endTitle">
-  <button class="x" type="button" aria-label="Close" data-close>×</button>
+  <button class="x" type="button" aria-label="Close" data-close>x</button>
   <h2 id="endTitle"></h2>
   <p id="endMsg"></p>
   <div class="answer" id="endWord" aria-hidden="true"></div>
@@ -228,24 +242,10 @@ dialog p{margin:6px 0;font-size:14.5px}
 (() => {
 'use strict';
 
-// Answer pool: food, kitchen and cooking words, plus playful size, strength and opposite words.
+// Answer pool: food, cooking, kitchen words and playful size jokes; audited conservatively.
 // The page never names the theme; players find it.
 const ANSWERS = `
-  aioli anise apple apron arepa bacon bagel baker baste basil beans beets berry bison blini bread
-  brine broil broth bundt cakes candy caper carob carve chard chili chips chive chops clams clove
-  cocoa crabs cream crepe crust cumin curds curry dates diner dolma donut dough elote feast filet
-  flour fries fruit fryer fudge glaze gouda grain grape grate gravy grill grits gruel guava gumbo
-  gummy gyoza gyros herbs honey icing jelly jerky kebab kefir knead knife knish korma kugel ladle
-  laksa latke leeks lemon limes liver lunch maize mango maple matzo melon mince mixer mochi morel
-  nacho olive onion panko pasta patty peach pears pecan penne pesto pilaf pizza plate plums poach
-  prawn prune quail queso raita ramen ranch roast salad salsa satay sauce scone seeds sieve slice
-  snack spice spoon spuds squid steak steam stock stove sugar sushi swede syrup tacos taffy tapas
-  tarts tater thyme tikka toast tongs torta torte tripe trout unagi wafer wheat whisk wings wurst
-  yeast
-  globe heavy built giant large jumbo hefty bulky beefy burly stout brawn might power force tough
-  hardy solid dense grand great titan macro micro scale ounce pound champ chomp
-  light small teeny minor major inner outer upper lower above below early later sharp blunt fresh
-  stale empty tight loose quick first final`.trim().split(/\s+/);
+  aioli anise apple apron arepa bacon bagel baker baste basil beans beets berry bison blini bread brine broil broth bundt cakes candy caper carob carve chard chili chips chive chops clams clove cocoa crabs cream crepe crust cumin curds curry dates diner dolma donut dough elote feast filet flour fries fruit fryer fudge glaze gouda grain grape grate gravy grill grits gruel guava gumbo gummy gyoza gyros herbs honey icing jelly jerky kebab kefir knead knife knish korma kugel ladle laksa latke leeks lemon limes liver lunch maize mango maple matzo melon mince mixer mochi morel nacho olive onion panko pasta patty peach pears pecan penne pesto pilaf pizza plate plums poach prawn prune quail queso raita ramen ranch roast salad salsa satay sauce scone seeds sieve slice snack spice spoon spuds squid steak steam stock stove sugar sushi swede syrup tacos taffy tapas tarts tater thyme tikka toast tongs torta torte tripe trout unagi wafer wheat whisk wings wurst yeast heavy giant large jumbo hefty bulky beefy stout ounce pound chomp fresh stale`.trim().split(/\s+/);
 
 // Every player's first puzzle is #1, set by request and kept out of the pool. After that each
 // finished game deals a fresh random one, as many as you like.
@@ -320,7 +320,7 @@ const keys = {};
     b.type = 'button';
     b.className = 'key';
     if (ch === '+') { b.dataset.key = 'enter'; b.textContent = 'Enter'; b.classList.add('wide'); }
-    else if (ch === '-') { b.dataset.key = 'back'; b.textContent = '⌫'; b.classList.add('wide'); b.setAttribute('aria-label', 'Delete'); }
+    else if (ch === '-') { b.dataset.key = 'back'; b.textContent = '?'; b.classList.add('wide'); b.setAttribute('aria-label', 'Delete'); }
     else { b.dataset.key = ch; b.textContent = ch; keys[ch] = b; }
     row.appendChild(b);
   }
@@ -347,11 +347,271 @@ function toast(msg, ms = 1400) {
 }
 const announce = msg => { $('#sr').textContent = msg; };
 
+
+// Procedural audio adapted from Anthony / TioMothy's maze.js.
+// Source SHA1: 0cb95bd32a6ebaed509824dde03a7136a0e27af3. No audio files.
+let audioContext = null, screamBuffer = null, screamRendering = null;
+let scareSource = null, scareGain = null;
+function unlockAudio() {
+  try {
+    const Audio = window.AudioContext || window.webkitAudioContext;
+    if (!Audio) return null;
+    if (!audioContext) audioContext = new Audio();
+    if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+    if (spooky.checked && !screamBuffer && !screamRendering) {
+      const Offline = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (Offline) {
+        const offline = new Offline(1, Math.ceil(1.8 * 44100), 44100);
+        synthesizeMazeScream(offline);
+        screamRendering = offline.startRendering().then(buffer => {
+          normalize(buffer, .85); screamBuffer = buffer;
+        }).catch(() => {}).finally(() => { screamRendering = null; });
+      }
+    }
+    return audioContext;
+  } catch { return null; }
+}
+function normalize(buffer, peak) {
+  const data = buffer.getChannelData(0);
+  let max = 0; for (const x of data) max = Math.max(max, Math.abs(x));
+  if (max) for (let i=0;i<data.length;i++) data[i] *= peak/max;
+}
+function stopScareSound() {
+  try { scareSource?.stop(); } catch {}
+  scareSource?.disconnect(); scareGain?.disconnect();
+  scareSource = scareGain = null;
+}
+function playScareSound() {
+  if (!spooky.checked || document.hidden || !scareEl.classList.contains('on')) return;
+  const ac = audioContext;
+  if (!ac || ac.state !== 'running' || !screamBuffer) return;
+  stopScareSound();
+  scareSource = ac.createBufferSource(); scareSource.buffer = screamBuffer;
+  scareGain = ac.createGain(); scareGain.gain.value = .5;
+  scareSource.connect(scareGain).connect(ac.destination); scareSource.start();
+}
+function playWinFart() {
+  const ac = audioContext;
+  if (!ac || ac.state !== 'running' || document.hidden) return;
+  const dur=.42, buffer=ac.createBuffer(1,Math.ceil(ac.sampleRate*dur),ac.sampleRate);
+  const data=buffer.getChannelData(0); let phase=0, low=0;
+  for(let i=0;i<data.length;i++) {
+    const t=i/ac.sampleRate, u=t/dur;
+    phase += 2*Math.PI*(75-40*u+12*Math.sin(t*53))/ac.sampleRate;
+    low=.82*low+.18*(Math.random()*2-1);
+    const buzz=Math.sin(phase)+.35*Math.sin(phase*2.03);
+    data[i]=(buzz*.65+low*.8)*( .6+.4*Math.sin(t*135) )*Math.min(1,t/.008)*Math.pow(1-u,.7);
+  }
+  normalize(buffer,.88);
+  const src=ac.createBufferSource(), gain=ac.createGain();
+  src.buffer=buffer; gain.gain.value=.6;
+  src.connect(gain).connect(ac.destination);
+  src.onended=()=>{src.disconnect();gain.disconnect();}; src.start();
+}
+  function synthesizeMazeScream(ac) {
+    const now = ac.currentTime;
+
+    // Layer 0: SUB-BASS THUMP - instant gut-punch at the start.
+    {
+      const osc = ac.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(60, now);
+      osc.frequency.exponentialRampToValueAtTime(28, now + 0.18);
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0.9, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc.connect(g).connect(ac.destination);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    }
+
+    // Layer 1: HARSH NOISE WALL - heavy, sustained
+    {
+      const dur = 1.7;
+      const bufferSize = Math.floor(ac.sampleRate * dur);
+      const buf = ac.createBuffer(1, bufferSize, ac.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        const t = i / bufferSize;
+        // Stay loud for first 60%, then taper.
+        const env = t < 0.6 ? 1 : Math.pow(1 - (t - 0.6) / 0.4, 0.6);
+        data[i] = (Math.random() * 2 - 1) * env;
+      }
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      const filt = ac.createBiquadFilter();
+      filt.type = 'bandpass';
+      filt.frequency.setValueAtTime(80, now);
+      filt.frequency.exponentialRampToValueAtTime(3200, now + 0.5);
+      filt.frequency.exponentialRampToValueAtTime(600, now + 1.5);
+      filt.Q.value = 3.0;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0.85, now);
+      g.gain.linearRampToValueAtTime(0.5, now + 1.5);
+      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      src.connect(filt).connect(g).connect(ac.destination);
+      src.start(now);
+      src.stop(now + dur);
+    }
+
+    // Layer 2: SCREAM - descending sawtooth, primary "voice"
+    {
+      const osc = ac.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(1100, now);
+      osc.frequency.exponentialRampToValueAtTime(90, now + 1.2);
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0.35, now);
+      g.gain.linearRampToValueAtTime(0.28, now + 0.8);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 1.3);
+      osc.connect(g).connect(ac.destination);
+      osc.start(now);
+      osc.stop(now + 1.3);
+    }
+
+    // Layer 3: HIGH WHISTLE - piercing top end
+    {
+      const osc = ac.createOscillator();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(2400, now);
+      osc.frequency.linearRampToValueAtTime(1800, now + 0.5);
+      osc.frequency.exponentialRampToValueAtTime(180, now + 1.0);
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0.0, now);
+      g.gain.linearRampToValueAtTime(0.18, now + 0.05);
+      g.gain.linearRampToValueAtTime(0.12, now + 0.7);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
+      osc.connect(g).connect(ac.destination);
+      osc.start(now);
+      osc.stop(now + 1.1);
+    }
+
+    // Layer 4: DETUNED CHOIR - dissonant pair of low oscillators for dread
+    [165, 174].forEach((freq) => {
+      const osc = ac.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, now);
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0.0, now);
+      g.gain.linearRampToValueAtTime(0.18, now + 0.3);
+      g.gain.linearRampToValueAtTime(0.12, now + 1.4);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 1.7);
+      osc.connect(g).connect(ac.destination);
+      osc.start(now);
+      osc.stop(now + 1.7);
+    });
+
+    // Layer 5a: HEARTBEAT - low thumps throughout, accelerating
+    {
+      const beats = 8;
+      for (let i = 0; i < beats; i++) {
+        const t0 = now + i * 0.18 * (1 - i * 0.04); // accelerating
+        const osc = ac.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(55, t0);
+        osc.frequency.exponentialRampToValueAtTime(35, t0 + 0.10);
+        const g = ac.createGain();
+        g.gain.setValueAtTime(0.5, t0);
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12);
+        osc.connect(g).connect(ac.destination);
+        osc.start(t0);
+        osc.stop(t0 + 0.13);
+      }
+    }
+
+    // Layer 5c: REVERSED WHISPER - short envelope that swells in then cuts (sounds backward / wrong)
+    {
+      const dur = 0.9;
+      const bufferSize = Math.floor(ac.sampleRate * dur);
+      const buf = ac.createBuffer(1, bufferSize, ac.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        // Envelope that ramps UP and cuts (reverse of normal attack-decay)
+        const t = i / bufferSize;
+        const env = Math.pow(t, 1.8) * (1 - Math.pow(Math.max(0, t - 0.92) / 0.08, 0.5));
+        data[i] = (Math.random() * 2 - 1) * env;
+      }
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      const filt = ac.createBiquadFilter();
+      filt.type = 'bandpass';
+      filt.frequency.setValueAtTime(1100, now + 0.3);
+      filt.frequency.linearRampToValueAtTime(1800, now + 1.1);
+      filt.Q.value = 6.0;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0.0, now + 0.3);
+      g.gain.linearRampToValueAtTime(0.28, now + 1.15);
+      g.gain.linearRampToValueAtTime(0.0, now + 1.22);
+      src.connect(filt).connect(g).connect(ac.destination);
+      src.start(now + 0.3);
+      src.stop(now + 0.3 + dur);
+    }
+
+    // Layer 5b: WHISPERS - noise + slow LFO filter, sustained low ghostly layer
+    {
+      const dur = 1.6;
+      const bufferSize = Math.floor(ac.sampleRate * dur);
+      const buf = ac.createBuffer(1, bufferSize, ac.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * (0.6 + Math.sin(i / 800) * 0.4);
+      }
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      const filt = ac.createBiquadFilter();
+      filt.type = 'bandpass';
+      filt.Q.value = 8.0;
+      // LFO on filter frequency for "voicelike" modulation
+      filt.frequency.setValueAtTime(800, now);
+      filt.frequency.linearRampToValueAtTime(1400, now + 0.3);
+      filt.frequency.linearRampToValueAtTime(600, now + 0.7);
+      filt.frequency.linearRampToValueAtTime(1200, now + 1.1);
+      filt.frequency.linearRampToValueAtTime(400, now + 1.5);
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0.18, now);
+      g.gain.linearRampToValueAtTime(0.22, now + 0.8);
+      g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      src.connect(filt).connect(g).connect(ac.destination);
+      src.start(now);
+      src.stop(now + dur);
+    }
+
+    // Layer 6: FINAL STINGER - sharp impact near the end
+    {
+      const dur = 0.18;
+      const bufferSize = Math.floor(ac.sampleRate * dur);
+      const buf = ac.createBuffer(1, bufferSize, ac.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        const t = i / bufferSize;
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 1.2);
+      }
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      const start = now + 1.55;
+      const filt = ac.createBiquadFilter();
+      filt.type = 'lowpass';
+      filt.frequency.value = 400;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0.7, start);
+      g.gain.exponentialRampToValueAtTime(0.001, start + dur);
+      src.connect(filt).connect(g).connect(ac.destination);
+      src.start(start);
+      src.stop(start + dur);
+    }
+  }
+
+
+
 // ---------- game ----------
 let game, busy = false;
 
 function setup(answer, num, guesses) {
   cancelScare();
+  clearTimeout(toastTimer);
+  $('#toast').classList.remove('on');
+  $('#toast').textContent = '';
+  announce('');
   game = { answer, num, key: num === 1 ? 'puzzle:1' : 'current', rows: [], cur: '', over: false, won: false };
   busy = false;
   tiles.flat().forEach(t => { t.textContent = ''; t.className = 'tile'; t.style.animationDelay = ''; delete t.dataset.s; t.removeAttribute('aria-label'); });
@@ -391,7 +651,7 @@ function nextPuzzle() {
 function start() {
   if (!firstDone()) return setup(INAUGURAL, 1, savedRows(store.get('puzzle:1', null), INAUGURAL));
   const cur = store.get('current', null);
-  if (cur && ANSWERS.includes(cur.answer) && Number.isInteger(cur.num)) {
+  if (cur && typeof cur.answer === 'string' && /^[a-z]{5}$/.test(cur.answer) && GUESSES.has(cur.answer) && Number.isInteger(cur.num)) {
     const rows = savedRows(cur, cur.answer);
     if (!isDone(rows, cur.answer)) return setup(cur.answer, Math.max(2, cur.num), rows);
   }
@@ -442,6 +702,7 @@ async function submit() {
   if (w.length < 5) return reject('Not enough letters');
   if (!isWord(w)) return reject('Not in the word list');
 
+  unlockAudio();
   const g = game, r = g.rows.length, marks = score(w, g.answer);
   g.rows.push({ word: w, marks });
   g.cur = '';
@@ -467,6 +728,7 @@ async function submit() {
 }
 
 function celebrate(r) {
+  playWinFart();
   toast(['Incredible!', 'Brilliant!', 'Impressive!', 'Nice!', 'Solid!', 'Phew!'][Math.min(r, 5)], 1600);
   if (calm.matches) return;
   tiles[r].forEach((t, i) => { t.style.animationDelay = `${i * 90}ms`; t.classList.remove('flip'); t.classList.add('hop'); });
@@ -524,10 +786,10 @@ function openEnd() {
 }
 
 function resultText() {
-  const grid = game.rows.map(r => r.marks.map(m => m === 'correct' ? '🟩' : m === 'present' ? '🟨' : '⬛').join('')).join('\n');
+  const grid = game.rows.map(r => r.marks.map(m => m === 'correct' ? '??' : m === 'present' ? '??' : '?').join('')).join('\n');
   const score = `${game.won ? game.rows.length : 'X'}/6`;
   const head = game.num === 1 ? `CaseOdle #1 ${score}` : `CaseOdle ${score}`;
-  return `${head}${spooky.checked ? ' · Spooky time' : ''}\n\n${grid}\nvibecodedslopware.com/caseodle/`;
+  return `${head}${spooky.checked ? ' � Spooky time' : ''}\n\n${grid}\nvibecodedslopware.com/caseodle/`;
 }
 
 async function copyResult() {
@@ -540,7 +802,7 @@ async function copyResult() {
   let ok = false;
   try { ok = document.execCommand('copy'); } catch {}
   ta.remove();
-  toast(ok ? 'Copied to clipboard' : 'Couldn’t copy, sorry');
+  toast(ok ? 'Copied to clipboard' : 'Couldn't copy, sorry');
 }
 
 // ---------- Spooky time ----------
@@ -558,7 +820,16 @@ function loadScareImg() {
   scareImg.src = 'spooky.png';
   scareImg.decode?.().catch(() => {});
 }
-spooky.addEventListener('change', () => { if (spooky.checked) loadScareImg(); else cancelScare(); });
+spooky.addEventListener('change', () => {
+  document.body.classList.toggle('spooky-on', spooky.checked);
+  if (spooky.checked) { loadScareImg(); unlockAudio(); } else cancelScare();
+});
+function syncVisibility() {
+  document.body.classList.toggle('page-hidden', document.hidden);
+  if (document.hidden) cancelScare();
+}
+document.addEventListener('visibilitychange', syncVisibility);
+syncVisibility();
 addEventListener('pageshow', () => { if (!spooky.checked) cancelScare(); });
 
 function maybeScare(forced) {
@@ -587,10 +858,12 @@ function runScare(forced, giveUp) {
   scareEl.classList.remove('on');
   void scareEl.offsetWidth;
   scareEl.classList.add('on');
+  playScareSound();
   scareHide = setTimeout(cancelScare, calm.matches ? 900 : 1150);
 }
 
 function cancelScare() {
+  stopScareSound();
   clearTimeout(scareDelay);
   clearTimeout(scareHide);
   scareDelay = scareHide = 0;
