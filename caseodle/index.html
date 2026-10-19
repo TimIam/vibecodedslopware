@@ -66,13 +66,16 @@ main{flex:1;display:flex;align-items:center;justify-content:center;padding:12px 
 
 #kb{width:100%;max-width:500px;margin:0 auto;padding:0 6px;display:flex;flex-direction:column;gap:7px;user-select:none;-webkit-user-select:none}
 .kr{display:flex;gap:5px}
-.key{flex:1 1 0;min-width:0;height:54px;border:0;border-radius:8px;background:var(--key);color:var(--key-fg);font-weight:700;font-size:15px;text-transform:uppercase;cursor:pointer;transition:background .2s}
+.key{position:relative;flex:1 1 0;min-width:0;height:54px;border:2px solid #94a3b8;border-radius:8px;background:#e2e8f0;color:#101820;font-weight:800;font-size:15px;text-transform:uppercase;cursor:pointer;transition:background .2s,color .2s,border-color .2s}
 .key:active{filter:brightness(.92)}
+.key:focus-visible{outline:3px solid #fff;outline-offset:3px}
 .key.wide{flex:1.55 1 0;font-size:12px;letter-spacing:.3px}
-.key[data-s]{color:#fff}
-.key[data-s=correct]{background:var(--correct)}
-.key[data-s=present]{background:var(--present)}
-.key[data-s=absent]{background:var(--absent);color:rgba(255,255,255,.75)}
+.key[data-s=correct]{background:#137b42;color:#fff;border-color:#69efac;box-shadow:inset 0 -3px 0 #69efac}
+.key[data-s=present]{background:#f4c542;color:#211800;border-color:#fff0a8;box-shadow:inset 0 -3px 0 #a87900}
+.key[data-s=correct]::after,.key[data-s=present]::after{position:absolute;right:2px;top:1px;font-size:10px;line-height:1}
+.key[data-s=correct]::after{content:'✓'}
+.key[data-s=present]::after{content:'•'}
+.key[data-s=absent]{background:#151922;color:#b8c1cc;border-color:#475569;text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:#e2e8f0;box-shadow:none}
 .pad{flex:.5 1 0}
 .fine{margin:0;padding:8px 16px calc(8px + env(safe-area-inset-bottom));text-align:center;font-size:11px;color:var(--dim)}
 @media (max-height:660px){.key{height:46px}.hdr{margin-top:4px}}
@@ -324,7 +327,7 @@ const keys = {};
     b.className = 'key';
     if (ch === '+') { b.dataset.key = 'enter'; b.textContent = 'Enter'; b.classList.add('wide'); }
     else if (ch === '-') { b.dataset.key = 'back'; b.textContent = '⌫'; b.classList.add('wide'); b.setAttribute('aria-label', 'Delete'); }
-    else { b.dataset.key = ch; b.textContent = ch; keys[ch] = b; }
+    else { b.dataset.key = ch; b.textContent = ch; b.setAttribute('aria-label', `${ch.toUpperCase()}, not guessed`); keys[ch] = b; }
     row.appendChild(b);
   }
   if (i === 1) row.appendChild(Object.assign(document.createElement('span'), { className: 'pad' }));
@@ -336,7 +339,10 @@ const SAY = { correct: 'right spot', present: 'wrong spot', absent: 'not in the 
 function paintKeys(word, marks) {
   [...word].forEach((ch, i) => {
     const k = keys[ch];
-    if (k && (RANK[marks[i]] > (RANK[k.dataset.s] || 0))) k.dataset.s = marks[i];
+    if (k && (RANK[marks[i]] > (RANK[k.dataset.s] || 0))) {
+      k.dataset.s = marks[i];
+      k.setAttribute('aria-label', `${ch.toUpperCase()}, ${SAY[marks[i]]}`);
+    }
   });
 }
 
@@ -601,7 +607,7 @@ function setup(answer, num, guesses) {
   game = { answer, num, key: num === 1 ? 'puzzle:1' : 'current', rows: [], cur: '', over: false, won: false };
   busy = false;
   tiles.flat().forEach(t => { t.textContent = ''; t.className = 'tile'; t.style.animationDelay = ''; delete t.dataset.s; t.removeAttribute('aria-label'); });
-  Object.values(keys).forEach(k => delete k.dataset.s);
+  Object.entries(keys).forEach(([ch, k]) => { delete k.dataset.s; k.setAttribute('aria-label', `${ch.toUpperCase()}, not guessed`); });
   $('#sub').textContent = `Puzzle #${num}`;
   for (const w of guesses) {
     const marks = score(w, answer), r = game.rows.length;
