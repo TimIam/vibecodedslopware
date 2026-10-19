@@ -214,7 +214,7 @@ body{background:#000;isolation:isolate}
   <p>Everyone starts with puzzle #1. Finish it and a fresh puzzle is dealt every time: hit <b>Next puzzle</b> (or 🎲) for as many rounds as you like.</p>
   <h3>Spooky time</h3>
   <p>Opt-in and off by default. Tick it (top right) and a startling image may jump onto the screen after some guesses. Includes a sudden loud scream, with no strobing; untick to stop it at once.</p>
-  <p class="note">Scream synthesis adapted from Anthony / TioMothy’s <a href="https://corn-maze-horror.vercel.app/" target="_blank" rel="noopener">corn maze game</a>. A short fart plays on each correct solve; use your device or tab volume.</p>
+  <p class="note">Scream synthesis adapted from Anthony / TioMothy’s <a href="https://corn-maze-horror.vercel.app/" target="_blank" rel="noopener">corn maze game</a>. A spinning black-cat celebration with looping audio plays after a solve in either mode, ending with one meow. Close or Next puzzle stops it; use your device or tab volume. Reduced motion keeps the cat still.</p>
   <p class="note">Fan-made by vibe coded slopware. Not affiliated with, sponsored or endorsed by CaseOh or the brands linked on this page. Kitty is an original illustration.</p>
   <div class="btns"><button class="btn" type="button" data-close>Let's play</button></div>
 </dialog>
@@ -237,6 +237,8 @@ body{background:#000;isolation:isolate}
   </div>
 </dialog>
 
+<link rel="stylesheet" href="win-cat.css">
+<script src="win-cat.js"></script>
 <script src="words.js"></script>
 <script>
 (() => {
@@ -262,6 +264,7 @@ const store = {
 try { for (const k of Object.keys(localStorage)) if (/^caseodle:(daily|puzzle:(?!1$)\d+)$/.test(k)) localStorage.removeItem(k); } catch {}
 const calm = matchMedia('(prefers-reduced-motion: reduce)');
 const wait = ms => new Promise(r => setTimeout(r, ms));
+let winCelebration = null;
 
 const GUESSES = new Set((window.CASEODLE_GUESSES || '').match(/[a-z]{5}/g) || []);
 const haveDict = GUESSES.size > 0;
@@ -389,24 +392,6 @@ function playScareSound() {
   scareSource = ac.createBufferSource(); scareSource.buffer = screamBuffer;
   scareGain = ac.createGain(); scareGain.gain.value = .5;
   scareSource.connect(scareGain).connect(ac.destination); scareSource.start();
-}
-function playWinFart() {
-  const ac = audioContext;
-  if (!ac || ac.state !== 'running' || document.hidden) return;
-  const dur=.42, buffer=ac.createBuffer(1,Math.ceil(ac.sampleRate*dur),ac.sampleRate);
-  const data=buffer.getChannelData(0); let phase=0, low=0;
-  for(let i=0;i<data.length;i++) {
-    const t=i/ac.sampleRate, u=t/dur;
-    phase += 2*Math.PI*(75-40*u+12*Math.sin(t*53))/ac.sampleRate;
-    low=.82*low+.18*(Math.random()*2-1);
-    const buzz=Math.sin(phase)+.35*Math.sin(phase*2.03);
-    data[i]=(buzz*.65+low*.8)*( .6+.4*Math.sin(t*135) )*Math.min(1,t/.008)*Math.pow(1-u,.7);
-  }
-  normalize(buffer,.88);
-  const src=ac.createBufferSource(), gain=ac.createGain();
-  src.buffer=buffer; gain.gain.value=.6;
-  src.connect(gain).connect(ac.destination);
-  src.onended=()=>{src.disconnect();gain.disconnect();}; src.start();
 }
   function synthesizeMazeScream(ac) {
     const now = ac.currentTime;
@@ -607,6 +592,7 @@ function playWinFart() {
 let game, busy = false;
 
 function setup(answer, num, guesses) {
+  winCelebration?.cancel();
   cancelScare();
   clearTimeout(toastTimer);
   $('#toast').classList.remove('on');
@@ -717,26 +703,18 @@ async function submit() {
   busy = false;
   paintKeys(w, marks);
   announce(`${w.toUpperCase()}: ` + marks.map((m, i) => `${w[i].toUpperCase()} ${SAY[m]}`).join(', '));
-  if (g.won) celebrate(r);
-
   // Spooky time may strike after any valid row: winning, losing or carrying on.
   const scare = maybeScare(w === ALWAYS_SCARE);
   if (!g.over) return;
   await scare;
-  await wait(g.won ? 1000 : 450);
-  if (game === g) openEnd();
+  if (game !== g) return;
+  if (g.won && !document.hidden) await celebrate();
+  else if (!g.won) await wait(450);
+  if (game === g && !document.hidden) openEnd();
 }
 
-function celebrate(r) {
-  playWinFart();
-  toast(['Incredible!', 'Brilliant!', 'Impressive!', 'Nice!', 'Solid!', 'Phew!'][Math.min(r, 5)], 1600);
-  if (calm.matches) return;
-  tiles[r].forEach((t, i) => { t.style.animationDelay = `${i * 90}ms`; t.classList.remove('flip'); t.classList.add('hop'); });
-  setTimeout(() => tiles[r].forEach(t => { t.style.animationDelay = ''; t.classList.remove('hop'); }), 1100);
-  const logo = $('#logo');
-  logo.classList.remove('yum');
-  void logo.offsetWidth;
-  logo.classList.add('yum');
+function celebrate() {
+  return winCelebration.start();
 }
 
 // ---------- stats and end screen ----------
@@ -907,6 +885,7 @@ $('#newBtn').addEventListener('click', e => {
 $('#againBtn').addEventListener('click', () => { $('#end').close(); nextPuzzle(); });
 $('#shareBtn').addEventListener('click', copyResult);
 
+winCelebration = window.createCaseOdleWinCat({ getAudioContext: () => audioContext, onNext: nextPuzzle });
 start();
 if (!store.get('seenHelp', false)) { store.set('seenHelp', true); $('#help').showModal(); }
 })();
