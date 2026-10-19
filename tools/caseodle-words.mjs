@@ -1,4 +1,4 @@
-// Builds caseodle/words.js, the list of guesses CaseOdle accepts. The answers (all food) live in
+// Builds caseodle/words.js, the list of guesses CaseOdle accepts. The answers live in
 // caseodle/index.html; this list only decides what counts as a real word.
 // Source: /usr/share/dict/web2 (Webster's Second, public domain, ships with macOS), plus the regular
 // plurals and past tenses it leaves out, plus a few words it is too old to know.

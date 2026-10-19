@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>CaseOdle</title>
-<meta name="description" content="Wordle, but every answer is food. Five letters, six guesses. A fan-made game for CaseOh's chat; not affiliated with CaseOh.">
+<meta name="description" content="A daily five-letter word game. Six guesses. Fan-made for CaseOh's chat; not affiliated with CaseOh.">
 <link rel="icon" href="kitty.svg" type="image/svg+xml">
 <meta name="theme-color" content="#fbf4e6" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#17120e" media="(prefers-color-scheme: dark)">
@@ -14,11 +14,10 @@
 @media (prefers-color-scheme:dark){:root{--bg:#17120e;--fg:#f3e9da;--dim:#a8998a;--line:#3a2f26;--card:#211a15;--tile:#4a3d32;--tile-on:#8a7660;--key:#4a3d32;--key-fg:#f3e9da;
   --correct:#4f9a3c;--present:#c48a0e;--absent:#3d3631;--shadow:0 10px 40px rgba(0,0,0,.5)}}
 *{box-sizing:border-box}
-html{height:100%}
-body{margin:0;min-height:100%;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);
-  font:16px/1.45 "Segoe UI",system-ui,-apple-system,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-/* gingham tablecloth edge */
-body::before{content:"";display:block;height:10px;flex:none;background-color:#fff6e3;
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 "Segoe UI",system-ui,-apple-system,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+/* the game fills the first screen; the product cards sit below it (or beside it on wide screens) */
+.app{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+.app::before{content:"";display:block;height:10px;flex:none;background-color:#fff6e3;
   background-image:linear-gradient(90deg,rgba(216,70,47,.55) 50%,transparent 50%),linear-gradient(rgba(216,70,47,.55) 50%,transparent 50%);background-size:16px 16px}
 button{font:inherit;color:inherit}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -72,6 +71,20 @@ main{flex:1;display:flex;align-items:center;justify-content:center;padding:12px 
 @media (max-height:660px){.key{height:46px}.hdr{margin-top:4px}}
 @media (max-width:400px){.lbl{display:none}.logo{width:38px;height:38px}h1{font-size:23px}.hdr{gap:8px}}
 
+/* product cards: a footer under the game, a quiet sidebar once there's room beside it */
+.shop{width:100%;max-width:500px;margin:0 auto;padding:8px 16px calc(24px + env(safe-area-inset-bottom));display:grid;gap:8px}
+.shop h2{margin:0;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.pc{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:inherit;text-decoration:none;transition:border-color .15s}
+.pc:hover,.pc:focus-visible{border-color:var(--tile-on)}
+.pc b{display:block;font-size:14px;line-height:1.25}
+.pc small{display:block;font-size:12px;color:var(--dim)}
+.pi{flex:none;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font:800 12.5px/1 system-ui,sans-serif;color:#fff}
+.go{margin-left:auto;color:var(--dim);font-size:13px}
+@media (min-width:1100px) and (min-height:600px){
+  .shop{position:fixed;right:24px;top:50%;transform:translateY(-50%);width:230px;margin:0;padding:0;opacity:.85;transition:opacity .2s}
+  .shop:hover,.shop:focus-within{opacity:1}
+}
+
 #toast{position:fixed;left:50%;top:118px;transform:translateX(-50%);z-index:20;pointer-events:none;background:var(--fg);color:var(--bg);font-weight:700;font-size:14px;padding:9px 14px;border-radius:9px;opacity:0;transition:opacity .2s;white-space:nowrap}
 #toast.on{opacity:1}
 
@@ -119,25 +132,47 @@ dialog p{margin:6px 0;font-size:14.5px}
 </style>
 </head>
 <body>
-<div class="topbar">
-  <a class="back" href="/">← vibe coded slopware</a>
-  <label class="spooky"><input type="checkbox" id="spooky" autocomplete="off">Spooky time</label>
+<div class="app">
+  <div class="topbar">
+    <a class="back" href="/">← vibe coded slopware</a>
+    <label class="spooky" title="Opt-in: a startling image may appear after some guesses. Silent, no strobing."><input type="checkbox" id="spooky" autocomplete="off">Spooky time</label>
+  </div>
+  <header class="hdr">
+    <img class="logo" id="logo" src="kitty.svg" alt="" width="46" height="46">
+    <div class="brand">
+      <h1>Case<span>Odle</span></h1>
+      <p id="sub">Guess the word in six</p>
+    </div>
+    <div class="actions">
+      <button class="ibtn" id="modeBtn" type="button"></button>
+      <button class="ibtn" id="statsBtn" type="button" aria-label="Statistics"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="2" y="10" width="4" height="8" rx="1"/><rect x="8" y="4" width="4" height="14" rx="1"/><rect x="14" y="7" width="4" height="11" rx="1"/></svg></button>
+      <button class="ibtn" id="helpBtn" type="button" aria-label="How to play">?</button>
+    </div>
+  </header>
+  <main><div id="board" aria-label="Guesses"></div></main>
+  <div id="kb" aria-label="Keyboard"></div>
+  <p class="fine">Fan-made for fun. Not affiliated with or endorsed by CaseOh.</p>
 </div>
-<header class="hdr">
-  <img class="logo" id="logo" src="kitty.svg" alt="" width="46" height="46">
-  <div class="brand">
-    <h1>Case<span>Odle</span></h1>
-    <p id="sub">Guess the food in six</p>
-  </div>
-  <div class="actions">
-    <button class="ibtn" id="modeBtn" type="button"></button>
-    <button class="ibtn" id="statsBtn" type="button" aria-label="Statistics"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="2" y="10" width="4" height="8" rx="1"/><rect x="8" y="4" width="4" height="14" rx="1"/><rect x="14" y="7" width="4" height="11" rx="1"/></svg></button>
-    <button class="ibtn" id="helpBtn" type="button" aria-label="How to play">?</button>
-  </div>
-</header>
-<main><div id="board" aria-label="Guesses"></div></main>
-<div id="kb" aria-label="Keyboard"></div>
-<p class="fine">Fan-made for fun. Not affiliated with or endorsed by CaseOh.</p>
+
+<aside class="shop" aria-labelledby="shopTitle">
+  <h2 id="shopTitle">Products</h2>
+  <a class="pc" href="https://starforgesystems.com/" target="_blank" rel="noopener">
+    <span class="pi" style="background:#2f3b73" aria-hidden="true">SF</span>
+    <span><b>Starforge Systems</b><small>Gaming PCs</small></span>
+    <span class="go" aria-hidden="true">↗</span><span class="sr"> (opens in a new tab)</span>
+  </a>
+  <a class="pc" href="https://gamersupps.gg/products/caseoh" target="_blank" rel="noopener">
+    <span class="pi" style="background:#1f7f56" aria-hidden="true">GS</span>
+    <span><b>Gamer Supps × CaseOh</b><small>Collab on gamersupps.gg</small></span>
+    <span class="go" aria-hidden="true">↗</span><span class="sr"> (opens in a new tab)</span>
+  </a>
+  <a class="pc" href="https://usecheeky.com/products/caseohs-cocomo" target="_blank" rel="noopener">
+    <span class="pi" style="background:#b0506f" aria-hidden="true">C</span>
+    <span><b>CaseOh's Cocomo</b><small>Soap from Cheeky</small></span>
+    <span class="go" aria-hidden="true">↗</span><span class="sr"> (opens in a new tab)</span>
+  </a>
+</aside>
+
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="sr" class="sr" aria-live="polite"></div>
 <div id="scare" aria-hidden="true"><img alt=""></div>
@@ -145,20 +180,20 @@ dialog p{margin:6px 0;font-size:14.5px}
 <dialog id="help" aria-labelledby="helpTitle">
   <button class="x" type="button" aria-label="Close" data-close>×</button>
   <h2 id="helpTitle">How to play</h2>
-  <p>Guess the <b>food</b> in six tries. Every answer is something you can eat; your guesses can be any real five-letter word.</p>
+  <p>Guess the five-letter word in six tries. Any real five-letter word counts as a guess.</p>
   <p>Type or tap letters, then hit <b>Enter</b>. Each tile then shows how close you were:</p>
-  <div class="ex" aria-hidden="true"><div class="tile" data-s="correct">p</div><div class="tile filled">i</div><div class="tile filled">z</div><div class="tile filled">z</div><div class="tile filled">a</div></div>
-  <p class="note"><b>Green</b>: P is in the food, in that exact spot.</p>
-  <div class="ex" aria-hidden="true"><div class="tile filled">b</div><div class="tile filled">a</div><div class="tile" data-s="present">g</div><div class="tile filled">e</div><div class="tile filled">l</div></div>
-  <p class="note"><b>Yellow</b>: G is in the food, but somewhere else.</p>
-  <div class="ex" aria-hidden="true"><div class="tile filled">t</div><div class="tile filled">o</div><div class="tile filled">a</div><div class="tile" data-s="absent">s</div><div class="tile filled">t</div></div>
-  <p class="note"><b>Grey</b>: no S anywhere. A letter only lights up as many times as the answer uses it, so a second S goes grey if there's only one.</p>
-  <h3>Daily or random</h3>
-  <p>Everyone gets the same daily food, new at midnight your time. <b>Random</b> serves extra rounds whenever you're still hungry.</p>
+  <div class="ex" aria-hidden="true"><div class="tile" data-s="correct">s</div><div class="tile filled">t</div><div class="tile filled">o</div><div class="tile filled">r</div><div class="tile filled">m</div></div>
+  <p class="note"><b>Green</b>: S is in the word, in that exact spot.</p>
+  <div class="ex" aria-hidden="true"><div class="tile filled">p</div><div class="tile filled">l</div><div class="tile" data-s="present">a</div><div class="tile filled">n</div><div class="tile filled">t</div></div>
+  <p class="note"><b>Yellow</b>: A is in the word, but somewhere else.</p>
+  <div class="ex" aria-hidden="true"><div class="tile filled">b</div><div class="tile filled">r</div><div class="tile filled">i</div><div class="tile filled">c</div><div class="tile" data-s="absent">k</div></div>
+  <p class="note"><b>Grey</b>: no K anywhere. A letter only lights up as many times as the answer uses it, so a repeat can go grey.</p>
+  <h3>Puzzles</h3>
+  <p>Everyone starts with puzzle #1. After that you get the daily puzzle, the same for everyone and new at midnight your time. <b>Random</b> serves extra rounds.</p>
   <h3>Spooky time</h3>
-  <p>Off unless you tick the box in the top-right corner. Then, every so often after a guess, a red-eyed zombie lunges at you for about a second. No sound, no flashing, and unticking it stops it at once.</p>
-  <p class="note">Fan-made by vibe coded slopware. Not affiliated with, sponsored or endorsed by CaseOh. Kitty is an original illustration.</p>
-  <div class="btns"><button class="btn" type="button" data-close>Let's eat</button></div>
+  <p>Opt-in and off by default. Tick it (top right) and a startling image may jump onto the screen after some guesses. Silent, no strobing; untick to stop it at once.</p>
+  <p class="note">Fan-made by vibe coded slopware. Not affiliated with, sponsored or endorsed by CaseOh or the brands linked on this page. Kitty is an original illustration.</p>
+  <div class="btns"><button class="btn" type="button" data-close>Let's play</button></div>
 </dialog>
 
 <dialog id="end" aria-labelledby="endTitle">
@@ -185,36 +220,59 @@ dialog p{margin:6px 0;font-size:14.5px}
 (() => {
 'use strict';
 
-// Every answer is a food. Guesses are checked against words.js instead.
+// Rotation answers: food, kitchen and cooking words. The page never names the theme; players find it.
 const ANSWERS = `
-  aioli anise apple arepa bacon bagel basil beans beets berry bison blini bread brine broth bundt
-  cakes candy caper carob chard chili chips chive chops clams clove cocoa crabs cream crepe crust
-  cumin curds curry dates dolma donut dough elote filet flour fries fruit fudge gouda grain grape
-  gravy grits gruel guava gumbo gummy gyoza gyros herbs honey icing jelly jerky kebab kefir knish
-  korma kugel laksa latke leeks lemon limes liver maize mango maple matzo melon mince mochi morel
-  nacho olive onion panko pasta patty peach pears pecan penne pesto pilaf pizza plums prawn prune
-  quail queso raita ramen ranch roast salad salsa satay sauce scone seeds spice spuds squid steak
-  stock sugar sushi swede syrup tacos taffy tapas tarts tater thyme tikka toast torta torte tripe
-  trout unagi wafer wheat wings wurst yeast`.trim().split(/\s+/);
+  aioli anise apple apron arepa bacon bagel baker baste basil beans beets berry bison blini bread
+  brine broil broth bundt cakes candy caper carob carve chard chili chips chive chops clams clove
+  cocoa crabs cream crepe crust cumin curds curry dates diner dolma donut dough elote feast filet
+  flour fries fruit fryer fudge glaze gouda grain grape grate gravy grill grits gruel guava gumbo
+  gummy gyoza gyros herbs honey icing jelly jerky kebab kefir knead knife knish korma kugel ladle
+  laksa latke leeks lemon limes liver lunch maize mango maple matzo melon mince mixer mochi morel
+  nacho olive onion panko pasta patty peach pears pecan penne pesto pilaf pizza plate plums poach
+  prawn prune quail queso raita ramen ranch roast salad salsa satay sauce scone seeds sieve slice
+  snack spice spoon spuds squid steak steam stock stove sugar sushi swede syrup tacos taffy tapas
+  tarts tater thyme tikka toast tongs torta torte tripe trout unagi wafer wheat whisk wings wurst
+  yeast`.trim().split(/\s+/);
+
+// Puzzle #1 is set by request, not drawn from the rotation. Every player's first daily is #1,
+// whatever the date, until they finish it; dated puzzles (#2 onward) come after.
+const INAUGURAL = 'obese';
+// Submitting this word always sets off a scare while Spooky time is on.
+const ALWAYS_SCARE = 'plead';
 
 const $ = s => document.querySelector(s);
 const store = {
   get(k, d) { try { const v = localStorage.getItem('caseodle:' + k); return v ? JSON.parse(v) : d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem('caseodle:' + k, JSON.stringify(v)); } catch {} },
 };
+try { localStorage.removeItem('caseodle:daily'); } catch {}   // pre-#1 save format; never restored
 const calm = matchMedia('(prefers-reduced-motion: reduce)');
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 const GUESSES = new Set((window.CASEODLE_GUESSES || '').match(/[a-z]{5}/g) || []);
 const haveDict = GUESSES.size > 0;
-ANSWERS.forEach(w => GUESSES.add(w));
+[...ANSWERS, INAUGURAL, ALWAYS_SCARE].forEach(w => GUESSES.add(w));
 const isWord = w => !haveDict || GUESSES.has(w);   // if words.js failed to load, don't block play
 
-// Daily order: a fixed shuffle, one food per local calendar day from launch.
+// Dated puzzles: a fixed shuffle of the rotation, one per local calendar day after launch day.
 function mulberry32(a) { return () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 const DAILY = (() => { const r = mulberry32(0xCA5E0D1E), a = ANSWERS.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; })();
 const LAUNCH = Date.UTC(2026, 9, 19);
-function dayIndex() { const d = new Date(); return Math.max(0, Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - LAUNCH) / 864e5)); }
+function todayNum() { const d = new Date(); return 1 + Math.max(0, Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - LAUNCH) / 864e5)); }
+const answerFor = n => n === 1 ? INAUGURAL : DAILY[(n - 2) % DAILY.length];
+
+// Saves are per puzzle and carry their answer, so an old or mismatched save can't stand in for this one.
+function savedRows(n) {
+  const s = store.get('puzzle:' + n, null), answer = answerFor(n), rows = [];
+  if (!s || s.answer !== answer || !Array.isArray(s.guesses)) return rows;
+  for (const w of s.guesses) {
+    if (typeof w !== 'string' || !/^[a-z]{5}$/.test(w)) break;
+    rows.push(w);
+    if (w === answer || rows.length === 6) break;
+  }
+  return rows;
+}
+const finished = n => { const r = savedRows(n); return r.length === 6 || r.includes(answerFor(n)); };
 
 // Two passes so repeated letters are only credited as often as the answer has them.
 function score(guess, answer) {
@@ -263,7 +321,7 @@ const keys = {};
 });
 
 const RANK = { absent: 1, present: 2, correct: 3 };
-const SAY = { correct: 'right spot', present: 'wrong spot', absent: 'not in the food' };
+const SAY = { correct: 'right spot', present: 'wrong spot', absent: 'not in the word' };
 function paintKeys(word, marks) {
   [...word].forEach((ch, i) => {
     const k = keys[ch];
@@ -290,28 +348,25 @@ function reset(mode, answer, num) {
   busy = false;
   tiles.flat().forEach(t => { t.textContent = ''; t.className = 'tile'; t.style.animationDelay = ''; delete t.dataset.s; t.removeAttribute('aria-label'); });
   Object.values(keys).forEach(k => delete k.dataset.s);
-  $('#sub').textContent = mode === 'daily' ? `Daily food #${num}` : 'Random round';
+  $('#sub').textContent = mode === 'daily' ? `Puzzle #${num}` : 'Random round';
   $('#modeBtn').innerHTML = mode === 'daily' ? '🎲<span class="lbl">Random</span>' : '📅<span class="lbl">Daily</span>';
-  $('#modeBtn').setAttribute('aria-label', mode === 'daily' ? 'Play a random round' : 'Back to the daily food');
+  $('#modeBtn').setAttribute('aria-label', mode === 'daily' ? 'Play a random round' : 'Back to the daily puzzle');
 }
 
-function startDaily(showEndIfDone) {
-  const day = dayIndex();
-  reset('daily', DAILY[day % DAILY.length], day + 1);
-  const saved = store.get('daily', null);
-  if (saved && saved.day === day && Array.isArray(saved.guesses)) {
-    for (const w of saved.guesses.slice(0, 6)) {
-      if (typeof w !== 'string' || w.length !== 5) continue;
-      const marks = score(w, game.answer);
-      const r = game.rows.length;
-      game.rows.push({ word: w, marks });
-      reveal(r, w, marks, false);
-      paintKeys(w, marks);
-      if (w === game.answer || game.rows.length === 6) { game.over = true; game.won = w === game.answer; break; }
-    }
-    if (game.over && showEndIfDone) setTimeout(openEnd, 400);
+function playPuzzle(n, showEndIfDone) {
+  reset('daily', answerFor(n), n);
+  for (const w of savedRows(n)) {
+    const marks = score(w, game.answer), r = game.rows.length;
+    game.rows.push({ word: w, marks });
+    reveal(r, w, marks, false);
+    paintKeys(w, marks);
   }
+  game.won = game.rows.some(x => x.word === game.answer);
+  game.over = game.won || game.rows.length === 6;
+  if (game.over && showEndIfDone) setTimeout(openEnd, 400);
 }
+
+const startDaily = showEndIfDone => playPuzzle(finished(1) ? todayNum() : 1, showEndIfDone);
 
 function startRandom() {
   let w;
@@ -368,7 +423,7 @@ async function submit() {
   g.cur = '';
   g.won = w === g.answer;
   g.over = g.won || g.rows.length === 6;
-  if (g.mode === 'daily') store.set('daily', { day: g.num - 1, guesses: g.rows.map(x => x.word) });
+  if (g.mode === 'daily') store.set('puzzle:' + g.num, { answer: g.answer, guesses: g.rows.map(x => x.word) });
   if (g.over) recordStats(g.won, g.rows.length);
 
   busy = true;
@@ -380,7 +435,7 @@ async function submit() {
   if (g.won) celebrate(r);
 
   // Spooky time may strike after any valid row: winning, losing or carrying on.
-  const scare = maybeScare();
+  const scare = maybeScare(w === ALWAYS_SCARE);
   if (!g.over) return;
   await scare;
   await wait(g.won ? 1000 : 450);
@@ -388,7 +443,7 @@ async function submit() {
 }
 
 function celebrate(r) {
-  toast(['Delicious!', 'Chef’s kiss!', 'Order up!', 'Clean plate!', 'Seconds, please!', 'Yum!'][Math.min(r, 5)], 1600);
+  toast(['Incredible!', 'Brilliant!', 'Impressive!', 'Nice!', 'Solid!', 'Phew!'][Math.min(r, 5)], 1600);
   if (calm.matches) return;
   tiles[r].forEach((t, i) => { t.style.animationDelay = `${i * 90}ms`; t.classList.remove('flip'); t.classList.add('hop'); });
   setTimeout(() => tiles[r].forEach(t => { t.style.animationDelay = ''; t.classList.remove('hop'); }), 1100);
@@ -410,19 +465,19 @@ function recordStats(won, n) {
 
 let nextTimer = 0;
 function openEnd() {
-  const s = store.get('stats', blankStats()), done = game.over;
-  $('#endTitle').textContent = !done ? 'Your stats' : game.won ? 'Order up!' : 'Out of guesses';
-  $('#endMsg').textContent = !done ? 'Finish this round to add to them.'
-    : game.won ? `You got ${game.mode === 'daily' ? 'today’s food' : 'it'} in ${game.rows.length}/6.` : 'The food was:';
-  const ans = $('#endWord');
+  const s = store.get('stats', blankStats()), done = game.over, today = todayNum();
+  $('#endTitle').textContent = !done ? 'Your stats' : game.won ? 'Solved!' : 'Out of guesses';
+  const msg = $('#endMsg'), ans = $('#endWord');
   ans.replaceChildren();
-  if (done && !game.won) {
+  if (!done) msg.textContent = 'Finish this round to add to them.';
+  else if (game.won) msg.textContent = `You got ${game.mode === 'daily' ? `puzzle #${game.num}` : 'it'} in ${game.rows.length}/6.`;
+  else {
+    msg.innerHTML = `The answer was:<span class="sr"> ${game.answer}</span>`;
     for (const ch of game.answer) {
       const t = Object.assign(document.createElement('div'), { className: 'tile', textContent: ch });
       t.dataset.s = 'correct';
       ans.appendChild(t);
     }
-    $('#endMsg').innerHTML = `The food was:<span class="sr"> ${game.answer}</span>`;
   }
 
   $('#sPlayed').textContent = s.played;
@@ -440,16 +495,21 @@ function openEnd() {
     return row;
   }));
 
+  // After an earlier puzzle (usually #1), point at today's if it's still unplayed.
+  const nextNum = game.mode === 'daily' && done && game.num !== today && !finished(today) ? today : 0;
+  const again = $('#againBtn');
+  again.dataset.next = nextNum || '';
+  again.textContent = nextNum ? 'Today’s puzzle' : done ? 'Play again' : 'Random round';
   $('#shareBtn').hidden = !done;
-  $('#againBtn').textContent = done ? 'Play again' : 'Random round';
+
   clearInterval(nextTimer);
   const next = $('#next');
   next.textContent = '';
-  if (game.mode === 'daily' && done) {
+  if (game.mode === 'daily' && done && game.num === today) {
     const tick = () => {
       const now = new Date(), mid = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
       const t = Math.max(0, Math.floor((mid - now) / 1000));
-      next.textContent = `Next daily food in ${String(Math.floor(t / 3600)).padStart(2, '0')}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+      next.textContent = `Next daily puzzle in ${String(Math.floor(t / 3600)).padStart(2, '0')}:${String(Math.floor(t / 60) % 60).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
     };
     tick();
     nextTimer = setInterval(tick, 1000);
@@ -462,7 +522,7 @@ function resultText() {
   const grid = game.rows.map(r => r.marks.map(m => m === 'correct' ? '🟩' : m === 'present' ? '🟨' : '⬛').join('')).join('\n');
   const score = `${game.won ? game.rows.length : 'X'}/6`;
   const head = game.mode === 'daily' ? `CaseOdle #${game.num} ${score}` : `CaseOdle (random) ${score}`;
-  return `${head}${spooky.checked ? ' 🧟' : ''}\n\n${grid}\nvibecodedslopware.com/caseodle/`;
+  return `${head}${spooky.checked ? ' · Spooky time' : ''}\n\n${grid}\nvibecodedslopware.com/caseodle/`;
 }
 
 async function copyResult() {
@@ -479,34 +539,45 @@ async function copyResult() {
 }
 
 // ---------- Spooky time ----------
-// Off on every load. When on, roughly one valid guess in three is followed, after a short random
-// pause, by a single silent lunge. Unticking cancels anything pending or on screen.
+// Off on every load. When on, each valid row gets one roll: PLEAD always scares, anything else
+// about one time in three, so the two rules can never both fire. Unticking cancels anything
+// pending or on screen.
 const SCARE_CHANCE = 0.3;
 const spooky = $('#spooky'), scareEl = $('#scare'), scareImgEl = scareEl.querySelector('img');
 let scareImg = null, scareDelay = 0, scareHide = 0, scareDone = null;
 spooky.checked = false;
 
-spooky.addEventListener('change', () => {
-  if (spooky.checked) {
-    if (!scareImg) { scareImg = new Image(); scareImg.src = 'zombie.png'; scareImg.decode?.().catch(() => {}); }
-  } else cancelScare();
-});
+function loadScareImg() {
+  if (scareImg) return;
+  scareImg = new Image();
+  scareImg.src = 'spooky.png';
+  scareImg.decode?.().catch(() => {});
+}
+spooky.addEventListener('change', () => { if (spooky.checked) loadScareImg(); else cancelScare(); });
 addEventListener('pageshow', () => { if (!spooky.checked) cancelScare(); });
-document.addEventListener('visibilitychange', () => { if (document.hidden) cancelScare(); });
 
-function maybeScare() {
-  if (!spooky.checked || Math.random() >= SCARE_CHANCE) return Promise.resolve();
+function maybeScare(forced) {
+  if (!spooky.checked || !(forced || Math.random() < SCARE_CHANCE)) return Promise.resolve();
   cancelScare();
+  loadScareImg();
+  const giveUp = Date.now() + 8000;   // only for an image that won't load
   return new Promise(resolve => {
     scareDone = resolve;
-    scareDelay = setTimeout(runScare, 150 + Math.random() * 750);
+    scareDelay = setTimeout(runScare, 150 + Math.random() * 750, forced, giveUp);
   });
 }
 
-function runScare() {
+function runScare(forced, giveUp) {
   scareDelay = 0;
-  const ready = scareImg && scareImg.complete && scareImg.naturalWidth > 0;
-  if (!spooky.checked || !ready || document.hidden || document.querySelector('dialog[open]')) return cancelScare();
+  if (!spooky.checked) return cancelScare();
+  const ready = scareImg.complete && scareImg.naturalWidth > 0;
+  if (!ready && (scareImg.complete || Date.now() > giveUp)) return cancelScare();
+  if (!ready || document.hidden || document.querySelector('dialog[open]')) {
+    // A random scare just skips; PLEAD's waits for the image, the tab or an open dialog instead.
+    if (!forced) return cancelScare();
+    scareDelay = setTimeout(runScare, 200, forced, giveUp);
+    return;
+  }
   scareImgEl.src = scareImg.src;
   scareEl.classList.remove('on');
   void scareEl.offsetWidth;
@@ -556,7 +627,11 @@ $('#modeBtn').addEventListener('click', e => {
   if (e.detail) e.currentTarget.blur();
   game.mode === 'daily' ? startRandom() : startDaily(false);
 });
-$('#againBtn').addEventListener('click', () => { $('#end').close(); startRandom(); });
+$('#againBtn').addEventListener('click', e => {
+  const n = +e.currentTarget.dataset.next;
+  $('#end').close();
+  n ? playPuzzle(n, false) : startRandom();
+});
 $('#shareBtn').addEventListener('click', copyResult);
 
 startDaily(true);
