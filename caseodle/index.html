@@ -81,18 +81,27 @@ main{flex:1;display:flex;align-items:center;justify-content:center;padding:12px 
 @media (max-height:660px){.key{height:46px}.hdr{margin-top:4px}}
 @media (max-width:400px){.lbl{display:none}.logo{width:38px;height:38px}h1{font-size:23px}.hdr{gap:8px}}
 
-/* product cards: a footer under the game, a quiet sidebar once there's room beside it */
-.shop{width:100%;max-width:500px;margin:0 auto;padding:8px 16px calc(24px + env(safe-area-inset-bottom));display:grid;gap:8px}
-.shop h2{margin:0;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
-.pc{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:inherit;text-decoration:none;transition:border-color .15s}
-.pc:hover,.pc:focus-visible{border-color:var(--tile-on)}
-.pc b{display:block;font-size:14px;line-height:1.25}
-.pc small{display:block;font-size:12px;color:var(--dim)}
-.pi{flex:none;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font:800 12.5px/1 system-ui,sans-serif;color:#fff}
-.go{margin-left:auto;color:var(--dim);font-size:13px}
-@media (min-width:1100px) and (min-height:600px){
-  .shop{position:fixed;right:24px;top:50%;transform:translateY(-50%);width:230px;margin:0;padding:0;opacity:.85;transition:opacity .2s}
-  .shop:hover,.shop:focus-within{opacity:1}
+/* Product spotlight stays outside the game; wide screens have a dedicated side rail. */
+.shop{width:calc(100% - 24px);max-width:760px;margin:18px auto 28px;padding:18px;display:grid;gap:14px;border:3px solid #fff0b0;border-radius:20px;background:#ffc742;color:#17130a;box-shadow:0 8px 0 #9a5600}
+.shop h2{margin:0;font-size:22px;font-weight:900;line-height:1.1;letter-spacing:.01em;text-transform:uppercase;color:#17130a}
+.shop-intro{margin:5px 0 0;font-size:13px;font-weight:700;line-height:1.4}
+.shop-disclosure{margin:8px 0 0;font-size:12px;line-height:1.45;color:#342607}
+.pc{display:grid;grid-template-columns:52px minmax(0,1fr);align-items:center;gap:12px;padding:16px;border:2px solid #fff;border-left:6px solid var(--product-accent);border-radius:14px;background:#fff;color:#151922;text-decoration:none;box-shadow:0 4px 0 #b57409;transition:box-shadow .15s,border-color .15s}
+.pc:hover{border-color:#17130a;box-shadow:0 5px 0 #17130a}
+.pc:focus-visible{outline:3px solid #151922;outline-offset:3px}
+.pc b{display:block;font-size:18px;line-height:1.2}
+.pc small{display:block;margin-top:5px;font-size:13px;line-height:1.35;color:#49515e}
+.pi{width:52px;height:52px;border-radius:12px;display:grid;place-items:center;font:900 20px/1 system-ui,sans-serif;color:#fff;background:var(--product-accent)}
+.go{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;background:#151922;color:#fff;font-size:14px;font-weight:800;line-height:1.25}
+@media (min-width:700px){
+  .shop{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .shop-heading,.shop-disclosure{grid-column:1/-1}
+  .pc{grid-template-columns:1fr;align-content:start}
+  .go{align-self:end}
+}
+@media (min-width:1200px) and (min-height:700px){
+  .shop{position:fixed;right:20px;top:100px;bottom:24px;width:300px;max-height:max-content;margin:0;grid-template-columns:1fr;overflow-y:auto;scrollbar-width:thin}
+  .pc{grid-template-columns:52px minmax(0,1fr)}
 }
 
 #toast{position:fixed;left:50%;top:118px;transform:translateX(-50%);z-index:20;pointer-events:none;background:var(--fg);color:var(--bg);font-weight:700;font-size:14px;padding:9px 14px;border-radius:9px;opacity:0;transition:opacity .2s;white-space:nowrap}
@@ -179,22 +188,22 @@ body{background:#000;isolation:isolate}
   <p class="fine">Fan-made for fun. Not affiliated with or endorsed by CaseOh.</p>
 </div>
 
-<aside class="shop" aria-labelledby="shopTitle">
-  <h2 id="shopTitle">Products</h2>
-  <a class="pc" href="https://starforgesystems.com/" target="_blank" rel="noopener">
-    <span class="pi" style="background:#2f3b73" aria-hidden="true">SF</span>
+<aside class="shop" aria-labelledby="shopTitle" aria-describedby="shopDisclosure">
+  <div class="shop-heading"><h2 id="shopTitle">Product spotlight</h2><p class="shop-intro">Explore the gear, drinks &amp; soap.</p><p class="shop-disclosure" id="shopDisclosure">External shopping links. This fan game is not sponsored or endorsed by these brands.</p></div>
+  <a class="pc" style="--product-accent:#2f3b73" href="https://starforgesystems.com/" target="_blank" rel="noopener">
+    <span class="pi" aria-hidden="true">SF</span>
     <span><b>Starforge Systems</b><small>Gaming PCs</small></span>
-    <span class="go" aria-hidden="true">↗</span><span class="sr"> (opens in a new tab)</span>
+    <span class="go">Shop gaming PCs <span aria-hidden="true">↗</span></span><span class="sr"> (opens in a new tab)</span>
   </a>
-  <a class="pc" href="https://gamersupps.gg/products/caseoh" target="_blank" rel="noopener">
-    <span class="pi" style="background:#1f7f56" aria-hidden="true">GS</span>
+  <a class="pc" style="--product-accent:#176642" href="https://gamersupps.gg/products/caseoh" target="_blank" rel="noopener">
+    <span class="pi" aria-hidden="true">GS</span>
     <span><b>Gamer Supps × CaseOh</b><small>Collab on gamersupps.gg</small></span>
-    <span class="go" aria-hidden="true">↗</span><span class="sr"> (opens in a new tab)</span>
+    <span class="go">View CaseOh collab <span aria-hidden="true">↗</span></span><span class="sr"> (opens in a new tab)</span>
   </a>
-  <a class="pc" href="https://usecheeky.com/products/caseohs-cocomo" target="_blank" rel="noopener">
-    <span class="pi" style="background:#b0506f" aria-hidden="true">C</span>
+  <a class="pc" style="--product-accent:#9a3757" href="https://usecheeky.com/products/caseohs-cocomo" target="_blank" rel="noopener">
+    <span class="pi" aria-hidden="true">C</span>
     <span><b>CaseOh's Cocomo</b><small>Soap from Cheeky</small></span>
-    <span class="go" aria-hidden="true">↗</span><span class="sr"> (opens in a new tab)</span>
+    <span class="go">Shop Cocomo soap <span aria-hidden="true">↗</span></span><span class="sr"> (opens in a new tab)</span>
   </a>
 </aside>
 
