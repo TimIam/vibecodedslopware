@@ -153,9 +153,9 @@ body{background:#000;isolation:isolate}
 <div id="night" aria-hidden="true"><div id="moon"></div><svg id="mist" viewBox="0 0 600 240" preserveAspectRatio="none"><defs><filter id="cloud-noise" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".008 .055" numOctaves="3" seed="17"/><feColorMatrix type="matrix" values="0 0 0 0 .55 0 0 0 0 .6 0 0 0 0 .57 0 0 0 2.8 -1.25"/><feGaussianBlur stdDeviation="1.5"/></filter></defs><rect width="600" height="240" filter="url(#cloud-noise)"/></svg></div>
 <div class="app">
   <div class="topbar">
-    <a class="back" href="/" aria-label="Back to vibe coded slopware"> <span class="vc">vibe coded </span>slopware</a>
+    <a class="back" href="/" aria-label="Back to vibe coded slopware">← <span class="vc">vibe coded </span>slopware</a>
     <div class="tr">
-      <a class="coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee" title="Opens in a new tab"><span aria-hidden="true">?</span> <span class="bm">Buy Me a </span>Coffee</a>
+      <a class="coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee" title="Opens in a new tab"><span aria-hidden="true">☕</span> <span class="bm">Buy Me a </span>Coffee</a>
       <label class="spooky" title="Opt-in: a startling image may appear after some guesses. Includes a sudden loud scream; no strobing."><input type="checkbox" id="spooky" autocomplete="off">Spooky time</label>
     </div>
   </div>
@@ -166,7 +166,7 @@ body{background:#000;isolation:isolate}
       <p id="sub">Guess the word in six</p>
     </div>
     <div class="actions">
-      <button class="ibtn" id="newBtn" type="button" aria-label="New puzzle" hidden>??<span class="lbl">New puzzle</span></button>
+      <button class="ibtn" id="newBtn" type="button" aria-label="New puzzle" hidden>🎲<span class="lbl">New puzzle</span></button>
       <button class="ibtn" id="statsBtn" type="button" aria-label="Statistics"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="2" y="10" width="4" height="8" rx="1"/><rect x="8" y="4" width="4" height="14" rx="1"/><rect x="14" y="7" width="4" height="11" rx="1"/></svg></button>
       <button class="ibtn" id="helpBtn" type="button" aria-label="How to play">?</button>
     </div>
@@ -181,17 +181,17 @@ body{background:#000;isolation:isolate}
   <a class="pc" href="https://starforgesystems.com/" target="_blank" rel="noopener">
     <span class="pi" style="background:#2f3b73" aria-hidden="true">SF</span>
     <span><b>Starforge Systems</b><small>Gaming PCs</small></span>
-    <span class="go" aria-hidden="true">?</span><span class="sr"> (opens in a new tab)</span>
+    <span class="go" aria-hidden="true">↗</span><span class="sr"> (opens in a new tab)</span>
   </a>
   <a class="pc" href="https://gamersupps.gg/products/caseoh" target="_blank" rel="noopener">
     <span class="pi" style="background:#1f7f56" aria-hidden="true">GS</span>
-    <span><b>Gamer Supps x CaseOh</b><small>Collab on gamersupps.gg</small></span>
-    <span class="go" aria-hidden="true">?</span><span class="sr"> (opens in a new tab)</span>
+    <span><b>Gamer Supps × CaseOh</b><small>Collab on gamersupps.gg</small></span>
+    <span class="go" aria-hidden="true">↗</span><span class="sr"> (opens in a new tab)</span>
   </a>
   <a class="pc" href="https://usecheeky.com/products/caseohs-cocomo" target="_blank" rel="noopener">
     <span class="pi" style="background:#b0506f" aria-hidden="true">C</span>
     <span><b>CaseOh's Cocomo</b><small>Soap from Cheeky</small></span>
-    <span class="go" aria-hidden="true">?</span><span class="sr"> (opens in a new tab)</span>
+    <span class="go" aria-hidden="true">↗</span><span class="sr"> (opens in a new tab)</span>
   </a>
 </aside>
 
@@ -200,7 +200,7 @@ body{background:#000;isolation:isolate}
 <div id="scare" aria-hidden="true"><img alt=""></div>
 
 <dialog id="help" aria-labelledby="helpTitle">
-  <button class="x" type="button" aria-label="Close" data-close>x</button>
+  <button class="x" type="button" aria-label="Close" data-close>×</button>
   <h2 id="helpTitle">How to play</h2>
   <p>Guess the five-letter word in six tries. Any real five-letter word counts as a guess.</p>
   <p>Type or tap letters, then hit <b>Enter</b>. Each tile then shows how close you were:</p>
@@ -211,16 +211,16 @@ body{background:#000;isolation:isolate}
   <div class="ex" aria-hidden="true"><div class="tile filled">b</div><div class="tile filled">r</div><div class="tile filled">i</div><div class="tile filled">c</div><div class="tile" data-s="absent">k</div></div>
   <p class="note"><b>Grey</b>: no K anywhere. A letter only lights up as many times as the answer uses it, so a repeat can go grey.</p>
   <h3>Puzzles</h3>
-  <p>Everyone starts with puzzle #1. Finish it and a fresh puzzle is dealt every time: hit <b>Next puzzle</b> (or ??) for as many rounds as you like.</p>
+  <p>Everyone starts with puzzle #1. Finish it and a fresh puzzle is dealt every time: hit <b>Next puzzle</b> (or 🎲) for as many rounds as you like.</p>
   <h3>Spooky time</h3>
   <p>Opt-in and off by default. Tick it (top right) and a startling image may jump onto the screen after some guesses. Includes a sudden loud scream, with no strobing; untick to stop it at once.</p>
-  <p class="note">Scream synthesis adapted from Anthony / TioMothy's <a href="https://corn-maze-horror.vercel.app/" target="_blank" rel="noopener">corn maze game</a>. A short fart plays on each correct solve; use your device or tab volume.</p>
+  <p class="note">Scream synthesis adapted from Anthony / TioMothy’s <a href="https://corn-maze-horror.vercel.app/" target="_blank" rel="noopener">corn maze game</a>. A short fart plays on each correct solve; use your device or tab volume.</p>
   <p class="note">Fan-made by vibe coded slopware. Not affiliated with, sponsored or endorsed by CaseOh or the brands linked on this page. Kitty is an original illustration.</p>
   <div class="btns"><button class="btn" type="button" data-close>Let's play</button></div>
 </dialog>
 
 <dialog id="end" aria-labelledby="endTitle">
-  <button class="x" type="button" aria-label="Close" data-close>x</button>
+  <button class="x" type="button" aria-label="Close" data-close>×</button>
   <h2 id="endTitle"></h2>
   <p id="endMsg"></p>
   <div class="answer" id="endWord" aria-hidden="true"></div>
@@ -320,7 +320,7 @@ const keys = {};
     b.type = 'button';
     b.className = 'key';
     if (ch === '+') { b.dataset.key = 'enter'; b.textContent = 'Enter'; b.classList.add('wide'); }
-    else if (ch === '-') { b.dataset.key = 'back'; b.textContent = '?'; b.classList.add('wide'); b.setAttribute('aria-label', 'Delete'); }
+    else if (ch === '-') { b.dataset.key = 'back'; b.textContent = '⌫'; b.classList.add('wide'); b.setAttribute('aria-label', 'Delete'); }
     else { b.dataset.key = ch; b.textContent = ch; keys[ch] = b; }
     row.appendChild(b);
   }
@@ -411,7 +411,7 @@ function playWinFart() {
   function synthesizeMazeScream(ac) {
     const now = ac.currentTime;
 
-    // Layer 0: SUB-BASS THUMP - instant gut-punch at the start.
+    // Layer 0: SUB-BASS THUMP — instant gut-punch at the start.
     {
       const osc = ac.createOscillator();
       osc.type = 'sine';
@@ -425,7 +425,7 @@ function playWinFart() {
       osc.stop(now + 0.25);
     }
 
-    // Layer 1: HARSH NOISE WALL - heavy, sustained
+    // Layer 1: HARSH NOISE WALL — heavy, sustained
     {
       const dur = 1.7;
       const bufferSize = Math.floor(ac.sampleRate * dur);
@@ -454,7 +454,7 @@ function playWinFart() {
       src.stop(now + dur);
     }
 
-    // Layer 2: SCREAM - descending sawtooth, primary "voice"
+    // Layer 2: SCREAM — descending sawtooth, primary "voice"
     {
       const osc = ac.createOscillator();
       osc.type = 'sawtooth';
@@ -469,7 +469,7 @@ function playWinFart() {
       osc.stop(now + 1.3);
     }
 
-    // Layer 3: HIGH WHISTLE - piercing top end
+    // Layer 3: HIGH WHISTLE — piercing top end
     {
       const osc = ac.createOscillator();
       osc.type = 'square';
@@ -486,7 +486,7 @@ function playWinFart() {
       osc.stop(now + 1.1);
     }
 
-    // Layer 4: DETUNED CHOIR - dissonant pair of low oscillators for dread
+    // Layer 4: DETUNED CHOIR — dissonant pair of low oscillators for dread
     [165, 174].forEach((freq) => {
       const osc = ac.createOscillator();
       osc.type = 'sawtooth';
@@ -501,7 +501,7 @@ function playWinFart() {
       osc.stop(now + 1.7);
     });
 
-    // Layer 5a: HEARTBEAT - low thumps throughout, accelerating
+    // Layer 5a: HEARTBEAT — low thumps throughout, accelerating
     {
       const beats = 8;
       for (let i = 0; i < beats; i++) {
@@ -519,7 +519,7 @@ function playWinFart() {
       }
     }
 
-    // Layer 5c: REVERSED WHISPER - short envelope that swells in then cuts (sounds backward / wrong)
+    // Layer 5c: REVERSED WHISPER — short envelope that swells in then cuts (sounds backward / wrong)
     {
       const dur = 0.9;
       const bufferSize = Math.floor(ac.sampleRate * dur);
@@ -547,7 +547,7 @@ function playWinFart() {
       src.stop(now + 0.3 + dur);
     }
 
-    // Layer 5b: WHISPERS - noise + slow LFO filter, sustained low ghostly layer
+    // Layer 5b: WHISPERS — noise + slow LFO filter, sustained low ghostly layer
     {
       const dur = 1.6;
       const bufferSize = Math.floor(ac.sampleRate * dur);
@@ -576,7 +576,7 @@ function playWinFart() {
       src.stop(now + dur);
     }
 
-    // Layer 6: FINAL STINGER - sharp impact near the end
+    // Layer 6: FINAL STINGER — sharp impact near the end
     {
       const dur = 0.18;
       const bufferSize = Math.floor(ac.sampleRate * dur);
@@ -786,10 +786,10 @@ function openEnd() {
 }
 
 function resultText() {
-  const grid = game.rows.map(r => r.marks.map(m => m === 'correct' ? '??' : m === 'present' ? '??' : '?').join('')).join('\n');
+  const grid = game.rows.map(r => r.marks.map(m => m === 'correct' ? '🟩' : m === 'present' ? '🟨' : '⬛').join('')).join('\n');
   const score = `${game.won ? game.rows.length : 'X'}/6`;
   const head = game.num === 1 ? `CaseOdle #1 ${score}` : `CaseOdle ${score}`;
-  return `${head}${spooky.checked ? ' � Spooky time' : ''}\n\n${grid}\nvibecodedslopware.com/caseodle/`;
+  return `${head}${spooky.checked ? ' · Spooky time' : ''}\n\n${grid}\nvibecodedslopware.com/caseodle/`;
 }
 
 async function copyResult() {
@@ -802,7 +802,7 @@ async function copyResult() {
   let ok = false;
   try { ok = document.execCommand('copy'); } catch {}
   ta.remove();
-  toast(ok ? 'Copied to clipboard' : 'Couldn't copy, sorry');
+  toast(ok ? 'Copied to clipboard' : 'Couldn’t copy, sorry');
 }
 
 // ---------- Spooky time ----------
@@ -913,3 +913,4 @@ if (!store.get('seenHelp', false)) { store.set('seenHelp', true); $('#help').sho
 </script>
 </body>
 </html>
+
