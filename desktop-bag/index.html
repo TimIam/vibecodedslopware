@@ -39,11 +39,16 @@ kbd{font:12.5px Consolas,monospace;border:1px solid var(--line);border-bottom-wi
 footer{margin-top:56px;color:var(--dim);font-size:13px}
 canvas#sky{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
 </style>
+<link rel="stylesheet" href="/site-nav.css">
 </head>
 <body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee (opens in a new tab)"><span aria-hidden="true">☕</span> <span class="site-long">Buy Me a </span>Coffee</a>
+</nav>
+<script src="/site-nav.js"></script>
 <canvas id="sky"></canvas>
 <main>
-  <nav class="top" aria-label="Site"><a class="back" href="/">← vibe coded slopware</a><a class="coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee" title="Opens in a new tab"><span aria-hidden="true">☕</span> Buy Me a Coffee</a></nav>
   <h1>Desktop Bag</h1>
   <p class="lede">A plastic bag drifts across your desktop while you work. Your mouse is the wind.</p>
   <p class="hint">There’s one on this page. Move your mouse near it.</p>

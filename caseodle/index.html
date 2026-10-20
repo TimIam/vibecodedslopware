@@ -160,17 +160,17 @@ body{background:#000;isolation:isolate}
 @media(prefers-reduced-motion:reduce){#mist{animation:none;will-change:auto}}
 
 </style>
+<link rel="stylesheet" href="/site-nav.css">
 </head>
-<body>
+<body class="site-caseodle">
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee (opens in a new tab)"><span aria-hidden="true">☕</span> <span class="site-long">Buy Me a </span>Coffee</a>
+  <label class="spooky" title="Opt-in: a startling image may appear after some guesses. Includes a sudden loud scream; no strobing."><input type="checkbox" id="spooky" autocomplete="off">Spooky time</label>
+</nav>
+<script src="/site-nav.js"></script>
 <div id="night" aria-hidden="true"><div id="moon"></div><svg id="mist" viewBox="0 0 600 240" preserveAspectRatio="none"><defs><filter id="cloud-noise" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".008 .055" numOctaves="3" seed="17"/><feColorMatrix type="matrix" values="0 0 0 0 .55 0 0 0 0 .6 0 0 0 0 .57 0 0 0 2.8 -1.25"/><feGaussianBlur stdDeviation="1.5"/></filter></defs><rect width="600" height="240" filter="url(#cloud-noise)"/></svg></div>
 <div class="app">
-  <div class="topbar">
-    <a class="back" href="/" aria-label="Back to vibe coded slopware">← <span class="vc">vibe coded </span>slopware</a>
-    <div class="tr">
-      <a class="coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee" title="Opens in a new tab"><span aria-hidden="true">☕</span> <span class="bm">Buy Me a </span>Coffee</a>
-      <label class="spooky" title="Opt-in: a startling image may appear after some guesses. Includes a sudden loud scream; no strobing."><input type="checkbox" id="spooky" autocomplete="off">Spooky time</label>
-    </div>
-  </div>
   <header class="hdr">
     <img class="logo" id="logo" src="kitty.svg" alt="" width="46" height="46">
     <div class="brand">

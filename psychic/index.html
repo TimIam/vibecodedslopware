@@ -146,11 +146,17 @@ textarea{width:100%;resize:vertical;min-height:96px;display:block;font-size:19px
 footer{margin-top:52px;color:var(--dim);font-size:15px;max-width:640px;text-shadow:1px 1px 0 #000}
 @media (prefers-reduced-motion:reduce){.wrap,.card,.panel,.stack,.slot{transition:none}.portrait.talking canvas,.portrait::before,.next,.tile.lit.active .st,.item .cur{animation:none}}
 </style>
+<link rel="stylesheet" href="/site-nav.css">
 </head>
 <body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee (opens in a new tab)"><span aria-hidden="true">☕</span> <span class="site-long">Buy Me a </span>Coffee</a>
+  <button id="snd" type="button" aria-pressed="true">♪ SOUND: ON</button>
+</nav>
+<script src="/site-nav.js"></script>
 <canvas id="stars" aria-hidden="true"></canvas>
 <main>
-  <div class="hdr"><a href="/">◀ VIBE CODED SLOPWARE</a><span class="hdr-r"><a class="coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee" title="Opens in a new tab"><span aria-hidden="true">☕</span> Buy Me a Coffee</a><button id="snd" type="button" aria-pressed="true">♪ SOUND: ON</button></span></div>
   <h1>MADAME HAIKU</h1>
   <p class="sub">Tarot · Astrology · Daily horoscopes · One card at a time</p>
 

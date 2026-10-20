@@ -63,8 +63,14 @@ body.idle #chip.show{opacity:1;pointer-events:auto;cursor:pointer}
 #death h2{margin:0 0 6px;font-size:20px}
 #death p{color:var(--dim);margin:8px 0 14px}
 </style>
+<link rel="stylesheet" href="/site-nav.css">
 </head>
-<body>
+<body class="site-bonsai">
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee (opens in a new tab)"><span aria-hidden="true">☕</span> <span class="site-long">Buy Me a </span>Coffee</a>
+</nav>
+<script src="/site-nav.js"></script>
 <canvas id="c"></canvas>
 
 <div id="stats" class="hud fade panel">

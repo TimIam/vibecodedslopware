@@ -31,12 +31,15 @@ a.card:hover{transform:translateY(-2px);border-color:var(--accent)}
 footer{margin-top:48px;color:var(--dim);font-size:13px}
 @media (max-width:520px){a.card{grid-template-columns:48px 1fr}.tag{display:none}.icon{font-size:32px}.icon img{width:44px;height:44px}}
 </style>
+<link rel="stylesheet" href="/site-nav.css">
 </head>
 <body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee (opens in a new tab)"><span aria-hidden="true">☕</span> <span class="site-long">Buy Me a </span>Coffee</a>
+</nav>
+<script src="/site-nav.js"></script>
 <main>
-  <nav class="top" aria-label="Site">
-    <a class="coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee" title="Opens in a new tab"><span aria-hidden="true">☕</span> Buy Me a Coffee</a>
-  </nav>
   <h1>vibe coded <span>slopware</span></h1>
   <p class="lede">Small, weird, lovingly vibe-coded things. No warranty. No roadmap. Some assembly required.</p>
   <div class="grid">
