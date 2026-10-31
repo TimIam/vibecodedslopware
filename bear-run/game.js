@@ -21,6 +21,9 @@ const BODY_R = 0.35;
 // faster than FALL_SPEED for FALL_GRACE seconds and you fall. Below FALL_SPEED you only skid.
 const ACCEL = 4.0;            // downhill acceleration (m/s^2), steeper than the real slope so speed builds quickly
 const TUCK_ACCEL = 1.2;       // extra while tucked
+const PUSH_ACCEL = 4.5;       // double-pole push at a standstill; fades out by PUSH_MAX
+const PUSH_MAX = 15;          // m/s, faster than this the poles can't keep up
+const PLOUGH_DECEL = 6;       // snowplough braking
 const FRICTION = 0.2;
 const DRAG = 0.0055, DRAG_TUCK = 0.0038; // terminal: ~26 m/s upright, ~36 m/s tucked
 const FALL_SLIP = THREE.MathUtils.degToRad(10);
@@ -208,12 +211,15 @@ function makeGate(color) {
 // ---------- skier ----------
 function makeSkier() {
   const root = new THREE.Group();
-  const skis = new THREE.Mesh(merge([
-    piece(new THREE.BoxGeometry(0.11, 0.04, 1.75), 0xffc21a, M(-0.13, 0.03, -0.05)),
-    piece(new THREE.BoxGeometry(0.11, 0.04, 1.75), 0xffc21a, M(0.13, 0.03, -0.05)),
-    piece(new THREE.BoxGeometry(0.11, 0.04, 0.22), 0xffc21a, M(-0.13, 0.08, -0.95, 1, 1, 1, 0.5)),
-    piece(new THREE.BoxGeometry(0.11, 0.04, 0.22), 0xffc21a, M(0.13, 0.08, -0.95, 1, 1, 1, 0.5)),
-  ]), toonMat);
+  // One ski, centred on its binding so it can pivot into a snowplough.
+  const skiGeo = merge([
+    piece(new THREE.BoxGeometry(0.11, 0.04, 1.75), 0xffc21a, M(0, 0.03, -0.05)),
+    piece(new THREE.BoxGeometry(0.11, 0.04, 0.22), 0xffc21a, M(0, 0.08, -0.95, 1, 1, 1, 0.5)),
+  ]);
+  const skis = new THREE.Group();
+  const skiL = new THREE.Mesh(skiGeo, toonMat), skiR = new THREE.Mesh(skiGeo, toonMat);
+  skiL.position.x = -0.13; skiR.position.x = 0.13;
+  skis.add(skiL, skiR);
   const body = new THREE.Group();
   const bodyMesh = new THREE.Mesh(merge([
     piece(new THREE.BoxGeometry(0.16, 0.2, 0.3), 0x22282e, M(-0.13, 0.15, 0)),
@@ -232,12 +238,22 @@ function makeSkier() {
     piece(new THREE.SphereGeometry(0.175, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), 0x1f8a7a, M(0, 1.6, -0.03)),
     piece(new THREE.SphereGeometry(0.07, 8, 6), 0xf6f6f6, M(0, 1.79, 0.0)),
     piece(new THREE.BoxGeometry(0.3, 0.08, 0.06), 0xffa51f, M(0, 1.6, -0.2)),
-    piece(new THREE.CylinderGeometry(0.012, 0.012, 1.15, 5), 0xb9c3cc, M(-0.36, 0.42, -0.02, 1, 1, 1, 0.55, 0, 0.12)),
-    piece(new THREE.CylinderGeometry(0.012, 0.012, 1.15, 5), 0xb9c3cc, M(0.36, 0.42, -0.02, 1, 1, 1, 0.55, 0, -0.12)),
   ]), toonMat);
   body.add(bodyMesh);
+  // Poles hang from the hands and swing from there for a push.
+  const poleGeo = merge([
+    piece(new THREE.CylinderGeometry(0.012, 0.012, 1.15, 5), 0xb9c3cc, M(0, -0.55, 0)),
+    piece(new THREE.TorusGeometry(0.05, 0.01, 4, 8), 0x22282e, M(0, -1.05, 0, 1, 1, 1, Math.PI / 2)),
+  ]);
+  const poles = [];
+  for (const sx of [-1, 1]) {
+    const pivot = new THREE.Group(); pivot.position.set(sx * 0.34, 0.82, -0.26);
+    const m = new THREE.Mesh(poleGeo, toonMat); m.rotation.z = -sx * 0.12; pivot.add(m);
+    pivot.rotation.x = 0.55;
+    body.add(pivot); poles.push(pivot);
+  }
   root.add(skis, body);
-  root.userData = { body, skis };
+  root.userData = { body, skis, skiL, skiR, poles };
   return shadowy(root);
 }
 
@@ -488,7 +504,7 @@ const sfx = {
 };
 
 // ---------- game state ----------
-const player = { x: 0, z: -5, y: 0, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0 };
+const player = { x: 0, z: -5, y: 0, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0, pushPhase: 0, plough: 0 };
 const bear = { on: false, x: 0, z: 0, phase: 0, rear: 0 };
 let state = 'title', score = 0, bonus = 0, best = Number(localStorage.getItem('bearrun-best')) || 0, growlT = 0, overT = 0;
 let camMode = 0, camBlend = 0, camYaw = 0, bearPull = 0, bearGap = Infinity;
@@ -496,11 +512,12 @@ const skier = makeSkier(); scene.add(skier);
 const bearMesh = makeBear(); bearMesh.visible = false; scene.add(bearMesh);
 
 const keys = new Set();
-const touch = { L: false, R: false, T: false };
+const touch = { L: false, R: false, U: false, D: false };
 const input = () => ({
   steer: (keys.has('ArrowRight') || keys.has('KeyD') || touch.R ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('KeyA') || touch.L ? 1 : 0),
-  tuck: keys.has('ArrowDown') || keys.has('KeyS') || touch.T,
-  brake: keys.has('ArrowUp') || keys.has('KeyW'),
+  push: keys.has('ArrowUp') || keys.has('KeyW') || touch.U,      // double-pole push
+  plough: keys.has('ArrowDown') || keys.has('KeyS') || touch.D,  // snowplough
+  tuck: keys.has('ShiftLeft') || keys.has('ShiftRight'),
 });
 
 const bannerEl = $('banner'); let bannerT = 0;
@@ -509,7 +526,7 @@ function banner(html, secs = 1.4) { bannerEl.innerHTML = html; bannerEl.classLis
 function reset() {
   for (const i of [...chunks.keys()]) dropChunk(i);
   seed = (Math.random() * 1e9) | 0;
-  Object.assign(player, { x: 0, z: -5, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0 });
+  Object.assign(player, { x: 0, z: -5, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0, pushPhase: 0, plough: 0 });
   player.y = height(player.x, player.z);
   Object.assign(bear, { on: false, x: 0, z: 0, phase: 0, rear: 0 });
   bearGap = Infinity; bearPull = 0;
@@ -555,7 +572,7 @@ function step(dt, t) {
     const steerRate = 2.8 / (1 + p.v / 25), grip = 2.8 / (1 + p.v / 14);
     if (inp.steer) p.heading += inp.steer * steerRate * dt;
     else p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 2.0 * dt); // skis settle into the travel line
-    if (inp.tuck) p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 4 * dt); // a tuck lines the skis up
+    if (inp.tuck || inp.plough) p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 4 * dt); // a tuck or a plough lines the skis up
     if (p.v < 1) p.vdir = p.heading;
     else {
       const d = wrapAngle(p.heading - p.vdir);
@@ -574,7 +591,12 @@ function step(dt, t) {
     if (p.air) acc = -DRAG * p.v * p.v * 0.5;
     else {
       acc = ACCEL * Math.cos(p.vdir) + (inp.tuck ? TUCK_ACCEL : 0) - FRICTION - (inp.tuck ? DRAG_TUCK : DRAG) * p.v * p.v;
-      if (inp.brake) acc -= 9;
+      // Pole push: each stroke shoves in its first half, then the poles swing forward for the next.
+      if (inp.push) {
+        p.pushPhase = (p.pushPhase + 1.7 * dt) % 1;
+        acc += PUSH_ACCEL * Math.max(0, 1 - p.v / PUSH_MAX) * Math.max(0, Math.sin(p.pushPhase * Math.PI * 2)) * 2;
+      } else if (p.pushPhase > 0) p.pushPhase = p.pushPhase < 0.5 ? Math.min(1, p.pushPhase + 1.7 * dt) % 1 : (p.pushPhase + 1.7 * dt) % 1;
+      if (inp.plough) acc -= PLOUGH_DECEL;
     }
     p.v = Math.max(0, p.v + acc * dt);
   }
@@ -601,6 +623,7 @@ function step(dt, t) {
   } else {
     p.y = g2; p.airT = 0;
   }
+  p.plough += ((inp.plough && !p.air && p.crashT <= 0 ? 1 : 0) - p.plough) * Math.min(1, dt * 10);
   if (!p.air && p.crashT <= 0 && (keys.has('Space') || touch.J)) { keys.delete('Space'); touch.J = false; p.air = true; p.vy = 5.2; p.spin = 0; sfx.jump(); }
 
   // Obstacles, ramps and gates near the player.
@@ -680,7 +703,11 @@ function step(dt, t) {
       stampTrail(p.x, p.z, p.heading, !!lastStamp);
       lastStamp = { x: p.x, z: p.z };
     }
-    if (p.v > 5 && (Math.abs(p.slip) > 0.06 || inp.brake)) {
+    if (p.v > 3 && p.plough > 0.5) {
+      for (const side of [-1, 1]) emitSpray(p.x + Math.cos(p.heading) * 0.25 * side, p.y + 0.05, p.z + Math.sin(p.heading) * 0.25 * side,
+        Math.cos(p.heading) * side * 2 + Math.sin(p.vdir) * p.v * 0.2, 1.2, Math.sin(p.heading) * side * 2 - Math.cos(p.vdir) * p.v * 0.2, 1, 1.2);
+    }
+    if (p.v > 5 && Math.abs(p.slip) > 0.06) {
       const side = p.slip >= 0 ? -1 : 1;
       emitSpray(p.x + Math.cos(p.heading) * 0.3 * side, p.y + 0.1, p.z + Math.sin(p.heading) * 0.3 * side,
         Math.cos(p.heading) * side * 3 + Math.sin(p.vdir) * p.v * 0.3, 1.6, Math.sin(p.heading) * side * 3 - Math.cos(p.vdir) * p.v * 0.3, Math.abs(p.slip) > 0.12 ? 4 : 2, 1.5);
@@ -732,6 +759,13 @@ function poseSkier(dt) {
     body.position.y = 0;
     ud.skis.rotation.set(p.air ? -0.15 : 0, 0, 0);
   }
+  // Snowplough: tips together, tails apart.
+  ud.skiL.rotation.y = -0.38 * p.plough; ud.skiR.rotation.y = 0.38 * p.plough;
+  ud.skiL.position.x = -0.13 - 0.06 * p.plough; ud.skiR.position.x = 0.13 + 0.06 * p.plough;
+  // Poles: a stroke plants ahead and drives back, then swings forward again. Idle, they trail.
+  const stroke = inp.push && !p.air && p.crashT <= 0 ? -0.35 + 0.75 * Math.cos(p.pushPhase * Math.PI * 2) : 0.55;
+  for (const pole of ud.poles) pole.rotation.x += (stroke - pole.rotation.x) * Math.min(1, dt * 14);
+  if (inp.push && !p.air && p.crashT <= 0) body.rotation.x += 0.12 * Math.max(0, Math.sin(p.pushPhase * Math.PI * 2));
 }
 
 const camLook = new V3(), _look = new V3(), _top = new V3(), _f = new V3();
@@ -820,7 +854,7 @@ addEventListener('resize', resize);
 resize();
 
 // ---------- input ----------
-const GAME_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'KeyA', 'KeyD', 'KeyW', 'KeyS']);
+const GAME_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'KeyA', 'KeyD', 'KeyW', 'KeyS', 'ShiftLeft', 'ShiftRight']);
 addEventListener('keydown', e => {
   if (e.target.closest?.('.site-topbar')) return;
   if (e.code === 'KeyC') { toggleCam(); return; }
@@ -832,7 +866,7 @@ addEventListener('keydown', e => {
   if (GAME_KEYS.has(e.code)) { e.preventDefault(); if (!e.repeat) keys.add(e.code); }
 });
 addEventListener('keyup', e => keys.delete(e.code));
-addEventListener('blur', () => { keys.clear(); touch.L = touch.R = touch.T = false; });
+addEventListener('blur', () => { keys.clear(); touch.L = touch.R = touch.U = touch.D = false; });
 
 function hold(id, k) {
   const el = $(id);
@@ -841,7 +875,7 @@ function hold(id, k) {
   el.addEventListener('pointerdown', on);
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, off);
 }
-hold('tL', 'L'); hold('tR', 'R'); hold('tT', 'T'); hold('tJ', 'J');
+hold('tL', 'L'); hold('tR', 'R'); hold('tU', 'U'); hold('tD', 'D'); hold('tJ', 'J');
 
 function toggleCam() {
   camMode = camMode ? 0 : 1;
