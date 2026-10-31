@@ -7,7 +7,7 @@
 // agents that walk through the soil one cell at a time and leave hyphae behind them.
 
 export const W = 160, H = 96;
-export const AIR = 0, SOIL = 1, CLAY = 2, ROCK = 3, WATER = 4, FOOD = 5;
+export const AIR = 0, SOIL = 1, CLAY = 2, ROCK = 3, WATER = 4, FOOD = 5, LROOT = 6;
 export const TPS = 30;             // ticks per second at 1x
 export const DAY = 90 * TPS;       // ticks per in-game day
 export const WEATHER = ['sun', 'cloud', 'rain', 'storm'];
@@ -38,6 +38,17 @@ const UPKEEP = 0.0005;        // energy per hyphae cell per tick
 const DEF_COST = 0.0004;      // extra upkeep per cell per unit of defense allocation
 const EXTRACT = 0.025;         // nutrient pulled per connected food cell per tick
 const SHROOM_COST = 80;
+export const COSTS = { surge: 60, toxin: 45, fruit: SHROOM_COST, lead: 0, retract: 0 };
+const LROOT_INCOME = 0.012;   // a living root trades sugar for minerals, forever
+export const GOALS = [
+  { id: 'food',   text: 'Reach a food source',             reward: 6 },
+  { id: 'root',   text: 'Connect to a living root',        reward: 10 },
+  { id: 'shroom', text: 'Fruit a mushroom',                reward: 6 },
+  { id: 'cache',  text: 'Find something buried',           reward: 6 },
+  { id: 'grub',   text: 'Kill a grub with toxins',         reward: 8 },
+  { id: 'fight',  text: 'Win 25 fights against the rival', reward: 8 },
+  { id: 'spores', text: 'Shed 50 spores',                  reward: 10 },
+];
 
 export class Sim {
   constructor(seed, kind = 'lawn', difficulty = 0) {
@@ -60,14 +71,14 @@ export class Sim {
     this.surfaceCands = [[], []];
     this.hyphCount = [0, 0];
     this.tips = [[], []];
-    this.energy = [500, 500 * (1 + 0.2 * difficulty) * (this.plot.rival || 1)];
+    this.energy = [500, 500 * (1 + 0.12 * difficulty) * (this.plot.rival || 1)];
     this.alloc = [{ grow: .6, def: .2, fruit: .2 }, { grow: .65, def: .25, fruit: .1 }];
     this.core = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
     this.sy = new Int16Array(W);
     this.grubs = [];
     this.shrooms = [];
     this.spores = [0, 0];
-    this.sporeTarget = 90 + 30 * difficulty;
+    this.sporeTarget = 110 + 30 * difficulty;
     this.time = 0;
     this.day = 1;
     this.weather = 'sun';
@@ -80,11 +91,17 @@ export class Sim {
     this.fx = [];
     this.contact = 0;          // recent combat, drives rival AI
     this.aggr = 0.4 + 0.3 * difficulty;
-    this.rivalMult = (1 + 0.12 * difficulty) * (this.plot.rival || 1);
+    this.rivalMult = (1 + 0.08 * difficulty) * (this.plot.rival || 1);
     this.grubTimer = 0;
     this.starving = [false, false];
     this.coreHp = [5, 5];
     this.reachedFood = false;
+    this.pilot = null;             // the tip you steer by hand
+    this.slugs = [];
+    this.slugTimer = 0;
+    this.bonus = new Map();        // cell index -> what is buried there
+    this.goals = GOALS.map(g => ({ ...g, done: false }));
+    this.stats = { fights: 0, grubs: 0, caches: 0, roots: 0, shroomsGrown: 0, slugs: 0, shed: 0 };
     this.generate();
     this.recomputeSmell();
     this.refresh();
@@ -165,12 +182,34 @@ export class Sim {
       const cx = r() * W, cy = 24 + r() * (H - 30);
       blob(cx, cy, 1 + r() * 1.5, 1 + r(), i => feed(i, 90 + r() * 40));
     }
+    // living roots: steady sugar for whoever connects to them
+    const live = 1 + Math.round(r() * Math.min(2, p.roots));
+    for (let k = 0; k < live; k++) {
+      let x = 10 + r() * (W - 20), y = this.sy[Math.round(x)] + 1, a = Math.PI / 2 + (r() - .5) * .8;
+      const len = 18 + r() * 30;
+      for (let st = 0; st < len; st++) {
+        const xi = Math.round(x), yi = Math.round(y);
+        if (xi < 0 || xi >= W || yi >= H) break;
+        const i = yi * W + xi;
+        if (T[i] !== AIR && T[i] !== ROCK && T[i] !== WATER) { T[i] = LROOT; this.food[i] = 0; }
+        a += (r() - .5) * .5; a = Math.PI / 2 + Math.max(-1.1, Math.min(1.1, a - Math.PI / 2));
+        x += Math.cos(a); y += Math.sin(a);
+      }
+    }
+    // buried surprises
+    const kinds = ['seed', 'seed', 'bone', 'print', 'coin', 'beetle'];
+    const caches = 4 + Math.round(r() * 2);
+    for (let k = 0; k < caches; k++) {
+      const cx = Math.floor(4 + r() * (W - 8)), cy = Math.floor(this.sy[cx] + 8 + r() * (H - this.sy[cx] - 12));
+      const i = cy * W + cx;
+      if (T[i] === SOIL || T[i] === CLAY) this.bonus.set(i, kinds[Math.floor(r() * kinds.length)]);
+    }
     // cores
     for (let s = 0; s < 2; s++) {
       const cx = Math.round(s === 0 ? W * .18 + r() * W * .12 : W * .7 + r() * W * .12);
       const cy = Math.round(this.sy[cx] + 16 + r() * 22);
       this.core[s] = { x: cx, y: cy };
-      blob(cx, cy, 2.6, 2.6, i => { if (inSoil(i)) { T[i] = SOIL; this.food[i] = 0; } });
+      blob(cx, cy, 2.6, 2.6, i => { if (inSoil(i)) { T[i] = SOIL; this.food[i] = 0; this.bonus.delete(i); } });
       blob(cx, cy, 1.6, 1.6, i => { this.hyph[s][i] = .6; });
       this.hyph[s][cy * W + cx] = 1;
     }
@@ -187,7 +226,7 @@ export class Sim {
 
   recomputeSmell() {
     const S = this.smell, T = this.terrain, N = W * H;
-    for (let i = 0; i < N; i++) S[i] = T[i] === FOOD ? Math.min(1, this.food[i] / 70) : 0;
+    for (let i = 0; i < N; i++) S[i] = T[i] === FOOD ? Math.min(1, this.food[i] / 70) : T[i] === LROOT ? .5 : 0;
     const tmp = new Float32Array(N);
     for (let k = 0; k < 14; k++) {
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -198,7 +237,7 @@ export class Sim {
         if (x < W - 1) { sum += S[i + 1]; n++; }
         if (y > 0) { sum += S[i - W]; n++; }
         if (y < H - 1) { sum += S[i + W]; n++; }
-        tmp[i] = Math.max(sum / n, t === FOOD ? Math.min(1, this.food[i] / 70) : 0);
+        tmp[i] = Math.max(sum / n, t === FOOD ? Math.min(1, this.food[i] / 70) : t === LROOT ? .5 : 0);
       }
       S.set(tmp);
     }
@@ -216,7 +255,10 @@ export class Sim {
     if (t % (this.weather === 'storm' ? 200 : 450) === 0) this.leafFall();
     this.cellPass();
     for (let s = 0; s < 2; s++) this.growTips(s);
+    if (this.pilot) this.updatePilot();
     this.updateGrubs();
+    this.updateSlugs();
+    if (t % 30 === 0) this.checkGoals();
     this.updateShrooms();
     if (this.spade) this.updateSpade();
     if (t % 60 === 0) this.rivalAI();
@@ -328,6 +370,7 @@ export class Sim {
         if (d <= 0) { if (tx[i] > 0.001) tx[i] *= .985; else if (tx[i]) tx[i] = 0; continue; }
         if (cn[i]) {
           if (!starving) d += .0006;
+          if (T[i] === LROOT) { income[s] += LROOT_INCOME; if (s === 0 && !this.stats.roots) { this.stats.roots = 1; this.say('A living root! It trades sugar for your minerals: steady energy, forever.'); this.fx.push({ type: 'text', x: i % W, y: (i - i % W) / W, text: 'living root!', col: '#b8e08a' }); } }
           if (T[i] === FOOD && this.energy[s] + income[s] < cap) {
             const take = Math.min(this.food[i], EXTRACT * Math.min(1, d * 2));
             this.food[i] -= take; income[s] += take;
@@ -391,7 +434,7 @@ export class Sim {
       const tip = tips[k];
       const ci = Math.round(tip.y) * W + Math.round(tip.x);
       const m = M[ci] || 0;
-      const speed = .06 + .08 * Math.min(1, m * 1.6);
+      const speed = .07 + .09 * Math.min(1, m * 1.6);
       if (r() > speed) continue;
       if (this.energy[s] < STEP_COST || tip.life-- <= 0 || r() < .004) { tips.splice(k, 1); continue; }
       this.steer(tip, s);
@@ -402,34 +445,217 @@ export class Sim {
       if (t === ROCK || t === AIR || t === WATER) { tip.a += Math.PI * (.5 + r()); tip.life -= 3; continue; }
       if (t === CLAY && r() < .55) continue;
       this.energy[s] -= hy[i] > 0 ? STEP_COST * .15 : STEP_COST;
-      const e = en[i];
-      if (e > 0) {
-        // fight for the cell
-        const from = hy[Math.round(tip.y) * W + Math.round(tip.x)] || .3;
-        const atk = from * (1 + 2 * this.alloc[s].def) + this.tox[s][i] * 1.5 + r() * .9 + (s === 1 ? .15 * this.difficulty : 0);
-        const dfn = e * (1 + 2 * this.alloc[1 - s].def) + this.tox[1 - s][i] * 1.5 + r() * .8;
-        this.contact++;
-        const ec = this.core[1 - s];
-        if (cx === ec.x && cy === ec.y) {
-          if (atk > dfn + 1) {
-            this.coreHp[1 - s]--;
-            if (s === 1) this.say(this.coreHp[0] > 0 ? `The rival is attacking your core! (${this.coreHp[0]} left)` : 'Your core has been consumed.');
-            else this.say(this.coreHp[1] > 0 ? `You are eating into the rival core! (${this.coreHp[1]} left)` : 'The rival core is consumed.');
-            if (this.coreHp[1 - s] <= 0) { this.state = s === 0 ? 'won' : 'lost'; this.result = s === 0 ? 'rival' : 'consumed'; }
-          }
-          tips.splice(k, 1); continue;
-        }
-        if (atk > dfn) {
-          en[i] = e - .6 > .05 ? e - .6 : 0;
-          if (en[i] === 0 && hy[i] === 0) hy[i] = .3;
-          if (s === 1 && r() < .02) this.say('The rival is eating into your network!');
-          if (s === 0 && r() < .02) this.say('Your hyphae are pushing the rival back.');
-        } else { tips.splice(k, 1); continue; }
+      if (en[i] > 0) {
+        const res = this.attack(s, hy[Math.round(tip.y) * W + Math.round(tip.x)] || .3, cx, cy, 0);
+        if (res !== 'won') { tips.splice(k, 1); continue; }
         if (en[i] > 0) { tip.a += Math.PI * (.6 + r() * .8); continue; }
       }
-      if (hy[i] <= 0) hy[i] = .3; else hy[i] = Math.min(1, hy[i] + .05);
+      if (hy[i] <= 0) { hy[i] = .3; this.enter(s, i); } else hy[i] = Math.min(1, hy[i] + .05);
       tip.x = nx; tip.y = ny;
       if (r() < .04 && tips.length < want) tips.push({ x: tip.x, y: tip.y, a: tip.a + (r() < .5 ? -1 : 1) * (.6 + r() * .7), life: 25 + r() * 60 });
+    }
+  }
+
+  // One colony's tip tries to take cell (cx,cy) from the other. Returns 'won', 'lost' or 'core'.
+  attack(s, from, cx, cy, bonus) {
+    const i = cy * W + cx, en = this.hyph[1 - s], hy = this.hyph[s], r = this.rnd, e = en[i];
+    const atk = from * (1 + 2 * this.alloc[s].def) + this.tox[s][i] * 1.5 + r() * .9 + bonus + (s === 1 ? .15 * this.difficulty : 0);
+    const dfn = e * (1 + 2 * this.alloc[1 - s].def) + this.tox[1 - s][i] * 1.5 + r() * .8;
+    this.contact++;
+    const ec = this.core[1 - s];
+    if (cx === ec.x && cy === ec.y) {
+      if (atk > dfn + 1) {
+        this.coreHp[1 - s]--;
+        if (s === 1) this.say(this.coreHp[0] > 0 ? `The rival is attacking your core! (${this.coreHp[0]} left)` : 'Your core has been consumed.');
+        else this.say(this.coreHp[1] > 0 ? `You are eating into the rival core! (${this.coreHp[1]} left)` : 'The rival core is consumed.');
+        this.fx.push({ type: 'text', x: cx, y: cy, text: s === 0 ? 'core hit!' : 'core under attack!', col: '#ff8a6a' });
+        if (this.coreHp[1 - s] <= 0) { this.state = s === 0 ? 'won' : 'lost'; this.result = s === 0 ? 'rival' : 'consumed'; }
+      }
+      return 'core';
+    }
+    if (atk > dfn) {
+      en[i] = e - .6 > .05 ? e - .6 : 0;
+      if (en[i] === 0 && hy[i] === 0) hy[i] = .3;
+      if (s === 0) this.stats.fights++;
+      if (s === 1 && r() < .02) this.say('The rival is eating into your network!');
+      if (s === 0 && r() < .02) this.say('Your hyphae are pushing the rival back.');
+      return 'won';
+    }
+    return 'lost';
+  }
+
+  // A colony grew into a fresh cell: anything buried there?
+  enter(s, i) {
+    if (s !== 0) return;
+    const b = this.bonus.get(i); if (!b) return;
+    this.bonus.delete(i);
+    const x = i % W, y = (i - x) / W, T = this.terrain;
+    this.stats.caches++;
+    const feedAround = (amt, rad) => { for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) { const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; const j = yy * W + xx; if (T[j] === SOIL || T[j] === CLAY || T[j] === FOOD) { T[j] = FOOD; this.food[j] += amt; } } };
+    if (b === 'seed') { this.energy[0] += 120; this.say('A buried seed, full of starch. +120 energy.'); this.fx.push({ type: 'text', x, y, text: '+120 energy', col: '#ffe27a' }); }
+    else if (b === 'bone') { feedAround(60, 1); this.say('An old bone. Slow food, but plenty of it.'); this.fx.push({ type: 'text', x, y, text: 'a bone!', col: '#eee8ce' }); }
+    else if (b === 'beetle') { feedAround(90, 1); this.say('A dead beetle. Dinner.'); this.fx.push({ type: 'text', x, y, text: 'dead beetle!', col: '#eee8ce' }); }
+    else if (b === 'print') { this.spores[0] += 15; this.say('A spore print from an older colony. +15 spores.'); this.fx.push({ type: 'text', x, y, text: '+15 spores', col: '#fffbe8' }); }
+    else { this.say('A coin. Fungi have no use for money.'); this.fx.push({ type: 'text', x, y, text: 'a coin. useless.', col: '#c8c8c8' }); }
+    this.fx.push({ type: 'bonus', x, y });
+  }
+
+  // ---------- the lead tip: the one you steer ----------
+  lead(x, y, start) {
+    if (start || !this.pilot) {
+      const list = this.connList[0]; let best = -1, bd = 1e9;
+      for (const i of list) { const cx = i % W, cy = (i - cx) / W; const d = (cx - x) * (cx - x) + (cy - y) * (cy - y); if (d < bd) { bd = d; best = i; } }
+      if (best < 0) return;
+      this.pilot = { x: best % W, y: Math.floor(best / W), tx: x, ty: y, t: 0, stuck: 0 };
+    } else { this.pilot.tx = x; this.pilot.ty = y; }
+  }
+  release() {
+    const p = this.pilot; if (!p) return;
+    this.tips[0].push({ x: p.x, y: p.y, a: Math.atan2(p.ty - p.y, p.tx - p.x), life: 40 });
+    this.pilot = null;
+  }
+  updatePilot() {
+    const p = this.pilot, T = this.terrain, hy = this.hyph[0], en = this.hyph[1], r = this.rnd;
+    p.t++;
+    const dx = p.tx - p.x, dy = p.ty - p.y, dist = Math.hypot(dx, dy);
+    if (dist < .7) return;
+    const m = this.moist[Math.round(p.y) * W + Math.round(p.x)] || 0;
+    if (r() > .28 + .3 * Math.min(1, m * 1.6)) return;
+    if (this.energy[0] < STEP_COST) return;
+    const a0 = Math.atan2(dy, dx);
+    let cx = -1, cy = -1, i = -1;
+    for (const da of [0, .8, -.8, 1.5, -1.5]) {
+      const a = a0 + da, nx = p.x + Math.cos(a), ny = p.y + Math.sin(a);
+      const tx = Math.round(nx), ty = Math.round(ny);
+      if (tx < 0 || ty < 0 || tx >= W || ty >= H) continue;
+      const t = T[ty * W + tx];
+      if (t === ROCK || t === AIR || t === WATER) continue;
+      cx = tx; cy = ty; i = ty * W + tx; p.nx = nx; p.ny = ny; break;
+    }
+    if (i < 0) { p.stuck++; return; }
+    if (T[i] === CLAY && r() < .4) return;
+    if (en[i] > 0) {
+      this.energy[0] -= STEP_COST;
+      const res = this.attack(0, Math.max(.5, hy[Math.round(p.y) * W + Math.round(p.x)] || .5), cx, cy, .6);
+      if (res === 'core') return;
+      if (res === 'lost') { this.energy[0] -= 4; return; }
+      if (en[i] > 0) return;
+    }
+    this.energy[0] -= hy[i] > 0 ? STEP_COST * .15 : STEP_COST * 1.2;
+    if (hy[i] <= 0) { hy[i] = .5; this.conn[0][i] = 1; this.enter(0, i); } else hy[i] = Math.min(1, hy[i] + .1);
+    p.x = p.nx; p.y = p.ny;
+  }
+
+  // ---------- abilities ----------
+  nearConnected(x, y, rad) {
+    const out = [], cn = this.conn[0];
+    for (let yy = y - rad; yy <= y + rad; yy++) for (let xx = x - rad; xx <= x + rad; xx++) {
+      if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+      if ((xx - x) * (xx - x) + (yy - y) * (yy - y) > rad * rad) continue;
+      const i = yy * W + xx; if (cn[i] && this.hyph[0][i] > 0) out.push(i);
+    }
+    return out;
+  }
+  surge(x, y) {
+    if (this.energy[0] < COSTS.surge) return `Surge needs ${COSTS.surge} energy.`;
+    const cells = this.nearConnected(x, y, 5);
+    if (!cells.length) return 'Your network has to reach here first.';
+    this.energy[0] -= COSTS.surge;
+    const r = this.rnd;
+    for (let k = 0; k < 8; k++) {
+      const i = cells[Math.floor(r() * cells.length)], cx = i % W, cy = (i - cx) / W;
+      this.tips[0].push({ x: cx, y: cy, a: Math.atan2(y - cy, x - cx) + (r() - .5) * 2.4, life: 50 + r() * 40 });
+    }
+    this.fx.push({ type: 'surge', x, y });
+    return '';
+  }
+  toxinBurst(x, y) {
+    if (this.energy[0] < COSTS.toxin) return `A toxin burst needs ${COSTS.toxin} energy.`;
+    if (!this.nearConnected(x, y, 7).length) return 'Your network has to reach here first.';
+    this.energy[0] -= COSTS.toxin;
+    const T = this.terrain, tx = this.tox[0], en = this.hyph[1];
+    for (let yy = y - 4; yy <= y + 4; yy++) for (let xx = x - 4; xx <= x + 4; xx++) {
+      if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+      const d2 = (xx - x) * (xx - x) + (yy - y) * (yy - y); if (d2 > 17) continue;
+      const i = yy * W + xx; if (T[i] === AIR || T[i] === ROCK) continue;
+      tx[i] = 1;
+      if (en[i] > 0) { const ec = this.core[1]; if (!(ec.x === xx && ec.y === yy)) { en[i] = Math.max(0, en[i] - .5); if (en[i] === 0) this.stats.fights++; } }
+    }
+    for (const g of this.grubs) if (Math.hypot(g.x - x, g.y - y) < 5.5) { g.hp -= 6; g.hurt = 15; }
+    for (const sl of this.slugs) if (Math.abs(sl.x - x) < 5.5 && Math.abs(this.sy[Math.round(sl.x)] - y) < 5.5) { sl.hp -= 6; sl.hurt = 15; }
+    this.fx.push({ type: 'toxin', x, y });
+    return '';
+  }
+  fruitAt(x) {
+    if (this.energy[0] < COSTS.fruit) return `A mushroom costs ${COSTS.fruit} energy.`;
+    let best = -1, bd = 99;
+    for (const cx of this.surfaceCands[0]) { const d = Math.abs(cx - x); if (d < bd && d <= 4) { bd = d; best = cx; } }
+    if (best < 0) return 'Your network has to touch the surface here.';
+    if (this.shrooms.some(m => Math.abs(m.x - best) < 4 && m.phase < 2)) return 'Too close to another mushroom.';
+    this.energy[0] -= COSTS.fruit;
+    this.shrooms.push({ x: best, side: 0, t: 0, phase: 0, kind: Math.floor(this.rnd() * 3), size: 7 + this.rnd() * 5, flip: this.rnd() < .5, stage: 0 });
+    this.stats.shroomsGrown++;
+    return '';
+  }
+  retract(x, y) {
+    const hy = this.hyph[0], c = this.core[0]; let n = 0;
+    for (let yy = y - 3; yy <= y + 3; yy++) for (let xx = x - 3; xx <= x + 3; xx++) {
+      if (xx < 0 || yy < 0 || xx >= W || yy >= H || (xx === c.x && yy === c.y)) continue;
+      if ((xx - x) * (xx - x) + (yy - y) * (yy - y) > 10) continue;
+      const i = yy * W + xx; if (hy[i] > 0) { hy[i] = 0; this.conn[0][i] = 0; this.scent[i] = 0; n++; }
+    }
+    if (!n) return '';
+    this.tips[0] = this.tips[0].filter(t => Math.hypot(t.x - x, t.y - y) > 3.5);
+    if (this.pilot && Math.hypot(this.pilot.x - x, this.pilot.y - y) < 3.5) this.pilot = null;
+    this.energy[0] += n * .25;
+    this.fx.push({ type: 'text', x, y, text: `+${Math.round(n * .25)}`, col: '#9aa894' });
+    return '';
+  }
+
+  // ---------- slugs raid the surface ----------
+  updateSlugs() {
+    const r = this.rnd, tod = (this.time % DAY) / DAY, night = tod < .22 || tod > .83, rain = this.weather === 'rain' || this.weather === 'storm';
+    const mine = this.shrooms.filter(m => m.side === 0 && m.phase < 2);
+    const max = 1 + (this.difficulty > 1 ? 1 : 0);
+    if (this.time > TPS * 40 && mine.length && this.slugs.length < max && ++this.slugTimer > TPS * (night || rain ? 20 : 45)) {
+      this.slugTimer = 0;
+      const left = r() < .5;
+      this.slugs.push({ x: left ? 0 : W - 1, dir: left ? 1 : -1, hp: 5, t: 0, hurt: 0, bite: 0 });
+      this.say('A slug is sliding toward your mushrooms. Toxins (or a toxin burst) will see it off.');
+    }
+    for (let k = this.slugs.length - 1; k >= 0; k--) {
+      const sl = this.slugs[k]; sl.t++; if (sl.hurt > 0) sl.hurt--;
+      let target = null, bd = 1e9;
+      for (const m of mine) { const d = Math.abs(m.x - sl.x); if (d < bd) { bd = d; target = m; } }
+      if (target && bd < 1.2) {
+        sl.bite++;
+        target.bitten = (target.bitten || 0) + 1;
+        if (target.bitten > 100) { this.shrooms.splice(this.shrooms.indexOf(target), 1); this.say('A slug ate one of your mushrooms.'); this.fx.push({ type: 'text', x: target.x, y: this.sy[target.x] - 3, text: 'munch', col: '#d0b090' }); }
+        const i = this.sy[target.x] * W + target.x;
+        const dmg = this.tox[0][i] * .08; if (dmg > 0) { sl.hp -= dmg; if (dmg > .01) sl.hurt = 3; }
+      } else {
+        const dir = target ? Math.sign(target.x - sl.x) : sl.dir;
+        sl.x += dir * .09; sl.dir = dir;
+        if (sl.x < -2 || sl.x > W + 1) { this.slugs.splice(k, 1); continue; }
+      }
+      if (sl.hp <= 0) {
+        this.slugs.splice(k, 1); this.stats.slugs++;
+        const cx = Math.round(Math.max(0, Math.min(W - 1, sl.x))), T = this.terrain;
+        for (let dx = -1; dx <= 1; dx++) { const xx = cx + dx; if (xx < 0 || xx >= W) continue; const i = this.sy[xx] * W + xx; if (T[i] === SOIL || T[i] === CLAY || T[i] === FOOD) { T[i] = FOOD; this.food[i] += 50; } }
+        this.fx.push({ type: 'grubdeath', x: cx, y: this.sy[cx] - 1 });
+        this.say('The slug is dead. Slug is food.');
+      }
+    }
+  }
+
+  checkGoals() {
+    const st = this.stats;
+    const done = { food: this.reachedFood, root: st.roots > 0, shroom: st.shroomsGrown > 0, cache: st.caches > 0, grub: st.grubs > 0, fight: st.fights >= 25, spores: st.shed >= 50 };
+    for (const g of this.goals) {
+      if (g.done || !done[g.id]) continue;
+      g.done = true; this.spores[0] += g.reward;
+      this.say(`Goal: ${g.text}. +${g.reward} spores.`);
+      this.fx.push({ type: 'text', x: this.core[0].x, y: this.core[0].y - 2, text: `goal! +${g.reward} spores`, col: '#fffbe8' });
     }
   }
 
@@ -486,7 +712,7 @@ export class Sim {
   updateGrubs() {
     const r = this.rnd, T = this.terrain;
     const max = Math.round(1 + this.difficulty * .5 + this.plot.grubs);
-    if (this.time > TPS * 20 && ++this.grubTimer > (TPS * 26) / this.plot.grubs && this.grubs.length < max) {
+    if (this.time > TPS * 20 && ++this.grubTimer > (TPS * 18) / this.plot.grubs && this.grubs.length < max) {
       this.grubTimer = 0;
       const left = r() < .5, x = left ? 0 : W - 1;
       let y = this.sy[x] + 4 + Math.floor(r() * (H * .6));
@@ -547,7 +773,7 @@ export class Sim {
           const j = yy * W + xx;
           if (T[j] === SOIL || T[j] === CLAY || T[j] === FOOD) { T[j] = FOOD; this.food[j] += (dx || dy) ? 35 : 70; }
         }
-        this.fx.push({ type: 'grubdeath', x: cx, y: cy });
+        this.fx.push({ type: 'grubdeath', x: cx, y: cy }); this.stats.grubs++;
         this.say('A grub died of your toxins. Waste not: it is food now.');
       }
     }
@@ -565,6 +791,7 @@ export class Sim {
           if (!this.shrooms.some(m => Math.abs(m.x - x) < 5)) {
             this.energy[s] -= SHROOM_COST;
             this.shrooms.push({ x, side: s, t: 0, phase: 0, kind: Math.floor(r() * 3), size: 6 + r() * 5, flip: r() < .5, stage: 0 });
+            if (s === 0) this.stats.shroomsGrown++;
             if (s === 0 && this.shrooms.filter(m => m.side === 0).length === 1) this.say('A mushroom breaks the surface! It will shed spores when grown.');
           }
         }
@@ -577,7 +804,7 @@ export class Sim {
       if (m.phase === 0) { m.stage = Math.min(1, m.t / GROW); if (m.t >= GROW) { m.phase = 1; m.t = 0; } }
       else if (m.phase === 1) {
         m.stage = 1;
-        if (Math.floor(m.t) % 40 === 0) { this.spores[m.side]++; this.fx.push({ type: 'spore', x: m.x, y: this.sy[m.x], side: m.side, size: m.size }); }
+        if (Math.floor(m.t) % 30 === 0) { this.spores[m.side]++; if (!m.side) this.stats.shed++; this.fx.push({ type: 'spore', x: m.x, y: this.sy[m.x], side: m.side, size: m.size }); }
         if (m.t >= SPORE) { m.phase = 2; m.t = 0; }
       } else { m.stage = Math.max(0, 1 - m.t / WILT); if (m.t >= WILT) this.shrooms.splice(k, 1); }
     }
