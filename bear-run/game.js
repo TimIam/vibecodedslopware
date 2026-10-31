@@ -15,6 +15,19 @@ const EDGE = 38;              // beyond |x| > EDGE the run banks up into forest
 const AHEAD = 6, BEHIND = 2;  // chunks kept ahead of / behind the player
 const BEAR_WAKES = 200;       // metres before the bear joins
 const BODY_R = 0.35;
+// Skiing model. The skier has a facing (heading, where the skis point) and a travel direction
+// (vdir). Steering turns the facing; the edges drag the travel direction after it, more slowly
+// the faster you go. The difference is the slip angle: hold more than FALL_SLIP while moving
+// faster than FALL_SPEED for FALL_GRACE seconds and you fall. Below FALL_SPEED you only skid.
+const ACCEL = 4.0;            // downhill acceleration (m/s^2), steeper than the real slope so speed builds quickly
+const TUCK_ACCEL = 1.2;       // extra while tucked
+const FRICTION = 0.2;
+const DRAG = 0.0055, DRAG_TUCK = 0.0038; // terminal: ~26 m/s upright, ~36 m/s tucked
+const FALL_SLIP = THREE.MathUtils.degToRad(10);
+const FALL_SPEED = 11;        // m/s, about 40 km/h
+const FALL_GRACE = 0.15;
+const LAND_SLIP = THREE.MathUtils.degToRad(30); // land within this of your travel line and the skis bite
+const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
 // ---------- renderer / scene ----------
 const canvas = $('game');
@@ -475,7 +488,7 @@ const sfx = {
 };
 
 // ---------- game state ----------
-const player = { x: 0, z: -5, y: 0, vy: 0, v: 0, heading: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0 };
+const player = { x: 0, z: -5, y: 0, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0 };
 const bear = { on: false, x: 0, z: 0, phase: 0, rear: 0 };
 let state = 'title', score = 0, bonus = 0, best = Number(localStorage.getItem('bearrun-best')) || 0, growlT = 0, overT = 0;
 let camMode = 0, camBlend = 0, camYaw = 0, bearPull = 0, bearGap = Infinity;
@@ -496,7 +509,7 @@ function banner(html, secs = 1.4) { bannerEl.innerHTML = html; bannerEl.classLis
 function reset() {
   for (const i of [...chunks.keys()]) dropChunk(i);
   seed = (Math.random() * 1e9) | 0;
-  Object.assign(player, { x: 0, z: -5, vy: 0, v: 0, heading: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0 });
+  Object.assign(player, { x: 0, z: -5, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0 });
   player.y = height(player.x, player.z);
   Object.assign(bear, { on: false, x: 0, z: 0, phase: 0, rear: 0 });
   bearGap = Infinity; bearPull = 0;
@@ -518,7 +531,7 @@ function start() {
 
 function crash() {
   if (player.crashT > 0) return;
-  player.crashT = 1.3; player.v *= 0.1; player.spin = 0;
+  player.crashT = 1.3; player.v *= 0.1; player.spin = 0; player.slipT = 0;
   sfx.crash();
   emitSpray(player.x, player.y + 0.5, player.z, 0, 2, 0, 40, 4);
   banner('Wipeout!', 0.9);
@@ -529,49 +542,66 @@ const _p = new V3(), _up = new V3(0, 1, 0), _yaw = new THREE.Quaternion(), _tilt
 function step(dt, t) {
   const inp = input();
   const p = player;
-  const ground = height(p.x, p.z);
+  const prevZ = p.z;
   if (p.crashT > 0) {
     p.crashT -= dt;
     p.v = Math.max(0, p.v - 12 * dt);
-    if (p.crashT <= 0) { p.heading *= 0.3; p.crashT = 0; }
+    if (p.crashT <= 0) { p.crashT = 0; p.vdir = p.heading; p.slip = 0; p.slipT = 0; }
   } else if (p.air) {
-    p.spin += inp.steer * 7.5 * dt;
+    p.heading += inp.steer * 6.5 * dt; p.spin += inp.steer * 6.5 * dt;
   } else {
     p.steer += (inp.steer - p.steer) * Math.min(1, dt * 10);
-    p.heading += inp.steer * 2.3 * dt;
-    if (inp.tuck) p.heading -= p.heading * Math.min(1, 2.2 * dt);
-    p.heading = THREE.MathUtils.clamp(p.heading, -1.45, 1.45);
+    // Turning the skis is quick when slow and heavy when fast; the edges follow more slowly still.
+    const steerRate = 2.8 / (1 + p.v / 25), grip = 2.8 / (1 + p.v / 14);
+    if (inp.steer) p.heading += inp.steer * steerRate * dt;
+    else p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 2.0 * dt); // skis settle into the travel line
+    if (inp.tuck) p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 4 * dt); // a tuck lines the skis up
+    if (p.v < 1) p.vdir = p.heading;
+    else {
+      const d = wrapAngle(p.heading - p.vdir);
+      p.vdir += THREE.MathUtils.clamp(d, -grip * dt, grip * dt);
+      p.vdir -= Math.sin(p.vdir) * 0.5 * dt; // the slope pulls your line downhill
+    }
+    p.heading = wrapAngle(p.heading); p.vdir = wrapAngle(p.vdir);
+    p.slip = wrapAngle(p.heading - p.vdir);
+    // Skidding scrubs speed; hold it too long at speed and you go down.
+    p.v = Math.max(0, p.v - Math.abs(Math.sin(p.slip)) * p.v * 1.5 * dt);
+    if (Math.abs(p.slip) > FALL_SLIP && p.v > FALL_SPEED) { p.slipT += dt; if (p.slipT > FALL_GRACE) crash(); }
+    else p.slipT = Math.max(0, p.slipT - dt * 2);
   }
   if (p.crashT <= 0) {
-    const drag = inp.tuck ? 0.0031 : 0.0046;
-    let a = G_ALONG * Math.cos(p.heading) - 0.35 - drag * p.v * p.v;
-    if (!p.air) a -= Math.abs(p.steer) * p.v * 0.06 + (inp.brake ? 7 : 0);
-    else a = -drag * p.v * p.v * 0.5;
-    p.v = Math.max(0, p.v + a * dt);
+    let acc;
+    if (p.air) acc = -DRAG * p.v * p.v * 0.5;
+    else {
+      acc = ACCEL * Math.cos(p.vdir) + (inp.tuck ? TUCK_ACCEL : 0) - FRICTION - (inp.tuck ? DRAG_TUCK : DRAG) * p.v * p.v;
+      if (inp.brake) acc -= 9;
+    }
+    p.v = Math.max(0, p.v + acc * dt);
   }
-  const dx = Math.sin(p.heading) * p.v * dt, dz = -Math.cos(p.heading) * p.v * dt;
-  const prevZ = p.z;
+  const dx = Math.sin(p.vdir) * p.v * dt, dz = -Math.cos(p.vdir) * p.v * dt;
   p.x = THREE.MathUtils.clamp(p.x + dx, -WIDTH / 2 + 4, WIDTH / 2 - 4); p.z += dz;
   const g2 = height(p.x, p.z);
   if (p.air) {
     p.vy -= 20 * dt; p.y += p.vy * dt; p.airT += dt;
     if (p.y <= g2) {
       p.y = g2; p.air = false;
-      const turns = Math.round(p.spin / (Math.PI * 2)), off = Math.abs(p.spin - turns * Math.PI * 2);
-      if (off > 0.75) crash();
+      p.heading = wrapAngle(p.heading);
+      const slip = wrapAngle(p.heading - p.vdir);
+      if (Math.abs(slip) > LAND_SLIP && p.v > 4) crash();
       else {
+        p.vdir = p.heading; p.slip = 0; p.slipT = 0; // the skis bite and you carve off the way they point
         sfx.land(); emitSpray(p.x, g2 + 0.1, p.z, 0, 1.5, 0, 24, 3);
+        const turns = Math.round(Math.abs(p.spin) / (Math.PI * 2));
         let pts = Math.round(p.airT * 25), msg = '';
-        if (turns) { pts += Math.abs(turns) * 150; msg = Math.abs(turns) === 1 ? '360!' : `${Math.abs(turns) * 360}!`; sfx.trick(); }
+        if (turns) { pts += turns * 150; msg = turns === 1 ? '360!' : `${turns * 360}!`; sfx.trick(); }
         if (p.airT > 0.6 || turns) { bonus += pts; banner(`${msg || 'Big air!'}<small>+${pts}</small>`, 1.1); }
-        p.heading = THREE.MathUtils.clamp(p.heading, -1.45, 1.45);
       }
       p.spin = 0; lastStamp = null;
     }
   } else {
     p.y = g2; p.airT = 0;
   }
-  if (!p.air && p.crashT <= 0 && (keys.has('Space') || touch.J)) { keys.delete('Space'); touch.J = false; p.air = true; p.vy = 5.2; sfx.jump(); }
+  if (!p.air && p.crashT <= 0 && (keys.has('Space') || touch.J)) { keys.delete('Space'); touch.J = false; p.air = true; p.vy = 5.2; p.spin = 0; sfx.jump(); }
 
   // Obstacles, ramps and gates near the player.
   const ci = Math.floor(-p.z / CHUNK);
@@ -594,9 +624,21 @@ function step(dt, t) {
       }
       const rr = o.r + BODY_R;
       if (ddx * ddx + ddz * ddz < rr * rr && !(p.air && p.y - height(o.x, o.z) > o.h)) {
-        const d = Math.hypot(ddx, ddz) || 1;
-        p.x = o.x + (ddx / d) * rr; p.z = o.z + (ddz / d) * rr;
-        if (p.v > 3.5) crash(); else p.v = 0;
+        // Bounce off: the travel direction reflects off the obstacle and loses speed. Whether you
+        // fall is then the same rule as everywhere else: skis pointing the wrong way at speed.
+        const d = Math.hypot(ddx, ddz) || 1, nx = ddx / d, nz = ddz / d;
+        p.x = o.x + nx * rr; p.z = o.z + nz * rr;
+        const vx = Math.sin(p.vdir) * p.v, vz = -Math.cos(p.vdir) * p.v, dot = vx * nx + vz * nz;
+        if (dot < 0 && p.crashT <= 0) {
+          const rx = vx - 1.6 * dot * nx, rz = vz - 1.6 * dot * nz; // partial restitution
+          const speedBefore = p.v;
+          p.v = Math.hypot(rx, rz) * 0.6;
+          if (p.v > 0.5) p.vdir = Math.atan2(rx, -rz);
+          emitSpray(p.x, p.y + 0.3, p.z, nx * 2, 1.5, nz * 2, 14, 2.5);
+          p.slip = wrapAngle(p.heading - p.vdir);
+          if (speedBefore > FALL_SPEED * 0.6 && Math.abs(p.slip) > FALL_SLIP) crash();
+          else if (speedBefore > 3) noise(0.12, 0.15, 500);
+        }
       }
     }
   }
@@ -612,7 +654,7 @@ function step(dt, t) {
   if (bear.on) {
     const bx = p.x - bear.x, bz = p.z - bear.z;
     gap = Math.hypot(bx, bz);
-    const base = Math.min(25.5, 15.5 + dist / 400);
+    const base = Math.min(30, 18 + dist / 350);
     const spd = base + Math.max(0, gap - 40) * 0.3;
     const mv = Math.min(gap, spd * dt);
     bear.x += (bx / (gap || 1)) * mv; bear.z += (bz / (gap || 1)) * mv;
@@ -638,10 +680,10 @@ function step(dt, t) {
       stampTrail(p.x, p.z, p.heading, !!lastStamp);
       lastStamp = { x: p.x, z: p.z };
     }
-    if (p.v > 7 && (Math.abs(p.steer) > 0.3 || inp.brake)) {
-      const side = p.steer >= 0 ? -1 : 1;
+    if (p.v > 5 && (Math.abs(p.slip) > 0.06 || inp.brake)) {
+      const side = p.slip >= 0 ? -1 : 1;
       emitSpray(p.x + Math.cos(p.heading) * 0.3 * side, p.y + 0.1, p.z + Math.sin(p.heading) * 0.3 * side,
-        Math.cos(p.heading) * side * 3 + Math.sin(p.heading) * p.v * 0.3, 1.6, Math.sin(p.heading) * side * 3 - Math.cos(p.heading) * p.v * 0.3, 2, 1.5);
+        Math.cos(p.heading) * side * 3 + Math.sin(p.vdir) * p.v * 0.3, 1.6, Math.sin(p.heading) * side * 3 - Math.cos(p.vdir) * p.v * 0.3, Math.abs(p.slip) > 0.12 ? 4 : 2, 1.5);
     }
   }
 
@@ -669,7 +711,7 @@ function poseSkier(dt) {
   const p = player, ud = skier.userData, inp = input();
   skier.position.set(p.x, p.y, p.z);
   normalAt(p.x, p.z, _n);
-  const yaw = -p.heading - p.spin;
+  const yaw = -p.heading;
   _yaw.setFromAxisAngle(_up, yaw);
   _tilt.setFromUnitVectors(_up, p.air ? _up : _n);
   skier.quaternion.copy(_tilt).multiply(_yaw);
@@ -680,7 +722,7 @@ function poseSkier(dt) {
     body.position.y = -0.1 * k;
     ud.skis.rotation.set(0, k * 0.8, 0);
   } else {
-    const lean = -p.steer * 0.32 * Math.min(1, p.v / 8);
+    const lean = (-p.steer * 0.22 - p.slip * 0.8) * Math.min(1, p.v / 8);
     const tuck = inp.tuck && !p.air ? 1 : 0;
     body.rotation.x += ((tuck ? 0.45 : 0.12) - body.rotation.x) * Math.min(1, dt * 8);
     body.rotation.z += (lean - body.rotation.z) * Math.min(1, dt * 8);
@@ -696,7 +738,7 @@ const camLook = new V3(), _look = new V3(), _top = new V3(), _f = new V3();
 function placeCamera(dt, snap = 0) {
   const p = player;
   camBlend += (camMode - camBlend) * Math.min(1, dt * 3);
-  camYaw += (THREE.MathUtils.clamp(p.heading, -0.6, 0.6) - camYaw) * Math.min(1, dt * 1.8);
+  camYaw += (THREE.MathUtils.clamp(wrapAngle(p.vdir), -0.6, 0.6) - camYaw) * Math.min(1, dt * 1.8);
   const s = Math.sin(camYaw), c = Math.cos(camYaw);
   // Normal views: chase (behind and above) or top-down (high, a little upslope).
   const chase = _p.set(p.x - s * 8.5, 0, p.z + c * 8.5);
@@ -752,7 +794,7 @@ function frame(ts) {
       }
     } else if (state === 'title') {
       // Gentle idle cruise behind the title card.
-      player.heading = Math.sin(t * 0.4) * 0.5; player.v = 9;
+      player.heading = player.vdir = Math.sin(t * 0.4) * 0.5; player.v = 9;
       player.x += Math.sin(player.heading) * player.v * dt; player.z -= Math.cos(player.heading) * player.v * dt;
       player.y = height(player.x, player.z);
       updateChunks(player.z);
@@ -818,4 +860,4 @@ $('bestv').textContent = best;
 
 reset();
 renderer.setAnimationLoop(frame);
-if (import.meta.url.includes('localhost')) window.__bear = { player, bear, keys, start, step, frame, get state() { return state; }, toggleCam };
+if (import.meta.url.includes('localhost')) window.__bear = { player, bear, keys, chunks, start, step, frame, get state() { return state; }, toggleCam };
