@@ -41,7 +41,7 @@ kbd{display:inline-block;min-width:24px;padding:1px 6px;border:1px solid #b9c7d3
 #tools button{appearance:none;border:1px solid rgba(20,40,60,.15);border-radius:12px;background:rgba(255,255,255,.82);padding:9px 12px;font:600 13px/1 inherit;font-family:inherit;color:#1f3142;cursor:pointer}
 #touch{left:0;right:0;bottom:0;height:150px;display:none;pointer-events:none}
 #touch button{pointer-events:auto;position:absolute;bottom:18px;width:68px;height:68px;border-radius:50%;border:1px solid rgba(20,40,60,.15);background:rgba(255,255,255,.6);font:700 24px/1 inherit;color:#1f3142;touch-action:none}
-#tL{left:16px}#tR{left:96px}#tJ{right:176px}#tD{right:96px}#tU{right:16px}
+#tL{left:16px}#tR{left:96px}#tE{left:176px}#tJ{right:176px}#tD{right:96px}#tU{right:16px}
 #touch button.small{font-size:11px;font-weight:700}
 @media (pointer:coarse){#touch{display:block}#tools{bottom:auto;top:120px}#bear{bottom:104px}.desk{display:none}}
 @media (pointer:fine){.mob{display:none}}
@@ -71,6 +71,7 @@ kbd{display:inline-block;min-width:24px;padding:1px 6px;border:1px solid #b9c7d3
 <div id="touch" class="hud">
   <button id="tL" type="button" aria-label="Steer left">◀</button>
   <button id="tR" type="button" aria-label="Steer right">▶</button>
+  <button id="tE" type="button" aria-label="Scream for help">😱</button>
   <button id="tJ" type="button" aria-label="Hop">⤒</button>
   <button id="tD" type="button" class="small" aria-label="Snowplough to slow down">▼<br>plough</button>
   <button id="tU" type="button" class="small" aria-label="Push with poles">▲<br>push</button>
@@ -87,9 +88,10 @@ kbd{display:inline-block;min-width:24px;padding:1px 6px;border:1px solid #b9c7d3
       <span><kbd>↓</kbd> <kbd>S</kbd></span><span>Snowplough: skis in a V to slow down</span>
       <span><kbd>Shift</kbd></span><span>Tuck: line up and go faster</span>
       <span><kbd>Space</kbd></span><span>Hop</span>
+      <span><kbd>E</kbd></span><span>Scream for help. It startles the bear, briefly. Once in a while.</span>
       <span><kbd>C</kbd></span><span>Chase / top-down camera</span>
     </div>
-    <p class="mob">◀ ▶ steer · ▲ push · ▼ plough · ⤒ hop</p>
+    <p class="mob">◀ ▶ steer · 😱 scream · ▲ push · ▼ plough · ⤒ hop</p>
     <button class="go" id="startBtn" type="button">Start</button>
   </div>
 </div>

@@ -24,6 +24,8 @@ const TUCK_ACCEL = 1.2;       // extra while tucked
 const PUSH_ACCEL = 4.5;       // double-pole push at a standstill; fades out by PUSH_MAX
 const PUSH_MAX = 15;          // m/s, faster than this the poles can't keep up
 const PLOUGH_DECEL = 6;       // snowplough braking
+const SCREAM_COOLDOWN = 7;    // seconds between screams the bear will listen to
+const SCREAM_FLINCH = 1.1;    // how long a scream stops the bear
 const FRICTION = 0.2;
 const DRAG = 0.0055, DRAG_TUCK = 0.0038; // terminal: ~26 m/s upright, ~36 m/s tucked
 const FALL_SLIP = THREE.MathUtils.degToRad(10);
@@ -501,13 +503,28 @@ const sfx = {
   crash() { noise(0.45, 0.4, 1200); tone(160, 0.3, 'square', 0.06, 0.5); },
   trick() { [660, 880, 1100].forEach((f, k) => setTimeout(() => tone(f, 0.12, 'square', 0.05), k * 70)); },
   growl() { tone(78, 0.7, 'sawtooth', 0.12, 0.7); noise(0.6, 0.12, 300); },
+  scream() {
+    // Two detuned saws with a wobble, swooping up then cracking down: a proper cartoon shriek.
+    const a = !muted && audio(); if (!a) return;
+    const t = a.currentTime, g = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16, t + 0.05); g.gain.setValueAtTime(0.16, t + 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.0);
+    lfo.frequency.value = 9; lg.gain.value = 40; lfo.connect(lg); lfo.start(t); lfo.stop(t + 1.05);
+    for (const d of [0, 7]) {
+      const o = a.createOscillator(); o.type = 'sawtooth'; o.detune.value = d;
+      o.frequency.setValueAtTime(520, t); o.frequency.exponentialRampToValueAtTime(1150, t + 0.25); o.frequency.setValueAtTime(1150, t + 0.6); o.frequency.exponentialRampToValueAtTime(380, t + 1.0);
+      lg.connect(o.frequency); o.connect(g); o.start(t); o.stop(t + 1.05);
+    }
+    g.connect(a.destination);
+  },
+  hoarse() { noise(0.25, 0.1, 1800); },
 };
 
 // ---------- game state ----------
 const player = { x: 0, z: -5, y: 0, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0, pushPhase: 0, plough: 0 };
-const bear = { on: false, x: 0, z: 0, phase: 0, rear: 0 };
+const bear = { on: false, x: 0, z: 0, phase: 0, rear: 0, flinch: 0 };
 let state = 'title', score = 0, bonus = 0, best = Number(localStorage.getItem('bearrun-best')) || 0, growlT = 0, overT = 0;
 let camMode = 0, camBlend = 0, camYaw = 0, bearPull = 0, bearGap = Infinity;
+let screamCd = 0, screamT = 0; // scream cooldown and the time left on the scream pose
 const skier = makeSkier(); scene.add(skier);
 const bearMesh = makeBear(); bearMesh.visible = false; scene.add(bearMesh);
 
@@ -528,7 +545,8 @@ function reset() {
   seed = (Math.random() * 1e9) | 0;
   Object.assign(player, { x: 0, z: -5, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0, pushPhase: 0, plough: 0 });
   player.y = height(player.x, player.z);
-  Object.assign(bear, { on: false, x: 0, z: 0, phase: 0, rear: 0 });
+  Object.assign(bear, { on: false, x: 0, z: 0, phase: 0, rear: 0, flinch: 0 });
+  screamCd = 0; screamT = 0;
   bearGap = Infinity; bearPull = 0;
   bearMesh.visible = false; skier.visible = true;
   samples.length = 0; lastStamp = null; trailGeo.setDrawRange(0, 0);
@@ -554,12 +572,22 @@ function crash() {
   banner('Wipeout!', 0.9);
 }
 
+function scream() {
+  if (state !== 'play' || player.crashT > 0) return;
+  if (screamCd > 0) { sfx.hoarse(); banner('…<small>(hoarse)</small>', 0.5); return; }
+  screamCd = SCREAM_COOLDOWN; screamT = 0.7;
+  sfx.scream();
+  if (bear.on && bearGap < 70) { bear.flinch = SCREAM_FLINCH; banner('HEEELP!<small>the bear hesitates</small>', 1.2); }
+  else banner('HEEELP!<small>nobody is coming</small>', 1.4);
+}
+
 const _p = new V3(), _up = new V3(0, 1, 0), _yaw = new THREE.Quaternion(), _tilt = new THREE.Quaternion();
 
 function step(dt, t) {
   const inp = input();
   const p = player;
   const prevZ = p.z;
+  screamCd = Math.max(0, screamCd - dt); screamT = Math.max(0, screamT - dt);
   if (p.crashT > 0) {
     p.crashT -= dt;
     p.v = Math.max(0, p.v - 12 * dt);
@@ -678,7 +706,8 @@ function step(dt, t) {
     const bx = p.x - bear.x, bz = p.z - bear.z;
     gap = Math.hypot(bx, bz);
     const base = Math.min(30, 18 + dist / 350);
-    const spd = base + Math.max(0, gap - 40) * 0.3;
+    let spd = base + Math.max(0, gap - 40) * 0.3;
+    if (bear.flinch > 0) { bear.flinch -= dt; spd = 0; } // a scream stops it in its tracks for a moment
     const mv = Math.min(gap, spd * dt);
     bear.x += (bx / (gap || 1)) * mv; bear.z += (bz / (gap || 1)) * mv;
     bear.phase += spd * dt * 0.55;
@@ -691,6 +720,11 @@ function step(dt, t) {
     ud.legs[1].rotation.x += 0.15; ud.legs[3].rotation.x += 0.15;
     ud.inner.position.y = Math.abs(Math.cos(bear.phase * Math.PI)) * 0.18;
     ud.inner.rotation.x = s * 0.07;
+    if (bear.flinch > 0) { // rears back, startled
+      const r = Math.min(1, bear.flinch / SCREAM_FLINCH * 2.5) * Math.min(1, (SCREAM_FLINCH - bear.flinch) * 6);
+      ud.inner.rotation.x = -0.5 * r; ud.inner.position.y = 0.5 * r;
+      ud.legs[0].rotation.x = ud.legs[1].rotation.x = -1.1 * r; ud.legs[2].rotation.x = ud.legs[3].rotation.x = 0.2 * r;
+    }
     bearGap = gap;
     if (gap < 22) { growlT -= dt; if (growlT <= 0) { sfx.growl(); growlT = 1.6 + Math.random(); } }
     if (gap < 1.7 && p.y - height(p.x, p.z) < 1.4) caught();
@@ -751,7 +785,7 @@ function poseSkier(dt) {
   } else {
     const lean = (-p.steer * 0.22 - p.slip * 0.8) * Math.min(1, p.v / 8);
     const tuck = inp.tuck && !p.air ? 1 : 0;
-    body.rotation.x += ((tuck ? 0.45 : 0.12) - body.rotation.x) * Math.min(1, dt * 8);
+    body.rotation.x += ((screamT > 0 ? -0.25 : tuck ? 0.45 : 0.12) - body.rotation.x) * Math.min(1, dt * 8);
     body.rotation.z += (lean - body.rotation.z) * Math.min(1, dt * 8);
     body.rotation.y = 0;
     const sy = tuck ? 0.82 : 1;
@@ -763,7 +797,7 @@ function poseSkier(dt) {
   ud.skiL.rotation.y = -0.38 * p.plough; ud.skiR.rotation.y = 0.38 * p.plough;
   ud.skiL.position.x = -0.13 - 0.06 * p.plough; ud.skiR.position.x = 0.13 + 0.06 * p.plough;
   // Poles: a stroke plants ahead and drives back, then swings forward again. Idle, they trail.
-  const stroke = inp.push && !p.air && p.crashT <= 0 ? -0.35 + 0.75 * Math.cos(p.pushPhase * Math.PI * 2) : 0.55;
+  const stroke = screamT > 0 ? -2.6 : inp.push && !p.air && p.crashT <= 0 ? -0.35 + 0.75 * Math.cos(p.pushPhase * Math.PI * 2) : 0.55; // poles fly up overhead for a scream
   for (const pole of ud.poles) pole.rotation.x += (stroke - pole.rotation.x) * Math.min(1, dt * 14);
   if (inp.push && !p.air && p.crashT <= 0) body.rotation.x += 0.12 * Math.max(0, Math.sin(p.pushPhase * Math.PI * 2));
 }
@@ -859,6 +893,7 @@ addEventListener('keydown', e => {
   if (e.target.closest?.('.site-topbar')) return;
   if (e.code === 'KeyC') { toggleCam(); return; }
   if (e.code === 'KeyM') { toggleMute(); return; }
+  if (e.code === 'KeyE' && !e.repeat) { scream(); return; }
   if ((e.code === 'Enter' || e.code === 'Space') && state !== 'play') {
     if (state === 'title' || !$('over').hidden) { e.preventDefault(); start(); }
     return;
@@ -876,6 +911,7 @@ function hold(id, k) {
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, off);
 }
 hold('tL', 'L'); hold('tR', 'R'); hold('tU', 'U'); hold('tD', 'D'); hold('tJ', 'J');
+$('tE').addEventListener('pointerdown', e => { e.preventDefault(); audio(); scream(); });
 
 function toggleCam() {
   camMode = camMode ? 0 : 1;
@@ -894,4 +930,4 @@ $('bestv').textContent = best;
 
 reset();
 renderer.setAnimationLoop(frame);
-if (import.meta.url.includes('localhost')) window.__bear = { player, bear, keys, chunks, start, step, frame, get state() { return state; }, toggleCam };
+if (import.meta.url.includes('localhost')) window.__bear = { player, bear, keys, chunks, start, step, frame, scream, get state() { return state; }, toggleCam };
