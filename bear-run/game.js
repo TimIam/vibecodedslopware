@@ -1,7 +1,7 @@
 // Bear Run: an endless downhill ski run with a bear on your tail.
 // Everything is built from code (no model files): low-poly, vertex-coloured, flat shaded.
 // World: metres, +Y up, downhill is -Z. Heading 0 points straight downhill.
-import * as THREE from './vendor/three.module.min.js';
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.min.js';
 
 const $ = id => document.getElementById(id);
 const V3 = THREE.Vector3;
