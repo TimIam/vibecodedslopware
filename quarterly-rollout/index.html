@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Quarterly Rollout</title>
+<meta name="description" content="An office-chair action game from Ambivalent Software. Roll Bea Swivelton through six floors of slick coffee, polishing robots and meeting invites to collect the Quarterly Report before five.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪑</text></svg>">
+<script>
+  // relative paths below need the trailing slash; add it if the folder was opened without one
+  if (!/\/$|\.html$/.test(location.pathname)) location.replace(location.pathname + '/' + location.search + location.hash);
+</script>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="/site-nav.css">
+</head>
+<body class="site-rollout in-menu">
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<main id="app">
+  <div id="stage">
+    <canvas id="screen" width="960" height="620" tabindex="0" aria-label="Quarterly Rollout game screen"></canvas>
+    <button id="t-pause" class="touch-only" aria-label="Pause">❚❚</button>
+  </div>
+  <p id="help">
+    <span><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> / <kbd>WASD</kbd> push off</span>
+    <span><kbd>Space</kbd> spin</span>
+    <span><kbd>P</kbd> / <kbd>Esc</kbd> pause</span>
+    <span><kbd>R</kbd> restart</span>
+    <span><kbd>M</kbd> mute</span>
+  </p>
+
+  <div id="touch" class="touch-only" aria-hidden="true">
+    <div id="stick"><div id="knob"></div></div>
+    <button id="t-spin" tabindex="-1">Spin</button>
+  </div>
+
+  <section class="screen" id="scr-title" aria-label="Title">
+    <div class="card title-card">
+      <p class="kicker">Ambivalent Software presents</p>
+      <h1>Quarterly <span>Rollout</span></h1>
+      <p class="tagline">An office-chair action game</p>
+      <p id="premise" class="premise"></p>
+      <div class="buttons">
+        <button id="b-continue" class="primary">Continue</button>
+        <button id="b-new">New game</button>
+        <button id="b-floors">Choose floor</button>
+      </div>
+      <div class="buttons toggles">
+        <button data-toggle="sound" class="toggle">Sound: on</button>
+        <button data-toggle="music" class="toggle">Music: on</button>
+      </div>
+      <p class="fine">© 2026 Ambivalent Software. Probably fun; we are not entirely sure. · <a href="CREDITS.txt">Credits</a></p>
+    </div>
+  </section>
+
+  <section class="screen" id="scr-floors" aria-label="Choose a floor" hidden>
+    <div class="card">
+      <h2>Choose a floor</h2>
+      <div id="floor-list" class="floor-list"></div>
+      <div class="buttons">
+        <button id="b-floors-back" class="primary">Back</button>
+        <button id="b-reset" class="quiet">Reset progress</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" id="scr-intro" aria-label="Floor briefing" hidden>
+    <div class="card">
+      <p class="kicker" id="intro-floor">Floor 1</p>
+      <h2 id="intro-name">Orientation</h2>
+      <blockquote><p id="intro-text"></p><cite id="intro-speaker"></cite></blockquote>
+      <p class="goal" id="intro-goal"></p>
+      <div class="buttons"><button id="b-roll" class="primary">Roll out ▸</button></div>
+    </div>
+  </section>
+
+  <section class="screen" id="scr-pause" aria-label="Paused" hidden>
+    <div class="card">
+      <h2>Paused</h2>
+      <p id="pause-floor" class="kicker"></p>
+      <div class="buttons stack">
+        <button id="b-resume" class="primary">Resume</button>
+        <button id="b-restart">Restart floor</button>
+        <button data-toggle="sound" class="toggle">Sound: on</button>
+        <button data-toggle="music" class="toggle">Music: on</button>
+        <button id="b-quit" class="quiet">Quit to title</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" id="scr-fail" aria-label="Composure lost" hidden>
+    <div class="card">
+      <h2>Composure lost</h2>
+      <p id="fail-text"></p>
+      <div class="buttons">
+        <button id="b-retry" class="primary">Try again</button>
+        <button id="b-fail-quit" class="quiet">Quit to title</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" id="scr-complete" aria-label="Floor cleared" hidden>
+    <div class="card">
+      <h2>Floor cleared!</h2>
+      <p class="big" id="done-time"></p>
+      <p id="done-best"></p>
+      <p class="goal" id="done-rating"></p>
+      <div class="buttons">
+        <button id="b-next" class="primary">Next floor</button>
+        <button id="b-again">Replay</button>
+        <button id="b-done-quit" class="quiet">Quit to title</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" id="scr-ending" aria-label="The end" hidden>
+    <div class="card">
+      <p class="kicker">5:00 PM</p>
+      <h2>Quarter closed</h2>
+      <div id="ending-text" class="ending"></div>
+      <p class="goal" id="ending-total"></p>
+      <p class="fine">Thanks for playing. Old Squeaky thanks you too.</p>
+      <div class="buttons"><button id="b-ending-title" class="primary">Back to title</button></div>
+    </div>
+  </section>
+</main>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -8,3 +8,6 @@ matrix/mac/
 .env*
 .claude/
 .playwright-mcp/
+
+# Development tools (the local dev server and balance scripts); not part of the public site
+tools/
