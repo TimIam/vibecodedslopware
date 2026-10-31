@@ -28,10 +28,25 @@ html,body{margin:0;height:100%;overflow:hidden;background:#cfdeea;color:#14202b;
 #banner small{display:block;font-size:.45em;font-weight:600;margin-top:4px}
 .overlay{position:fixed;inset:52px 0 0;display:grid;place-items:center;z-index:10;background:radial-gradient(ellipse at center,rgba(15,35,55,.35),rgba(15,35,55,.6))}
 .overlay[hidden]{display:none}
-.card{width:min(440px,92vw);padding:26px 26px 22px;text-align:center;background:rgba(255,255,255,.92);border-radius:20px;box-shadow:0 20px 60px rgba(0,20,50,.35)}
+.card{width:min(480px,92vw);max-height:calc(100vh - 72px);max-height:calc(100dvh - 72px);overflow:auto;padding:26px 26px 22px;text-align:center;background:rgba(255,255,255,.92);border-radius:20px;box-shadow:0 20px 60px rgba(0,20,50,.35)}
 .card h1{margin:0;font-size:44px;letter-spacing:-1px;line-height:1}
 .card h1 em{font-style:normal;color:#b5482f}
 .card p{margin:10px 0 0;color:#46596b}
+.rides{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:16px 0 0}
+.ride{appearance:none;border:2px solid #d5dfe8;border-radius:14px;background:#f7fafc;padding:10px 4px 8px;font-family:inherit;color:#1f3142;cursor:pointer;display:grid;gap:2px;justify-items:center;transition:transform .12s,border-color .12s}
+.ride .ri{font-size:30px;line-height:1.1}
+.ride b{font-size:13px}
+.ride small{font-size:11px;color:#56687a}
+.ride.on{border-color:#b5482f;background:#fff1ec}
+.ride.locked{opacity:.6;cursor:not-allowed;background:#eef2f6}
+.ride:not(.locked):hover{transform:translateY(-2px)}
+.ride.nope{animation:nope .4s}
+@keyframes nope{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+#rideHelp{margin-top:10px;font-size:13.5px;line-height:1.5}
+#rideHelp kbd{font-size:11px}
+.row2{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.go.alt{background:#eef2f6;color:#1f3142;box-shadow:0 4px 0 #c3ccd6}
+.go.alt:active{box-shadow:0 2px 0 #c3ccd6}
 .keys{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;text-align:left;margin:18px auto 0;width:max-content;max-width:100%;font-size:14px}
 kbd{display:inline-block;min-width:24px;padding:1px 6px;border:1px solid #b9c7d3;border-bottom-width:3px;border-radius:6px;background:#f7fafc;font:600 12px/1.6 ui-monospace,Consolas,monospace;text-align:center;color:#1f3142}
 .go{margin-top:20px;appearance:none;border:0;border-radius:999px;padding:12px 30px;background:#b5482f;color:#fff;font:700 17px/1 inherit;font-family:inherit;cursor:pointer;box-shadow:0 4px 0 #7d2e1c}
@@ -44,6 +59,7 @@ kbd{display:inline-block;min-width:24px;padding:1px 6px;border:1px solid #b9c7d3
 #tL{left:16px}#tR{left:96px}#tE{left:176px}#tJ{right:176px}#tD{right:96px}#tU{right:16px}
 #touch button.small{font-size:11px;font-weight:700}
 @media (pointer:coarse){#touch{display:block}#tools{bottom:auto;top:120px}#bear{bottom:104px}.desk{display:none}}
+@media (max-width:520px){.rides{grid-template-columns:repeat(2,1fr)}}
 @media (pointer:fine){.mob{display:none}}
 </style>
 </head>
@@ -62,7 +78,7 @@ kbd{display:inline-block;min-width:24px;padding:1px 6px;border:1px solid #b9c7d3
   <b id="score">0</b><span>score</span>
 </div>
 <div id="best" class="hud pill">Best <b id="bestv">0</b></div>
-<div id="bear" class="hud pill"><div class="row"><span>🐻 Bear</span><span id="gap">—</span></div><div class="track"><i id="gapbar"></i></div></div>
+<div id="bear" class="hud pill"><div class="row"><span id="bearName">🐻 Bear</span><span id="gap">—</span></div><div class="track"><i id="gapbar"></i></div></div>
 <div id="banner" class="hud"></div>
 <div id="tools" class="hud">
   <button id="camBtn" type="button" title="Switch camera (C)">🎥 Chase view</button>
@@ -80,18 +96,17 @@ kbd{display:inline-block;min-width:24px;padding:1px 6px;border:1px solid #b9c7d3
 <div id="start" class="overlay">
   <div class="card">
     <h1>Bear <em>Run</em></h1>
-    <p>Ski downhill as far as you can. Thread the flags, hit the ramps, spin in the air. Around 200&nbsp;m, something wakes up.</p>
-    <p><b>Falling:</b> at speed, your skis must point the way you're travelling. Tap to carve; hold a turn and they slide 10° off your line, and down you go. Slow is safe.</p>
+    <p>Get down the mountain as far as you can. Thread the flags, hit the ramps, spin in the air. Around 200&nbsp;m, something wakes up. Go far enough in one run and you unlock new rides.</p>
+    <div class="rides" id="rides"></div>
+    <p id="rideHelp"></p>
+    <p><b>Falling:</b> at speed, you must point the way you're travelling. Tap to carve; hold a turn and you slide off your line, and down you go. Slow is safe.</p>
     <div class="keys desk">
       <span><kbd>←</kbd> <kbd>→</kbd></span><span>Steer (spin when airborne)</span>
-      <span><kbd>↑</kbd> <kbd>W</kbd></span><span>Pole push: get going from a standstill</span>
-      <span><kbd>↓</kbd> <kbd>S</kbd></span><span>Snowplough: skis in a V to slow down</span>
-      <span><kbd>Shift</kbd></span><span>Tuck: line up and go faster</span>
       <span><kbd>Space</kbd></span><span>Hop</span>
-      <span><kbd>E</kbd></span><span>Scream for help. It startles the bear, briefly. Once in a while.</span>
+      <span><kbd>E</kbd></span><span>Scream (or roar). Startles the chaser, briefly. Once in a while.</span>
       <span><kbd>C</kbd></span><span>Chase / top-down camera</span>
     </div>
-    <p class="mob">◀ ▶ steer · 😱 scream · ▲ push · ▼ plough · ⤒ hop</p>
+    <p class="mob">◀ ▶ steer · 😱 scream · ▲ push · ▼ brake · ⤒ hop</p>
     <button class="go" id="startBtn" type="button">Start</button>
   </div>
 </div>
@@ -100,7 +115,7 @@ kbd{display:inline-block;min-width:24px;padding:1px 6px;border:1px solid #b9c7d3
     <h1 id="overTitle">The bear got you</h1>
     <div class="score" id="final">0</div>
     <p id="overSub"></p>
-    <button class="go" id="againBtn" type="button">Ski again</button>
+    <div class="row2"><button class="go" id="againBtn" type="button">Go again</button><button class="go alt" id="ridesBtn" type="button">Change ride</button></div>
   </div>
 </div>
 <script type="module" src="./game.js"></script>
