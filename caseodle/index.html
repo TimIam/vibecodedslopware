@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Caseodle</title>
+<meta name="description" content="Caseodle: a five-letter word game with unlimited puzzles. Six guesses each. Fan-made for CaseOh's chat; not affiliated with CaseOh.">
+<link rel="icon" href="kitty.svg" type="image/svg+xml">
+<meta name="theme-color" content="#fbf4e6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#17120e" media="(prefers-color-scheme: dark)">
+<style>
+:root{--bg:#fbf4e6;--fg:#2a1f17;--dim:#7a6a5a;--line:#e4d5ba;--card:#fffaf0;--tile:#d6c4a4;--tile-on:#9c876b;--key:#ecdcc0;--key-fg:#2a1f17;
+  --correct:#4f9a3c;--present:#d39612;--absent:#7b7067;--red:#d8462f;--shadow:0 10px 40px rgba(60,35,10,.18)}
+@media (prefers-color-scheme:dark){:root{--bg:#17120e;--fg:#f3e9da;--dim:#a8998a;--line:#3a2f26;--card:#211a15;--tile:#4a3d32;--tile-on:#8a7660;--key:#4a3d32;--key-fg:#f3e9da;
+  --correct:#4f9a3c;--present:#c48a0e;--absent:#3d3631;--shadow:0 10px 40px rgba(0,0,0,.5)}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 "Segoe UI",system-ui,-apple-system,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+/* the game fills the first screen; the product cards sit below it (or beside it on wide screens) */
+.app{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+.app::before{content:"";display:block;height:10px;flex:none;background-color:#fff6e3;
+  background-image:linear-gradient(90deg,rgba(216,70,47,.55) 50%,transparent 50%),linear-gradient(rgba(216,70,47,.55) 50%,transparent 50%);background-size:16px 16px}
+button{font:inherit;color:inherit}
+[hidden]{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px 0;font-size:13px}
+.back{color:var(--dim);text-decoration:none}
+.back:hover{color:var(--fg)}
+.tr{display:flex;align-items:center;gap:8px}
+.coffee{white-space:nowrap;padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--fg);text-decoration:none;transition:border-color .2s}
+.coffee:hover{border-color:var(--tile-on)}
+.coffee:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+@media (max-width:480px){.vc{display:none}}
+@media (max-width:380px){.bm{display:none}}
+.spooky{display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 8px;border:1px solid var(--line);border-radius:999px;color:var(--dim);cursor:pointer;user-select:none;-webkit-user-select:none;transition:background .2s,color .2s,border-color .2s}
+.spooky input{margin:0;width:15px;height:15px;accent-color:#8e1c1c;cursor:pointer}
+.spooky:has(input:checked){background:#2b0c0c;border-color:#7a1d1d;color:#ffd9d2}
+.spooky:has(input:focus-visible){outline:2px solid var(--red);outline-offset:2px}
+
+.hdr{display:flex;align-items:center;gap:10px;width:100%;max-width:500px;margin:8px auto 0;padding:0 16px}
+.logo{width:46px;height:46px;flex:none}
+.logo.yum{animation:hop .6s ease-out 2}
+.brand{flex:1;min-width:0}
+h1{margin:0;font:800 26px/1 ui-rounded,"SF Pro Rounded","Segoe UI",system-ui,sans-serif;letter-spacing:-.5px}
+h1 span{color:var(--red)}
+#sub{margin:3px 0 0;font-size:12.5px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.actions{display:flex;gap:6px}
+.ibtn{appearance:none;border:1px solid var(--line);background:var(--card);border-radius:10px;height:36px;min-width:36px;padding:0 10px;cursor:pointer;font-size:14px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:5px}
+.ibtn:hover{border-color:var(--tile-on)}
+.ibtn svg{width:17px;height:17px}
+
+main{flex:1;display:flex;align-items:center;justify-content:center;padding:12px 16px;min-height:0}
+#board{--t:clamp(34px,min(calc((100vw - 56px) / 5),calc((100vh - 390px) / 6)),62px);display:grid;gap:6px}
+@supports (height:100dvh){#board{--t:clamp(34px,min(calc((100vw - 56px) / 5),calc((100dvh - 390px) / 6)),62px)}}
+.row{display:grid;grid-template-columns:repeat(5,var(--t));gap:6px}
+.row.shake{animation:shake .45s}
+.tile{width:var(--t);height:var(--t);display:grid;place-items:center;border:2px solid var(--tile);border-radius:9px;background:var(--card);
+  font:800 calc(var(--t) * .5)/1 ui-rounded,"SF Pro Rounded","Segoe UI",system-ui,sans-serif;text-transform:uppercase;user-select:none;-webkit-user-select:none}
+.tile.filled{border-color:var(--tile-on);animation:pop .1s ease-out}
+.tile[data-s]{color:#fff;border-color:transparent}
+.tile[data-s=correct]{background:var(--correct)}
+.tile[data-s=present]{background:var(--present)}
+.tile[data-s=absent]{background:var(--absent)}
+.tile.flip{animation:flip .5s ease-in-out}
+.tile.hop{animation:hop .5s ease-out both}
+
+#kb{width:100%;max-width:500px;margin:0 auto;padding:0 6px;display:flex;flex-direction:column;gap:7px;user-select:none;-webkit-user-select:none}
+.kr{display:flex;gap:5px}
+.key{position:relative;flex:1 1 0;min-width:0;height:54px;border:2px solid #94a3b8;border-radius:8px;background:#e2e8f0;color:#101820;font-weight:800;font-size:15px;text-transform:uppercase;cursor:pointer;transition:background .2s,color .2s,border-color .2s}
+.key:active{filter:brightness(.92)}
+.key:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.key.wide{flex:1.55 1 0;font-size:12px;letter-spacing:.3px}
+.key[data-s=correct]{background:#137b42;color:#fff;border-color:#69efac;box-shadow:inset 0 -3px 0 #69efac}
+.key[data-s=present]{background:#f4c542;color:#211800;border-color:#fff0a8;box-shadow:inset 0 -3px 0 #a87900}
+.key[data-s=correct]::after,.key[data-s=present]::after{position:absolute;right:2px;top:1px;font-size:10px;line-height:1}
+.key[data-s=correct]::after{content:'✓'}
+.key[data-s=present]::after{content:'•'}
+.key[data-s=absent]{background:#151922;color:#b8c1cc;border-color:#475569;text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:#e2e8f0;box-shadow:none}
+.pad{flex:.5 1 0}
+.fine{margin:0;padding:8px 16px calc(8px + env(safe-area-inset-bottom));text-align:center;font-size:11px;color:var(--dim)}
+@media (max-height:660px){.key{height:46px}.hdr{margin-top:4px}}
+@media (max-width:400px){.lbl{display:none}.logo{width:38px;height:38px}h1{font-size:23px}.hdr{gap:8px}}
+
+/* Product spotlight stays outside the game; wide screens have a dedicated side rail. */
+.shop{width:calc(100% - 24px);max-width:760px;margin:18px auto 28px;padding:18px;display:grid;gap:14px;border:3px solid #fff0b0;border-radius:20px;background:#ffc742;color:#17130a;box-shadow:0 8px 0 #9a5600}
+.shop h2{margin:0;font-size:22px;font-weight:900;line-height:1.1;letter-spacing:.01em;text-transform:uppercase;color:#17130a}
+.shop-intro{margin:5px 0 0;font-size:13px;font-weight:700;line-height:1.4}
+.shop-disclosure{margin:8px 0 0;font-size:12px;line-height:1.45;color:#342607}
+.pc{display:grid;grid-template-columns:52px minmax(0,1fr);align-items:center;gap:12px;padding:16px;border:2px solid #fff;border-left:6px solid var(--product-accent);border-radius:14px;background:#fff;color:#151922;text-decoration:none;box-shadow:0 4px 0 #b57409;transition:box-shadow .15s,border-color .15s}
+.pc:hover{border-color:#17130a;box-shadow:0 5px 0 #17130a}
+.pc:focus-visible{outline:3px solid #151922;outline-offset:3px}
+.pc b{display:block;font-size:18px;line-height:1.2}
+.pc small{display:block;margin-top:5px;font-size:13px;line-height:1.35;color:#49515e}
+.pi{width:52px;height:52px;border-radius:12px;display:grid;place-items:center;font:900 20px/1 system-ui,sans-serif;color:#fff;background:var(--product-accent)}
+.go{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;background:#151922;color:#fff;font-size:14px;font-weight:800;line-height:1.25}
+@media (min-width:700px){
+  .shop{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .shop-heading,.shop-disclosure{grid-column:1/-1}
+  .pc{grid-template-columns:1fr;align-content:start}
+  .go{align-self:end}
+}
+@media (min-width:1200px) and (min-height:700px){
+  .shop{position:fixed;right:20px;top:100px;bottom:24px;width:300px;max-height:max-content;margin:0;grid-template-columns:1fr;overflow-y:auto;scrollbar-width:thin}
+  .pc{grid-template-columns:52px minmax(0,1fr)}
+}
+
+#toast{position:fixed;left:50%;top:118px;transform:translateX(-50%);z-index:20;pointer-events:none;background:var(--fg);color:var(--bg);font-weight:700;font-size:14px;padding:9px 14px;border-radius:9px;opacity:0;transition:opacity .2s;white-space:nowrap}
+#toast.on{opacity:1}
+
+dialog{border:0;border-radius:18px;padding:22px 20px 20px;width:min(420px,calc(100vw - 32px));max-height:calc(100dvh - 32px);background:var(--card);color:var(--fg);box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(25,14,6,.55)}
+dialog h2{margin:0 0 10px;font:800 22px/1.15 ui-rounded,"SF Pro Rounded","Segoe UI",system-ui,sans-serif}
+dialog h3{margin:16px 0 6px;font-size:15px}
+dialog p{margin:6px 0;font-size:14.5px}
+.x{position:absolute;top:10px;right:10px;border:0;background:none;font-size:22px;line-height:1;width:36px;height:36px;border-radius:9px;cursor:pointer;color:var(--dim)}
+.x:hover{background:var(--line);color:var(--fg)}
+.ex{display:flex;gap:4px;margin:8px 0 2px}
+.ex .tile{--t:34px}
+.note{color:var(--dim);font-size:13px!important}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);text-align:center;margin:12px 0 6px}
+.stats b{display:block;font-size:26px;line-height:1.1}
+.stats span{font-size:11.5px;color:var(--dim)}
+.dist{display:grid;gap:4px;margin:6px 0 12px}
+.dist div{display:grid;grid-template-columns:14px 1fr;gap:6px;align-items:center;font-size:13px}
+.dist i{display:block;min-width:24px;padding:1px 7px;text-align:right;font-style:normal;font-weight:700;color:#fff;background:var(--absent);border-radius:4px}
+.dist i.me{background:var(--correct)}
+.answer{display:flex;gap:4px;justify-content:center;margin:10px 0 4px}
+.answer .tile{--t:42px}
+.btns{display:flex;gap:8px;margin-top:14px}
+.btn{flex:1;appearance:none;border:0;border-radius:11px;padding:12px 10px;font-weight:700;cursor:pointer;background:var(--red);color:#fff}
+.btn.alt{background:var(--key);color:var(--key-fg)}
+
+/* Spooky time. One lunge with opt-in procedural audio, no flashing. */
+#scare{position:fixed;inset:0;z-index:50;display:none;place-items:center;overflow:hidden;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 45%,rgba(45,4,4,.6),rgba(0,0,0,.94) 70%)}
+#scare.on{display:grid;animation:dim 1.15s ease-out both}
+#scare img{width:max(80vw,110vh);max-width:none;height:auto;transform-origin:54% 40%;animation:lunge 1.15s cubic-bezier(.15,.85,.3,1) both}
+@keyframes lunge{0%{transform:translateY(30%) scale(.22);opacity:0}10%{opacity:1}32%{transform:translateY(3%) scale(.98)}78%{transform:translateY(0) scale(1.08);opacity:1}100%{transform:translateY(0) scale(1.14);opacity:0}}
+@keyframes dim{0%{opacity:0}8%{opacity:1}80%{opacity:1}100%{opacity:0}}
+@keyframes flip{0%{transform:rotateX(0)}50%{transform:rotateX(90deg)}100%{transform:rotateX(0)}}
+@keyframes pop{0%{transform:scale(.88)}60%{transform:scale(1.06)}100%{transform:scale(1)}}
+@keyframes shake{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+@keyframes hop{0%,100%{transform:translateY(0)}40%{transform:translateY(-14px)}}
+@keyframes fade{0%{opacity:0}20%,75%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){
+  .tile.filled,.tile.flip,.tile.hop,.row.shake,.logo.yum{animation:none}
+  #scare.on{animation:fade .9s ease-in-out both}
+  #scare img{animation:fade .9s ease-in-out both;transform:none}
+}
+
+/* Black base in every color scheme. Only Spooky time shows the moon and mist. */
+:root{--bg:#000;--fg:#f3e9da;--dim:#b8aa9c;--line:#493d34;--card:#211a15;--tile:#655345;--tile-on:#aa927b;--key:#493d32;--key-fg:#f3e9da;--absent:#3d3631;--shadow:0 10px 40px #0008}
+body{background:#000;isolation:isolate}
+#night{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;display:none}
+.spooky-on #night{display:block}
+#moon{position:absolute;right:14%;top:12%;width:clamp(68px,13vw,150px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 32% 29%,#c8cbc4,#969e96 62%,#69756e);box-shadow:0 0 40px #bbc9bc18;opacity:.7}
+#mist{position:absolute;inset:0;width:140%;height:65%;opacity:.28;animation:drift 110s linear infinite alternate;will-change:transform}
+.page-hidden #mist{animation-play-state:paused}
+@keyframes drift{from{transform:translateX(-20%)}to{transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){#mist{animation:none;will-change:auto}}
+
+</style>
+<link rel="stylesheet" href="/site-nav.css">
+</head>
+<body class="site-caseodle">
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+  <label class="spooky" title="Opt-in: a startling image may appear after some guesses. Includes a sudden loud scream; no strobing."><input type="checkbox" id="spooky" autocomplete="off">Spooky time</label>
+</nav>
+<script src="/site-nav.js"></script>
+<div id="night" aria-hidden="true"><div id="moon"></div><svg id="mist" viewBox="0 0 600 240" preserveAspectRatio="none"><defs><filter id="cloud-noise" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".008 .055" numOctaves="3" seed="17"/><feColorMatrix type="matrix" values="0 0 0 0 .55 0 0 0 0 .6 0 0 0 0 .57 0 0 0 2.8 -1.25"/><feGaussianBlur stdDeviation="1.5"/></filter></defs><rect width="600" height="240" filter="url(#cloud-noise)"/></svg></div>
+<div class="app">
+  <header class="hdr">
+    <img class="logo" id="logo" src="kitty.svg" alt="" width="46" height="46">
+    <div class="brand">
+      <h1>Case<span>odle</span></h1>
+      <p id="sub">Guess the word in six</p>
+    </div>
+    <div class="actions">
+      <button class="ibtn" id="newBtn" type="button" aria-label="New puzzle" hidden>🎲<span class="lbl">New puzzle</span></button>
+      <button class="ibtn" id="statsBtn" type="button" aria-label="Statistics"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><rect x="2" y="10" width="4" height="8" rx="1"/><rect x="8" y="4" width="4" height="14" rx="1"/><rect x="14" y="7" width="4" height="11" rx="1"/></svg></button>
+      <button class="ibtn" id="helpBtn" type="button" aria-label="How to play">?</button>
+    </div>
+  </header>
+  <main><div id="board" aria-label="Guesses"></div></main>
+  <div id="kb" aria-label="Keyboard"></div>
+  <p class="fine">Fan-made for fun. Not affiliated with or endorsed by CaseOh.</p>
+</div>
+
+<aside class="shop" aria-labelledby="shopTitle" aria-describedby="shopDisclosure">
+  <div class="shop-heading"><h2 id="shopTitle">Product spotlight</h2><p class="shop-intro">Explore the gear, drinks &amp; soap.</p><p class="shop-disclosure" id="shopDisclosure">External shopping links. This fan game is not sponsored or endorsed by these brands.</p></div>
+  <a class="pc" style="--product-accent:#2f3b73" href="https://starforgesystems.com/" target="_blank" rel="noopener">
+    <span class="pi" aria-hidden="true">SF</span>
+    <span><b>Starforge Systems</b><small>Gaming PCs</small></span>
+    <span class="go">Shop gaming PCs <span aria-hidden="true">↗</span></span><span class="sr"> (opens in a new tab)</span>
+  </a>
+  <a class="pc" style="--product-accent:#176642" href="https://gamersupps.gg/products/caseoh" target="_blank" rel="noopener">
+    <span class="pi" aria-hidden="true">GS</span>
+    <span><b>Gamer Supps × CaseOh</b><small>Collab on gamersupps.gg</small></span>
+    <span class="go">View CaseOh collab <span aria-hidden="true">↗</span></span><span class="sr"> (opens in a new tab)</span>
+  </a>
+  <a class="pc" style="--product-accent:#9a3757" href="https://usecheeky.com/products/caseohs-cocomo" target="_blank" rel="noopener">
+    <span class="pi" aria-hidden="true">C</span>
+    <span><b>CaseOh's Cocomo</b><small>Soap from Cheeky</small></span>
+    <span class="go">Shop Cocomo soap <span aria-hidden="true">↗</span></span><span class="sr"> (opens in a new tab)</span>
+  </a>
+</aside>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="sr" class="sr" aria-live="polite"></div>
+<div id="scare" aria-hidden="true"><img alt=""></div>
+
+<dialog id="help" aria-labelledby="helpTitle">
+  <button class="x" type="button" aria-label="Close" data-close>×</button>
+  <h2 id="helpTitle">How to play</h2>
+  <p>Guess the five-letter word in six tries. Any real five-letter word counts as a guess.</p>
+  <p>Type or tap letters, then hit <b>Enter</b>. Each tile then shows how close you were:</p>
+  <div class="ex" aria-hidden="true"><div class="tile" data-s="correct">s</div><div class="tile filled">t</div><div class="tile filled">o</div><div class="tile filled">r</div><div class="tile filled">m</div></div>
+  <p class="note"><b>Green</b>: S is in the word, in that exact spot.</p>
+  <div class="ex" aria-hidden="true"><div class="tile filled">p</div><div class="tile filled">l</div><div class="tile" data-s="present">a</div><div class="tile filled">n</div><div class="tile filled">t</div></div>
+  <p class="note"><b>Yellow</b>: A is in the word, but somewhere else.</p>
+  <div class="ex" aria-hidden="true"><div class="tile filled">b</div><div class="tile filled">r</div><div class="tile filled">i</div><div class="tile filled">c</div><div class="tile" data-s="absent">k</div></div>
+  <p class="note"><b>Grey</b>: no K anywhere. A letter only lights up as many times as the answer uses it, so a repeat can go grey.</p>
+  <h3>Puzzles</h3>
+  <p>Everyone starts with puzzle #1. Finish it and a fresh puzzle is dealt every time: hit <b>Next puzzle</b> (or 🎲) for as many rounds as you like.</p>
+  <h3>Spooky time</h3>
+  <p>Opt-in and off by default. Tick it (top right) and a startling image may jump onto the screen after some guesses. Includes a sudden loud scream, with no strobing; untick to stop it at once.</p>
+  <p class="note">Scream: <a href="https://soundbible.com/1627-Female-Scream-Horror.html" target="_blank" rel="noopener">Female Scream Horror by NeoPhyTe</a> (public domain; shortened and faded). Zombie image from Anthony / TioMothy’s <a href="https://corn-maze-horror.vercel.app/" target="_blank" rel="noopener">corn maze game</a>. A spinning black-cat celebration with looping audio plays after a solve in either mode, ending with one meow. Close or Next puzzle stops it; use your device or tab volume. Reduced motion keeps the cat still.</p>
+  <p class="note">Fan-made by vibe coded slopware. Not affiliated with, sponsored or endorsed by CaseOh or the brands linked on this page. Kitty is an original illustration.</p>
+  <div class="btns"><button class="btn" type="button" data-close>Let's play</button></div>
+</dialog>
+
+<dialog id="end" aria-labelledby="endTitle">
+  <button class="x" type="button" aria-label="Close" data-close>×</button>
+  <h2 id="endTitle"></h2>
+  <p id="endMsg"></p>
+  <div class="answer" id="endWord" aria-hidden="true"></div>
+  <div class="stats">
+    <div><b id="sPlayed">0</b><span>Played</span></div>
+    <div><b id="sPct">0</b><span>Win %</span></div>
+    <div><b id="sStreak">0</b><span>Streak</span></div>
+    <div><b id="sBest">0</b><span>Best</span></div>
+  </div>
+  <div class="dist" id="dist" aria-label="Guess distribution"></div>
+  <div class="btns" id="endBtns">
+    <button class="btn" type="button" id="againBtn">Next puzzle</button>
+    <button class="btn alt" type="button" id="shareBtn">Copy result</button>
+  </div>
+</dialog>
+
+<link rel="stylesheet" href="win-cat.css">
+<script src="win-cat.js"></script>
+<script src="words.js"></script>
+<script>
+(() => {
+'use strict';
+
+// Answer pool: food, cooking, kitchen words and playful size jokes; audited conservatively.
+// The page never names the theme; players find it.
+const ANSWERS = `
+  aioli apron bacon bagel baker baste basil bread brine broil broth bundt cakes candy caper carve chili chips chive chops clams clove cocoa crabs cream crepe crust cumin curds curry diner donut dough feast filet flour fries fryer fudge glaze gouda grate gravy grill grits gruel gumbo gummy gyros herbs honey icing jelly jerky kebab knead knife ladle liver lunch maple mince mixer mochi nacho panko pasta patty penne pesto pilaf pizza plate poach queso ramen ranch roast salsa sauce scone sieve slice snack spice spoon spuds squid steak steam stock stove sugar sushi syrup tacos taffy tapas tarts tater thyme toast tongs wafer whisk wings yeast heavy giant large jumbo hefty bulky beefy stout ounce pound chomp fresh stale fried fatty`.trim().split(/\s+/);
+
+// Retired answers remain valid guesses, including in unfinished saved rounds.
+const RETIRED_ANSWERS = `anise arepa blini carob dolma elote gyoza knish korma kugel laksa latke matzo morel prawn raita satay tikka torta torte tripe unagi wurst`.split(/\s+/);
+
+// Every player's first puzzle is #1, set by request and kept out of the pool. After that each
+// finished game deals a fresh random one, as many as you like.
+const INAUGURAL = 'obese';
+// Submitting this word always sets off a scare while Spooky time is on.
+const ALWAYS_SCARE = 'plead';
+
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('caseodle:' + k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('caseodle:' + k, JSON.stringify(v)); } catch {} },
+};
+// Saves from the old daily-puzzle versions (#1 keeps its key).
+try { for (const k of Object.keys(localStorage)) if (/^caseodle:(daily|puzzle:(?!1$)\d+)$/.test(k)) localStorage.removeItem(k); } catch {}
+const calm = matchMedia('(prefers-reduced-motion: reduce)');
+const wait = ms => new Promise(r => setTimeout(r, ms));
+let winCelebration = null;
+
+const GUESSES = new Set((window.CASEODLE_GUESSES || '').match(/[a-z]{5}/g) || []);
+const haveDict = GUESSES.size > 0;
+[...ANSWERS, ...RETIRED_ANSWERS, INAUGURAL, ALWAYS_SCARE].forEach(w => GUESSES.add(w));
+const isWord = w => !haveDict || GUESSES.has(w);   // if words.js failed to load, don't block play
+
+// Saves carry their answer, so a stale or mismatched save can't stand in for another puzzle.
+function savedRows(save, answer) {
+  const rows = [];
+  if (!save || save.answer !== answer || !Array.isArray(save.guesses)) return rows;
+  for (const w of save.guesses) {
+    if (typeof w !== 'string' || !/^[a-z]{5}$/.test(w)) break;
+    rows.push(w);
+    if (w === answer || rows.length === 6) break;
+  }
+  return rows;
+}
+const isDone = (rows, answer) => rows.length === 6 || rows.includes(answer);
+const firstDone = () => isDone(savedRows(store.get('puzzle:1', null), INAUGURAL), INAUGURAL);
+
+// Two passes so repeated letters are only credited as often as the answer has them.
+function score(guess, answer) {
+  const marks = Array(5).fill('absent'), left = {};
+  for (let i = 0; i < 5; i++) {
+    if (guess[i] === answer[i]) marks[i] = 'correct';
+    else left[answer[i]] = (left[answer[i]] || 0) + 1;
+  }
+  for (let i = 0; i < 5; i++) {
+    if (marks[i] !== 'correct' && left[guess[i]] > 0) { marks[i] = 'present'; left[guess[i]]--; }
+  }
+  return marks;
+}
+
+// ---------- board and keyboard ----------
+const board = $('#board'), kb = $('#kb');
+const tiles = [];
+for (let r = 0; r < 6; r++) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  tiles.push([]);
+  for (let c = 0; c < 5; c++) {
+    const t = document.createElement('div');
+    t.className = 'tile';
+    row.appendChild(t);
+    tiles[r].push(t);
+  }
+  board.appendChild(row);
+}
+const keys = {};
+['qwertyuiop', 'asdfghjkl', '+zxcvbnm-'].forEach((letters, i) => {
+  const row = document.createElement('div');
+  row.className = 'kr';
+  if (i === 1) row.appendChild(Object.assign(document.createElement('span'), { className: 'pad' }));
+  for (const ch of letters) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'key';
+    if (ch === '+') { b.dataset.key = 'enter'; b.textContent = 'Enter'; b.classList.add('wide'); }
+    else if (ch === '-') { b.dataset.key = 'back'; b.textContent = '⌫'; b.classList.add('wide'); b.setAttribute('aria-label', 'Delete'); }
+    else { b.dataset.key = ch; b.textContent = ch; b.setAttribute('aria-label', `${ch.toUpperCase()}, not guessed`); keys[ch] = b; }
+    row.appendChild(b);
+  }
+  if (i === 1) row.appendChild(Object.assign(document.createElement('span'), { className: 'pad' }));
+  kb.appendChild(row);
+});
+
+const RANK = { absent: 1, present: 2, correct: 3 };
+const SAY = { correct: 'right spot', present: 'wrong spot', absent: 'not in the word' };
+function paintKeys(word, marks) {
+  [...word].forEach((ch, i) => {
+    const k = keys[ch];
+    if (k && (RANK[marks[i]] > (RANK[k.dataset.s] || 0))) {
+      k.dataset.s = marks[i];
+      k.setAttribute('aria-label', `${ch.toUpperCase()}, ${SAY[marks[i]]}`);
+    }
+  });
+}
+
+let toastTimer = 0;
+function toast(msg, ms = 1400) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('on'), ms);
+}
+const announce = msg => { $('#sr').textContent = msg; };
+
+
+// Recorded public-domain scream by NeoPhyTe (SoundBible); see AUDIO-LICENSE.md.
+let audioContext = null, screamBuffer = null, screamRendering = null;
+let scareSource = null, scareGain = null;
+function unlockAudio() {
+  try {
+    const Audio = window.AudioContext || window.webkitAudioContext;
+    if (!Audio) return null;
+    if (!audioContext) audioContext = new Audio();
+    if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+    if (spooky.checked && !screamBuffer && !screamRendering) {
+      screamRendering = fetch('scream.wav')
+        .then(response => {
+          if (!response.ok) throw new Error('Scare audio unavailable');
+          return response.arrayBuffer();
+        })
+        .then(bytes => audioContext.decodeAudioData(bytes))
+        .then(buffer => { normalize(buffer, .85); screamBuffer = buffer; })
+        .catch(() => {})
+        .finally(() => { screamRendering = null; });
+    }
+    return audioContext;
+  } catch { return null; }
+}
+function normalize(buffer, peak) {
+  const data = buffer.getChannelData(0);
+  let max = 0; for (const x of data) max = Math.max(max, Math.abs(x));
+  if (max) for (let i=0;i<data.length;i++) data[i] *= peak/max;
+}
+function stopScareSound() {
+  try { scareSource?.stop(); } catch {}
+  scareSource?.disconnect(); scareGain?.disconnect();
+  scareSource = scareGain = null;
+}
+function playScareSound() {
+  if (!spooky.checked || document.hidden || !scareEl.classList.contains('on')) return;
+  const ac = audioContext;
+  if (!ac || ac.state !== 'running' || !screamBuffer) return;
+  stopScareSound();
+  scareSource = ac.createBufferSource(); scareSource.buffer = screamBuffer;
+  scareGain = ac.createGain(); scareGain.gain.value = .5;
+  scareSource.connect(scareGain).connect(ac.destination); scareSource.start();
+}
+// ---------- game ----------
+let game, busy = false;
+
+function setup(answer, num, guesses) {
+  winCelebration?.cancel();
+  cancelScare();
+  clearTimeout(toastTimer);
+  $('#toast').classList.remove('on');
+  $('#toast').textContent = '';
+  announce('');
+  game = { answer, num, key: num === 1 ? 'puzzle:1' : 'current', rows: [], cur: '', over: false, won: false };
+  busy = false;
+  tiles.flat().forEach(t => { t.textContent = ''; t.className = 'tile'; t.style.animationDelay = ''; delete t.dataset.s; t.removeAttribute('aria-label'); });
+  Object.entries(keys).forEach(([ch, k]) => { delete k.dataset.s; k.setAttribute('aria-label', `${ch.toUpperCase()}, not guessed`); });
+  $('#sub').textContent = `Puzzle #${num}`;
+  for (const w of guesses) {
+    const marks = score(w, answer), r = game.rows.length;
+    game.rows.push({ word: w, marks });
+    reveal(r, w, marks, false);
+    paintKeys(w, marks);
+  }
+  game.won = game.rows.some(x => x.word === answer);
+  game.over = game.won || game.rows.length === 6;
+  syncNewBtn();
+}
+
+const save = g => store.set(g.key, { answer: g.answer, num: g.num, guesses: g.rows.map(x => x.word) });
+
+// The new-puzzle button stays hidden until #1 is finished, so #1 really is everyone's first.
+function syncNewBtn() { $('#newBtn').hidden = game.num === 1 && !game.over; }
+
+function nextPuzzle() {
+  // Deal from words this player hasn't had yet; once they've had them all, start over.
+  let seen = store.get('seen', []);
+  if (!Array.isArray(seen)) seen = [];
+  let fresh = ANSWERS.filter(w => !seen.includes(w) && w !== game?.answer);
+  if (!fresh.length) { seen = []; fresh = ANSWERS.filter(w => w !== game?.answer); }
+  const w = fresh[Math.floor(Math.random() * fresh.length)];
+  store.set('seen', [...seen, w]);
+  const num = Math.max(2, (store.get('count', 1) | 0) + 1);
+  store.set('count', num);
+  setup(w, num, []);
+  save(game);
+}
+
+// On load: #1 until it's finished, then whatever unfinished puzzle was in progress, else a new one.
+function start() {
+  if (!firstDone()) return setup(INAUGURAL, 1, savedRows(store.get('puzzle:1', null), INAUGURAL));
+  const cur = store.get('current', null);
+  if (cur && typeof cur.answer === 'string' && /^[a-z]{5}$/.test(cur.answer) && GUESSES.has(cur.answer) && Number.isInteger(cur.num)) {
+    const rows = savedRows(cur, cur.answer);
+    if (!isDone(rows, cur.answer)) return setup(cur.answer, Math.max(2, cur.num), rows);
+  }
+  nextPuzzle();
+}
+
+function addLetter(ch) {
+  if (busy || game.over || game.cur.length >= 5) return;
+  game.cur += ch;
+  const t = tiles[game.rows.length][game.cur.length - 1];
+  t.textContent = ch;
+  t.classList.add('filled');
+}
+
+function delLetter() {
+  if (busy || game.over || !game.cur) return;
+  const t = tiles[game.rows.length][game.cur.length - 1];
+  t.textContent = '';
+  t.classList.remove('filled');
+  game.cur = game.cur.slice(0, -1);
+}
+
+function reject(msg) {
+  toast(msg);
+  announce(msg);
+  const row = board.children[game.rows.length];
+  row.classList.remove('shake');
+  void row.offsetWidth;
+  row.classList.add('shake');
+}
+
+function reveal(r, word, marks, animate) {
+  const step = animate && !calm.matches ? 280 : 0;
+  for (let c = 0; c < 5; c++) {
+    const t = tiles[r][c];
+    t.textContent = word[c];
+    t.classList.add('filled');
+    const apply = () => { t.dataset.s = marks[c]; t.setAttribute('aria-label', `${word[c].toUpperCase()}, ${SAY[marks[c]]}`); };
+    if (!step) { apply(); continue; }
+    setTimeout(() => { t.classList.remove('flip'); void t.offsetWidth; t.classList.add('flip'); setTimeout(apply, 250); }, c * step);
+  }
+  return wait(step ? 4 * step + 520 : 0);
+}
+
+async function submit() {
+  if (busy || game.over) return;
+  const w = game.cur;
+  if (w.length < 5) return reject('Not enough letters');
+  if (!isWord(w)) return reject('Not in the word list');
+
+  unlockAudio();
+  const g = game, r = g.rows.length, marks = score(w, g.answer);
+  g.rows.push({ word: w, marks });
+  g.cur = '';
+  g.won = w === g.answer;
+  g.over = g.won || g.rows.length === 6;
+  save(g);
+  if (g.over) { recordStats(g.won, g.rows.length); syncNewBtn(); }
+
+  busy = true;
+  await reveal(r, w, marks, true);
+  if (game !== g) return;
+  busy = false;
+  paintKeys(w, marks);
+  announce(`${w.toUpperCase()}: ` + marks.map((m, i) => `${w[i].toUpperCase()} ${SAY[m]}`).join(', '));
+  // Spooky time may strike after any valid row: winning, losing or carrying on.
+  const scare = maybeScare(w === ALWAYS_SCARE);
+  if (!g.over) return;
+  await scare;
+  if (game !== g) return;
+  if (g.won && !document.hidden) await celebrate();
+  else if (!g.won) await wait(450);
+  if (game === g && !document.hidden) openEnd();
+}
+
+function celebrate() {
+  return winCelebration.start();
+}
+
+// ---------- stats and end screen ----------
+const blankStats = () => ({ played: 0, wins: 0, streak: 0, best: 0, dist: [0, 0, 0, 0, 0, 0] });
+function recordStats(won, n) {
+  const s = store.get('stats', blankStats());
+  s.played++;
+  if (won) { s.wins++; s.streak++; s.best = Math.max(s.best, s.streak); s.dist[n - 1]++; }
+  else s.streak = 0;
+  store.set('stats', s);
+}
+
+function openEnd() {
+  const s = store.get('stats', blankStats()), done = game.over;
+  $('#endTitle').textContent = !done ? 'Your stats' : game.won ? 'Solved!' : 'Out of guesses';
+  const msg = $('#endMsg'), ans = $('#endWord');
+  ans.replaceChildren();
+  if (!done) msg.textContent = 'Finish this puzzle to add to them.';
+  else if (game.won) msg.textContent = `You got puzzle #${game.num} in ${game.rows.length}/6.`;
+  else {
+    msg.innerHTML = `The answer was:<span class="sr"> ${game.answer}</span>`;
+    for (const ch of game.answer) {
+      const t = Object.assign(document.createElement('div'), { className: 'tile', textContent: ch });
+      t.dataset.s = 'correct';
+      ans.appendChild(t);
+    }
+  }
+
+  $('#sPlayed').textContent = s.played;
+  $('#sPct').textContent = s.played ? Math.round(100 * s.wins / s.played) : 0;
+  $('#sStreak').textContent = s.streak;
+  $('#sBest').textContent = s.best;
+  const max = Math.max(1, ...s.dist), dist = $('#dist');
+  dist.replaceChildren(...s.dist.map((n, i) => {
+    const row = document.createElement('div'), bar = document.createElement('i');
+    row.innerHTML = `<span>${i + 1}</span>`;
+    bar.textContent = n;
+    bar.style.width = `${Math.max(8, 100 * n / max)}%`;
+    if (done && game.won && game.rows.length === i + 1) bar.className = 'me';
+    row.appendChild(bar);
+    return row;
+  }));
+
+  $('#endBtns').hidden = !done;
+  const dlg = $('#end');
+  if (!dlg.open) dlg.showModal();
+}
+
+function resultText() {
+  const grid = game.rows.map(r => r.marks.map(m => m === 'correct' ? '🟩' : m === 'present' ? '🟨' : '⬛').join('')).join('\n');
+  const score = `${game.won ? game.rows.length : 'X'}/6`;
+  const head = game.num === 1 ? `Caseodle #1 ${score}` : `Caseodle ${score}`;
+  return `${head}${spooky.checked ? ' · Spooky time' : ''}\n\n${grid}\nvibecodedslopware.com/caseodle/`;
+}
+
+async function copyResult() {
+  const text = resultText();
+  try { await navigator.clipboard.writeText(text); toast('Copied to clipboard'); return; } catch {}
+  const ta = Object.assign(document.createElement('textarea'), { value: text });
+  ta.style.position = 'fixed'; ta.style.opacity = '0';
+  $('#end').appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch {}
+  ta.remove();
+  toast(ok ? 'Copied to clipboard' : 'Couldn’t copy, sorry');
+}
+
+// ---------- Spooky time ----------
+// Off on every load. When on, each valid row gets one roll: PLEAD always scares, anything else
+// about one time in three, so the two rules can never both fire. Unticking cancels anything
+// pending or on screen.
+const SCARE_CHANCE = 0.3;
+const spooky = $('#spooky'), scareEl = $('#scare'), scareImgEl = scareEl.querySelector('img');
+let scareImg = null, scareDelay = 0, scareHide = 0, scareDone = null;
+spooky.checked = false;
+
+function loadScareImg() {
+  if (scareImg) return;
+  scareImg = new Image();
+  scareImg.src = 'spooky.png';
+  scareImg.decode?.().catch(() => {});
+}
+spooky.addEventListener('change', () => {
+  document.body.classList.toggle('spooky-on', spooky.checked);
+  if (spooky.checked) { loadScareImg(); unlockAudio(); } else cancelScare();
+});
+function syncVisibility() {
+  document.body.classList.toggle('page-hidden', document.hidden);
+  if (document.hidden) cancelScare();
+}
+document.addEventListener('visibilitychange', syncVisibility);
+syncVisibility();
+addEventListener('pageshow', () => { if (!spooky.checked) cancelScare(); });
+
+function maybeScare(forced) {
+  if (!spooky.checked || !(forced || Math.random() < SCARE_CHANCE)) return Promise.resolve();
+  cancelScare();
+  loadScareImg();
+  const giveUp = Date.now() + 8000;   // only for an image that won't load
+  return new Promise(resolve => {
+    scareDone = resolve;
+    scareDelay = setTimeout(runScare, 150 + Math.random() * 750, forced, giveUp);
+  });
+}
+
+function runScare(forced, giveUp) {
+  scareDelay = 0;
+  if (!spooky.checked) return cancelScare();
+  const ready = scareImg.complete && scareImg.naturalWidth > 0;
+  if (!ready && (scareImg.complete || Date.now() > giveUp)) return cancelScare();
+  if (!ready || screamRendering || document.hidden || document.querySelector('dialog[open]')) {
+    // A random scare just skips; PLEAD's waits for the image, the tab or an open dialog instead.
+    if (!forced) return cancelScare();
+    scareDelay = setTimeout(runScare, 200, forced, giveUp);
+    return;
+  }
+  scareImgEl.src = scareImg.src;
+  scareEl.classList.remove('on');
+  void scareEl.offsetWidth;
+  scareEl.classList.add('on');
+  playScareSound();
+  scareHide = setTimeout(cancelScare, calm.matches ? 900 : 1150);
+}
+
+function cancelScare() {
+  stopScareSound();
+  clearTimeout(scareDelay);
+  clearTimeout(scareHide);
+  scareDelay = scareHide = 0;
+  scareEl.classList.remove('on');
+  const done = scareDone;
+  scareDone = null;
+  if (done) done();
+}
+
+// ---------- input ----------
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey || document.querySelector('dialog[open]')) return;
+  if (e.key === 'Enter') { e.preventDefault(); submit(); }
+  else if (e.key === 'Backspace') { e.preventDefault(); delLetter(); }
+  else if (/^[a-z]$/i.test(e.key)) addLetter(e.key.toLowerCase());
+});
+
+kb.addEventListener('click', e => {
+  const b = e.target.closest('button[data-key]');
+  if (!b) return;
+  if (e.detail) b.blur();   // a tapped key shouldn't keep focus and swallow the next Enter
+  const k = b.dataset.key;
+  if (k === 'enter') submit();
+  else if (k === 'back') delLetter();
+  else addLetter(k);
+});
+
+document.querySelectorAll('dialog').forEach(d => {
+  d.addEventListener('click', e => {
+    const r = d.getBoundingClientRect();
+    const outside = e.target === d && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom);
+    if (outside || e.target.closest('[data-close]')) d.close();
+  });
+});
+$('#helpBtn').addEventListener('click', () => $('#help').showModal());
+$('#statsBtn').addEventListener('click', openEnd);
+$('#newBtn').addEventListener('click', e => {
+  if (e.detail) e.currentTarget.blur();
+  nextPuzzle();
+});
+$('#againBtn').addEventListener('click', () => { $('#end').close(); nextPuzzle(); });
+$('#shareBtn').addEventListener('click', copyResult);
+
+winCelebration = window.createCaseOdleWinCat({ getAudioContext: () => audioContext, onNext: nextPuzzle });
+start();
+if (!store.get('seenHelp', false)) { store.set('seenHelp', true); $('#help').showModal(); }
+})();
+</script>
+</body>
+</html>
+

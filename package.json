@@ -1,0 +1,15 @@
+{
+  "name": "vibecodedslopware",
+  "private": true,
+  "type": "module",
+  "description": "Source for vibecodedslopware.com. Static site plus a couple of Vercel Functions.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node tools/dev.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.134.0"
+  }
+}

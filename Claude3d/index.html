@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent Office 3D — a walkable 3D office for Claude Code</title>
+<meta name="description" content="A Claude Code mod: your sessions as a 3D office. Walk a hallway of project rooms, sit with your agents, and play chess against a model that can't cheat.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>">
+<meta property="og:title" content="Agent Office 3D">
+<meta property="og:description" content="A Claude Code mod: your sessions as a walkable 3D office, with an arcade where agents play by the rules.">
+<meta property="og:image" content="https://www.vibecodedslopware.com/Claude3d/shots/room.png">
+<style>
+:root{--bg:#f4f0e6;--fg:#1f1d1a;--dim:#6b665c;--card:#fffdf7;--line:#ddd5c4;--accent:#3f7d4e;--code:#efe9db}
+@media (prefers-color-scheme:dark){:root{--bg:#15171a;--fg:#ece8df;--dim:#9a958a;--card:#1d2024;--line:#2e3238;--accent:#8fc46a;--code:#23272d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 "Segoe UI",system-ui,-apple-system,sans-serif}
+main{max-width:860px;margin:0 auto;padding:48px 16px 64px}
+a{color:var(--accent)}
+.back{color:var(--dim);text-decoration:none;font-size:14px}
+h1{font-size:clamp(32px,6vw,52px);line-height:1.05;margin:12px 0 8px;letter-spacing:-1px}
+h1 span{color:var(--accent)}
+.lede{color:var(--dim);font-size:19px;margin:0 0 28px;max-width:640px}
+.cta{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:0 0 36px}
+.btn{display:inline-block;padding:12px 20px;border-radius:12px;background:var(--accent);color:#fff;text-decoration:none;font-weight:600}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.meta{color:var(--dim);font-size:13px}
+.shots{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 0 36px}
+.shots figure{margin:0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card)}
+.shots img{display:block;width:100%;height:auto}
+.shots figcaption{padding:8px 12px;font-size:13px;color:var(--dim)}
+.shots .wide{grid-column:1/-1}
+h2{font-size:24px;margin:36px 0 10px}
+h3{font-size:18px;margin:24px 0 6px}
+ul{padding-left:22px}
+li{margin:4px 0}
+code,pre{font-family:ui-monospace,Consolas,"Cascadia Mono",monospace;font-size:14px}
+code{background:var(--code);padding:1px 6px;border-radius:6px}
+pre{background:var(--code);padding:14px 16px;border-radius:12px;overflow:auto}
+pre code{background:none;padding:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.card{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:16px 18px}
+.card h3{margin:0 0 6px}
+.card p{margin:0;color:var(--dim);font-size:14.5px}
+.note{border-left:3px solid var(--accent);padding:8px 14px;background:var(--card);border-radius:0 12px 12px 0;color:var(--dim);font-size:14.5px}
+footer{margin-top:48px;color:var(--dim);font-size:13px}
+@media (max-width:640px){.shots,.grid2{grid-template-columns:1fr}}
+</style>
+<link rel="stylesheet" href="/site-nav.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<main>
+  <a class="back" href="/">← vibe coded slopware</a>
+  <h1>Agent <span>Office 3D</span></h1>
+  <p class="lede">A Claude Code mod that turns your sessions into a walkable 3D office. Walk a hallway of project rooms, sit down with your agents, and play chess against a model that can't cheat.</p>
+  <div class="cta">
+    <a class="btn" href="agent-office-3d-0.6.0.zip" download>Download the plugin (zip)</a>
+    <a class="btn ghost" href="#install">How to install</a>
+    <span class="meta">v0.6.0 · Apache-2.0 · Windows &amp; macOS · needs Claude Code desktop with mods, Node.js, Chrome or Edge</span>
+  </div>
+
+  <div class="shots">
+    <figure class="wide"><img src="shots/room.png" alt="A project room: the session's lead desk front and centre facing the door, its agents at desks behind it" width="1280" height="720" loading="lazy"><figcaption>A project room. The session's lead desk faces the door; its subagents sit behind it. Lights and raised hands come only from real evidence.</figcaption></figure>
+    <figure><img src="shots/hallway.png" alt="The hallway with rooms off it" width="1280" height="720" loading="lazy"><figcaption>The hallway: the arcade, your office, the escape room, then a room per project. It loops.</figcaption></figure>
+    <figure><img src="shots/arcade.png" alt="The Agent Arcade room with game tables" width="1280" height="720" loading="lazy"><figcaption>The Agent Arcade: chess, tic-tac-toe, Connect Four, checkers and Bones.</figcaption></figure>
+    <figure><img src="shots/chess.png" alt="Seated at the chess table, with the seat panel open" width="1280" height="720" loading="lazy"><figcaption>Sit at a chair, seat yourself or an agent on either side, and play.</figcaption></figure>
+    <figure><img src="shots/myoffice.png" alt="Seated at your own desk, the wide monitor in front of you" width="1280" height="720" loading="lazy"><figcaption>Your own office: share a window and it shows on your monitor, live, without leaving the page.</figcaption></figure>
+    <figure><img src="shots/escaperoom.png" alt="The escape room console panel" width="1280" height="720" loading="lazy"><figcaption>The escape room: inspect, try the locks, and a teammate who can't know the answers.</figcaption></figure>
+    <figure><img src="shots/kanban.png" alt="The kanban board on a room's wall" width="1280" height="720" loading="lazy"><figcaption>Your project's roadmap on the wall; edits go back into the file.</figcaption></figure>
+    <figure><img src="shots/editor.png" alt="The world editor panel over the room" width="1280" height="720" loading="lazy"><figcaption>The world editor: ask in words, preview, apply or undo.</figcaption></figure>
+  </div>
+
+  <h2>What it does</h2>
+  <div class="grid2">
+    <div class="card"><h3>A room per project</h3><p>A room opens the first time a session of a project (its working folder) appears and keeps its place on the hallway. The project's name is over the door. Keys 1–9 walk you to a room.</p></div>
+    <div class="card"><h3>Your agents at desks</h3><p>Each session has a bay: its lead desk at the front, its subagents clustered behind. Green, yellow and red lights with words beside them; a hand goes up only for a real pending question or permission prompt, which you answer in Claude Code itself.</p></div>
+    <div class="card"><h3>Sit down to talk</h3><p>Walk up to any desk and press <code>E</code>. Its conversation opens beside you and what you type goes to that agent, or to your own conversation as your own prompt. Esc stands you up.</p></div>
+    <div class="card"><h3>The Agent Arcade</h3><p>Chess, tic-tac-toe, Connect Four, checkers and Bones (Knucklebones). Seat yourself or an agent, any model and effort level, on either side. The rules are enforced in the mod: an agent's illegal move is sent back with the reason until it plays a legal one. Agent versus agent works too.</p></div>
+    <div class="card"><h3>Your own office</h3><p>Room 2 is yours: a desk, a chair and a wide monitor. Sit down, press Share a window, and the browser's own picker puts a window, tab or screen on the monitor, live. The picture never leaves the page; no bookmarks, cookies or passwords are read.</p></div>
+    <div class="card"><h3>The escape room</h3><p>Three themed rooms in rotation. Inspect objects, try the locks, and seat an AI teammate who is told only what you have found: the answers exist only as hashes, so it reasons with you instead of knowing.</p></div>
+    <div class="card"><h3>The kanban wall</h3><p>Your project's <code>KANBAN.md</code>, <code>ROADMAP.md</code> or <code>TODO.md</code> hangs on the wall of its room. Walk up, press <code>E</code>, tick, move, add or edit cards; every change is written back into the file, by line.</p></div>
+    <div class="card"><h3>The world editor</h3><p>Press <code>G</code> and ask in words: flowers on my desk, a bigger desk for agent 2, a blue carpet in the arcade, make my room bigger. The model answers with validated data, never code; you get a translucent preview, then apply, undo or reset.</p></div>
+    <div class="card"><h3>Every project, one office</h3><p>Each session joins the office when it starts, so every project's room, desks and agents are in every window on your machine. The small in-app pane has one button into the 3D office and one that removes this project from it (or adds it back). A session publishes a bounded summary of its own state to the local plugin store, never its files, and leaves when it closes.</p></div>
+    <div class="card"><h3>Everything stays local</h3><p>The window is served from 127.0.0.1 by a process the mod starts for the session, reachable only with a per-launch token, and closes with the window. Arcade agents, the escape teammate and the editor are model calls through your own session's client, with no tools and no history.</p></div>
+  </div>
+
+  <h2 id="install">Install</h2>
+  <ol>
+    <li>You need the Claude Code desktop app with mods (engine 2.1.299 or later), <a href="https://nodejs.org/">Node.js</a> 22+ on your PATH, and Chrome or Edge.</li>
+    <li>Download the zip above and extract the <code>agent-office-3d</code> folder into <code>~/.claude/skills/</code>, so that <code>~/.claude/skills/agent-office-3d/.claude-plugin/plugin.json</code> exists. (On Windows that is <code>C:\Users\you\.claude\skills\agent-office-3d</code>.)</li>
+    <li>Start a new Claude Code session in any project: the Agent Office pane opens with an <em>Enter the 3D office</em> button (or run <code>/3d</code>). Click the window to take control.</li>
+  </ol>
+  <p>Or, for one session only: <code>claude --plugin-dir path/to/agent-office-3d</code>.</p>
+  <p class="note">To remove it, delete the folder. The mod keeps nothing else on your machine except its own browser profile (<code>~/.claude/agent-office-3d/</code>) and, while a session is enrolled, a small record in the engine's plugin store that <code>/museum leave</code> removes.</p>
+
+  <h2>Controls</h2>
+  <pre><code>W A S D   move (arrows work too)     Mouse  look       Shift  run      Space  jump
+E         sit / stand / open what you face (a desk, a chair, the console, the board)
+T         message                   Tab    conversation   G     world editor
+1–9       walk to room 1–9          0      back to the entrance
+Esc       stand up / pause          F      toggle fullscreen</code></pre>
+  <p>Commands: <code>/3d</code> opens the window (<code>/3d close</code> closes it; <code>/3d arcade …</code>, <code>/3d design …</code>, <code>/3d kanban …</code> and <code>/3d escape …</code> drive those from the prompt), <code>/office</code> is the in-app pane with the button into the window and <code>/office remove</code> / <code>add</code> for this project, <code>/museum</code> the gallery of enrolled conversations.</p>
+
+  <h2>How the arcade keeps agents honest</h2>
+  <p>Every game is a pure rules module in the mod (the chess engine is verified against the standard perft counts, which catch castling, en-passant and promotion mistakes). An agent's turn is one model call that receives the position, the moves so far and <em>every legal move</em>, and must answer with one of them. The answer is parsed against that list; an illegal answer is sent back with the reason, three times at most, after which the game waits for you. Your own moves, typed or clicked, go through the same check. Bones uses a seeded die, so a game replays exactly from its moves.</p>
+  <p>The same idea runs the escape room: the answers exist in the room data only as salted hashes, and what the teammate is told is built in one place from the public text, the clues you have inspected and the recent log. The tests check that no answer appears anywhere in the room data and that the prompt actually sent carries only discovered clues. And the world editor: the model's reply is JSON in a fixed vocabulary of shapes, colours and anchors, checked field by field; there is no field that takes code, markup or a URL, and no role for a status light or a raised hand.</p>
+
+  <h2>Source and licence</h2>
+  <p>The zip is the whole plugin in readable source: TypeScript hooks for the mod side, a Node bridge, and a three.js page. Apache-2.0. Two small pieces of placement math are reused from the author's earlier project and recorded in <code>docs/PROVENANCE.md</code>. Models offered in the arcade are Anthropic's; this is an independent, unaffiliated project.</p>
+
+  <footer>Made with questionable judgment and an AI pair programmer. <a href="/">All the slopware</a>.</footer>
+</main>
+</body>
+</html>

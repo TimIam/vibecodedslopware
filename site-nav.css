@@ -1,0 +1,23 @@
+/* Shared site navigation. Keep game controls and links usable at narrow widths. */
+body{padding-top:52px;box-sizing:border-box}
+.site-topbar{box-sizing:border-box;position:fixed;inset:0 0 auto;z-index:100;min-height:52px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px max(12px,env(safe-area-inset-right)) 4px max(12px,env(safe-area-inset-left));border-bottom:1px solid #46504b;background:#19221e;color:#f6f3e9;font:14px/1.35 "Segoe UI",system-ui,-apple-system,sans-serif}
+.site-topbar a{box-sizing:border-box;display:inline-flex;align-items:center;gap:5px;min-height:44px;color:#f6f3e9;text-decoration:none;white-space:nowrap}
+.site-topbar .site-coffee{margin-left:auto;padding:0 10px;border:1px solid #8c9b80;border-radius:999px;background:#26352b;font-weight:600}
+.site-topbar a:hover{color:#ffe397}
+.site-topbar :focus-visible{outline:3px solid #ffe397;outline-offset:0}
+.site-topbar button{min-height:44px;background:none;border:0;color:inherit;font:inherit;cursor:pointer}
+.site-topbar .spooky{min-height:44px;box-sizing:border-box;color:#f6f3e9;border-color:#8c9b80;white-space:nowrap}
+.site-topbar .spooky input{accent-color:#a73838}
+/* Keep fixed game HUDs below navigation without changing canvas input or state. */
+body.site-bonsai #stats{top:68px}
+body.site-caseodle .app{min-height:calc(100vh - 52px);min-height:calc(100dvh - 52px)}
+body.site-weather #canvas{max-height:calc(100vh - 52px);max-height:calc(100dvh - 52px)}
+/* Matrix's iframe/native screensaver modes are rendering surfaces, not navigation pages. */
+body.embed{padding-top:0}
+body.embed .site-topbar{display:none}
+@media(max-width:600px){
+  .site-topbar{font-size:12px;gap:6px;padding-left:8px;padding-right:8px}
+  .site-topbar .site-long{display:none}
+  .site-topbar .site-coffee{padding:0 8px}
+  .site-topbar .spooky{padding-left:6px;padding-right:6px;font-size:12px}
+}

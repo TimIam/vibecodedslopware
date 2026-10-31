@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Madame Haiku · Vibe Coded Slopware</title>
+<meta name="description" content="A 16-bit fortune teller. Tarot spreads and horoscopes read to you one card at a time by a very small language model. The cards are shuffled in your browser. The insight is vibes.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔮</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0b1e;--ink:#0b0f3a;--white:#f4f4ff;--text:#ffffff;--dim:#aeb0e6;--gold:#ffd86b;--gold2:#e6b84a;--win1:#3447b5;--win2:#1a2270;--win3:#0d1248;--face:#f6ecd2;--face-ink:#2b2140;--cw:clamp(64px,10vw,96px);--pix:"Press Start 2P",monospace;--body:"Pixelify Sans","Segoe UI",system-ui,sans-serif}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:19px/1.5 var(--body)}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px)}
+canvas#stars{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;image-rendering:pixelated}
+main{max-width:880px;margin:0 auto;padding:28px 16px 100px;position:relative;z-index:1}
+a{color:inherit}
+.hdr{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px 12px;font:10px/1.6 var(--pix);color:var(--dim)}
+.hdr-r{display:flex;align-items:center;gap:18px}
+.hdr .coffee{text-transform:uppercase;white-space:nowrap}
+.hdr a{text-decoration:none}
+.hdr a:hover,.hdr button:hover{color:var(--gold)}
+.hdr button{background:none;border:0;color:var(--dim);font:inherit;cursor:pointer;padding:4px 0}
+h1{font:clamp(20px,4.6vw,34px)/1.2 var(--pix);color:var(--gold);margin:30px 0 8px;text-shadow:3px 3px 0 #5a2d7a,6px 6px 0 var(--ink);letter-spacing:1px}
+.sub{font:600 18px var(--body);color:var(--dim);margin:0 0 22px;letter-spacing:.08em;text-transform:uppercase;text-shadow:2px 2px 0 #000}
+
+/* windows */
+.win{position:relative;background:linear-gradient(180deg,var(--win1) 0%,var(--win2) 55%,var(--win3) 100%);border:3px solid var(--white);border-radius:7px;box-shadow:inset 0 0 0 2px var(--ink),0 0 0 2px var(--ink),0 10px 0 -4px #000;color:var(--text);text-shadow:2px 2px 0 var(--ink)}
+.win.dark{background:linear-gradient(180deg,#1c1f55,#0b0d33)}
+h2{font:10px/1.8 var(--pix);color:var(--gold);margin:0 0 12px;letter-spacing:.04em;text-transform:uppercase}
+h2 small{font:600 14px var(--body);color:var(--dim);text-transform:none;margin-left:8px}
+
+/* the stage: portrait + dialogue */
+.stage{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:end;margin:26px 0 18px;padding:22px 20px 40px;cursor:pointer;user-select:none;min-height:224px}
+.stage:focus-visible{outline:3px solid var(--gold);outline-offset:4px}
+.nametag{position:absolute;top:-19px;left:16px;padding:7px 12px 6px;font:11px/1 var(--pix);background:var(--win3);border:3px solid var(--white);border-radius:6px;box-shadow:inset 0 0 0 2px var(--ink),0 0 0 2px var(--ink);color:var(--gold)}
+.portrait{position:relative;width:192px;height:180px;flex:none}
+.portrait::before{content:"";position:absolute;left:0;bottom:-2px;width:72px;height:36px;border-radius:50%;background:radial-gradient(closest-side,rgba(110,220,255,.55),transparent 75%);z-index:0;animation:glow 2.4s steps(4) infinite}
+canvas#sprite{position:relative;z-index:1;width:192px;height:180px;image-rendering:pixelated;image-rendering:crisp-edges;display:block}
+.portrait.talking canvas{animation:bob .22s steps(2) infinite}
+.dtext{align-self:start;min-height:120px}
+.label{font:10px/1.7 var(--pix);color:var(--gold);margin-bottom:10px;min-height:17px;letter-spacing:.02em}
+.text{font-size:21px;line-height:1.5}
+.text b{color:var(--gold)}
+.text i{color:#d9ccff;font-style:normal}
+.next{position:absolute;right:16px;bottom:8px;color:var(--gold);font:11px var(--pix);animation:nudge .6s steps(2) infinite}
+.next small{font:600 14px var(--body);color:var(--dim);margin-right:8px;letter-spacing:.06em;text-transform:uppercase}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes glow{0%,100%{opacity:.6}50%{opacity:1}}
+@keyframes nudge{0%,100%{transform:translateY(0)}50%{transform:translateY(3px)}}
+@media (max-width:600px){.stage{gap:12px;padding:18px 14px 36px;align-items:start;min-height:0}.portrait{width:120px;height:112px}canvas#sprite{width:120px;height:112px}.portrait::before{width:48px;height:22px}.text{font-size:18px}}
+
+/* menus & panels */
+#content{position:relative;min-height:60px}
+.panel{transition:opacity .12s steps(3),transform .12s steps(3)}
+.panel.enter{opacity:0;transform:scale(.97)}
+.panel.leave{opacity:0;transform:scale(.97);pointer-events:none;position:absolute;inset:0 0 auto 0}
+.menu{padding:14px 14px 12px;display:grid;gap:6px}
+.menu.two{grid-template-columns:1fr 1fr;gap:10px}
+.menu.grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 8px}
+.menu.inline{display:flex;flex-wrap:wrap;gap:4px 10px}
+.item{display:grid;grid-template-columns:18px auto 1fr;gap:0 10px;align-items:center;text-align:left;padding:8px 10px;border:0;background:none;color:var(--text);font:inherit;text-shadow:inherit;cursor:pointer;border-radius:4px}
+.item:hover,.item:focus,.item.sel{background:rgba(255,255,255,.08);outline:0}
+.item .cur{visibility:hidden;color:var(--gold);font:12px var(--pix)}
+.item:hover .cur,.item:focus .cur,.item.sel .cur{visibility:visible;animation:blinkcur .5s steps(2) infinite}
+.item .ic{font-size:28px;line-height:1;width:34px;text-align:center}
+.item .ic:empty{display:none}
+.item .ic canvas{width:32px;height:32px;image-rendering:pixelated;display:block;margin:auto}
+.item .ic.sg{font-size:30px;color:#9fd0ff}
+.item .t b{display:block;font-size:20px;line-height:1.2}
+.item .t small{display:block;color:var(--dim);font-size:15px;line-height:1.3;margin-top:2px}
+.item .t .cnt{color:var(--gold);font:9px var(--pix);margin-left:8px;vertical-align:middle}
+.menu.two .item{grid-template-columns:18px auto 1fr;padding:18px 14px;align-items:start}
+.menu.two .item .ic{width:48px}
+.menu.two .item .ic canvas{width:48px;height:48px}
+.menu.two .item .t b{font-size:26px;margin-bottom:4px}
+.menu.inline .item{grid-template-columns:18px 1fr;padding:8px 12px}
+@keyframes blinkcur{to{opacity:0}}
+.startover{display:block;margin:14px auto 0;background:none;border:0;color:var(--dim);font:10px var(--pix);cursor:pointer;text-shadow:2px 2px 0 #000}
+.startover:hover{color:var(--gold)}
+.form{padding:16px 16px 14px}
+.birth{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:12px;font-size:15px;color:var(--dim);align-items:flex-end}
+.birth label{display:flex;flex-direction:column;gap:4px}
+input,textarea{font:inherit;color:var(--text);background:var(--win3);border:3px solid var(--white);box-shadow:inset 0 0 0 2px var(--ink);border-radius:5px;padding:8px 10px;text-shadow:none;color-scheme:dark}
+input:focus,textarea:focus{outline:3px solid var(--gold);outline-offset:1px}
+textarea{width:100%;resize:vertical;min-height:96px;display:block;font-size:19px;line-height:1.45}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-top:10px}
+.count{font-size:14px;color:var(--dim);margin-left:auto}
+
+/* the table */
+.table{display:flex;flex-wrap:wrap;justify-content:center;align-items:flex-start;gap:20px 14px;padding:30px 10px 14px;--arc:1}
+.table.grid{display:grid;justify-content:center;gap:22px 36px}
+.table.horseshoe{padding-bottom:calc(14px + 64px * var(--arc))}
+.slot{width:var(--cw);transform:translateY(calc(var(--lift,0px) * var(--arc))) rotate(calc(var(--tilt,0deg) * var(--arc)));transition:opacity .2s steps(2)}
+.table.reading .slot:not(.active):not(.done){opacity:.5}
+.stack{position:relative;width:100%;aspect-ratio:5/8;perspective:900px;transition:transform .2s steps(3),filter .2s steps(3)}
+.slot.active .stack{transform:scale(1.08);filter:drop-shadow(0 0 6px var(--gold)) drop-shadow(0 0 2px var(--gold))}
+.table.finale .stack{filter:drop-shadow(0 0 5px rgba(255,216,107,.7))}
+.wrap{position:absolute;inset:0;opacity:0;transform:translate(-24px,-150px) rotate(-14deg);transform-style:preserve-3d;transition:transform .45s cubic-bezier(.2,.75,.25,1),opacity .3s}
+.wrap.dealt{opacity:1;transform:none}
+.wrap.crossing.dealt{transform:rotate(90deg)}
+.card{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .6s cubic-bezier(.3,.7,.3,1)}
+.card.flipped{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;border-radius:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border:3px solid var(--white);box-shadow:inset 0 0 0 2px var(--ink),0 0 0 2px var(--ink)}
+.face.back{background:#1a1650 repeating-conic-gradient(#2b2578 0 25%,#1a1650 0 50%) 0 0/8px 8px;display:grid;place-items:center;color:var(--gold)}
+.face.back span{font-size:22px;text-shadow:2px 2px 0 var(--ink)}
+.face.front{background:var(--face);color:var(--face-ink);transform:rotateY(180deg);overflow:hidden;text-shadow:none}
+.face.front.major{box-shadow:inset 0 0 0 2px var(--ink),inset 0 0 0 5px var(--gold2),0 0 0 2px var(--ink)}
+.inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px}
+.card.reversed .inner{transform:rotate(180deg)}
+.c{position:absolute;font:8px/1 var(--pix)}
+.tl{top:7px;left:7px}.br{bottom:7px;right:7px;transform:rotate(180deg)}
+.g{font-size:clamp(22px,4vw,34px);line-height:1}
+.n{font:700 11px/1.15 var(--body);text-align:center;padding:0 8px}
+.pos{font:600 13.5px/1.25 var(--body);color:var(--dim);text-align:center;margin-top:8px;text-shadow:1px 1px 0 #000}
+.pos b{color:var(--gold)}
+.pos i{color:#9fd0ff;font-style:normal}
+@media (max-width:640px){.table.grid{display:flex}.table{--arc:0}.table.grid .slot{grid-area:auto!important}}
+
+/* the sky (astrology) */
+.sky{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center;padding:18px}
+.medal{width:112px;height:112px;border-radius:50%;display:grid;place-items:center;font-size:60px;color:#9fd0ff;background:var(--win3);border:3px solid var(--white);box-shadow:inset 0 0 0 2px var(--ink),0 0 0 2px var(--ink);line-height:1;text-shadow:3px 3px 0 var(--ink);transition:box-shadow .3s steps(3)}
+.medal.lit{box-shadow:inset 0 0 0 2px var(--ink),0 0 0 2px var(--ink),0 0 16px 4px rgba(255,216,107,.7)}
+.skyinfo b{font-size:24px;display:block}
+.skyinfo small{color:var(--dim);display:block;margin-top:2px;font-size:15px}
+.tiles{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{border:3px solid var(--white);box-shadow:inset 0 0 0 2px var(--ink);background:var(--win3);border-radius:5px;padding:10px 12px;display:flex;gap:10px;align-items:center;opacity:.35;transition:opacity .2s steps(2),box-shadow .2s steps(2)}
+.tile .st{color:var(--gold);font-size:22px}
+.tile span{font-size:16px;font-weight:600;line-height:1.25}
+.tile.lit{opacity:1;box-shadow:inset 0 0 0 2px var(--ink),0 0 12px 2px rgba(255,216,107,.55)}
+.tile.lit.active .st{animation:twinkle .8s steps(2) infinite}
+@keyframes twinkle{50%{opacity:.4}}
+@media (max-width:560px){.sky{grid-template-columns:1fr;justify-items:center;text-align:center}}
+
+/* transcript */
+.transcript{margin-top:22px;padding:18px 20px}
+.transcript .body{font-size:18px;line-height:1.55}
+.transcript .body h3{font:10px/1.8 var(--pix);margin:18px 0 6px;color:var(--gold)}
+.transcript .body p{margin:0 0 10px}
+.transcript .body b{color:var(--gold)}
+.transcript .meta{margin-top:12px;font-size:14px;color:var(--dim)}
+footer{margin-top:52px;color:var(--dim);font-size:15px;max-width:640px;text-shadow:1px 1px 0 #000}
+@media (prefers-reduced-motion:reduce){.wrap,.card,.panel,.stack,.slot{transition:none}.portrait.talking canvas,.portrait::before,.next,.tile.lit.active .st,.item .cur{animation:none}}
+</style>
+<link rel="stylesheet" href="/site-nav.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+  <button id="snd" type="button" aria-pressed="true">♪ SOUND: ON</button>
+</nav>
+<script src="/site-nav.js"></script>
+<canvas id="stars" aria-hidden="true"></canvas>
+<main>
+  <h1>MADAME HAIKU</h1>
+  <p class="sub">Tarot · Astrology · Daily horoscopes · One card at a time</p>
+
+  <section class="stage win" id="dialog" tabindex="0" title="Click, or press Space, to continue" aria-label="Madame Haiku speaks">
+    <div class="nametag">MADAME HAIKU</div>
+    <div class="portrait" id="portrait"><canvas id="sprite" width="32" height="30" aria-hidden="true"></canvas></div>
+    <div class="dtext">
+      <div class="label" id="d-label"></div>
+      <div class="text" id="d-text" aria-live="polite"></div>
+    </div>
+    <div class="next" id="d-next" hidden><small>continue</small>▼</div>
+  </section>
+
+  <section id="content"></section>
+  <section class="transcript win dark" id="transcript" hidden></section>
+
+  <footer>For entertainment. Madame Haiku is a language model; she cannot see the future, or anything else. The cards are shuffled on your device and the reading is written live by the newest Claude Haiku, which is why it occasionally has opinions about your week. Made with questionable judgment and an AI pair programmer.</footer>
+</main>
+
+<script type="module">
+import { DECK, SPREADS, SIGNS, FOCUSES, signFor, moonPhase } from "./deck.js";
+
+const $ = (s, r = document) => r.querySelector(s);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const localISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const content = $("#content"), transcript = $("#transcript");
+
+/* ================= sound (tiny square waves) ================= */
+const snd = { ctx: null, on: localStorage.getItem("mh-sound") !== "off" };
+const sndBtn = $("#snd");
+function showSound() { sndBtn.textContent = `♪ SOUND: ${snd.on ? "ON" : "OFF"}`; sndBtn.setAttribute("aria-pressed", snd.on); }
+sndBtn.addEventListener("click", () => { snd.on = !snd.on; localStorage.setItem("mh-sound", snd.on ? "on" : "off"); showSound(); if (snd.on) beep(990, 0.06); });
+showSound();
+function wake() { try { snd.ctx ??= new (window.AudioContext || window.webkitAudioContext)(); if (snd.ctx.state === "suspended") snd.ctx.resume(); } catch {} }
+document.addEventListener("pointerdown", wake, { capture: true });
+document.addEventListener("keydown", wake, { capture: true });
+function beep(freq, dur = 0.04, type = "square", gain = 0.025) {
+  if (!snd.on || !snd.ctx || snd.ctx.state !== "running") return;
+  try {
+    const o = snd.ctx.createOscillator(), g = snd.ctx.createGain(), t = snd.ctx.currentTime;
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(snd.ctx.destination); o.start(t); o.stop(t + dur);
+  } catch {}
+}
+const sfx = {
+  blip: () => beep(820 + Math.random() * 160, 0.03, "square", 0.012),
+  move: () => beep(1180, 0.03),
+  confirm: () => { beep(660, 0.05); setTimeout(() => beep(990, 0.09), 55); },
+  next: () => beep(740, 0.04),
+  flip: () => { beep(440, 0.05, "triangle", 0.04); setTimeout(() => beep(880, 0.08, "triangle", 0.03), 70); },
+  shine: () => { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, 0.12, "triangle", 0.03), i * 90)); },
+  oops: () => { beep(300, 0.12, "sawtooth", 0.03); setTimeout(() => beep(220, 0.2, "sawtooth", 0.03), 120); },
+};
+
+/* ================= pixel art ================= */
+const PAL = { k: "#1d1430", P: "#8a5ee0", p: "#5e3bb0", g: "#e6b84a", G: "#fff2b0", s: "#f2c6a0", d: "#d79c74", e: "#ffffff", i: "#2a1b45", h: "#3a2448", l: "#c8506f", m: "#4a1a2c", r: "#3c2768", R: "#5a3c95", C: "#ffffff", c: "#9fe8ff", b: "#4aa8ff", B: "#2454b8", t: "#5a3a2a", T: "#8a5a3a", w: "#ffffff", y: "#ffd86b", Y: "#ffb347", x: "#1a1650", X: "#2b2578" };
+function blit(ctx, rows, ox, oy) {
+  rows.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const c = PAL[row[x]]; if (!c) continue; ctx.fillStyle = c; ctx.fillRect(ox + x, oy + y, 1, 1); } });
+}
+function pixelCanvas(rows, w = rows[0].length, h = rows.length) { const c = document.createElement("canvas"); c.width = w; c.height = h; blit(c.getContext("2d"), rows, 0, 0); return c; }
+const BUST = [
+  "........kkkkkkkk........",
+  "......kkPPPPPPPPkk......",
+  ".....kPPPPPPPPPPPPk.....",
+  "....kPPPPPPPPPPPPPPk....",
+  "...kPPPPPPPPPPPPPPPPk...",
+  "...kPPPPPPPPPPPPPPPPk...",
+  "...kppppppppppppppppk...",
+  "...kggggggggggggggggk...",
+  "...kgGgGgGgGgGgGgGgGk...",
+  "..kppssssssssssssssppk..",
+  "..kppssssssssssssssppk..",
+  ".kkppsshhsssssshhssppkk.",
+  ".kgppsseeisssseeissppgk.",
+  ".kgppsseeisssseeissppgk.",
+  ".kGppssssssssssssssppGk.",
+  "..kppsssssddsssssssppk..",
+  "..kppssssssssssssssppk..",
+  "..kkppsssssllsssssppkk..",
+  "...kkppsssssssssssppkk..",
+  "....kkppsssssssssppkk...",
+  ".....kkpppsssssspppkk...",
+  "......kkkkpddddpkkkk....",
+  "....kkrrrrkddddkrrrrkk..",
+  "..kkrrRRrrrkddkrrrRRrrkk",
+  ".kRRRRRRrrrrkkrrrrRRRRRk",
+  ".kRRRRRRRrrrrrrrrRRRRRRk",
+  "kRRRRRRRrrrrrrrrRRRRRRRk",
+  "kRRRRRRRrrrrrrrrRRRRRRRk",
+];
+const patch = (rows, changes) => rows.map((r, i) => changes[i] ?? r);
+const BUSTS = {
+  idle: BUST,
+  talk: patch(BUST, { 17: "..kkppsssssmmsssssppkk..", 18: "...kkppssssmmsssssppkk.." }),
+  blink: patch(BUST, { 12: ".kgppssssssssssssssppgk.", 13: ".kgppsshhhsssshhhssppgk." }),
+};
+const ORB = [
+  "....kkkk....",
+  "..kkCCcckk..",
+  ".kCCCcccccbk",
+  ".kCCcccccbbk",
+  "kCccccccbbbk",
+  "kcccccccbbBk",
+  "kcccccbbbBBk",
+  "kccccbbbBBBk",
+  ".kcbbbBBBBk.",
+  ".kkbBBBBBkk.",
+  "..kkkkkkkk..",
+  "..kttTTttk..",
+  ".kttttttttk.",
+];
+const ORB2 = patch(ORB, { 2: ".kCCccccccbk", 3: ".kCcccccccbk", 5: "kccccCCcbbBk", 6: "kcccccCbbBBk" });
+const ICONS = {
+  tarot: ["..wwwwwwww..", ".wxxxxxxxxw.", ".wxyXXXXyxw.", ".wxXXyyXXxw.", ".wxXyyyyXxw.", ".wxXyYYyXxw.", ".wxXyYYyXxw.", ".wxXyyyyXxw.", ".wxXXyyXXxw.", ".wxyXXXXyxw.", ".wxxxxxxxxw.", "..wwwwwwww.."],
+  star: [".....yy.....", ".....yy.....", "....yYYy....", "....yYYy....", "yyyyYYYYyyyy", ".yyYYYYYYyy.", "..yYYYYYYy..", "...yYYYYy...", "...yYYYYy...", "..yYy..yYy..", ".yy......yy.", "y..........y"],
+  moon: ["....wwww....", "..wwyyyyww..", ".wyyyyww..w.", ".wyyyww...y.", "wyyyyw....yw", "wyyyyw....yw", "wyyyyw....yw", "wyyyyww...yw", ".wyyyyww.yw.", ".wyyyyyyyyw.", "..wwyyyyww..", "....wwww...."],
+};
+const spriteEl = $("#sprite"), sx = spriteEl.getContext("2d"), portrait = $("#portrait");
+let orbFrame = 0;
+function drawFrame(name) {
+  sx.clearRect(0, 0, spriteEl.width, spriteEl.height);
+  blit(sx, BUSTS[name], 8, 0);
+  blit(sx, orbFrame ? ORB2 : ORB, 0, 17);
+}
+let talking = false, mouthOpen = false, face = "idle";
+setInterval(() => { if (!talking) return; mouthOpen = !mouthOpen; face = mouthOpen ? "talk" : "idle"; drawFrame(face); }, 105);
+setInterval(() => { orbFrame ^= 1; drawFrame(face); }, 520);
+function setTalking(on) {
+  if (talking === on) return;
+  talking = on; portrait.classList.toggle("talking", on);
+  if (!on) { mouthOpen = false; face = "idle"; drawFrame(face); }
+}
+(function blinkLoop() {
+  setTimeout(() => {
+    if (!talking) { face = "blink"; drawFrame(face); setTimeout(() => { if (!talking) { face = "idle"; drawFrame(face); } }, 130); }
+    blinkLoop();
+  }, 2400 + Math.random() * 3200);
+})();
+drawFrame("idle");
+
+/* ================= the dialogue box ================= */
+const dlg = { root: $("#dialog"), label: $("#d-label"), text: $("#d-text"), next: $("#d-next") };
+const speaker = { token: 0, shown: 0, skip: null, resolveContinue: null };
+
+function inline(s) {
+  return esc(s)
+    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+    .replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, "$1<i>$2</i>")
+    .replace(/(^|[^\w])_([^_\n]+)_(?!\w)/g, "$1<i>$2</i>");
+}
+function dialogHTML(s) {
+  let v = s;
+  if ((v.match(/\*\*/g) || []).length % 2) v += "**";                       // close a bold that is still being typed
+  if ((v.replace(/\*\*/g, "").match(/\*/g) || []).length % 2) v += "*";
+  return inline(v).replace(/\n{2,}/g, "<br><br>").replace(/\n/g, " ");
+}
+
+/** Type text into the dialogue box. getText may grow while we type (streaming); isComplete says when it is final. */
+function speak({ getText, isComplete = () => true, label = "", wait = true }) {
+  const token = ++speaker.token;
+  speaker.shown = 0;
+  speaker.resolveContinue = null;
+  dlg.next.hidden = true;
+  dlg.text.innerHTML = "";
+  const setLabel = () => { dlg.label.textContent = typeof label === "function" ? label() : label; };
+  setLabel();
+  return new Promise((resolve) => {
+    let delayUntil = 0, typed = 0;
+    const step = () => {
+      if (token !== speaker.token) return;
+      const full = getText();
+      setLabel();
+      const now = performance.now();
+      if (speaker.shown < full.length) {
+        if (now >= delayUntil) {
+          const ch = full[speaker.shown];
+          speaker.shown += 1; typed += 1;
+          if (/[.!?]/.test(ch) && /\s|$/.test(full[speaker.shown] ?? "")) delayUntil = now + 240;
+          else if (/[,;:]/.test(ch)) delayUntil = now + 100;
+          else if (/\s/.test(ch)) delayUntil = now + 12;
+          else { delayUntil = now + 17; if (typed % 3 === 0) sfx.blip(); }
+          dlg.text.innerHTML = dialogHTML(full.slice(0, speaker.shown));
+        }
+        setTalking(true);
+        requestAnimationFrame(step);
+      } else if (!isComplete()) {
+        setTalking(false);                       // the stream is slower than she talks; wait for it
+        setTimeout(step, 90);
+      } else {
+        setTalking(false);
+        dlg.text.innerHTML = dialogHTML(full);
+        if (!wait) return resolve();
+        dlg.next.hidden = false;
+        speaker.resolveContinue = () => { if (token !== speaker.token) return; sfx.next(); dlg.next.hidden = true; speaker.resolveContinue = null; resolve(); };
+      }
+    };
+    speaker.skip = () => { if (token !== speaker.token) return; speaker.shown = getText().length; delayUntil = 0; dlg.text.innerHTML = dialogHTML(getText()); };
+    step();
+  });
+}
+const say = (text, opts = {}) => speak({ getText: () => text, ...opts });
+function advance() { if (speaker.resolveContinue) speaker.resolveContinue(); else speaker.skip?.(); }
+dlg.root.addEventListener("click", advance);
+
+/* ================= menus ================= */
+let activeMenu = null;
+function menuItems() { return activeMenu ? [...activeMenu.querySelectorAll(".item")] : []; }
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches("input, textarea")) return;
+  const items = menuItems();
+  if (items.length && ["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+    e.preventDefault();
+    const i = items.indexOf(document.activeElement);
+    const dir = e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : -1;
+    const n = i < 0 ? 0 : (i + dir + items.length) % items.length;
+    items[n].focus({ preventScroll: false }); sfx.move();
+    return;
+  }
+  if (e.target.matches("button")) return;
+  if (e.key === " " || e.key === "Enter") {
+    e.preventDefault();
+    if (speaker.resolveContinue || !items.length) advance();
+    else { speaker.skip?.(); items[0].focus(); }
+  }
+});
+function item(iconHTML, title, sub, onPick, extra = "") {
+  const b = el("button", "item", `<span class="cur">▶</span><span class="ic">${iconHTML}</span><span class="t"><b>${title}${extra}</b>${sub ? `<small>${sub}</small>` : ""}</span>`);
+  b.type = "button";
+  b.addEventListener("mouseenter", () => { if (document.activeElement !== b) sfx.move(); });
+  b.addEventListener("click", () => { sfx.confirm(); onPick(); });
+  return b;
+}
+function iconCanvas(name) { const c = pixelCanvas(ICONS[name]); return c.outerHTML.replace("<canvas", `<canvas data-icon="${name}"`); }
+function hydrateIcons(root) { root.querySelectorAll("canvas[data-icon]").forEach((c) => { c.width = 12; c.height = 12; blit(c.getContext("2d"), ICONS[c.dataset.icon], 0, 0); }); }
+
+/* ================= panels ================= */
+let flowToken = 0;
+function showPanel(build, { startOver = true, menu = true } = {}) {
+  return new Promise((resolve) => {
+    const panel = el("div", "panel enter");
+    let settled = false;
+    const done = (v) => {
+      if (settled) return; settled = true;
+      if (activeMenu === panel) activeMenu = null;
+      panel.classList.add("leave");
+      setTimeout(() => panel.remove(), 140);
+      resolve(v);
+    };
+    panel.append(build(done));
+    if (startOver) { const so = el("button", "startover", "↩ START OVER"); so.type = "button"; so.addEventListener("click", restart); panel.append(so); }
+    hydrateIcons(panel);
+    content.append(panel);
+    if (menu) activeMenu = panel;
+    void panel.offsetHeight;                    // commit the "enter" state, then transition out of it
+    panel.classList.remove("enter");
+  });
+}
+function button(cls, html, onClick) { const b = el("button", cls, html); b.type = "button"; b.addEventListener("click", onClick); return b; }
+
+/* ================= the stream, parsed into beats ================= */
+let activeStream = null;
+function startStream(payload) {
+  const src = { text: "", done: false, error: null, model: "", ctl: new AbortController(), started: performance.now() };
+  activeStream = src;
+  (async () => {
+    try {
+      const res = await fetch("/api/reading", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), signal: src.ctl.signal });
+      if (!res.ok) {
+        let m = `The beyond answered with an error (${res.status}).`;
+        try { m = (await res.json()).error || m; } catch {}
+        src.error = m; src.done = true; return;
+      }
+      src.model = res.headers.get("x-model") || "";
+      const reader = res.body.getReader(), dec = new TextDecoder();
+      for (;;) { const { value, done } = await reader.read(); if (done) break; src.text += dec.decode(value, { stream: true }); }
+      src.text += dec.decode();
+      if (!src.text.trim()) src.error = "The spirits had nothing to say. Try again.";
+    } catch (e) {
+      if (e.name !== "AbortError") src.error = "Couldn't reach the beyond. Check your connection and try again.";
+    }
+    src.done = true;
+  })();
+  return src;
+}
+/** Split the Markdown into beats: an intro, then one per "## " section. */
+function parseBeats(src) {
+  const parts = src.text.split(/^##\s+/m);
+  const beats = [];
+  const intro = parts[0].trim();
+  if (intro) beats.push({ title: "", body: intro, titleDone: true, complete: parts.length > 1 || src.done });
+  let titled = 0;
+  for (let i = 1; i < parts.length; i++) {
+    const nl = parts[i].indexOf("\n");
+    const title = (nl < 0 ? parts[i] : parts[i].slice(0, nl)).trim();
+    const body = nl < 0 ? "" : parts[i].slice(nl + 1).trim();
+    beats.push({ title, body, titleDone: nl >= 0 || src.done, complete: i < parts.length - 1 || src.done, section: titled++ });
+  }
+  return beats;
+}
+async function waitForBeat(src, i) {
+  for (;;) {
+    const b = parseBeats(src)[i];
+    if (b && b.titleDone && (b.body.length > 0 || b.complete)) return b;
+    if (src.done) return parseBeats(src)[i] ?? null;
+    await sleep(80);
+  }
+}
+function speakBeat(src, i) {
+  return speak({
+    getText: () => parseBeats(src)[i]?.body ?? "",
+    isComplete: () => parseBeats(src)[i]?.complete ?? src.done,
+    label: () => parseBeats(src)[i]?.title ?? "",
+  });
+}
+
+/* ================= tarot ================= */
+const LAYOUT = {
+  one: {}, three: {}, slop: {},
+  horseshoe: { lift: [64, 34, 12, 0, 12, 34, 64], tilt: [-18, -12, -6, 0, 6, 12, 18] },
+  celtic: { cols: 4, areas: [". . . p10", ". p5 . p10", ". p5 . p9", "p4 p1 p6 p9", "p4 p1 p6 p8", ". p3 . p8", ". p3 . p7", ". . . p7"] },
+};
+function shuffle(arr) {
+  const a = arr.slice(), r = new Uint32Array(a.length);
+  crypto.getRandomValues(r);
+  for (let i = a.length - 1; i > 0; i--) { const j = r[i] % (i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function drawCards(spread) {
+  const flips = new Uint8Array(spread.positions.length);
+  crypto.getRandomValues(flips);
+  return shuffle(DECK).slice(0, spread.positions.length).map((c, i) => ({ ...c, reversed: flips[i] < 77 })); // about 30% reversed
+}
+function renderTable(key, cards) {
+  const spread = SPREADS[key], lay = LAYOUT[key];
+  const table = el("div", "table " + key + (lay.areas ? " grid" : ""));
+  if (lay.areas) { table.style.gridTemplateAreas = lay.areas.map((r) => `"${r}"`).join(" "); table.style.gridTemplateColumns = `repeat(${lay.cols}, var(--cw))`; }
+  const slots = [], cardEls = [];
+  cards.forEach((c, i) => {
+    const n = i + 1, crossing = key === "celtic" && n === 2;
+    let slot = crossing ? slots[0] : null;
+    if (!slot) {
+      slot = el("div", "slot"); slot.style.gridArea = `p${n}`;
+      if (lay.lift) { slot.style.setProperty("--lift", `${lay.lift[i]}px`); slot.style.setProperty("--tilt", `${lay.tilt[i]}deg`); }
+      slot.append(el("div", "stack")); table.append(slot); slots.push(slot);
+    }
+    const wrap = el("div", "wrap" + (crossing ? " crossing" : ""));
+    const card = el("div", "card" + (c.reversed ? " reversed" : ""));
+    card.innerHTML = `<div class="face back"><span>✦</span></div><div class="face front${c.arcana === "major" ? " major" : ""}"><div class="inner"><span class="c tl">${esc(c.label)}</span><span class="g">${c.glyph}</span><span class="n">${esc(c.name)}</span><span class="c br">${esc(c.label)}</span></div></div>`;
+    card.title = `${n}. ${spread.positions[i]}: ${c.name}${c.reversed ? " (reversed)" : ""}`;
+    wrap.append(card); $(".stack", slot).append(wrap);
+    slot.append(el("div", "pos", `<b>${n}</b> ${esc(spread.positions[i])}${c.reversed ? " · <i>reversed</i>" : ""}`));
+    setTimeout(() => { wrap.classList.add("dealt"); beep(300 + 40 * i, 0.03, "square", 0.01); }, (reduced ? 0 : 110 * i) + 20);
+    cardEls.push({ slot, card });
+  });
+  return {
+    el: table,
+    flip(i) {
+      table.classList.add("reading");
+      cardEls.forEach((c) => c.slot.classList.remove("active"));
+      const { slot, card } = cardEls[i];
+      card.classList.add("flipped"); slot.classList.add("active", "done"); sfx.flip();
+      if (!reduced) slot.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    },
+    finale() { cardEls.forEach(({ slot, card }) => { card.classList.add("flipped"); slot.classList.remove("active"); slot.classList.add("done"); }); if (!table.classList.contains("finale")) sfx.shine(); table.classList.add("finale"); },
+  };
+}
+
+async function readTarot(spreadKey, question, alive) {
+  const spread = SPREADS[spreadKey];
+  const cards = drawCards(spread);
+  const table = renderTable(spreadKey, cards);
+  const wrap = el("div", "panel"); wrap.append(table.el); content.append(wrap);
+  const src = startStream({ kind: "tarot", spread: spreadKey, question, cards: cards.map((c) => ({ name: c.name, reversed: c.reversed })) });
+  await say(`I shuffle the deck and lay the ${spread.name} before you, face down. Breathe. We turn them one at a time.`);
+  if (!alive()) return;
+  for (let i = 0; ; i++) {
+    const beat = await waitForBeat(src, i);
+    if (!alive()) return;
+    if (!beat) break;
+    if (beat.section != null && beat.section < cards.length) table.flip(beat.section);
+    else if (beat.section != null) table.finale();
+    await speakBeat(src, i);
+    if (!alive()) return;
+  }
+  table.finale();
+  await finish(src, "That is what the cards say tonight.", alive);
+}
+
+/* ================= astrology ================= */
+function renderSky(sign) {
+  const s = SIGNS.find((x) => x.name === sign), mp = moonPhase(new Date());
+  const sky = el("div", "sky win");
+  sky.innerHTML = `<div class="medal">${s.glyph}</div><div class="skyinfo"><b>${s.name}</b><small>${s.element} · ${s.modality} · ${esc(s.dates)}</small><small>Tonight: ${mp.glyph} ${mp.name}, ${mp.illumination}% lit</small></div><div class="tiles"></div>`;
+  const tiles = $(".tiles", sky), made = [];
+  return {
+    el: sky, moon: mp,
+    light(i, title) {
+      made.forEach((t) => t.classList.remove("active"));
+      let t = made[i];
+      if (!t) { t = el("div", "tile", `<span class="st">✦</span><span></span>`); tiles.append(t); made.push(t); }
+      $("span:last-child", t).textContent = title;
+      t.classList.add("lit", "active"); sfx.flip();
+    },
+    finale() { made.forEach((t) => { t.classList.add("lit"); t.classList.remove("active"); }); const m = $(".medal", sky); if (!m.classList.contains("lit")) sfx.shine(); m.classList.add("lit"); },
+  };
+}
+async function readAstro({ sign, birthDate, birthTime, birthPlace }, focus, question, alive) {
+  const sky = renderSky(sign);
+  const wrap = el("div", "panel"); wrap.append(sky.el); content.append(wrap);
+  const src = startStream({ kind: "astrology", sign, focus, question, today: localISO(), birthDate, birthTime, birthPlace });
+  await say(`I turn my eyes upward. The moon is a ${sky.moon.name.toLowerCase()} tonight. Let us see what the sky has to say to a ${sign}.`);
+  if (!alive()) return;
+  for (let i = 0; ; i++) {
+    const beat = await waitForBeat(src, i);
+    if (!alive()) return;
+    if (!beat) break;
+    if (beat.section != null && beat.section < 3) sky.light(beat.section, beat.title);
+    else if (beat.section != null) sky.finale();
+    await speakBeat(src, i);
+    if (!alive()) return;
+  }
+  sky.finale();
+  await finish(src, "That is what the sky says tonight.", alive);
+}
+
+/* ================= shared ending ================= */
+function md(src) {
+  const out = []; let para = [];
+  const flush = () => { if (para.length) { out.push(`<p>${inline(para.join(" "))}</p>`); para = []; } };
+  for (const raw of src.split(/\r?\n/)) {
+    const line = raw.trimEnd();
+    const h = line.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { flush(); out.push(`<h3>${inline(h[2])}</h3>`); continue; }
+    if (!line.trim()) { flush(); continue; }
+    para.push(line.trim());
+  }
+  flush(); return out.join("");
+}
+async function finish(src, closing, alive) {
+  if (src.error) {
+    sfx.oops();
+    await say(src.error, { label: "A disturbance", wait: false });
+    if (!alive()) return;
+    await showPanel((done) => { const m = el("div", "menu win"); m.append(item("↻", "Try again", "", () => done())); return m; });
+    return;
+  }
+  transcript.hidden = false;
+  transcript.innerHTML = `<h2>The full reading</h2><div class="body">${md(src.text)}</div><div class="meta">Read by ${esc(src.model || "a small language model")} in ${((performance.now() - src.started) / 1000).toFixed(1)}s. The cards were shuffled on your device.</div>`;
+  say(`${closing} Shall we go again?`, { wait: false });
+  await showPanel((done) => {
+    const m = el("div", "menu win");
+    m.append(item("✦", "Another reading", "Back to the beginning.", () => done()));
+    return m;
+  }, { startOver: false });
+}
+
+/* ================= the steps ================= */
+function chooseKind() {
+  say("Welcome, seeker. Sit. The candle is lit. What shall we consult tonight?", { wait: false });
+  return showPanel((done) => {
+    const m = el("div", "menu two win");
+    m.append(
+      item(iconCanvas("tarot"), "Tarot", "The cards. Five spreads, from a single card to the Celtic Cross, turned over one at a time.", () => done("tarot")),
+      item(iconCanvas("star"), "Astrology", "The stars. Your sign, the moon tonight, and whatever the week is planning.", () => done("astro")),
+      item(iconCanvas("moon"), "Daily Horoscopes", "Today's sky for all twelve signs, written fresh once a day. Same column for everyone.", () => done("daily")),
+    );
+    return m;
+  }, { startOver: false });
+}
+async function readDaily(alive) {
+  say("Let me see what today's sky holds for everyone. One moment.", { wait: false });
+  let data;
+  try {
+    const res = await fetch(`/api/horoscopes?date=${localISO()}`);
+    if (!res.ok) { let m = `The beyond answered with an error (${res.status}).`; try { m = (await res.json()).error || m; } catch {} throw new Error(m); }
+    data = await res.json();
+  } catch (e) {
+    if (!alive()) return;
+    sfx.oops();
+    await say(e.message || "Couldn't reach the beyond. Check your connection and try again.", { label: "A disturbance", wait: false });
+    await showPanel((done) => { const m = el("div", "menu win"); m.append(item("↻", "Try again", "", () => done())); return m; });
+    return;
+  }
+  if (!alive()) return;
+  say(`Today is ${data.dateText}. The moon is ${data.moon.name.toLowerCase()}, ${data.moon.illumination}% lit. Pick a sign and I will read today's entry.`, { wait: false });
+  await showPanel((done) => {
+    const p = el("div");
+    const head = el("div", "sky win", `<div class="medal">${data.moon.glyph}</div><div class="skyinfo"><b>Daily horoscopes</b><small>${esc(data.dateText)}</small><small>Written once today by ${esc(data.model)}. Everyone who visits today gets the same column.</small></div>`);
+    const m = el("div", "menu grid win");
+    for (const s of SIGNS) {
+      const b = item(`<span class="sg">${s.glyph}</span>`, s.name, esc(s.dates), () => {
+        for (const c of m.children) c.classList.toggle("sel", c === b);
+        say(data.signs[s.name] ?? "The stars had nothing to say about you today, which is its own kind of omen.", { label: `${s.name} · today`, wait: false });
+      });
+      b.querySelector(".ic").classList.add("sg"); m.append(b);
+    }
+    const back = el("div", "menu win"); back.append(item("↩", "Back to the beginning", "", () => done()));
+    p.append(head, el("div", null, "<br>"), m, el("div", null, "<br>"), back);
+    return p;
+  }, { startOver: false });
+}
+function chooseSpread() {
+  say("The cards, then. Which spread calls to you?", { wait: false });
+  return showPanel((done) => {
+    const m = el("div", "menu win");
+    for (const [key, s] of Object.entries(SPREADS)) {
+      const n = s.positions.length;
+      m.append(item(iconCanvas("tarot"), esc(s.name), esc(s.tagline), () => done(key), `<span class="cnt">${n} CARD${n === 1 ? "" : "S"}</span>`));
+    }
+    return m;
+  });
+}
+function chooseSign() {
+  say("The stars. Tell me your sign, or your birthday, and I will know it.", { wait: false });
+  return showPanel((done) => {
+    const p = el("div");
+    const m = el("div", "menu grid win");
+    const form = el("div", "form win dark");
+    const birth = el("div", "birth");
+    const dateEl = el("input"), timeEl = el("input"), placeEl = el("input");
+    dateEl.type = "date"; dateEl.max = new Date().toISOString().slice(0, 10);
+    timeEl.type = "time";
+    placeEl.type = "text"; placeEl.maxLength = 80; placeEl.placeholder = "Denver, CO"; placeEl.autocomplete = "off";
+    const details = () => ({ birthDate: dateEl.value, birthTime: timeEl.value, birthPlace: placeEl.value.trim() });
+    for (const s of SIGNS) {
+      const b = item(`<span class="sg">${s.glyph}</span>`, s.name, esc(s.dates), () => done({ sign: s.name, ...details() }));
+      b.querySelector(".ic").classList.add("sg"); b.dataset.name = s.name; m.append(b);
+    }
+    const go = item("✦", "Continue", "", () => {});
+    go.hidden = true;
+    const lab = (t, input) => { const l = el("label", null, t); l.append(input); return l; };
+    birth.append(lab("Birthday <small>picks your sign</small>", dateEl), lab("Time <small>optional</small>", timeEl), lab("Place <small>optional</small>", placeEl));
+    dateEl.addEventListener("change", () => {
+      const [, mo, d] = dateEl.value.split("-").map(Number);
+      if (!mo || !d) return;
+      const s = signFor(mo, d);
+      for (const b of m.children) b.classList.toggle("sel", b.dataset.name === s.name);
+      go.hidden = false; go.querySelector("b").textContent = `Continue as ${s.glyph} ${s.name}`;
+      go.onclick = () => { sfx.confirm(); done({ sign: s.name, ...details() }); };
+      sfx.move();
+    });
+    form.append(el("h2", null, "Or your birthday"), birth, go);
+    p.append(m, el("div", null, "<br>"), form);
+    return p;
+  });
+}
+function chooseFocus(sign) {
+  say(`${sign}. I thought so. And what shall we look at?`, { wait: false });
+  return showPanel((done) => {
+    const m = el("div", "menu inline win");
+    for (const [key, label] of Object.entries(FOCUSES)) m.append(item("", esc(label), "", () => done(key)));
+    return m;
+  });
+}
+function askQuestion(what) {
+  say(`Is there a question weighing on you? Or shall the ${what} speak freely?`, { wait: false });
+  return showPanel((done) => {
+    const p = el("div", "form win dark");
+    const ta = el("textarea"); ta.maxLength = 300; ta.rows = 3; ta.placeholder = "What's on your mind?";
+    const count = el("span", "count", "0 / 300");
+    ta.addEventListener("input", () => { count.textContent = `${ta.value.length} / 300`; });
+    ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sfx.confirm(); done(ta.value.trim()); } });
+    const row = el("div", "row");
+    row.append(item("?", "Ask this", "", () => done(ta.value.trim())), item("", `No question, just read the ${what}`, "", () => done("")), count);
+    p.append(el("h2", null, "Your question <small>optional</small>"), ta, row);
+    setTimeout(() => ta.focus({ preventScroll: true }), 200);
+    return p;
+  }, { menu: false });
+}
+
+/* ================= the flow ================= */
+async function run() {
+  const my = ++flowToken;
+  const alive = () => my === flowToken;
+  for (;;) {
+    content.innerHTML = ""; transcript.hidden = true; transcript.innerHTML = ""; activeMenu = null;
+    const kind = await chooseKind(); if (!alive()) return;
+    if (kind === "daily") {
+      await readDaily(alive); if (!alive()) return;
+    } else if (kind === "tarot") {
+      const spread = await chooseSpread(); if (!alive()) return;
+      const q = await askQuestion("cards"); if (!alive()) return;
+      await readTarot(spread, q, alive); if (!alive()) return;
+    } else {
+      const who = await chooseSign(); if (!alive()) return;
+      const focus = await chooseFocus(who.sign); if (!alive()) return;
+      const q = await askQuestion("stars"); if (!alive()) return;
+      await readAstro(who, focus, q, alive); if (!alive()) return;
+    }
+  }
+}
+function restart() {
+  activeStream?.ctl.abort();
+  speaker.token++; setTalking(false);
+  run();
+}
+run();
+
+/* ================= pixel stars ================= */
+(() => {
+  const cv = $("#stars"), cx = cv.getContext("2d");
+  let stars = [], tick = 0;
+  const shades = ["#2a2f6a", "#5560b8", "#9fa8ff", "#ffffff"];
+  function size() {
+    cv.width = Math.ceil(innerWidth / 3); cv.height = Math.ceil(innerHeight / 3);   // 3x3 screen pixels per star pixel
+    stars = Array.from({ length: Math.round(cv.width * cv.height / 900) }, () => ({ x: Math.floor(Math.random() * cv.width), y: Math.floor(Math.random() * cv.height), p: Math.floor(Math.random() * 4), big: Math.random() < 0.12 }));
+  }
+  function draw() {
+    cx.clearRect(0, 0, cv.width, cv.height);
+    for (const s of stars) {
+      const lvl = reduced ? 2 : Math.abs(((tick + s.p) % 6) - 3);
+      cx.fillStyle = shades[Math.min(lvl, 3)];
+      cx.fillRect(s.x, s.y, 1, 1);
+      if (s.big && lvl >= 2) { cx.fillRect(s.x - 1, s.y, 1, 1); cx.fillRect(s.x + 1, s.y, 1, 1); cx.fillRect(s.x, s.y - 1, 1, 1); cx.fillRect(s.x, s.y + 1, 1, 1); }
+    }
+    tick++;
+  }
+  addEventListener("resize", () => { size(); draw(); });
+  size(); draw();
+  if (!reduced) setInterval(draw, 420);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Desktop Bag</title>
+<style>
+  :root {
+    --glass: rgba(18, 18, 22, 0.78);
+    --glass-2: rgba(255, 255, 255, 0.06);
+    --line: rgba(255, 255, 255, 0.12);
+    --ink: #f2efe9;
+    --muted: rgba(242, 239, 233, 0.58);
+    --accent: #f3c77a;
+    --rec: #ff4b4b;
+  }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+  body { font: 13px/1.4 "Segoe UI", system-ui, sans-serif; color: var(--ink); user-select: none; }
+  canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+  #hud, #toast, #fade { z-index: 10; }
+
+  /* ---- demo desktop (browser only — the real app is transparent) ---- */
+  body.demo {
+    background:
+      radial-gradient(1200px 700px at 20% 10%, #6f86a8 0%, transparent 60%),
+      radial-gradient(900px 600px at 90% 80%, #b38a7a 0%, transparent 55%),
+      linear-gradient(160deg, #3d4c63, #5b5a6e 50%, #7a6a6a);
+  }
+  .demo-win { display: none; position: fixed; background: #fbfbfa; color: #222; border-radius: 8px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.35); overflow: hidden; font: 13px/1.5 Consolas, monospace; }
+  .demo-win .bar { background: #eceae6; padding: 7px 12px; font: 12px "Segoe UI", sans-serif; color: #555; border-bottom: 1px solid #ddd; }
+  .demo-win .body { padding: 12px 14px; white-space: pre-wrap; }
+  body.demo .demo-win { display: block; }
+  #taskbar { display: none; position: fixed; left: 0; right: 0; bottom: 0; height: 44px;
+    background: rgba(28, 30, 38, 0.92); border-top: 1px solid rgba(255,255,255,.08); }
+  body.demo #taskbar { display: flex; align-items: center; justify-content: center; gap: 10px; }
+  #taskbar i { width: 26px; height: 26px; border-radius: 6px; background: rgba(255,255,255,.14); display: block; }
+  #taskbar i:first-child { background: #4d8fe0; }
+  .demo-note { display: none; position: fixed; left: 16px; bottom: 56px; color: rgba(255,255,255,.75); font-size: 12px; max-width: 360px; }
+  body.demo .demo-note { display: block; }
+
+  /* ---- HUD ---- */
+  #hud { position: fixed; right: 14px; bottom: 12px; display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 8px; }
+  body.demo #hud { bottom: 56px; }
+  #pill { display: flex; align-items: baseline; gap: 8px; padding: 6px 12px; border-radius: 999px;
+    background: var(--glass); border: 1px solid var(--line); opacity: .55; transition: opacity .25s;
+    box-shadow: 0 6px 24px rgba(0,0,0,.25); white-space: nowrap; }
+  #hud.open #pill, #hud:hover #pill { opacity: 1; }
+  #pill b { font: 600 15px/1 Georgia, serif; font-variant-numeric: tabular-nums; }
+  #pill .u { color: var(--muted); font-size: 11px; }
+  #rate { color: var(--accent); font-size: 11px; font-variant-numeric: tabular-nums; }
+  #rec { display: none; color: var(--rec); font: 600 10px/1 Consolas, monospace; letter-spacing: .06em; }
+  #rec.on { display: inline; }
+  #rec .dot { animation: blink 1.2s steps(2, start) infinite; }
+  #tc { font: 10px Consolas, monospace; color: var(--muted); display: none; }
+  #rec.on + #tc { display: inline; }
+  @keyframes blink { to { visibility: hidden; } }
+
+  #panel { width: 318px; max-height: min(560px, 70vh); display: none; flex-direction: column;
+    background: var(--glass); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+    box-shadow: 0 16px 48px rgba(0,0,0,.4); }
+  #hud.open #panel { display: flex; }
+  nav { display: flex; border-bottom: 1px solid var(--line); }
+  nav button { flex: 1; background: none; border: 0; color: var(--muted); padding: 9px 0 8px; font: inherit; font-size: 12px; cursor: pointer; border-bottom: 2px solid transparent; }
+  nav button.on { color: var(--ink); border-bottom-color: var(--accent); }
+  nav button:hover { color: var(--ink); }
+  #tabbody { overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 7px; }
+  #tabbody::-webkit-scrollbar { width: 6px; } #tabbody::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 3px; }
+
+  .up { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px 10px; border-radius: 10px;
+    background: var(--glass-2); border: 1px solid transparent; cursor: pointer; text-align: left; color: inherit; font: inherit; }
+  .up:hover:not(:disabled) { border-color: rgba(243,199,122,.45); background: rgba(243,199,122,.08); }
+  .up:disabled { cursor: default; opacity: .45; }
+  .up.maxed { opacity: .6; }
+  .up .nm { font-weight: 600; }
+  .up .lv { color: var(--muted); font-size: 11px; justify-self: end; }
+  .up .ds { grid-column: 1 / -1; color: var(--muted); font-size: 11.5px; }
+  .up .cost { grid-column: 1 / -1; color: var(--accent); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .note { color: var(--muted); font-size: 11.5px; padding: 2px 4px; }
+  .big { font: italic 15px/1.35 Georgia, serif; color: var(--ink); padding: 4px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 4px; }
+  .row input[type=range] { width: 140px; accent-color: var(--accent); }
+  .row input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+  .btn { background: rgba(243,199,122,.16); color: var(--ink); border: 1px solid rgba(243,199,122,.4); border-radius: 9px; padding: 8px 12px; font: inherit; cursor: pointer; }
+  .btn:hover:not(:disabled) { background: rgba(243,199,122,.28); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn.quiet { background: var(--glass-2); border-color: var(--line); }
+  .tape { padding: 7px 10px; border-radius: 8px; background: var(--glass-2); font-size: 12px; }
+  .tape b { font-family: Georgia, serif; font-weight: 600; }
+  .tape span { color: var(--muted); display: block; font-size: 11px; }
+  #moments { border-top: 1px solid var(--line); padding: 7px 12px 9px; font: 11px Consolas, monospace; color: var(--muted); }
+  #moments div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #moments div:first-child { color: var(--ink); }
+
+  #toast { position: fixed; right: 14px; bottom: 60px; max-width: 320px; padding: 10px 14px; border-radius: 12px;
+    background: var(--glass); border: 1px solid var(--line); font: italic 14px/1.4 Georgia, serif;
+    opacity: 0; transform: translateY(6px); transition: opacity .5s, transform .5s; pointer-events: none; }
+  body.demo #toast { bottom: 104px; }
+  #toast.show { opacity: 1; transform: none; }
+  #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 1.6s;
+    display: flex; align-items: center; justify-content: center; font: italic 22px Georgia, serif; color: #ddd; }
+  #fade.on { opacity: .92; }
+</style>
+<link rel="stylesheet" href="/site-nav.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<canvas id="c"></canvas>
+
+<!-- demo-desktop props (hidden in the real app) -->
+<div class="demo-win" style="left:8%;top:12%;width:380px">
+  <div class="bar">notes.txt — Notepad</div>
+  <div class="body">todo:
+- reply to email
+- finish the thing
+- stop watching the bag
+
+(move your mouse — you're the wind)</div>
+</div>
+<div class="demo-win" style="right:24%;top:30%;width:300px">
+  <div class="bar">Q3_final_FINAL_v2.xlsx</div>
+  <div class="body">A1   revenue      ▲ 4%
+A2   costs        ▲ 6%
+A3   bag          ▲ ∞</div>
+</div>
+<div id="taskbar"><i></i><i></i><i></i><i></i><i></i></div>
+<div class="demo-note">Browser demo on a fake desktop. The real Desktop Bag is a free Windows app: the bag floats over your <b>actual</b> desktop while you work, and clicks go straight through it.</div>
+
+<div id="hud">
+  <div id="pill">
+    <span id="rec"><span class="dot">●</span> REC</span><span id="tc">00:00:00</span>
+    <b id="bt">0</b><span class="u">beauty</span><span id="rate">+0/s</span>
+  </div>
+  <div id="panel">
+    <nav id="tabs"></nav>
+    <div id="tabbody"></div>
+    <div id="moments"></div>
+  </div>
+</div>
+<div id="toast"></div>
+<div id="fade"></div>
+
+<script src="bag.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

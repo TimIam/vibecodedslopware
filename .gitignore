@@ -1,0 +1,13 @@
+.vercel
+.DS_Store
+Thumbs.db
+
+node_modules
+.env
+.env.*
+.claude/
+
+.playwright-mcp/
+matrix/mac/build/
+matrix/mac/dist/
+matrix/mac/for-apple/
