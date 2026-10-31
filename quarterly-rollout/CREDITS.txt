@@ -1,0 +1,14 @@
+QUARTERLY ROLLOUT
+An office-chair action game from Ambivalent Software (a made-up publisher; probably fun, we are not entirely sure).
+
+Made for vibecodedslopware.com by TimIam with an AI pair programmer, 2026.
+
+Everything in this folder was written new for this game: the code, the six floor layouts, the story and
+dialogue, the characters (Bea Swivelton, Old Squeaky, Velma Bottomline, Dale from Facilities, Calendar Carl,
+BUFF-E), the canvas-drawn art, the synthesised sound effects and the music ("Rollout Shuffle" and
+"Lobby Hold Music"). There are no image, font or audio files: art is drawn with canvas paths, text uses the
+fonts already on your device, and sound is generated live with the Web Audio API.
+
+Paperweight & Partners, its staff and its printers are fictional.
+
+The game's code is released under the MIT License (see LICENSE.txt).
