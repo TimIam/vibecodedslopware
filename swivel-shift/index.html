@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Swivel Shift</title>
+<link rel="icon" type="image/png" href="img/harry-favicon.png">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  :root {
+    --bg: #111; --fg: #ddd; --dim: #8a8a8a; --key: #2a2a2a; --line: #333;
+    --bar: #dddddd; --bar-hi: #33339a; --chicago: "HarryChicago", "ChicagoFLF", Chicago, system-ui, sans-serif;
+    --padw: 160px; --padh: 210px;
+  }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, sans-serif;
+    overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  #app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; background: var(--bg); }
+
+  /* ---- Mac OS menu bar */
+  #menubar { flex: none; display: flex; height: 20px; background: linear-gradient(#eeeeee, #d4d4d4); border-bottom: 1px solid #000;
+    color: #000; font: 12px/20px var(--chicago); padding: 0 8px; padding-left: max(8px, env(safe-area-inset-left)); }
+  .mtitle { padding: 0 10px; cursor: default; display: flex; align-items: center; white-space: nowrap; }
+  .mtitle img { display: block; }
+  .mtitle:first-child { padding: 0 8px; }
+  .mtitle.open { background: var(--bar-hi); color: #fff; }
+  .mdrop { position: fixed; z-index: 50; min-width: 180px; background: var(--bar); color: #000; border: 1px solid #000;
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, .55); font: 12px/18px var(--chicago); padding: 2px 0; }
+  .mitem { display: flex; align-items: center; padding: 1px 14px 1px 0; cursor: default; white-space: nowrap; }
+  .mitem:not(.disabled):hover, .mitem:not(.disabled):active { background: var(--bar-hi); color: #fff; }
+  .mitem.disabled { color: #8c8c8c; }
+  .mcheck { width: 18px; text-align: center; flex: none; }
+  .mlabel { flex: 1; }
+  .mkey { padding-left: 24px; }
+  .msep { height: 1px; margin: 4px 1px; background: #a0a0a0; box-shadow: 0 1px 0 #fff; }
+
+  /* ---- screen + touch pads */
+  #main { flex: 1; min-height: 0; display: grid; grid-template: "stage" 1fr / 1fr; place-items: center; overflow: hidden; }
+  #stage { grid-area: stage; position: relative; }
+  canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; background: #000; outline: none; touch-action: none; }
+  canvas.nocursor { cursor: none; }
+  #start { position: absolute; inset: 0; margin: auto; width: max-content; height: max-content; font: 16px var(--chicago);
+    padding: 12px 26px; cursor: pointer; border-radius: 10px; border: 2px solid #000; background: #eee; color: #000;
+    box-shadow: 0 0 0 1px #eee, 0 0 0 4px #000; }
+  #start:hover { background: #fff; }
+  .pad { display: none; touch-action: none; }
+  #app.touch #main { grid-template: "left stage right" 1fr / var(--padw) 1fr var(--padw); }
+  #app.touch.portrait #main { grid-template: "stage stage" 1fr "left right" var(--padh) / 1fr 1fr; }
+  #app.touch .pad { display: grid; gap: 8px; width: 100%; height: 100%; box-sizing: border-box; padding: 10px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom)); align-content: center; }
+  #padL { grid-area: left; grid-template: repeat(3, minmax(0, 54px)) / repeat(3, minmax(0, 54px)); justify-content: center; }
+  #padR { grid-area: right; grid-template: 34px repeat(2, minmax(0, 60px)) / repeat(2, minmax(0, 66px)); justify-content: center; }
+  .tb { display: flex; align-items: center; justify-content: center; flex-direction: column; border-radius: 14px;
+    background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .28); color: #eee; font: 12px/1.1 var(--chicago);
+    text-align: center; cursor: default; }
+  .tb b { font-size: 20px; font-weight: normal; line-height: 1; }
+  .tb.down { background: rgba(255, 255, 255, .38); border-color: #fff; }
+  .tb.small { border-radius: 9px; font-size: 11px; }
+  .tb.round { border-radius: 50%; }
+  /* over the screen: see-through buttons in the bottom corners */
+  #app.touch.overlay #main { grid-template: "stage" 1fr / 1fr; position: relative; }
+  #app.touch.overlay .pad { position: absolute; bottom: 0; width: auto; height: auto; z-index: 5; gap: calc(var(--cell) * .14);
+    padding: calc(var(--cell) * .25); padding-bottom: max(calc(var(--cell) * .25), env(safe-area-inset-bottom)); }
+  #app.touch.overlay #padL { left: 0; padding-left: max(calc(var(--cell) * .25), env(safe-area-inset-left));
+    grid-template: repeat(3, var(--cell)) / repeat(3, var(--cell)); }
+  #app.touch.overlay #padR { right: 0; padding-right: max(calc(var(--cell) * .25), env(safe-area-inset-right));
+    grid-template: calc(var(--cell) * .6) repeat(2, var(--cell)) / repeat(2, calc(var(--cell) * 1.1)); }
+  #app.touch.overlay .tb { background: rgba(20, 20, 20, .28); border-color: rgba(255, 255, 255, .42); color: rgba(255, 255, 255, .78);
+    text-shadow: 0 1px 2px #000; font-size: calc(var(--cell) * .2); }
+  #app.touch.overlay .tb b { font-size: calc(var(--cell) * .32); }
+  #app.touch.overlay .tb.down { background: rgba(255, 255, 255, .35); color: #fff; }
+
+  #foot { flex: none; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; justify-content: center;
+    color: var(--dim); font-size: 12px; padding: 4px 12px 6px; min-height: 18px; }
+  #app.touch #legend { display: none; }
+  #app.touch #foot:has(#status:empty) { display: none; }
+  kbd { background: var(--key); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--fg); font: 11px ui-monospace, monospace; }
+  #status:empty { display: none; }
+</style>
+<script>
+  // site wrapper: relative paths need the trailing slash
+  if (!/\/$|\.html$/.test(location.pathname)) location.replace(location.pathname + '/' + location.search + location.hash);
+</script>
+<link rel="stylesheet" href="/site-nav.css">
+<style>/* site wrapper: leave room for the 52px site nav */ #app { height: calc(100vh - 52px); height: calc(100dvh - 52px); }</style>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<div id="app">
+  <nav id="menubar" role="menubar" aria-label="Menu bar"></nav>
+  <div id="main">
+    <div class="pad" id="padL" aria-label="Movement controls">
+      <div class="tb" data-action="inch" style="grid-area: 1 / 2"><b>▲</b>Inch</div>
+      <div class="tb" data-action="rotLeft" style="grid-area: 2 / 1"><b>⟲</b>Left</div>
+      <div class="tb" data-action="rotRight" style="grid-area: 2 / 3"><b>⟳</b>Right</div>
+      <div class="tb" data-action="scoot" style="grid-area: 3 / 2"><b>▼</b>Scoot</div>
+    </div>
+    <div id="stage">
+      <canvas id="screen" width="640" height="480" tabindex="0"></canvas>
+      <button id="start">Click to start</button>
+    </div>
+    <div class="pad" id="padR" aria-label="Action controls">
+      <div class="tb small" data-tap="pause">Pause</div>
+      <div class="tb small" data-tap="esc">Esc</div>
+      <div class="tb" data-action="switchItem">Item</div>
+      <div class="tb" data-action="map">Map</div>
+      <div class="tb" data-action="fire">Use</div>
+      <div class="tb round" data-action="kick"><b>✦</b>Kick</div>
+    </div>
+  </div>
+  <div id="foot">
+    <span id="legend">
+      <kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd> swivel &nbsp;
+      <kbd>↓</kbd>/<kbd>S</kbd> scoot &nbsp; <kbd>↑</kbd>/<kbd>W</kbd> inch &nbsp;
+      <kbd>Space</kbd>/<kbd>Shift</kbd> kick &nbsp; <kbd>Ctrl</kbd>/<kbd>Q</kbd> select item &nbsp;
+      <kbd>Alt</kbd>/<kbd>E</kbd> use item &nbsp; <kbd>Tab</kbd>/<kbd>M</kbd> map &nbsp;
+      <kbd>Caps Lock</kbd> pause &nbsp; <kbd>Esc</kbd> quit game
+    </span>
+    <span id="status"></span>
+  </div>
+</div>
+<script type="module">
+import { boot, run, Hooks } from './js/main.js';
+import { initShell } from './js/shell.js';
+import { audioContext } from './js/game/sound.js';
+const canvas = document.getElementById('screen');
+const status = (t) => { document.getElementById('status').textContent = t; };
+const params = new URLSearchParams(location.search);
+Hooks.loadPrefs();
+initShell();
+if (matchMedia('(pointer: coarse)').matches) document.getElementById('start').textContent = 'Tap to start';
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+canvas.addEventListener('pointerdown', () => canvas.focus({ preventScroll: true }));
+document.getElementById('start').onclick = async (e) => {
+  e.target.remove();
+  audioContext();
+  canvas.focus();
+  try {
+    await boot(canvas, status);
+    if (params.get('cheats')) (await import('./js/game/state.js')).G.cheats = true;
+    status('');
+    await run(+(params.get('level') || 0));
+    status('Thanks for playing! Reload the page to play again.');
+  } catch (err) { console.error(err); status('Error: ' + err.message); }
+};
+</script>
+</body>
+</html>
