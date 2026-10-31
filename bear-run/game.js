@@ -26,25 +26,25 @@ const SCREAM_FLINCH = 1.1;    // how long a scream stops the chaser
 const RIDES = {
   skis: { name: 'Skis', icon: '\u26f7\ufe0f', unlock: 0, kind: 'skis',
     accel: 4.0, friction: 0.2, drag: 0.0055, dragTuck: 0.0038, tuck: 1.2, push: 4.5, pushMax: 15, stroke: true, plough: 6,
-    fallSlip: 10, fallSpeed: 11, landSlip: 30, steer: 2.8, steerFade: 25, grip: 2.8, gripFade: 14, spin: 6.5, bodyR: 0.35,
+    fallSlip: 10, fallSpeed: 11, landSlip: 30, steer: 2.8, steerFade: 25, grip: 2.8, gripFade: 14, spin: 6.5, bodyR: 0.35, scrub: 1.5,
     chase: { base: 18, cap: 30 }, pursuer: 'bear',
     blurb: 'Tap to carve. Hold a turn at speed and the skis slide 10\u00b0 off your line, and down you go.',
     controls: '<kbd>W</kbd> pole push \u00b7 <kbd>S</kbd> snowplough \u00b7 <kbd>Shift</kbd> tuck \u00b7 <kbd>E</kbd> scream' },
   snowboard: { name: 'Snowboard', icon: '\ud83c\udfc2', unlock: 2000, kind: 'board',
     accel: 4.0, friction: 0.25, drag: 0.005, dragTuck: 0.0036, tuck: 1.0, push: 2.5, pushMax: 8, stroke: true, plough: 7,
-    fallSlip: 14, fallSpeed: 11, landSlip: 40, steer: 3.4, steerFade: 22, grip: 3.0, gripFade: 16, spin: 8.5, bodyR: 0.35,
+    fallSlip: 14, fallSpeed: 9, landSlip: 40, steer: 3.4, steerFade: 22, grip: 3.0, gripFade: 16, spin: 8.5, bodyR: 0.35, scrub: 0.7,
     chase: { base: 18, cap: 30 }, pursuer: 'bear',
-    blurb: 'Looser edges and quicker spins. Falls past 14\u00b0 off your line at speed.',
+    blurb: 'Quicker spins and an edge that holds, until it catches: 14\u00b0 off your line above 32 km/h and you eat snow.',
     controls: '<kbd>W</kbd> skate push \u00b7 <kbd>S</kbd> heel-side scrub \u00b7 <kbd>Shift</kbd> tuck \u00b7 <kbd>E</kbd> scream' },
   snowmobile: { name: 'Snowmobile', icon: '\ud83d\udef7', unlock: 5000, kind: 'sled',
     accel: 1.5, friction: 0.6, drag: 0.0028, dragTuck: 0.0028, tuck: 0, push: 9, pushMax: 42, stroke: false, plough: 10,
-    fallSlip: 24, fallSpeed: 13, landSlip: 45, steer: 2.0, steerFade: 30, grip: 1.9, gripFade: 18, spin: 3, bodyR: 0.7,
+    fallSlip: 24, fallSpeed: 13, landSlip: 45, steer: 2.0, steerFade: 30, grip: 1.9, gripFade: 18, spin: 3, bodyR: 0.7, scrub: 1.2,
     chase: { base: 22, cap: 36 }, pursuer: 'bear',
     blurb: 'Hold W for throttle. Heavy and fast; yank it past 24\u00b0 at speed and it rolls.',
     controls: '<kbd>W</kbd> throttle \u00b7 <kbd>S</kbd> brake \u00b7 <kbd>E</kbd> scream' },
   bear: { name: 'Bear', icon: '\ud83d\udc3b', unlock: 10000, kind: 'bear',
     accel: 2.0, friction: 0.5, drag: 0.004, dragTuck: 0.004, tuck: 0, push: 7, pushMax: 24, stroke: false, plough: 9,
-    fallSlip: 40, fallSpeed: 14, landSlip: 60, steer: 3.2, steerFade: 40, grip: 3.0, gripFade: 40, spin: 4, bodyR: 0.6,
+    fallSlip: 40, fallSpeed: 14, landSlip: 60, steer: 3.2, steerFade: 40, grip: 3.0, gripFade: 40, spin: 4, bodyR: 0.6, scrub: 1.5,
     chase: { base: 17, cap: 28 }, pursuer: 'yeti',
     blurb: 'Paws grip anything. Something higher up the food chain has noticed.',
     controls: '<kbd>W</kbd> sprint \u00b7 <kbd>S</kbd> dig in \u00b7 <kbd>E</kbd> roar' },
@@ -763,9 +763,10 @@ function step(dt, t) {
     }
     p.heading = wrapAngle(p.heading); p.vdir = wrapAngle(p.vdir);
     p.slip = wrapAngle(p.heading - p.vdir);
-    // Skidding scrubs speed; hold it too long at speed and you go down.
-    p.v = Math.max(0, p.v - Math.abs(Math.sin(p.slip)) * p.v * 1.5 * dt);
-    if (Math.abs(p.slip) > THREE.MathUtils.degToRad(V.fallSlip) && p.v > V.fallSpeed) { p.slipT += dt; if (p.slipT > FALL_GRACE) crash(); }
+    // Skidding scrubs speed; hold it too long at speed and you go down. Once a slide has started
+    // fast it keeps counting even as the skid bleeds speed: scrubbing under the line does not save you.
+    p.v = Math.max(0, p.v - Math.abs(Math.sin(p.slip)) * p.v * V.scrub * dt);
+    if (Math.abs(p.slip) > THREE.MathUtils.degToRad(V.fallSlip) && (p.v > V.fallSpeed || p.slipT > 0)) { p.slipT += dt; if (p.slipT > FALL_GRACE) crash(); }
     else p.slipT = Math.max(0, p.slipT - dt * 2);
   }
   if (p.crashT <= 0) {
