@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rack &amp; Ruin — a life-accurate data center demolition</title>
+<meta name="description" content="A 3D data hall built to real dimensions: 80 racks, 2,400 servers, hot-aisle containment, A/B power, CRAC cooling, VESDA and clean-agent suppression. You have a sledgehammer and a ten-minute shift.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔨</text></svg>">
+<style>
+:root{--fg:#e8ecef;--dim:#9aa4ad;--bad:#ff5a4e;--warn:#ffb33a;--good:#6fe08a;--note:#f5d76e;--panel:rgba(8,12,16,.62)}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#0b0e12;color:var(--fg);font:14px/1.4 "Segoe UI",system-ui,-apple-system,sans-serif;overflow:hidden}
+canvas#c{display:block;width:100%;height:100%}
+#flash{position:fixed;inset:0;pointer-events:none;opacity:0;background:#fff;z-index:5}
+.hud{position:fixed;pointer-events:none;z-index:3}
+.panel{background:var(--panel);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 12px;backdrop-filter:blur(6px)}
+#tl{top:14px;left:14px;min-width:220px}
+#tl .big{font-size:30px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums;color:#fff}
+#tl .sub{color:var(--dim);font-size:12px}
+#tl #timer{font-size:16px;font-variant-numeric:tabular-nums;color:var(--dim)}
+#tr{top:14px;right:14px;min-width:300px;font-size:13px}
+#tr div{display:flex;justify-content:space-between;gap:16px;padding:2px 0}
+#tr span:first-child{color:var(--dim)}
+#tr span{font-variant-numeric:tabular-nums}
+.bad{color:var(--bad)!important;font-weight:600}.warn{color:var(--warn)!important}.good{color:var(--good)!important}.note{color:var(--note)!important}
+#cross{top:50%;left:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.6)}
+#prompt{top:56%;left:50%;transform:translateX(-50%);font-size:15px;padding:7px 12px;transition:opacity .15s;max-width:620px;text-align:center}
+#tool{bottom:16px;right:16px;text-align:right}
+#tool b{display:block;font-size:17px}#tool span{color:var(--dim);font-size:12px}
+#log{bottom:16px;left:16px;max-width:560px;font-size:13.5px}
+#log div{padding:2px 0;transition:opacity 1s}
+#objectives{top:50%;right:14px;transform:translateY(-50%);display:none;font-size:13px}
+#objectives.show{display:block}#objectives b{display:block;margin-bottom:6px}#objectives .done{color:var(--good);text-decoration:line-through;opacity:.8}
+#hp{bottom:72px;left:16px;width:220px;height:8px;background:rgba(255,255,255,.12);border-radius:4px;overflow:hidden;opacity:0;transition:opacity .3s}
+#health{height:100%;background:var(--bad);width:100%}
+.overlay{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(6,9,12,.78);backdrop-filter:blur(6px)}
+.overlay.hide{display:none}
+#paused{display:none;cursor:pointer}#paused.show{display:flex}
+.card{max-width:720px;width:min(92vw,720px);background:#12171c;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:28px 32px;max-height:92vh;overflow:auto}
+.card h1{margin:0 0 6px;font-size:34px;letter-spacing:-1px}.card h1 span{color:#ff7a3d}
+.card .lede{color:var(--dim);margin:0 0 18px;font-size:15px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;font-size:13.5px;margin:0 0 20px}
+.cols div{display:flex;gap:10px}.cols kbd{min-width:62px;text-align:center;background:#1f262d;border:1px solid #333c45;border-bottom-width:3px;border-radius:6px;padding:1px 6px;font:12px ui-monospace,Consolas,monospace;color:#fff;height:fit-content}
+button{font:inherit;font-weight:600;background:#ff7a3d;color:#12171c;border:0;border-radius:10px;padding:12px 22px;cursor:pointer;font-size:16px}
+button:disabled{opacity:.45;cursor:default}
+#status{color:var(--dim);margin-left:14px;font-size:13px}
+.real{font-size:12.5px;color:var(--dim);margin:16px 0 0;line-height:1.5}
+.real b{color:var(--fg)}
+#report{display:none}#report.show{display:flex}
+#report table{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0}
+#report td,#report th{padding:5px 6px;border-bottom:1px solid rgba(255,255,255,.08);text-align:left}
+#report td:nth-child(2),#report th:nth-child(2),#report td:nth-child(3),#report th:nth-child(3){text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+#report tfoot td{font-weight:700;font-size:16px;border:0;padding-top:10px}
+#report .cause{font-size:16px;color:#fff;margin:0 0 6px}
+#report .facts{font-size:12.5px;color:var(--dim)}
+@media (max-width:760px){.cols{grid-template-columns:1fr}#tr,#objectives{display:none}}
+.site-topbar{z-index:20;opacity:.85}
+</style>
+<link rel="stylesheet" href="/site-nav.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee (opens in a new tab)"><span aria-hidden="true">☕</span> <span class="site-long">Buy Me a </span>Coffee</a>
+</nav>
+<script src="/site-nav.js"></script>
+<canvas id="c"></canvas>
+<div id="flash"></div>
+
+<div id="tl" class="hud panel"><div class="sub">Damage this shift</div><div class="big" id="damage">$0</div><div id="timer">10:00</div><div class="sub" id="outage"></div></div>
+<div id="tr" class="hud panel">
+  <div><span>Cold-aisle inlet</span><span id="temp">22.0 °C</span></div>
+  <div><span>Cooling</span><span id="cooling"></span></div>
+  <div><span>Power</span><span id="power"></span></div>
+  <div><span>Network</span><span id="net"></span></div>
+  <div><span>Fire</span><span id="fire"></span></div>
+</div>
+<div id="cross" class="hud"></div>
+<div id="prompt" class="hud panel" style="opacity:0"></div>
+<div id="tool" class="hud panel"></div>
+<div id="log" class="hud"></div>
+<div id="hp" class="hud"><div id="health"></div></div>
+<div id="objectives" class="hud panel"></div>
+
+<div id="start" class="overlay">
+  <div class="card">
+    <h1>Rack <span>&amp;</span> Ruin</h1>
+    <p class="lede">A 1.1 MW data hall at real scale: 80 racks on a 600 mm pitch, about 2,400 servers, A/B power through two UPSs, four PDUs and overhead busway, eight downflow CRACs on a 600 mm raised floor, a contained hot aisle, VESDA smoke detection and a clean-agent suppression system. Every one of those systems is modelled. You have a sledgehammer, a fire axe and a ten-minute shift.</p>
+    <div class="cols">
+      <div><kbd>W A S D</kbd> move, <kbd>Shift</kbd> sprint, <kbd>Space</kbd> jump</div>
+      <div><kbd>Mouse</kbd> look · <kbd>LMB</kbd> swing / throw / push</div>
+      <div><kbd>1 2 3</kbd> sledgehammer · fire axe · hands (or scroll)</div>
+      <div><kbd>E</kbd> use: breakers, CRAC controls, EPO, pull station, lift tiles, pick up servers</div>
+      <div><kbd>Tab</kbd> objectives</div>
+      <div><kbd>Esc</kbd> pause</div>
+    </div>
+    <button id="play" disabled>Clock in</button><span id="status">Loading…</span>
+    <p class="real"><b>Life-accurate means:</b> racks are bolted down and weigh 850 kg. Smashing live 480 V gear ends your shift permanently; trip the breaker first. Lifting floor tiles opens real holes. Killing CRACs lets the inlet temperature climb a few degrees a minute; above 35 °C servers throttle, above 45 °C they trip. Smoke brings VESDA alerts, horns, a 30-second pre-discharge and a clean-agent dump that also kills hard drives with noise. Downtime is billed at $9,000 a minute. Needs a mouse and keyboard; assets were modelled in Blender at real equipment dimensions.</p>
+  </div>
+</div>
+<div id="paused" class="overlay"><div class="card" style="text-align:center"><h1>Paused</h1><p class="lede">Click to get back on the floor.</p></div></div>
+<div id="report" class="overlay"><div class="card"><h1>Incident report</h1><div id="report-body"></div><p><button id="again">Clock in again</button></p></div></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+  "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/+esm"
+} }
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
