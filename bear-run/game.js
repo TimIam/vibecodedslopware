@@ -64,6 +64,9 @@ renderer.toneMappingExposure = 1.05;
 const scene = new THREE.Scene();
 const FOG = new THREE.Color(0xc9dbea);
 scene.fog = new THREE.Fog(FOG, 45, 165);
+const STORM_FOG = new THREE.Color(0xdfe5ec); // the whiteout colour
+let storm = 0, stormTarget = 0, stormOn = false; // the snowstorm past STORM_AT metres, eased in
+const STORM_AT = 5000;
 scene.background = FOG.clone();
 
 const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 900);
@@ -83,11 +86,12 @@ const sky = new THREE.Mesh(
   new THREE.SphereGeometry(600, 32, 16),
   new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color(0x3f78c0) }, mid: { value: new THREE.Color(0x9cc0e2) }, bot: { value: new THREE.Color(0xdfe9f3) } },
+    uniforms: { top: { value: new THREE.Color(0x3f78c0) }, mid: { value: new THREE.Color(0x9cc0e2) }, bot: { value: new THREE.Color(0xdfe9f3) }, grey: { value: 0 } },
     vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
-    fragmentShader: `uniform vec3 top, mid, bot; varying vec3 vP;
+    fragmentShader: `uniform vec3 top, mid, bot; uniform float grey; varying vec3 vP;
       void main(){ float h = normalize(vP).y;
         vec3 c = h > 0.08 ? mix(mid, top, smoothstep(0.08, 0.6, h)) : mix(bot, mid, smoothstep(-0.05, 0.08, h));
+        c = mix(c, vec3(0.86, 0.89, 0.93), grey);
         gl_FragColor = vec4(c, 1.); }`,
   }),
 );
@@ -563,10 +567,19 @@ function updateParticles(dt, t) {
     sprayPos[i * 3] += sprayVel[i * 3] * dt; sprayPos[i * 3 + 1] += sprayVel[i * 3 + 1] * dt; sprayPos[i * 3 + 2] += sprayVel[i * 3 + 2] * dt;
   }
   sprayGeo.attributes.position.needsUpdate = true;
+  // The storm: more and bigger flakes, falling faster, driven sideways by a gusting wind, inside a closing fog.
+  storm += (stormTarget - storm) * Math.min(1, dt * 0.4);
+  const wind = 0.6 + storm * (6 + 3 * Math.sin(t * 0.6)), fall = 1 + 1.3 * storm;
+  flakeGeo.setDrawRange(0, Math.round(FLAKES * (0.25 + 0.75 * storm)));
+  flakes.material.size = 0.16 + 0.16 * storm;
+  scene.fog.near = 45 - 30 * storm; scene.fog.far = 165 - 100 * storm;
+  scene.fog.color.copy(FOG).lerp(STORM_FOG, storm); scene.background.copy(scene.fog.color);
+  sky.material.uniforms.grey.value = storm;
+  peaks.children[0].material.opacity = 1 - 0.95 * storm; // the far peaks vanish into the whiteout
   const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z, hx = flakeBox.x / 2, hz = flakeBox.z / 2;
   for (let k = 0; k < FLAKES; k++) {
     const s = flakeSeed[k];
-    let x = flakePos[k * 3] + Math.sin(t * 0.7 + s) * 0.4 * dt + 0.6 * dt, y = flakePos[k * 3 + 1] - (1.2 + (s % 1)) * dt, z = flakePos[k * 3 + 2];
+    let x = flakePos[k * 3] + (Math.sin(t * 0.7 + s) * 0.4 + wind) * dt, y = flakePos[k * 3 + 1] - (1.2 + (s % 1)) * fall * dt, z = flakePos[k * 3 + 2];
     x = cx + ((((x - cx + hx) % flakeBox.x) + flakeBox.x) % flakeBox.x) - hx;
     z = cz + ((((z - cz + hz) % flakeBox.z) + flakeBox.z) % flakeBox.z) - hz;
     if (y < cy - 20) y += flakeBox.y; else if (y > cy + 20) y -= flakeBox.y;
@@ -585,7 +598,7 @@ const peaks = new THREE.Group();
     parts.push(piece(new THREE.ConeGeometry(w, h, 6), 0x8ea6c0, M(x, h / 2 - 40, z, 1, 1, 1, 0, rnd() * 3)));
     parts.push(piece(new THREE.ConeGeometry(w * 0.42, h * 0.42, 6), 0xf3f7fb, M(x, h - 40 - h * 0.21 + 0.5, z, 1.02, 1, 1.02, 0, rnd() * 3)));
   }
-  const m = new THREE.Mesh(merge(parts), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, fog: false }));
+  const m = new THREE.Mesh(merge(parts), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, fog: false, transparent: true }));
   peaks.add(m);
   scene.add(peaks);
 }
@@ -630,6 +643,103 @@ const sfx = {
   },
   hoarse() { noise(0.25, 0.1, 1800); },
 };
+
+// ---------- music (generated, looping) ----------
+// Three tracks and Off, cycled with Tab. Everything is synthesised; a 16th-note scheduler books
+// notes a short way ahead so the loop keeps time even when the main thread is busy.
+const TRACKS = ['lofi', 'alpine', 'chase', 'off'];
+const TRACK_NAMES = { lofi: 'Lo-fi chill', alpine: 'Alpine run', chase: 'Yeti chase', off: 'Music off' };
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+let musicId = TRACKS.includes(localStorage.getItem('bearrun-music')) ? localStorage.getItem('bearrun-music') : 'lofi';
+let music = null, musicGain = null, noiseBuf = null;
+function getNoise(a) {
+  if (!noiseBuf) { noiseBuf = a.createBuffer(1, a.sampleRate, a.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  return noiseBuf;
+}
+// Instruments. Every voice is built fresh, plays, and is garbage collected after it stops.
+function env(a, out, t, vol, attack, decay) { const g = a.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay); g.connect(out); return g; }
+function kick(a, out, t, vol = 0.9) { const o = a.createOscillator(); o.frequency.setValueAtTime(165, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.11); o.connect(env(a, out, t, vol, 0.003, 0.32)); o.start(t); o.stop(t + 0.4); }
+function burst(a, out, t, vol, dur, type, freq, q = 0.8) { const s = a.createBufferSource(); s.buffer = getNoise(a); s.loop = true; const f = a.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; s.connect(f); f.connect(env(a, out, t, vol, 0.002, dur)); s.start(t); s.stop(t + dur + 0.05); }
+function snare(a, out, t, vol = 0.5) { burst(a, out, t, vol, 0.17, 'bandpass', 1900); const o = a.createOscillator(); o.frequency.setValueAtTime(200, t); o.frequency.exponentialRampToValueAtTime(120, t + 0.06); o.connect(env(a, out, t, vol * 0.5, 0.002, 0.08)); o.start(t); o.stop(t + 0.12); }
+function hat(a, out, t, vol = 0.12, open = false) { burst(a, out, t, vol, open ? 0.28 : 0.045, 'highpass', 7200); }
+function note(a, out, t, midi, dur, { type = 'triangle', vol = 0.1, cutoff = 2000, detune = 0, attack = 0.01, q = 0.5 } = {}) {
+  const o = a.createOscillator(); o.type = type; o.frequency.value = mtof(midi); o.detune.value = detune;
+  const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cutoff; f.Q.value = q;
+  o.connect(f); f.connect(env(a, out, t, vol, attack, dur)); o.start(t); o.stop(t + attack + dur + 0.05);
+}
+// Each track: tempo, swing (how late the off-beat 16ths land), a tone chain, and what happens on each 16th step.
+const TRACK_DEFS = {
+  lofi: { bpm: 74, swing: 0.2, cutoff: 1700,
+    chords: [[53, 57, 60, 64], [52, 55, 59, 62], [50, 53, 57, 60], [48, 52, 55, 59]], scale: [60, 62, 64, 67, 69, 72, 74, 76],
+    step(a, out, t, i, bar, dur) {
+      const ch = this.chords[bar % 4], r = Math.random;
+      if (i === 0 || i === 10) for (const m of ch) { note(a, out, t, m, 1.8, { type: 'triangle', vol: 0.055, cutoff: 1300, attack: 0.02 }); note(a, out, t, m, 1.8, { type: 'sine', vol: 0.035, cutoff: 1300, detune: 6, attack: 0.02 }); }
+      if (i === 0 || i === 7 || i === 10) note(a, out, t, ch[0] - 24, 0.55, { type: 'sine', vol: 0.22, cutoff: 320 });
+      if (i === 0 || i === 10 || (i === 7 && bar % 2)) kick(a, out, t, 0.7);
+      if (i === 4 || i === 12) snare(a, out, t, 0.28);
+      if (i % 2 === 0) hat(a, out, t, i % 4 ? 0.05 : 0.09); if (i === 14 && r() < 0.4) hat(a, out, t, 0.06, true);
+      if (r() < 0.16) note(a, out, t, this.scale[(r() * this.scale.length) | 0], 0.4, { type: 'triangle', vol: 0.06, cutoff: 1900 });
+      if (r() < 0.35) burst(a, out, t + r() * dur, 0.025, 0.012, 'highpass', 3000); // vinyl crackle
+    } },
+  alpine: { bpm: 128, swing: 0, cutoff: 6500,
+    roots: [45, 41, 48, 43], third: [3, 4, 4, 4],
+    step(a, out, t, i, bar, dur) {
+      const root = this.roots[bar % 4], arp = [root + 12, root + 12 + this.third[bar % 4], root + 19, root + 24, root + 19, root + 12 + this.third[bar % 4]];
+      if (i % 2 === 0) note(a, out, t, root, 0.16, { type: 'sawtooth', vol: 0.14, cutoff: i % 4 ? 420 : 700, q: 2 });
+      note(a, out, t, arp[i % arp.length], 0.11, { type: 'square', vol: 0.045, cutoff: 2600 });
+      if (i % 4 === 0) kick(a, out, t, 0.85);
+      if (i === 4 || i === 12) snare(a, out, t, 0.4);
+      hat(a, out, t, i % 2 ? 0.05 : 0.09, i === 14);
+      if (bar % 2 === 1 && [0, 3, 6, 8, 11].includes(i)) note(a, out, t, root + 24 + [0, 3, 7, 10, 12][(i * 7 + bar) % 5], 0.3, { type: 'sawtooth', vol: 0.05, cutoff: 3200, attack: 0.02 });
+    } },
+  chase: { bpm: 162, swing: 0, cutoff: 9000,
+    roots: [33, 33, 36, 31],
+    step(a, out, t, i, bar, dur) {
+      const root = this.roots[(bar >> 1) % 4];
+      if ([0, 2, 3, 6, 8, 10, 11, 14].includes(i)) for (const d of [-9, 9]) note(a, out, t, root, 0.2, { type: 'sawtooth', vol: 0.09, cutoff: 650, detune: d, q: 1.5 }); // reese bass
+      if (i === 0 || i === 10 || (i === 6 && bar % 2)) kick(a, out, t, 1);
+      if (i === 4 || i === 12) snare(a, out, t, 0.55); if (i === 7 || i === 15) snare(a, out, t, 0.12);
+      hat(a, out, t, i % 2 ? 0.04 : 0.07, i === 2);
+      if (i === 3 || i === 11) for (const m of [root + 24, root + 27, root + 31]) note(a, out, t, m, 0.14, { type: 'sawtooth', vol: 0.04, cutoff: 1900 });
+      if (bar % 4 === 3 && i >= 8) burst(a, out, t, 0.05 + (i - 8) * 0.012, 0.1, 'bandpass', 800 + (i - 8) * 350, 3); // riser into the drop
+    } },
+};
+function musicOut() {
+  const a = audio(); if (!a) return null;
+  if (!musicGain) { musicGain = a.createGain(); musicGain.gain.value = muted ? 0 : 0.6; musicGain.connect(a.destination); }
+  return a;
+}
+function stopMusic() {
+  if (!music) return;
+  clearInterval(music.timer);
+  const g = music.gain, a = actx; g.gain.setValueAtTime(g.gain.value, a.currentTime); g.gain.linearRampToValueAtTime(0, a.currentTime + 0.25);
+  setTimeout(() => g.disconnect(), 400);
+  music = null;
+}
+function startMusic() {
+  stopMusic();
+  const def = TRACK_DEFS[musicId]; if (!def) return;
+  const a = musicOut(); if (!a) return;
+  const filter = a.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = def.cutoff;
+  const gain = a.createGain(); gain.gain.value = 1; filter.connect(gain); gain.connect(musicGain);
+  const stepDur = 60 / def.bpm / 4;
+  const m = { gain, step: 0, nextT: a.currentTime + 0.1, timer: 0 };
+  m.timer = setInterval(() => {
+    while (m.nextT < a.currentTime + 0.18) {
+      const i = m.step % 16, bar = (m.step / 16) | 0, t = m.nextT + (i % 2 ? def.swing * stepDur : 0);
+      try { def.step(a, filter, t, i, bar, stepDur); } catch (err) { console.error(err); }
+      m.nextT += stepDur; m.step++;
+    }
+  }, 30);
+  music = m;
+}
+function setMusic(id, announce) {
+  musicId = id; localStorage.setItem('bearrun-music', id);
+  $('musicBtn').textContent = `🎵 ${TRACK_NAMES[id]}`;
+  if (id === 'off') stopMusic(); else startMusic();
+  if (announce) banner(`🎵 ${TRACK_NAMES[id]}<small>Tab for the next track</small>`, 1.1);
+}
+function nextMusic(announce) { setMusic(TRACKS[(TRACKS.indexOf(musicId) + 1) % TRACKS.length], announce); }
 
 // ---------- game state ----------
 const player = { x: 0, z: -5, y: 0, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0, pushPhase: 0, plough: 0, runPhase: 0 };
@@ -704,12 +814,14 @@ function reset() {
   if (skier.userData.inner) { skier.userData.inner.rotation.set(0, 0, 0); skier.userData.inner.position.y = 0; }
   samples.length = 0; lastStamp = null; trailGeo.setDrawRange(0, 0);
   score = 0; bonus = 0; growlT = 0; camYaw = 0;
+  stormTarget = 0; stormOn = false;
   $('bear').style.display = 'none';
   updateChunks(player.z);
   placeCamera(1, 1);
 }
 function start() {
   audio();
+  if (!music && musicId !== 'off') startMusic();
   reset();
   state = 'play';
   $('start').hidden = true; $('over').hidden = true;
@@ -855,6 +967,8 @@ function step(dt, t) {
   // Bear.
   const dist = Math.max(0, -p.z - 5);
   noteDistance(dist);
+  stormTarget = THREE.MathUtils.clamp((dist - STORM_AT) / 600, 0, 1);
+  if (!stormOn && dist >= STORM_AT) { stormOn = true; banner('❄️ Snow<small>visibility dropping</small>', 2); }
   if (!bear.on && dist > BEAR_WAKES) {
     bear.on = true; bear.x = p.x * 0.5; bear.z = p.z + 60;
     bearMesh.visible = true; $('bear').style.display = 'block';
@@ -1066,6 +1180,7 @@ addEventListener('keydown', e => {
   if (e.target.closest?.('.site-topbar')) return;
   if (e.code === 'KeyC') { toggleCam(); return; }
   if (e.code === 'KeyM') { toggleMute(); return; }
+  if (e.code === 'Tab') { e.preventDefault(); nextMusic(true); return; }
   if (e.code === 'KeyE' && !e.repeat) { scream(); return; }
   if ((e.code === 'Enter' || e.code === 'Space') && state !== 'play') {
     if (state === 'title' || !$('over').hidden) { e.preventDefault(); start(); }
@@ -1093,7 +1208,10 @@ function toggleCam() {
 function toggleMute() {
   muted = !muted; localStorage.setItem('bearrun-muted', muted ? '1' : '0');
   $('muteBtn').textContent = muted ? '🔇' : '🔊';
+  if (musicGain) musicGain.gain.setTargetAtTime(muted ? 0 : 0.6, actx.currentTime, 0.05);
 }
+$('musicBtn').addEventListener('click', e => { nextMusic(false); e.currentTarget.blur(); });
+$('musicBtn').textContent = `🎵 ${TRACK_NAMES[musicId]}`;
 $('camBtn').addEventListener('click', e => { toggleCam(); e.currentTarget.blur(); });
 $('muteBtn').addEventListener('click', e => { toggleMute(); e.currentTarget.blur(); });
 $('muteBtn').textContent = muted ? '🔇' : '🔊';
@@ -1105,4 +1223,4 @@ $('bestv').textContent = best;
 buildRide(); renderRides();
 reset();
 renderer.setAnimationLoop(frame);
-if (import.meta.url.includes('localhost')) window.__bear = { player, bear, keys, chunks, start, step, frame, scream, selectRide, RIDES, get far() { return far; }, set far(v) { far = v; }, get skier() { return skier; }, get V() { return V; }, get state() { return state; }, toggleCam };
+if (import.meta.url.includes('localhost')) window.__bear = { player, bear, keys, chunks, start, step, frame, scream, selectRide, RIDES, setMusic, nextMusic, get music() { return music; }, get musicId() { return musicId; }, get storm() { return storm; }, set storm(v) { storm = v; }, get actx() { return actx; }, get musicGain() { return musicGain; }, scene, camera, flakes, sky, peaks, get far() { return far; }, set far(v) { far = v; }, get skier() { return skier; }, get V() { return V; }, get state() { return state; }, toggleCam };
