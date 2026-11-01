@@ -14,24 +14,43 @@ const WIDTH = 130;            // ground width
 const EDGE = 38;              // beyond |x| > EDGE the run banks up into forest
 const AHEAD = 6, BEHIND = 2;  // chunks kept ahead of / behind the player
 const BEAR_WAKES = 200;       // metres before the bear joins
-const BODY_R = 0.35;
-// Skiing model. The skier has a facing (heading, where the skis point) and a travel direction
-// (vdir). Steering turns the facing; the edges drag the travel direction after it, more slowly
-// the faster you go. The difference is the slip angle: hold more than FALL_SLIP while moving
-// faster than FALL_SPEED for FALL_GRACE seconds and you fall. Below FALL_SPEED you only skid.
-const ACCEL = 4.0;            // downhill acceleration (m/s^2), steeper than the real slope so speed builds quickly
-const TUCK_ACCEL = 1.2;       // extra while tucked
-const PUSH_ACCEL = 4.5;       // double-pole push at a standstill; fades out by PUSH_MAX
-const PUSH_MAX = 15;          // m/s, faster than this the poles can't keep up
-const PLOUGH_DECEL = 6;       // snowplough braking
-const SCREAM_COOLDOWN = 7;    // seconds between screams the bear will listen to
-const SCREAM_FLINCH = 1.1;    // how long a scream stops the bear
-const FRICTION = 0.2;
-const DRAG = 0.0055, DRAG_TUCK = 0.0038; // terminal: ~26 m/s upright, ~36 m/s tucked
-const FALL_SLIP = THREE.MathUtils.degToRad(10);
-const FALL_SPEED = 11;        // m/s, about 40 km/h
+// Riding model, shared by every ride. The rider has a facing (heading, where the skis, board,
+// sled or paws point) and a travel direction (vdir). Steering turns the facing; the edges drag the
+// travel direction after it, more slowly the faster you go. The difference is the slip angle: hold
+// more than fallSlip while moving faster than fallSpeed for FALL_GRACE seconds and you fall. Below
+// fallSpeed you only skid. Each ride tunes the numbers; unlocks are by the farthest distance ever
+// reached in one run, saved in the browser.
 const FALL_GRACE = 0.15;
-const LAND_SLIP = THREE.MathUtils.degToRad(30); // land within this of your travel line and the skis bite
+const SCREAM_COOLDOWN = 7;    // seconds between screams the chaser will listen to
+const SCREAM_FLINCH = 1.1;    // how long a scream stops the chaser
+const RIDES = {
+  skis: { name: 'Skis', icon: '\u26f7\ufe0f', unlock: 0, kind: 'skis',
+    // Gravity along the slope, no more: ~83 km/h upright, ~100 tucked, ten seconds to get there.
+    accel: G_ALONG, friction: 0.35, drag: 0.0046, dragTuck: 0.0031, tuck: 0, canTuck: true, push: 4.5, pushMax: 10, stroke: true, plough: 6,
+    fallSlip: 10, fallSpeed: 11, landSlip: 30, steer: 2.8, steerFade: 25, grip: 2.8, gripFade: 14, spin: 6.5, bodyR: 0.35, scrub: 1.5,
+    chase: { base: 15.5, cap: 25.5 }, pursuer: 'bear',
+    blurb: 'Tap to carve. Hold a turn at speed and the skis slide 10\u00b0 off your line, and down you go.',
+    controls: '<kbd>W</kbd> pole push \u00b7 <kbd>S</kbd> snowplough \u00b7 <kbd>Shift</kbd> tuck \u00b7 <kbd>E</kbd> scream' },
+  snowboard: { name: 'Snowboard', icon: '\ud83c\udfc2', unlock: 2000, kind: 'board',
+    accel: G_ALONG, friction: 0.35, drag: 0.0046, dragTuck: 0.0031, tuck: 0, canTuck: true, push: 2.5, pushMax: 8, stroke: true, plough: 7,
+    fallSlip: 14, fallSpeed: 9, landSlip: 40, steer: 3.4, steerFade: 22, grip: 3.0, gripFade: 16, spin: 8.5, bodyR: 0.35, scrub: 0.7,
+    chase: { base: 15.5, cap: 25.5 }, pursuer: 'bear',
+    blurb: 'Quicker spins and an edge that holds, until it catches: 14\u00b0 off your line above 32 km/h and you eat snow.',
+    controls: '<kbd>W</kbd> skate push \u00b7 <kbd>S</kbd> heel-side scrub \u00b7 <kbd>Shift</kbd> tuck \u00b7 <kbd>E</kbd> scream' },
+  snowmobile: { name: 'Snowmobile', icon: '\ud83d\udef7', unlock: 5000, kind: 'sled',
+    accel: 1.5, friction: 0.6, drag: 0.0028, dragTuck: 0.0028, tuck: 0, push: 9, pushMax: 42, stroke: false, plough: 10,
+    fallSlip: 24, fallSpeed: 13, landSlip: 45, steer: 2.0, steerFade: 30, grip: 1.9, gripFade: 18, spin: 3, bodyR: 0.7, scrub: 1.2,
+    chase: { base: 22, cap: 36 }, pursuer: 'bear',
+    blurb: 'Hold W for throttle. Heavy and fast; yank it past 24\u00b0 at speed and it rolls.',
+    controls: '<kbd>W</kbd> throttle \u00b7 <kbd>S</kbd> brake \u00b7 <kbd>E</kbd> scream' },
+  bear: { name: 'Bear', icon: '\ud83d\udc3b', unlock: 10000, kind: 'bear',
+    accel: 2.0, friction: 0.5, drag: 0.004, dragTuck: 0.004, tuck: 0, push: 7, pushMax: 24, stroke: false, plough: 9,
+    fallSlip: 40, fallSpeed: 14, landSlip: 60, steer: 3.2, steerFade: 40, grip: 3.0, gripFade: 40, spin: 4, bodyR: 0.6, scrub: 1.5,
+    chase: { base: 17, cap: 28 }, pursuer: 'yeti',
+    blurb: 'Paws grip anything. Something higher up the food chain has noticed.',
+    controls: '<kbd>W</kbd> sprint \u00b7 <kbd>S</kbd> dig in \u00b7 <kbd>E</kbd> roar' },
+};
+const PURSUERS = { bear: { name: 'Bear', icon: '\ud83d\udc3b', a: 'A bear!' }, yeti: { name: 'Yeti', icon: '\ud83e\udd8d', a: 'A yeti!' } };
 const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
 
 // ---------- renderer / scene ----------
@@ -46,6 +65,9 @@ renderer.toneMappingExposure = 1.05;
 const scene = new THREE.Scene();
 const FOG = new THREE.Color(0xc9dbea);
 scene.fog = new THREE.Fog(FOG, 45, 165);
+const STORM_FOG = new THREE.Color(0xdfe5ec); // the whiteout colour
+let storm = 0, stormTarget = 0, stormOn = false; // the snowstorm past STORM_AT metres, eased in
+const STORM_AT = 5000;
 scene.background = FOG.clone();
 
 const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 900);
@@ -65,11 +87,12 @@ const sky = new THREE.Mesh(
   new THREE.SphereGeometry(600, 32, 16),
   new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color(0x3f78c0) }, mid: { value: new THREE.Color(0x9cc0e2) }, bot: { value: new THREE.Color(0xdfe9f3) } },
+    uniforms: { top: { value: new THREE.Color(0x3f78c0) }, mid: { value: new THREE.Color(0x9cc0e2) }, bot: { value: new THREE.Color(0xdfe9f3) }, grey: { value: 0 } },
     vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
-    fragmentShader: `uniform vec3 top, mid, bot; varying vec3 vP;
+    fragmentShader: `uniform vec3 top, mid, bot; uniform float grey; varying vec3 vP;
       void main(){ float h = normalize(vP).y;
         vec3 c = h > 0.08 ? mix(mid, top, smoothstep(0.08, 0.6, h)) : mix(bot, mid, smoothstep(-0.05, 0.08, h));
+        c = mix(c, vec3(0.86, 0.89, 0.93), grey);
         gl_FragColor = vec4(c, 1.); }`,
   }),
 );
@@ -210,7 +233,45 @@ function makeGate(color) {
   return shadowy(g);
 }
 
-// ---------- skier ----------
+// ---------- rider and rides ----------
+// Forward is -Z for every ride. A NEGATIVE rotation.x on the rider's body bends it forward.
+function makeRider(withPoles) {
+  const body = new THREE.Group();
+  const bodyMesh = new THREE.Mesh(merge([
+    piece(new THREE.BoxGeometry(0.16, 0.2, 0.3), 0x22282e, M(-0.13, 0.15, 0)),
+    piece(new THREE.BoxGeometry(0.16, 0.2, 0.3), 0x22282e, M(0.13, 0.15, 0)),
+    piece(new THREE.BoxGeometry(0.17, 0.62, 0.2), 0x1e2f55, M(-0.13, 0.52, -0.04, 1, 1, 1, -0.22)),
+    piece(new THREE.BoxGeometry(0.17, 0.62, 0.2), 0x1e2f55, M(0.13, 0.52, -0.04, 1, 1, 1, -0.22)),
+    piece(new THREE.BoxGeometry(0.46, 0.6, 0.28), 0xd8352c, M(0, 1.08, 0.02, 1, 1, 1, -0.18)),
+    piece(new THREE.BoxGeometry(0.47, 0.08, 0.29), 0xf2f2f2, M(0, 0.93, 0.0, 1, 1, 1, -0.18)),
+    piece(new THREE.BoxGeometry(0.3, 0.32, 0.12), 0x2d6f9a, M(0, 1.12, 0.2, 1, 1, 1, -0.18)),
+    piece(new THREE.BoxGeometry(0.12, 0.55, 0.13), 0xd8352c, M(-0.3, 1.04, -0.08, 1, 1, 1, 0.5, 0, 0.18)),
+    piece(new THREE.BoxGeometry(0.12, 0.55, 0.13), 0xd8352c, M(0.3, 1.04, -0.08, 1, 1, 1, 0.5, 0, -0.18)),
+    piece(new THREE.BoxGeometry(0.13, 0.13, 0.13), 0x22282e, M(-0.34, 0.82, -0.26)),
+    piece(new THREE.BoxGeometry(0.13, 0.13, 0.13), 0x22282e, M(0.34, 0.82, -0.26)),
+    piece(new THREE.CylinderGeometry(0.08, 0.1, 0.12, 8), 0xf2c9a5, M(0, 1.43, -0.04)),
+    piece(new THREE.SphereGeometry(0.16, 10, 8), 0xf2c9a5, M(0, 1.58, -0.05)),
+    piece(new THREE.SphereGeometry(0.175, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), 0x1f8a7a, M(0, 1.6, -0.03)),
+    piece(new THREE.SphereGeometry(0.07, 8, 6), 0xf6f6f6, M(0, 1.79, 0.0)),
+    piece(new THREE.BoxGeometry(0.3, 0.08, 0.06), 0xffa51f, M(0, 1.6, -0.2)),
+  ]), toonMat);
+  body.add(bodyMesh);
+  const poles = [];
+  if (withPoles) {
+    // Poles hang from the hands and swing from there for a push.
+    const poleGeo = merge([
+      piece(new THREE.CylinderGeometry(0.012, 0.012, 1.15, 5), 0xb9c3cc, M(0, -0.55, 0)),
+      piece(new THREE.TorusGeometry(0.05, 0.01, 4, 8), 0x22282e, M(0, -1.05, 0, 1, 1, 1, Math.PI / 2)),
+    ]);
+    for (const sx of [-1, 1]) {
+      const pivot = new THREE.Group(); pivot.position.set(sx * 0.34, 0.82, -0.26);
+      const m = new THREE.Mesh(poleGeo, toonMat); m.rotation.z = -sx * 0.12; pivot.add(m);
+      pivot.rotation.x = 0.55;
+      body.add(pivot); poles.push(pivot);
+    }
+  }
+  return { body, poles };
+}
 function makeSkier() {
   const root = new THREE.Group();
   // One ski, centred on its binding so it can pivot into a snowplough.
@@ -222,40 +283,82 @@ function makeSkier() {
   const skiL = new THREE.Mesh(skiGeo, toonMat), skiR = new THREE.Mesh(skiGeo, toonMat);
   skiL.position.x = -0.13; skiR.position.x = 0.13;
   skis.add(skiL, skiR);
-  const body = new THREE.Group();
-  const bodyMesh = new THREE.Mesh(merge([
-    piece(new THREE.BoxGeometry(0.16, 0.2, 0.3), 0x22282e, M(-0.13, 0.15, 0)),
-    piece(new THREE.BoxGeometry(0.16, 0.2, 0.3), 0x22282e, M(0.13, 0.15, 0)),
-    piece(new THREE.BoxGeometry(0.17, 0.62, 0.2), 0x1e2f55, M(-0.13, 0.52, -0.04, 1, 1, 1, 0.22)),
-    piece(new THREE.BoxGeometry(0.17, 0.62, 0.2), 0x1e2f55, M(0.13, 0.52, -0.04, 1, 1, 1, 0.22)),
-    piece(new THREE.BoxGeometry(0.46, 0.6, 0.28), 0xd8352c, M(0, 1.08, 0.02, 1, 1, 1, 0.18)),
-    piece(new THREE.BoxGeometry(0.47, 0.08, 0.29), 0xf2f2f2, M(0, 0.93, 0.0, 1, 1, 1, 0.18)),
-    piece(new THREE.BoxGeometry(0.3, 0.32, 0.12), 0x2d6f9a, M(0, 1.12, 0.2, 1, 1, 1, 0.18)),
-    piece(new THREE.BoxGeometry(0.12, 0.55, 0.13), 0xd8352c, M(-0.3, 1.04, -0.08, 1, 1, 1, -0.5, 0, 0.18)),
-    piece(new THREE.BoxGeometry(0.12, 0.55, 0.13), 0xd8352c, M(0.3, 1.04, -0.08, 1, 1, 1, -0.5, 0, -0.18)),
-    piece(new THREE.BoxGeometry(0.13, 0.13, 0.13), 0x22282e, M(-0.34, 0.82, -0.26)),
-    piece(new THREE.BoxGeometry(0.13, 0.13, 0.13), 0x22282e, M(0.34, 0.82, -0.26)),
-    piece(new THREE.CylinderGeometry(0.08, 0.1, 0.12, 8), 0xf2c9a5, M(0, 1.43, -0.04)),
-    piece(new THREE.SphereGeometry(0.16, 10, 8), 0xf2c9a5, M(0, 1.58, -0.05)),
-    piece(new THREE.SphereGeometry(0.175, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), 0x1f8a7a, M(0, 1.6, -0.03)),
-    piece(new THREE.SphereGeometry(0.07, 8, 6), 0xf6f6f6, M(0, 1.79, 0.0)),
-    piece(new THREE.BoxGeometry(0.3, 0.08, 0.06), 0xffa51f, M(0, 1.6, -0.2)),
-  ]), toonMat);
-  body.add(bodyMesh);
-  // Poles hang from the hands and swing from there for a push.
-  const poleGeo = merge([
-    piece(new THREE.CylinderGeometry(0.012, 0.012, 1.15, 5), 0xb9c3cc, M(0, -0.55, 0)),
-    piece(new THREE.TorusGeometry(0.05, 0.01, 4, 8), 0x22282e, M(0, -1.05, 0, 1, 1, 1, Math.PI / 2)),
-  ]);
-  const poles = [];
-  for (const sx of [-1, 1]) {
-    const pivot = new THREE.Group(); pivot.position.set(sx * 0.34, 0.82, -0.26);
-    const m = new THREE.Mesh(poleGeo, toonMat); m.rotation.z = -sx * 0.12; pivot.add(m);
-    pivot.rotation.x = 0.55;
-    body.add(pivot); poles.push(pivot);
-  }
+  const { body, poles } = makeRider(true);
   root.add(skis, body);
-  root.userData = { body, skis, skiL, skiR, poles };
+  root.userData = { kind: 'skis', body, skis, skiL, skiR, poles };
+  return shadowy(root);
+}
+function makeBoarder() {
+  const root = new THREE.Group();
+  const board = new THREE.Mesh(merge([
+    piece(new THREE.BoxGeometry(0.3, 0.035, 1.5), 0x2d6f9a, M(0, 0.03, 0)),
+    piece(new THREE.BoxGeometry(0.3, 0.035, 0.2), 0x2d6f9a, M(0, 0.07, -0.82, 1, 1, 1, 0.45)),
+    piece(new THREE.BoxGeometry(0.3, 0.035, 0.2), 0x2d6f9a, M(0, 0.07, 0.82, 1, 1, 1, -0.45)),
+    piece(new THREE.BoxGeometry(0.31, 0.01, 0.5), 0xffc21a, M(0, 0.052, 0)),
+  ]), toonMat);
+  const skis = new THREE.Group(); skis.add(board);
+  // Sideways stance: the rider stands across the board, chest a little toward the nose.
+  const stance = new THREE.Group(); stance.rotation.y = 1.05;
+  const { body, poles } = makeRider(false);
+  stance.add(body); root.add(skis, stance);
+  root.userData = { kind: 'board', body, skis, skiL: null, skiR: null, poles };
+  return shadowy(root);
+}
+function makeSnowmobile(colour) {
+  const root = new THREE.Group(), hull = new THREE.Group();
+  hull.add(new THREE.Mesh(merge([
+    piece(new THREE.BoxGeometry(0.75, 0.32, 2.2), colour, M(0, 0.48, 0.05)),
+    piece(new THREE.BoxGeometry(0.72, 0.26, 0.95), colour, M(0, 0.68, -0.72, 1, 1, 1, 0.28)),
+    piece(new THREE.BoxGeometry(0.5, 0.16, 1.05), 0x22282e, M(0, 0.72, 0.4)),
+    piece(new THREE.BoxGeometry(0.42, 0.3, 1.5), 0x1a1d21, M(0, 0.17, 0.45)),
+    piece(new THREE.BoxGeometry(0.6, 0.36, 0.03), 0xbfe3ff, M(0, 1.02, -0.55, 1, 1, 1, -0.35)),
+    piece(new THREE.CylinderGeometry(0.02, 0.02, 0.62, 6), 0x22282e, M(0, 0.98, -0.32, 1, 1, 1, 0, 0, Math.PI / 2)),
+    piece(new THREE.BoxGeometry(0.2, 0.06, 0.1), 0xffe397, M(0, 0.72, -1.2)),
+  ]), toonMat));
+  const skiGeo = merge([
+    piece(new THREE.BoxGeometry(0.16, 0.05, 0.95), 0x22282e, M(0, 0.03, -0.05)),
+    piece(new THREE.BoxGeometry(0.16, 0.05, 0.2), 0x22282e, M(0, 0.07, -0.55, 1, 1, 1, 0.5)),
+    piece(new THREE.CylinderGeometry(0.03, 0.03, 0.4, 5), 0x8a9099, M(0, 0.22, 0.05)),
+  ]);
+  const skiL = new THREE.Mesh(skiGeo, toonMat), skiR = new THREE.Mesh(skiGeo, toonMat);
+  skiL.position.set(-0.42, 0, -1.0); skiR.position.set(0.42, 0, -1.0);
+  hull.add(skiL, skiR);
+  const { body, poles } = makeRider(false);
+  body.scale.setScalar(0.85); body.position.set(0, 0.62, 0.35);
+  hull.add(body); root.add(hull);
+  root.userData = { kind: 'sled', body, hull, skis: null, skiL, skiR, poles };
+  return shadowy(root);
+}
+// The yeti: what eats bears. Twice a bear's height, on two legs, arms that swing like a second pair.
+// Built with the same inner/legs layout as the bear so animateBeast and rearBeast drive both.
+function makeYeti() {
+  const root = new THREE.Group(), inner = new THREE.Group();
+  const fur = 0xe8eef5, shade = 0xc5d3e2, dark = 0x1a120c, face = 0x5b6b7c;
+  inner.add(new THREE.Mesh(merge([
+    piece(new THREE.SphereGeometry(1, 10, 8), fur, M(0, 1.95, 0, 1.0, 1.15, 0.8)),
+    piece(new THREE.SphereGeometry(1, 10, 8), shade, M(0, 1.6, 0.3, 0.7, 0.6, 0.55)),
+    piece(new THREE.SphereGeometry(0.58, 10, 8), fur, M(0, 3.1, 0.1)),
+    piece(new THREE.SphereGeometry(1, 8, 6), face, M(0, 3.0, 0.5, 0.38, 0.32, 0.22)),
+    piece(new THREE.SphereGeometry(0.07, 6, 5), dark, M(-0.15, 3.1, 0.68)),
+    piece(new THREE.SphereGeometry(0.07, 6, 5), dark, M(0.15, 3.1, 0.68)),
+    piece(new THREE.BoxGeometry(0.32, 0.07, 0.08), 0xf6f6f6, M(0, 2.86, 0.7)),
+    piece(new THREE.ConeGeometry(0.2, 0.5, 5), fur, M(0, 3.6, -0.05)),
+  ]), toonMat));
+  const armGeo = merge([
+    piece(new THREE.CylinderGeometry(0.2, 0.17, 1.5, 7), fur, M(0, -0.7, 0)),
+    piece(new THREE.SphereGeometry(0.25, 7, 5), shade, M(0, -1.45, 0)),
+  ]);
+  const legGeo = merge([
+    piece(new THREE.CylinderGeometry(0.28, 0.24, 1.3, 7), fur, M(0, -0.6, 0)),
+    piece(new THREE.SphereGeometry(0.32, 7, 5), shade, M(0, -1.2, 0.12, 1, 0.5, 1.4)),
+  ]);
+  const legs = [];
+  for (const [x, y, z, g] of [[-1.0, 2.45, 0.1, armGeo], [1.0, 2.45, 0.1, armGeo], [-0.42, 1.3, 0, legGeo], [0.42, 1.3, 0, legGeo]]) {
+    const pivot = new THREE.Group(); pivot.position.set(x, y, z);
+    pivot.add(new THREE.Mesh(g, toonMat)); inner.add(pivot); legs.push(pivot);
+  }
+  root.add(inner); root.scale.setScalar(1.15);
+  root.userData = { kind: 'yeti', inner, legs, body: inner, poles: [], skiL: null, skiR: null, skis: null };
   return shadowy(root);
 }
 
@@ -291,11 +394,25 @@ function makeBear() {
   }
   root.add(inner);
   root.scale.setScalar(1.15);
-  root.userData = { inner, legs };
+  root.userData = { kind: 'bear', inner, legs, body: inner, poles: [], skiL: null, skiR: null, skis: null };
   return shadowy(root);
+}
+// Gallop (or lumber) for anything with an inner body and four swinging limbs.
+function animateBeast(ud, phase) {
+  const s = Math.sin(phase * Math.PI);
+  ud.legs[0].rotation.x = ud.legs[1].rotation.x = s * 0.85;
+  ud.legs[2].rotation.x = ud.legs[3].rotation.x = -s * 0.85;
+  ud.legs[1].rotation.x += 0.15; ud.legs[3].rotation.x += 0.15;
+  ud.inner.position.y = Math.abs(Math.cos(phase * Math.PI)) * 0.18;
+  ud.inner.rotation.x = s * 0.07;
+}
+function rearBeast(ud, r) { // startled, roaring or triumphant: up on the hind legs, front limbs raised
+  ud.inner.rotation.x = -0.5 * r; ud.inner.position.y = 0.5 * r;
+  ud.legs[0].rotation.x = ud.legs[1].rotation.x = -1.1 * r; ud.legs[2].rotation.x = ud.legs[3].rotation.x = 0.2 * r;
 }
 
 // ---------- chunks ----------
+
 const chunks = new Map(); // index -> {ground, objs:[], meshes:[]}
 let seed = 1;
 const _m = new THREE.Matrix4();
@@ -451,10 +568,19 @@ function updateParticles(dt, t) {
     sprayPos[i * 3] += sprayVel[i * 3] * dt; sprayPos[i * 3 + 1] += sprayVel[i * 3 + 1] * dt; sprayPos[i * 3 + 2] += sprayVel[i * 3 + 2] * dt;
   }
   sprayGeo.attributes.position.needsUpdate = true;
+  // The storm: more and bigger flakes, falling faster, driven sideways by a gusting wind, inside a closing fog.
+  storm += (stormTarget - storm) * Math.min(1, dt * 0.4);
+  const wind = 0.6 + storm * (6 + 3 * Math.sin(t * 0.6)), fall = 1 + 1.3 * storm;
+  flakeGeo.setDrawRange(0, Math.round(FLAKES * (0.25 + 0.75 * storm)));
+  flakes.material.size = 0.16 + 0.16 * storm;
+  scene.fog.near = 45 - 30 * storm; scene.fog.far = 165 - 100 * storm;
+  scene.fog.color.copy(FOG).lerp(STORM_FOG, storm); scene.background.copy(scene.fog.color);
+  sky.material.uniforms.grey.value = storm;
+  peaks.children[0].material.opacity = 1 - 0.95 * storm; // the far peaks vanish into the whiteout
   const cx = camera.position.x, cy = camera.position.y, cz = camera.position.z, hx = flakeBox.x / 2, hz = flakeBox.z / 2;
   for (let k = 0; k < FLAKES; k++) {
     const s = flakeSeed[k];
-    let x = flakePos[k * 3] + Math.sin(t * 0.7 + s) * 0.4 * dt + 0.6 * dt, y = flakePos[k * 3 + 1] - (1.2 + (s % 1)) * dt, z = flakePos[k * 3 + 2];
+    let x = flakePos[k * 3] + (Math.sin(t * 0.7 + s) * 0.4 + wind) * dt, y = flakePos[k * 3 + 1] - (1.2 + (s % 1)) * fall * dt, z = flakePos[k * 3 + 2];
     x = cx + ((((x - cx + hx) % flakeBox.x) + flakeBox.x) % flakeBox.x) - hx;
     z = cz + ((((z - cz + hz) % flakeBox.z) + flakeBox.z) % flakeBox.z) - hz;
     if (y < cy - 20) y += flakeBox.y; else if (y > cy + 20) y -= flakeBox.y;
@@ -473,7 +599,7 @@ const peaks = new THREE.Group();
     parts.push(piece(new THREE.ConeGeometry(w, h, 6), 0x8ea6c0, M(x, h / 2 - 40, z, 1, 1, 1, 0, rnd() * 3)));
     parts.push(piece(new THREE.ConeGeometry(w * 0.42, h * 0.42, 6), 0xf3f7fb, M(x, h - 40 - h * 0.21 + 0.5, z, 1.02, 1, 1.02, 0, rnd() * 3)));
   }
-  const m = new THREE.Mesh(merge(parts), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, fog: false }));
+  const m = new THREE.Mesh(merge(parts), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, fog: false, transparent: true }));
   peaks.add(m);
   scene.add(peaks);
 }
@@ -519,14 +645,150 @@ const sfx = {
   hoarse() { noise(0.25, 0.1, 1800); },
 };
 
+// ---------- music (generated, looping) ----------
+// Three tracks and Off, cycled with Tab. Everything is synthesised; a 16th-note scheduler books
+// notes a short way ahead so the loop keeps time even when the main thread is busy.
+const TRACKS = ['lofi', 'alpine', 'chase', 'off'];
+const TRACK_NAMES = { lofi: 'Lo-fi chill', alpine: 'Alpine run', chase: 'Yeti chase', off: 'Music off' };
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+let musicId = TRACKS.includes(localStorage.getItem('bearrun-music')) ? localStorage.getItem('bearrun-music') : 'lofi';
+let music = null, musicGain = null, noiseBuf = null;
+function getNoise(a) {
+  if (!noiseBuf) { noiseBuf = a.createBuffer(1, a.sampleRate, a.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+  return noiseBuf;
+}
+// Instruments. Every voice is built fresh, plays, and is garbage collected after it stops.
+function env(a, out, t, vol, attack, decay) { const g = a.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay); g.connect(out); return g; }
+function kick(a, out, t, vol = 0.9) { const o = a.createOscillator(); o.frequency.setValueAtTime(165, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.11); o.connect(env(a, out, t, vol, 0.003, 0.32)); o.start(t); o.stop(t + 0.4); }
+function burst(a, out, t, vol, dur, type, freq, q = 0.8) { const s = a.createBufferSource(); s.buffer = getNoise(a); s.loop = true; const f = a.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; s.connect(f); f.connect(env(a, out, t, vol, 0.002, dur)); s.start(t); s.stop(t + dur + 0.05); }
+function snare(a, out, t, vol = 0.5) { burst(a, out, t, vol, 0.17, 'bandpass', 1900); const o = a.createOscillator(); o.frequency.setValueAtTime(200, t); o.frequency.exponentialRampToValueAtTime(120, t + 0.06); o.connect(env(a, out, t, vol * 0.5, 0.002, 0.08)); o.start(t); o.stop(t + 0.12); }
+function hat(a, out, t, vol = 0.12, open = false) { burst(a, out, t, vol, open ? 0.28 : 0.045, 'highpass', 7200); }
+function note(a, out, t, midi, dur, { type = 'triangle', vol = 0.1, cutoff = 2000, detune = 0, attack = 0.01, q = 0.5 } = {}) {
+  const o = a.createOscillator(); o.type = type; o.frequency.value = mtof(midi); o.detune.value = detune;
+  const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cutoff; f.Q.value = q;
+  o.connect(f); f.connect(env(a, out, t, vol, attack, dur)); o.start(t); o.stop(t + attack + dur + 0.05);
+}
+// Each track: tempo, swing (how late the off-beat 16ths land), a tone chain, and what happens on each 16th step.
+const TRACK_DEFS = {
+  lofi: { bpm: 74, swing: 0.2, cutoff: 1700,
+    chords: [[53, 57, 60, 64], [52, 55, 59, 62], [50, 53, 57, 60], [48, 52, 55, 59]], scale: [60, 62, 64, 67, 69, 72, 74, 76],
+    step(a, out, t, i, bar, dur) {
+      const ch = this.chords[bar % 4], r = Math.random;
+      if (i === 0 || i === 10) for (const m of ch) { note(a, out, t, m, 1.8, { type: 'triangle', vol: 0.055, cutoff: 1300, attack: 0.02 }); note(a, out, t, m, 1.8, { type: 'sine', vol: 0.035, cutoff: 1300, detune: 6, attack: 0.02 }); }
+      if (i === 0 || i === 7 || i === 10) note(a, out, t, ch[0] - 24, 0.55, { type: 'sine', vol: 0.22, cutoff: 320 });
+      if (i === 0 || i === 10 || (i === 7 && bar % 2)) kick(a, out, t, 0.7);
+      if (i === 4 || i === 12) snare(a, out, t, 0.28);
+      if (i % 2 === 0) hat(a, out, t, i % 4 ? 0.05 : 0.09); if (i === 14 && r() < 0.4) hat(a, out, t, 0.06, true);
+      if (r() < 0.16) note(a, out, t, this.scale[(r() * this.scale.length) | 0], 0.4, { type: 'triangle', vol: 0.06, cutoff: 1900 });
+      if (r() < 0.35) burst(a, out, t + r() * dur, 0.025, 0.012, 'highpass', 3000); // vinyl crackle
+    } },
+  alpine: { bpm: 128, swing: 0, cutoff: 6500,
+    roots: [45, 41, 48, 43], third: [3, 4, 4, 4],
+    step(a, out, t, i, bar, dur) {
+      const root = this.roots[bar % 4], arp = [root + 12, root + 12 + this.third[bar % 4], root + 19, root + 24, root + 19, root + 12 + this.third[bar % 4]];
+      if (i % 2 === 0) note(a, out, t, root, 0.16, { type: 'sawtooth', vol: 0.14, cutoff: i % 4 ? 420 : 700, q: 2 });
+      note(a, out, t, arp[i % arp.length], 0.11, { type: 'square', vol: 0.045, cutoff: 2600 });
+      if (i % 4 === 0) kick(a, out, t, 0.85);
+      if (i === 4 || i === 12) snare(a, out, t, 0.4);
+      hat(a, out, t, i % 2 ? 0.05 : 0.09, i === 14);
+      if (bar % 2 === 1 && [0, 3, 6, 8, 11].includes(i)) note(a, out, t, root + 24 + [0, 3, 7, 10, 12][(i * 7 + bar) % 5], 0.3, { type: 'sawtooth', vol: 0.05, cutoff: 3200, attack: 0.02 });
+    } },
+  chase: { bpm: 162, swing: 0, cutoff: 9000,
+    roots: [33, 33, 36, 31],
+    step(a, out, t, i, bar, dur) {
+      const root = this.roots[(bar >> 1) % 4];
+      if ([0, 2, 3, 6, 8, 10, 11, 14].includes(i)) for (const d of [-9, 9]) note(a, out, t, root, 0.2, { type: 'sawtooth', vol: 0.09, cutoff: 650, detune: d, q: 1.5 }); // reese bass
+      if (i === 0 || i === 10 || (i === 6 && bar % 2)) kick(a, out, t, 1);
+      if (i === 4 || i === 12) snare(a, out, t, 0.55); if (i === 7 || i === 15) snare(a, out, t, 0.12);
+      hat(a, out, t, i % 2 ? 0.04 : 0.07, i === 2);
+      if (i === 3 || i === 11) for (const m of [root + 24, root + 27, root + 31]) note(a, out, t, m, 0.14, { type: 'sawtooth', vol: 0.04, cutoff: 1900 });
+      if (bar % 4 === 3 && i >= 8) burst(a, out, t, 0.05 + (i - 8) * 0.012, 0.1, 'bandpass', 800 + (i - 8) * 350, 3); // riser into the drop
+    } },
+};
+function musicOut() {
+  const a = audio(); if (!a) return null;
+  if (!musicGain) { musicGain = a.createGain(); musicGain.gain.value = muted ? 0 : 0.6; musicGain.connect(a.destination); }
+  return a;
+}
+function stopMusic() {
+  if (!music) return;
+  clearInterval(music.timer);
+  const g = music.gain, a = actx; g.gain.setValueAtTime(g.gain.value, a.currentTime); g.gain.linearRampToValueAtTime(0, a.currentTime + 0.25);
+  setTimeout(() => g.disconnect(), 400);
+  music = null;
+}
+function startMusic() {
+  stopMusic();
+  const def = TRACK_DEFS[musicId]; if (!def) return;
+  const a = musicOut(); if (!a) return;
+  const filter = a.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = def.cutoff;
+  const gain = a.createGain(); gain.gain.value = 1; filter.connect(gain); gain.connect(musicGain);
+  const stepDur = 60 / def.bpm / 4;
+  const m = { gain, step: 0, nextT: a.currentTime + 0.1, timer: 0 };
+  m.timer = setInterval(() => {
+    while (m.nextT < a.currentTime + 0.18) {
+      const i = m.step % 16, bar = (m.step / 16) | 0, t = m.nextT + (i % 2 ? def.swing * stepDur : 0);
+      try { def.step(a, filter, t, i, bar, stepDur); } catch (err) { console.error(err); }
+      m.nextT += stepDur; m.step++;
+    }
+  }, 30);
+  music = m;
+}
+function setMusic(id, announce) {
+  musicId = id; localStorage.setItem('bearrun-music', id);
+  $('musicBtn').textContent = `🎵 ${TRACK_NAMES[id]}`;
+  if (id === 'off') stopMusic(); else startMusic();
+  if (announce) banner(`🎵 ${TRACK_NAMES[id]}<small>Tab for the next track</small>`, 1.1);
+}
+function nextMusic(announce) { setMusic(TRACKS[(TRACKS.indexOf(musicId) + 1) % TRACKS.length], announce); }
+
 // ---------- game state ----------
-const player = { x: 0, z: -5, y: 0, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0, pushPhase: 0, plough: 0 };
-const bear = { on: false, x: 0, z: 0, phase: 0, rear: 0, flinch: 0 };
+const player = { x: 0, z: -5, y: 0, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0, pushPhase: 0, plough: 0, runPhase: 0 };
+const bear = { on: false, x: 0, z: 0, dir: 0, phase: 0, rear: 0, flinch: 0 }; // the chaser, whatever it is this run; dir is where it is running
 let state = 'title', score = 0, bonus = 0, best = Number(localStorage.getItem('bearrun-best')) || 0, growlT = 0, overT = 0;
+let far = Number(localStorage.getItem('bearrun-far')) || 0; // farthest distance ever reached in one run: the unlock currency
 let camMode = 0, camBlend = 0, camYaw = 0, bearPull = 0, bearGap = Infinity;
 let screamCd = 0, screamT = 0; // scream cooldown and the time left on the scream pose
-const skier = makeSkier(); scene.add(skier);
-const bearMesh = makeBear(); bearMesh.visible = false; scene.add(bearMesh);
+let rideId = RIDES[localStorage.getItem('bearrun-ride')]?.unlock <= far ? localStorage.getItem('bearrun-ride') : 'skis';
+let V = RIDES[rideId], P = PURSUERS[V.pursuer];
+// The player's mesh and the chaser's are built per ride and swapped on selection.
+let skier = null, bearMesh = null;
+function buildRide() {
+  if (skier) scene.remove(skier);
+  if (bearMesh) scene.remove(bearMesh);
+  skier = V.kind === 'skis' ? makeSkier() : V.kind === 'board' ? makeBoarder() : V.kind === 'sled' ? makeSnowmobile(0x2a63c9) : makeBear();
+  if (V.kind === 'bear') skier.scale.setScalar(1.0);
+  bearMesh = V.pursuer === 'bear' ? makeBear() : makeYeti();
+  bearMesh.visible = false;
+  scene.add(skier, bearMesh);
+  $('bearName').textContent = `${P.icon} ${P.name}`;
+}
+function selectRide(id) {
+  if (!RIDES[id] || RIDES[id].unlock > far) return false;
+  rideId = id; V = RIDES[id]; P = PURSUERS[V.pursuer];
+  localStorage.setItem('bearrun-ride', id);
+  buildRide(); renderRides();
+  return true;
+}
+function renderRides() {
+  const el = $('rides'); el.innerHTML = '';
+  for (const [id, r] of Object.entries(RIDES)) {
+    const b = document.createElement('button'); b.type = 'button';
+    const locked = r.unlock > far;
+    b.className = 'ride' + (id === rideId ? ' on' : '') + (locked ? ' locked' : '');
+    b.innerHTML = `<span class="ri">${locked ? '🔒' : r.icon}</span><b>${r.name}</b><small>${locked ? `Reach ${r.unlock.toLocaleString()} m` : id === rideId ? 'Selected' : 'Unlocked'}</small>`;
+    b.title = locked ? `Reach ${r.unlock.toLocaleString()} m in one run to unlock the ${r.name.toLowerCase()} (farthest so far: ${Math.round(far).toLocaleString()} m)` : r.blurb;
+    b.addEventListener('click', () => { if (locked) { b.classList.add('nope'); setTimeout(() => b.classList.remove('nope'), 400); sfx.hoarse(); } else { selectRide(id); audio(); } });
+    el.appendChild(b);
+  }
+  $('rideHelp').innerHTML = `<b>${V.icon} ${V.name}.</b> ${V.blurb}<br>${V.controls}`;
+}
+function noteDistance(dist) { // the unlock banners fire the moment a line is crossed, mid-run
+  if (dist <= far) return;
+  for (const r of Object.values(RIDES)) if (r.unlock > 0 && far < r.unlock && dist >= r.unlock) { banner(`${r.icon} ${r.name} unlocked!<small>pick it on the start screen</small>`, 2.2); sfx.trick(); }
+  far = dist; localStorage.setItem('bearrun-far', String(Math.round(far)));
+}
+
 
 const keys = new Set();
 const touch = { L: false, R: false, U: false, D: false };
@@ -545,18 +807,22 @@ function reset() {
   seed = (Math.random() * 1e9) | 0;
   Object.assign(player, { x: 0, z: -5, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0, pushPhase: 0, plough: 0 });
   player.y = height(player.x, player.z);
-  Object.assign(bear, { on: false, x: 0, z: 0, phase: 0, rear: 0, flinch: 0 });
+  Object.assign(bear, { on: false, x: 0, z: 0, dir: 0, phase: 0, rear: 0, flinch: 0 });
   screamCd = 0; screamT = 0;
   bearGap = Infinity; bearPull = 0;
   bearMesh.visible = false; skier.visible = true;
+  if (skier.userData.hull) skier.userData.hull.rotation.set(0, 0, 0);
+  if (skier.userData.inner) { skier.userData.inner.rotation.set(0, 0, 0); skier.userData.inner.position.y = 0; }
   samples.length = 0; lastStamp = null; trailGeo.setDrawRange(0, 0);
   score = 0; bonus = 0; growlT = 0; camYaw = 0;
+  stormTarget = 0; stormOn = false;
   $('bear').style.display = 'none';
   updateChunks(player.z);
   placeCamera(1, 1);
 }
 function start() {
   audio();
+  if (!music && musicId !== 'off') startMusic();
   reset();
   state = 'play';
   $('start').hidden = true; $('over').hidden = true;
@@ -576,9 +842,10 @@ function scream() {
   if (state !== 'play' || player.crashT > 0) return;
   if (screamCd > 0) { sfx.hoarse(); banner('…<small>(hoarse)</small>', 0.5); return; }
   screamCd = SCREAM_COOLDOWN; screamT = 0.7;
-  sfx.scream();
-  if (bear.on && bearGap < 70) { bear.flinch = SCREAM_FLINCH; banner('HEEELP!<small>the bear hesitates</small>', 1.2); }
-  else banner('HEEELP!<small>nobody is coming</small>', 1.4);
+  if (V.kind === 'bear') { sfx.growl(); setTimeout(() => sfx.growl(), 120); } else sfx.scream();
+  const cry = V.kind === 'bear' ? 'ROAR!' : 'HEEELP!';
+  if (bear.on && bearGap < 70) { bear.flinch = SCREAM_FLINCH; banner(`${cry}<small>the ${P.name.toLowerCase()} hesitates</small>`, 1.2); }
+  else banner(`${cry}<small>${V.kind === 'bear' ? 'the forest goes quiet' : 'nobody is coming'}</small>`, 1.4);
 }
 
 const _p = new V3(), _up = new V3(0, 1, 0), _yaw = new THREE.Quaternion(), _tilt = new THREE.Quaternion();
@@ -593,14 +860,14 @@ function step(dt, t) {
     p.v = Math.max(0, p.v - 12 * dt);
     if (p.crashT <= 0) { p.crashT = 0; p.vdir = p.heading; p.slip = 0; p.slipT = 0; }
   } else if (p.air) {
-    p.heading += inp.steer * 6.5 * dt; p.spin += inp.steer * 6.5 * dt;
+    p.heading += inp.steer * V.spin * dt; p.spin += inp.steer * V.spin * dt;
   } else {
     p.steer += (inp.steer - p.steer) * Math.min(1, dt * 10);
     // Turning the skis is quick when slow and heavy when fast; the edges follow more slowly still.
-    const steerRate = 2.8 / (1 + p.v / 25), grip = 2.8 / (1 + p.v / 14);
+    const steerRate = V.steer / (1 + p.v / V.steerFade), grip = V.grip / (1 + p.v / V.gripFade);
     if (inp.steer) p.heading += inp.steer * steerRate * dt;
     else p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 2.0 * dt); // skis settle into the travel line
-    if (inp.tuck || inp.plough) p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 4 * dt); // a tuck or a plough lines the skis up
+    if ((inp.tuck && V.canTuck) || inp.plough) p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 4 * dt); // a tuck or a plough lines you up
     if (p.v < 1) p.vdir = p.heading;
     else {
       const d = wrapAngle(p.heading - p.vdir);
@@ -609,22 +876,26 @@ function step(dt, t) {
     }
     p.heading = wrapAngle(p.heading); p.vdir = wrapAngle(p.vdir);
     p.slip = wrapAngle(p.heading - p.vdir);
-    // Skidding scrubs speed; hold it too long at speed and you go down.
-    p.v = Math.max(0, p.v - Math.abs(Math.sin(p.slip)) * p.v * 1.5 * dt);
-    if (Math.abs(p.slip) > FALL_SLIP && p.v > FALL_SPEED) { p.slipT += dt; if (p.slipT > FALL_GRACE) crash(); }
+    // Skidding scrubs speed; hold it too long at speed and you go down. Once a slide has started
+    // fast it keeps counting even as the skid bleeds speed: scrubbing under the line does not save you.
+    p.v = Math.max(0, p.v - Math.abs(Math.sin(p.slip)) * p.v * V.scrub * dt);
+    if (Math.abs(p.slip) > THREE.MathUtils.degToRad(V.fallSlip) && (p.v > V.fallSpeed || p.slipT > 0)) { p.slipT += dt; if (p.slipT > FALL_GRACE) crash(); }
     else p.slipT = Math.max(0, p.slipT - dt * 2);
   }
   if (p.crashT <= 0) {
     let acc;
-    if (p.air) acc = -DRAG * p.v * p.v * 0.5;
+    const tuck = inp.tuck && V.canTuck;
+    if (p.air) acc = -V.drag * p.v * p.v * 0.5;
     else {
-      acc = ACCEL * Math.cos(p.vdir) + (inp.tuck ? TUCK_ACCEL : 0) - FRICTION - (inp.tuck ? DRAG_TUCK : DRAG) * p.v * p.v;
-      // Pole push: each stroke shoves in its first half, then the poles swing forward for the next.
-      if (inp.push) {
-        p.pushPhase = (p.pushPhase + 1.7 * dt) % 1;
-        acc += PUSH_ACCEL * Math.max(0, 1 - p.v / PUSH_MAX) * Math.max(0, Math.sin(p.pushPhase * Math.PI * 2)) * 2;
-      } else if (p.pushPhase > 0) p.pushPhase = p.pushPhase < 0.5 ? Math.min(1, p.pushPhase + 1.7 * dt) % 1 : (p.pushPhase + 1.7 * dt) % 1;
-      if (inp.plough) acc -= PLOUGH_DECEL;
+      acc = V.accel * Math.cos(p.vdir) + (tuck ? V.tuck : 0) - V.friction - (tuck ? V.dragTuck : V.drag) * p.v * p.v;
+      if (V.stroke) {
+        // Pole push: each stroke shoves in its first half, then the poles swing forward for the next.
+        if (inp.push) {
+          p.pushPhase = (p.pushPhase + 1.7 * dt) % 1;
+          acc += V.push * Math.max(0, 1 - p.v / V.pushMax) * Math.max(0, Math.sin(p.pushPhase * Math.PI * 2)) * 2;
+        } else if (p.pushPhase > 0) p.pushPhase = p.pushPhase < 0.5 ? Math.min(1, p.pushPhase + 1.7 * dt) % 1 : (p.pushPhase + 1.7 * dt) % 1;
+      } else if (inp.push) acc += V.push * Math.max(0, 1 - p.v / V.pushMax); // throttle, or a sprint
+      if (inp.plough) acc -= V.plough;
     }
     p.v = Math.max(0, p.v + acc * dt);
   }
@@ -637,7 +908,7 @@ function step(dt, t) {
       p.y = g2; p.air = false;
       p.heading = wrapAngle(p.heading);
       const slip = wrapAngle(p.heading - p.vdir);
-      if (Math.abs(slip) > LAND_SLIP && p.v > 4) crash();
+      if (Math.abs(slip) > THREE.MathUtils.degToRad(V.landSlip) && p.v > 4) crash();
       else {
         p.vdir = p.heading; p.slip = 0; p.slipT = 0; // the skis bite and you carve off the way they point
         sfx.land(); emitSpray(p.x, g2 + 0.1, p.z, 0, 1.5, 0, 24, 3);
@@ -673,7 +944,7 @@ function step(dt, t) {
         }
         continue;
       }
-      const rr = o.r + BODY_R;
+      const rr = o.r + V.bodyR;
       if (ddx * ddx + ddz * ddz < rr * rr && !(p.air && p.y - height(o.x, o.z) > o.h)) {
         // Bounce off: the travel direction reflects off the obstacle and loses speed. Whether you
         // fall is then the same rule as everywhere else: skis pointing the wrong way at speed.
@@ -687,7 +958,7 @@ function step(dt, t) {
           if (p.v > 0.5) p.vdir = Math.atan2(rx, -rz);
           emitSpray(p.x, p.y + 0.3, p.z, nx * 2, 1.5, nz * 2, 14, 2.5);
           p.slip = wrapAngle(p.heading - p.vdir);
-          if (speedBefore > FALL_SPEED * 0.6 && Math.abs(p.slip) > FALL_SLIP) crash();
+          if (speedBefore > V.fallSpeed * 0.6 && Math.abs(p.slip) > THREE.MathUtils.degToRad(V.fallSlip)) crash();
           else if (speedBefore > 3) noise(0.12, 0.15, 500);
         }
       }
@@ -696,35 +967,53 @@ function step(dt, t) {
 
   // Bear.
   const dist = Math.max(0, -p.z - 5);
+  noteDistance(dist);
+  stormTarget = THREE.MathUtils.clamp((dist - STORM_AT) / 600, 0, 1);
+  if (!stormOn && dist >= STORM_AT) { stormOn = true; banner('❄️ Snow<small>visibility dropping</small>', 2); }
   if (!bear.on && dist > BEAR_WAKES) {
-    bear.on = true; bear.x = p.x * 0.5; bear.z = p.z + 60;
+    bear.on = true; bear.x = p.x * 0.5; bear.z = p.z + 60; bear.dir = Math.atan2(p.x - bear.x, p.z - bear.z);
     bearMesh.visible = true; $('bear').style.display = 'block';
-    banner('🐻 A bear!<small>keep moving</small>', 2); sfx.growl();
+    banner(`${P.icon} ${P.a}<small>keep moving</small>`, 2); sfx.growl();
   }
   let gap = Infinity;
   if (bear.on) {
     const bx = p.x - bear.x, bz = p.z - bear.z;
     gap = Math.hypot(bx, bz);
-    const base = Math.min(30, 18 + dist / 350);
+    const base = Math.min(V.chase.cap, V.chase.base + dist / 350);
     let spd = base + Math.max(0, gap - 40) * 0.3;
     if (bear.flinch > 0) { bear.flinch -= dt; spd = 0; } // a scream stops it in its tracks for a moment
+    // It runs at you, but around the trees: anything in a cone ahead nudges its heading to the clear
+    // side, and if it still touches a trunk or rock it is pushed out along it, so it slides round.
+    const bR = V.pursuer === 'bear' ? 0.9 : 1.3, bci = Math.floor(-bear.z / CHUNK);
+    const fx = Math.sin(bear.dir), fz = Math.cos(bear.dir), rx = fz, rz = -fx; // forward and right
+    let avoid = 0;
+    for (let i = bci - 1; i <= bci + 1; i++) {
+      const c = chunks.get(i); if (!c) continue;
+      for (const o of c.objs) {
+        if (o.type === 'gate' || o.type === 'ramp') continue;
+        const ox = o.x - bear.x, oz = o.z - bear.z, along = ox * fx + oz * fz, side = ox * rx + oz * rz, clear = o.r + bR + 0.8;
+        if (along > -0.5 && along < 10 && Math.abs(side) < clear) avoid -= (side < 0 ? -1 : 1) * (1 - Math.max(0, along) / 10) * (clear - Math.abs(side)) / clear * 1.3;
+      }
+    }
+    const want = Math.atan2(bx, bz) + THREE.MathUtils.clamp(avoid, -1.2, 1.2);
+    bear.dir += THREE.MathUtils.clamp(wrapAngle(want - bear.dir), -5 * dt, 5 * dt);
     const mv = Math.min(gap, spd * dt);
-    bear.x += (bx / (gap || 1)) * mv; bear.z += (bz / (gap || 1)) * mv;
+    bear.x += Math.sin(bear.dir) * mv; bear.z += Math.cos(bear.dir) * mv;
+    for (let i = bci - 1; i <= bci + 1; i++) {
+      const c = chunks.get(i); if (!c) continue;
+      for (const o of c.objs) {
+        if (o.type === 'gate' || o.type === 'ramp') continue;
+        const ox = bear.x - o.x, oz = bear.z - o.z, rr = o.r + bR, d2 = ox * ox + oz * oz;
+        if (d2 < rr * rr) { const d = Math.sqrt(d2) || 1; bear.x = o.x + ox / d * rr; bear.z = o.z + oz / d * rr; }
+      }
+    }
     bear.phase += spd * dt * 0.55;
     const gy = height(bear.x, bear.z);
     bearMesh.position.set(bear.x, gy, bear.z);
-    bearMesh.rotation.y = Math.atan2(bx, bz);
-    const ud = bearMesh.userData, s = Math.sin(bear.phase * Math.PI);
-    ud.legs[0].rotation.x = ud.legs[1].rotation.x = s * 0.85;
-    ud.legs[2].rotation.x = ud.legs[3].rotation.x = -s * 0.85;
-    ud.legs[1].rotation.x += 0.15; ud.legs[3].rotation.x += 0.15;
-    ud.inner.position.y = Math.abs(Math.cos(bear.phase * Math.PI)) * 0.18;
-    ud.inner.rotation.x = s * 0.07;
-    if (bear.flinch > 0) { // rears back, startled
-      const r = Math.min(1, bear.flinch / SCREAM_FLINCH * 2.5) * Math.min(1, (SCREAM_FLINCH - bear.flinch) * 6);
-      ud.inner.rotation.x = -0.5 * r; ud.inner.position.y = 0.5 * r;
-      ud.legs[0].rotation.x = ud.legs[1].rotation.x = -1.1 * r; ud.legs[2].rotation.x = ud.legs[3].rotation.x = 0.2 * r;
-    }
+    bearMesh.rotation.y = bear.dir;
+    const ud = bearMesh.userData;
+    animateBeast(ud, bear.phase);
+    if (bear.flinch > 0) rearBeast(ud, Math.min(1, bear.flinch / SCREAM_FLINCH * 2.5) * Math.min(1, (SCREAM_FLINCH - bear.flinch) * 6)); // startled: rears back
     bearGap = gap;
     if (gap < 22) { growlT -= dt; if (growlT <= 0) { sfx.growl(); growlT = 1.6 + Math.random(); } }
     if (gap < 1.7 && p.y - height(p.x, p.z) < 1.4) caught();
@@ -772,34 +1061,56 @@ function poseSkier(dt) {
   const p = player, ud = skier.userData, inp = input();
   skier.position.set(p.x, p.y, p.z);
   normalAt(p.x, p.z, _n);
-  const yaw = -p.heading;
-  _yaw.setFromAxisAngle(_up, yaw);
+  _yaw.setFromAxisAngle(_up, -p.heading);
   _tilt.setFromUnitVectors(_up, p.air ? _up : _n);
   skier.quaternion.copy(_tilt).multiply(_yaw);
-  const body = ud.body;
-  if (p.crashT > 0) {
-    const k = Math.min(1, (1.3 - p.crashT) * 5);
+  const body = ud.body, k = p.crashT > 0 ? Math.min(1, (1.3 - p.crashT) * 5) : 0;
+  const pushing = inp.push && !p.air && p.crashT <= 0, strokeK = pushing ? Math.max(0, Math.sin(p.pushPhase * Math.PI * 2)) : 0;
+  const lean = (-p.steer * 0.22 - p.slip * 0.8) * Math.min(1, p.v / 8);
+  if (ud.kind === 'bear') {
+    // Four legs, running as fast as you are. A roar is up on the hind legs. A crash is on its side.
+    // The bear model faces +Z, so it sits turned round on the rider's -Z frame.
+    ud.inner.rotation.y = Math.PI;
+    p.runPhase += p.v * dt * 0.55;
+    animateBeast(ud, p.v > 0.5 ? p.runPhase : 0);
+    if (screamT > 0) rearBeast(ud, Math.min(1, screamT * 4));
+    ud.inner.rotation.z += ((k ? 1.3 * k : lean * 0.6) - ud.inner.rotation.z) * Math.min(1, dt * 8);
+    if (k) ud.inner.rotation.x = -0.2 * k;
+    return;
+  }
+  if (ud.kind === 'sled') {
+    // The hull banks into turns and rolls over in a crash; the front skis steer; the rider hunches over the bars.
+    ud.hull.rotation.z += ((k ? 1.4 * k : lean * 0.9) - ud.hull.rotation.z) * Math.min(1, dt * 8);
+    ud.hull.rotation.x += ((k ? -0.3 * k : pushing ? -0.04 : 0) - ud.hull.rotation.x) * Math.min(1, dt * 8);
+    ud.skiL.rotation.y = ud.skiR.rotation.y = -p.steer * 0.45;
+    body.rotation.x += ((screamT > 0 ? 0.3 : -0.45 - (pushing ? 0.15 : 0)) - body.rotation.x) * Math.min(1, dt * 8);
+    body.rotation.z += (lean * 0.5 - body.rotation.z) * Math.min(1, dt * 8);
+    return;
+  }
+  // Skis and board. A negative body rotation.x is a forward bend: tuck and pole push bend forward, a scream leans back.
+  if (k) {
     body.rotation.set(-0.3 * k, 0, 1.4 * k);
     body.position.y = -0.1 * k;
     ud.skis.rotation.set(0, k * 0.8, 0);
   } else {
-    const lean = (-p.steer * 0.22 - p.slip * 0.8) * Math.min(1, p.v / 8);
-    const tuck = inp.tuck && !p.air ? 1 : 0;
-    body.rotation.x += ((screamT > 0 ? -0.25 : tuck ? 0.45 : 0.12) - body.rotation.x) * Math.min(1, dt * 8);
+    const tuck = inp.tuck && V.canTuck && !p.air ? 1 : 0;
+    const bend = screamT > 0 ? 0.3 : tuck ? -0.45 : p.plough > 0.5 ? -0.3 : -0.12;
+    body.rotation.x += (bend - body.rotation.x) * Math.min(1, dt * 8);
+    body.rotation.x -= 0.5 * strokeK; // the push: drive forward and down over the poles
     body.rotation.z += (lean - body.rotation.z) * Math.min(1, dt * 8);
     body.rotation.y = 0;
-    const sy = tuck ? 0.82 : 1;
+    const sy = tuck || p.plough > 0.5 ? 0.82 : 1 - 0.12 * strokeK;
     body.scale.y += (sy - body.scale.y) * Math.min(1, dt * 8);
     body.position.y = 0;
     ud.skis.rotation.set(p.air ? -0.15 : 0, 0, 0);
   }
-  // Snowplough: tips together, tails apart.
-  ud.skiL.rotation.y = -0.38 * p.plough; ud.skiR.rotation.y = 0.38 * p.plough;
-  ud.skiL.position.x = -0.13 - 0.06 * p.plough; ud.skiR.position.x = 0.13 + 0.06 * p.plough;
-  // Poles: a stroke plants ahead and drives back, then swings forward again. Idle, they trail.
-  const stroke = screamT > 0 ? -2.6 : inp.push && !p.air && p.crashT <= 0 ? -0.35 + 0.75 * Math.cos(p.pushPhase * Math.PI * 2) : 0.55; // poles fly up overhead for a scream
+  if (ud.skiL) { // snowplough: tips together, tails apart
+    ud.skiL.rotation.y = -0.38 * p.plough; ud.skiR.rotation.y = 0.38 * p.plough;
+    ud.skiL.position.x = -0.13 - 0.06 * p.plough; ud.skiR.position.x = 0.13 + 0.06 * p.plough;
+  } else if (!k) ud.skis.rotation.z = -0.35 * p.plough; // the board goes up on its heel edge to scrub
+  // Poles: a stroke plants ahead and drives back, then swings forward again. Idle, they trail. Scream: overhead.
+  const stroke = screamT > 0 ? -2.6 : pushing ? -0.35 + 0.75 * Math.cos(p.pushPhase * Math.PI * 2) : 0.55;
   for (const pole of ud.poles) pole.rotation.x += (stroke - pole.rotation.x) * Math.min(1, dt * 14);
-  if (inp.push && !p.air && p.crashT <= 0) body.rotation.x += 0.12 * Math.max(0, Math.sin(p.pushPhase * Math.PI * 2));
 }
 
 const camLook = new V3(), _look = new V3(), _top = new V3(), _f = new V3();
@@ -849,20 +1160,20 @@ function frame(ts) {
     else if (state === 'caught') {
       overT -= dt;
       bear.rear = Math.min(1, bear.rear + dt * 3);
-      const ud = bearMesh.userData;
-      ud.inner.rotation.x = -0.55 * bear.rear; ud.inner.position.y = 0.6 * bear.rear;
-      ud.legs[0].rotation.x = ud.legs[1].rotation.x = -1.2 * bear.rear + Math.sin(t * 14) * 0.2;
+      rearBeast(bearMesh.userData, bear.rear); bearMesh.userData.legs[0].rotation.x += Math.sin(t * 14) * 0.2;
       if (overT < 1.1) skier.visible = false;
       if (overT <= 0 && $('over').hidden) {
         $('final').textContent = score;
-        $('overSub').textContent = score >= best ? 'New best run!' : `Best: ${best}`;
+        $('overTitle').textContent = `The ${P.name.toLowerCase()} got you`;
+        const next = Object.values(RIDES).find(r => r.unlock > far);
+        $('overSub').textContent = (score >= best ? 'New best run! ' : `Best: ${best}. `) + (next ? `Reach ${next.unlock.toLocaleString()} m in one run to unlock the ${next.name.toLowerCase()} (farthest so far: ${Math.round(far).toLocaleString()} m).` : 'Everything is unlocked.');
         $('bestv').textContent = best;
         $('over').hidden = false;
         $('againBtn').focus();
       }
     } else if (state === 'title') {
       // Gentle idle cruise behind the title card.
-      player.heading = player.vdir = Math.sin(t * 0.4) * 0.5; player.v = 9;
+      player.heading = player.vdir = Math.sin(t * 0.4) * 0.5; player.v = 9; player.runPhase += 9 * dt * 0.55;
       player.x += Math.sin(player.heading) * player.v * dt; player.z -= Math.cos(player.heading) * player.v * dt;
       player.y = height(player.x, player.z);
       updateChunks(player.z);
@@ -893,6 +1204,7 @@ addEventListener('keydown', e => {
   if (e.target.closest?.('.site-topbar')) return;
   if (e.code === 'KeyC') { toggleCam(); return; }
   if (e.code === 'KeyM') { toggleMute(); return; }
+  if (e.code === 'Tab') { e.preventDefault(); nextMusic(true); return; }
   if (e.code === 'KeyE' && !e.repeat) { scream(); return; }
   if ((e.code === 'Enter' || e.code === 'Space') && state !== 'play') {
     if (state === 'title' || !$('over').hidden) { e.preventDefault(); start(); }
@@ -920,14 +1232,19 @@ function toggleCam() {
 function toggleMute() {
   muted = !muted; localStorage.setItem('bearrun-muted', muted ? '1' : '0');
   $('muteBtn').textContent = muted ? '🔇' : '🔊';
+  if (musicGain) musicGain.gain.setTargetAtTime(muted ? 0 : 0.6, actx.currentTime, 0.05);
 }
+$('musicBtn').addEventListener('click', e => { nextMusic(false); e.currentTarget.blur(); });
+$('musicBtn').textContent = `🎵 ${TRACK_NAMES[musicId]}`;
 $('camBtn').addEventListener('click', e => { toggleCam(); e.currentTarget.blur(); });
 $('muteBtn').addEventListener('click', e => { toggleMute(); e.currentTarget.blur(); });
 $('muteBtn').textContent = muted ? '🔇' : '🔊';
 $('startBtn').addEventListener('click', start);
 $('againBtn').addEventListener('click', start);
+$('ridesBtn').addEventListener('click', () => { state = 'title'; $('over').hidden = true; reset(); renderRides(); $('start').hidden = false; });
 $('bestv').textContent = best;
 
+buildRide(); renderRides();
 reset();
 renderer.setAnimationLoop(frame);
-if (import.meta.url.includes('localhost')) window.__bear = { player, bear, keys, chunks, start, step, frame, scream, get state() { return state; }, toggleCam };
+if (import.meta.url.includes('localhost')) window.__bear = { player, bear, keys, chunks, start, step, frame, scream, selectRide, RIDES, setMusic, nextMusic, get music() { return music; }, get musicId() { return musicId; }, get storm() { return storm; }, set storm(v) { storm = v; }, get actx() { return actx; }, get musicGain() { return musicGain; }, scene, camera, flakes, sky, peaks, get far() { return far; }, set far(v) { far = v; }, get skier() { return skier; }, get V() { return V; }, get state() { return state; }, toggleCam };
