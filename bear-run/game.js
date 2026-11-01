@@ -30,25 +30,25 @@ const RIDES = {
     fallSlip: 10, fallSpeed: 11, landSlip: 30, steer: 2.8, steerFade: 25, grip: 2.8, gripFade: 14, spin: 6.5, bodyR: 0.35, scrub: 1.5,
     chase: { base: 15.5, cap: 25.5 }, pursuer: 'bear',
     blurb: 'Tap to carve. Hold a turn at speed and the skis slide 10\u00b0 off your line, and down you go.',
-    controls: '<kbd>W</kbd> pole push \u00b7 <kbd>S</kbd> snowplough \u00b7 <kbd>Shift</kbd> tuck \u00b7 <kbd>E</kbd> scream' },
+    controls: '<kbd>W</kbd> pole push \u00b7 <kbd>S</kbd> snowplough \u00b7 <kbd>Shift</kbd> tuck \u00b7 <kbd>E</kbd> scream', pad: ['push', 'plough'] },
   snowboard: { name: 'Snowboard', icon: '\ud83c\udfc2', unlock: 2000, kind: 'board',
-    accel: G_ALONG, friction: 0.35, drag: 0.0046, dragTuck: 0.0031, tuck: 0, canTuck: true, push: 2.5, pushMax: 8, stroke: true, plough: 7,
+    accel: G_ALONG, friction: 0.35, drag: 0.0046, dragTuck: 0.0031, tuck: 0, canTuck: true, wTuck: true, push: 0, pushMax: 8, stroke: false, plough: 7,
     fallSlip: 14, fallSpeed: 9, landSlip: 40, steer: 3.4, steerFade: 22, grip: 3.0, gripFade: 16, spin: 8.5, bodyR: 0.35, scrub: 0.7,
     chase: { base: 15.5, cap: 25.5 }, pursuer: 'bear',
     blurb: 'Quicker spins and an edge that holds, until it catches: 14\u00b0 off your line above 32 km/h and you eat snow.',
-    controls: '<kbd>W</kbd> skate push \u00b7 <kbd>S</kbd> heel-side scrub \u00b7 <kbd>Shift</kbd> tuck \u00b7 <kbd>E</kbd> scream' },
+    controls: '<kbd>W</kbd> crouch \u00b7 <kbd>S</kbd> heel-side stop \u00b7 <kbd>E</kbd> scream', pad: ['crouch', 'stop'] },
   snowmobile: { name: 'Snowmobile', icon: '\ud83d\udef7', unlock: 5000, kind: 'sled',
     accel: 1.5, friction: 0.6, drag: 0.0028, dragTuck: 0.0028, tuck: 0, push: 9, pushMax: 42, stroke: false, plough: 10,
     fallSlip: 24, fallSpeed: 13, landSlip: 45, steer: 2.0, steerFade: 30, grip: 1.9, gripFade: 18, spin: 3, bodyR: 0.7, scrub: 1.2,
     chase: { base: 22, cap: 36 }, pursuer: 'bear',
     blurb: 'Hold W for throttle. Heavy and fast; yank it past 24\u00b0 at speed and it rolls.',
-    controls: '<kbd>W</kbd> throttle \u00b7 <kbd>S</kbd> brake \u00b7 <kbd>E</kbd> scream' },
+    controls: '<kbd>W</kbd> throttle \u00b7 <kbd>S</kbd> brake \u00b7 <kbd>E</kbd> scream', pad: ['gas', 'brake'] },
   bear: { name: 'Bear', icon: '\ud83d\udc3b', unlock: 10000, kind: 'bear',
     accel: 2.0, friction: 0.5, drag: 0.004, dragTuck: 0.004, tuck: 0, push: 7, pushMax: 24, stroke: false, plough: 9,
     fallSlip: 40, fallSpeed: 14, landSlip: 60, steer: 3.2, steerFade: 40, grip: 3.0, gripFade: 40, spin: 4, bodyR: 0.6, scrub: 1.5,
     chase: { base: 17, cap: 28 }, pursuer: 'yeti',
     blurb: 'Paws grip anything. Something higher up the food chain has noticed.',
-    controls: '<kbd>W</kbd> sprint \u00b7 <kbd>S</kbd> dig in \u00b7 <kbd>E</kbd> roar' },
+    controls: '<kbd>W</kbd> sprint \u00b7 <kbd>S</kbd> dig in \u00b7 <kbd>E</kbd> roar', pad: ['sprint', 'dig in'] },
 };
 const PURSUERS = { bear: { name: 'Bear', icon: '\ud83d\udc3b', a: 'A bear!' }, yeti: { name: 'Yeti', icon: '\ud83e\udd8d', a: 'A yeti!' } };
 const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
@@ -235,42 +235,49 @@ function makeGate(color) {
 
 // ---------- rider and rides ----------
 // Forward is -Z for every ride. A NEGATIVE rotation.x on the rider's body bends it forward.
+// The rider is two halves hinged at the hip, so it bends at the waist, crouches by folding the legs,
+// and can sit. (Bending the whole figure at the ankles is what drove the poles into the snow.)
+const HIP = 0.8;
 function makeRider(withPoles) {
-  const body = new THREE.Group();
-  const bodyMesh = new THREE.Mesh(merge([
-    piece(new THREE.BoxGeometry(0.16, 0.2, 0.3), 0x22282e, M(-0.13, 0.15, 0)),
-    piece(new THREE.BoxGeometry(0.16, 0.2, 0.3), 0x22282e, M(0.13, 0.15, 0)),
-    piece(new THREE.BoxGeometry(0.17, 0.62, 0.2), 0x1e2f55, M(-0.13, 0.52, -0.04, 1, 1, 1, -0.22)),
-    piece(new THREE.BoxGeometry(0.17, 0.62, 0.2), 0x1e2f55, M(0.13, 0.52, -0.04, 1, 1, 1, -0.22)),
-    piece(new THREE.BoxGeometry(0.46, 0.6, 0.28), 0xd8352c, M(0, 1.08, 0.02, 1, 1, 1, -0.18)),
-    piece(new THREE.BoxGeometry(0.47, 0.08, 0.29), 0xf2f2f2, M(0, 0.93, 0.0, 1, 1, 1, -0.18)),
-    piece(new THREE.BoxGeometry(0.3, 0.32, 0.12), 0x2d6f9a, M(0, 1.12, 0.2, 1, 1, 1, -0.18)),
-    piece(new THREE.BoxGeometry(0.12, 0.55, 0.13), 0xd8352c, M(-0.3, 1.04, -0.08, 1, 1, 1, 0.5, 0, 0.18)),
-    piece(new THREE.BoxGeometry(0.12, 0.55, 0.13), 0xd8352c, M(0.3, 1.04, -0.08, 1, 1, 1, 0.5, 0, -0.18)),
-    piece(new THREE.BoxGeometry(0.13, 0.13, 0.13), 0x22282e, M(-0.34, 0.82, -0.26)),
-    piece(new THREE.BoxGeometry(0.13, 0.13, 0.13), 0x22282e, M(0.34, 0.82, -0.26)),
-    piece(new THREE.CylinderGeometry(0.08, 0.1, 0.12, 8), 0xf2c9a5, M(0, 1.43, -0.04)),
-    piece(new THREE.SphereGeometry(0.16, 10, 8), 0xf2c9a5, M(0, 1.58, -0.05)),
-    piece(new THREE.SphereGeometry(0.175, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), 0x1f8a7a, M(0, 1.6, -0.03)),
-    piece(new THREE.SphereGeometry(0.07, 8, 6), 0xf6f6f6, M(0, 1.79, 0.0)),
-    piece(new THREE.BoxGeometry(0.3, 0.08, 0.06), 0xffa51f, M(0, 1.6, -0.2)),
-  ]), toonMat);
-  body.add(bodyMesh);
+  const body = new THREE.Group(), lower = new THREE.Group(), upper = new THREE.Group();
+  lower.position.y = HIP; upper.position.y = HIP;
+  const h = y => y - HIP; // parts are authored in feet-up coordinates, then hung from the hip
+  lower.add(new THREE.Mesh(merge([
+    piece(new THREE.BoxGeometry(0.16, 0.2, 0.3), 0x22282e, M(-0.13, h(0.15), 0)),
+    piece(new THREE.BoxGeometry(0.16, 0.2, 0.3), 0x22282e, M(0.13, h(0.15), 0)),
+    piece(new THREE.BoxGeometry(0.17, 0.62, 0.2), 0x1e2f55, M(-0.13, h(0.52), -0.04, 1, 1, 1, -0.22)),
+    piece(new THREE.BoxGeometry(0.17, 0.62, 0.2), 0x1e2f55, M(0.13, h(0.52), -0.04, 1, 1, 1, -0.22)),
+  ]), toonMat));
+  upper.add(new THREE.Mesh(merge([
+    piece(new THREE.BoxGeometry(0.46, 0.6, 0.28), 0xd8352c, M(0, h(1.08), 0.02, 1, 1, 1, -0.18)),
+    piece(new THREE.BoxGeometry(0.47, 0.08, 0.29), 0xf2f2f2, M(0, h(0.93), 0.0, 1, 1, 1, -0.18)),
+    piece(new THREE.BoxGeometry(0.3, 0.32, 0.12), 0x2d6f9a, M(0, h(1.12), 0.2, 1, 1, 1, -0.18)),
+    piece(new THREE.BoxGeometry(0.12, 0.55, 0.13), 0xd8352c, M(-0.3, h(1.04), -0.08, 1, 1, 1, 0.5, 0, 0.18)),
+    piece(new THREE.BoxGeometry(0.12, 0.55, 0.13), 0xd8352c, M(0.3, h(1.04), -0.08, 1, 1, 1, 0.5, 0, -0.18)),
+    piece(new THREE.BoxGeometry(0.13, 0.13, 0.13), 0x22282e, M(-0.34, h(0.82), -0.26)),
+    piece(new THREE.BoxGeometry(0.13, 0.13, 0.13), 0x22282e, M(0.34, h(0.82), -0.26)),
+    piece(new THREE.CylinderGeometry(0.08, 0.1, 0.12, 8), 0xf2c9a5, M(0, h(1.43), -0.04)),
+    piece(new THREE.SphereGeometry(0.16, 10, 8), 0xf2c9a5, M(0, h(1.58), -0.05)),
+    piece(new THREE.SphereGeometry(0.175, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), 0x1f8a7a, M(0, h(1.6), -0.03)),
+    piece(new THREE.SphereGeometry(0.07, 8, 6), 0xf6f6f6, M(0, h(1.79), 0.0)),
+    piece(new THREE.BoxGeometry(0.3, 0.08, 0.06), 0xffa51f, M(0, h(1.6), -0.2)),
+  ]), toonMat));
+  body.add(lower, upper);
   const poles = [];
   if (withPoles) {
-    // Poles hang from the hands and swing from there for a push.
+    // Poles hang from the hands. A negative rotation.x swings the tip back; posePoles keeps the tip out of the snow.
     const poleGeo = merge([
       piece(new THREE.CylinderGeometry(0.012, 0.012, 1.15, 5), 0xb9c3cc, M(0, -0.55, 0)),
       piece(new THREE.TorusGeometry(0.05, 0.01, 4, 8), 0x22282e, M(0, -1.05, 0, 1, 1, 1, Math.PI / 2)),
     ]);
     for (const sx of [-1, 1]) {
-      const pivot = new THREE.Group(); pivot.position.set(sx * 0.34, 0.82, -0.26);
+      const pivot = new THREE.Group(); pivot.position.set(sx * 0.34, h(0.82), -0.26);
       const m = new THREE.Mesh(poleGeo, toonMat); m.rotation.z = -sx * 0.12; pivot.add(m);
-      pivot.rotation.x = 0.55;
-      body.add(pivot); poles.push(pivot);
+      pivot.rotation.x = -1.0; pivot.userData.tip = m;
+      upper.add(pivot); poles.push(pivot);
     }
   }
-  return { body, poles };
+  return { body, lower, upper, poles };
 }
 function makeSkier() {
   const root = new THREE.Group();
@@ -283,9 +290,9 @@ function makeSkier() {
   const skiL = new THREE.Mesh(skiGeo, toonMat), skiR = new THREE.Mesh(skiGeo, toonMat);
   skiL.position.x = -0.13; skiR.position.x = 0.13;
   skis.add(skiL, skiR);
-  const { body, poles } = makeRider(true);
+  const { body, lower, upper, poles } = makeRider(true);
   root.add(skis, body);
-  root.userData = { kind: 'skis', body, skis, skiL, skiR, poles };
+  root.userData = { kind: 'skis', body, lower, upper, skis, skiL, skiR, poles };
   return shadowy(root);
 }
 function makeBoarder() {
@@ -299,9 +306,9 @@ function makeBoarder() {
   const skis = new THREE.Group(); skis.add(board);
   // Sideways stance: the rider stands across the board, chest a little toward the nose.
   const stance = new THREE.Group(); stance.rotation.y = 1.05;
-  const { body, poles } = makeRider(false);
+  const { body, lower, upper, poles } = makeRider(false);
   stance.add(body); root.add(skis, stance);
-  root.userData = { kind: 'board', body, skis, skiL: null, skiR: null, poles };
+  root.userData = { kind: 'board', body, lower, upper, skis, skiL: null, skiR: null, poles };
   return shadowy(root);
 }
 function makeSnowmobile(colour) {
@@ -323,10 +330,12 @@ function makeSnowmobile(colour) {
   const skiL = new THREE.Mesh(skiGeo, toonMat), skiR = new THREE.Mesh(skiGeo, toonMat);
   skiL.position.set(-0.42, 0, -1.0); skiR.position.set(0.42, 0, -1.0);
   hull.add(skiL, skiR);
-  const { body, poles } = makeRider(false);
-  body.scale.setScalar(0.85); body.position.set(0, 0.62, 0.35);
+  // The rider sits: hips on the seat (top at 0.8), legs folded forward onto the running boards.
+  const { body, lower, upper, poles } = makeRider(false);
+  body.scale.setScalar(0.85); body.position.set(0, 0.8 - HIP * 0.85, 0.42);
+  lower.rotation.x = 1.25;
   hull.add(body); root.add(hull);
-  root.userData = { kind: 'sled', body, hull, skis: null, skiL, skiR, poles };
+  root.userData = { kind: 'sled', body, lower, upper, hull, skis: null, skiL, skiR, poles };
   return shadowy(root);
 }
 // The yeti: what eats bears. Twice a bear's height, on two legs, arms that swing like a second pair.
@@ -398,10 +407,10 @@ function makeBear() {
   return shadowy(root);
 }
 // Gallop (or lumber) for anything with an inner body and four swinging limbs.
-function animateBeast(ud, phase) {
+function animateBeast(ud, phase, amp = 0.85) {
   const s = Math.sin(phase * Math.PI);
-  ud.legs[0].rotation.x = ud.legs[1].rotation.x = s * 0.85;
-  ud.legs[2].rotation.x = ud.legs[3].rotation.x = -s * 0.85;
+  ud.legs[0].rotation.x = ud.legs[1].rotation.x = s * amp;
+  ud.legs[2].rotation.x = ud.legs[3].rotation.x = -s * amp;
   ud.legs[1].rotation.x += 0.15; ud.legs[3].rotation.x += 0.15;
   ud.inner.position.y = Math.abs(Math.cos(phase * Math.PI)) * 0.18;
   ud.inner.rotation.x = s * 0.07;
@@ -759,12 +768,17 @@ let skier = null, bearMesh = null;
 function buildRide() {
   if (skier) scene.remove(skier);
   if (bearMesh) scene.remove(bearMesh);
-  skier = V.kind === 'skis' ? makeSkier() : V.kind === 'board' ? makeBoarder() : V.kind === 'sled' ? makeSnowmobile(0x2a63c9) : makeBear();
-  if (V.kind === 'bear') skier.scale.setScalar(1.0);
+  if (V.kind === 'bear') {
+    // The bear model faces +Z; the rider frame faces -Z. Turn it round inside a holder so the
+    // pitch of its body (rear up, sit back) still reads forward and back in its own frame.
+    const b = makeBear(); b.scale.setScalar(1.0); b.rotation.y = Math.PI;
+    skier = new THREE.Group(); skier.add(b); skier.userData = b.userData;
+  } else skier = V.kind === 'skis' ? makeSkier() : V.kind === 'board' ? makeBoarder() : makeSnowmobile(0x2a63c9);
   bearMesh = V.pursuer === 'bear' ? makeBear() : makeYeti();
   bearMesh.visible = false;
   scene.add(skier, bearMesh);
   $('bearName').textContent = `${P.icon} ${P.name}`;
+  $('tU').innerHTML = `\u25b2<br>${V.pad[0]}`; $('tD').innerHTML = `\u25bc<br>${V.pad[1]}`;
 }
 function selectRide(id) {
   if (!RIDES[id] || RIDES[id].unlock > far) return false;
@@ -870,7 +884,7 @@ function step(dt, t) {
     const steerRate = V.steer / (1 + p.v / V.steerFade), grip = V.grip / (1 + p.v / V.gripFade);
     if (inp.steer) p.heading += inp.steer * steerRate * dt;
     else p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 2.0 * dt); // skis settle into the travel line
-    if ((inp.tuck && V.canTuck) || inp.plough) p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 4 * dt); // a tuck or a plough lines you up
+    if (((inp.tuck || (inp.push && V.wTuck)) && V.canTuck) || inp.plough) p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 4 * dt); // a tuck or a plough lines you up
     if (p.v < 1) p.vdir = p.heading;
     else {
       const d = wrapAngle(p.heading - p.vdir);
@@ -887,7 +901,7 @@ function step(dt, t) {
   }
   if (p.crashT <= 0) {
     let acc;
-    const tuck = inp.tuck && V.canTuck;
+    const tuck = (inp.tuck || (inp.push && V.wTuck)) && V.canTuck;
     if (p.air) acc = -V.drag * p.v * p.v * 0.5;
     else {
       acc = V.accel * Math.cos(p.vdir) + (tuck ? V.tuck : 0) - V.friction - (tuck ? V.dragTuck : V.drag) * p.v * p.v;
@@ -1028,10 +1042,14 @@ function step(dt, t) {
       stampTrail(p.x, p.z, p.heading, !!lastStamp);
       lastStamp = { x: p.x, z: p.z };
     }
+    const fx = Math.sin(p.vdir), fz = -Math.cos(p.vdir); // travel direction
     if (p.v > 3 && p.plough > 0.5) {
-      for (const side of [-1, 1]) emitSpray(p.x + Math.cos(p.heading) * 0.25 * side, p.y + 0.05, p.z + Math.sin(p.heading) * 0.25 * side,
-        Math.cos(p.heading) * side * 2 + Math.sin(p.vdir) * p.v * 0.2, 1.2, Math.sin(p.heading) * side * 2 - Math.cos(p.vdir) * p.v * 0.2, 1, 1.2);
+      if (V.kind === 'skis') for (const side of [-1, 1]) emitSpray(p.x + Math.cos(p.heading) * 0.25 * side, p.y + 0.05, p.z + Math.sin(p.heading) * 0.25 * side,
+        Math.cos(p.heading) * side * 2 + fx * p.v * 0.2, 1.2, Math.sin(p.heading) * side * 2 + fz * p.v * 0.2, 1, 1.2);
+      else emitSpray(p.x + fx * 0.5, p.y + 0.08, p.z + fz * 0.5, fx * p.v * 0.45, 2.2, fz * p.v * 0.45, V.kind === 'board' ? 5 : 3, 2.2); // a fan off the edge, sled skis or paws
     }
+    if (V.kind === 'sled' && inp.push && p.v < V.pushMax) // the track throws a rooster tail behind
+      emitSpray(p.x - fx * 1.3, p.y + 0.15, p.z - fz * 1.3, -fx * 5, 2.4, -fz * 5, 3, 1.6);
     if (p.v > 5 && Math.abs(p.slip) > 0.06) {
       const side = p.slip >= 0 ? -1 : 1;
       emitSpray(p.x + Math.cos(p.heading) * 0.3 * side, p.y + 0.1, p.z + Math.sin(p.heading) * 0.3 * side,
@@ -1060,60 +1078,105 @@ function caught() {
   if (score > best) { best = score; localStorage.setItem('bearrun-best', String(best)); }
 }
 
+const _tip = new V3(), _tipLocal = new V3(0, -1.12, 0);
+// Swing each pole toward its target angle, then lift it back (tip further behind) until the tip clears
+// the snow. Poles only ever work on the behind side, so lifting is monotonic and never flips through.
+function posePoles(poles, target, dt) {
+  for (const pole of poles) {
+    pole.rotation.x += (target - pole.rotation.x) * Math.min(1, dt * 14);
+    for (let i = 0; i < 24; i++) {
+      pole.updateWorldMatrix(true, false);
+      pole.userData.tip.localToWorld(_tip.copy(_tipLocal));
+      if (_tip.y >= height(_tip.x, _tip.z) + 0.03 || pole.rotation.x < -1.55) break;
+      pole.rotation.x -= 0.05;
+    }
+  }
+}
+function ease(obj, key, target, rate, dt) { obj[key] += (target - obj[key]) * Math.min(1, dt * rate); }
+
 function poseSkier(dt) {
   const p = player, ud = skier.userData, inp = input();
   skier.position.set(p.x, p.y, p.z);
   normalAt(p.x, p.z, _n);
-  _yaw.setFromAxisAngle(_up, -p.heading);
+  // On the board, a heel-side stop swings the board across the slope (rider facing downhill, sitting
+  // back on the heel edge). That turn is only for show; the physics heading stays on your line.
+  _yaw.setFromAxisAngle(_up, -p.heading - (ud.kind === 'board' ? 1.45 * p.plough : 0));
   _tilt.setFromUnitVectors(_up, p.air ? _up : _n);
   skier.quaternion.copy(_tilt).multiply(_yaw);
   const body = ud.body, k = p.crashT > 0 ? Math.min(1, (1.3 - p.crashT) * 5) : 0;
-  const pushing = inp.push && !p.air && p.crashT <= 0, strokeK = pushing ? Math.max(0, Math.sin(p.pushPhase * Math.PI * 2)) : 0;
+  const live = !p.air && p.crashT <= 0;
+  const pushing = inp.push && live, braking = p.plough;
+  const strokeK = pushing && V.stroke ? Math.max(0, Math.sin(p.pushPhase * Math.PI * 2)) : 0;
   const lean = (-p.steer * 0.22 - p.slip * 0.8) * Math.min(1, p.v / 8);
   if (ud.kind === 'bear') {
-    // Four legs, running as fast as you are. A roar is up on the hind legs. A crash is on its side.
-    // The bear model faces +Z, so it sits turned round on the rider's -Z frame.
-    ud.inner.rotation.y = Math.PI;
-    p.runPhase += p.v * dt * 0.55;
-    animateBeast(ud, p.v > 0.5 ? p.runPhase : 0);
+    // Four legs, running as fast as you are. Sprint: a longer, flatter stride. Dig in: sit back with the
+    // front paws braced ahead. Roar: up on the hind legs. Crash: on its side. (Bear frame: +Z forward,
+    // so a positive pitch tips it forward and a negative one sits it back.)
+    p.runPhase += p.v * dt * (pushing ? 0.42 : 0.55);
+    animateBeast(ud, p.v > 0.5 ? p.runPhase : 0, pushing ? 1.15 : 0.85);
+    if (pushing) ud.inner.rotation.x += 0.04;
+    if (braking > 0.05) {
+      ud.inner.rotation.x = -0.18 * braking; ud.inner.position.y = -0.08 * braking;
+      ud.legs[0].rotation.x = ud.legs[1].rotation.x = -0.7 * braking; ud.legs[2].rotation.x = ud.legs[3].rotation.x = -0.35 * braking;
+    }
     if (screamT > 0) rearBeast(ud, Math.min(1, screamT * 4));
-    ud.inner.rotation.z += ((k ? 1.3 * k : lean * 0.6) - ud.inner.rotation.z) * Math.min(1, dt * 8);
+    ud.inner.rotation.z += ((k ? 1.3 * k : -lean * 0.6) - ud.inner.rotation.z) * Math.min(1, dt * 8);
+    if (braking > 0.05) ud.inner.position.y = 0;
     if (k) ud.inner.rotation.x = -0.2 * k;
+    // Every pitch, roll or brace is about a point on the snow; lift by what it would sink the paws.
+    ud.inner.position.y = Math.max(ud.inner.position.y, 0.04 + 1.2 * Math.abs(Math.sin(ud.inner.rotation.x)) + 0.75 * Math.abs(Math.sin(ud.inner.rotation.z)));
     return;
   }
   if (ud.kind === 'sled') {
-    // The hull banks into turns and rolls over in a crash; the front skis steer; the rider hunches over the bars.
-    ud.hull.rotation.z += ((k ? 1.4 * k : lean * 0.9) - ud.hull.rotation.z) * Math.min(1, dt * 8);
-    ud.hull.rotation.x += ((k ? -0.3 * k : pushing ? -0.04 : 0) - ud.hull.rotation.x) * Math.min(1, dt * 8);
+    // The hull banks into turns and rolls in a crash; gas squats the tail and lifts the nose, the brake
+    // dips the nose. The hull is lifted by however far a pitch or roll would sink its rear or side.
+    const h = ud.hull;
+    ease(h.rotation, 'z', k ? 1.4 * k : lean * 0.45, 8, dt);
+    ease(h.rotation, 'x', k ? -0.3 * k : pushing ? 0.07 : braking > 0.05 ? -0.06 * braking : 0, 6, dt);
+    h.position.y = 0.03 + 1.6 * Math.abs(Math.sin(h.rotation.x)) + 0.6 * Math.abs(Math.sin(h.rotation.z));
     ud.skiL.rotation.y = ud.skiR.rotation.y = -p.steer * 0.45;
-    body.rotation.x += ((screamT > 0 ? 0.3 : -0.45 - (pushing ? 0.15 : 0)) - body.rotation.x) * Math.min(1, dt * 8);
-    body.rotation.z += (lean * 0.5 - body.rotation.z) * Math.min(1, dt * 8);
+    // Rider: hunched over the bars, tucks down on the gas, braces back on the brake, counter-leans into turns.
+    ease(ud.upper.rotation, 'x', screamT > 0 ? 0.35 : pushing ? -0.55 : braking > 0.05 ? -0.15 : -0.35, 8, dt);
+    ease(body.rotation, 'z', -lean * 0.9, 8, dt);
     return;
   }
-  // Skis and board. A negative body rotation.x is a forward bend: tuck and pole push bend forward, a scream leans back.
+  // Skis and board. Bends happen at the hip (upper.rotation.x, negative is forward); crouching folds the
+  // legs (lower.scale.y) and drops the hip with them, so the feet stay planted.
+  const tucking = (inp.tuck || (pushing && V.wTuck)) && V.canTuck && !p.air;
   if (k) {
     body.rotation.set(-0.3 * k, 0, 1.4 * k);
-    body.position.y = -0.1 * k;
+    body.position.y = 0.39 * k; // lying on its side the arm is the lowest part
     ud.skis.rotation.set(0, k * 0.8, 0);
+    ease(ud.upper.rotation, 'x', -0.3, 8, dt);
   } else {
-    const tuck = inp.tuck && V.canTuck && !p.air ? 1 : 0;
-    const bend = screamT > 0 ? 0.3 : tuck ? -0.45 : p.plough > 0.5 ? -0.3 : -0.12;
-    body.rotation.x += (bend - body.rotation.x) * Math.min(1, dt * 8);
-    body.rotation.x -= 0.5 * strokeK; // the push: drive forward and down over the poles
-    body.rotation.z += (lean - body.rotation.z) * Math.min(1, dt * 8);
+    const board = ud.kind === 'board';
+    // Hip bend: rest, tuck/crouch, snowplough, heel-side stop (sit back), pole push (drive down over the poles), scream (lean back).
+    const bend = screamT > 0 ? 0.35
+      : tucking ? (board ? -0.55 : -0.75)
+      : braking > 0.05 ? (board ? -0.25 : -0.3)
+      : -0.12;
+    ease(ud.upper.rotation, 'x', bend - 0.6 * strokeK, 10, dt);
+    // Ankle lean: a touch forward normally, back onto the heels in a board stop.
+    ease(body.rotation, 'x', board ? 0.32 * braking : tucking ? -0.12 : -0.05, 8, dt);
+    ease(body.rotation, 'z', lean, 8, dt);
     body.rotation.y = 0;
-    const sy = tuck || p.plough > 0.5 ? 0.82 : 1 - 0.12 * strokeK;
-    body.scale.y += (sy - body.scale.y) * Math.min(1, dt * 8);
-    body.position.y = 0;
+    body.position.y = 0.24 * Math.abs(Math.sin(body.rotation.z)) + 0.17 * Math.abs(Math.sin(body.rotation.x));
+    const crouch = tucking ? 0.32 : braking > 0.05 ? (board ? 0.22 : 0.14) : 0.1 * strokeK;
+    ease(ud.lower.scale, 'y', 1 - crouch, 10, dt);
+    ud.upper.position.y = HIP * ud.lower.scale.y;
+    body.scale.y = 1;
     ud.skis.rotation.set(p.air ? -0.15 : 0, 0, 0);
   }
   if (ud.skiL) { // snowplough: tips together, tails apart
     ud.skiL.rotation.y = -0.38 * p.plough; ud.skiR.rotation.y = 0.38 * p.plough;
     ud.skiL.position.x = -0.13 - 0.06 * p.plough; ud.skiR.position.x = 0.13 + 0.06 * p.plough;
-  } else if (!k) ud.skis.rotation.z = -0.35 * p.plough; // the board goes up on its heel edge to scrub
-  // Poles: a stroke plants ahead and drives back, then swings forward again. Idle, they trail. Scream: overhead.
-  const stroke = screamT > 0 ? -2.6 : pushing ? -0.35 + 0.75 * Math.cos(p.pushPhase * Math.PI * 2) : 0.55;
-  for (const pole of ud.poles) pole.rotation.x += (stroke - pole.rotation.x) * Math.min(1, dt * 14);
+  } else if (!k) { ud.skis.rotation.z = -0.35 * p.plough; ud.skis.position.y = 0.06 * p.plough; } // the board digs its heel edge in
+  if (ud.poles.length) {
+    // Double-pole: plant just behind the hands, drive the tips back as the hips fold, swing forward again
+    // through the air. Idle, carried angled back. Scream: thrown overhead.
+    const ph = p.pushPhase, back = ph < 0.5 ? ph * 2 : 2 - ph * 2;
+    posePoles(ud.poles, screamT > 0 ? -2.6 : pushing ? -0.25 - 1.15 * back : tucking ? -1.4 : -1.0, dt);
+  }
 }
 
 const camLook = new V3(), _look = new V3(), _top = new V3(), _f = new V3();
@@ -1250,4 +1313,4 @@ $('bestv').textContent = best;
 buildRide(); renderRides();
 reset();
 renderer.setAnimationLoop(frame);
-if (import.meta.url.includes('localhost')) window.__bear = { player, bear, keys, chunks, start, step, frame, scream, selectRide, RIDES, setMusic, nextMusic, get music() { return music; }, get musicId() { return musicId; }, get storm() { return storm; }, set storm(v) { storm = v; }, get actx() { return actx; }, get musicGain() { return musicGain; }, scene, camera, flakes, sky, peaks, get far() { return far; }, set far(v) { far = v; }, get skier() { return skier; }, get V() { return V; }, get state() { return state; }, toggleCam };
+if (import.meta.url.includes('localhost')) window.__bear = { height, renderer, get skierObj() { return skier; }, player, bear, keys, chunks, start, step, frame, scream, selectRide, RIDES, setMusic, nextMusic, get music() { return music; }, get musicId() { return musicId; }, get storm() { return storm; }, set storm(v) { storm = v; }, get actx() { return actx; }, get musicGain() { return musicGain; }, scene, camera, flakes, sky, peaks, get far() { return far; }, set far(v) { far = v; }, get skier() { return skier; }, get V() { return V; }, get state() { return state; }, toggleCam };
