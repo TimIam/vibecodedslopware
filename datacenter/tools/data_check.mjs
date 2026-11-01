@@ -279,21 +279,15 @@ D.STAGES.forEach((s, idx) => {
   // 0.8 m pitch along x, 2.4 m between rows
   if (s.cols > 1) ok(near(s.footprints[1][0] - s.footprints[0][0], 0.8), `${s.id} rack pitch`);
   if (s.rows > 1) ok(near(s.footprints[0][1] - s.footprints[s.cols][1], 2.4), `${s.id} row pitch`);
-  // facing: the FRONT row (nearest the +Z camera) faces the camera in every stage; rows alternate from the front, so
-  // aisle 0 is hot, aisle 1 cold, ...; with an even row count the back row faces the back wall
+  // facing: every row faces +Z (the camera) so every rack's LEDs are visible from the default view; the aisle kinds
+  // are a floor pattern (aisle 0 hot, then alternating) baked into the stage shells, independent of the facing
   const rowRot = r => s.footprints[r * s.cols][2];
-  eq(rowRot(0), 0, `${s.id} front row must face +Z (the camera)`);
-  for (let r = 0; r < s.rows; r++) eq(rowRot(r), r % 2 ? Math.PI : 0, `${s.id} row ${r} facing`);
-  for (let r = 1; r < s.rows; r++) ok(rowRot(r) !== rowRot(r - 1), `${s.id} rows ${r - 1},${r} do not alternate`);
-  eq(rowRot(s.rows - 1), s.rows % 2 === 0 ? Math.PI : 0, `${s.id} back row facing (even row count -> faces the back wall)`);
+  for (let r = 0; r < s.rows; r++) eq(rowRot(r), 0, `${s.id} row ${r} must face +Z (the camera)`);
   ok(s.footprints.every((f, k) => f[2] === rowRot(Math.floor(k / s.cols))), `${s.id} every rack in a row shares its facing`);
   eq(s.aisles.length, Math.max(0, s.rows - 1), `${s.id} aisles count`);
   s.aisles.forEach((a, r) => {
     eq(a.kind, r % 2 ? 'cold' : 'hot', `${s.id} aisle ${r} kind`);
     ok(near(a.z, (s.footprints[r * s.cols][1] + s.footprints[(r + 1) * s.cols][1]) / 2), `${s.id} aisle ${r} z between its rows`);
-    // consistency with the facing: cold = both fronts face the aisle (row r faces -Z, row r+1 faces +Z)
-    const cold = rowRot(r) === Math.PI && rowRot(r + 1) === 0;
-    eq(a.kind, cold ? 'cold' : 'hot', `${s.id} aisle ${r} kind vs facing`);
   });
   if (s.rows > 1) eq(s.aisles[0].kind, 'hot', `${s.id} aisle 0 (behind the front row) is hot`);
   // lanes

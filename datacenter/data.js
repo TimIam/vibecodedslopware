@@ -183,7 +183,10 @@ export const STAFF = [
 const PITCH_X = 0.8, PITCH_Z = 2.4;
 export const LANE_FIT = 0.9; // unit footprint along the lane axis <= lanePitch * LANE_FIT
 const r3 = n => Math.round(n * 1000) / 1000;
-const rowFacing = row => (row % 2 === 0) ? 0 : Math.PI;
+// Every row faces +Z (the camera): the lit front of every rack is the progress bar, so no row ever turns its back
+// on the default view. Aisle kinds alternate as a floor pattern (hot tiles / cold-aisle doors are baked into the
+// stage shells by build_assets.py at these positions), not from the facing.
+const rowFacing = () => 0;
 
 function footprints(rows, cols) {
   const out = [];
@@ -196,9 +199,8 @@ function footprints(rows, cols) {
 function aisles(rows) {
   const out = [];
   for (let r = 0; r + 1 < rows; r++) {
-    // row r sits at larger z than row r+1; the aisle between them is cold when r faces -Z and r+1 faces +Z
-    const cold = rowFacing(r) === Math.PI && rowFacing(r + 1) === 0;
-    out.push({ z: r3(((rows - 1) / 2 - r - 0.5) * PITCH_Z), kind: cold ? 'cold' : 'hot' });
+    // row r sits at larger z than row r+1; aisle 0 (behind the front row) is hot, then the kinds alternate
+    out.push({ z: r3(((rows - 1) / 2 - r - 0.5) * PITCH_Z), kind: r % 2 ? 'cold' : 'hot' });
   }
   return out;
 }
@@ -548,7 +550,7 @@ export const PALETTE = {
   meterGreen: 0x58ff9a, meterAmber: 0xffb347, meterRed: 0xff4d4d,
   trayCyan: 0x45e6ff, trayGold: 0xffd166, trayRed: 0xff4d4d, bootWhite: 0xffffff,
 };
-export const CAMERA = { fov: 32, fovPortrait: 40, azimuthDeg: 45, polarDeg: [30, 70], idleOrbitAfterS: 20, idleOrbitRadS: 0.03,
+export const CAMERA = { fov: 32, fovPortrait: 40, azimuthDeg: 90, polarDeg: [30, 70], idleOrbitAfterS: 20, idleOrbitRadS: 0.03,
   tapMaxPx: 6, tapMaxMs: 500 }; // tapMaxMs is judged between the pointer events' own timestamps (§15), not frames
 export const POST = { bloom: { strength: 0.8, radius: 0.35, threshold: 0.9, phoneStrength: 0.6 }, exposure: 1.05, minFps: 40, fpsGraceS: 3,
   fadeS: 1.0 };
