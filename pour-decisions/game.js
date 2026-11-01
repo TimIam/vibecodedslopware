@@ -168,26 +168,8 @@ function playGenre(g) {
 }
 
 // ---------- Art for the back bar ----------
-const LABELS = ['#f6efd8', '#ffe08a', '#c9e6ff', '#ffd1dc', '#d8f5c8', '#f2d0a8', '#e6d3ff'];
-function labelColor(k) { let h = 0; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return LABELS[h % LABELS.length]; }
-function bottleSVG(it) {
-  const c = it.color, S = `stroke="${INK}" stroke-width="2.5"`, lab = labelColor(it.key);
-  const tag = (y, h = 14) => `<rect x="11" y="${y}" width="18" height="${h}" rx="1.5" fill="${lab}" stroke="${INK}" stroke-width="1.5"/><text x="20" y="${y + h / 2 + 3}" text-anchor="middle" font-size="7.5" font-weight="700" font-family="Fredoka,sans-serif" fill="${INK}">${esc(it.name.replace(/^Crème de /, '').slice(0, 3).toUpperCase())}</text>`;
-  const shine = '<path d="M14,30 L14,62" stroke="#fff" stroke-width="2" opacity=".45"/>';
-  let s;
-  switch (it.shape) {
-    case 'square': s = `<rect x="16" y="4" width="8" height="16" rx="2" fill="#333" ${S}/><rect x="8" y="20" width="24" height="50" rx="3" fill="${c}" ${S}/>${tag(38, 16)}${shine}`; break;
-    case 'round': s = `<rect x="16" y="2" width="8" height="22" rx="2" fill="#333" ${S}/><path d="M20,24 C2,30 4,70 12,70 L28,70 C36,70 38,30 20,24 Z" fill="${c}" ${S}/>${tag(42)}`; break;
-    case 'wine': s = `<rect x="17" y="2" width="6" height="22" fill="#d9b84a" ${S}/><path d="M17,24 C10,30 10,30 10,40 L10,68 Q10,70 12,70 L28,70 Q30,70 30,68 L30,40 C30,30 30,30 23,24 Z" fill="#244a2a" ${S}/><rect x="11.5" y="44" width="17" height="16" fill="${c}" opacity=".9"/>${tag(44, 16)}`; break;
-    case 'soda': s = `<rect x="17" y="2" width="6" height="6" fill="#c0283a" ${S}/><path d="M17,8 L23,8 L25,20 C30,24 30,30 28,36 C30,44 30,60 28,70 L12,70 C10,60 10,44 12,36 C10,30 10,24 15,20 Z" fill="${c}" ${S}/>${tag(46)}`; break;
-    case 'carton': s = `<path d="M8,22 L20,8 L32,22 Z" fill="#fff" ${S}/><rect x="8" y="22" width="24" height="48" fill="#fff" ${S}/><rect x="8" y="34" width="24" height="24" fill="${c}"/><rect x="8" y="22" width="24" height="48" fill="none" ${S}/>${tag(38, 14)}`; break;
-    case 'squeeze': s = `<path d="M17,2 L23,2 L22,14 L18,14 Z" fill="#fff" ${S}/><rect x="13" y="14" width="14" height="6" fill="#ddd" ${S}/><rect x="9" y="20" width="22" height="50" rx="7" fill="${c}" ${S}/>${tag(38)}`; break;
-    case 'pot': s = `<path d="M8,26 L32,26 L30,70 L10,70 Z" fill="${c}" ${S}/><path d="M6,24 L34,24 L30,16 L10,16 Z" fill="#333" ${S}/><path d="M32,34 C40,36 40,56 31,58" fill="none" stroke="${INK}" stroke-width="4"/>${tag(40)}`; break;
-    case 'dash': s = `<rect x="16" y="8" width="8" height="12" rx="2" fill="#f2c230" ${S}/><path d="M14,22 L26,22 L28,30 L28,68 L12,68 L12,30 Z" fill="${c}" ${S}/><rect x="12" y="34" width="16" height="26" fill="${lab}" stroke="${INK}" stroke-width="1.5"/>`; break;
-    default: s = `<rect x="16" y="2" width="8" height="18" rx="2" fill="#2a2a2a" ${S}/><path d="M10,26 Q10,18 17,18 L23,18 Q30,18 30,26 L30,68 Q30,70 28,70 L12,70 Q10,70 10,68 Z" fill="${c}" ${S}/>${tag(38, 16)}${shine}`;
-  }
-  return `<svg viewBox="0 0 40 72">${s}</svg>`;
-}
+function bottleSVG(it) { return `<svg viewBox="0 0 40 90">${bottleArt(it.key)}</svg>`; }
+
 function garnishSVG(k) {
   const S = `stroke="${INK}" stroke-width="2"`;
   const wedge = (c, l) => `<path d="M3,20 A12,12 0 0 1 27,20 Z" fill="${c}" ${S}/><path d="M7,19 A8,8 0 0 1 23,19 Z" fill="${l}"/><path d="M15,19 L15,11 M15,19 L9,14 M15,19 L21,14" stroke="${c}" stroke-width="1.5"/>`;
@@ -273,27 +255,35 @@ function buildBar() {
   const rack = $('#rack');
   for (const [k, D] of Object.entries(GLASSES)) {
     const b = document.createElement('button');
-    b.className = 'gl'; b.dataset.g = k; b.title = D.name;
+    b.className = 'gl'; b.dataset.g = k;
     b.innerHTML = `<svg viewBox="0 0 120 170">${glassSVG(k)}</svg>${D.name}`;
     b.onclick = () => takeGlass(k);
     rack.append(b);
   }
-  for (const it of Object.values(ING)) {
-    const shelf = $('#sh-' + (it.kind === 'wine' ? 'spirit' : it.kind));
+  // Back bar: spirits and the first liqueurs up top, the rest of the liqueurs and the bitters
+  // in the middle, juices, sodas and syrups on the bottom shelf.
+  const all = Object.values(ING), top = all.filter(i => ['spirit', 'wine', 'liqueur'].includes(i.kind));
+  const rows = [top.slice(0, 22), top.slice(22).concat(all.filter(i => i.kind === 'dash')), all.filter(i => i.kind === 'mixer')];
+  rows.forEach((list, n) => {
+    for (const it of list) {
+      const b = document.createElement('button');
+      b.className = 'btl'; b.dataset.k = it.key; b.dataset.name = it.name; b.setAttribute('aria-label', it.name);
+      b.innerHTML = bottleSVG(it);
+      b.addEventListener('pointerdown', e => startPour(e, it.key, b));
+      b.addEventListener('contextmenu', e => e.preventDefault());
+      $('#row' + (n + 1)).append(b);
+    }
+  });
+  const well = $('#well'), ice = document.createElement('button');
+  ice.className = 'gar ice'; ice.id = 'bIce'; ice.dataset.name = 'Ice (scoop into the glass)';
+  ice.innerHTML = iceWell();
+  well.append(ice);
+  for (const k of ['lime', 'lemon', 'orange', 'cherry', 'olive', 'onion', 'pineapple', 'mint', 'celery', 'nutmeg', 'beans', 'saltrim', 'sugarrim']) {
     const b = document.createElement('button');
-    b.className = 'btl' + (it.kind === 'dash' ? ' dash' : ''); b.dataset.k = it.key; b.title = it.name;
-    b.innerHTML = bottleSVG(it) + `<span>${esc(it.name)}</span>`;
-    b.addEventListener('pointerdown', e => startPour(e, it.key, b));
-    b.addEventListener('contextmenu', e => e.preventDefault());
-    shelf.append(b);
-  }
-  const tray = $('#tray');
-  for (const [k, name] of Object.entries(GARNISH)) {
-    const b = document.createElement('button');
-    b.className = 'gar'; b.dataset.k = k;
-    b.innerHTML = garnishSVG(k) + esc(name);
+    b.className = 'gar' + (k.endsWith('rim') ? ' wide' : ''); b.dataset.k = k; b.dataset.name = GARNISH[k];
+    b.innerHTML = WELL[k]() + esc(GARNISH[k]);
     b.onclick = () => toggleGarnish(k);
-    tray.append(b);
+    well.append(b);
   }
   document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => setMethod(b.dataset.m));
   $('#bIce').onclick = toggleIce;
@@ -389,8 +379,8 @@ function renderGlass() {
   if (gl) {
     for (const it of gl.items) h += `<div class="line"><span>${esc(ING[it.k].name)}</span><b>${ING[it.k].kind === 'dash' ? it.a + (it.a === 1 ? ' dash' : ' dashes') : oz(it.a)}</b></div>`;
     const extra = [gl.ice ? 'Ice' : 'No ice', METHODS[gl.method || 'build'] + (gl.method ? '' : ' (default)')].concat([...gl.garn].map(k => GARNISH[k]));
-    h += `<div style="margin-top:4px;color:#6b5a40;font-size:13px">${extra.map(esc).join(' · ')}</div>`;
-  } else h = '<div style="color:#8a7a5a">Pick a glass from the rack, then press and hold bottles to pour.</div>';
+    h += `<div class="meta">${extra.map(esc).join(' · ')}</div>`;
+  } else h = '<div style="color:#8a7a5a">Pick a glass from the rack, then press and hold bottles on the back bar to pour.</div>';
   $('#contents').innerHTML = h;
 }
 function updatePourRead() {
@@ -723,7 +713,7 @@ function endNight() {
     </ul>
     <p>Total tips: <b>${money(G.tips)}</b>${record ? ' 🏆 New best!' : ''}</p>
     <p style="color:#6b5a40">Tomorrow: more customers, harder orders, less patience.</p>
-    <div class="row"><button class="big" id="bNext">Open night ${G.night + 1}</button></div>`;
+    <div class="row2"><button class="big" id="bNext">Open night ${G.night + 1}</button></div>`;
   $('#ovEnd').classList.remove('hidden');
   $('#bNext').onclick = () => { G.night++; startNight(); };
 }
@@ -735,7 +725,7 @@ function fired(reason) {
   $('#endCard').innerHTML = `<h2>You're fired!</h2>
     <p style="font-size:17px">${reason}</p>
     <p>You lasted <b>${G.night}</b> night${G.night > 1 ? 's' : ''} and made <b>${money(G.tips)}</b> in tips.${record ? ' 🏆 New best!' : ''}</p>
-    <div class="row"><button class="big" id="bAgain">Get rehired</button></div>`;
+    <div class="row2"><button class="big" id="bAgain">Get rehired</button></div>`;
   $('#ovEnd').classList.remove('hidden');
   $('#bAgain').onclick = () => {
     G.night = 1; G.tips = 0; G.strikes = 0; G.cust = null; G.genre = null; G.musicLeft = 0;
@@ -833,8 +823,19 @@ function tick(now) {
 
 // ---------- Wiring ----------
 function setMute(m) { AU.muted = m; store.set('pd.muted', m); if (AU.master) AU.master.gain.value = m ? 0 : .8; $('#bMute').textContent = m ? '🔇' : '🔊'; }
+// Scale the fixed 1280x760 bar to fill the window without scrolling.
+function fit() {
+  const st = $('#stage'), W = st.clientWidth, H = st.clientHeight;
+  const s = Math.min(W / 1280, H / 760);
+  const app = $('#app');
+  app.style.transform = `scale(${s})`;
+  app.style.left = Math.max(0, (W - 1280 * s) / 2) + 'px';
+  app.style.top = Math.max(0, (H - 760 * s) / 2) + 'px';
+  $('#rotateHint').style.display = W < H && W < 800 ? 'block' : 'none';
+}
 function init() {
   buildBar(); renderGlass();
+  fit(); window.addEventListener('resize', fit);
   $('#cDate').textContent = longD(TONIGHT);
   $('#cBorn').innerHTML = `Born on or before<br><b>${fmtD(CUTOFF)}</b>`;
   $('#best').textContent = G.best ? `Best total tips: ${money(G.best)}` : '';
