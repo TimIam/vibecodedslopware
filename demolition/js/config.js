@@ -22,9 +22,9 @@ export const SERVER = {
 
 export const COST = {
   rack: 3500, door: 450, sidePanel: 300, rackPdu: 1800,
-  crac: 85000, cracPanel: 1200, pdu: 45000, pduDoor: 600, ups: 120000, battery: 60000,
+  crac: 85000, cracPanel: 1200, pdu: 45000, pduDoor: 600, ups: 400000, battery: 150000,
   tile: 160, tileLift: 0, glassPanel: 900, trayCables: 2500, fiberCut: 40000, tapBox: 3000,
-  agentRecharge: 95000, hdd: 400, cylinder: 18000,
+  agentRecharge: 60000, hdd: 400, cylinder: 9000,
   downtimePerMinute: 9000,           // Ponemon Institute average cost of data-center downtime
 };
 
@@ -36,7 +36,7 @@ export const THERMAL = {
 export const FIRE = {
   growth: 1 / 45,               // intensity per second (0 -> 1 in ~45 s)
   spreadAt: 0.5, spreadChancePerSec: 0.05,
-  vesdaAlert: 0.05, vesdaAction: 0.15, preDischarge: 30, dischargeTime: 10,
+  vesdaAlert: 0.05, vesdaAction: 0.15, preDischarge: 30, dischargeTime: 60,   // NFPA 2001: inert gas reaches 95% of design in 60 s
   sprinklerFuseAt: 0.7,          // ~68 °C quick-response head
 };
 

@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { loadAssets } from './kit.js';
 import { World } from './world.js';
@@ -30,24 +31,26 @@ async function boot() {
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
   const scene = new THREE.Scene(); scene.background = new THREE.Color(0x9aa3ad); scene.fog = new THREE.FogExp2(0x9aa3ad, 0.012);
   const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 80); scene.add(camera);
+  { const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.55; pmrem.dispose(); } // metals need something to reflect
 
   const hemi = new THREE.HemisphereLight(0xe9f0ff, 0x4a4a48, 1.35); scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffffff, 1.3); sun.position.set(1.2, 14, 0.8); sun.target.position.set(0, 0, 0); scene.add(sun.target);
   sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
-  Object.assign(sun.shadow.camera, { left: -15, right: 15, top: 10, bottom: -10, near: 1, far: 30 }); scene.add(sun);
-  const emergency = []; for (const [x, z] of [[-11, -6], [11, 6], [0, 0], [-6, 6], [6, -6]]) { const l = new THREE.PointLight(0xfff0d0, 0, 12, 1.5); l.position.set(x, 3.3, z); l.visible = false; scene.add(l); emergency.push(l); }
+  Object.assign(sun.shadow.camera, { left: -15, right: 15, top: 10, bottom: -10, near: 1, far: 30 }); sun.shadow.camera.updateProjectionMatrix(); scene.add(sun);
+  // kept visible at zero intensity so the light count (and every shader) is fixed from the first frame
+  const emergency = []; for (const [x, z] of [[-11, -6], [11, 6], [0, 0], [-6, 6], [6, -6]]) { const l = new THREE.PointLight(0xfff0d0, 0, 12, 1.5); l.position.set(x, 3.3, z); scene.add(l); emergency.push(l); }
 
   const phys = new RAPIER.World({ x: 0, y: -9.81, z: 0 }); phys.timestep = 1 / 60;
   const events = new RAPIER.EventQueue(true);
   const G = { THREE, R: RAPIER, scene, phys, ents: new Map(), assets, renderer, camera };
   G.hud = new HUD(); G.audio = new Audio(); G.fx = new FX(scene);
   G.setFog = d => { scene.fog.density = d; };
+  // EPO drops the critical bus and the CRACs; the house lighting is on a separate panel and stays up.
   G.setBlackout = on => {
-    hemi.intensity = on ? 0.06 : 1.35; sun.intensity = on ? 0.05 : 1.3; scene.background.set(on ? 0x15171a : 0x9aa3ad); scene.fog.color.copy(scene.background);
-    for (const i of G.world.fixtures) G.world.kits.led_fixture.setLeds(i, !on);
-    for (const l of emergency) { l.visible = on; l.intensity = on ? 6 : 0; }
     for (const c of G.world.cracs) G.world.kits.panel_controls.setLeds(c.id, !on);
     for (const p of G.world.pdus) G.world.kits.door.setLeds(p.id, !on);
+    for (const u of G.world.upss) { G.world.kits.ups_door.setLeds(u.id, !on); }
+    for (const l of emergency) l.intensity = 0;
   };
   G.systems = new Systems(G);
   G.world = new World(G);
@@ -82,7 +85,7 @@ async function boot() {
   if (new URLSearchParams(location.search).has('nolock')) document.getElementById('play').onclick = () => { G.audio.start(); softLock(); };
   G.gameOver = (cause, kind) => {
     if (G.systems.over) return; G.systems.over = true; if (kind === 'death') G.systems.dead = true;
-    G.audio.setHorn(false); G.audio.setBeep(false);
+    G.audio.setHorn(false); G.audio.setBeep(false); G.audio.stopAll();
     G.systems.facts = facts(G);
     setTimeout(() => { document.exitPointerLock(); G.hud.report(G.systems.snapshot(), cause); }, kind === 'death' ? 1200 : 200);
   };
@@ -122,7 +125,8 @@ function facts(G) {
   if (s.epo) out.push('An EPO drops every breaker in the room, including cooling. It exists for firefighters, and it has ended more careers than fires.');
   if (s.toppled) out.push('A populated 42U rack weighs 600 to 1,100 kg. Seismic and standard installs bolt them to the slab or stringers for exactly this reason.');
   if (s.maxInlet > 27) out.push('ASHRAE recommends 18 to 27 °C at the server inlet. Without cooling, a megawatt hall climbs a few degrees a minute.');
-  if (G.systems.dead) out.push('NFPA 70E arc-flash boundaries exist because 480 V switchgear can deliver a blast equivalent to several sticks of dynamite.');
+  if (G.systems.deathKind === 'arc') out.push('NFPA 70E arc-flash boundaries exist because 480 V switchgear can deliver a blast equivalent to several sticks of dynamite.');
+  if (G.systems.deathKind === 'smoke') out.push('Most fire deaths are from smoke, not flame; burning cable jacketing produces hydrogen chloride and cyanide within seconds.');
   return out;
 }
 

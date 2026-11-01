@@ -47,7 +47,7 @@ class SpritePool {
     for (let i = 0; i < n; i++) {
       const m = new THREE.SpriteMaterial({ map: tex, color, transparent: true, depthWrite: false, opacity: 0,
         blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending });
-      const s = new THREE.Sprite(m); s.visible = false; s.frustumCulled = false; scene.add(s);
+      const s = new THREE.Sprite(m); s.visible = false; scene.add(s);
       this.items.push({ s, life: 0, max: 1, vel: new THREE.Vector3(), grow: 0, op: 1, rot: 0 });
     }
   }
@@ -76,12 +76,13 @@ export class FX {
     this.scene = scene;
     this.sparks = new PointPool(scene, 2500, { additive: true, size: 0.045 });
     this.shards = new PointPool(scene, 1500, { additive: false, size: 0.035 });
-    this.smoke = new SpritePool(scene, 320, radialTexture('rgba(40,40,44,0.9)', 'rgba(40,40,44,0)'));
-    this.fire = new SpritePool(scene, 160, radialTexture('rgba(255,200,90,1)', 'rgba(255,60,0,0)'), { additive: true });
-    this.agent = new SpritePool(scene, 260, radialTexture('rgba(235,240,245,0.95)', 'rgba(235,240,245,0)'));
+    this.smoke = new SpritePool(scene, 200, radialTexture('rgba(40,40,44,0.9)', 'rgba(40,40,44,0)'));
+    this.fire = new SpritePool(scene, 110, radialTexture('rgba(255,200,90,1)', 'rgba(255,60,0,0)'), { additive: true });
+    this.agent = new SpritePool(scene, 150, radialTexture('rgba(235,240,245,0.95)', 'rgba(235,240,245,0)'));
     this.water = new PointPool(scene, 2500, { additive: false, size: 0.03 });
     this.flash = document.getElementById('flash');
-    this.fireLights = []; for (let i = 0; i < 4; i++) { const l = new THREE.PointLight(0xff7a20, 0, 7, 1.6); l.visible = false; scene.add(l); this.fireLights.push(l); }
+    // always visible at zero intensity: toggling a light's visibility recompiles every shader
+    this.fireLights = []; for (let i = 0; i < 4; i++) { const l = new THREE.PointLight(0xff7a20, 0, 7, 1.6); scene.add(l); this.fireLights.push(l); }
     this.t = 0;
   }
   sparkBurst(p, n = 40, dir = null, spread = 1.0, speed = 5) {
@@ -138,10 +139,10 @@ export class FX {
           new THREE.Vector3((Math.random() - 0.5) * 0.3, 0.8 + Math.random() * 0.6, (Math.random() - 0.5) * 0.3), { life: 4 + Math.random() * 3, size: 0.5, grow: 0.7, opacity: 0.35 + 0.4 * f.intensity });
       }
       if (li < this.fireLights.length) {
-        const l = this.fireLights[li++]; l.visible = true; l.position.copy(f.pos).y += 0.6;
+        const l = this.fireLights[li++]; l.position.copy(f.pos).y += 0.6;
         l.intensity = (8 + Math.sin(this.t * 23 + li) * 2 + Math.sin(this.t * 7.3) * 1.5) * f.intensity;
       }
     }
-    for (; li < this.fireLights.length; li++) this.fireLights[li].visible = false;
+    for (; li < this.fireLights.length; li++) this.fireLights[li].intensity = 0;
   }
 }

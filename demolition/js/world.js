@@ -143,7 +143,8 @@ export class World {
       put('1u', 40); // top-of-rack switch
       plans.push(list);
     } });
-    const sk = { '1u': this.kit('server1u', firstPart(assets.server1u), counts['1u']), '2u': this.kit('server2u', firstPart(assets.server2u), counts['2u']), gpu: this.kit('gpu', firstPart(assets.gpu4u), counts.gpu) };
+    // servers live inside closed cabinets: receiving shadows is enough, casting them would redraw 2,500 chassis in the shadow pass
+    const sk = { '1u': this.kit('server1u', firstPart(assets.server1u), counts['1u'], { cast: false }), '2u': this.kit('server2u', firstPart(assets.server2u), counts['2u'], { cast: false }), gpu: this.kit('gpu', firstPart(assets.gpu4u), counts.gpu) };
     ROWS.forEach((row, ri) => { for (let col = 0; col < RACKS_PER_ROW; col++) {
       const id = ri * RACKS_PER_ROW + col, x = RACK_X0 + col * 0.6, z = row.z, rotY = row.face > 0 ? 0 : Math.PI;
       const body = phys.createRigidBody(R.RigidBodyDesc.fixed().setTranslation(x, 0, z).setRotation(quatY(rotY)).setLinearDamping(0.2).setAngularDamping(0.5));
@@ -218,12 +219,14 @@ export class World {
       for (const [feed, dz] of [['A', -0.32], ['B', 0.32]]) { const bi = bus.alloc(); bus.set(bi, this.root(x, 2.95, row.z + dz)); }
     }));
     this.fixedBox(0, 3.02, 0, 6, 0.07, 4, { kind: 'busway' });
-    for (let g = 0; g < 7; g++) ROWS.forEach((row, ri) => for_(['A', 'B'], (feed, fi) => {
-      const cols = [g * 3, g * 3 + 1, g * 3 + 2].filter(c => c < RACKS_PER_ROW), x = RACK_X0 + (cols[0] + cols[cols.length - 1]) / 2 * 0.6, z = row.z + (fi ? 0.32 : -0.32);
+    // one busway run per PDU half, so no tap-off box ever straddles the two feeds' halves
+    const TAP_GROUPS = [[0, 1, 2], [3, 4, 5], [6, 7, 8, 9], [10, 11, 12], [13, 14, 15], [16, 17, 18, 19]];
+    TAP_GROUPS.forEach((cols, g) => ROWS.forEach((row, ri) => for_(['A', 'B'], (feed, fi) => {
+      const x = RACK_X0 + (cols[0] + cols[cols.length - 1]) / 2 * 0.6, z = row.z + (fi ? 0.32 : -0.32);
       const k = fi ? tapB : tapA, idx = k.alloc(); k.set(idx, this.root(x, 2.75, z));
       const tp = { kind: 'tap', feed, row: ri, cols, on: true, alive: true, pos: V(x, 2.85, z), name: `Tap ${feed} ${row.name}${g + 1}` };
       this.fixedBox(x, 2.85, z, 0.125, 0.1, 0.08, tp); this.taps.push(tp);
-    }));
+    })));
     [-2.27, 2.27].forEach((z, ai) => segX.forEach((x, si) => {
       const root = this.root(x, 2.42, z), idx = duct.alloc(); duct.set(idx, root);
       const d = { kind: 'duct', aisle: ai, seg: si, root, pos: V(x, 2.47, z), idx, cut: false };
@@ -231,6 +234,7 @@ export class World {
     }));
     // hot-aisle containment: roof panels + sliding end doors
     const roof = this.kit('roof_panel', part(assets.containment, 'roof_panel'), 10), doorK = this.kit('door_panel', part(assets.containment, 'door_panel'), 2);
+    for (const k of [roof, doorK]) for (const p of k.prims) if (/glass/.test(p.name)) p.mesh.castShadow = false; // clear panels should not shade the hot aisle
     for (let i = 0; i < 10; i++) {
       const x = -5.4 + i * 1.2, root = this.root(x, 2.0, 0), idx = roof.alloc(); roof.set(idx, root);
       const g = { kind: 'glass', what: 'roof', kit: roof, idx, root, pos: V(x, 2.0, 0), broken: false };
@@ -259,8 +263,9 @@ export class World {
     });
     const hx = HALL.x / 2;
     const ep = { kind: 'epo', armed: 0, pos: V(hx - 0.07, 1.4, 5.6) }; epo.set(epo.alloc(), this.root(hx - 0.04, 1.34, 5.6, -Math.PI / 2)); this.fixedBox(hx - 0.07, 1.4, 5.6, 0.04, 0.07, 0.07, ep); this.epo = ep;
-    const ps = { kind: 'pull', pulled: false, pos: V(hx - 0.07, 1.3, 5.2) }; pull.set(pull.alloc(), this.root(hx - 0.04, 1.23, 5.2, -Math.PI / 2)); this.fixedBox(hx - 0.07, 1.3, 5.2, 0.04, 0.08, 0.06, ps);
-    const ps2 = { kind: 'pull', pulled: false, pos: V(-hx + 0.07, 1.3, -5.2) }; pull.set(pull.alloc(), this.root(-hx + 0.04, 1.23, -5.2, Math.PI / 2)); this.fixedBox(-hx + 0.07, 1.3, -5.2, 0.04, 0.08, 0.06, ps2);
+    // a pull station by the exit raises the building alarm; the manual release by the cylinders dumps the agent
+    const ps = { kind: 'pull', release: false, pulled: false, pos: V(hx - 0.07, 1.3, 5.2) }; pull.set(pull.alloc(), this.root(hx - 0.04, 1.23, 5.2, -Math.PI / 2)); this.fixedBox(hx - 0.07, 1.3, 5.2, 0.04, 0.08, 0.06, ps);
+    const ps2 = { kind: 'pull', release: true, pulled: false, pos: V(-hx + 0.07, 1.3, 5.4) }; pull.set(pull.alloc(), this.root(-hx + 0.04, 1.23, 5.4, Math.PI / 2)); this.fixedBox(-hx + 0.07, 1.3, 5.4, 0.04, 0.08, 0.06, ps2);
     for (const [x, z, ry] of [[hx - 0.05, 2.0, -Math.PI / 2], [hx - 0.05, -4, -Math.PI / 2], [-hx + 0.05, 2.0, Math.PI / 2], [-hx + 0.05, -4, Math.PI / 2], [-6, HALL.z / 2 - 0.05, Math.PI], [6, HALL.z / 2 - 0.05, Math.PI], [-6, -HALL.z / 2 + 0.05, 0], [6, -HALL.z / 2 + 0.05, 0]]) {
       const idx = strobe.alloc(); strobe.set(idx, this.root(x, 2.55, z, ry)); this.strobes.push(idx);
     }
@@ -269,7 +274,7 @@ export class World {
   }
 
   // ---------------------------------------------------------------- detaching pieces into physics
-  detach(kitName, idx, root, pieceKey, impulse, atPoint, ent) {
+  detach(kitName, idx, root, pieceKey, impulse, atPoint, ent, cost = PIECES[pieceKey].cost) {
     const { R, phys } = this.G; const P = PIECES[pieceKey];
     const c = P.c.clone().applyMatrix4(root); root.decompose(_v, _q, new THREE.Vector3());
     const body = phys.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(c.x, c.y, c.z).setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }).setLinearDamping(0.05).setAngularDamping(0.2));
@@ -277,7 +282,7 @@ export class World {
     const item = { kind: 'loose', what: pieceKey, kit: this.kits[kitName], idx, body, col, local: T(-P.c.x, -P.c.y, -P.c.z), t: this.time, frozen: false, ent, mass: P.mass, label: P.label };
     this.ents.set(col.handle, item); this.loose.push(item);
     if (impulse) body.applyImpulseAtPoint(impulse, atPoint || c, true);
-    if (P.cost) this.cost(pieceKey, P.label, 1, P.cost);
+    if (cost) this.cost(pieceKey, P.label, 1, cost);
     return item;
   }
   ejectServer(sv, vel, cause = 'Smashed', offset = null) {
@@ -287,13 +292,14 @@ export class World {
     const c = new THREE.Vector3(0, spec.h / 2, 0).applyMatrix4(_m); if (offset) c.add(offset);
     const body = phys.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(c.x, c.y, c.z).setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }).setLinearDamping(0.05).setAngularDamping(0.3));
     const col = phys.createCollider(R.ColliderDesc.cuboid(0.24, spec.h / 2, spec.d / 2).setMass(spec.mass).setFriction(0.5).setRestitution(0.05), body);
+    const wasDestroyed = sv.destroyed;
     sv.attached = false; sv.body = body;
     const item = { kind: 'loose', what: 'server', sv, kit: sv.kit, idx: sv.idx, body, col, local: T(0, -spec.h / 2, 0), t: this.time, frozen: false, mass: spec.mass, label: spec.U + 'U server' };
     this.ents.set(col.handle, item); this.loose.push(item);
     if (vel) { body.setLinvel(vel, true); body.setAngvel({ x: (Math.random() - 0.5) * 4, y: (Math.random() - 0.5) * 4, z: (Math.random() - 0.5) * 4 }, true); }
     this.destroyServer(sv, cause);
-    rack.kw -= spec.kw; rack.drives -= spec.drives; rack.dirty = true;
-    this.G.systems.stats.ejected++;
+    if (!wasDestroyed) { rack.kw -= spec.kw; rack.drives -= spec.drives; this.G.systems.stats.ejected++; }
+    rack.dirty = true;
   }
   destroyServer(sv, cause) {
     if (sv.destroyed) return; sv.destroyed = true;
@@ -339,12 +345,12 @@ export class World {
       case 'ups': {
         if (ent.parts.ups_door) { ent.parts.ups_door = false; this.detach('ups_door', ent.id, ent.root, 'ups_door', imp(tool.impulse * 0.4), point, ent); au.clang(1); this.log(`${ent.name} door off. Rectifier, inverter and DC bus exposed.`, 'warn'); return true; }
         if (!ent.bypass && ent.alive && !S.power.epo) { S.arcFlash(point, `the ${ent.name} DC bus while it was online (not in maintenance bypass)`); return true; }
-        if (ent.alive) { ent.alive = false; fx.sparkBurst(point, 50, normal, 1, 5); au.clang(1.2); this.cost('ups', 'UPS module', 1, COST.ups); this.log(`${ent.name} wrecked. ${ent.bypass ? 'Loads ride through on the maintenance bypass: raw utility, no battery.' : 'Feed ' + ent.feed + ' dropped.'}`, 'warn'); S.power.recompute(); return true; }
+        if (ent.alive) { ent.alive = false; fx.sparkBurst(point, 50, normal, 1, 5); au.clang(1.2); this.cost('ups', 'UPS lineup (rectifier, inverter, static switch)', 1, COST.ups); this.log(`${ent.name} wrecked. ${ent.bypass ? 'Loads ride through on the maintenance bypass: raw utility, no battery.' : 'Feed ' + ent.feed + ' dropped.'}`, 'warn'); S.power.recompute(); return true; }
         au.clang(0.6); return true;
       }
       case 'battery': {
         if (ent.parts.battery_door) { ent.parts.battery_door = false; this.detach('battery_door', ent.id, ent.root, 'battery_door', imp(tool.impulse * 0.4), point, ent); au.clang(1); this.log(`${ent.name} door off. VRLA strings at 480 V DC. There is no off switch for chemistry.`, 'warn'); return true; }
-        if (ent.alive) { ent.alive = false; S.startFire(ent.pos.clone(), null, 'battery'); this.cost('battery', 'Battery cabinet', 1, COST.battery); S.arcFlash(point, `a 480 V DC battery string. DC arcs don't self-extinguish`); return true; }
+        if (ent.alive) { ent.alive = false; S.startFire(ent.pos.clone(), null, 'battery'); this.cost('battery', 'Battery strings and cabinet', 1, COST.battery); S.arcFlash(point, `a 480 V DC battery string. DC arcs don't self-extinguish`); return true; }
         return true;
       }
       case 'tap': {
@@ -367,7 +373,7 @@ export class World {
         if (ent.spent) { au.clang(0.7); return true; }
         const local = point.clone().applyMatrix4(_m2.copy(ent.root).invert());
         if (local.y > 1.35) { this.rocketCylinder(ent, dir); return true; }
-        au.clang(1); this.log('That is a 200 bar steel cylinder. Hit the valve and it becomes a rocket. (Do not.)'); return true;
+        au.clang(1); this.log('That is a 300 bar steel cylinder of IG-541. Hit the valve and it becomes a rocket. (Do not.)'); return true;
       }
       case 'epo': { S.pressEPO(true); return true; }
       case 'pull': { S.pullStation(ent); return true; }
@@ -394,7 +400,7 @@ export class World {
     else if (side && local.x > 0 && rack.parts.side_R) { rack.parts.side_R = false; this.detach('side_R', rack.id, rack.root, 'side_R', imp(tool.impulse * 0.3), point, rack); did = true; }
     else if ((front || rear) && tool.serverEject > 0) {
       const u = (local.y - RACK.bottomU) / RACK.U;
-      const near = rack.servers.filter(sv => sv.attached && Math.abs(sv.u + sv.spec.U / 2 - u) < tool.serverEject + sv.spec.U / 2).sort((a, b) => Math.abs(a.u - u) - Math.abs(b.u - u)).slice(0, tool.serverEject === 1 ? 1 : 4);
+      const near = rack.servers.filter(sv => sv.attached && !sv.destroyed && Math.abs(sv.u + sv.spec.U / 2 - u) < tool.serverEject + sv.spec.U / 2).sort((a, b) => Math.abs(a.u - u) - Math.abs(b.u - u)).slice(0, tool.serverEject === 1 ? 1 : 4);
       if (near.length) {
         const out = front ? 1 : -1;
         for (const sv of near) {
@@ -430,7 +436,7 @@ export class World {
     if (local.z < 0.3) { au.clang(0.5); return true; }
     if (local.x < -0.45) {
       if (c.parts.panel_controls) { c.parts.panel_controls = false; this.detach('panel_controls', c.id, c.root, 'panel_controls', imp(tool.impulse * 0.35), point, c); au.clang(1); return true; }
-      if (c.on) { c.on = false; fx.sparkBurst(point, 25, normal, 1, 3); au.clang(1); this.log(`${c.name} controller smashed. Fans spin down.`, 'warn'); return true; }
+      if (!c.controlsDead) { c.controlsDead = true; c.on = false; fx.sparkBurst(point, 25, normal, 1, 3); au.clang(1); this.log(`${c.name} controller smashed. Fans spin down, and nobody is restarting this one from the front panel.`, 'warn'); return true; }
       au.clang(0.6); return true;
     }
     if (c.parts.panel_grille) { c.parts.panel_grille = false; this.detach('panel_grille', c.id, c.root, 'panel_grille', imp(tool.impulse * 0.35), point, c); au.clang(1); this.log(`${c.name} front panel off. Plug fans and the cooling coil are right there.`); return true; }
@@ -446,6 +452,7 @@ export class World {
     g.kit.hide(g.idx); this.G.phys.removeCollider(g.collider, false); this.ents.delete(g.collider.handle);
     this.G.fx.glassBurst(point, 140, normal); this.G.audio.glass();
     this.cost('glass', 'Containment panel (polycarbonate)', 1, COST.glassPanel); this.G.systems.stats.glassBroken++;
+    if (g.what === 'roof') this.G.systems.stats.roofBroken++; else this.refreshDoors();
     this.log(g.what === 'door' ? 'Hot-aisle door shattered. Hot exhaust is recirculating into the cold aisle.' : 'Containment roof panel broken. Hot and cold air are mixing.');
     return true;
   }
@@ -458,21 +465,21 @@ export class World {
     if (t.perf) this.perfInPlace--; else this.holes++;
     if (broken) { t.kit.hide(t.idx); this.cost('tile', 'Raised-floor tile', 1, COST.tile); }
     else {
-      // lean it against whatever is nearby: stand it upright on the hole's edge nearest the player
+      // set it down flat on the neighbouring tile nearest the player (a lifted tile is not a broken one: no charge)
       const p = this.G.player.pos(); const dx = p.x - t.x, dz = p.z - t.z; const ax = Math.abs(dx) > Math.abs(dz);
-      const root = T(t.x + (ax ? Math.sign(dx) * 0.35 : 0), -0.3 + 0.6, t.z + (ax ? 0 : Math.sign(dz) * 0.35)).multiply(ax ? new THREE.Matrix4().makeRotationZ(Math.PI / 2 * -Math.sign(dx)) : new THREE.Matrix4().makeRotationX(Math.PI / 2 * Math.sign(dz)));
-      root.multiply(T(0, -0.3, 0));
-      const item = this.detach(t.kit === this.kits.tile_perf ? 'tile_perf' : 'tile_solid', t.idx, root, 'tile', { x: ax ? Math.sign(dx) * 2 : 0, y: 0, z: ax ? 0 : Math.sign(dz) * 2 }, null, t);
+      const root = T(t.x + (ax ? Math.sign(dx) * 0.62 : 0), 0.002, t.z + (ax ? 0 : Math.sign(dz) * 0.62));
+      const item = this.detach(t.kit === this.kits.tile_perf ? 'tile_perf' : 'tile_solid', t.idx, root, 'tile', null, null, t, 0);
       item.label = 'Floor tile'; this.G.systems.stats.tilesLifted++;
     }
   }
+  refreshDoors() { this.G.systems.thermal.doorOpen = this.glass.filter(x => x.what === 'door' && (x.open || x.broken)).length; }
   rocketCylinder(c, dir) {
     const S = this.G.systems; c.spent = true; S.stats.cylRocket++;
     this.G.phys.removeCollider(c.collider, false); this.ents.delete(c.collider.handle);
     const item = this.detach('agent_cylinder', c.idx, c.root, 'agent_cylinder', { x: dir.x * 200, y: 300, z: dir.z * 200 }, null, c);
     item.rocket = 4.5; c.body = item.body; item.isCyl = true;
     this.G.audio.rocket(); this.G.fx.screenFlash('rgba(255,255,255,0.6)', 200);
-    this.log('Valve sheared off a clean-agent cylinder. 180 kg of steel is now propelled by 200 bar of gas. Suppression capacity down a third.', 'bad');
+    this.log('Valve sheared off an inert-gas cylinder. 180 kg of steel is now propelled by 300 bar of nitrogen and argon. Suppression is below design concentration.', 'bad');
     S.suppression.cylinderLost();
   }
 
@@ -481,16 +488,16 @@ export class World {
     const S = this.G.systems;
     switch (ent?.kind) {
       case 'rack': return `${ent.name} · ${ent.isGpu ? 'GPU rack' : ent.servers.length - 1 + ' servers'} · ${ent.powered ? Math.round(ent.kw) + ' kW' : 'DARK'}${ent.bolted ? ' · bolted' : ' · unbolted'}${ent.net ? '' : ' · no network'}`;
-      case 'crac': return `[E] ${ent.name} ${ent.on ? 'stop unit' : 'start unit'} · ${ent.alive ? (ent.on && !S.power.epo ? 'running' : 'stopped') : 'DESTROYED'}`;
-      case 'pdu': return `[E] ${ent.name} main breaker: ${ent.tripped ? 'closed → energize' : 'TRIP'} · feed ${ent.feed} · ${S.power.pduEnergized(ent) ? 'LIVE 480 V' : 'de-energized'}`;
+      case 'crac': return ent.controlsDead ? `${ent.name} · controller destroyed · ${ent.alive ? 'stopped' : 'DESTROYED'}` : `[E] ${ent.name} ${ent.on ? 'stop unit' : 'start unit'} · ${ent.alive ? (ent.on && !S.power.epo ? 'running' : 'stopped') : 'DESTROYED'}`;
+      case 'pdu': return `[E] ${ent.name} main breaker: ${ent.tripped ? 'closed → energize' : 'TRIP'} · feed ${ent.feed} · ${S.power.pduEnergized(ent) ? (ent.tripped ? 'output off, LINE SIDE LIVE 480 V' : 'LIVE 480 V') : 'de-energized'}`;
       case 'ups': return `[E] ${ent.name} ${ent.bypass ? 'return from bypass' : 'transfer to maintenance bypass'} · ${ent.alive ? (ent.bypass ? 'bypassed, module de-energized' : 'online, 480 V DC bus live') : 'DESTROYED'}`;
       case 'battery': return `${ent.name} · sealed VRLA · 480 V DC · always live`;
-      case 'tap': return `[E] ${ent.name} breaker ${ent.on ? 'OFF' : 'ON'} · ${S.power.tapEnergized(ent) ? 'LIVE' : 'dead'}`;
+      case 'tap': return `[E] ${ent.name} breaker ${ent.on ? 'OFF' : 'ON'} · ${S.power.tapEnergized(ent) ? 'busway LIVE' : 'busway dead'}`;
       case 'tile': return ent.removed ? '' : ent.occupied ? 'Floor tile (loaded)' : `[E] lift floor tile${ent.perf ? ' (vented, 25% open)' : ''}`;
       case 'glass': return ent.what === 'door' ? `[E] ${ent.open ? 'close' : 'open'} hot-aisle door` : 'Containment roof panel';
       case 'epo': return ent.armed > 0 ? '[E] EPO — PRESS AGAIN TO CONFIRM' : '[E] Emergency Power Off';
-      case 'pull': return ent.pulled ? 'Pull station (activated)' : '[E] Fire alarm pull station';
-      case 'cyl': return `Clean-agent cylinder ${ent.id + 1}/3 · ${ent.spent ? 'EMPTY' : 'charged, 200 bar'}`;
+      case 'pull': return ent.release ? (ent.pulled ? 'Manual agent release (activated)' : '[E] Inert-gas MANUAL RELEASE') : (ent.pulled ? 'Pull station (activated)' : '[E] Fire alarm pull station');
+      case 'cyl': return `IG-541 cylinder ${ent.id + 1}/3 · ${ent.spent ? 'EMPTY' : 'charged, 300 bar'}`;
       case 'tray': return `Cable tray · row ${ROWS[ent.row].name} · ${ent.cut ? 'CUT' : 'in service'}`;
       case 'duct': return `Fibre trunk · ${ent.cut ? 'CUT' : 'lit'}`;
       case 'loose': return ent.what === 'server' && ent.mass <= 40 ? `[E] pick up ${ent.label}` : ent.label;
@@ -501,7 +508,7 @@ export class World {
   interact(ent, point) {
     const S = this.G.systems, au = this.G.audio;
     switch (ent?.kind) {
-      case 'crac': if (!ent.alive) return; ent.on = !ent.on; au.click(); this.log(`${ent.name} ${ent.on ? 'started' : 'stopped from its controller'}.`); return;
+      case 'crac': if (!ent.alive) return; if (ent.controlsDead) { this.log(`${ent.name}: the controller is in pieces on the floor.`); return; } ent.on = !ent.on; au.click(); this.log(`${ent.name} ${ent.on ? 'started' : 'stopped from its controller'}.`); return;
       case 'pdu': ent.tripped = !ent.tripped; au.breaker(); this.log(`${ent.name} main breaker ${ent.tripped ? 'TRIPPED. Feed ' + ent.feed + ' dead for racks ' + (ent.half ? '11-20' : '1-10') + ' in every row.' : 'closed. Feed ' + ent.feed + ' restored.'}`, ent.tripped ? 'warn' : ''); S.power.recompute(); return;
       case 'ups': if (!ent.alive) return; ent.bypass = !ent.bypass; au.breaker(); this.log(`${ent.name} ${ent.bypass ? 'transferred to maintenance bypass. Loads on raw utility; the module is de-energized.' : 'back online.'}`); S.power.recompute(); return;
       case 'tap': ent.on = !ent.on; au.breaker(); this.log(`${ent.name} breaker ${ent.on ? 'closed' : 'opened'}.`); S.power.recompute(); return;
@@ -516,7 +523,7 @@ export class World {
     const open = g.open;
     g.kit.set(g.idx, this.root(g.x, 0, open ? 1.0 : 0, g.ry));
     g.collider.setTranslation({ x: g.x, y: 1.0, z: open ? 1.0 : 0 });
-    this.G.systems.thermal.doorOpen = this.glass.filter(x => x.what === 'door' && (x.open || x.broken)).length;
+    this.refreshDoors();
   }
 
   // ---------------------------------------------------------------- per-frame
@@ -545,8 +552,9 @@ export class World {
   }
   topple(r) {
     r.toppled = true; r.destroyed = true; r.toppledAt = this.time; const S = this.G.systems;
-    const chainFrom = this.rackNeighbors(r).concat(this.racks.filter(o => o !== r && o.toppled && this.time - o.toppledAt < 4));
-    r.chain = 1 + Math.max(0, ...chainFrom.filter(o => o.toppled && this.time - o.toppledAt < 4).map(o => o.chain));
+    const here = new THREE.Vector3().setFromMatrixPosition(r.root);
+    const recent = this.racks.filter(o => o !== r && o.toppled && this.time - o.toppledAt < 4 && (Math.abs(o.col - r.col) === 1 && o.row === r.row || new THREE.Vector3().setFromMatrixPosition(o.root).distanceTo(here) < 2.6));
+    r.chain = 1 + Math.max(0, ...recent.map(o => o.chain));
     S.stats.toppled++; S.stats.maxChain = Math.max(S.stats.maxChain, r.chain);
     let n = 0; for (const sv of r.servers) if (sv.attached && !sv.destroyed) { this.destroyServer(sv, 'toppled'); n++; }
     this.cost('rack', 'Rack cabinet (42U)', 1, COST.rack);

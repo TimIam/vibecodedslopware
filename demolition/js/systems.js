@@ -12,7 +12,8 @@ export class Ledger {
 export class Systems {
   constructor(G) {
     this.G = G; this.ledger = new Ledger();
-    this.stats = { ejected: 0, doors: 0, toppled: 0, maxChain: 0, glassBroken: 0, tilesLifted: 0, cylRocket: 0, fiberCut: 0, maxInlet: 0, discharged: false, epo: false, sprinklers: 0, hdd: 0 };
+    this.stats = { ejected: 0, doors: 0, toppled: 0, maxChain: 0, glassBroken: 0, roofBroken: 0, tilesLifted: 0, cylRocket: 0, fiberCut: 0, maxInlet: 0, discharged: false, epo: false, sprinklers: 0, hdd: 0 };
+    this.deathKind = null;
     this.shiftLeft = SHIFT_SECONDS; this.health = 100; this.dead = false; this.over = false; this.facts = [];
     this.power = new Power(this); this.thermal = new Thermal(this); this.network = new Network(this); this.suppression = new Suppression(this);
     this.fires = []; this.fireId = 0; this.tick = 0;
@@ -37,14 +38,14 @@ export class Systems {
 
   // ---------------------------------------------------------------- events
   startFire(pos, rack, why) {
-    if (rack && this.fires.some(f => f.rack === rack)) return;
+    if (rack && this.fires.some(f => f.rack === rack && !f.out)) return;
     const f = { id: this.fireId++, pos: pos.clone(), rack, intensity: 0.02, t: 0, out: false, sprinkler: 0, why };
     this.fires.push(f); this.G.audio.fireCrackle(f.id, true);
     this.log(`Fire: ${why}${rack ? ' in ' + rack.name : ''}.`, 'bad');
   }
   arcFlash(point, what) {
     const fx = this.G.fx; fx.screenFlash('rgba(255,255,255,1)', 1500); fx.sparkBurst(point, 400, null, 2, 14); fx.puff(point, 30, 0.7);
-    this.G.audio.arcFlash(); this.startFire(point.clone(), null, 'arc flash');
+    this.G.audio.arcFlash(); this.startFire(point.clone(), null, 'arc flash'); this.deathKind = 'arc';
     this.G.gameOver(`Arc flash. You put a sledgehammer into ${what}. An arc flash at this voltage is roughly 20,000 °C and hits like a shotgun of molten copper; the shift ended with the paramedics. Trip it, lock it, tag it, test it dead: that is the whole job.`, 'death');
   }
   pressEPO(byHammer) {
@@ -53,13 +54,14 @@ export class Systems {
     if (!byHammer && e.armed <= 0) { e.armed = 3; this.G.audio.click(); this.log('EPO: lift the cover and press again to confirm.'); return; }
     this.power.epo = true; this.stats.epo = true; e.armed = 0;
     this.G.audio.breaker(); this.G.audio.thud(1.2); this.G.setBlackout(true);
-    this.log('EMERGENCY POWER OFF. Every breaker in the hall opened at once: UPS output, PDUs, CRAC units, lights. Only the exit signs and the fire panel are on battery.', 'bad');
+    this.log('EMERGENCY POWER OFF. UPS output, every PDU and every CRAC dropped at once. The lights stay on: they are on the house panel, not the critical bus.', 'bad');
     this.log('In real life this is a résumé-generating event.', 'warn');
     this.power.recompute();
   }
   pullStation(ent) {
     if (ent.pulled) return; ent.pulled = true; this.G.audio.click();
-    this.suppression.manualPull();
+    if (ent.release) this.suppression.manualPull();
+    else this.suppression.alarmPull();
   }
 
   // ---------------------------------------------------------------- per-frame
@@ -91,7 +93,7 @@ export class Systems {
       if (f.out) continue;
       f.t += dt;
       let growth = FIRE.growth;
-      if (conc >= 0.6) growth -= 0.35; else if (conc > 0) growth -= conc * 0.2;
+      if (conc >= 0.8) growth -= 0.35; else if (conc > 0) growth -= conc * 0.15;
       if (f.sprinkler > 0) { growth -= 0.5; f.sprinkler -= dt; fx.waterSpray(f.pos.clone().add(new THREE.Vector3(0, 2.4, 0)), 12); }
       f.intensity = Math.min(1, f.intensity + growth * dt);
       if (f.intensity <= 0) { f.out = true; f.intensity = 0; this.G.audio.fireCrackle(f.id, false); this.log(`Fire ${f.rack ? 'in ' + f.rack.name : ''} out.`, 'good'); continue; }
@@ -121,7 +123,7 @@ export class Systems {
     if (smoke > 0.15) { this.health -= smoke * 8 * dt; if (Math.random() < dt) this.log('You are breathing burning plastic. Back off.', 'warn'); }
     else if (this.health < 100) this.health = Math.min(100, this.health + 2 * dt);
     if (this.thermal.inlet > 50) this.health -= (this.thermal.inlet - 50) * 0.1 * dt;
-    if (this.health <= 0 && !this.dead) this.G.gameOver('Smoke inhalation. Burning PCB and PVC jacketing is a cocktail of hydrogen cyanide and hydrogen chloride; you went down before the suppression did.', 'death');
+    if (this.health <= 0 && !this.dead) { this.deathKind = 'smoke'; } if (this.health <= 0 && !this.dead) this.G.gameOver('Smoke inhalation. Burning PCB and PVC jacketing is a cocktail of hydrogen cyanide and hydrogen chloride; you went down before the suppression did.', 'death');
     // crushed by a moving rack
     const W = this.G.world;
     for (const r of W.racks) {
@@ -130,7 +132,7 @@ export class Systems {
       if (speed < 0.8) continue;
       const local = p.clone().applyMatrix4(new THREE.Matrix4().copy(r.root).invert());
       if (Math.abs(local.x) < 0.45 && Math.abs(local.z) < 0.7 && local.y > -0.1 && local.y < 2.1) {
-        this.G.gameOver(`Crushed by ${r.name}. A loaded 42U cabinet weighs about as much as a small car and tips faster than you can step back. Racks get bolted down for a reason.`, 'death'); return;
+        this.deathKind = 'crush'; this.G.gameOver(`Crushed by ${r.name}. A loaded 42U cabinet weighs about as much as a small car and tips faster than you can step back. Racks get bolted down for a reason.`, 'death'); return;
       }
     }
   }
@@ -144,8 +146,10 @@ class Power {
   constructor(S) { this.S = S; this.epo = false; this.feedA = true; this.feedB = true; this.racksPowered = 0; this.racksTotal = 0; }
   upsOk(feed) { const u = this.S.G.world.upss.find(x => x.feed === feed); return !this.epo && (u.alive || u.bypass); }
   pduOk(feed, half) { const p = this.S.G.world.pdus.find(x => x.feed === feed && x.half === half); return this.upsOk(feed) && p.alive && !p.tripped; }
-  pduEnergized(p) { return this.upsOk(p.feed) && p.alive && !p.tripped && !this.epo; }
-  tapEnergized(t) { return this.pduOk(t.feed, t.row * 0 + (t.cols[0] >= 10 ? 1 : 0)) && t.on && t.alive; }
+  // Tripping a PDU's own main breaker kills its output; the line side and transformer stay live from upstream.
+  pduEnergized(p) { return this.upsOk(p.feed) && p.alive && !this.epo; }
+  // A tap-off box's breaker isolates its drop; the busway stabs inside it are live as long as the busway is.
+  tapEnergized(t) { return this.pduOk(t.feed, t.cols[0] >= 10 ? 1 : 0) && t.alive; }
   tapFor(rack, feed) { return this.S.G.world.taps.find(t => t.feed === feed && t.row === rack.row && t.cols.includes(rack.col)); }
   recompute() {
     const W = this.S.G.world; let n = 0; this.racksTotal = W.racks.length;
@@ -174,7 +178,7 @@ class Thermal {
     for (const f of S.fires) if (!f.out) it += 150 * f.intensity;
     this.itKW = it;
     const running = W.cracs.filter(c => c.alive && c.on && !P.epo); this.cracRunning = running.length; this.cracTotal = W.cracs.length;
-    const contain = Math.max(0.5, 1 - 0.06 * S.stats.glassBroken - 0.08 * this.doorOpen);
+    const contain = Math.max(0.5, 1 - 0.06 * S.stats.roofBroken - 0.08 * this.doorOpen);
     const tiles = Math.max(0.5, W.perfInPlace / W.perfTotal) * Math.max(0.5, 1 - 0.02 * W.holes);
     const capacity = running.length * THERMAL.cracKW * contain * tiles;
     const cool = this.inlet <= THERMAL.setpoint ? Math.min(capacity, it) : capacity;
@@ -221,14 +225,20 @@ class Suppression {
   constructor(S) { this.S = S; this.stage = 'normal'; this.countdown = 0; this.concentration = 0; this.supply = 1; this.discharging = 0; this.discharged = false; this.sprinklersArmed = false; this.strobe = 0; this.smoke = 0; }
   cylinderLost() { this.supply = Math.max(0, this.supply - 1 / 3); }
   vent(dt) { /* agent leaking from a rocketing cylinder */ this.concentration = Math.min(this.concentration + 0.02 * dt, 0.3); }
+  alarmPull() {
+    if (this.stage !== 'normal' && this.stage !== 'alert') { this.S.log('Fire panel already past that point.'); return; }
+    this.stage = 'action'; this.S.G.audio.setBeep(false); this.S.G.audio.setHorn(true);
+    this.S.log('Pull station: building alarm, horns and strobes, the fire brigade is dispatched. A pull station does not release the agent; the manual release by the cylinders does.', 'warn');
+  }
   manualPull() {
     if (this.stage === 'predischarge' || this.stage === 'discharging' || this.discharged) { this.S.log('Fire panel already past that point.'); return; }
-    this.stage = 'predischarge'; this.countdown = FIRE.preDischarge; this.sprinklersArmed = true;
-    this.S.log('Manual pull. Horns and strobes, and a 30-second pre-discharge delay you do not have the abort key for.', 'bad');
+    this.stage = 'predischarge'; this.countdown = FIRE.preDischarge; this.sprinklersArmed = true; this.S.G.audio.setBeep(false);
+    this.S.log('MANUAL RELEASE. Horns and strobes, and a 30-second pre-discharge delay you do not have the abort key for.', 'bad');
   }
   update(dt) {
     const S = this.S, W = S.G.world, au = S.G.audio, fx = S.G.fx;
     this.smoke = S.fires.reduce((a, f) => a + (f.out ? 0 : f.intensity), 0);
+    if (this.stage !== 'alert') au.setBeep(false);
     if (this.stage === 'normal' && this.smoke > FIRE.vesdaAlert) { this.stage = 'alert'; au.setBeep(true); S.log('VESDA: Alert. Aspirating smoke detection has picked up particulates well below visible smoke.', 'warn'); }
     if (this.stage === 'alert' && this.smoke > FIRE.vesdaAction) { this.stage = 'action'; au.setBeep(false); au.setHorn(true); S.log('VESDA: Action. Horns. Someone is supposed to walk the hall with an extinguisher now.', 'warn'); }
     if (this.stage === 'action' && this.smoke > 0.3) { this.stage = 'predischarge'; this.countdown = FIRE.preDischarge; this.sprinklersArmed = true; S.log('Fire 1: cross-zoned detection confirmed. Clean-agent pre-discharge: 30 seconds. Pre-action sprinkler pipe charging.', 'bad'); }
@@ -237,17 +247,17 @@ class Suppression {
       if (this.countdown <= 0) {
         this.stage = 'discharging'; this.discharging = FIRE.dischargeTime; this.discharged = true; S.stats.discharged = true;
         au.discharge(); fx.screenFlash('rgba(255,255,255,0.35)', 600);
-        S.ledger.add('agent', 'Clean-agent recharge (Novec 1230 / FM-200)', 1, COST.agentRecharge);
-        // acoustic shock: 130 dB nozzles vs. spinning hard drives
-        const drives = W.racks.filter(r => r.powered).reduce((a, r) => a + r.drives, 0); const dead = Math.round(drives * 0.12 * this.supply);
-        if (dead) { S.ledger.add('hdd', 'Hard drives killed by discharge noise (acoustic shock)', dead, dead * COST.hdd); S.stats.hdd = dead; }
-        S.log(`DISCHARGE. ${Math.round(this.supply * 100)}% of design concentration in 10 s. The nozzles scream at ~130 dB; ${dead.toLocaleString()} spinning drives just head-crashed. (Yes, this really happens.)`, 'bad');
+        S.ledger.add('agent', 'Inert-gas (IG-541) system recharge and inspection', 1, COST.agentRecharge);
+        // acoustic shock: ~130 dB nozzles vs. spinning hard drives (ING Bucharest, 2016; several other incidents since)
+        const drives = W.racks.filter(r => r.powered).reduce((a, r) => a + r.drives, 0); const dead = Math.round(drives * 0.03 * this.supply);
+        if (dead) { S.ledger.add('hdd', 'Hard drives failed by discharge noise (acoustic shock)', dead, dead * COST.hdd); S.stats.hdd = dead; }
+        S.log(`DISCHARGE. 300 bar inert gas through every nozzle for 60 seconds, ${Math.round(this.supply * 100)}% of design concentration. The nozzles scream at ~130 dB and ${dead.toLocaleString()} spinning drives just failed on vibration. (Yes, this really happens.)`, 'bad');
       }
     }
     if (this.stage === 'discharging') {
       this.discharging -= dt; this.concentration = Math.min(this.supply, this.concentration + this.supply / FIRE.dischargeTime * dt);
-      for (let i = 0; i < 6; i++) fx.agentFog(new THREE.Vector3((Math.random() - 0.5) * 24, 2.5 + Math.random(), (Math.random() - 0.5) * 14), 1);
-      if (this.discharging <= 0) { this.stage = 'discharged'; au.setHorn(false); S.log(this.supply >= 0.66 ? 'Agent concentration held. Fires out. Room must be sealed for a 10-minute hold.' : 'Discharge complete but concentration is below design: the system cannot hold the fire. Sprinklers are the last line.', this.supply >= 0.66 ? 'good' : 'bad'); }
+      for (let i = 0; i < 4; i++) fx.agentFog(new THREE.Vector3((Math.random() - 0.5) * 24, 2.5 + Math.random(), (Math.random() - 0.5) * 14), 1);
+      if (this.discharging <= 0) { this.stage = 'discharged'; au.setHorn(false); S.log(this.supply >= 0.99 ? 'Design concentration reached: oxygen is down to about 12.5%. Fires out. Room sealed for a 10-minute hold; you have a few minutes to leave.' : 'Discharge complete, but with a cylinder missing the room never reached design concentration. The fire keeps going. Sprinklers are the last line.', this.supply >= 0.99 ? 'good' : 'bad'); }
     }
     if (this.stage === 'discharged') this.concentration = Math.max(0, this.concentration - 0.0015 * dt);
     if (this.stage === 'discharged' && this.smoke > 0.6 && !this.lateWarn) { this.lateWarn = true; S.log('Fire re-flash after discharge. There is no second shot of agent. Waiting on sprinkler heads to fuse.', 'bad'); }
@@ -255,7 +265,8 @@ class Suppression {
     const alarm = this.stage === 'action' || this.stage === 'predischarge' || this.stage === 'discharging';
     this.strobe += dt;
     if (this.strobe > 0.5) { this.strobe = 0; this.flash = !this.flash; for (const i of W.strobes) W.kits.strobe.setLeds(i, alarm ? this.flash : true); }
-    S.G.setFog(0.012 + 0.22 * this.concentration + Math.min(0.08, this.smoke * 0.02));
+    // IG-541 is colourless: only the discharge itself throws a brief condensation mist, then the room looks normal again
+    S.G.setFog(0.012 + (this.stage === 'discharging' ? 0.07 : 0) + Math.min(0.08, this.smoke * 0.02));
   }
   label() {
     switch (this.stage) {
@@ -263,8 +274,8 @@ class Suppression {
       case 'alert': return { label: 'VESDA ALERT', cls: 'warn' };
       case 'action': return { label: 'VESDA ACTION — horns', cls: 'warn' };
       case 'predischarge': return { label: `PRE-DISCHARGE 0:${String(Math.ceil(Math.max(0, this.countdown))).padStart(2, '0')}`, cls: 'bad' };
-      case 'discharging': return { label: 'CLEAN AGENT DISCHARGING', cls: 'bad' };
-      default: return { label: this.supply >= 0.66 ? 'Discharged — agent spent' : 'Discharged — impaired, sprinklers armed', cls: 'warn' };
+      case 'discharging': return { label: `INERT GAS DISCHARGING ${Math.ceil(Math.max(0, this.discharging))}s`, cls: 'bad' };
+      default: return { label: this.supply >= 0.99 ? 'Discharged — agent spent' : 'Discharged — below design, sprinklers armed', cls: 'warn' };
     }
   }
 }

@@ -133,12 +133,12 @@ export class Player {
         if (h2 && this.G.ents.get(h2.collider.handle)?.kind === 'rack') { const toi = h2.timeOfImpact ?? h2.toi; a = { ent: this.G.ents.get(h2.collider.handle), point: new THREE.Vector3(this.ray.origin.x, this.ray.origin.y, this.ray.origin.z).addScaledVector(d, toi), dir: d, dist: a.dist + toi }; }
       }
       if (a?.ent?.kind === 'rack') {
-        if (a.ent.bolted) this.G.hud.prompt('Bolted down. Shear the anchors with the sledgehammer first.');
-        else { a.ent.body.applyImpulseAtPoint({ x: a.dir.x * 2800 * dt, y: 0, z: a.dir.z * 2800 * dt }, a.point, true); this.pushing = true; a.ent.dirty = true; }
+        if (a.ent.bolted) { this.pushing = true; this.pushHint = 'Bolted down. Shear the anchors with the sledgehammer first.'; }
+        else { a.ent.body.applyImpulseAtPoint({ x: a.dir.x * 2800 * dt, y: 0, z: a.dir.z * 2800 * dt }, a.point, true); this.pushing = true; this.pushHint = 'Pushing… (this shove is the one superhuman thing in here)'; a.ent.dirty = true; }
       } else if (a?.ent?.kind === 'loose') a.ent.body.applyImpulseAtPoint({ x: a.dir.x * 400 * dt, y: 0, z: a.dir.z * 400 * dt }, a.point, true);
     }
     // prompt
     if (!this.pushing) { const a = this.aim(3.0); this.G.hud.prompt(a?.ent ? this.G.world.promptFor(a.ent, a.point) : ''); }
-    else this.G.hud.prompt('Pushing…');
+    else this.G.hud.prompt(this.pushHint);
   }
 }

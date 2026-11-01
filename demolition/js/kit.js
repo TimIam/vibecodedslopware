@@ -21,9 +21,10 @@ function fixMaterials(root) {
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     for (const m of mats) {
       const n = m.name || '';
-      if (/perf/.test(n)) { m.transparent = false; m.alphaTest = 0.5; m.side = THREE.DoubleSide; m.depthWrite = true; }
+      // cutoff sits below each mask's mean alpha so a minified perforated sheet fades to a solid dark panel instead of vanishing
+      if (/perf/.test(n)) { m.transparent = false; m.alphaTest = /rack/.test(n) ? 0.3 : /gpu/.test(n) ? 0.4 : 0.5; m.side = THREE.DoubleSide; m.depthWrite = true; if (m.map) m.map.anisotropy = 8; }
       if (/glass/.test(n)) { m.transparent = true; m.opacity = 0.22; m.side = THREE.DoubleSide; m.depthWrite = false; }
-      if (/led|screen|lens/.test(n)) { m.toneMapped = false; }
+      if (/led|screen|lens/.test(n)) { m.emissiveIntensity = Math.max(m.emissiveIntensity || 1, 2.5); }
       m.envMapIntensity = 0.5;
     }
   });
@@ -43,14 +44,14 @@ export function firstPart(root) {
 }
 
 export class Kit {
-  constructor(meshes, capacity, scene, { shadow = true } = {}) {
+  constructor(meshes, capacity, scene, { shadow = true, cast = shadow } = {}) {
     this.capacity = capacity; this.next = 0; this.dirty = false;
-    this.ledOff = new Set();
+    this.ledOff = new Set(); this.touchedMin = Infinity; this.touchedMax = -1;
     this.prims = meshes.map(m => {
       const im = new THREE.InstancedMesh(m.geometry, m.material, capacity);
       im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       im.frustumCulled = false;
-      im.castShadow = shadow; im.receiveShadow = shadow;
+      im.castShadow = cast; im.receiveShadow = shadow;
       for (let i = 0; i < capacity; i++) im.setMatrixAt(i, ZERO);
       im.instanceMatrix.needsUpdate = true;
       scene.add(im);
@@ -59,23 +60,26 @@ export class Kit {
     });
   }
   alloc() { if (this.next >= this.capacity) throw new Error('kit full'); return this.next++; }
+  _touch(i) { if (i < this.touchedMin) this.touchedMin = i; if (i > this.touchedMax) this.touchedMax = i; this.dirty = true; }
   set(i, m4) {
     const off = this.ledOff.has(i);
     for (const p of this.prims) p.mesh.setMatrixAt(i, off && p.isLed ? ZERO : m4);
-    this.dirty = true;
+    this._touch(i);
   }
-  hide(i) { for (const p of this.prims) p.mesh.setMatrixAt(i, ZERO); this.dirty = true; }
+  hide(i) { for (const p of this.prims) p.mesh.setMatrixAt(i, ZERO); this._touch(i); }
   setLeds(i, on, m4) {
     if (on) this.ledOff.delete(i); else this.ledOff.add(i);
     if (m4) this.set(i, m4);
-    else for (const p of this.prims) if (p.isLed) { p.mesh.setMatrixAt(i, on ? this._peek(i) : ZERO); }
-    this.dirty = true;
+    else { const keep = this._peek(i); for (const p of this.prims) if (p.isLed) p.mesh.setMatrixAt(i, on ? keep : ZERO); }
+    this._touch(i);
   }
-  _peek(i) { const m = new THREE.Matrix4(); this.prims[0].mesh.getMatrixAt(i, m); return m; }
+  _peek(i) { let src = this.prims.find(p => !p.isLed) || this.prims[0]; const m = new THREE.Matrix4(); src.mesh.getMatrixAt(i, m); return m; }
+  /** upload only the touched slice of each instance buffer (a loose server should not re-send 2,000 matrices) */
   commit() {
     if (!this.dirty) return;
-    for (const p of this.prims) p.mesh.instanceMatrix.needsUpdate = true;
-    this.dirty = false;
+    const start = this.touchedMin * 16, count = (this.touchedMax - this.touchedMin + 1) * 16;
+    for (const p of this.prims) { const a = p.mesh.instanceMatrix; a.clearUpdateRanges(); a.addUpdateRange(start, count); a.needsUpdate = true; }
+    this.dirty = false; this.touchedMin = Infinity; this.touchedMax = -1;
   }
 }
 

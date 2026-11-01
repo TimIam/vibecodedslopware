@@ -192,9 +192,9 @@ def build_rack():
             fr.cyl((x, y, 0.01), 0.02, 0.02, M["rail"])                        # levelling feet
     fr.box((0, 0, H-0.015), (W, D, 0.03), M["rack_black"])                    # top panel
     fr.box((0, D/2-0.12, H-0.0301), (0.25, 0.1, 0.004), M["fan_dark"])        # top cable brush grommet
-    for x in (-0.2375, 0.2375):                                               # EIA 19" rails, front & rear
-        fr.box((x, -D/2+0.12, 0.1+1.867/2+0.02), (0.03, 0.004, 1.867), M["rail"])
-        fr.box((x,  D/2-0.20, 0.1+1.867/2+0.02), (0.03, 0.004, 1.867), M["rail"])
+    for x in (-0.2334, 0.2334):                                               # EIA-310 rails: 450.85 mm opening, ~16 mm flanges
+        fr.box((x, -D/2+0.12, 0.1+1.867/2+0.02), (0.016, 0.004, 1.867), M["rail"])
+        fr.box((x,  D/2-0.20, 0.1+1.867/2+0.02), (0.016, 0.004, 1.867), M["rail"])
     for y in (-D/2+0.12, D/2-0.20):                                           # rail cross braces
         fr.box((0, y, 0.11), (0.5, 0.02, 0.02), M["rack_black"]); fr.box((0, y, H-0.04), (0.5, 0.02, 0.02), M["rack_black"])
     fr.build("frame", c, bevel=0.003)

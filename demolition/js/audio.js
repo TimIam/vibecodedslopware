@@ -81,6 +81,7 @@ export class Audio {
     };
     if (on) cycle();
   }
+  stopAll() { for (const id of [...this.crackles.keys()]) this.fireCrackle(id, false); if (this.hum) this.hum.g.gain.setTargetAtTime(0.05, this.ctx.currentTime, 1.0); }
   /** keep a crackle loop per burning thing */
   fireCrackle(id, on) {
     if (!this.ctx) return;
