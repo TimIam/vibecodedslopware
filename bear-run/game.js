@@ -25,15 +25,16 @@ const SCREAM_COOLDOWN = 7;    // seconds between screams the chaser will listen 
 const SCREAM_FLINCH = 1.1;    // how long a scream stops the chaser
 const RIDES = {
   skis: { name: 'Skis', icon: '\u26f7\ufe0f', unlock: 0, kind: 'skis',
-    accel: 4.0, friction: 0.2, drag: 0.0055, dragTuck: 0.0038, tuck: 1.2, push: 4.5, pushMax: 15, stroke: true, plough: 6,
+    // Gravity along the slope, no more: ~83 km/h upright, ~100 tucked, ten seconds to get there.
+    accel: G_ALONG, friction: 0.35, drag: 0.0046, dragTuck: 0.0031, tuck: 0, canTuck: true, push: 4.5, pushMax: 10, stroke: true, plough: 6,
     fallSlip: 10, fallSpeed: 11, landSlip: 30, steer: 2.8, steerFade: 25, grip: 2.8, gripFade: 14, spin: 6.5, bodyR: 0.35, scrub: 1.5,
-    chase: { base: 18, cap: 30 }, pursuer: 'bear',
+    chase: { base: 15.5, cap: 25.5 }, pursuer: 'bear',
     blurb: 'Tap to carve. Hold a turn at speed and the skis slide 10\u00b0 off your line, and down you go.',
     controls: '<kbd>W</kbd> pole push \u00b7 <kbd>S</kbd> snowplough \u00b7 <kbd>Shift</kbd> tuck \u00b7 <kbd>E</kbd> scream' },
   snowboard: { name: 'Snowboard', icon: '\ud83c\udfc2', unlock: 2000, kind: 'board',
-    accel: 4.0, friction: 0.25, drag: 0.005, dragTuck: 0.0036, tuck: 1.0, push: 2.5, pushMax: 8, stroke: true, plough: 7,
+    accel: G_ALONG, friction: 0.35, drag: 0.0046, dragTuck: 0.0031, tuck: 0, canTuck: true, push: 2.5, pushMax: 8, stroke: true, plough: 7,
     fallSlip: 14, fallSpeed: 9, landSlip: 40, steer: 3.4, steerFade: 22, grip: 3.0, gripFade: 16, spin: 8.5, bodyR: 0.35, scrub: 0.7,
-    chase: { base: 18, cap: 30 }, pursuer: 'bear',
+    chase: { base: 15.5, cap: 25.5 }, pursuer: 'bear',
     blurb: 'Quicker spins and an edge that holds, until it catches: 14\u00b0 off your line above 32 km/h and you eat snow.',
     controls: '<kbd>W</kbd> skate push \u00b7 <kbd>S</kbd> heel-side scrub \u00b7 <kbd>Shift</kbd> tuck \u00b7 <kbd>E</kbd> scream' },
   snowmobile: { name: 'Snowmobile', icon: '\ud83d\udef7', unlock: 5000, kind: 'sled',
@@ -866,7 +867,7 @@ function step(dt, t) {
     const steerRate = V.steer / (1 + p.v / V.steerFade), grip = V.grip / (1 + p.v / V.gripFade);
     if (inp.steer) p.heading += inp.steer * steerRate * dt;
     else p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 2.0 * dt); // skis settle into the travel line
-    if ((inp.tuck && V.tuck) || inp.plough) p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 4 * dt); // a tuck or a plough lines you up
+    if ((inp.tuck && V.canTuck) || inp.plough) p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 4 * dt); // a tuck or a plough lines you up
     if (p.v < 1) p.vdir = p.heading;
     else {
       const d = wrapAngle(p.heading - p.vdir);
@@ -883,7 +884,7 @@ function step(dt, t) {
   }
   if (p.crashT <= 0) {
     let acc;
-    const tuck = inp.tuck && V.tuck > 0;
+    const tuck = inp.tuck && V.canTuck;
     if (p.air) acc = -V.drag * p.v * p.v * 0.5;
     else {
       acc = V.accel * Math.cos(p.vdir) + (tuck ? V.tuck : 0) - V.friction - (tuck ? V.dragTuck : V.drag) * p.v * p.v;
@@ -1092,7 +1093,7 @@ function poseSkier(dt) {
     body.position.y = -0.1 * k;
     ud.skis.rotation.set(0, k * 0.8, 0);
   } else {
-    const tuck = inp.tuck && V.tuck > 0 && !p.air ? 1 : 0;
+    const tuck = inp.tuck && V.canTuck && !p.air ? 1 : 0;
     const bend = screamT > 0 ? 0.3 : tuck ? -0.45 : p.plough > 0.5 ? -0.3 : -0.12;
     body.rotation.x += (bend - body.rotation.x) * Math.min(1, dt * 8);
     body.rotation.x -= 0.5 * strokeK; // the push: drive forward and down over the poles
