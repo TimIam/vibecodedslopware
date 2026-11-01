@@ -1,0 +1,12 @@
+/* Fonts used by the game's text (see js/core/qd.js FONT_NAMES / CSS_FONT).
+   The original used the classic Mac bitmap fonts:
+     Chicago 12          system font: dialogs, buttons, Options, menus
+     Geneva 9            message balloons (signs, coworkers)
+     Helvetica 9 / 9 bold   HUD room name + caption, inventory counts, main-menu licence line
+     Helvetica 27 bold, 11  level-intro title and subtitle
+   To swap in a different font, change the src of the matching face below.
+   (Geneva-web.ttf is the supplied GENEVA.TTF re-saved with fontTools: Chrome rejected its cmap table.) */
+@font-face { font-family: 'HarryChicago'; src: url('ChicagoFLF.ttf') format('truetype'); }
+@font-face { font-family: 'HarryGeneva'; src: url('Geneva-web.ttf') format('truetype'); }
+@font-face { font-family: 'HarryHelvetica'; src: local('Helvetica'), local('Helvetica Neue'), local('Arial'); }
+@font-face { font-family: 'HarryHelvetica'; font-weight: bold; src: local('Helvetica Bold'), local('Helvetica-Bold'), local('Arial Bold'), local('Arial-BoldMT'); }
