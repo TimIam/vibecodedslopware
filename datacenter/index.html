@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>UPTIME — Garage to Hyperscale</title>
+<meta name="description" content="A 3D data-center idle game. One Craigslist rack and your mother's electricity, then a glowing hyperscale campus. Power, cooling and network take turns being the problem.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="UPTIME — Garage to Hyperscale">
+<meta property="og:description" content="A 3D data-center idle game: the hall filling with lit racks is the progress bar. Three meters, a contract board, incidents you tap in the hall, and an Exit at $1,000,000.">
+<meta property="og:site_name" content="Vibe Coded Slopware">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#07090f">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖥️</text></svg>">
+<link rel="stylesheet" href="/site-nav.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+} }
+</script>
+<style>
+/* §15 palette as tokens; §17 house glass panels (bonsai-idle).
+   Two layouts. The base rules are the phone layout (bottom sheet, compact top bar, --layout:sheet). The "side" layout
+   (right panel, --layout:side) applies at >= 900px wide and on narrow landscape screens (a phone on its side), see
+   the media queries at the end; the JS reads --layout instead of guessing from the width. */
+:root{
+  --nav:52px;--bg:#07090f;--panel:rgba(10,14,22,.6);--panel2:rgba(14,19,30,.82);--line:rgba(255,255,255,.1);
+  --fg:#e8edf5;--dim:#8d97a8;--green:#58ff9a;--amber:#ffb347;--red:#ff4d4d;--cyan:#45e6ff;--gold:#ffd166;
+  --magenta:#ff5fd2;--ice:#cfe9ff;--cold:#3b7bff;--hot:#ff6a3b;
+  --sheet:30vh;--ticker:22px;--side:360px;--topH:110px; /* --sheet: keep in step with SHEET_VH in ui_sheet.js */
+  --safe:env(safe-area-inset-bottom,0px);--bot:calc(var(--ticker) + var(--safe)); /* the ticker plus the home indicator */
+  --layout:sheet; /* where the shop is: 'sheet' (bottom) or 'side' (right panel) */
+  --phone:1;      /* 1 under 900 px wide (compact cards, the Refresh hint in the sheet head), 0 on desktop */
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--fg);
+  font:13px/1.35 Inter,"Segoe UI",system-ui,-apple-system,sans-serif;font-variant-numeric:tabular-nums;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:disabled{cursor:default}
+#c{position:fixed;left:0;top:var(--nav);width:100%;height:calc(100% - var(--nav));display:block;background:var(--bg);touch-action:none;cursor:grab}
+#c:active{cursor:grabbing}
+.panel{background:var(--panel);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+#hud{position:fixed;left:0;right:0;top:var(--nav);bottom:0;pointer-events:none;z-index:5}
+#hud>*{pointer-events:auto}
+/* read-only layers let taps through to the hall; only their buttons catch (§17: a rack frame stays tappable) */
+#hud>#left,#hud>#centre,#hud>#toasts,#hud>#cards,#hud>#banner,#hud>#pops,#hud>#breaker{pointer-events:none}
+#leftToggle,#centre>*,#toasts .btn,#cards .btn,#banner .btn{pointer-events:auto}
+/* iOS: a second tap inside 300 ms must not zoom (badge tap-again, Hustle, repeated buys) */
+#hud button,#hud .row,#hud .chip,.offer .take{touch-action:manipulation}
+body.photo #hud,body.photo .site-topbar{visibility:hidden}
+
+/* ---- top bar (phone: cash / valuation line / three compact meters / contract chips) ---- */
+#top{position:absolute;left:8px;right:8px;top:8px;padding:8px 10px;display:grid;gap:5px 10px;grid-template-columns:1fr auto;grid-template-areas:"cash right" "val right" "meters meters" "chips chips";align-items:center}
+/* one line, never wraps: the panel height (--topH) must not move the goals chip and the toasts onto the hall */
+#cashrow{grid-area:cash;display:flex;flex-wrap:nowrap;align-items:center;gap:4px 10px;align-self:end;min-width:0;min-height:28px}
+#cash{font-size:28px;font-weight:700;letter-spacing:.2px;line-height:1;white-space:nowrap}
+#rate{color:var(--green);font-size:12.5px;white-space:nowrap}
+/* phone: "dim 73%" is the one element allowed to shrink; direction:rtl puts the ellipsis at its START, so a 7-character
+   cash figure costs the label its word, never its number ("…73%", not "dimmed…") */
+#dim{color:var(--amber);font-size:11.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
+#dim:empty{display:none}
+#topright{grid-area:right;display:flex;align-items:center;gap:6px;align-self:start;flex:none}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.05);font-size:12px;white-space:nowrap}
+#uptime.good{color:var(--green)} #uptime.warn{color:var(--amber)} #uptime.bad{color:var(--red)}
+.icon{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.05);font-size:18px;display:inline-flex;align-items:center;justify-content:center}
+.icon:hover{background:rgba(255,255,255,.12)}
+/* phone: the "$X → Exit at $Y" text sits on the valuation track itself (one 15 px line instead of two) */
+#valrow{grid-area:val;position:relative;display:grid;grid-template-columns:1fr;align-items:center;align-self:start;font-size:10.5px;color:var(--dim)}
+.track{position:relative;height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+.track i{position:absolute;left:0;top:0;bottom:0;width:100%;border-radius:3px;transform-origin:0 50%;transform:scaleX(0);background:var(--cyan)}
+#valrow .track{height:15px;border-radius:8px}
+#valrow .track i{opacity:.45}
+#valtext{position:absolute;left:8px;right:8px;top:0;line-height:15px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 0 4px #000,0 0 2px #000}
+#meters{grid-area:meters;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+/* phone meter: label + number, the bar is the chip's bottom edge; 44 px is the §17 tap floor (the meters are buttons) */
+.meter{position:relative;overflow:hidden;display:grid;grid-template-columns:1fr;gap:2px;min-height:44px;padding:5px 6px 7px;border-radius:10px;border:1px solid transparent;background:rgba(255,255,255,.04);text-align:left;color:var(--fg)}
+.meter:hover{background:rgba(255,255,255,.09)}
+.meter .ml{font-size:10.5px;line-height:1.2;color:var(--dim);display:flex;justify-content:space-between}
+.meter .mv{font-size:11px;line-height:1.2;white-space:nowrap}
+.meter .track{position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:0}
+.meter.green .track i{background:var(--green)} .meter.amber .track i{background:var(--amber)} .meter.red .track i{background:var(--red)}
+.meter.red .mv{color:var(--red)} .meter.amber .mv{color:var(--amber)}
+.meter.red{border-color:rgba(255,77,77,.5);animation:redpulse 1s ease-in-out infinite alternate}
+@keyframes redpulse{from{box-shadow:0 0 0 rgba(255,77,77,0)}to{box-shadow:0 0 10px rgba(255,77,77,.4)}}
+/* contract chips: one scrolling line on phones (the 3D view keeps its height), a wrapping cluster on desktop */
+#chips{grid-area:chips;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;margin-top:-2px}
+#chips::-webkit-scrollbar{display:none}
+#chips:empty{display:none}
+.con{position:relative;display:inline-flex;align-items:center;gap:6px;padding:3px 9px 3px 4px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.05);font-size:11.5px;white-space:nowrap}
+.con .ring{width:18px;height:18px;border-radius:50%;background:conic-gradient(var(--cyan) calc(var(--p)*1turn),rgba(255,255,255,.1) 0);position:relative}
+.con .ring::after{content:"";position:absolute;inset:4px;border-radius:50%;background:#0c111b}
+.con .sla{font-size:10.5px;color:var(--dim);white-space:nowrap}
+.con.miss{border-color:rgba(255,77,77,.5)} .con.miss .sla{color:var(--red)} .con.ok .sla{color:var(--green)}
+/* mitigations and staff owned: a ringless chip in the same row (ui.js guardChips) */
+.guard{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.05);font-size:11.5px;white-space:nowrap;color:var(--dim)}
+
+/* ---- left: goals + toast log ---- */
+#left{position:absolute;left:8px;top:calc(var(--topH) + 16px);width:232px;display:flex;flex-direction:column;gap:6px;max-width:calc(100% - 16px)}
+body.eventOn #left{top:calc(var(--topH) + 72px)} /* under the event toast */
+#leftToggle{align-self:flex-start;padding:4px 10px;min-height:28px;position:relative}
+#leftToggle::before{content:"";position:absolute;inset:-8px -6px}  /* 44 px hit area on a 28 px chip */
+#goals{display:flex;flex-direction:column;gap:6px}
+.goal{padding:7px 10px;font-size:12px}
+.goal b{display:block;font-size:12.5px}
+.goal span{color:var(--dim);font-size:11px}
+#log{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--dim);padding:0 2px}
+#log div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#log .good{color:var(--green)} #log .event{color:var(--amber)} #log .incident{color:var(--amber)}
+body.leftCollapsed #goals,body.leftCollapsed #log{display:none}
+#leftToggle{max-width:calc(100vw - 16px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+
+/* ---- bottom centre: hustle + incident badge ---- */
+/* the row rides on the sheet but can never climb over the top panel or the event toast, even mid-drag (ui_sheet.js
+   caps the tall snap to leave it room too) */
+#centre{position:absolute;left:50%;bottom:min(calc(var(--bot) + var(--sheet) + 10px),calc(100% - var(--topH) - 60px));transform:translateX(-50%);display:flex;gap:10px;align-items:center}
+body.eventOn #centre{bottom:min(calc(var(--bot) + var(--sheet) + 10px),calc(100% - var(--topH) - 118px))}
+#hustle{min-height:48px;padding:0 18px;border-radius:999px;border:1px solid rgba(69,230,255,.6);background:rgba(69,230,255,.14);font-weight:600;font-size:14px;white-space:nowrap}
+#hustle.pulse{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(69,230,255,0);background:rgba(69,230,255,.14)}50%{box-shadow:0 0 18px 3px rgba(69,230,255,.5);background:rgba(69,230,255,.3)}}
+#badge{position:relative;min-width:48px;min-height:48px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,179,71,.7);background:rgba(255,179,71,.16);font-weight:700;font-size:14px;color:var(--amber);display:inline-flex;align-items:center;gap:6px}
+#badge .ring{width:22px;height:22px;border-radius:50%;background:conic-gradient(var(--amber) calc(var(--p)*1turn),rgba(255,255,255,.12) 0);position:relative}
+#badge .ring::after{content:"";position:absolute;inset:5px;border-radius:50%;background:#1a140a}
+#badge.focused{box-shadow:0 0 14px rgba(255,179,71,.5)}
+#badge.dark{border-color:rgba(255,77,77,.7);color:var(--red)}
+/* the Refresh hint is a line in the sheet head, under the title and the ×1 / ×10 / Max toggle it refers to, in both
+   layouts: a pill over the hall sat on the front row's lower slots, exactly where the player is asked to tap */
+#refreshHint{flex-basis:100%;order:3;padding:0 0 2px;font-size:11px;color:var(--cyan)}
+
+/* ---- toasts / event toast / cards / banners ---- */
+/* phone: the toast column is docked at the bottom of the 3D band, above Hustle / the badge; a milestone card is a
+   one-line strip there. Everything lets taps through to the hall; only buttons catch. */
+#toasts{position:absolute;left:50%;bottom:calc(var(--bot) + var(--sheet) + 64px);transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;align-items:center;width:min(92%,420px)}
+#toasts .card{width:100%;animation:cardin .35s cubic-bezier(.2,.9,.3,1.2)}
+.toast{padding:7px 12px;font-size:12.5px;max-width:100%;text-align:center;animation:toastin .3s ease-out;transition:opacity .4s}
+.toast.out{opacity:0}
+.toast.good{border-color:rgba(88,255,154,.4)} .toast.event{border-color:rgba(255,179,71,.5)} .toast.incident{border-color:rgba(255,179,71,.5);color:var(--amber)}
+@keyframes toastin{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+/* phone: one 50 px line directly under the top panel */
+#eventToast{position:absolute;left:50%;top:calc(var(--topH) + 10px);transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:3px 6px;width:min(94%,460px);border-color:rgba(255,179,71,.5)}
+#eventToast .ring{flex:none;width:22px;height:22px;border-radius:50%;background:conic-gradient(var(--amber) calc(var(--p)*1turn),rgba(255,255,255,.12) 0);position:relative}
+#eventToast .ring::after{content:"";position:absolute;inset:5px;border-radius:50%;background:#0c111b}
+#eventToast .et{flex:1;font-size:12px;line-height:1.25}
+#eventToast .fix{min-width:44px;min-height:44px;padding:0 12px;border-radius:10px;border:1px solid rgba(255,179,71,.7);background:rgba(255,179,71,.18);color:var(--amber);font-weight:600;white-space:nowrap}
+#eventToast.bonus{border-color:rgba(88,255,154,.5)}
+#eventToast.bonus .ring{background:conic-gradient(var(--green) calc(var(--p)*1turn),rgba(255,255,255,.12) 0)}
+/* #cards is the centre of the 3D band (below the goals chip): the offline-return card everywhere, milestone cards on desktop */
+#cards{position:absolute;left:0;right:0;top:calc(var(--topH) + 48px);bottom:calc(var(--bot) + var(--sheet));display:flex;align-items:center;justify-content:center}
+#cards:empty{display:none}
+.card{width:min(360px,calc(100% - 32px));padding:18px 20px;text-align:center;animation:cardin .35s cubic-bezier(.2,.9,.3,1.2)}
+.card .kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.card h2{margin:4px 0 6px;font-size:22px;line-height:1.15}
+.card p{margin:6px 0 12px;color:var(--dim);font-size:13px}
+.card .big{font-size:30px;font-weight:700;color:var(--green);margin:4px 0}
+.card .actions{display:flex;gap:8px;justify-content:center}
+.card.milestone{border-color:rgba(255,209,102,.5);box-shadow:0 0 40px rgba(255,209,102,.18)}
+.card.milestone h2{color:var(--gold)}
+/* phone: a milestone card is a one-line strip (name + buttons); the text lives in the log */
+.card.milestone{display:flex;gap:8px;align-items:center;padding:3px 6px 3px 12px;text-align:left}
+.card.milestone .kicker,.card.milestone p{display:none}
+.card.milestone h2{flex:1;margin:0;font-size:14px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card.milestone h2::before{content:"+1% · ";color:var(--dim);font-weight:500;font-size:11px}
+.card.milestone .actions{flex:none;gap:6px}
+.card.milestone .btn{min-height:44px;padding:0 14px}
+@keyframes cardin{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
+.btn{min-height:44px;padding:0 16px;border-radius:11px;border:1px solid var(--line);background:rgba(255,255,255,.08);color:var(--fg);font-weight:600}
+.btn:hover:not(:disabled){background:rgba(255,255,255,.14)}
+.btn:disabled{opacity:.45}
+.btn.danger{border-color:rgba(255,77,77,.5)} .btn.primary{border-color:rgba(69,230,255,.6);background:rgba(69,230,255,.14)}
+/* phone: the banner sits under the goals chip; the toast column hides while it is up (ui_cards re-queues cards after) */
+#banner{position:absolute;left:50%;top:calc(var(--topH) + 50px);transform:translateX(-50%);padding:14px 22px;text-align:center;width:min(520px,calc(100% - 32px));border-color:rgba(255,209,102,.5);animation:cardin .4s ease-out}
+body.eventOn #banner{top:calc(var(--topH) + 106px)} /* under the event toast and the goals chip */
+#banner h2{margin:0;font-size:24px;color:var(--gold);line-height:1.15}
+#banner p{margin:6px 0 0;color:var(--dim)}
+#banner .actions{display:flex;gap:8px;justify-content:center;margin-top:10px}
+#banner .actions:empty{display:none}
+body.bannerOn #toasts{visibility:hidden}
+/* phone, sheet dragged to its tall snap: the toast column would sit on the top panel, so it hides (the log keeps the
+   text; ui_cards holds milestone strips until the sheet comes down) and the centre card may use the whole height */
+body.sheetTall #toasts,body.sheetTall #left{visibility:hidden} /* the goals chip would sit under the Hustle row */
+body.sheetTall #cards{bottom:var(--bot)}
+/* the BREAKER overlay and a centre card share the hall centre: no card draws under the blackout text */
+body.breakerOn #cards,body.breakerOn #toasts .card{visibility:hidden}
+/* the settings sheet covers the centre card (and, on phones, the strip): ui.js sets the class, ui_cards holds the card
+   and its auto-hide until the sheet closes */
+body.settingsOn #cards,body.settingsOn #toasts .card{visibility:hidden}
+/* phone: the overlay covers the 3D band only, not the sheet and the Hustle button */
+#breaker{position:absolute;left:0;right:0;top:0;bottom:calc(var(--bot) + var(--sheet));display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55)}
+#breaker b{font-size:min(11vw,48px);letter-spacing:.2em;color:#fff;text-shadow:0 0 30px rgba(255,255,255,.6);animation:flicker .5s steps(2) infinite}
+#breaker small{position:absolute;bottom:50%;margin-bottom:-52px;color:var(--dim);font-size:13px}
+@keyframes flicker{50%{opacity:.4}}
+#tip{position:fixed;z-index:9;max-width:260px;padding:6px 10px;font-size:12px;border-radius:9px;pointer-events:none}
+#tip .ov{color:var(--amber);display:block;margin-top:3px;white-space:pre-line} /* one line per reason (lock, overdraw, PUE) */
+
+/* ---- money pops ---- */
+#pops{position:absolute;inset:0;overflow:hidden}
+.pop{position:absolute;transform:translate(-50%,-50%);font-weight:700;font-size:14px;color:var(--green);text-shadow:0 1px 3px #000;opacity:0;will-change:transform,opacity}
+.pop.on{animation:popup 1.1s ease-out forwards}
+.pop.gold{color:var(--gold)} .pop.cyan{color:var(--cyan)}
+@keyframes popup{0%{opacity:0;transform:translate(-50%,-30%) scale(.8)}15%{opacity:1;transform:translate(-50%,-60%) scale(1)}100%{opacity:0;transform:translate(-50%,-170%) scale(1)}}
+
+/* ---- bottom sheet / right panel ---- */
+#sheet{position:absolute;left:0;right:0;bottom:var(--bot);height:var(--sheet);border-radius:14px 14px 0 0;display:flex;flex-direction:column;background:var(--panel2);transition:height .25s ease}
+#sheet.dragging{transition:none}
+#handle{flex:none;height:22px;display:flex;align-items:center;justify-content:center;cursor:ns-resize;touch-action:none;position:relative;z-index:1}
+#handle::before{content:"";width:44px;height:4px;border-radius:2px;background:rgba(255,255,255,.25)}
+/* a 44 px grab zone on the 22 px strip: 12 px over the sheet's top edge, 10 px over the tab row (hence the z-index) */
+#handle::after{content:"";position:absolute;left:0;right:0;top:-12px;bottom:-10px}
+#tabs{flex:none;display:flex;gap:2px;padding:0 6px}
+#tabs button{flex:1;min-height:44px;padding:12px 4px 0;border:0;border-radius:10px;background:transparent;color:var(--dim);font-weight:600;font-size:12.5px;position:relative}
+#tabs button.on{background:rgba(255,255,255,.08);color:var(--fg)}
+#tabs button .n{position:absolute;top:3px;right:4px;min-width:15px;max-width:46px;height:15px;border-radius:8px;background:var(--green);color:#03150a;font-size:9.5px;line-height:15px;text-align:center;padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#tabs button .n:empty{display:none}
+#tabs button.glow{color:var(--gold);text-shadow:0 0 10px rgba(255,209,102,.7)}
+#sheetHead{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:0 8px;padding:2px 10px;font-size:12px;color:var(--dim)}
+#qty{margin-left:auto;display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+#qty button{min-width:44px;min-height:44px;border:0;background:transparent;color:var(--dim);font-weight:600;font-size:12px}
+#qty button.on{background:rgba(255,255,255,.12);color:var(--fg)}
+#rows{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:4px 8px 12px;display:flex;flex-direction:column;gap:6px;-webkit-overflow-scrolling:touch}
+/* a tab taller than the panel scrolls; its rows never shrink (a shrunk row drew its "will overdraw" line under its border) */
+#rows>*{flex:none}
+#rows h4{margin:8px 2px 0;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.row{display:grid;grid-template-columns:1fr auto;gap:1px 10px;align-items:center;width:100%;min-height:48px;padding:8px 10px 9px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.04);color:var(--fg);text-align:left;position:relative;transition:border-color .2s,box-shadow .2s}
+.row:hover:not(.locked){background:rgba(255,255,255,.09)}
+.row .rn{font-weight:600;font-size:13px}
+.row .rn b{font-weight:500;color:var(--dim);margin-left:6px;font-size:11px}
+.row .rc{white-space:nowrap;text-align:right;font-size:13px}
+.row .rd{grid-column:1/3;font-size:11px;color:var(--dim);min-height:1em}
+.row .rd:empty,.row .rl:empty{display:none}
+.row .rl{grid-column:1/3;font-size:11px;line-height:1.3;color:var(--dim)}
+.row.can{border-color:rgba(88,255,154,.55);box-shadow:0 0 12px rgba(88,255,154,.16)}
+.row.can .rc{color:var(--green)}
+.row.over{border-color:rgba(255,179,71,.65)} .row.over .rc{color:var(--amber)} .row.over .rl{color:var(--amber)}
+.row.locked{opacity:.45}
+.row.hl{outline:2px solid var(--cyan);outline-offset:-1px} .row.hl.best{outline-color:var(--gold)}
+.row .tag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:6px;font-size:10px;font-weight:600;line-height:16px;vertical-align:middle}
+.row .tag.cheap{background:rgba(69,230,255,.2);color:var(--cyan)} .row .tag.best{background:rgba(255,209,102,.22);color:var(--gold)}
+/* contracts */
+.offer{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.04)}
+.offer .on{font-weight:600}
+.offer .on b{color:var(--gold);margin-left:6px}
+.offer .fx{grid-column:1/3;display:flex;gap:6px;flex-wrap:wrap;font-size:11px;color:var(--dim)}
+.offer .fx span.up{color:var(--amber)} .offer .fx span.down{color:var(--green)}
+.offer .line{grid-column:1/3;font-size:11px;color:var(--dim);font-style:italic}
+.offer .take{grid-row:1;grid-column:2;min-height:44px;padding:0 14px;border-radius:10px;border:1px solid rgba(88,255,154,.5);background:rgba(88,255,154,.12);color:var(--green);font-weight:600}
+.offer .take:disabled{opacity:.4}
+.offer.over .take{border-color:rgba(255,179,71,.65);color:var(--amber);background:rgba(255,179,71,.12)}
+.slot{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px dashed var(--line);border-radius:10px;font-size:12px;color:var(--dim);min-height:44px}
+.slot.active{border-style:solid;color:var(--fg)}
+.slot .ring{flex:none;width:20px;height:20px;border-radius:50%;background:conic-gradient(var(--cyan) calc(var(--p)*1turn),rgba(255,255,255,.1) 0);position:relative}
+.slot .ring::after{content:"";position:absolute;inset:4px;border-radius:50%;background:#0c111b}
+.slot .term{margin-left:auto;color:var(--dim);font-size:11px;white-space:nowrap}
+.slot .sla{font-size:11px} .slot.miss .sla{color:var(--red)} .slot.ok .sla{color:var(--green)}
+/* exit */
+.exit{padding:10px 12px;display:flex;flex-direction:column;gap:6px} /* four rows + the button fit a 30vh sheet on a 844 px phone */
+.exit .kv{display:flex;justify-content:space-between;font-size:12.5px}
+.exit .kv span:last-child{font-weight:600}
+.exit .perks{font-size:11.5px;color:var(--dim)}
+.exit .perks li{margin:2px 0}
+.exit .note{font-size:11.5px;color:var(--dim);font-style:italic}
+/* phone: the one action sticks to the bottom of the short sheet (opaque, since it rides over the rows while stuck);
+   desktop undoes this below */
+#exitBtn{position:sticky;bottom:0;z-index:1;overflow:hidden;min-height:52px;font-size:15px;border-radius:12px;border:1px solid var(--line);background:#161c2a;color:var(--dim)}
+#hud #exitBtn{touch-action:none} /* hold-to-confirm, outranks the manipulation rule above */
+#exitBtn.avail{color:var(--fg);border-color:rgba(255,209,102,.4)}
+#exitBtn.glow{color:var(--gold);border-color:rgba(255,209,102,.8);box-shadow:0 0 22px rgba(255,209,102,.35);animation:exitglow 1.6s ease-in-out infinite alternate}
+@keyframes exitglow{to{box-shadow:0 0 34px rgba(255,209,102,.6)}}
+#exitBtn i{position:absolute;left:0;top:0;bottom:0;width:100%;transform-origin:0 50%;transform:scaleX(var(--p,0));background:rgba(255,209,102,.3);pointer-events:none}
+#exitBtn span{position:relative}
+.empty{padding:14px 10px;color:var(--dim);font-size:12.5px;text-align:center}
+
+/* ---- ticker (grows into the home-indicator inset on notched phones) ---- */
+#ticker{position:absolute;left:0;right:0;bottom:0;height:var(--bot);padding-bottom:var(--safe);background:#05070c;border-top:1px solid var(--line);overflow:hidden;font-size:14px;line-height:21px;white-space:nowrap}
+#tickerText{position:absolute;left:0;top:0;will-change:transform;color:#c9d3e3;padding:0 8px}
+#tickerText b{color:var(--gold);font-weight:600}
+
+/* ---- settings sheet ---- */
+#settings{position:absolute;right:8px;top:8px;width:min(340px,calc(100% - 16px));padding:14px;background:var(--panel2);display:flex;flex-direction:column;gap:10px;max-height:calc(100% - 16px);overflow:auto}
+#settings h3{margin:0;font-size:15px;display:flex;justify-content:space-between;align-items:center}
+#settings .srow{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:44px}
+#settings textarea{width:100%;min-height:64px;background:rgba(0,0,0,.35);color:var(--fg);border:1px solid var(--line);border-radius:9px;padding:8px;font:11px/1.3 ui-monospace,Consolas,monospace;resize:vertical;user-select:text;-webkit-user-select:text}
+#settings .muted{color:var(--dim);font-size:11.5px}
+.switch{min-width:56px;min-height:32px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.08);position:relative}
+.switch::before{content:"";position:absolute;inset:-6px -4px}  /* 44 px hit area on a 32 px switch */
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--dim);transition:transform .2s,background .2s}
+.switch.on{background:rgba(88,255,154,.2);border-color:rgba(88,255,154,.5)}
+.switch.on::after{transform:translateX(24px);background:var(--green)}
+
+/* ---- side layout: desktop, and a phone on its side (600-899 px wide, landscape) ---- */
+@media (min-width:900px),(min-width:600px) and (max-width:899px) and (orientation:landscape){
+  :root{--layout:side}
+  #c{width:calc(100% - var(--side))}
+  #top{right:calc(var(--side) + 8px)}
+  #centre,body.eventOn #centre{left:calc((100% - var(--side)) / 2);bottom:calc(var(--bot) + 14px)}
+  #sheet{top:0;bottom:var(--bot);left:auto;right:0;width:var(--side);height:auto;border-radius:0;border-width:0 0 0 1px}
+  #handle{display:none}
+  #ticker{right:var(--side)}
+  #toasts,#eventToast{left:calc((100% - var(--side)) / 2);top:calc(var(--topH) + 16px);bottom:auto}
+  body.eventOn #left{top:calc(var(--topH) + 80px)}
+  #eventToast{padding:6px 10px 6px 8px;gap:10px}
+  #eventToast .ring{width:30px;height:30px} #eventToast .ring::after{inset:6px}
+  #eventToast .et{font-size:12.5px}
+  body.eventOn #toasts{top:calc(var(--topH) + 76px)}
+  #cards{right:var(--side);top:0;bottom:var(--bot)}
+  /* 440 px clears the expanded goals column at 1280; under 1180 the column starts collapsed (ui.js) and the banner
+     stays below its chip */
+  #banner{left:calc((100% - var(--side)) / 2);top:max(22%,calc(var(--topH) + 52px));width:min(440px,calc(100% - var(--side) - 32px))}
+  body.eventOn #banner{top:max(22%,calc(var(--topH) + 52px))}
+  /* the toast column and the centre card step below the banner instead of under it */
+  body.bannerOn #toasts{visibility:visible;top:max(calc(22% + 130px),calc(var(--topH) + 182px))}
+  body.bannerOn #cards{top:max(calc(22% + 150px),calc(var(--topH) + 202px))}
+  #breaker{right:var(--side);bottom:0}
+  #settings{right:calc(var(--side) + 8px)}
+}
+/* a phone on its side: a 300 px panel, the top bar on one row (cash | meters | uptime + gear), the toast column docked
+   above the Hustle row as in portrait, so the short hall band stays clear */
+@media (min-width:600px) and (max-width:899px) and (orientation:landscape){
+  :root{--side:300px}
+  #top{grid-template-columns:auto 1fr auto;grid-template-areas:"cash meters right" "val val val" "chips chips chips";column-gap:8px;row-gap:4px}
+  #cashrow{flex-direction:column;align-items:flex-start;gap:0;min-height:0;align-self:center}
+  #toasts{top:auto;bottom:calc(var(--bot) + 70px)}
+  body.eventOn #toasts{top:auto}
+  body.bannerOn #toasts{top:auto;visibility:hidden}
+  #banner{top:calc(var(--topH) + 12px)}
+  body.eventOn #banner{top:calc(var(--topH) + 80px)}
+  body.bannerOn #left{visibility:hidden} /* a 150 px band cannot hold the goals chip and a banner */
+  #cards{top:calc(var(--topH) + 12px)}
+}
+/* ---- desktop: top bar on one row (cash | meters | chips | uptime + gear), full milestone card heading the empty
+   upper third of the hall (centred, it sat on the front rows and the incident beacons on the rack tops) ---- */
+@media (min-width:900px){
+  :root{--phone:0}
+  #top{padding:8px 12px;grid-template-columns:auto 1fr auto auto;grid-template-areas:"cash meters chips right" "val meters chips right";column-gap:16px;row-gap:6px;align-items:center}
+  #cards{align-items:flex-start;padding-top:calc(var(--topH) + 56px)}
+  .card.offline{align-self:center} /* the return card keeps the centre everywhere (§17) */
+  body.bannerOn #cards{padding-top:0} /* already stepped below the banner by the side-layout rule */
+  #breaker b{font-size:min(14vw,72px)} #breaker small{margin-bottom:-70px}
+  .card.milestone{display:block;padding:18px 20px;text-align:center}
+  .card.milestone .kicker{display:block} .card.milestone p{display:block}
+  .card.milestone h2{margin:4px 0 6px;font-size:22px;line-height:1.15;white-space:normal;overflow:visible}
+  .card.milestone h2::before{content:none}
+  .card.milestone .btn{padding:0 16px}
+  #cashrow{align-self:end;flex-wrap:wrap}
+  #dim{overflow:visible;direction:ltr}
+  #valrow{align-self:start;min-width:220px;grid-template-columns:1fr auto;gap:8px;font-size:11.5px}
+  #valrow .track{height:6px;border-radius:3px} #valrow .track i{opacity:1}
+  #valtext{position:static;line-height:normal;color:var(--dim);text-shadow:none;overflow:visible}
+  #meters{grid-template-columns:repeat(3,minmax(118px,1fr));align-self:center}
+  .meter{position:static;overflow:visible;gap:3px;min-height:44px;padding:5px 7px}
+  .meter .ml{font-size:11px;line-height:1.35} .meter .mv{font-size:11.5px;line-height:1.35}
+  .meter .track{position:relative;left:auto;right:auto;bottom:auto;height:5px;border-radius:3px}
+  #chips{flex-wrap:wrap;justify-content:flex-end;align-items:center;align-self:center;gap:6px;overflow:visible;max-width:230px;margin:0}
+  #topright{align-self:center;margin-left:-6px}
+  /* the settings sheet opens under the top bar, so the meters, the uptime chip and the gear stay in view */
+  #settings{top:calc(var(--topH) + 16px);max-height:calc(100% - var(--topH) - 24px)}
+  #exitBtn{position:relative;background:rgba(255,255,255,.06)}
+}
+/* a 532-812 px panel cannot hold cash + valuation + three meters + a chip + the gear on one row: cash | meters | gear
+   on the first row, the valuation line under them, chips under that */
+@media (min-width:900px) and (max-width:1180px){
+  #top{padding:8px 10px;grid-template-columns:auto 1fr auto;grid-template-areas:"cash meters right" "val val right" "chips chips chips";column-gap:10px}
+  #cashrow{align-self:center}
+  #valrow{min-width:0;align-self:center}
+  #meters{grid-template-columns:repeat(3,minmax(92px,1fr))}
+  #chips{justify-content:flex-start;max-width:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  .pop.on{animation:none;opacity:1}
+}
+</style>
+</head>
+<body class="site-uptime">
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<canvas id="c" aria-label="The hall: tap an amber rack to fix its incident, drag to orbit"></canvas>
+
+<div id="hud">
+  <header id="top" class="panel" aria-label="Status">
+    <div id="cashrow">
+      <span id="cash">$50.00</span>
+      <span id="rate">+$0.00/s</span>
+      <span id="dim"></span>
+    </div>
+    <div id="valrow"><div class="track"><i id="valbar"></i></div><span id="valtext"></span></div>
+    <div id="meters">
+      <button class="meter green" id="meter-power" data-meter="power" aria-label="Power meter: show fixes"><span class="ml"><span>Power</span></span><div class="track"><i></i></div><span class="mv">0 / 3.0 kW</span></button>
+      <button class="meter green" id="meter-cooling" data-meter="cooling" aria-label="Cooling meter: show fixes"><span class="ml"><span>Cooling</span></span><div class="track"><i></i></div><span class="mv">0 / 1.5 kW</span></button>
+      <button class="meter green" id="meter-network" data-meter="network" aria-label="Network meter: show fixes"><span class="ml"><span>Network</span></span><div class="track"><i></i></div><span class="mv">0 / 1.0 Gbps</span></button>
+    </div>
+    <div id="topright">
+      <span id="uptime" class="chip good" title="Uptime">100%</span>
+      <button id="gear" class="icon" aria-label="Settings" title="Settings">⚙</button>
+    </div>
+    <div id="chips" aria-label="Active contracts, mitigations and staff"></div>
+  </header>
+
+  <aside id="left" aria-label="Goals">
+    <button id="leftToggle" class="chip" aria-label="Collapse goals and log">Goals ▾</button>
+    <div id="goals"></div>
+    <div id="log" aria-live="polite"></div>
+  </aside>
+
+  <div id="toasts" aria-live="polite"></div>
+  <div id="eventToast" class="panel" hidden><div class="ring" style="--p:1"></div><div class="et"></div><button class="fix" hidden>Fix</button></div>
+
+  <div id="centre">
+    <button id="hustle" class="pulse" hidden>Answer a ticket · $1</button>
+    <button id="badge" hidden aria-label="Incidents: tap to find the oldest, tap again to fix it"><span class="ring" style="--p:1"></span><span class="n">0</span></button>
+  </div>
+
+  <section id="sheet" class="panel" aria-label="Shop">
+    <div id="handle" aria-hidden="true"></div>
+    <nav id="tabs" aria-label="Shop tabs">
+      <button id="tab-build" data-tab="build" class="on">Build<span class="n"></span></button>
+      <button id="tab-infra" data-tab="infra">Infra<span class="n"></span></button>
+      <button id="tab-contracts" data-tab="contracts">Contracts<span class="n"></span></button>
+      <button id="tab-upgrades" data-tab="upgrades">Upgrades<span class="n"></span></button>
+      <button id="tab-exit" data-tab="exit">Exit<span class="n"></span></button>
+    </nav>
+    <div id="sheetHead"><span id="sheetTitle">Garage</span>
+      <div id="qty" role="group" aria-label="Quantity"><button id="qty-1" data-qty="1" class="on">×1</button><button id="qty-10" data-qty="10">×10</button><button id="qty-max" data-qty="max">Max</button></div>
+      <div id="refreshHint" hidden>Refresh: tap a rack to swap its lowest tier up · ×10 / Max = 10 swaps</div>
+    </div>
+    <div id="rows"></div>
+  </section>
+
+  <div id="ticker" aria-live="off"><span id="tickerText"></span></div>
+  <div id="pops"></div>
+  <div id="cards"></div>
+  <div id="banner" class="panel" hidden><h2></h2><p></p><div class="actions"></div></div>
+  <div id="breaker" hidden><b>BREAKER</b><small>Just the one.</small></div>
+
+  <div id="settings" class="panel" hidden role="dialog" aria-label="Settings">
+    <h3>Settings <button id="settingsClose" class="icon" aria-label="Close settings">✕</button></h3>
+    <div class="srow"><span>Bloom</span><button id="setBloom" class="switch on" role="switch" aria-checked="true" aria-label="Bloom"></button></div>
+    <div class="srow"><span>Sound</span><button id="setSound" class="switch on" role="switch" aria-checked="true" aria-label="Sound"></button></div>
+    <div class="srow"><span>Photo mode</span><button id="setPhoto" class="btn">📷 Take a photo</button></div>
+    <div class="srow"><span>Save</span><span><button id="setExport" class="btn">Export</button> <button id="setImport" class="btn">Import</button></span></div>
+    <textarea id="saveText" placeholder="Export puts your save here. Paste a save and press Import." aria-label="Save data" spellcheck="false"></textarea>
+    <div class="srow"><span>Reset this run</span><button id="setReset" class="btn danger">Reset run</button></div>
+    <div class="srow" id="setClaimRow" hidden><span>Open in another tab</span><button id="setClaim" class="btn primary">Play here</button></div>
+    <div class="muted" id="setInfo"></div>
+  </div>
+</div>
+<div id="tip" class="panel" hidden></div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>

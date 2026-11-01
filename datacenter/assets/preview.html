@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Asset preview</title>
+<link rel="icon" href="data:,">
+<!--
+Dev-only viewer for the GLB files build_assets.py produces.
+  ?file=library.glb          which file (default library.glb)
+  &focus=a,b,c               show only these top-level objects, laid out in a row and framed by the camera
+  &view=iso|front|top|back   camera angle (default iso = the game's 3/4 view)
+  &bright=1                  inspection lighting (stronger key + fill) instead of the moody default
+  &axes=1                    draw an AxesHelper at every empty (led_*, slot_*, key_light, ...)
+  &stage=1                   stage-shell mode: keep the file's own object positions (no re-layout)
+window.__assets = top-level object names; window.__info = per-object dimensions, tris, materials, empties.
+-->
+<style>
+html,body{margin:0;height:100%;background:#0b0e14;color:#dfe6ee;font:13px/1.4 "Segoe UI",system-ui,sans-serif;overflow:hidden}
+canvas{display:block}
+#list{position:fixed;top:10px;left:10px;background:rgba(10,14,20,.7);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:8px 10px;max-height:90vh;overflow:auto;backdrop-filter:blur(8px)}
+#list b{display:block;margin-bottom:4px}
+#list div{font-variant-numeric:tabular-nums;white-space:nowrap}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="list"><b>loading…</b></div>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const q = new URLSearchParams(location.search);
+const file = q.get('file') || 'library.glb';
+const focus = (q.get('focus') || '').split(',').map(s => s.trim()).filter(Boolean);
+const view = q.get('view') || 'iso';
+const bright = q.get('bright') === '1';
+const axes = q.get('axes') === '1';
+const stageMode = q.get('stage') === '1';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0e14);
+const camera = new THREE.PerspectiveCamera(32, innerWidth / innerHeight, 0.05, 500);
+camera.position.set(8, 6, 10);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1, 0);
+
+scene.add(new THREE.HemisphereLight(0x3a4a6a, 0x0b0e14, bright ? 1.6 : 0.6));
+const sun = new THREE.DirectionalLight(0xfff1d6, bright ? 2.6 : 2.0);
+sun.position.set(6, 12, 8); scene.add(sun);
+if (bright) { const fill = new THREE.DirectionalLight(0xbfd4ff, 1.2); fill.position.set(-8, 6, -4); scene.add(fill); }
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: 0x11141b, roughness: 0.9, metalness: 0.0 }));
+floor.rotation.x = -Math.PI / 2; floor.position.y = -0.002; scene.add(floor);
+scene.add(new THREE.GridHelper(400, 400, 0x2a3140, 0x1c222c));
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.8, 0.35, 0.9));
+composer.addPass(new OutputPass());
+
+const list = document.getElementById('list');
+function describe(o) {
+  const box = new THREE.Box3().setFromObject(o); const s = box.getSize(new THREE.Vector3());
+  let tris = 0; const mats = new Set(); const empties = []; const meshes = [];
+  o.traverse(m => {
+    if (m.isMesh) {
+      tris += (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3;
+      (Array.isArray(m.material) ? m.material : [m.material]).forEach(mm => mats.add(mm.name));
+      meshes.push({ name: m.name, geometry: m.geometry.uuid });
+    } else if (m !== o && !m.isMesh && m.children.length === 0) {
+      empties.push({ name: m.name, pos: [+m.position.x.toFixed(3), +m.position.y.toFixed(3), +m.position.z.toFixed(3)] });
+    }
+  });
+  return { name: o.name, size: [+s.x.toFixed(3), +s.y.toFixed(3), +s.z.toFixed(3)], minY: +box.min.y.toFixed(3), tris, materials: [...mats], empties, meshes,
+    scale: [+o.scale.x.toFixed(2), +o.scale.y.toFixed(2), +o.scale.z.toFixed(2)], extras: o.userData };
+}
+
+new GLTFLoader().load(`./${file}`, (gltf) => {
+  let items = [...gltf.scene.children];
+  if (focus.length) items = focus.map(n => items.find(o => o.name === n)).filter(Boolean);
+  list.innerHTML = `<b>${file} — ${items.length} objects</b>`;
+  const all = new THREE.Box3();
+  if (stageMode) {
+    items.forEach(o => { scene.add(o); all.expandByObject(o); });
+  } else {
+    // lay the objects out on the floor: rows of up to `cols`, each object given its own width plus a gap
+    const sizes = items.map(o => new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3()));
+    const cols = focus.length ? items.length : Math.ceil(Math.sqrt(items.length));
+    let x = 0, z = 0, rowDepth = 0, rowStart = 0;
+    items.forEach((o, i) => {
+      if (i > 0 && i % cols === 0) { z += rowDepth + 1.5; rowDepth = 0; x = 0; rowStart = i; }
+      const s = sizes[i];
+      o.position.set(x + s.x / 2, 0, z + s.z / 2);
+      x += s.x + 1.0; rowDepth = Math.max(rowDepth, s.z);
+      scene.add(o);
+      all.expandByObject(o);
+    });
+    const c = all.getCenter(new THREE.Vector3()); items.forEach(o => { o.position.x -= c.x; o.position.z -= c.z; });
+    all.translate(new THREE.Vector3(-c.x, 0, -c.z));
+  }
+  if (axes) {
+    const empties = [];
+    items.forEach(o => o.traverse(m => { if (m !== o && !m.isMesh && m.children.length === 0) empties.push(m); }));
+    empties.forEach(m => m.add(new THREE.AxesHelper(0.08)));
+  }
+  const info = items.map(describe);
+  info.forEach(d => { const row = document.createElement('div'); row.textContent = `${d.name}  ${d.size[0].toFixed(2)}×${d.size[1].toFixed(2)}×${d.size[2].toFixed(2)}m  ${d.tris} tris  minY ${d.minY.toFixed(2)}${d.empties.length ? '  empties ' + d.empties.map(e => e.name).join(',') : ''}`; list.appendChild(row); });
+  // frame the camera on the union box
+  const size = all.getSize(new THREE.Vector3()); const centre = all.getCenter(new THREE.Vector3());
+  const vfov = THREE.MathUtils.degToRad(camera.fov / 2), hfov = Math.atan(Math.tan(vfov) * camera.aspect);
+  const horiz = view === 'iso' ? (size.x + size.z) * 0.72 : Math.max(size.x, size.z);
+  const vert = size.y + (view === 'iso' ? size.z * 0.5 : view === 'top' ? size.z : 0);
+  const dist = Math.max(horiz / 2 / Math.tan(hfov), vert / 2 / Math.tan(vfov)) * 1.25 + 0.3;
+  const dir = { iso: new THREE.Vector3(0.55, 0.6, 0.9), front: new THREE.Vector3(0.05, 0.25, 1), top: new THREE.Vector3(0.01, 1, 0.2), back: new THREE.Vector3(-0.5, 0.6, -0.9) }[view] || new THREE.Vector3(0.55, 0.6, 0.9);
+  camera.position.copy(centre).addScaledVector(dir.normalize(), dist);
+  controls.target.copy(centre); controls.update();
+  window.__info = info;
+  window.__assets = items.map(o => o.name);
+}, undefined, (e) => { list.innerHTML = `<b style="color:#f66">failed: ${e.message || e}</b>`; });
+
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); });
+renderer.setAnimationLoop(() => { controls.update(); composer.render(); });
+</script>
+</body>
+</html>

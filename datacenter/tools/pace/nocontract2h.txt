@@ -1,0 +1,180 @@
+=== UPTIME economy sim | schedule=single hours=2 contracts=none events=false incidents=true stack=add exit=glow patch=uptime,vis,add,gmix,ladder,glob125,upg2,gates,glow2,share10,infra115,offline,offval,perkcash,garage ===
+
+--- Milestone first-hit times (wall clock / active play) ---
+Lights On                 00m01s  active    00m01s  run1      $0.30/s  val $4.30
+Getting Warm              00m16s  active    00m16s  run1      $0.51/s  val $40
+Buy a Fan                 01m37s  active    01m37s  run1      $1.53/s  val $252
+Just the One              01m37s  active    01m37s  run1      $1.53/s  val $252
+First Gigabit             03m11s  active    03m11s  run1      $2.63/s  val $487
+Fill Rack 1               01m44s  active    01m44s  run1      $1.66/s  val $277
+Fix 5 Incidents           09m00s  active    09m00s  run1        $13/s  val $3.55K
+First Contract               --- not reached
+$1,000                    05m15s  active    05m15s  run1      $5.51/s  val $1.00K
+Sell the Civic            06m30s  active    06m30s  run1      $7.81/s  val $1.59K
+Fill the Garage           09m55s  active    09m55s  run1        $19/s  val $4.47K
+Hire Dale                 21m00s  active    21m00s  run1       $146/s  val $60.7K
+Sign the Lease            15m01s  active    15m01s  run1        $76/s  val $22.1K
+100 Servers               36m29s  active    36m29s  run1     $2.01K/s  val $1.14M
+10 Min No Red             10m00s  active    10m00s  run1        $19/s  val $4.56K
+$100,000                  23m23s  active    23m23s  run1       $275/s  val $100K
+Out of the Cage           15m01s  active    15m01s  run1        $76/s  val $22.1K
+First Storage Array       20m12s  active    20m12s  run1       $127/s  val $50.9K
+Make Me a Million         35m25s  active    35m25s  run1     $1.62K/s  val $1.00M
+Warehouse                 36m29s  active    36m29s  run1     $2.01K/s  val $1.14M
+First Megawatt            48m21s  active    48m21s  run1     $7.26K/s  val $4.23M
+99.9 for 10 Min           10m00s  active    10m00s  run1        $19/s  val $4.56K
+First Exit              1h05m44s  active  1h05m44s  run2      $0.00/s  val $0.00
+The Hall                     --- not reached
+First Sled                   --- not reached
+Four Nines                30m00s  active    30m00s  run1     $1.31K/s  val $399K
+Campus                       --- not reached
+Marjorie                     --- not reached
+First Reactor                --- not reached
+$1 Trillion                  --- not reached
+You Are the Cloud            --- not reached
+200 Servers               51m15s  active    51m15s  run1     $9.50K/s  val $6.02M
+500 Servers                  --- not reached
+1000 Servers                 --- not reached
+25 Incidents              39m00s  active    39m00s  run1     $2.13K/s  val $1.54M
+100 Incidents                --- not reached
+First Pod                 36m29s  active    36m29s  run1     $2.01K/s  val $1.14M
+First Annealer               --- not reached
+First Orbital                --- not reached
+$10M                      55m56s  active    55m56s  run1     $12.7K/s  val $10.0M
+
+--- Event log ---
+00m00s [run1 00m00s] first Pizza Box $15 (val $2.00, $0.10/s)
+00m01s [run1 00m01s] * Lights On  ($4.30 val, $0.30/s)
+00m16s [run1 00m16s] * Getting Warm  ($40 val, $0.51/s)
+01m36s [run1 01m36s] first Blade $190 (val $248, $1.53/s)
+01m37s [run1 01m37s] * Buy a Fan  ($252 val, $1.53/s)
+01m37s [run1 01m37s] * Just the One  ($252 val, $1.53/s)
+01m44s [run1 01m44s] * Fill Rack 1  ($277 val, $1.66/s)
+03m10s [run1 03m10s] Rack 2 $40
+03m11s [run1 03m11s] * First Gigabit  ($487 val, $2.63/s)
+05m15s [run1 05m15s] * $1,000  ($1.00K val, $5.51/s)
+06m29s [run1 06m29s] Rack 3 $43
+06m30s [run1 06m30s] * Sell the Civic  ($1.59K val, $7.81/s)
+07m31s [run1 07m31s] GLOBAL x1.5 #1 $600 -> $10/s
+08m12s [run1 08m12s] UPG Pizza Box x2 $415 -> $12/s
+08m35s [run1 08m35s] Rack 4 $47
+09m00s [run1 09m00s] * Fix 5 Incidents  ($3.55K val, $13/s)
+09m55s [run1 09m55s] * Fill the Garage  ($4.47K val, $19/s)
+10m00s [run1 10m00s] * 10 Min No Red  ($4.56K val, $19/s)
+10m00s [run1 10m00s] * 99.9 for 10 Min  ($4.56K val, $19/s)
+11m17s [run1 11m17s] UPG Blade x2 $2.02K -> $34/s
+13m45s [run1 13m45s] GLOBAL x1.5 #2 $6.00K -> $67/s
+15m00s [run1 15m00s] STAGE Colo (val $22.1K, $75/s, fill of previous stage was 100%, infra share so far 19%)
+15m00s [run1 15m00s] first GPU Node $5.02K (val $22.1K, $75/s)
+15m01s [run1 15m01s] * Sign the Lease  ($22.1K val, $76/s)
+15m01s [run1 15m01s] * Out of the Cage  ($22.1K val, $76/s)
+20m11s [run1 20m11s] first Storage Array $30.0K (val $50.8K, $127/s)
+20m12s [run1 20m12s] * First Storage Array  ($50.9K val, $127/s)
+21m00s [run1 21m00s] * Hire Dale  ($60.7K val, $146/s)
+21m37s [run1 21m37s] UPG Blade x4 $7.50K -> $229/s
+23m23s [run1 23m23s] * $100,000  ($100K val, $275/s)
+25m06s [run1 25m06s] UPG Pizza Box x4 $1.13K -> $417/s
+27m00s [run1 27m00s] GLOBAL x1.5 #3 $60.0K -> $555/s
+29m01s [run1 29m01s] UPG Blade x8 $50.6K -> $1.11K/s
+30m00s [run1 30m00s] * Four Nines  ($399K val, $1.31K/s)
+35m25s [run1 35m25s] * Make Me a Million  ($1.00M val, $1.62K/s)
+36m28s [run1 36m28s] STAGE Warehouse (val $1.14M, $2.00K/s, fill of previous stage was 100%, infra share so far 7%)
+36m28s [run1 36m28s] first AI Pod $482K (val $1.14M, $2.00K/s)
+36m29s [run1 36m29s] * 100 Servers  ($1.14M val, $2.01K/s)
+36m29s [run1 36m29s] * Warehouse  ($1.14M val, $2.01K/s)
+36m29s [run1 36m29s] * First Pod  ($1.14M val, $2.01K/s)
+39m00s [run1 39m00s] * 25 Incidents  ($1.54M val, $2.13K/s)
+43m07s [run1 43m07s] UPG GPU Node x2 $19.5K -> $3.68K/s
+45m11s [run1 45m11s] GLOBAL x1.5 #4 $600K -> $4.63K/s
+45m26s [run1 45m26s] UPG Pizza Box x8 $7.50K -> $4.80K/s
+48m00s [run1 48m00s] UPG Storage Array x2 $249K -> $6.92K/s
+48m21s [run1 48m21s] * First Megawatt  ($4.23M val, $7.26K/s)
+51m15s [run1 51m15s] * 200 Servers  ($6.02M val, $9.50K/s)
+52m01s [run1 52m01s] UPG GPU Node x4 $161K -> $10.6K/s
+55m56s [run1 55m56s] * $10M  ($10.0M val, $12.7K/s)
+58m04s [run1 58m04s] UPG AI Pod x2 $3.45M -> $17.7K/s
+1h00m32s [run1 1h00m32s] UPG Storage Array x4 $1.05M -> $26.4K/s
+1h04m10s [run1 1h04m10s] GLOBAL x1.5 #5 $6.00M -> $35.1K/s
+1h05m43s EXIT #1: valuation $27.0M shares 0 -> 3 (run 1h05m43s, $38.6K/s, Warehouse, fill 98%, infra 13% of spend, servers [79,84,39,32,16,0,0,0])
+1h05m44s [run2 00m01s] * First Exit  ($0.00 val, $0.00/s)
+1h05m44s [run2 00m01s] first Pizza Box $15 (val $0.00, $0.17/s)
+1h05m45s [run2 00m02s] first Blade $100 (val $0.99, $2.48/s)
+1h05m47s [run2 00m04s] UPG Pizza Box x2 $415 -> $14/s
+1h06m39s [run2 00m56s] GLOBAL x1.5 #1 $600 -> $24/s
+1h07m44s [run2 02m01s] first GPU Node $1.76K (val $2.59K, $33/s)
+1h08m43s [run2 03m00s] UPG Blade x2 $1.95K -> $54/s
+1h11m43s [run2 06m00s] GLOBAL x1.5 #2 $6.00K -> $106/s
+1h15m47s [run2 10m04s] first Storage Array $30.3K (val $52.6K, $178/s)
+1h16m22s [run2 10m39s] UPG Blade x4 $7.50K -> $350/s
+1h18m19s [run2 12m36s] UPG Pizza Box x4 $4.58K -> $495/s
+1h20m43s [run2 15m00s] GLOBAL x1.5 #3 $60.0K -> $931/s
+1h21m42s [run2 15m59s] UPG Blade x8 $50.6K -> $1.56K/s
+1h26m54s [run2 21m11s] STAGE Warehouse (val $1.13M, $2.78K/s, fill of previous stage was 100%, infra share so far 7%)
+1h26m54s [run2 21m11s] first AI Pod $482K (val $1.13M, $2.78K/s)
+1h32m00s [run2 26m17s] UPG GPU Node x2 $19.5K -> $4.93K/s
+1h33m42s [run2 27m59s] GLOBAL x1.5 #4 $600K -> $6.21K/s
+1h33m53s [run2 28m10s] UPG Pizza Box x8 $7.50K -> $6.44K/s
+1h35m43s [run2 30m00s] UPG Storage Array x2 $249K -> $9.29K/s
+1h38m43s [run2 33m00s] UPG GPU Node x4 $161K -> $14.0K/s
+1h43m13s [run2 37m30s] UPG AI Pod x2 $3.45M -> $23.2K/s
+1h45m12s [run2 39m29s] UPG Storage Array x4 $1.05M -> $34.5K/s
+1h47m49s [run2 42m06s] GLOBAL x1.5 #5 $6.00M -> $46.0K/s
+1h49m13s EXIT #2: valuation $27.9M shares 3 -> 6 (run 43m30s, $52.3K/s, Warehouse, fill 99%, infra 14% of spend, servers [80,84,40,32,17,0,0,0])
+1h49m14s [run3 00m01s] first Pizza Box $15 (val $0.00, $0.20/s)
+1h49m15s [run3 00m02s] first Blade $100 (val $1.22, $3.05/s)
+1h49m17s [run3 00m04s] UPG Pizza Box x2 $415 -> $18/s
+1h49m59s [run3 00m46s] GLOBAL x1.5 #1 $600 -> $30/s
+1h50m52s [run3 01m39s] first GPU Node $1.76K (val $2.59K, $41/s)
+1h51m43s [run3 02m30s] UPG Blade x2 $1.95K -> $67/s
+1h54m10s [run3 04m57s] GLOBAL x1.5 #2 $6.00K -> $130/s
+1h57m23s [run3 08m10s] first Storage Array $30.3K (val $52.6K, $219/s)
+1h58m08s [run3 08m55s] UPG Blade x4 $7.50K -> $431/s
+1h59m39s [run3 10m26s] UPG Pizza Box x4 $4.58K -> $609/s
+
+--- Purchase gaps >= 4 min ---
+20m11s run1: 05m11s with no purchase, then bought Storage Array for $30.0K
+1h15m47s run2: 04m04s with no purchase, then bought Storage Array +rack for $30.3K
+
+--- Snapshots every 5 min (active) ---
+active    | wall      | income/s   | valuation | cash      | stage     | racks | fill | utilP utilC utilN | uptime | sh | infra | contracts | owned
+   05m00s |    05m00s |      $4.56 |      $924 |       $81 | Garage    |     2 |  69% |   79%   74%   65% |  100.0 |  0 |   31% |                        | [7,4,0,0,0,0,0,0] upg[0,0,0,0,0,0,0,0]
+   10m00s |    10m00s |        $19 |    $4.54K |       $99 | Garage    |     4 | 100% |   99%   85%   82% |  100.0 |  0 |   29% |                        | [21,11,0,0,0,0,0,0] upg[1,0,0,0,0,0,0,0]
+   15m00s |    15m00s |        $67 |    $20.7K |    $5.02K | Garage    |     4 | 100% |   96%   99%   86% |  100.0 |  0 |   16% |                        | [12,20,0,0,0,0,0,0] upg[1,1,0,0,0,0,0,0]
+   20m00s |    20m00s |        $77 |    $49.9K |    $29.1K | Colo      |     5 |  93% |   90%   98%  100% |  100.0 |  0 |   19% |                        | [16,20,1,0,0,0,0,0] upg[1,1,0,0,0,0,0,0]
+   25m00s |    25m00s |       $356 |     $137K |    $19.4K | Colo      |     8 | 100% |   78%  100%   69% |  100.0 |  0 |   20% |                        | [25,36,1,2,0,0,0,0] upg[1,2,0,0,0,0,0,0]
+   30m00s |    30m00s |     $1.29K |     $372K |      $692 | Colo      |    12 | 100% |   94%   82%   98% |  100.0 |  0 |   14% |                        | [24,63,6,3,0,0,0,0] upg[2,3,0,0,0,0,0,0]
+   35m00s |    35m00s |     $1.62K |     $959K |     $305K | Colo      |    12 | 100% |   94%  100%   64% |  100.0 |  0 |   11% |                        | [5,82,6,3,0,0,0,0] upg[2,3,0,0,0,0,0,0]
+   40m00s |    40m00s |     $2.62K |    $1.69M |     $101K | Warehouse |    16 | 100% |   99%   93%   96% |  100.0 |  0 |    7% |                        | [33,82,6,5,2,0,0,0] upg[2,3,0,0,0,0,0,0]
+   45m00s |    45m00s |     $3.70K |    $2.85M |     $484K | Warehouse |    19 | 100% |   99%   96%   94% |  100.0 |  0 |    8% |                        | [48,82,11,7,4,0,0,0] upg[2,3,1,0,0,0,0,0]
+   50m00s |    50m00s |     $8.31K |    $5.18M |     $145K | Warehouse |    24 | 100% |   98%  100%   99% |  100.0 |  0 |   10% |                        | [65,82,22,17,6,0,0,0] upg[3,3,1,1,0,0,0,0]
+   55m00s |    55m00s |     $12.7K |    $9.03M |     $581K | Warehouse |    29 |  98% |   99%  100%   98% |  100.0 |  0 |   15% |                        | [77,82,36,23,10,0,0,0] upg[3,3,2,1,0,0,0,0]
+ 1h00m00s |  1h00m00s |     $21.9K |    $14.5M |    $30.9K | Warehouse |    30 |  98% |   95%   87%   87% |  100.0 |  0 |   16% |                        | [77,82,37,24,14,0,0,0] upg[3,3,2,1,1,0,0,0]
+ 1h05m00s |  1h05m00s |     $37.6K |    $25.3M |     $275K | Warehouse |    31 |  99% |  100%   97%   98% |  100.0 |  0 |   12% |                        | [79,83,37,30,16,0,0,0] upg[3,3,2,2,1,0,0,0]
+ 1h10m00s |  1h10m00s |        $72 |    $10.4K |    $2.49K | Colo      |     5 |  95% |   97%   99%   98% |  100.0 |  3 |   23% |                        | [24,12,2,0,0,0,0,0] upg[1,1,0,0,0,0,0,0]
+ 1h15m00s |  1h15m00s |       $106 |    $47.5K |    $25.3K | Colo      |     5 | 100% |   91%  100%   99% |  100.0 |  3 |   16% |                        | [24,13,3,0,0,0,0,0] upg[1,1,0,0,0,0,0,0]
+ 1h20m00s |  1h20m00s |       $744 |     $191K |    $26.2K | Colo      |    12 | 100% |   94%  100%   96% |  100.0 |  3 |   19% |                        | [42,45,6,3,0,0,0,0] upg[2,2,0,0,0,0,0,0]
+ 1h25m00s |  1h25m00s |     $2.26K |     $782K |     $133K | Colo      |    12 | 100% |   94%  100%   64% |  100.0 |  3 |   11% |                        | [5,82,6,3,0,0,0,0] upg[2,3,0,0,0,0,0,0]
+ 1h30m00s |  1h30m00s |     $3.51K |    $1.79M |    $68.6K | Warehouse |    16 | 100% |   99%   93%   96% |  100.0 |  3 |    6% |                        | [33,82,6,5,2,0,0,0] upg[2,3,0,0,0,0,0,0]
+ 1h35m00s |  1h35m00s |     $7.29K |    $3.61M |     $228K | Warehouse |    21 | 100% |   98%  100%   98% |  100.0 |  3 |    7% |                        | [58,82,14,9,5,0,0,0] upg[3,3,1,0,0,0,0,0]
+ 1h40m00s |  1h40m00s |     $15.8K |    $7.78M |     $174K | Warehouse |    28 | 100% |   97%  100%   99% |  100.0 |  3 |   15% |                        | [77,82,34,22,9,0,0,0] upg[3,3,2,1,0,0,0,0]
+ 1h45m00s |  1h45m00s |     $28.9K |    $15.3M |     $685K | Warehouse |    30 |  98% |   96%   88%   89% |  100.0 |  3 |   16% |                        | [77,82,37,25,14,0,0,0] upg[3,3,2,1,1,0,0,0]
+ 1h50m00s |  1h50m00s |        $24 |    $1.02K |      $205 | Colo      |     4 |  84% |   92%   99%   95% |  100.0 |  6 |   23% |                        | [18,9,0,0,0,0,0,0] upg[1,0,0,0,0,0,0,0]
+ 1h55m00s |  1h55m00s |       $130 |    $28.6K |    $6.41K | Colo      |     5 | 100% |   91%  100%   99% |  100.0 |  6 |   16% |                        | [24,13,3,0,0,0,0,0] upg[1,1,0,0,0,0,0,0]
+ 2h00m00s |  2h00m00s |       $700 |     $142K |    $17.5K | Colo      |    10 | 100% |  100%   76%   74% |  100.0 |  6 |   21% |                        | [37,38,3,2,0,0,0,0] upg[2,2,0,0,0,0,0,0]
+
+--- Buys per minute (active) ---
+
+00m00s:   6  2  0  2  1  4  4  1  7  7  0  5  5  1  0  5  0  0  0  0 10  8  0  0 10 14  0 22  3 14
+30m00s:   9  7  3  0  0  0 16  0  0 16  0 16  0  9  0  7 11  6 12  7  7  5 13  8  4  0  0  0  3  4
+1h00m00s:   4  3  0  0  6 33  1  4  2  6  2  1  0  0  0  8  9  0 25 16  6  7 16  9  1  0  8  8  0 16
+1h30m00s:   9 10  6  7 11 14 11  7 18  8  4  0  0  3  5  6  0  1 10 32  4  2  8  0  1  0  0 13  4 25
+
+--- Exits ---
+1h05m43s (active 1h05m43s): $27.0M shares 0->3 run 1h05m43s stage Warehouse fill 98% infra 13%
+1h49m13s (active 1h49m13s): $27.9M shares 3->6 run 43m30s stage Warehouse fill 99% infra 14%
+
+--- Final state ---
+t=2h00m00s active=2h00m00s shares=6 exits=2 stage=Colo racks=10 fill=100% income=$700/s val=$142K cash=$17.5K uptime=100.0
+owned=[37,38,3,2,0,0,0,0] upg=[2,2,0,0,0,0,0,0] infra=[PDU:6 Subpanel:3 Genset:2 Box Fan:6 Window AC:3 Split AC:2 Switch:6 Fiber Uplink:1] effUpg=[Containment] globals=2 milestones=27
+spend this run: servers 42%, upgrades 8%, infra 21%, racks 2%, moves 0%, globals 5%, refresh 0%, qol 22%
+over-capacity ticks: 0.0%  mean max-utilisation: 97%

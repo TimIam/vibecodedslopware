@@ -1,0 +1,420 @@
+=== UPTIME economy sim | schedule=single hours=3 contracts=best events=false incidents=true stack=add exit=glow patch=uptime,vis,add,gmix,ladder,glob125,upg2,gates,glow2,share10,infra115,offline,offval,perkcash,garage,rackg ===
+
+--- Milestone first-hit times (wall clock / active play) ---
+Lights On                 00m01s  active    00m01s  run1      $0.30/s  val $4.30
+Getting Warm              00m16s  active    00m16s  run1      $0.51/s  val $40
+Buy a Fan                 01m37s  active    01m37s  run1      $1.53/s  val $252
+Just the One              01m37s  active    01m37s  run1      $1.53/s  val $252
+First Gigabit             03m11s  active    03m11s  run1      $2.63/s  val $487
+Fill Rack 1               01m44s  active    01m44s  run1      $1.66/s  val $277
+Fix 5 Incidents           09m00s  active    09m00s  run1        $33/s  val $6.83K
+First Contract            03m11s  active    03m11s  run1      $2.63/s  val $487
+$1,000                    04m36s  active    04m36s  run1      $6.10/s  val $1.00K
+Sell the Civic            06m48s  active    06m48s  run1        $15/s  val $2.54K
+Fill the Garage           08m46s  active    08m46s  run1        $33/s  val $5.70K
+Hire Dale                 14m08s  active    14m08s  run1       $125/s  val $29.3K
+Sign the Lease            10m39s  active    10m39s  run1        $48/s  val $11.4K
+100 Servers               27m01s  active    27m01s  run1     $3.17K/s  val $1.20M
+10 Min No Red             10m00s  active    10m00s  run1        $38/s  val $9.12K
+$100,000                  18m00s  active    18m00s  run1       $289/s  val $100K
+Out of the Cage           10m39s  active    10m39s  run1        $48/s  val $11.4K
+First Storage Array       18m01s  active    18m01s  run1       $398/s  val $101K
+Make Me a Million         26m06s  active    26m06s  run1     $2.58K/s  val $1.00M
+Warehouse                 27m01s  active    27m01s  run1     $3.17K/s  val $1.20M
+First Megawatt            34m14s  active    34m14s  run1     $16.0K/s  val $4.09M
+99.9 for 10 Min           10m00s  active    10m00s  run1        $38/s  val $9.12K
+First Exit                41m14s  active    41m14s  run2      $0.00/s  val $0.00
+The Hall                1h33m23s  active  1h33m23s  run3      $312K/s  val $89.0M
+First Sled              1h33m32s  active  1h33m32s  run3      $331K/s  val $91.9M
+Four Nines                30m00s  active    30m00s  run1     $3.94K/s  val $1.96M
+Campus                  2h55m26s  active  2h55m26s  run7     $1.08B/s  val $370B
+Marjorie                2h56m23s  active  2h56m23s  run7     $1.94B/s  val $450B
+First Reactor           2h55m26s  active  2h55m26s  run7     $1.08B/s  val $370B
+$1 Trillion                  --- not reached
+You Are the Cloud            --- not reached
+200 Servers               34m47s  active    34m47s  run1     $21.4K/s  val $5.04M
+500 Servers             2h17m07s  active  2h17m07s  run5     $29.3M/s  val $5.94B
+1000 Servers                 --- not reached
+25 Incidents              39m00s  active    39m00s  run1     $52.9K/s  val $15.5M
+100 Incidents           2h45m56s  active  2h45m56s  run7      $103M/s  val $16.8B
+First Pod                 27m01s  active    27m01s  run1     $3.17K/s  val $1.20M
+First Annealer          1h33m23s  active  1h33m23s  run3      $312K/s  val $89.0M
+First Orbital           2h55m26s  active  2h55m26s  run7     $1.08B/s  val $370B
+$10M                      37m29s  active    37m29s  run1     $30.9K/s  val $10.0M
+
+--- Event log ---
+00m00s [run1 00m00s] first Pizza Box $15 (val $2.00, $0.10/s)
+00m01s [run1 00m01s] * Lights On  ($4.30 val, $0.30/s)
+00m16s [run1 00m16s] * Getting Warm  ($40 val, $0.51/s)
+01m36s [run1 01m36s] first Blade $190 (val $248, $1.53/s)
+01m37s [run1 01m37s] * Buy a Fan  ($252 val, $1.53/s)
+01m37s [run1 01m37s] * Just the One  ($252 val, $1.53/s)
+01m44s [run1 01m44s] * Fill Rack 1  ($277 val, $1.66/s)
+03m10s [run1 03m10s] Rack 2 $40
+03m11s [run1 03m11s] CONTRACT -> FrobCoin
+03m11s [run1 03m11s] * First Gigabit  ($487 val, $2.63/s)
+03m11s [run1 03m11s] * First Contract  ($487 val, $2.63/s)
+04m36s [run1 04m36s] * $1,000  ($1.00K val, $6.10/s)
+04m54s [run1 04m54s] UPG Pizza Box x2 $284 -> $7.94/s
+06m18s [run1 06m18s] GLOBAL x1.5 #1 $600 -> $14/s
+06m47s [run1 06m47s] Rack 3 $43
+06m48s [run1 06m48s] * Sell the Civic  ($2.54K val, $15/s)
+07m30s [run1 07m30s] Rack 4 $47
+08m46s [run1 08m46s] * Fill the Garage  ($5.70K val, $33/s)
+09m00s [run1 09m00s] * Fix 5 Incidents  ($6.83K val, $33/s)
+10m00s [run1 10m00s] * 10 Min No Red  ($9.12K val, $38/s)
+10m00s [run1 10m00s] * 99.9 for 10 Min  ($9.12K val, $38/s)
+10m38s [run1 10m38s] STAGE Colo (val $11.4K, $48/s, fill of previous stage was 100%, infra share so far 29%)
+10m38s [run1 10m38s] first GPU Node $4.60K (val $11.4K, $48/s)
+10m39s [run1 10m39s] * Sign the Lease  ($11.4K val, $48/s)
+10m39s [run1 10m39s] * Out of the Cage  ($11.4K val, $48/s)
+12m53s [run1 12m53s] UPG Blade x2 $7.55K -> $82/s
+14m08s [run1 14m08s] * Hire Dale  ($29.3K val, $125/s)
+15m00s [run1 15m00s] UPG Blade x4 $8.00K -> $224/s
+15m26s [run1 15m26s] GLOBAL x1.5 #2 $6.00K -> $289/s
+18m00s [run1 18m00s] * $100,000  ($100K val, $289/s)
+18m00s [run1 18m00s] first Storage Array $30.9K (val $100K, $369/s)
+18m01s [run1 18m01s] * First Storage Array  ($101K val, $398/s)
+19m30s [run1 19m30s] UPG Pizza Box x4 $1.13K -> $676/s
+21m30s [run1 21m30s] GLOBAL x1.5 #3 $60.0K -> $1.15K/s
+22m30s [run1 22m30s] UPG Blade x8 $61.3K -> $1.85K/s
+26m06s [run1 26m06s] * Make Me a Million  ($1.00M val, $2.58K/s)
+27m00s [run1 27m00s] STAGE Warehouse (val $1.19M, $3.16K/s, fill of previous stage was 100%, infra share so far 9%)
+27m00s [run1 27m00s] first AI Pod $498K (val $1.19M, $3.16K/s)
+27m01s [run1 27m01s] * 100 Servers  ($1.20M val, $3.17K/s)
+27m01s [run1 27m01s] * Warehouse  ($1.20M val, $3.17K/s)
+27m01s [run1 27m01s] * First Pod  ($1.20M val, $3.17K/s)
+30m00s [run1 30m00s] * Four Nines  ($1.96M val, $3.94K/s)
+32m07s [run1 32m07s] UPG Storage Array x2 $246K -> $6.65K/s
+32m10s [run1 32m10s] UPG GPU Node x2 $19.5K -> $6.81K/s
+33m11s [run1 33m11s] CONTRACT -> County Records + Weatherbot (infra needed $15.2K)
+33m11s [run1 33m11s] UPG Pizza Box x8 $7.50K -> $11.1K/s
+34m06s [run1 34m06s] GLOBAL x1.5 #4 $600K -> $15.6K/s
+34m14s [run1 34m14s] * First Megawatt  ($4.09M val, $16.0K/s)
+34m45s [run1 34m45s] UPG GPU Node x4 $148K -> $21.3K/s
+34m47s [run1 34m47s] * 200 Servers  ($5.04M val, $21.4K/s)
+37m29s [run1 37m29s] * $10M  ($10.0M val, $30.9K/s)
+37m58s [run1 37m58s] UPG AI Pod x2 $3.19M -> $42.9K/s
+39m00s [run1 39m00s] * 25 Incidents  ($15.5M val, $52.9K/s)
+39m00s [run1 39m00s] UPG Storage Array x4 $1.20M -> $63.8K/s
+40m31s [run1 40m31s] GLOBAL x1.5 #5 $6.00M -> $87.2K/s
+41m13s EXIT #1: valuation $27.0M shares 0 -> 3 (run 41m13s, $96.8K/s, Warehouse, fill 100%, infra 12% of spend, servers [81,83,41,35,16,0,0,0])
+41m14s [run2 00m01s] * First Exit  ($0.00 val, $0.00/s)
+41m14s [run2 00m01s] first Pizza Box $15 (val $0.00, $0.17/s)
+41m15s [run2 00m02s] first Blade $100 (val $1.00, $2.50/s)
+41m17s [run2 00m04s] UPG Pizza Box x2 $415 -> $14/s
+41m45s [run2 00m32s] CONTRACT -> FrobCoin (infra needed $343)
+42m06s [run2 00m53s] GLOBAL x1.5 #1 $600 -> $37/s
+42m54s [run2 01m41s] first GPU Node $1.76K (val $2.92K, $50/s)
+43m57s [run2 02m44s] UPG Blade x2 $2.83K -> $81/s
+45m43s [run2 04m30s] GLOBAL x1.5 #2 $6.00K -> $118/s
+47m13s [run2 06m00s] UPG Pizza Box x4 $1.55K -> $269/s
+48m24s [run2 07m11s] UPG Blade x4 $14.5K -> $487/s
+49m16s [run2 08m03s] first Storage Array $19.1K (val $101K, $704/s)
+51m14s [run2 10m01s] GLOBAL x1.5 #3 $60.0K -> $1.38K/s
+51m45s [run2 10m32s] CONTRACT -> CatTube (infra needed $24.7K)
+52m00s [run2 10m47s] UPG Blade x8 $50.0K -> $2.83K/s
+54m58s [run2 13m45s] STAGE Warehouse (val $1.18M, $5.04K/s, fill of previous stage was 100%, infra share so far 11%)
+54m58s [run2 13m45s] first AI Pod $500K (val $1.18M, $5.04K/s)
+59m13s [run2 18m00s] GLOBAL x1.5 #4 $600K -> $9.36K/s
+59m30s [run2 18m17s] UPG GPU Node x2 $39.6K -> $10.3K/s
+59m35s [run2 18m22s] UPG Pizza Box x8 $21.5K -> $10.7K/s
+1h01m23s [run2 20m10s] UPG Storage Array x2 $210K -> $17.2K/s
+1h01m45s [run2 20m32s] CONTRACT -> County Records + Weatherbot (infra needed $44.1K)
+1h01m48s [run2 20m35s] UPG GPU Node x4 $130K -> $26.4K/s
+1h04m05s [run2 22m52s] UPG AI Pod x2 $3.15M -> $56.7K/s
+1h05m03s [run2 23m50s] UPG Storage Array x4 $1.15M -> $83.5K/s
+1h06m07s [run2 24m54s] GLOBAL x1.5 #5 $6.00M -> $113K/s
+1h06m39s EXIT #2: valuation $27.0M shares 3 -> 6 (run 25m26s, $126K/s, Warehouse, fill 97%, infra 13% of spend, servers [80,82,38,32,17,0,0,0])
+1h06m40s [run3 00m01s] first Pizza Box $15 (val $0.00, $0.20/s)
+1h06m41s [run3 00m02s] first Blade $100 (val $1.23, $3.07/s)
+1h06m43s [run3 00m04s] UPG Pizza Box x2 $415 -> $18/s
+1h07m11s [run3 00m32s] CONTRACT -> FrobCoin (infra needed $343)
+1h07m24s [run3 00m45s] GLOBAL x1.5 #1 $600 -> $45/s
+1h08m04s [run3 01m25s] first GPU Node $1.76K (val $2.95K, $61/s)
+1h08m55s [run3 02m16s] UPG Blade x2 $2.83K -> $100/s
+1h10m18s [run3 03m39s] GLOBAL x1.5 #2 $6.00K -> $145/s
+1h12m20s [run3 05m41s] UPG Pizza Box x4 $1.55K -> $331/s
+1h12m48s [run3 06m09s] UPG Blade x4 $14.5K -> $600/s
+1h13m46s [run3 07m07s] first Storage Array $19.1K (val $101K, $866/s)
+1h15m21s [run3 08m42s] GLOBAL x1.5 #3 $60.0K -> $1.69K/s
+1h15m49s [run3 09m10s] UPG Blade x8 $61.3K -> $2.91K/s
+1h18m39s [run3 12m00s] STAGE Warehouse (val $1.16M, $5.17K/s, fill of previous stage was 100%, infra share so far 9%)
+1h18m39s [run3 12m00s] first AI Pod $486K (val $1.16M, $5.17K/s)
+1h21m39s [run3 15m00s] UPG GPU Node x2 $33.5K -> $9.52K/s
+1h23m09s [run3 16m30s] GLOBAL x1.5 #4 $600K -> $12.0K/s
+1h23m21s [run3 16m42s] UPG Pizza Box x8 $28.7K -> $13.3K/s
+1h23m45s [run3 17m06s] UPG Storage Array x2 $268K -> $15.9K/s
+1h26m06s [run3 19m27s] UPG GPU Node x4 $554K -> $27.7K/s
+1h27m11s [run3 20m32s] CONTRACT -> CatTube + Weatherbot (infra needed $737K)
+1h27m39s [run3 21m00s] UPG AI Pod x2 $2.97M -> $84.8K/s
+1h29m09s [run3 22m30s] GLOBAL x1.5 #5 $6.00M -> $142K/s
+1h30m13s [run3 23m34s] UPG Storage Array x4 $1.57M -> $203K/s
+1h33m22s [run3 26m43s] STAGE Hall (val $88.7M, $312K/s, fill of previous stage was 100%, infra share so far 13%)
+1h33m22s [run3 26m43s] first Annealer $45.7M (val $88.7M, $312K/s)
+1h33m23s [run3 26m44s] * The Hall  ($89.0M val, $312K/s)
+1h33m23s [run3 26m44s] * First Annealer  ($89.0M val, $312K/s)
+1h33m31s [run3 26m52s] first Sled $2.60M (val $91.5M, $331K/s)
+1h33m32s [run3 26m53s] * First Sled  ($91.9M val, $331K/s)
+1h36m53s EXIT #3: valuation $217M shares 6 -> 12 (run 30m14s, $620K/s, Hall, fill 98%, infra 13% of spend, servers [91,96,49,44,24,8,3,0])
+1h36m54s [run4 00m01s] first Pizza Box $15 (val $0.00, $0.29/s)
+1h36m55s [run4 00m02s] first Blade $100 (val $1.73, $4.32/s)
+1h36m57s [run4 00m04s] UPG Pizza Box x2 $415 -> $25/s
+1h36m57s [run4 00m04s] first GPU Node $1.76K (val $38, $41/s)
+1h36m58s [run4 00m05s] UPG Blade x2 $2.09K -> $74/s
+1h37m01s [run4 00m08s] first Storage Array $30.0K (val $374, $202/s)
+1h37m03s [run4 00m10s] UPG Blade x4 $7.50K -> $379/s
+1h37m04s [run4 00m11s] GLOBAL x1.5 #1 $600 -> $526/s
+1h37m13s [run4 00m20s] UPG Pizza Box x4 $1.13K -> $684/s
+1h37m22s [run4 00m29s] GLOBAL x1.5 #2 $6.00K -> $862/s
+1h37m25s [run4 00m32s] CONTRACT -> Dave's Minecraft + County Records
+1h39m53s [run4 03m00s] GLOBAL x1.5 #3 $60.0K -> $2.19K/s
+1h40m33s [run4 03m40s] UPG GPU Node x2 $28.5K -> $3.52K/s
+1h41m44s [run4 04m51s] first AI Pod $194K (val $769K, $5.23K/s)
+1h41m58s [run4 05m05s] UPG Blade x8 $56.0K -> $6.96K/s
+1h44m23s [run4 07m30s] GLOBAL x1.5 #4 $600K -> $15.7K/s
+1h44m39s [run4 07m46s] UPG Pizza Box x8 $7.50K -> $18.0K/s
+1h45m35s [run4 08m42s] UPG Storage Array x2 $261K -> $25.4K/s
+1h45m53s [run4 09m00s] UPG GPU Node x4 $184K -> $31.1K/s
+1h47m25s [run4 10m32s] CONTRACT -> CatTube + Weatherbot (infra needed $1.55M)
+1h47m55s [run4 11m02s] UPG AI Pod x2 $3.15M -> $119K/s
+1h48m28s [run4 11m35s] UPG Storage Array x4 $1.58M -> $175K/s
+1h48m53s [run4 12m00s] GLOBAL x1.5 #5 $6.00M -> $234K/s
+1h51m48s [run4 14m55s] STAGE Hall (val $89.2M, $450K/s, fill of previous stage was 100%, infra share so far 11%)
+1h51m48s [run4 14m55s] first Annealer $45.8M (val $89.2M, $450K/s)
+1h51m53s [run4 15m00s] first Sled $2.70M (val $100M, $471K/s)
+1h53m23s [run4 16m30s] UPG GPU Node x8 $2.31M -> $770K/s
+1h54m21s [run4 17m28s] UPG Sled x2 $39.9M -> $1.01M/s
+1h55m19s [run4 18m26s] GLOBAL x1.5 #6 $60.0M -> $1.47M/s
+1h55m49s [run4 18m56s] UPG AI Pod x4 $20.2M -> $1.84M/s
+1h56m52s [run4 19m59s] UPG Blade x16 $5.62M -> $2.48M/s
+1h57m25s [run4 20m32s] CONTRACT -> CatTube + Halcyon (infra needed $11.0M)
+1h57m44s [run4 20m51s] UPG Storage Array x8 $13.1M -> $3.84M/s
+1h57m57s [run4 21m04s] UPG Pizza Box x16 $413K -> $4.24M/s
+2h00m02s [run4 23m09s] UPG Annealer x2 $383M -> $6.65M/s
+2h00m36s EXIT #4: valuation $1.73B shares 12 -> 24 (run 23m43s, $7.32M/s, Hall, fill 99%, infra 11% of spend, servers [114,119,66,61,39,24,12,0])
+2h00m37s [run5 00m01s] first Pizza Box $15 (val $0.00, $0.45/s)
+2h00m38s [run5 00m02s] first Blade $100 (val $2.67, $6.68/s)
+2h00m40s [run5 00m04s] UPG Pizza Box x2 $415 -> $39/s
+2h00m40s [run5 00m04s] first GPU Node $1.76K (val $59, $63/s)
+2h00m41s [run5 00m05s] UPG Blade x2 $2.09K -> $114/s
+2h00m44s [run5 00m08s] first Storage Array $30.0K (val $579, $313/s)
+2h00m46s [run5 00m10s] GLOBAL x1.5 #1 $600 -> $481/s
+2h00m46s [run5 00m10s] UPG Blade x4 $7.50K -> $732/s
+2h00m51s [run5 00m15s] UPG Pizza Box x4 $1.13K -> $1.04K/s
+2h00m58s [run5 00m22s] GLOBAL x1.5 #2 $6.00K -> $1.33K/s
+2h01m08s [run5 00m32s] CONTRACT -> Dave's Minecraft + Weatherbot (infra needed $7.42K)
+2h02m07s [run5 01m31s] GLOBAL x1.5 #3 $60.0K -> $6.28K/s
+2h02m25s [run5 01m49s] UPG Pizza Box x8 $13.5K -> $8.78K/s
+2h03m03s [run5 02m27s] first AI Pod $185K (val $805K, $13.2K/s)
+2h03m13s [run5 02m37s] UPG GPU Node x2 $28.7K -> $15.7K/s
+2h03m46s [run5 03m10s] UPG Blade x8 $75.2K -> $28.0K/s
+2h03m55s [run5 03m19s] UPG Storage Array x2 $259K -> $35.1K/s
+2h04m17s [run5 03m41s] GLOBAL x1.5 #4 $600K -> $49.4K/s
+2h04m59s [run5 04m23s] UPG GPU Node x4 $530K -> $85.9K/s
+2h05m36s [run5 05m00s] UPG AI Pod x2 $3.51M -> $150K/s
+2h06m04s [run5 05m28s] UPG Storage Array x4 $1.73M -> $232K/s
+2h06m33s [run5 05m57s] GLOBAL x1.5 #5 $6.00M -> $307K/s
+2h08m36s [run5 08m00s] STAGE Hall (val $92.2M, $590K/s, fill of previous stage was 100%, infra share so far 12%)
+2h08m36s [run5 08m00s] first Annealer $45.3M (val $92.2M, $590K/s)
+2h08m41s [run5 08m05s] first Sled $3.17M (val $95.1M, $616K/s)
+2h11m06s [run5 10m30s] GLOBAL x1.5 #6 $60.0M -> $1.40M/s
+2h11m08s [run5 10m32s] CONTRACT -> Halcyon + Hyperscaler (infra needed $9.50M)
+2h11m21s [run5 10m45s] UPG Sled x2 $31.3M -> $2.81M/s
+2h11m38s [run5 11m02s] UPG GPU Node x8 $4.09M -> $3.39M/s
+2h11m45s [run5 11m09s] UPG AI Pod x4 $19.3M -> $3.96M/s
+2h12m28s [run5 11m52s] UPG Blade x16 $3.48M -> $5.40M/s
+2h12m50s [run5 12m14s] UPG Storage Array x8 $13.7M -> $6.93M/s
+2h13m03s [run5 12m27s] UPG Pizza Box x16 $150K -> $7.30M/s
+2h14m06s [run5 13m30s] UPG Annealer x2 $381M -> $10.6M/s
+2h15m18s [run5 14m42s] GLOBAL x1.5 #7 $600M -> $16.0M/s
+2h15m39s [run5 15m03s] UPG Sled x4 $173M -> $21.6M/s
+2h17m07s [run5 16m31s] * 500 Servers  ($5.94B val, $29.3M/s)
+2h18m35s [run5 17m59s] UPG Annealer x4 $2.02B -> $48.5M/s
+2h19m53s EXIT #5: valuation $13.9B shares 24 -> 48 (run 19m17s, $55.3M/s, Hall, fill 99%, infra 8% of spend, servers [128,132,76,71,47,38,30,0])
+2h19m54s [run6 00m01s] first Pizza Box $15 (val $0.00, $0.77/s)
+2h19m55s [run6 00m02s] first Blade $100 (val $4.59, $11/s)
+2h19m57s [run6 00m04s] UPG Pizza Box x2 $415 -> $67/s
+2h19m57s [run6 00m04s] first GPU Node $1.76K (val $101, $108/s)
+2h19m58s [run6 00m05s] UPG Blade x2 $2.09K -> $197/s
+2h20m01s [run6 00m08s] first Storage Array $30.0K (val $995, $537/s)
+2h20m02s [run6 00m09s] GLOBAL x1.5 #1 $600 -> $723/s
+2h20m03s [run6 00m10s] UPG Blade x4 $7.50K -> $1.26K/s
+2h20m04s [run6 00m11s] UPG Pizza Box x4 $1.13K -> $1.78K/s
+2h20m07s [run6 00m14s] first AI Pod $175K (val $9.95K, $3.86K/s)
+2h20m08s [run6 00m15s] GLOBAL x1.5 #2 $6.00K -> $4.86K/s
+2h20m13s [run6 00m20s] UPG GPU Node x2 $24.7K -> $8.83K/s
+2h20m14s [run6 00m21s] UPG Pizza Box x8 $14.4K -> $9.08K/s
+2h20m19s [run6 00m26s] GLOBAL x1.5 #3 $60.0K -> $12.3K/s
+2h20m25s [run6 00m32s] CONTRACT -> County Records + Weatherbot (infra needed $14.0K)
+2h20m25s [run6 00m32s] UPG Blade x8 $66.1K -> $36.7K/s
+2h20m58s [run6 01m05s] GLOBAL x1.5 #4 $600K -> $72.3K/s
+2h21m06s [run6 01m13s] UPG Storage Array x2 $243K -> $93.3K/s
+2h21m17s [run6 01m24s] UPG GPU Node x4 $148K -> $136K/s
+2h21m51s [run6 01m58s] UPG AI Pod x2 $3.19M -> $254K/s
+2h22m10s [run6 02m17s] UPG Storage Array x4 $1.81M -> $400K/s
+2h22m30s [run6 02m37s] GLOBAL x1.5 #5 $6.00M -> $574K/s
+2h22m40s [run6 02m47s] first Sled $2.83M (val $30.3M, $670K/s)
+2h23m32s [run6 03m39s] first Annealer $25.2M (val $98.4M, $1.37M/s)
+2h23m46s [run6 03m53s] UPG AI Pod x4 $13.9M -> $1.86M/s
+2h24m23s [run6 04m30s] GLOBAL x1.5 #6 $60.0M -> $2.84M/s
+2h24m43s [run6 04m50s] UPG Sled x2 $30.8M -> $3.75M/s
+2h25m05s [run6 05m12s] UPG GPU Node x8 $3.11M -> $4.71M/s
+2h25m40s [run6 05m47s] UPG Blade x16 $1.30M -> $5.97M/s
+2h25m55s [run6 06m02s] UPG Storage Array x8 $10.4M -> $7.25M/s
+2h26m02s [run6 06m09s] UPG Pizza Box x16 $150K -> $7.67M/s
+2h27m06s [run6 07m13s] UPG Annealer x2 $369M -> $11.1M/s
+2h28m11s [run6 08m18s] GLOBAL x1.5 #7 $600M -> $17.3M/s
+2h28m38s [run6 08m45s] UPG Sled x4 $155M -> $22.3M/s
+2h30m25s [run6 10m32s] CONTRACT -> Weatherbot + Halcyon (infra needed $450M)
+2h30m57s [run6 11m04s] UPG Annealer x4 $2.18B -> $86.8M/s
+2h32m08s [run6 12m15s] GLOBAL x1.5 #8 $6.00B -> $124M/s
+2h32m36s [run6 12m43s] UPG AI Pod x8 $238M -> $141M/s
+2h34m32s [run6 14m39s] UPG Sled x8 $2.52B -> $204M/s
+2h38m26s EXIT #6: valuation $111B shares 48 -> 96 (run 18m33s, $245M/s, Hall, fill 100%, infra 13% of spend, servers [159,163,98,92,71,62,49,0])
+2h38m27s [run7 00m01s] first Pizza Box $15 (val $0.00, $1.40/s)
+2h38m28s [run7 00m02s] first Blade $100 (val $8.40, $21/s)
+2h38m30s [run7 00m04s] UPG Pizza Box x2 $415 -> $122/s
+2h38m30s [run7 00m04s] first GPU Node $1.76K (val $185, $197/s)
+2h38m31s [run7 00m05s] UPG Blade x2 $2.09K -> $360/s
+2h38m33s [run7 00m07s] GLOBAL x1.5 #1 $600 -> $610/s
+2h38m34s [run7 00m08s] first Storage Array $30.0K (val $1.96K, $1.23K/s)
+2h38m36s [run7 00m10s] UPG Blade x4 $7.50K -> $2.30K/s
+2h38m37s [run7 00m11s] UPG Pizza Box x4 $1.13K -> $3.26K/s
+2h38m38s [run7 00m12s] GLOBAL x1.5 #2 $6.00K -> $4.08K/s
+2h38m40s [run7 00m14s] first AI Pod $175K (val $20.5K, $8.81K/s)
+2h38m46s [run7 00m20s] UPG GPU Node x2 $24.7K -> $16.1K/s
+2h38m47s [run7 00m21s] GLOBAL x1.5 #3 $60.0K -> $20.2K/s
+2h38m47s [run7 00m21s] UPG Pizza Box x8 $14.4K -> $20.7K/s
+2h38m58s [run7 00m32s] CONTRACT -> County Records + Weatherbot (infra needed $9.18K)
+2h38m59s [run7 00m33s] UPG Blade x8 $67.5K -> $76.4K/s
+2h39m15s [run7 00m49s] GLOBAL x1.5 #4 $600K -> $132K/s
+2h39m19s [run7 00m53s] UPG Storage Array x2 $243K -> $170K/s
+2h39m25s [run7 00m59s] UPG GPU Node x4 $148K -> $249K/s
+2h39m44s [run7 01m18s] UPG AI Pod x2 $3.19M -> $465K/s
+2h39m54s [run7 01m28s] UPG Storage Array x4 $1.81M -> $730K/s
+2h40m05s [run7 01m39s] GLOBAL x1.5 #5 $6.00M -> $1.05M/s
+2h40m08s [run7 01m42s] first Sled $2.30M (val $27.4M, $1.13M/s)
+2h40m49s [run7 02m23s] first Annealer $25.2M (val $99.0M, $2.51M/s)
+2h40m57s [run7 02m31s] UPG AI Pod x4 $13.9M -> $3.41M/s
+2h41m25s [run7 02m59s] GLOBAL x1.5 #6 $60.0M -> $5.18M/s
+2h41m25s [run7 02m59s] UPG GPU Node x8 $1.87M -> $5.31M/s
+2h41m27s [run7 03m01s] UPG Sled x2 $31.0M -> $6.90M/s
+2h41m44s [run7 03m18s] UPG Blade x16 $4.25M -> $9.91M/s
+2h42m00s [run7 03m34s] UPG Storage Array x8 $12.3M -> $12.4M/s
+2h42m09s [run7 03m43s] UPG Pizza Box x16 $378K -> $13.5M/s
+2h42m48s [run7 04m22s] UPG Annealer x2 $370M -> $20.1M/s
+2h43m12s [run7 04m46s] GLOBAL x1.5 #7 $600M -> $30.2M/s
+2h43m37s [run7 05m11s] UPG Sled x4 $159M -> $42.2M/s
+2h44m50s [run7 06m24s] UPG Annealer x4 $1.83B -> $90.6M/s
+2h45m56s [run7 07m30s] * 100 Incidents  ($16.8B val, $103M/s)
+2h45m56s [run7 07m30s] GLOBAL x1.5 #8 $6.00B -> $130M/s
+2h46m20s [run7 07m54s] UPG AI Pod x8 $98.2M -> $149M/s
+2h48m04s [run7 09m38s] UPG Sled x8 $1.04B -> $218M/s
+2h48m58s [run7 10m32s] CONTRACT -> Halcyon + Hyperscaler (infra needed $2.79B)
+2h52m02s [run7 13m36s] GLOBAL x1.5 #9 $60.0B -> $540M/s
+2h52m51s [run7 14m25s] UPG Annealer x8 $17.4B -> $885M/s
+2h54m17s [run7 15m51s] UPG GPU Node x16 $13.0M -> $999M/s
+2h55m25s [run7 16m59s] STAGE Campus (val $369B, $1.06B/s, fill of previous stage was 99%, infra share so far 9%)
+2h55m25s [run7 16m59s] first Orbital $3.11B (val $369B, $1.06B/s)
+2h55m25s [run7 16m59s] UPG Storage Array x16 $140M -> $1.07B/s
+2h55m26s [run7 17m00s] * Campus  ($370B val, $1.08B/s)
+2h55m26s [run7 17m00s] * First Reactor  ($370B val, $1.08B/s)
+2h55m26s [run7 17m00s] * First Orbital  ($370B val, $1.08B/s)
+2h55m35s [run7 17m09s] UPG Orbital x2 $4.76B -> $1.26B/s
+2h56m22s [run7 17m56s] UPG Orbital x4 $26.4B -> $1.94B/s
+2h56m23s [run7 17m57s] * Marjorie  ($450B val, $1.94B/s)
+2h58m44s EXIT #7: valuation $886B shares 96 -> 192 (run 20m18s, $2.69B/s, Campus, fill 100%, infra 7% of spend, servers [168,173,112,106,78,69,61,46])
+2h58m45s [run8 00m01s] first Pizza Box $15 (val $0.00, $2.77/s)
+2h58m46s [run8 00m02s] first Blade $100 (val $17, $42/s)
+2h58m48s [run8 00m04s] UPG Pizza Box x2 $415 -> $241/s
+2h58m48s [run8 00m04s] first GPU Node $1.76K (val $365, $390/s)
+2h58m49s [run8 00m05s] UPG Blade x2 $2.09K -> $711/s
+2h58m50s [run8 00m06s] GLOBAL x1.5 #1 $600 -> $889/s
+2h58m52s [run8 00m08s] first Storage Array $30.0K (val $4.06K, $2.43K/s)
+2h58m54s [run8 00m10s] UPG Blade x4 $7.50K -> $4.55K/s
+2h58m55s [run8 00m11s] GLOBAL x1.5 #2 $6.00K -> $6.30K/s
+2h58m55s [run8 00m11s] UPG Pizza Box x4 $1.13K -> $8.05K/s
+2h58m58s [run8 00m14s] first AI Pod $175K (val $42.3K, $17.4K/s)
+2h59m02s [run8 00m18s] GLOBAL x1.5 #3 $60.0K -> $25.8K/s
+2h59m05s [run8 00m21s] UPG GPU Node x2 $24.7K -> $39.9K/s
+2h59m05s [run8 00m21s] UPG Pizza Box x8 $14.4K -> $41.0K/s
+2h59m08s [run8 00m24s] UPG Blade x8 $66.1K -> $63.0K/s
+2h59m15s [run8 00m31s] UPG Storage Array x2 $249K -> $122K/s
+2h59m16s [run8 00m32s] CONTRACT -> Weatherbot + Hyperscaler + Ministry (infra needed $750K)
+2h59m16s [run8 00m32s] GLOBAL x1.5 #4 $600K -> $769K/s
+2h59m18s [run8 00m34s] UPG GPU Node x4 $126K -> $957K/s
+2h59m23s [run8 00m39s] first Sled $3.06M (val $7.94M, $1.40M/s)
+2h59m24s [run8 00m40s] UPG Storage Array x4 $1.05M -> $1.93M/s
+2h59m26s [run8 00m42s] GLOBAL x1.5 #5 $6.00M -> $2.80M/s
+2h59m29s [run8 00m45s] UPG AI Pod x2 $2.40M -> $3.95M/s
+2h59m36s [run8 00m52s] first Annealer $25.9M (val $62.4M, $7.96M/s)
+2h59m43s [run8 00m59s] UPG GPU Node x8 $1.92M -> $11.9M/s
+2h59m50s [run8 01m06s] GLOBAL x1.5 #6 $60.0M -> $16.9M/s
+2h59m59s [run8 01m15s] UPG Sled x2 $30.8M -> $27.2M/s
+
+--- Purchase gaps >= 4 min ---
+none
+
+--- Snapshots every 5 min (active) ---
+active    | wall      | income/s   | valuation | cash      | stage     | racks | fill | utilP utilC utilN | uptime | sh | infra | contracts | owned
+   05m00s |    05m00s |      $7.94 |    $1.15K |       $43 | Garage    |     2 |  88% |   99%   84%   32% |  100.0 |  0 |   29% | FrobCoin               | [11,3,0,0,0,0,0,0] upg[1,0,0,0,0,0,0,0]
+   10m00s |    10m00s |        $38 |    $9.08K |    $2.32K | Garage    |     4 | 100% |   84%   98%   78% |  100.0 |  0 |   34% | FrobCoin               | [15,17,0,0,0,0,0,0] upg[1,0,0,0,0,0,0,0]
+   15m00s |    15m00s |       $126 |    $35.7K |    $6.44K | Colo      |     6 | 100% |   92%   78%   96% |  100.0 |  0 |   32% | FrobCoin               | [21,25,2,0,0,0,0,0] upg[1,1,0,0,0,0,0,0]
+   20m00s |    20m00s |       $708 |     $179K |    $20.8K | Colo      |    11 |  95% |  100%   85%   49% |  100.0 |  0 |   22% | FrobCoin               | [38,40,3,3,0,0,0,0] upg[2,2,0,0,0,0,0,0]
+   25m00s |    25m00s |     $2.58K |     $776K |    $96.8K | Colo      |    12 | 100% |   93%  100%   92% |  100.0 |  0 |   12% | FrobCoin               | [5,81,5,5,0,0,0,0] upg[2,3,0,0,0,0,0,0]
+   30m00s |    30m00s |     $3.94K |    $1.88M |     $151K | Warehouse |    15 | 100% |   98%   99%   83% |  100.0 |  0 |    7% | FrobCoin               | [26,81,5,6,2,0,0,0] upg[2,3,0,0,0,0,0,0]
+   35m00s |    35m00s |     $21.6K |    $5.30M |     $290K | Warehouse |    25 | 100% |   99%   97%   93% |  100.0 |  0 |    9% | County Records+Weatherbot | [69,81,26,19,5,0,0,0] upg[3,3,2,1,0,0,0,0]
+   40m00s |    40m00s |     $69.7K |    $19.6M |    $2.43M | Warehouse |    31 |  98% |  100%   98%   95% |  100.0 |  0 |   14% | County Records+Weatherbot | [77,82,38,32,14,0,0,0] upg[3,3,2,2,1,0,0,0]
+   45m00s |    45m00s |        $95 |    $13.9K |    $1.82K | Colo      |     5 |  88% |   98%  100%   92% |  100.0 |  3 |   22% | FrobCoin               | [22,12,1,0,0,0,0,0] upg[1,1,0,0,0,0,0,0]
+   50m00s |    50m00s |       $902 |     $135K |    $5.38K | Colo      |    11 |  92% |   98%   83%  100% |  100.0 |  3 |   20% | FrobCoin               | [35,40,4,2,0,0,0,0] upg[2,2,0,0,0,0,0,0]
+   55m00s |    55m00s |     $5.06K |    $1.18M |    $6.94K | Warehouse |    13 | 100% |   94%   93%  100% |  100.0 |  3 |   11% | CatTube                | [12,82,6,3,1,0,0,0] upg[2,3,0,0,0,0,0,0]
+ 1h00m00s |  1h00m00s |     $11.0K |    $3.70M |     $190K | Warehouse |    22 | 100% |   99%   93%  100% |  100.0 |  3 |   12% | CatTube                | [64,82,19,8,3,0,0,0] upg[3,3,1,0,0,0,0,0]
+ 1h05m00s |  1h05m00s |     $69.9K |    $15.5M |     $877K | Warehouse |    30 |  98% |   97%   88%   52% |  100.0 |  3 |   16% | County Records+Weatherbot | [77,82,37,25,14,0,0,0] upg[3,3,2,1,1,0,0,0]
+ 1h10m00s |  1h10m00s |       $116 |    $16.0K |    $3.86K | Colo      |     5 |  88% |   98%  100%   92% |  100.0 |  6 |   22% | FrobCoin               | [22,12,1,0,0,0,0,0] upg[1,1,0,0,0,0,0,0]
+ 1h15m00s |  1h15m00s |     $1.35K |     $203K |    $31.0K | Colo      |    12 | 100% |   91%  100%   41% |  100.0 |  6 |   24% | FrobCoin               | [44,43,6,3,0,0,0,0] upg[2,2,0,0,0,0,0,0]
+ 1h20m00s |  1h20m00s |     $5.56K |    $1.60M |    $65.5K | Warehouse |    15 | 100% |  100%   90%   94% |  100.0 |  6 |    7% | FrobCoin               | [26,82,6,5,1,0,0,0] upg[2,3,0,0,0,0,0,0]
+ 1h25m00s |  1h25m00s |     $22.4K |    $5.99M |     $324K | Warehouse |    26 | 100% |  100%   96%   91% |  100.0 |  6 |   13% | FrobCoin               | [74,82,24,21,6,0,0,0] upg[3,3,1,1,0,0,0,0]
+ 1h30m00s |  1h30m00s |      $167K |    $32.6M |    $1.71M | Warehouse |    31 |  99% |   89%  100%   94% |  100.0 |  6 |   22% | CatTube+Weatherbot     | [86,84,34,22,20,0,0,0] upg[3,3,2,1,1,0,0,0]
+ 1h35m00s |  1h35m00s |      $451K |     $134M |    $9.34M | Hall      |    39 |  98% |  100%  100%   96% |  100.0 |  6 |   16% | CatTube+Weatherbot     | [91,95,49,40,23,8,1,0] upg[3,3,2,2,1,0,0,0]
+ 1h40m00s |  1h40m00s |     $2.47K |     $321K |    $8.07K | Warehouse |    12 | 100% |   80%   82%   67% |  100.0 | 12 |   10% | Dave's Minecraft+County Records | [41,45,7,3,0,0,0,0] upg[2,2,0,0,0,0,0,0]
+ 1h45m00s |  1h45m00s |     $19.8K |    $3.44M |    $19.3K | Warehouse |    20 | 100% |   96%   92%   94% |  100.0 | 12 |    7% | Dave's Minecraft+County Records | [60,65,21,8,6,0,0,0] upg[3,3,1,0,0,0,0,0]
+ 1h50m00s |  1h50m00s |      $345K |    $44.7M |    $1.49M | Warehouse |    36 | 100% |   99%  100%  100% |  100.0 | 12 |   20% | CatTube+Weatherbot     | [85,94,47,40,22,0,0,0] upg[3,3,2,2,1,0,0,0]
+ 1h55m00s |  1h55m00s |     $1.18M |     $280M |    $36.7M | Hall      |    41 | 100% |   93%   99%   96% |  100.0 | 12 |   15% | CatTube+Weatherbot     | [92,96,55,44,24,14,2,0] upg[3,3,3,2,1,1,0,0]
+ 2h00m00s |  2h00m00s |     $4.98M |    $1.48B |     $369M | Hall      |    55 |  98% |   98%   98%   98% |  100.0 | 12 |   14% | CatTube+Halcyon        | [114,119,66,61,39,24,10,0] upg[4,4,3,3,2,1,0,0]
+ 2h05m00s |  2h05m00s |     $79.9K |    $5.86M |    $10.8K | Warehouse |    26 |  97% |  100%   98%   98% |  100.0 | 24 |   23% | Dave's Minecraft+Weatherbot | [75,72,27,21,6,0,0,0] upg[3,3,2,1,0,0,0,0]
+ 2h10m00s |  2h10m00s |      $971K |     $174M |    $16.7M | Hall      |    39 |  99% |  100%  100%   95% |  100.0 | 24 |   12% | Dave's Minecraft+Weatherbot | [91,93,48,43,23,9,2,0] upg[3,3,2,2,1,0,0,0]
+ 2h15m00s |  2h15m00s |     $12.8M |    $2.21B |     $364M | Hall      |    54 |  99% |  100%   98%   98% |  100.0 | 24 |   12% | Halcyon+Hyperscaler    | [114,117,64,59,38,23,14,0] upg[4,4,3,3,2,1,1,0]
+ 2h20m00s |  2h20m00s |       $197 |      $407 |     $979K | Hall      |    36 |  12% |   83%   87%   87% |  100.0 | 48 |   11% |                        | [18,15,1,0,0,0,0,0] upg[1,1,0,0,0,0,0,0]
+ 2h25m00s |  2h25m00s |     $4.39M |     $368M |    $13.6M | Hall      |    41 | 100% |   99%   98%   99% |  100.0 | 48 |    7% | County Records+Weatherbot | [90,95,49,44,31,16,3,0] upg[3,3,2,2,2,1,0,0]
+ 2h30m00s |  2h30m00s |     $30.6M |    $5.66B |     $177M | Hall      |    63 | 100% |   99%  100%   98% |  100.0 | 48 |    4% | County Records+Weatherbot | [125,129,74,69,46,38,23,0] upg[4,4,3,3,2,2,1,0]
+ 2h35m00s |  2h35m00s |      $215M |    $52.9B |    $1.53B | Hall      |    80 | 100% |  100%   97%   98% |  100.0 | 48 |   13% | Weatherbot+Halcyon     | [149,153,90,84,65,56,42,0] upg[4,4,3,3,3,3,2,0]
+ 2h40m00s |  2h40m00s |      $839K |    $19.2M |    $1.00M | Hall      |    36 |  86% |   91%   98%   78% |  100.0 | 96 |   15% | County Records+Weatherbot | [78,80,39,34,16,0,0,0] upg[3,3,2,2,1,0,0,0]
+ 2h45m00s |  2h45m00s |     $93.2M |    $8.92B |     $398M | Hall      |    65 |  99% |  100%   92%   94% |  100.0 | 96 |    4% | County Records+Weatherbot | [127,131,75,70,47,38,26,0] upg[4,4,3,3,2,2,2,0]
+ 2h50m00s |  2h50m00s |      $418M |    $82.7B |    $4.11B | Hall      |    85 | 100% |  100%   98%  100% |  100.0 | 96 |    6% | Halcyon+Hyperscaler    | [155,160,96,90,70,62,47,0] upg[4,4,3,3,3,3,2,0]
+ 2h55m00s |  2h55m00s |     $1.04B |     $342B |    $7.07B | Hall      |    95 |  99% |  100%   99%   99% |  100.0 | 96 |    8% | Halcyon+Hyperscaler    | [168,172,112,99,77,68,60,0] upg[4,4,4,3,3,3,3,0]
+ 3h00m00s |  3h00m00s |     $23.4M |     $397M |    $6.83M | Campus    |    96 |  44% |   88%  100%   99% |  100.0 | 192 |   10% | Weatherbot+Hyperscaler+Ministry | [96,99,59,46,24,11,6,0] upg[3,3,3,2,1,1,0,0]
+
+--- Buys per minute (active) ---
+
+00m00s:   6  2  0  3  4  2  6  6  5  3  1  0  2 14  0  3  0  0 16 20 12  8 14 12  6  0  0 16  0  8
+30m00s:  16 18  8 17 26 16 13  1  6  9  6 36  2  3  5  1 13 12 14  9 15  8 25  8  8 16 16  2  0 41
+1h00m00s:   8 21 24  2  7  6 38  1  6  3  1  9 30  5 19 17 20  4 16  8 24  9  0 29 29  5 10  9  5 13
+1h30m00s:  44  0  0  7 12  5 39 63  0  4 17  9 22  2 18 42 25  2 24 42  0  6 18 12  5 10 34 34 32  1
+2h00m00s:  74 31 25 33 54 31 43 19  5 16  3 35 51 33  6 22 38 30  5 37146 61 68 20 16 75 25  6 43 34
+2h30m00s:  10  5 51 48 25 21 21 13148114 68 77 46 45 43  6 57 46 34 26 15  0  5 21 38 30 14  9 97270
+
+--- Exits ---
+41m13s (active 41m13s): $27.0M shares 0->3 run 41m13s stage Warehouse fill 100% infra 12%
+1h06m39s (active 1h06m39s): $27.0M shares 3->6 run 25m26s stage Warehouse fill 97% infra 13%
+1h36m53s (active 1h36m53s): $217M shares 6->12 run 30m14s stage Hall fill 98% infra 13%
+2h00m36s (active 2h00m36s): $1.73B shares 12->24 run 23m43s stage Hall fill 99% infra 11%
+2h19m53s (active 2h19m53s): $13.9B shares 24->48 run 19m17s stage Hall fill 99% infra 8%
+2h38m26s (active 2h38m26s): $111B shares 48->96 run 18m33s stage Hall fill 100% infra 13%
+2h58m44s (active 2h58m44s): $886B shares 96->192 run 20m18s stage Campus fill 100% infra 7%
+
+--- Final state ---
+t=3h00m00s active=3h00m00s shares=192 exits=7 stage=Campus racks=96 fill=44% income=$28.0M/s val=$397M cash=$6.83M uptime=100.0
+owned=[96,99,59,46,24,11,6,0] upg=[3,3,3,2,1,1,0,0] infra=[PDU:6 Subpanel:3 Genset:33 Substation:14 HV Feed:1 Box Fan:6 Window AC:3 Split AC:30 CRAC:13 Switch:6 Biz Fiber:3 Fiber Uplink:21 Core Router:7] effUpg=[Containment,VSD fans,Compression] globals=6 milestones=37
+spend this run: servers 66%, upgrades 8%, infra 10%, racks 0%, moves 0%, globals 16%, refresh 0%, qol 0%
+over-capacity ticks: 0.0%  mean max-utilisation: 98%

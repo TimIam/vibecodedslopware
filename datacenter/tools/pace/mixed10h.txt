@@ -1,0 +1,870 @@
+=== UPTIME economy sim | schedule=mixed hours=10 contracts=best events=false incidents=true stack=add exit=glow patch=uptime,vis,add,gmix,ladder,glob125,upg2,gates,glow2,share10,infra115,offline,offval,perkcash,garage,rackg ===
+
+--- Milestone first-hit times (wall clock / active play) ---
+Lights On                 00m01s  active    00m01s  run1      $0.30/s  val $4.30
+Getting Warm              00m16s  active    00m16s  run1      $0.51/s  val $40
+Buy a Fan                 01m37s  active    01m37s  run1      $1.53/s  val $252
+Just the One              01m37s  active    01m37s  run1      $1.53/s  val $252
+First Gigabit             03m11s  active    03m11s  run1      $2.63/s  val $487
+Fill Rack 1               01m44s  active    01m44s  run1      $1.66/s  val $277
+Fix 5 Incidents           09m00s  active    09m00s  run1        $33/s  val $6.83K
+First Contract            03m11s  active    03m11s  run1      $2.63/s  val $487
+$1,000                    04m36s  active    04m36s  run1      $6.10/s  val $1.00K
+Sell the Civic            06m48s  active    06m48s  run1        $15/s  val $2.54K
+Fill the Garage           08m46s  active    08m46s  run1        $33/s  val $5.70K
+Hire Dale                 14m08s  active    14m08s  run1       $125/s  val $29.3K
+Sign the Lease            10m39s  active    10m39s  run1        $48/s  val $11.4K
+100 Servers               27m01s  active    27m01s  run1     $3.17K/s  val $1.20M
+10 Min No Red             10m00s  active    10m00s  run1        $38/s  val $9.12K
+$100,000                  18m00s  active    18m00s  run1       $289/s  val $100K
+Out of the Cage           10m39s  active    10m39s  run1        $48/s  val $11.4K
+First Storage Array       18m01s  active    18m01s  run1       $398/s  val $101K
+Make Me a Million         26m06s  active    26m06s  run1     $2.58K/s  val $1.00M
+Warehouse                 27m01s  active    27m01s  run1     $3.17K/s  val $1.20M
+First Megawatt            34m14s  active    34m14s  run1     $16.0K/s  val $4.09M
+99.9 for 10 Min           10m00s  active    10m00s  run1        $38/s  val $9.12K
+First Exit                41m14s  active    41m14s  run2      $0.00/s  val $0.00
+The Hall                1h33m23s  active  1h33m23s  run3      $312K/s  val $89.0M
+First Sled              1h33m32s  active  1h33m32s  run3      $331K/s  val $91.9M
+Four Nines                30m00s  active    30m00s  run1     $3.94K/s  val $1.96M
+Campus                 10h39m58s  active  2h39m58s  run7      $0.00/s  val $0.00
+Marjorie               10h44m42s  active  2h44m42s  run7     $1.58B/s  val $105B
+First Reactor          10h43m05s  active  2h43m05s  run7      $330M/s  val $16.9B
+$1 Trillion            10h48m42s  active  2h48m42s  run7     $4.41B/s  val $1.00T
+You Are the Cloud      28h00m00s  active  4h00m00s  run10      $624B/s  val $1.75Qa
+200 Servers               34m47s  active    34m47s  run1     $21.4K/s  val $5.04M
+500 Servers            10h12m14s  active  2h12m14s  run5     $30.4M/s  val $5.40B
+1000 Servers           19h07m20s  active  3h07m20s  run9     $71.9B/s  val $16.8T
+25 Incidents              39m00s  active    39m00s  run1     $52.9K/s  val $15.5M
+100 Incidents          10h38m41s  active  2h38m41s  run6      $706M/s  val $259B
+First Pod                 27m01s  active    27m01s  run1     $3.17K/s  val $1.20M
+First Annealer          1h33m23s  active  1h33m23s  run3      $312K/s  val $89.0M
+First Orbital          10h41m47s  active  2h41m47s  run7     $45.8M/s  val $1.25B
+$10M                      37m29s  active    37m29s  run1     $30.9K/s  val $10.0M
+
+--- Event log ---
+00m00s [run1 00m00s] first Pizza Box $15 (val $2.00, $0.10/s)
+00m01s [run1 00m01s] * Lights On  ($4.30 val, $0.30/s)
+00m16s [run1 00m16s] * Getting Warm  ($40 val, $0.51/s)
+01m36s [run1 01m36s] first Blade $190 (val $248, $1.53/s)
+01m37s [run1 01m37s] * Buy a Fan  ($252 val, $1.53/s)
+01m37s [run1 01m37s] * Just the One  ($252 val, $1.53/s)
+01m44s [run1 01m44s] * Fill Rack 1  ($277 val, $1.66/s)
+03m10s [run1 03m10s] Rack 2 $40
+03m11s [run1 03m11s] CONTRACT -> FrobCoin
+03m11s [run1 03m11s] * First Gigabit  ($487 val, $2.63/s)
+03m11s [run1 03m11s] * First Contract  ($487 val, $2.63/s)
+04m36s [run1 04m36s] * $1,000  ($1.00K val, $6.10/s)
+04m54s [run1 04m54s] UPG Pizza Box x2 $284 -> $7.94/s
+06m18s [run1 06m18s] GLOBAL x1.5 #1 $600 -> $14/s
+06m47s [run1 06m47s] Rack 3 $43
+06m48s [run1 06m48s] * Sell the Civic  ($2.54K val, $15/s)
+07m30s [run1 07m30s] Rack 4 $47
+08m46s [run1 08m46s] * Fill the Garage  ($5.70K val, $33/s)
+09m00s [run1 09m00s] * Fix 5 Incidents  ($6.83K val, $33/s)
+10m00s [run1 10m00s] * 10 Min No Red  ($9.12K val, $38/s)
+10m00s [run1 10m00s] * 99.9 for 10 Min  ($9.12K val, $38/s)
+10m38s [run1 10m38s] STAGE Colo (val $11.4K, $48/s, fill of previous stage was 100%, infra share so far 29%)
+10m38s [run1 10m38s] first GPU Node $4.60K (val $11.4K, $48/s)
+10m39s [run1 10m39s] * Sign the Lease  ($11.4K val, $48/s)
+10m39s [run1 10m39s] * Out of the Cage  ($11.4K val, $48/s)
+12m53s [run1 12m53s] UPG Blade x2 $7.55K -> $82/s
+14m08s [run1 14m08s] * Hire Dale  ($29.3K val, $125/s)
+15m00s [run1 15m00s] UPG Blade x4 $8.00K -> $224/s
+15m26s [run1 15m26s] GLOBAL x1.5 #2 $6.00K -> $289/s
+18m00s [run1 18m00s] * $100,000  ($100K val, $289/s)
+18m00s [run1 18m00s] first Storage Array $30.9K (val $100K, $369/s)
+18m01s [run1 18m01s] * First Storage Array  ($101K val, $398/s)
+19m30s [run1 19m30s] UPG Pizza Box x4 $1.13K -> $676/s
+21m30s [run1 21m30s] GLOBAL x1.5 #3 $60.0K -> $1.15K/s
+22m30s [run1 22m30s] UPG Blade x8 $61.3K -> $1.85K/s
+26m06s [run1 26m06s] * Make Me a Million  ($1.00M val, $2.58K/s)
+27m00s [run1 27m00s] STAGE Warehouse (val $1.19M, $3.16K/s, fill of previous stage was 100%, infra share so far 9%)
+27m00s [run1 27m00s] first AI Pod $498K (val $1.19M, $3.16K/s)
+27m01s [run1 27m01s] * 100 Servers  ($1.20M val, $3.17K/s)
+27m01s [run1 27m01s] * Warehouse  ($1.20M val, $3.17K/s)
+27m01s [run1 27m01s] * First Pod  ($1.20M val, $3.17K/s)
+30m00s [run1 30m00s] * Four Nines  ($1.96M val, $3.94K/s)
+32m07s [run1 32m07s] UPG Storage Array x2 $246K -> $6.65K/s
+32m10s [run1 32m10s] UPG GPU Node x2 $19.5K -> $6.81K/s
+33m11s [run1 33m11s] CONTRACT -> County Records + Weatherbot (infra needed $15.2K)
+33m11s [run1 33m11s] UPG Pizza Box x8 $7.50K -> $11.1K/s
+34m06s [run1 34m06s] GLOBAL x1.5 #4 $600K -> $15.6K/s
+34m14s [run1 34m14s] * First Megawatt  ($4.09M val, $16.0K/s)
+34m45s [run1 34m45s] UPG GPU Node x4 $148K -> $21.3K/s
+34m47s [run1 34m47s] * 200 Servers  ($5.04M val, $21.4K/s)
+37m29s [run1 37m29s] * $10M  ($10.0M val, $30.9K/s)
+37m58s [run1 37m58s] UPG AI Pod x2 $3.19M -> $42.9K/s
+39m00s [run1 39m00s] * 25 Incidents  ($15.5M val, $52.9K/s)
+39m00s [run1 39m00s] UPG Storage Array x4 $1.20M -> $63.8K/s
+40m31s [run1 40m31s] GLOBAL x1.5 #5 $6.00M -> $87.2K/s
+41m13s EXIT #1: valuation $27.0M shares 0 -> 3 (run 41m13s, $96.8K/s, Warehouse, fill 100%, infra 12% of spend, servers [81,83,41,35,16,0,0,0])
+41m14s [run2 00m01s] * First Exit  ($0.00 val, $0.00/s)
+41m14s [run2 00m01s] first Pizza Box $15 (val $0.00, $0.17/s)
+41m15s [run2 00m02s] first Blade $100 (val $1.00, $2.50/s)
+41m17s [run2 00m04s] UPG Pizza Box x2 $415 -> $14/s
+41m45s [run2 00m32s] CONTRACT -> FrobCoin (infra needed $343)
+42m06s [run2 00m53s] GLOBAL x1.5 #1 $600 -> $37/s
+42m54s [run2 01m41s] first GPU Node $1.76K (val $2.92K, $50/s)
+43m57s [run2 02m44s] UPG Blade x2 $2.83K -> $81/s
+45m43s [run2 04m30s] GLOBAL x1.5 #2 $6.00K -> $118/s
+47m13s [run2 06m00s] UPG Pizza Box x4 $1.55K -> $269/s
+48m24s [run2 07m11s] UPG Blade x4 $14.5K -> $487/s
+49m16s [run2 08m03s] first Storage Array $19.1K (val $101K, $704/s)
+51m14s [run2 10m01s] GLOBAL x1.5 #3 $60.0K -> $1.38K/s
+51m45s [run2 10m32s] CONTRACT -> CatTube (infra needed $24.7K)
+52m00s [run2 10m47s] UPG Blade x8 $50.0K -> $2.83K/s
+54m58s [run2 13m45s] STAGE Warehouse (val $1.18M, $5.04K/s, fill of previous stage was 100%, infra share so far 11%)
+54m58s [run2 13m45s] first AI Pod $500K (val $1.18M, $5.04K/s)
+59m13s [run2 18m00s] GLOBAL x1.5 #4 $600K -> $9.36K/s
+59m30s [run2 18m17s] UPG GPU Node x2 $39.6K -> $10.3K/s
+59m35s [run2 18m22s] UPG Pizza Box x8 $21.5K -> $10.7K/s
+1h01m23s [run2 20m10s] UPG Storage Array x2 $210K -> $17.2K/s
+1h01m45s [run2 20m32s] CONTRACT -> County Records + Weatherbot (infra needed $44.1K)
+1h01m48s [run2 20m35s] UPG GPU Node x4 $130K -> $26.4K/s
+1h04m05s [run2 22m52s] UPG AI Pod x2 $3.15M -> $56.7K/s
+1h05m03s [run2 23m50s] UPG Storage Array x4 $1.15M -> $83.5K/s
+1h06m07s [run2 24m54s] GLOBAL x1.5 #5 $6.00M -> $113K/s
+1h06m39s EXIT #2: valuation $27.0M shares 3 -> 6 (run 25m26s, $126K/s, Warehouse, fill 97%, infra 13% of spend, servers [80,82,38,32,17,0,0,0])
+1h06m40s [run3 00m01s] first Pizza Box $15 (val $0.00, $0.20/s)
+1h06m41s [run3 00m02s] first Blade $100 (val $1.23, $3.07/s)
+1h06m43s [run3 00m04s] UPG Pizza Box x2 $415 -> $18/s
+1h07m11s [run3 00m32s] CONTRACT -> FrobCoin (infra needed $343)
+1h07m24s [run3 00m45s] GLOBAL x1.5 #1 $600 -> $45/s
+1h08m04s [run3 01m25s] first GPU Node $1.76K (val $2.95K, $61/s)
+1h08m55s [run3 02m16s] UPG Blade x2 $2.83K -> $100/s
+1h10m18s [run3 03m39s] GLOBAL x1.5 #2 $6.00K -> $145/s
+1h12m20s [run3 05m41s] UPG Pizza Box x4 $1.55K -> $331/s
+1h12m48s [run3 06m09s] UPG Blade x4 $14.5K -> $600/s
+1h13m46s [run3 07m07s] first Storage Array $19.1K (val $101K, $866/s)
+1h15m21s [run3 08m42s] GLOBAL x1.5 #3 $60.0K -> $1.69K/s
+1h15m49s [run3 09m10s] UPG Blade x8 $61.3K -> $2.91K/s
+1h18m39s [run3 12m00s] STAGE Warehouse (val $1.16M, $5.17K/s, fill of previous stage was 100%, infra share so far 9%)
+1h18m39s [run3 12m00s] first AI Pod $486K (val $1.16M, $5.17K/s)
+1h21m39s [run3 15m00s] UPG GPU Node x2 $33.5K -> $9.52K/s
+1h23m09s [run3 16m30s] GLOBAL x1.5 #4 $600K -> $12.0K/s
+1h23m21s [run3 16m42s] UPG Pizza Box x8 $28.7K -> $13.3K/s
+1h23m45s [run3 17m06s] UPG Storage Array x2 $268K -> $15.9K/s
+1h26m06s [run3 19m27s] UPG GPU Node x4 $554K -> $27.7K/s
+1h27m11s [run3 20m32s] CONTRACT -> CatTube + Weatherbot (infra needed $737K)
+1h27m39s [run3 21m00s] UPG AI Pod x2 $2.97M -> $84.8K/s
+1h29m09s [run3 22m30s] GLOBAL x1.5 #5 $6.00M -> $142K/s
+1h30m13s [run3 23m34s] UPG Storage Array x4 $1.57M -> $203K/s
+1h33m22s [run3 26m43s] STAGE Hall (val $88.7M, $312K/s, fill of previous stage was 100%, infra share so far 13%)
+1h33m22s [run3 26m43s] first Annealer $45.7M (val $88.7M, $312K/s)
+1h33m23s [run3 26m44s] * The Hall  ($89.0M val, $312K/s)
+1h33m23s [run3 26m44s] * First Annealer  ($89.0M val, $312K/s)
+1h33m31s [run3 26m52s] first Sled $2.60M (val $91.5M, $331K/s)
+1h33m32s [run3 26m53s] * First Sled  ($91.9M val, $331K/s)
+1h36m53s EXIT #3: valuation $217M shares 6 -> 12 (run 30m14s, $620K/s, Hall, fill 98%, infra 13% of spend, servers [91,96,49,44,24,8,3,0])
+1h36m54s [run4 00m01s] first Pizza Box $15 (val $0.00, $0.29/s)
+1h36m55s [run4 00m02s] first Blade $100 (val $1.73, $4.32/s)
+1h36m57s [run4 00m04s] UPG Pizza Box x2 $415 -> $25/s
+1h36m57s [run4 00m04s] first GPU Node $1.76K (val $38, $41/s)
+1h36m58s [run4 00m05s] UPG Blade x2 $2.09K -> $74/s
+1h37m01s [run4 00m08s] first Storage Array $30.0K (val $374, $202/s)
+1h37m03s [run4 00m10s] UPG Blade x4 $7.50K -> $379/s
+1h37m04s [run4 00m11s] GLOBAL x1.5 #1 $600 -> $526/s
+1h37m13s [run4 00m20s] UPG Pizza Box x4 $1.13K -> $684/s
+1h37m22s [run4 00m29s] GLOBAL x1.5 #2 $6.00K -> $862/s
+1h37m25s [run4 00m32s] CONTRACT -> Dave's Minecraft + County Records
+1h39m53s [run4 03m00s] GLOBAL x1.5 #3 $60.0K -> $2.19K/s
+1h40m33s [run4 03m40s] UPG GPU Node x2 $28.5K -> $3.52K/s
+1h41m44s [run4 04m51s] first AI Pod $194K (val $769K, $5.23K/s)
+1h41m58s [run4 05m05s] UPG Blade x8 $56.0K -> $6.96K/s
+1h44m23s [run4 07m30s] GLOBAL x1.5 #4 $600K -> $15.7K/s
+1h44m39s [run4 07m46s] UPG Pizza Box x8 $7.50K -> $18.0K/s
+1h45m35s [run4 08m42s] UPG Storage Array x2 $261K -> $25.4K/s
+1h45m53s [run4 09m00s] UPG GPU Node x4 $184K -> $31.1K/s
+1h47m25s [run4 10m32s] CONTRACT -> CatTube + Weatherbot (infra needed $1.55M)
+1h47m55s [run4 11m02s] UPG AI Pod x2 $3.15M -> $119K/s
+1h48m28s [run4 11m35s] UPG Storage Array x4 $1.58M -> $175K/s
+1h48m53s [run4 12m00s] GLOBAL x1.5 #5 $6.00M -> $234K/s
+1h51m48s [run4 14m55s] STAGE Hall (val $89.2M, $450K/s, fill of previous stage was 100%, infra share so far 11%)
+1h51m48s [run4 14m55s] first Annealer $45.8M (val $89.2M, $450K/s)
+1h51m53s [run4 15m00s] first Sled $2.70M (val $100M, $471K/s)
+1h53m23s [run4 16m30s] UPG GPU Node x8 $2.31M -> $770K/s
+1h54m21s [run4 17m28s] UPG Sled x2 $39.9M -> $1.01M/s
+1h55m19s [run4 18m26s] GLOBAL x1.5 #6 $60.0M -> $1.47M/s
+1h55m49s [run4 18m56s] UPG AI Pod x4 $20.2M -> $1.84M/s
+1h56m52s [run4 19m59s] UPG Blade x16 $5.62M -> $2.48M/s
+1h57m25s [run4 20m32s] CONTRACT -> CatTube + Halcyon (infra needed $11.0M)
+1h57m44s [run4 20m51s] UPG Storage Array x8 $13.1M -> $3.84M/s
+1h57m57s [run4 21m04s] UPG Pizza Box x16 $413K -> $4.24M/s
+10h00m00s OFFLINE 8h00m00s: +$39.5B (saved $4.98M/s), cash now $40.1B
+10h00m00s [run4 23m07s] UPG Annealer x2 $383M -> $6.65M/s
+10h00m00s [run4 23m07s] GLOBAL x1.5 #7 $600M -> $9.57M/s
+10h00m00s EXIT #4: valuation $11.7B shares 12 -> 34 (run 23m07s, $9.99M/s, Hall, fill 99%, infra 8% of spend, servers [114,119,66,61,39,24,14,0])
+10h00m01s [run5 00m01s] first Pizza Box $15 (val $0.00, $0.58/s)
+10h00m02s [run5 00m02s] first Blade $100 (val $3.46, $8.65/s)
+10h00m04s [run5 00m04s] UPG Pizza Box x2 $415 -> $50/s
+10h00m04s [run5 00m04s] first GPU Node $1.76K (val $76, $81/s)
+10h00m05s [run5 00m05s] UPG Blade x2 $2.09K -> $148/s
+10h00m08s [run5 00m08s] first Storage Array $30.0K (val $749, $405/s)
+10h00m09s [run5 00m09s] GLOBAL x1.5 #1 $600 -> $545/s
+10h00m10s [run5 00m10s] UPG Blade x4 $7.50K -> $947/s
+10h00m11s [run5 00m11s] UPG Pizza Box x4 $1.13K -> $1.34K/s
+10h00m14s [run5 00m14s] first AI Pod $175K (val $7.49K, $2.90K/s)
+10h00m15s [run5 00m15s] GLOBAL x1.5 #2 $6.00K -> $3.66K/s
+10h00m20s [run5 00m20s] UPG GPU Node x2 $24.7K -> $6.65K/s
+10h00m21s [run5 00m21s] UPG Pizza Box x8 $14.4K -> $6.83K/s
+10h00m30s [run5 00m30s] GLOBAL x1.5 #3 $60.0K -> $9.24K/s
+10h00m32s [run5 00m32s] CONTRACT -> County Records + Weatherbot (infra needed $14.0K)
+10h00m34s [run5 00m34s] UPG Blade x8 $66.1K -> $27.6K/s
+10h01m18s [run5 01m18s] GLOBAL x1.5 #4 $600K -> $54.5K/s
+10h01m28s [run5 01m28s] UPG Storage Array x2 $243K -> $70.3K/s
+10h01m42s [run5 01m42s] UPG GPU Node x4 $148K -> $102K/s
+10h02m28s [run5 02m28s] UPG AI Pod x2 $3.19M -> $191K/s
+10h02m47s [run5 02m47s] UPG Storage Array x4 $1.19M -> $289K/s
+10h03m00s [run5 03m00s] GLOBAL x1.5 #5 $6.00M -> $390K/s
+10h03m06s [run5 03m06s] first Sled $2.86M (val $26.5M, $455K/s)
+10h04m30s [run5 04m30s] first Annealer $25.9M (val $97.9M, $944K/s)
+10h04m50s [run5 04m50s] UPG AI Pod x4 $13.9M -> $1.40M/s
+10h05m57s [run5 05m57s] GLOBAL x1.5 #6 $60.0M -> $2.13M/s
+10h05m58s [run5 05m58s] UPG GPU Node x8 $1.87M -> $2.19M/s
+10h06m09s [run5 06m09s] UPG Sled x2 $31.5M -> $2.84M/s
+10h07m04s [run5 07m04s] UPG Blade x16 $4.25M -> $4.08M/s
+10h07m30s [run5 07m30s] UPG Pizza Box x16 $1.07M -> $4.87M/s
+10h07m41s [run5 07m41s] UPG Storage Array x8 $7.00M -> $5.39M/s
+10h09m06s [run5 09m06s] UPG Annealer x2 $371M -> $8.35M/s
+10h10m30s [run5 10m30s] GLOBAL x1.5 #7 $600M -> $12.6M/s
+10h10m32s [run5 10m32s] CONTRACT -> County Records + Halcyon (infra needed $20.5M)
+10h10m55s [run5 10m55s] UPG Sled x4 $160M -> $21.6M/s
+10h12m14s [run5 12m14s] * 500 Servers  ($5.40B val, $30.4M/s)
+10h13m30s [run5 13m30s] UPG Annealer x4 $1.85B -> $50.2M/s
+10h15m39s [run5 15m39s] GLOBAL x1.5 #8 $6.00B -> $71.6M/s
+10h16m23s [run5 16m23s] UPG AI Pod x8 $126M -> $81.7M/s
+10h19m11s EXIT #5: valuation $39.4B shares 34 -> 68 (run 19m11s, $103M/s, Hall, fill 99%, infra 2% of spend, servers [144,149,88,83,63,49,42,0])
+10h19m12s [run6 00m01s] first Pizza Box $15 (val $0.00, $1.03/s)
+10h19m13s [run6 00m02s] first Blade $100 (val $6.18, $15/s)
+10h19m15s [run6 00m04s] UPG Pizza Box x2 $415 -> $90/s
+10h19m15s [run6 00m04s] first GPU Node $1.76K (val $136, $145/s)
+10h19m16s [run6 00m05s] UPG Blade x2 $2.09K -> $265/s
+10h19m19s [run6 00m08s] GLOBAL x1.5 #1 $600 -> $538/s
+10h19m19s [run6 00m08s] first Storage Array $30.0K (val $1.34K, $903/s)
+10h19m21s [run6 00m10s] UPG Blade x4 $7.50K -> $1.69K/s
+10h19m22s [run6 00m11s] UPG Pizza Box x4 $1.13K -> $2.40K/s
+10h19m24s [run6 00m13s] GLOBAL x1.5 #2 $6.00K -> $3.59K/s
+10h19m25s [run6 00m14s] first AI Pod $175K (val $14.3K, $6.48K/s)
+10h19m31s [run6 00m20s] UPG GPU Node x2 $24.7K -> $11.9K/s
+10h19m32s [run6 00m21s] UPG Pizza Box x8 $14.4K -> $12.2K/s
+10h19m35s [run6 00m24s] GLOBAL x1.5 #3 $60.0K -> $16.5K/s
+10h19m43s [run6 00m32s] CONTRACT -> County Records + Weatherbot (infra needed $14.0K)
+10h19m43s [run6 00m32s] UPG Blade x8 $66.1K -> $49.3K/s
+10h20m07s [run6 00m56s] GLOBAL x1.5 #4 $600K -> $97.3K/s
+10h20m13s [run6 01m02s] UPG Storage Array x2 $243K -> $126K/s
+10h20m21s [run6 01m10s] UPG GPU Node x4 $148K -> $183K/s
+10h20m46s [run6 01m35s] UPG AI Pod x2 $3.19M -> $342K/s
+10h21m01s [run6 01m50s] UPG Storage Array x4 $1.81M -> $537K/s
+10h21m16s [run6 02m05s] GLOBAL x1.5 #5 $6.00M -> $772K/s
+10h21m20s [run6 02m09s] first Sled $2.40M (val $27.8M, $840K/s)
+10h22m11s [run6 03m00s] first Annealer $25.2M (val $123M, $1.85M/s)
+10h22m31s [run6 03m20s] UPG Sled x2 $30.3M -> $2.81M/s
+10h23m00s [run6 03m49s] GLOBAL x1.5 #6 $60.0M -> $4.09M/s
+10h23m17s [run6 04m06s] UPG AI Pod x4 $14.9M -> $5.55M/s
+10h23m21s [run6 04m10s] UPG GPU Node x8 $4.02M -> $5.93M/s
+10h23m42s [run6 04m31s] UPG Blade x16 $4.92M -> $7.65M/s
+10h23m46s [run6 04m35s] UPG Pizza Box x16 $758K -> $8.56M/s
+10h23m55s [run6 04m44s] UPG Storage Array x8 $9.48M -> $9.62M/s
+10h24m52s [run6 05m41s] UPG Annealer x2 $371M -> $14.8M/s
+10h25m29s [run6 06m18s] GLOBAL x1.5 #7 $600M -> $22.2M/s
+10h25m56s [run6 06m45s] UPG Sled x4 $163M -> $30.0M/s
+10h27m48s [run6 08m37s] UPG Annealer x4 $1.83B -> $66.7M/s
+10h29m25s [run6 10m14s] GLOBAL x1.5 #8 $6.00B -> $95.1M/s
+10h29m43s [run6 10m32s] CONTRACT -> Halcyon + Hyperscaler (infra needed $578M)
+10h29m44s [run6 10m33s] UPG AI Pod x8 $177M -> $181M/s
+10h31m13s [run6 12m02s] UPG Sled x8 $1.71B -> $266M/s
+10h36m21s [run6 17m10s] GLOBAL x1.5 #9 $60.0B -> $396M/s
+10h37m11s [run6 18m00s] UPG Annealer x8 $18.3B -> $647M/s
+10h38m41s [run6 19m30s] * 100 Incidents  ($259B val, $706M/s)
+10h39m10s [run6 19m59s] UPG GPU Node x16 $16.1M -> $735M/s
+10h39m57s EXIT #6: valuation $315B shares 68 -> 136 (run 20m46s, $749M/s, Hall, fill 100%, infra 8% of spend, servers [166,170,109,96,75,67,59,0])
+10h39m58s [run7 00m01s] * Campus  ($0.00 val, $0.00/s)
+10h39m58s [run7 00m01s] first Pizza Box $15 (val $0.00, $1.96/s)
+10h39m59s [run7 00m02s] first Blade $100 (val $12, $29/s)
+10h40m01s [run7 00m04s] UPG Pizza Box x2 $415 -> $170/s
+10h40m01s [run7 00m04s] first GPU Node $1.76K (val $258, $276/s)
+10h40m02s [run7 00m05s] UPG Blade x2 $2.09K -> $503/s
+10h40m03s [run7 00m06s] GLOBAL x1.5 #1 $600 -> $628/s
+10h40m05s [run7 00m08s] first Storage Array $30.0K (val $2.87K, $1.72K/s)
+10h40m07s [run7 00m10s] UPG Blade x4 $7.50K -> $3.21K/s
+10h40m08s [run7 00m11s] GLOBAL x1.5 #2 $6.00K -> $4.46K/s
+10h40m08s [run7 00m11s] UPG Pizza Box x4 $1.13K -> $5.69K/s
+10h40m11s [run7 00m14s] first AI Pod $175K (val $29.9K, $12.3K/s)
+10h40m17s [run7 00m20s] GLOBAL x1.5 #3 $60.0K -> $25.0K/s
+10h40m18s [run7 00m21s] UPG GPU Node x2 $24.7K -> $28.2K/s
+10h40m18s [run7 00m21s] UPG Pizza Box x8 $14.4K -> $29.0K/s
+10h40m21s [run7 00m24s] UPG Blade x8 $66.1K -> $44.5K/s
+10h40m28s [run7 00m31s] UPG Storage Array x2 $249K -> $86.1K/s
+10h40m29s [run7 00m32s] CONTRACT -> Weatherbot + Hyperscaler + Ministry (infra needed $750K)
+10h40m30s [run7 00m33s] GLOBAL x1.5 #4 $600K -> $581K/s
+10h40m31s [run7 00m34s] UPG GPU Node x4 $126K -> $677K/s
+10h40m36s [run7 00m39s] first Sled $3.06M (val $5.50M, $990K/s)
+10h40m37s [run7 00m40s] UPG Storage Array x4 $1.05M -> $1.37M/s
+10h40m40s [run7 00m43s] GLOBAL x1.5 #5 $6.00M -> $2.02M/s
+10h40m42s [run7 00m45s] UPG AI Pod x2 $2.40M -> $2.79M/s
+10h40m58s [run7 01m01s] first Annealer $29.3M (val $93.7M, $6.90M/s)
+10h41m03s [run7 01m06s] UPG Sled x2 $30.0M -> $9.34M/s
+10h41m12s [run7 01m15s] GLOBAL x1.5 #6 $60.0M -> $13.8M/s
+10h41m17s [run7 01m20s] UPG AI Pod x4 $19.6M -> $19.2M/s
+10h41m20s [run7 01m23s] UPG GPU Node x8 $3.02M -> $22.1M/s
+10h41m26s [run7 01m29s] UPG Blade x16 $4.28M -> $26.8M/s
+10h41m32s [run7 01m35s] UPG Storage Array x8 $15.2M -> $33.6M/s
+10h41m36s [run7 01m39s] UPG Pizza Box x16 $150K -> $37.0M/s
+10h41m46s [run7 01m49s] first Orbital $313M (val $1.20B, $45.8M/s)
+10h41m47s [run7 01m50s] * First Orbital  ($1.25B val, $45.8M/s)
+10h41m56s [run7 01m59s] UPG Annealer x2 $376M -> $62.4M/s
+10h42m10s [run7 02m13s] GLOBAL x1.5 #7 $600M -> $92.1M/s
+10h42m19s [run7 02m22s] UPG Sled x4 $162M -> $127M/s
+10h43m04s [run7 03m07s] UPG Orbital x2 $5.29B -> $330M/s
+10h43m05s [run7 03m08s] * First Reactor  ($16.9B val, $330M/s)
+10h43m29s [run7 03m32s] GLOBAL x1.5 #8 $6.00B -> $482M/s
+10h43m48s [run7 03m51s] UPG Annealer x4 $2.81B -> $695M/s
+10h44m05s [run7 04m08s] UPG AI Pod x8 $235M -> $855M/s
+10h44m41s [run7 04m44s] UPG Orbital x4 $24.3B -> $1.58B/s
+10h44m42s [run7 04m45s] * Marjorie  ($105B val, $1.58B/s)
+10h45m27s [run7 05m30s] GLOBAL x1.5 #9 $60.0B -> $2.16B/s
+10h45m58s [run7 06m01s] UPG Sled x8 $1.99B -> $2.66B/s
+10h46m55s [run7 06m58s] UPG Annealer x8 $14.8B -> $3.77B/s
+10h47m27s [run7 07m30s] UPG GPU Node x16 $13.0M -> $4.05B/s
+10h48m42s [run7 08m45s] * $1 Trillion  ($1.00T val, $4.41B/s)
+10h50m23s [run7 10m26s] GLOBAL x1.5 #10 $600B -> $5.56B/s
+10h50m27s [run7 10m30s] UPG Storage Array x16 $140M -> $5.65B/s
+10h50m29s [run7 10m32s] CONTRACT -> Weatherbot + Halcyon + Ministry (infra needed $45.8B)
+10h51m25s [run7 11m28s] UPG Orbital x8 $194B -> $11.4B/s
+10h51m57s EXIT #7: valuation $2.69T shares 136 -> 275 (run 12m00s, $12.2B/s, Campus, fill 100%, infra 7% of spend, servers [173,177,116,110,81,72,64,55])
+10h51m58s [run8 00m01s] first Pizza Box $15 (val $0.00, $3.93/s)
+10h51m59s [run8 00m02s] first Blade $100 (val $24, $59/s)
+10h52m01s [run8 00m04s] UPG Pizza Box x2 $415 -> $342/s
+10h52m01s [run8 00m04s] first GPU Node $1.76K (val $519, $555/s)
+10h52m02s [run8 00m05s] GLOBAL x1.5 #1 $600 -> $703/s
+10h52m03s [run8 00m06s] UPG Blade x2 $2.09K -> $1.26K/s
+10h52m05s [run8 00m08s] first Storage Array $30.0K (val $5.58K, $3.45K/s)
+10h52m07s [run8 00m10s] UPG Blade x4 $7.50K -> $6.46K/s
+10h52m07s [run8 00m10s] GLOBAL x1.5 #2 $6.00K -> $8.74K/s
+10h52m08s [run8 00m11s] UPG Pizza Box x4 $1.13K -> $11.4K/s
+10h52m11s [run8 00m14s] first AI Pod $175K (val $61.4K, $24.8K/s)
+10h52m14s [run8 00m17s] GLOBAL x1.5 #3 $60.0K -> $36.2K/s
+10h52m18s [run8 00m21s] UPG GPU Node x2 $24.7K -> $56.7K/s
+10h52m18s [run8 00m21s] UPG Pizza Box x8 $14.4K -> $58.3K/s
+10h52m21s [run8 00m24s] UPG Blade x8 $66.1K -> $89.5K/s
+10h52m27s [run8 00m30s] GLOBAL x1.5 #4 $600K -> $149K/s
+10h52m29s [run8 00m32s] CONTRACT -> Weatherbot + Hyperscaler + Ministry (infra needed $750K)
+10h52m29s [run8 00m32s] UPG Storage Array x2 $210K -> $1.02M/s
+10h52m32s [run8 00m35s] UPG GPU Node x4 $138K -> $1.36M/s
+10h52m37s [run8 00m40s] first Sled $3.06M (val $12.6M, $1.98M/s)
+10h52m38s [run8 00m41s] UPG Storage Array x4 $1.05M -> $2.76M/s
+10h52m40s [run8 00m43s] GLOBAL x1.5 #5 $6.00M -> $3.97M/s
+10h52m42s [run8 00m45s] UPG AI Pod x2 $2.51M -> $5.57M/s
+10h52m49s [run8 00m52s] first Annealer $25.6M (val $85.3M, $12.7M/s)
+10h52m54s [run8 00m57s] UPG GPU Node x8 $3.58M -> $19.1M/s
+10h52m56s [run8 00m59s] UPG Sled x2 $34.8M -> $24.0M/s
+10h53m00s [run8 01m03s] GLOBAL x1.5 #6 $60.0M -> $34.3M/s
+10h53m01s [run8 01m04s] UPG AI Pod x4 $19.0M -> $41.2M/s
+10h53m07s [run8 01m10s] UPG Blade x16 $1.00M -> $58.9M/s
+10h53m10s [run8 01m13s] UPG Pizza Box x16 $609K -> $62.5M/s
+10h53m13s [run8 01m16s] UPG Storage Array x8 $12.6M -> $71.6M/s
+10h53m15s [run8 01m18s] first Orbital $313M (val $1.16B, $87.2M/s)
+10h53m21s [run8 01m24s] UPG Annealer x2 $376M -> $123M/s
+10h53m28s [run8 01m31s] GLOBAL x1.5 #7 $600M -> $182M/s
+10h53m35s [run8 01m38s] UPG Sled x4 $175M -> $277M/s
+10h54m05s [run8 02m08s] UPG Orbital x2 $5.29B -> $655M/s
+10h54m17s [run8 02m20s] GLOBAL x1.5 #8 $6.00B -> $951M/s
+10h54m27s [run8 02m30s] UPG Annealer x4 $2.81B -> $1.37B/s
+10h54m35s [run8 02m38s] UPG AI Pod x8 $251M -> $1.65B/s
+10h54m57s [run8 03m00s] UPG Orbital x4 $24.3B -> $3.14B/s
+10h55m14s [run8 03m17s] GLOBAL x1.5 #9 $60.0B -> $4.36B/s
+10h55m28s [run8 03m31s] UPG Sled x8 $1.53B -> $5.24B/s
+10h56m06s [run8 04m09s] UPG Annealer x8 $14.8B -> $7.41B/s
+10h56m25s [run8 04m28s] UPG GPU Node x16 $261M -> $7.96B/s
+10h57m53s [run8 05m56s] GLOBAL x1.5 #10 $600B -> $10.8B/s
+10h57m57s [run8 06m00s] UPG Storage Array x16 $140M -> $11.0B/s
+10h58m15s [run8 06m18s] UPG Orbital x8 $163B -> $18.3B/s
+19h00m00s OFFLINE 8h00m00s: +$175T (saved $22.0B/s), cash now $176T
+19h00m00s [run8 08m03s] GLOBAL x1.5 #11 $6.00T -> $27.6B/s
+19h00m00s EXIT #8: valuation $49.5T shares 275 -> 642 (run 08m03s, $28.0B/s, Campus, fill 100%, infra 1% of spend, servers [183,187,123,117,87,78,71,63])
+19h00m01s [run9 00m01s] first Pizza Box $15 (val $0.00, $9.00/s)
+19h00m02s [run9 00m02s] first Blade $100 (val $54, $135/s)
+19h00m04s [run9 00m04s] GLOBAL x1.5 #1 $600 -> $844/s
+19h00m04s [run9 00m04s] UPG Pizza Box x2 $415 -> $978/s
+19h00m04s [run9 00m04s] first GPU Node $1.76K (val $1.19K, $1.59K/s)
+19h00m06s [run9 00m06s] UPG Blade x2 $2.09K -> $2.89K/s
+19h00m08s [run9 00m08s] GLOBAL x1.5 #2 $6.00K -> $5.93K/s
+19h00m08s [run9 00m08s] first Storage Array $30.0K (val $13.1K, $9.87K/s)
+19h00m10s [run9 00m10s] UPG Blade x4 $7.50K -> $18.5K/s
+19h00m11s [run9 00m11s] UPG Pizza Box x4 $1.13K -> $26.2K/s
+19h00m14s [run9 00m14s] GLOBAL x1.5 #3 $60.0K -> $42.7K/s
+19h00m15s [run9 00m15s] first AI Pod $175K (val $188K, $70.8K/s)
+19h00m21s [run9 00m21s] UPG GPU Node x2 $24.7K -> $130K/s
+19h00m21s [run9 00m21s] UPG Pizza Box x8 $14.4K -> $133K/s
+19h00m24s [run9 00m24s] UPG Blade x8 $66.1K -> $205K/s
+19h00m29s [run9 00m29s] GLOBAL x1.5 #4 $600K -> $340K/s
+19h00m32s [run9 00m32s] CONTRACT -> Weatherbot + Hyperscaler + Ministry (infra needed $750K)
+19h00m32s [run9 00m32s] UPG Storage Array x2 $210K -> $2.33M/s
+19h00m35s [run9 00m35s] UPG GPU Node x4 $138K -> $3.12M/s
+19h00m40s [run9 00m40s] first Sled $3.06M (val $29.0M, $4.53M/s)
+19h00m41s [run9 00m41s] UPG Storage Array x4 $1.05M -> $6.31M/s
+19h00m43s [run9 00m43s] GLOBAL x1.5 #5 $6.00M -> $9.09M/s
+19h00m45s [run9 00m45s] UPG AI Pod x2 $2.51M -> $12.7M/s
+19h00m52s [run9 00m52s] first Annealer $25.6M (val $195M, $29.0M/s)
+19h00m55s [run9 00m55s] GLOBAL x1.5 #6 $60.0M -> $53.1M/s
+19h00m57s [run9 00m57s] UPG GPU Node x8 $2.94M -> $61.2M/s
+19h00m57s [run9 00m57s] UPG AI Pod x4 $16.3M -> $74.7M/s
+19h01m01s [run9 01m01s] UPG Blade x16 $7.18M -> $94.5M/s
+19h01m02s [run9 01m02s] UPG Sled x2 $36.0M -> $108M/s
+19h01m08s [run9 01m08s] UPG Pizza Box x16 $550K -> $145M/s
+19h01m11s [run9 01m11s] UPG Storage Array x8 $14.3M -> $157M/s
+19h01m12s [run9 01m12s] first Orbital $317M (val $2.22B, $192M/s)
+19h01m14s [run9 01m14s] GLOBAL x1.5 #7 $600M -> $303M/s
+19h01m16s [run9 01m16s] UPG Annealer x2 $378M -> $394M/s
+19h01m18s [run9 01m18s] UPG Sled x4 $166M -> $634M/s
+19h01m33s [run9 01m33s] UPG Orbital x2 $5.29B -> $1.51B/s
+19h01m38s [run9 01m38s] GLOBAL x1.5 #8 $6.00B -> $2.19B/s
+19h01m42s [run9 01m42s] UPG Annealer x4 $2.80B -> $3.04B/s
+19h01m48s [run9 01m48s] UPG AI Pod x8 $220M -> $3.78B/s
+19h02m00s [run9 02m00s] UPG Orbital x4 $24.2B -> $7.23B/s
+19h02m11s [run9 02m11s] GLOBAL x1.5 #9 $60.0B -> $10.0B/s
+19h02m18s [run9 02m18s] UPG Sled x8 $2.53B -> $11.9B/s
+19h02m36s [run9 02m36s] UPG Annealer x8 $15.0B -> $17.2B/s
+19h02m43s [run9 02m43s] UPG GPU Node x16 $13.0M -> $18.2B/s
+19h02m59s [run9 02m59s] UPG Storage Array x16 $1.73B -> $19.8B/s
+19h03m08s [run9 03m08s] GLOBAL x1.5 #10 $600B -> $24.8B/s
+19h03m27s [run9 03m27s] UPG Orbital x8 $164B -> $41.9B/s
+19h05m38s [run9 05m38s] UPG Blade x32 $1.33B -> $56.8B/s
+19h07m07s [run9 07m07s] GLOBAL x1.5 #11 $6.00T -> $71.1B/s
+19h07m20s [run9 07m20s] * 1000 Servers  ($16.8T val, $71.9B/s)
+19h07m31s [run9 07m31s] UPG Pizza Box x32 $150M -> $73.4B/s
+19h08m16s [run9 08m16s] UPG AI Pod x16 $19.6B -> $77.1B/s
+19h10m32s [run9 10m32s] CONTRACT -> Halcyon + Hyperscaler + Ministry (infra needed $171B)
+19h12m33s [run9 12m33s] UPG Sled x16 $77.3B -> $104B/s
+19h20m32s [run9 20m32s] CONTRACT -> Weatherbot + Halcyon + Ministry (infra needed $1.45T)
+19h25m39s [run9 25m39s] GLOBAL x1.5 #12 $60.0T -> $145B/s
+19h26m59s [run9 26m59s] UPG Annealer x16 $1.51T -> $171B/s
+19h34m13s EXIT #9: valuation $265T shares 642 -> 1284 (run 34m13s, $181B/s, Campus, fill 100%, infra 2% of spend, servers [249,253,162,157,126,117,110,95])
+19h34m14s [run10 00m01s] first Pizza Box $15 (val $0.00, $18/s)
+19h34m15s [run10 00m02s] first Blade $100 (val $108, $270/s)
+19h34m17s [run10 00m04s] GLOBAL x1.5 #1 $600 -> $1.69K/s
+19h34m17s [run10 00m04s] UPG Pizza Box x2 $415 -> $1.96K/s
+19h34m17s [run10 00m04s] first GPU Node $1.76K (val $2.37K, $3.17K/s)
+19h34m19s [run10 00m06s] UPG Blade x2 $2.09K -> $5.78K/s
+19h34m20s [run10 00m07s] GLOBAL x1.5 #2 $6.00K -> $10.3K/s
+19h34m21s [run10 00m08s] first Storage Array $30.0K (val $28.4K, $19.7K/s)
+19h34m23s [run10 00m10s] UPG Blade x4 $7.50K -> $36.9K/s
+19h34m24s [run10 00m11s] UPG Pizza Box x4 $1.13K -> $52.3K/s
+19h34m27s [run10 00m14s] GLOBAL x1.5 #3 $60.0K -> $85.4K/s
+19h34m28s [run10 00m15s] first AI Pod $175K (val $377K, $142K/s)
+19h34m34s [run10 00m21s] UPG GPU Node x2 $24.7K -> $259K/s
+19h34m34s [run10 00m21s] UPG Pizza Box x8 $14.4K -> $267K/s
+19h34m37s [run10 00m24s] UPG Blade x8 $66.1K -> $409K/s
+19h34m42s [run10 00m29s] GLOBAL x1.5 #4 $600K -> $680K/s
+19h34m45s [run10 00m32s] CONTRACT -> Weatherbot + Hyperscaler + Ministry (infra needed $750K)
+19h34m45s [run10 00m32s] UPG Storage Array x2 $210K -> $4.65M/s
+19h34m48s [run10 00m35s] UPG GPU Node x4 $138K -> $6.24M/s
+19h34m53s [run10 00m40s] first Sled $3.06M (val $58.0M, $9.05M/s)
+19h34m54s [run10 00m41s] UPG Storage Array x4 $1.05M -> $12.6M/s
+19h34m56s [run10 00m43s] GLOBAL x1.5 #5 $6.00M -> $18.2M/s
+19h34m58s [run10 00m45s] UPG AI Pod x2 $2.51M -> $25.5M/s
+19h35m05s [run10 00m52s] first Annealer $25.6M (val $390M, $58.0M/s)
+19h35m08s [run10 00m55s] GLOBAL x1.5 #6 $60.0M -> $106M/s
+19h35m10s [run10 00m57s] UPG GPU Node x8 $2.94M -> $122M/s
+19h35m10s [run10 00m57s] UPG AI Pod x4 $16.3M -> $149M/s
+19h35m14s [run10 01m01s] UPG Blade x16 $7.18M -> $189M/s
+19h35m15s [run10 01m02s] UPG Sled x2 $36.0M -> $216M/s
+19h35m21s [run10 01m08s] UPG Pizza Box x16 $550K -> $290M/s
+19h35m24s [run10 01m11s] UPG Storage Array x8 $14.3M -> $314M/s
+19h35m25s [run10 01m12s] first Orbital $317M (val $4.43B, $384M/s)
+19h35m27s [run10 01m14s] GLOBAL x1.5 #7 $600M -> $606M/s
+19h35m29s [run10 01m16s] UPG Annealer x2 $378M -> $787M/s
+19h35m31s [run10 01m18s] UPG Sled x4 $166M -> $1.27B/s
+19h35m44s [run10 01m31s] UPG Orbital x2 $5.29B -> $3.02B/s
+19h35m44s [run10 01m31s] GLOBAL x1.5 #8 $6.00B -> $4.18B/s
+19h35m46s [run10 01m33s] UPG Annealer x4 $2.80B -> $6.07B/s
+19h35m52s [run10 01m39s] UPG AI Pod x8 $220M -> $7.55B/s
+19h36m02s [run10 01m49s] UPG Orbital x4 $24.2B -> $14.5B/s
+19h36m03s [run10 01m50s] GLOBAL x1.5 #9 $60.0B -> $18.6B/s
+19h36m10s [run10 01m57s] UPG Sled x8 $2.53B -> $23.8B/s
+19h36m24s [run10 02m11s] UPG Annealer x8 $15.0B -> $34.4B/s
+19h36m27s [run10 02m14s] UPG GPU Node x16 $13.0M -> $36.4B/s
+19h36m44s [run10 02m31s] GLOBAL x1.5 #10 $600B -> $48.4B/s
+19h36m47s [run10 02m34s] UPG Storage Array x16 $1.73B -> $49.5B/s
+19h36m55s [run10 02m42s] UPG Orbital x8 $164B -> $83.8B/s
+19h37m52s [run10 03m39s] UPG Blade x32 $1.71B -> $113B/s
+19h38m43s [run10 04m30s] GLOBAL x1.5 #11 $6.00T -> $142B/s
+19h38m47s [run10 04m34s] UPG Pizza Box x32 $150M -> $146B/s
+19h39m15s [run10 05m02s] UPG AI Pod x16 $19.6B -> $153B/s
+19h41m43s [run10 07m30s] UPG Sled x16 $46.1B -> $177B/s
+19h44m45s [run10 10m32s] CONTRACT -> Halcyon + Hyperscaler + Ministry (infra needed $437B)
+19h48m46s [run10 14m33s] GLOBAL x1.5 #12 $60.0T -> $278B/s
+19h49m14s [run10 15m01s] UPG Annealer x16 $667B -> $327B/s
+19h54m45s [run10 20m32s] CONTRACT -> Weatherbot + Halcyon + Ministry (infra needed $4.56T)
+19h58m22s [run10 24m09s] UPG Orbital x16 $21.8T -> $615B/s
+28h00m00s OFFLINE 8h00m00s: +$4.94Qa (saved $624B/s), cash now $5.00Qa
+28h00m00s [run10 25m47s] * You Are the Cloud  ($1.75Qa val, $624B/s)
+28h00m00s [run10 25m47s] GLOBAL x1.5 #13 $600T -> $786B/s
+28h05m25s EXIT #10: valuation $2.12Qa shares 1284 -> 2568 (run 31m12s, $954B/s, Campus, fill 100%, infra 4% of spend, servers [289,294,191,185,150,141,134,125])
+28h05m26s [run11 00m01s] first Pizza Box $15 (val $0.00, $36/s)
+28h05m27s [run11 00m02s] first Blade $100 (val $217, $541/s)
+28h05m29s [run11 00m04s] GLOBAL x1.5 #1 $600 -> $3.38K/s
+28h05m29s [run11 00m04s] UPG Pizza Box x2 $415 -> $3.93K/s
+28h05m29s [run11 00m04s] first GPU Node $1.76K (val $4.76K, $6.36K/s)
+28h05m31s [run11 00m06s] UPG Blade x2 $2.09K -> $11.6K/s
+28h05m32s [run11 00m07s] GLOBAL x1.5 #2 $6.00K -> $20.7K/s
+28h05m33s [run11 00m08s] first Storage Array $30.0K (val $56.9K, $39.6K/s)
+28h05m35s [run11 00m10s] UPG Blade x4 $7.50K -> $74.1K/s
+28h05m36s [run11 00m11s] UPG Pizza Box x4 $1.13K -> $105K/s
+28h05m39s [run11 00m14s] GLOBAL x1.5 #3 $60.0K -> $171K/s
+28h05m40s [run11 00m15s] first AI Pod $175K (val $757K, $284K/s)
+28h05m46s [run11 00m21s] UPG GPU Node x2 $24.7K -> $520K/s
+28h05m46s [run11 00m21s] UPG Pizza Box x8 $14.4K -> $535K/s
+28h05m49s [run11 00m24s] UPG Blade x8 $66.1K -> $821K/s
+28h05m54s [run11 00m29s] GLOBAL x1.5 #4 $600K -> $1.37M/s
+28h05m57s [run11 00m32s] CONTRACT -> Weatherbot + Hyperscaler + Ministry (infra needed $750K)
+28h05m57s [run11 00m32s] UPG Storage Array x2 $210K -> $9.33M/s
+28h06m00s [run11 00m35s] UPG GPU Node x4 $138K -> $12.5M/s
+28h06m05s [run11 00m40s] first Sled $3.06M (val $116M, $18.2M/s)
+28h06m06s [run11 00m41s] UPG Storage Array x4 $1.05M -> $25.3M/s
+28h06m08s [run11 00m43s] GLOBAL x1.5 #5 $6.00M -> $36.5M/s
+28h06m10s [run11 00m45s] UPG AI Pod x2 $2.51M -> $51.1M/s
+28h06m17s [run11 00m52s] first Annealer $25.6M (val $783M, $116M/s)
+28h06m20s [run11 00m55s] GLOBAL x1.5 #6 $60.0M -> $213M/s
+28h06m22s [run11 00m57s] UPG GPU Node x8 $2.94M -> $245M/s
+28h06m22s [run11 00m57s] UPG AI Pod x4 $16.3M -> $300M/s
+28h06m26s [run11 01m01s] UPG Blade x16 $7.18M -> $379M/s
+28h06m27s [run11 01m02s] UPG Sled x2 $36.0M -> $433M/s
+28h06m33s [run11 01m08s] UPG Pizza Box x16 $550K -> $583M/s
+28h06m36s [run11 01m11s] UPG Storage Array x8 $14.3M -> $631M/s
+28h06m37s [run11 01m12s] first Orbital $317M (val $8.89B, $770M/s)
+28h06m39s [run11 01m14s] GLOBAL x1.5 #7 $600M -> $1.22B/s
+28h06m41s [run11 01m16s] UPG Annealer x2 $378M -> $1.58B/s
+28h06m43s [run11 01m18s] UPG Sled x4 $166M -> $2.54B/s
+28h06m56s [run11 01m31s] UPG Orbital x2 $5.29B -> $6.06B/s
+28h06m56s [run11 01m31s] GLOBAL x1.5 #8 $6.00B -> $8.38B/s
+28h06m58s [run11 01m33s] UPG Annealer x4 $2.80B -> $12.2B/s
+28h07m04s [run11 01m39s] UPG AI Pod x8 $220M -> $15.1B/s
+28h07m14s [run11 01m49s] UPG Orbital x4 $24.2B -> $29.0B/s
+28h07m15s [run11 01m50s] GLOBAL x1.5 #9 $60.0B -> $37.3B/s
+28h07m21s [run11 01m56s] UPG Sled x8 $2.53B -> $47.9B/s
+28h07m35s [run11 02m10s] UPG Annealer x8 $15.0B -> $69.1B/s
+28h07m36s [run11 02m11s] GLOBAL x1.5 #10 $600B -> $89.4B/s
+28h07m38s [run11 02m13s] UPG GPU Node x16 $13.0M -> $91.4B/s
+28h07m46s [run11 02m21s] UPG Storage Array x16 $1.73B -> $99.3B/s
+28h07m51s [run11 02m26s] UPG Orbital x8 $164B -> $168B/s
+28h08m24s [run11 02m59s] UPG Blade x32 $1.00B -> $228B/s
+28h08m31s [run11 03m06s] GLOBAL x1.5 #11 $6.00T -> $285B/s
+28h08m40s [run11 03m15s] UPG Pizza Box x32 $150M -> $292B/s
+28h08m55s [run11 03m30s] UPG AI Pod x16 $19.6B -> $308B/s
+28h09m59s [run11 04m34s] UPG Sled x16 $46.1B -> $355B/s
+28h14m03s [run11 08m38s] GLOBAL x1.5 #12 $60.0T -> $477B/s
+28h14m24s [run11 08m59s] UPG Annealer x16 $375B -> $561B/s
+28h15m57s [run11 10m32s] CONTRACT -> Halcyon + Hyperscaler + Ministry (infra needed $888B)
+28h18m55s [run11 13m30s] UPG Orbital x16 $7.15T -> $1.19T/s
+28h31m47s [run11 26m22s] GLOBAL x1.5 #13 $600T -> $1.63T/s
+37h00m00s OFFLINE 8h00m00s: +$14.5Qa (saved $1.83T/s), cash now $14.6Qa
+37h00m12s [run11 54m47s] UPG GPU Node x32 $13.0B -> $1.95T/s
+37h01m41s [run11 56m16s] UPG Storage Array x32 $149B -> $2.02T/s
+37h44m49s [run11 1h39m24s] GLOBAL x1.5 #14 $6.00Qa -> $2.53T/s
+37h51m55s EXIT #11: valuation $16.9Qa shares 2568 -> 5136 (run 1h46m30s, $2.53T/s, Campus, fill 100%, infra 0% of spend, servers [310,315,213,208,163,154,147,138])
+37h51m56s [run12 00m01s] first Pizza Box $15 (val $0.00, $72/s)
+37h51m57s [run12 00m02s] first Blade $100 (val $432, $1.08K/s)
+37h51m59s [run12 00m04s] GLOBAL x1.5 #1 $600 -> $6.75K/s
+37h51m59s [run12 00m04s] UPG Pizza Box x2 $415 -> $7.83K/s
+37h51m59s [run12 00m04s] first GPU Node $1.76K (val $9.51K, $12.7K/s)
+37h52m01s [run12 00m06s] UPG Blade x2 $2.09K -> $23.1K/s
+37h52m02s [run12 00m07s] GLOBAL x1.5 #2 $6.00K -> $41.3K/s
+37h52m03s [run12 00m08s] first Storage Array $30.0K (val $114K, $79.0K/s)
+37h52m05s [run12 00m10s] UPG Blade x4 $7.50K -> $148K/s
+37h52m06s [run12 00m11s] UPG Pizza Box x4 $1.13K -> $210K/s
+37h52m09s [run12 00m14s] GLOBAL x1.5 #3 $60.0K -> $342K/s
+37h52m10s [run12 00m15s] first AI Pod $175K (val $1.51M, $567K/s)
+37h52m16s [run12 00m21s] UPG GPU Node x2 $24.7K -> $1.04M/s
+37h52m16s [run12 00m21s] UPG Pizza Box x8 $14.4K -> $1.07M/s
+37h52m19s [run12 00m24s] UPG Blade x8 $66.1K -> $1.64M/s
+37h52m24s [run12 00m29s] GLOBAL x1.5 #4 $600K -> $2.73M/s
+37h52m27s [run12 00m32s] CONTRACT -> Weatherbot + Hyperscaler + Ministry (infra needed $750K)
+37h52m27s [run12 00m32s] UPG Storage Array x2 $210K -> $18.6M/s
+37h52m30s [run12 00m35s] UPG GPU Node x4 $138K -> $25.0M/s
+37h52m35s [run12 00m40s] first Sled $3.06M (val $232M, $36.2M/s)
+37h52m36s [run12 00m41s] UPG Storage Array x4 $1.05M -> $50.5M/s
+37h52m38s [run12 00m43s] GLOBAL x1.5 #5 $6.00M -> $72.8M/s
+37h52m40s [run12 00m45s] UPG AI Pod x2 $2.51M -> $102M/s
+37h52m47s [run12 00m52s] first Annealer $25.6M (val $1.56B, $232M/s)
+37h52m50s [run12 00m55s] GLOBAL x1.5 #6 $60.0M -> $425M/s
+37h52m52s [run12 00m57s] UPG GPU Node x8 $2.94M -> $490M/s
+37h52m52s [run12 00m57s] UPG AI Pod x4 $16.3M -> $598M/s
+37h52m56s [run12 01m01s] UPG Blade x16 $7.18M -> $756M/s
+37h52m57s [run12 01m02s] UPG Sled x2 $36.0M -> $865M/s
+37h53m03s [run12 01m08s] UPG Pizza Box x16 $550K -> $1.16B/s
+37h53m06s [run12 01m11s] UPG Storage Array x8 $14.3M -> $1.26B/s
+37h53m07s [run12 01m12s] first Orbital $317M (val $17.7B, $1.54B/s)
+37h53m09s [run12 01m14s] GLOBAL x1.5 #7 $600M -> $2.43B/s
+37h53m11s [run12 01m16s] UPG Annealer x2 $378M -> $3.15B/s
+37h53m13s [run12 01m18s] UPG Sled x4 $166M -> $5.08B/s
+37h53m26s [run12 01m31s] UPG Orbital x2 $5.29B -> $12.1B/s
+37h53m26s [run12 01m31s] GLOBAL x1.5 #8 $6.00B -> $16.7B/s
+37h53m28s [run12 01m33s] UPG Annealer x4 $2.80B -> $24.3B/s
+37h53m34s [run12 01m39s] UPG AI Pod x8 $220M -> $30.2B/s
+37h53m44s [run12 01m49s] UPG Orbital x4 $24.2B -> $57.9B/s
+37h53m45s [run12 01m50s] GLOBAL x1.5 #9 $60.0B -> $74.4B/s
+37h53m51s [run12 01m56s] UPG Sled x8 $2.53B -> $95.5B/s
+37h54m05s [run12 02m10s] UPG Annealer x8 $15.0B -> $138B/s
+37h54m06s [run12 02m11s] GLOBAL x1.5 #10 $600B -> $178B/s
+37h54m08s [run12 02m13s] UPG GPU Node x16 $13.0M -> $182B/s
+37h54m16s [run12 02m21s] UPG Storage Array x16 $1.73B -> $198B/s
+37h54m21s [run12 02m26s] UPG Orbital x8 $164B -> $336B/s
+37h54m34s [run12 02m39s] GLOBAL x1.5 #11 $6.00T -> $505B/s
+37h54m47s [run12 02m52s] UPG Blade x32 $1.00B -> $568B/s
+37h54m52s [run12 02m57s] UPG Pizza Box x32 $185M -> $584B/s
+37h55m00s [run12 03m05s] UPG AI Pod x16 $1.60B -> $620B/s
+37h55m20s [run12 03m25s] UPG Sled x16 $46.6B -> $708B/s
+37h57m22s [run12 05m27s] GLOBAL x1.5 #12 $60.0T -> $952B/s
+37h57m33s [run12 05m38s] UPG Annealer x16 $400B -> $1.12T/s
+37h59m54s [run12 07m59s] UPG Orbital x16 $4.44T -> $2.03T/s
+46h00m00s OFFLINE 8h00m00s: +$16.1Qa (saved $2.03T/s), cash now $16.2Qa
+46h00m00s [run12 08m05s] GLOBAL x1.5 #13 $600T -> $2.54T/s
+46h00m45s [run12 08m50s] UPG GPU Node x32 $13.0B -> $3.32T/s
+46h02m27s [run12 10m32s] CONTRACT -> CatTube + Halcyon + Ministry (infra needed $10.1T)
+46h12m40s [run12 20m45s] UPG Storage Array x32 $4.49T -> $3.89T/s
+46h22m27s [run12 30m32s] CONTRACT -> Halcyon + Hyperscaler + Ministry (infra needed $56.6T)
+46h34m44s [run12 42m49s] GLOBAL x1.5 #14 $6.00Qa -> $5.05T/s
+55h00m00s OFFLINE 8h00m00s: +$40.9Qa (saved $5.16T/s), cash now $42.7Qa
+64h00m00s OFFLINE 8h00m00s: +$44.0Qa (saved $5.55T/s), cash now $44.5Qa
+73h00m00s OFFLINE 8h00m00s: +$45.2Qa (saved $5.70T/s), cash now $57.5Qa
+73h06m05s [run12 3h14m10s] GLOBAL x1.5 #15 $60.0Qa -> $7.13T/s
+73h56m25s EXIT #12: valuation $136Qa shares 5136 -> 10272 (run 4h04m30s, $7.17T/s, Campus, fill 100%, infra 0% of spend, servers [342,346,235,230,181,173,166,157])
+73h56m26s [run13 00m01s] first Pizza Box $15 (val $0.00, $144/s)
+73h56m27s [run13 00m02s] first Blade $100 (val $864, $2.16K/s)
+73h56m29s [run13 00m04s] GLOBAL x1.5 #1 $600 -> $13.5K/s
+73h56m29s [run13 00m04s] UPG Pizza Box x2 $415 -> $15.7K/s
+73h56m29s [run13 00m04s] first GPU Node $1.76K (val $19.0K, $25.4K/s)
+73h56m31s [run13 00m06s] UPG Blade x2 $2.09K -> $46.2K/s
+73h56m32s [run13 00m07s] GLOBAL x1.5 #2 $6.00K -> $82.5K/s
+73h56m33s [run13 00m08s] first Storage Array $30.0K (val $227K, $158K/s)
+73h56m35s [run13 00m10s] UPG Blade x4 $7.50K -> $296K/s
+73h56m36s [run13 00m11s] UPG Pizza Box x4 $1.13K -> $419K/s
+73h56m39s [run13 00m14s] GLOBAL x1.5 #3 $60.0K -> $683K/s
+73h56m40s [run13 00m15s] first AI Pod $175K (val $3.02M, $1.13M/s)
+73h56m46s [run13 00m21s] UPG GPU Node x2 $24.7K -> $2.07M/s
+73h56m46s [run13 00m21s] UPG Pizza Box x8 $14.4K -> $2.13M/s
+73h56m49s [run13 00m24s] UPG Blade x8 $66.1K -> $3.27M/s
+73h56m54s [run13 00m29s] GLOBAL x1.5 #4 $600K -> $5.45M/s
+73h56m57s [run13 00m32s] CONTRACT -> Weatherbot + Hyperscaler + Ministry (infra needed $750K)
+73h56m57s [run13 00m32s] UPG Storage Array x2 $210K -> $37.2M/s
+73h57m00s [run13 00m35s] UPG GPU Node x4 $138K -> $49.9M/s
+73h57m05s [run13 00m40s] first Sled $3.06M (val $464M, $72.4M/s)
+73h57m06s [run13 00m41s] UPG Storage Array x4 $1.05M -> $101M/s
+73h57m08s [run13 00m43s] GLOBAL x1.5 #5 $6.00M -> $145M/s
+73h57m10s [run13 00m45s] UPG AI Pod x2 $2.51M -> $204M/s
+73h57m17s [run13 00m52s] first Annealer $25.6M (val $3.12B, $464M/s)
+73h57m20s [run13 00m55s] GLOBAL x1.5 #6 $60.0M -> $850M/s
+73h57m22s [run13 00m57s] UPG GPU Node x8 $2.94M -> $979M/s
+73h57m22s [run13 00m57s] UPG AI Pod x4 $16.3M -> $1.19B/s
+73h57m26s [run13 01m01s] UPG Blade x16 $7.18M -> $1.51B/s
+73h57m27s [run13 01m02s] UPG Sled x2 $36.0M -> $1.73B/s
+73h57m33s [run13 01m08s] UPG Pizza Box x16 $550K -> $2.32B/s
+73h57m36s [run13 01m11s] UPG Storage Array x8 $14.3M -> $2.52B/s
+73h57m37s [run13 01m12s] first Orbital $317M (val $35.4B, $3.07B/s)
+73h57m39s [run13 01m14s] GLOBAL x1.5 #7 $600M -> $4.85B/s
+73h57m41s [run13 01m16s] UPG Annealer x2 $378M -> $6.30B/s
+73h57m43s [run13 01m18s] UPG Sled x4 $166M -> $10.1B/s
+73h57m56s [run13 01m31s] UPG Orbital x2 $5.29B -> $24.2B/s
+73h57m56s [run13 01m31s] GLOBAL x1.5 #8 $6.00B -> $33.4B/s
+73h57m58s [run13 01m33s] UPG Annealer x4 $2.80B -> $48.6B/s
+73h58m04s [run13 01m39s] UPG AI Pod x8 $220M -> $60.4B/s
+73h58m14s [run13 01m49s] UPG Orbital x4 $24.2B -> $116B/s
+73h58m15s [run13 01m50s] GLOBAL x1.5 #9 $60.0B -> $149B/s
+73h58m21s [run13 01m56s] UPG Sled x8 $2.53B -> $191B/s
+73h58m35s [run13 02m10s] UPG Annealer x8 $15.0B -> $276B/s
+73h58m36s [run13 02m11s] GLOBAL x1.5 #10 $600B -> $357B/s
+73h58m38s [run13 02m13s] UPG GPU Node x16 $13.0M -> $364B/s
+73h58m46s [run13 02m21s] UPG Storage Array x16 $1.73B -> $396B/s
+73h58m51s [run13 02m26s] UPG Orbital x8 $164B -> $671B/s
+73h59m01s [run13 02m36s] GLOBAL x1.5 #11 $6.00T -> $996B/s
+73h59m15s [run13 02m50s] UPG Blade x32 $1.00B -> $1.14T/s
+73h59m21s [run13 02m56s] UPG Pizza Box x32 $185M -> $1.17T/s
+73h59m28s [run13 03m03s] UPG AI Pod x16 $1.60B -> $1.24T/s
+73h59m43s [run13 03m18s] UPG Sled x16 $48.3B -> $1.42T/s
+
+--- Purchase gaps >= 4 min ---
+19h25m39s run9: 05m07s with no purchase, then bought GLOBAL #12 for $60.0T
+28h31m47s run11: 06m20s with no purchase, then bought GLOBAL #13 for $600T
+37h44m49s run11: 40m23s with no purchase, then bought GLOBAL #14 for $6.00Qa
+46h12m18s run12: 05m50s with no purchase, then bought Orbital for $1.66Qa
+46h34m44s run12: 12m17s with no purchase, then bought GLOBAL #14 for $6.00Qa
+46h39m55s run12: 05m08s with no purchase, then bought Orbital +rack for $1.87Qa
+46h46m43s run12: 05m29s with no purchase, then bought Orbital +rack for $2.08Qa
+46h54m32s run12: 06m18s with no purchase, then bought Orbital for $2.34Qa
+55h12m02s run12: 11m50s with no purchase, then bought Orbital for $6.47Qa
+55h34m30s run12: 18m05s with no purchase, then bought Orbital for $7.27Qa
+55h39m28s run12: 04m03s with no purchase, then bought Annealer for $1.61Qa
+55h59m25s run12: 19m57s with no purchase, then bought Orbital for $8.11Qa
+64h23m09s run12: 23m04s with no purchase, then bought Orbital for $12.8Qa
+64h31m21s run12: 06m39s with no purchase, then bought Annealer for $2.84Qa
+73h06m05s run12: 34m44s with no purchase, then bought GLOBAL #15 for $60.0Qa
+73h33m36s run12: 27m31s with no purchase, then bought Orbital for $14.3Qa
+73h40m59s run12: 06m02s with no purchase, then bought Annealer for $3.17Qa
+
+--- Snapshots every 5 min (active) ---
+active    | wall      | income/s   | valuation | cash      | stage     | racks | fill | utilP utilC utilN | uptime | sh | infra | contracts | owned
+   05m00s |    05m00s |      $7.94 |    $1.15K |       $43 | Garage    |     2 |  88% |   99%   84%   32% |  100.0 |  0 |   29% | FrobCoin               | [11,3,0,0,0,0,0,0] upg[1,0,0,0,0,0,0,0]
+   10m00s |    10m00s |        $38 |    $9.08K |    $2.32K | Garage    |     4 | 100% |   84%   98%   78% |  100.0 |  0 |   34% | FrobCoin               | [15,17,0,0,0,0,0,0] upg[1,0,0,0,0,0,0,0]
+   15m00s |    15m00s |       $126 |    $35.7K |    $6.44K | Colo      |     6 | 100% |   92%   78%   96% |  100.0 |  0 |   32% | FrobCoin               | [21,25,2,0,0,0,0,0] upg[1,1,0,0,0,0,0,0]
+   20m00s |    20m00s |       $708 |     $179K |    $20.8K | Colo      |    11 |  95% |  100%   85%   49% |  100.0 |  0 |   22% | FrobCoin               | [38,40,3,3,0,0,0,0] upg[2,2,0,0,0,0,0,0]
+   25m00s |    25m00s |     $2.58K |     $776K |    $96.8K | Colo      |    12 | 100% |   93%  100%   92% |  100.0 |  0 |   12% | FrobCoin               | [5,81,5,5,0,0,0,0] upg[2,3,0,0,0,0,0,0]
+   30m00s |    30m00s |     $3.94K |    $1.88M |     $151K | Warehouse |    15 | 100% |   98%   99%   83% |  100.0 |  0 |    7% | FrobCoin               | [26,81,5,6,2,0,0,0] upg[2,3,0,0,0,0,0,0]
+   35m00s |    35m00s |     $21.6K |    $5.30M |     $290K | Warehouse |    25 | 100% |   99%   97%   93% |  100.0 |  0 |    9% | County Records+Weatherbot | [69,81,26,19,5,0,0,0] upg[3,3,2,1,0,0,0,0]
+   40m00s |    40m00s |     $69.7K |    $19.6M |    $2.43M | Warehouse |    31 |  98% |  100%   98%   95% |  100.0 |  0 |   14% | County Records+Weatherbot | [77,82,38,32,14,0,0,0] upg[3,3,2,2,1,0,0,0]
+   45m00s |    45m00s |        $95 |    $13.9K |    $1.82K | Colo      |     5 |  88% |   98%  100%   92% |  100.0 |  3 |   22% | FrobCoin               | [22,12,1,0,0,0,0,0] upg[1,1,0,0,0,0,0,0]
+   50m00s |    50m00s |       $902 |     $135K |    $5.38K | Colo      |    11 |  92% |   98%   83%  100% |  100.0 |  3 |   20% | FrobCoin               | [35,40,4,2,0,0,0,0] upg[2,2,0,0,0,0,0,0]
+   55m00s |    55m00s |     $5.06K |    $1.18M |    $6.94K | Warehouse |    13 | 100% |   94%   93%  100% |  100.0 |  3 |   11% | CatTube                | [12,82,6,3,1,0,0,0] upg[2,3,0,0,0,0,0,0]
+ 1h00m00s |  1h00m00s |     $11.0K |    $3.70M |     $190K | Warehouse |    22 | 100% |   99%   93%  100% |  100.0 |  3 |   12% | CatTube                | [64,82,19,8,3,0,0,0] upg[3,3,1,0,0,0,0,0]
+ 1h05m00s |  1h05m00s |     $69.9K |    $15.5M |     $877K | Warehouse |    30 |  98% |   97%   88%   52% |  100.0 |  3 |   16% | County Records+Weatherbot | [77,82,37,25,14,0,0,0] upg[3,3,2,1,1,0,0,0]
+ 1h10m00s |  1h10m00s |       $116 |    $16.0K |    $3.86K | Colo      |     5 |  88% |   98%  100%   92% |  100.0 |  6 |   22% | FrobCoin               | [22,12,1,0,0,0,0,0] upg[1,1,0,0,0,0,0,0]
+ 1h15m00s |  1h15m00s |     $1.35K |     $203K |    $31.0K | Colo      |    12 | 100% |   91%  100%   41% |  100.0 |  6 |   24% | FrobCoin               | [44,43,6,3,0,0,0,0] upg[2,2,0,0,0,0,0,0]
+ 1h20m00s |  1h20m00s |     $5.56K |    $1.60M |    $65.5K | Warehouse |    15 | 100% |  100%   90%   94% |  100.0 |  6 |    7% | FrobCoin               | [26,82,6,5,1,0,0,0] upg[2,3,0,0,0,0,0,0]
+ 1h25m00s |  1h25m00s |     $22.4K |    $5.99M |     $324K | Warehouse |    26 | 100% |  100%   96%   91% |  100.0 |  6 |   13% | FrobCoin               | [74,82,24,21,6,0,0,0] upg[3,3,1,1,0,0,0,0]
+ 1h30m00s |  1h30m00s |      $167K |    $32.6M |    $1.71M | Warehouse |    31 |  99% |   89%  100%   94% |  100.0 |  6 |   22% | CatTube+Weatherbot     | [86,84,34,22,20,0,0,0] upg[3,3,2,1,1,0,0,0]
+ 1h35m00s |  1h35m00s |      $451K |     $134M |    $9.34M | Hall      |    39 |  98% |  100%  100%   96% |  100.0 |  6 |   16% | CatTube+Weatherbot     | [91,95,49,40,23,8,1,0] upg[3,3,2,2,1,0,0,0]
+ 1h40m00s |  1h40m00s |     $2.47K |     $321K |    $8.07K | Warehouse |    12 | 100% |   80%   82%   67% |  100.0 | 12 |   10% | Dave's Minecraft+County Records | [41,45,7,3,0,0,0,0] upg[2,2,0,0,0,0,0,0]
+ 1h45m00s |  1h45m00s |     $19.8K |    $3.44M |    $19.3K | Warehouse |    20 | 100% |   96%   92%   94% |  100.0 | 12 |    7% | Dave's Minecraft+County Records | [60,65,21,8,6,0,0,0] upg[3,3,1,0,0,0,0,0]
+ 1h50m00s |  1h50m00s |      $345K |    $44.7M |    $1.49M | Warehouse |    36 | 100% |   99%  100%  100% |  100.0 | 12 |   20% | CatTube+Weatherbot     | [85,94,47,40,22,0,0,0] upg[3,3,2,2,1,0,0,0]
+ 1h55m00s |  1h55m00s |     $1.18M |     $280M |    $36.7M | Hall      |    41 | 100% |   93%   99%   96% |  100.0 | 12 |   15% | CatTube+Weatherbot     | [92,96,55,44,24,14,2,0] upg[3,3,3,2,1,1,0,0]
+ 2h00m00s |  2h00m00s |     $4.98M |    $1.48B |     $369M | Hall      |    55 |  98% |   98%   98%   98% |  100.0 | 12 |   14% | CatTube+Halcyon        | [114,119,66,61,39,24,10,0] upg[4,4,3,3,2,1,0,0]
+ 2h05m00s | 10h05m00s |     $1.48M |     $132M |    $3.59M | Hall      |    40 |  98% |  100%   99%   87% |  100.0 | 34 |    9% | County Records+Weatherbot | [90,94,49,43,28,9,1,0] upg[3,3,2,2,2,0,0,0]
+ 2h10m00s | 10h10m00s |     $10.0M |    $1.87B |     $132M | Hall      |    54 |  99% |   99%   96%   95% |  100.0 | 34 |    6% | County Records+Weatherbot | [112,116,65,60,38,24,14,0] upg[4,4,3,3,2,1,1,0]
+ 2h15m00s | 10h15m00s |     $57.2M |    $13.4B |    $2.62B | Hall      |    65 | 100% |  100%   99%   91% |  100.0 | 34 |    4% | County Records+Halcyon | [127,131,75,70,47,38,30,0] upg[4,4,3,3,2,2,2,0]
+ 2h20m00s | 10h20m00s |     $77.8K |    $1.32M |    $31.3K | Hall      |    36 |  59% |   98%  100%   99% |  100.0 | 68 |    8% | County Records+Weatherbot | [70,66,22,9,4,0,0,0] upg[3,3,1,0,0,0,0,0]
+ 2h25m00s | 10h25m00s |     $15.5M |    $1.46B |    $40.2M | Hall      |    54 |  99% |   95%   86%   99% |  100.0 | 68 |    6% | County Records+Weatherbot | [112,117,65,60,38,23,11,0] upg[4,4,3,3,2,1,1,0]
+ 2h30m00s | 10h30m00s |      $189M |    $23.4B |     $685M | Hall      |    71 |  99% |  100%  100%  100% |  100.0 | 68 |    5% | Halcyon+Hyperscaler    | [134,138,81,75,57,43,34,0] upg[4,4,3,3,3,2,2,0]
+ 2h35m00s | 10h35m00s |      $317M |     $123B |    $27.8B | Hall      |    87 | 100% |  100%   97%   99% |  100.0 | 68 |    6% | Halcyon+Hyperscaler    | [158,163,98,92,72,64,49,0] upg[4,4,3,3,3,3,2,0]
+ 2h40m00s | 10h40m00s |        $12 |       $12 |    $20.0M | Campus    |    96 |   2% |   26%   33%   10% |  100.0 | 136 |   18% |                        | [7,5,0,0,0,0,0,0] upg[0,0,0,0,0,0,0,0]
+ 2h45m00s | 10h45m00s |     $1.73B |     $133B |    $12.5B | Campus    |    96 |  81% |  100%  100%   93% |  100.0 | 136 |    7% | Weatherbot+Hyperscaler+Ministry | [141,145,85,80,61,46,38,28] upg[4,4,3,3,3,2,2,2]
+ 2h50m00s | 10h50m00s |     $4.45B |    $1.43T |     $496B | Campus    |   101 | 100% |   99%   98%  100% |  100.0 | 136 |    4% | Weatherbot+Hyperscaler+Ministry | [168,172,112,99,78,70,62,47] upg[4,4,4,3,3,3,3,2]
+ 2h55m00s | 10h55m00s |     $3.49B |     $137B |    $9.07B | Campus    |    96 |  81% |  100%  100%   97% |  100.0 | 275 |    7% | Weatherbot+Hyperscaler+Ministry | [141,145,85,80,61,46,38,29] upg[4,4,3,3,3,2,2,2]
+ 3h00m00s | 11h00m00s |     $22.0B |    $4.53T |    $65.8B | Campus    |   113 | 100% |   99%  100%  100% |  100.0 | 275 |    2% | Weatherbot+Hyperscaler+Ministry | [182,187,122,117,86,78,70,62] upg[4,4,4,4,3,3,3,3]
+ 3h05m00s | 19h05m00s |     $54.4B |    $7.55T |     $374B | Campus    |   120 | 100% |  100%  100%  100% |  100.0 | 642 |    2% | Weatherbot+Hyperscaler+Ministry | [191,196,129,123,92,83,75,67] upg[4,4,4,4,3,3,3,3]
+ 3h10m00s | 19h10m00s |     $81.3B |    $32.2T |     $299B | Campus    |   138 | 100% |  100%   98%   99% |  100.0 | 642 |    1% | Weatherbot+Hyperscaler+Ministry | [222,226,143,138,110,95,88,79] upg[5,5,4,4,4,3,3,3]
+ 3h15m00s | 19h15m00s |      $107B |    $68.0T |    $3.96T | Campus    |   147 | 100% |  100%   98%   80% |  100.0 | 642 |    1% | Halcyon+Hyperscaler+Ministry | [233,238,151,146,117,108,95,86] upg[5,5,4,4,4,4,3,3]
+ 3h20m00s | 19h20m00s |      $112B |     $110T |    $12.8T | Campus    |   152 | 100% |  100%   99%   83% |  100.0 | 642 |    1% | Halcyon+Hyperscaler+Ministry | [240,245,156,151,121,113,99,90] upg[5,5,4,4,4,4,3,3]
+ 3h25m00s | 19h25m00s |      $116B |     $152T |    $53.1T | Campus    |   152 | 100% |  100%  100%   29% |  100.0 | 642 |    2% | Weatherbot+Halcyon+Ministry | [240,245,156,151,121,113,99,90] upg[5,5,4,4,4,4,3,3]
+ 3h30m00s | 19h30m00s |      $176B |     $209T |    $6.14T | Campus    |   155 | 100% |  100%   99%   32% |  100.0 | 642 |    2% | Weatherbot+Halcyon+Ministry | [243,248,158,153,123,115,107,92] upg[5,5,4,4,4,4,4,3]
+ 3h35m00s | 19h35m00s |     $28.0M |     $162M |     $149M | Campus    |    96 |  34% |   89%  100%   96% |  100.0 | 1284 |   17% | Weatherbot+Hyperscaler+Ministry | [82,83,41,35,17,2,0,0] upg[3,3,2,2,1,0,0,0]
+ 3h40m00s | 19h40m00s |      $159B |    $29.4T |     $223B | Campus    |   137 |  99% |  100%   97%   98% |  100.0 | 1284 |    1% | Weatherbot+Hyperscaler+Ministry | [220,224,142,136,109,94,87,78] upg[5,5,4,4,4,3,3,3]
+ 3h45m00s | 19h45m00s |      $223B |    $97.2T |     $625B | Campus    |   152 | 100% |   99%  100%   71% |  100.0 | 1284 |    1% | Halcyon+Hyperscaler+Ministry | [240,244,156,151,121,112,99,90] upg[5,5,4,4,4,4,3,3]
+ 3h50m00s | 19h50m00s |      $333B |     $185T |     $472B | Campus    |   154 | 100% |  100%  100%   76% |  100.0 | 1284 |    1% | Halcyon+Hyperscaler+Ministry | [242,246,157,152,122,113,106,91] upg[5,5,4,4,4,4,4,3]
+ 3h55m00s | 19h55m00s |      $366B |     $309T |    $5.32T | Campus    |   161 | 100% |  100%  100%   28% |  100.0 | 1284 |    2% | Weatherbot+Halcyon+Ministry | [252,256,164,159,128,120,112,97] upg[5,5,4,4,4,4,4,3]
+ 4h00m00s | 20h00m00s |      $624B |     $479T |    $16.0T | Campus    |   164 | 100% |  100%   99%   35% |  100.0 | 1284 |    7% | Weatherbot+Halcyon+Ministry | [256,260,167,162,130,121,114,102] upg[5,5,4,4,4,4,4,4]
+ 4h05m00s | 28h05m00s |      $954B |   $2.09Qa |     $414T | Campus    |   189 | 100% |  100%  100%   42% |  100.0 | 1284 |    4% | Weatherbot+Halcyon+Ministry | [289,294,191,185,150,141,134,125] upg[5,5,4,4,4,4,4,4]
+ 4h10m00s | 28h10m00s |      $343B |    $50.4T |     $171B | Campus    |   143 | 100% |  100%  100%   97% |  100.0 | 2568 |    1% | Weatherbot+Hyperscaler+Ministry | [228,233,148,142,114,101,92,84] upg[5,5,4,4,4,4,3,3]
+ 4h15m00s | 28h15m00s |      $577B |     $198T |     $724B | Campus    |   155 | 100% |   99%   98%  100% |  100.0 | 2568 |    0% | Weatherbot+Hyperscaler+Ministry | [243,248,158,153,123,114,107,92] upg[5,5,4,4,4,4,4,3]
+ 4h20m00s | 28h20m00s |     $1.22T |     $476T |    $2.88T | Campus    |   164 | 100% |  100%  100%   87% |  100.0 | 2568 |    2% | Halcyon+Hyperscaler+Ministry | [255,260,167,161,130,122,114,103] upg[5,5,4,4,4,4,4,4]
+ 4h25m00s | 28h25m00s |     $1.29T |     $955T |    $47.2T | Campus    |   170 | 100% |  100%   99%   92% |  100.0 | 2568 |    1% | Halcyon+Hyperscaler+Ministry | [263,268,172,167,135,126,119,110] upg[5,5,4,4,4,4,4,4]
+ 4h30m00s | 28h30m00s |     $1.30T |   $1.42Qa |     $434T | Campus    |   171 | 100% |   99%   99%   92% |  100.0 | 2568 |    1% | Halcyon+Hyperscaler+Ministry | [265,269,173,168,135,127,119,111] upg[5,5,4,4,4,4,4,4]
+ 4h35m00s | 28h35m00s |     $1.67T |   $1.97Qa |    $13.5T | Campus    |   175 | 100% |  100%  100%   95% |  100.0 | 2568 |    1% | Halcyon+Hyperscaler+Ministry | [270,274,177,172,138,130,122,114] upg[5,5,4,4,4,4,4,4]
+ 4h40m00s | 28h40m00s |     $1.72T |   $2.62Qa |     $104T | Campus    |   179 | 100% |  100%  100%   97% |  100.0 | 2568 |    1% | Halcyon+Hyperscaler+Ministry | [275,279,181,175,141,133,126,117] upg[5,5,4,4,4,4,4,4]
+ 4h45m00s | 28h45m00s |     $1.76T |   $3.24Qa |    $36.2T | Campus    |   182 | 100% |  100%   99%  100% |  100.0 | 2568 |    1% | Halcyon+Hyperscaler+Ministry | [280,284,184,179,144,136,128,120] upg[5,5,4,4,4,4,4,4]
+ 4h50m00s | 28h50m00s |     $1.79T |   $3.88Qa |    $30.4T | Campus    |   185 | 100% |  100%   99%   96% |  100.0 | 2568 |    1% | Halcyon+Hyperscaler+Ministry | [283,287,186,181,146,138,130,122] upg[5,5,4,4,4,4,4,4]
+ 4h55m00s | 28h55m00s |     $1.80T |   $4.56Qa |     $264T | Campus    |   186 | 100% |  100%  100%   97% |  100.0 | 2568 |    1% | Halcyon+Hyperscaler+Ministry | [285,289,188,183,147,139,132,123] upg[5,5,4,4,4,4,4,4]
+ 5h00m00s | 29h00m00s |     $1.83T |   $5.22Qa |    $4.45B | Campus    |   189 | 100% |  100%   99%   98% |  100.0 | 2568 |    1% | Halcyon+Hyperscaler+Ministry | [288,293,190,185,149,141,134,125] upg[5,5,4,4,4,4,4,4]
+ 5h05m00s | 37h05m00s |     $2.03T |   $9.68Qa |    $68.0T | Campus    |   206 | 100% |  100%  100%   97% |  100.0 | 2568 |    0% | Halcyon+Hyperscaler+Ministry | [310,315,213,208,163,154,147,138] upg[5,5,5,5,4,4,4,4]
+ 5h10m00s | 37h10m00s |     $2.03T |   $10.5Qa |     $838T | Campus    |   206 | 100% |  100%  100%   97% |  100.0 | 2568 |    0% | Halcyon+Hyperscaler+Ministry | [310,315,213,208,163,154,147,138] upg[5,5,5,5,4,4,4,4]
+ 5h15m00s | 37h15m00s |     $2.03T |   $11.2Qa |   $1.57Qa | Campus    |   206 | 100% |  100%  100%   97% |  100.0 | 2568 |    0% | Halcyon+Hyperscaler+Ministry | [310,315,213,208,163,154,147,138] upg[5,5,5,5,4,4,4,4]
+ 5h20m00s | 37h20m00s |     $2.03T |   $11.9Qa |   $2.30Qa | Campus    |   206 | 100% |  100%  100%   97% |  100.0 | 2568 |    0% | Halcyon+Hyperscaler+Ministry | [310,315,213,208,163,154,147,138] upg[5,5,5,5,4,4,4,4]
+ 5h25m00s | 37h25m00s |     $2.03T |   $12.7Qa |   $3.07Qa | Campus    |   206 | 100% |  100%  100%   97% |  100.0 | 2568 |    0% | Halcyon+Hyperscaler+Ministry | [310,315,213,208,163,154,147,138] upg[5,5,5,5,4,4,4,4]
+ 5h30m00s | 37h30m00s |     $2.03T |   $13.4Qa |   $3.79Qa | Campus    |   206 | 100% |  100%  100%   97% |  100.0 | 2568 |    0% | Halcyon+Hyperscaler+Ministry | [310,315,213,208,163,154,147,138] upg[5,5,5,5,4,4,4,4]
+ 5h35m00s | 37h35m00s |     $2.03T |   $14.1Qa |   $4.52Qa | Campus    |   206 | 100% |  100%  100%   97% |  100.0 | 2568 |    0% | Halcyon+Hyperscaler+Ministry | [310,315,213,208,163,154,147,138] upg[5,5,5,5,4,4,4,4]
+ 5h40m00s | 37h40m00s |     $2.03T |   $14.9Qa |   $5.29Qa | Campus    |   206 | 100% |  100%  100%   97% |  100.0 | 2568 |    0% | Halcyon+Hyperscaler+Ministry | [310,315,213,208,163,154,147,138] upg[5,5,5,5,4,4,4,4]
+ 5h45m00s | 37h45m00s |     $2.53T |   $15.6Qa |    $26.8T | Campus    |   206 | 100% |  100%  100%   97% |  100.0 | 2568 |    0% | Halcyon+Hyperscaler+Ministry | [310,315,213,208,163,154,147,138] upg[5,5,5,5,4,4,4,4]
+ 5h50m00s | 37h50m00s |     $2.53T |   $16.6Qa |     $938T | Campus    |   206 | 100% |  100%  100%   97% |  100.0 | 2568 |    0% | Halcyon+Hyperscaler+Ministry | [310,315,213,208,163,154,147,138] upg[5,5,5,5,4,4,4,4]
+ 5h55m00s | 37h55m00s |      $608B |    $36.6T |    $12.4T | Campus    |   132 | 100% |  100%  100%  100% |  100.0 | 5136 |    1% | Weatherbot+Hyperscaler+Ministry | [215,219,138,133,99,91,84,76] upg[5,5,4,4,3,3,3,3]
+ 6h00m00s | 38h00m00s |     $2.03T |     $393T |    $11.0T | Campus    |   164 | 100% |   99%  100%   99% |  100.0 | 5136 |    1% | Weatherbot+Hyperscaler+Ministry | [255,259,167,161,130,121,114,100] upg[5,5,4,4,4,4,4,4]
+ 6h05m00s | 46h05m00s |     $3.83T |   $5.81Qa |   $1.47Qa | Campus    |   203 | 100% |  100%  100%   88% |  100.0 | 5136 |    0% | CatTube+Halcyon+Ministry | [307,311,211,198,160,152,145,136] upg[5,5,5,4,4,4,4,4]
+ 6h10m00s | 46h10m00s |     $3.86T |   $7.28Qa |   $1.05Qa | Campus    |   204 | 100% |  100%   99%   89% |  100.0 | 5136 |    0% | CatTube+Halcyon+Ministry | [308,313,212,199,161,153,146,137] upg[5,5,5,4,4,4,4,4]
+ 6h15m00s | 46h15m00s |     $3.90T |   $8.67Qa |     $299T | Campus    |   206 | 100% |   99%  100%   90% |  100.0 | 5136 |    0% | CatTube+Halcyon+Ministry | [310,314,213,208,162,154,147,138] upg[5,5,5,5,4,4,4,4]
+ 6h20m00s | 46h20m00s |     $3.90T |   $10.1Qa |   $1.70Qa | Campus    |   206 | 100% |   99%  100%   90% |  100.0 | 5136 |    0% | CatTube+Halcyon+Ministry | [310,314,213,208,162,154,147,138] upg[5,5,5,5,4,4,4,4]
+ 6h25m00s | 46h25m00s |     $4.04T |   $11.6Qa |   $3.15Qa | Campus    |   206 | 100% |  100%  100%   72% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [310,314,213,208,162,154,147,138] upg[5,5,5,5,4,4,4,4]
+ 6h30m00s | 46h30m00s |     $4.04T |   $13.0Qa |   $4.61Qa | Campus    |   206 | 100% |  100%  100%   72% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [310,314,213,208,162,154,147,138] upg[5,5,5,5,4,4,4,4]
+ 6h35m00s | 46h35m00s |     $5.05T |   $14.5Qa |    $63.4T | Campus    |   206 | 100% |  100%  100%   72% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [310,315,213,208,163,154,147,138] upg[5,5,5,5,4,4,4,4]
+ 6h40m00s | 46h40m00s |     $5.08T |   $16.4Qa |    $34.4T | Campus    |   207 | 100% |   99%   99%   72% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [312,316,214,209,163,155,147,139] upg[5,5,5,5,4,4,4,4]
+ 6h45m00s | 46h45m00s |     $5.09T |   $18.3Qa |   $1.45Qa | Campus    |   207 | 100% |  100%   99%   72% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [312,316,214,209,163,155,148,139] upg[5,5,5,5,4,4,4,4]
+ 6h50m00s | 46h50m00s |     $5.12T |   $20.1Qa |     $642T | Campus    |   209 | 100% |  100%  100%   73% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [313,318,215,210,164,156,149,140] upg[5,5,5,5,4,4,4,4]
+ 6h55m00s | 46h55m00s |     $5.15T |   $22.0Qa |     $128T | Campus    |   209 | 100% |   99%   99%   73% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [314,319,216,211,165,157,149,141] upg[5,5,5,5,4,4,4,4]
+ 7h00m00s | 47h00m00s |     $5.16T |   $23.9Qa |   $1.47Qa | Campus    |   210 | 100% |  100%   99%   73% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [315,320,216,211,165,157,150,141] upg[5,5,5,5,4,4,4,4]
+ 7h05m00s | 55h05m00s |     $5.45T |   $36.4Qa |   $3.62Qa | Campus    |   220 | 100% |  100%  100%   78% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [328,333,226,221,173,165,158,149] upg[5,5,5,5,4,4,4,4]
+ 7h10m00s | 55h10m00s |     $5.45T |   $38.5Qa |   $5.69Qa | Campus    |   220 | 100% |  100%  100%   78% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [328,333,226,221,173,165,158,149] upg[5,5,5,5,4,4,4,4]
+ 7h15m00s | 55h15m00s |     $5.48T |   $40.4Qa |     $863T | Campus    |   221 | 100% |  100%  100%   78% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [330,334,227,222,174,166,158,150] upg[5,5,5,5,4,4,4,4]
+ 7h20m00s | 55h20m00s |     $5.49T |   $42.4Qa |   $1.40Qa | Campus    |   221 | 100% |  100%  100%   78% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [330,335,227,222,174,166,159,150] upg[5,5,5,5,4,4,4,4]
+ 7h25m00s | 55h25m00s |     $5.49T |   $44.5Qa |   $3.48Qa | Campus    |   221 | 100% |  100%  100%   78% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [330,335,227,222,174,166,159,150] upg[5,5,5,5,4,4,4,4]
+ 7h30m00s | 55h30m00s |     $5.49T |   $46.5Qa |   $5.46Qa | Campus    |   221 | 100% |  100%  100%   78% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [330,335,227,222,174,166,159,150] upg[5,5,5,5,4,4,4,4]
+ 7h35m00s | 55h35m00s |     $5.51T |   $48.4Qa |     $104T | Campus    |   221 | 100% |   99%   99%   78% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [330,335,227,222,175,166,159,151] upg[5,5,5,5,4,4,4,4]
+ 7h40m00s | 55h40m00s |     $5.52T |   $50.5Qa |     $287T | Campus    |   222 | 100% |  100%   99%   79% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [332,336,228,223,175,167,160,151] upg[5,5,5,5,4,4,4,4]
+ 7h45m00s | 55h45m00s |     $5.52T |   $52.5Qa |   $2.27Qa | Campus    |   222 | 100% |  100%   99%   79% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [332,336,228,223,175,167,160,151] upg[5,5,5,5,4,4,4,4]
+ 7h50m00s | 55h50m00s |     $5.52T |   $54.5Qa |   $4.26Qa | Campus    |   222 | 100% |  100%   99%   79% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [332,336,228,223,175,167,160,151] upg[5,5,5,5,4,4,4,4]
+ 7h55m00s | 55h55m00s |     $5.52T |   $56.6Qa |   $6.36Qa | Campus    |   222 | 100% |  100%   99%   79% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [332,336,228,223,175,167,160,151] upg[5,5,5,5,4,4,4,4]
+ 8h00m00s | 56h00m00s |     $5.55T |   $58.6Qa |     $166T | Campus    |   222 | 100% |  100%  100%   79% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [332,337,229,223,176,167,160,152] upg[5,5,5,5,4,4,4,4]
+ 8h05m00s | 64h05m00s |     $5.67T |   $72.0Qa |   $5.24Qa | Campus    |   227 | 100% |  100%  100%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [339,343,233,228,179,171,164,155] upg[5,5,5,5,4,4,4,4]
+ 8h10m00s | 64h10m00s |     $5.67T |   $74.1Qa |   $7.39Qa | Campus    |   227 | 100% |  100%  100%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [339,343,233,228,179,171,164,155] upg[5,5,5,5,4,4,4,4]
+ 8h15m00s | 64h15m00s |     $5.67T |   $76.2Qa |   $9.43Qa | Campus    |   227 | 100% |  100%  100%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [339,343,233,228,179,171,164,155] upg[5,5,5,5,4,4,4,4]
+ 8h20m00s | 64h20m00s |     $5.67T |   $78.2Qa |   $11.5Qa | Campus    |   227 | 100% |  100%  100%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [339,343,233,228,179,171,164,155] upg[5,5,5,5,4,4,4,4]
+ 8h25m00s | 64h25m00s |     $5.70T |   $80.4Qa |     $215T | Campus    |   228 | 100% |  100%   99%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [340,344,234,229,180,172,164,156] upg[5,5,5,5,4,4,4,4]
+ 8h30m00s | 64h30m00s |     $5.70T |   $82.4Qa |   $2.27Qa | Campus    |   228 | 100% |  100%   99%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [340,344,234,229,180,172,164,156] upg[5,5,5,5,4,4,4,4]
+ 8h35m00s | 64h35m00s |     $5.70T |   $84.5Qa |   $1.48Qa | Campus    |   228 | 100% |  100%   99%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [340,345,234,229,180,172,165,156] upg[5,5,5,5,4,4,4,4]
+ 8h40m00s | 64h40m00s |     $5.70T |   $86.6Qa |   $3.64Qa | Campus    |   228 | 100% |  100%   99%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [340,345,234,229,180,172,165,156] upg[5,5,5,5,4,4,4,4]
+ 8h45m00s | 64h45m00s |     $5.70T |   $88.7Qa |   $5.69Qa | Campus    |   228 | 100% |  100%   99%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [340,345,234,229,180,172,165,156] upg[5,5,5,5,4,4,4,4]
+ 8h50m00s | 64h50m00s |     $5.70T |   $90.7Qa |   $7.75Qa | Campus    |   228 | 100% |  100%   99%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [340,345,234,229,180,172,165,156] upg[5,5,5,5,4,4,4,4]
+ 8h55m00s | 64h55m00s |     $5.70T |   $92.9Qa |   $9.91Qa | Campus    |   228 | 100% |  100%   99%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [340,345,234,229,180,172,165,156] upg[5,5,5,5,4,4,4,4]
+ 9h00m00s | 65h00m00s |     $5.70T |   $94.9Qa |   $12.0Qa | Campus    |   228 | 100% |  100%   99%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [340,345,234,229,180,172,165,156] upg[5,5,5,5,4,4,4,4]
+ 9h05m00s | 73h05m00s |     $5.70T |    $109Qa |   $59.5Qa | Campus    |   228 | 100% |  100%   99%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [340,345,234,229,180,172,165,156] upg[5,5,5,5,4,4,4,4]
+ 9h10m00s | 73h10m00s |     $7.13T |    $111Qa |   $2.10Qa | Campus    |   228 | 100% |  100%   99%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [340,345,234,229,180,172,165,156] upg[5,5,5,5,4,4,4,4]
+ 9h15m00s | 73h15m00s |     $7.13T |    $114Qa |   $4.67Qa | Campus    |   228 | 100% |  100%   99%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [340,345,234,229,180,172,165,156] upg[5,5,5,5,4,4,4,4]
+ 9h20m00s | 73h20m00s |     $7.13T |    $116Qa |   $7.23Qa | Campus    |   228 | 100% |  100%   99%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [340,345,234,229,180,172,165,156] upg[5,5,5,5,4,4,4,4]
+ 9h25m00s | 73h25m00s |     $7.13T |    $119Qa |   $9.94Qa | Campus    |   228 | 100% |  100%   99%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [340,345,234,229,180,172,165,156] upg[5,5,5,5,4,4,4,4]
+ 9h30m00s | 73h30m00s |     $7.13T |    $122Qa |   $12.5Qa | Campus    |   228 | 100% |  100%   99%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [340,345,234,229,180,172,165,156] upg[5,5,5,5,4,4,4,4]
+ 9h35m00s | 73h35m00s |     $7.16T |    $124Qa |    $19.2T | Campus    |   229 | 100% |   99%  100%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [342,346,235,230,181,173,165,157] upg[5,5,5,5,4,4,4,4]
+ 9h40m00s | 73h40m00s |     $7.16T |    $127Qa |   $2.74Qa | Campus    |   229 | 100% |   99%  100%   81% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [342,346,235,230,181,173,165,157] upg[5,5,5,5,4,4,4,4]
+ 9h45m00s | 73h45m00s |     $7.17T |    $129Qa |   $2.15Qa | Campus    |   229 | 100% |  100%  100%   82% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [342,346,235,230,181,173,166,157] upg[5,5,5,5,4,4,4,4]
+ 9h50m00s | 73h50m00s |     $7.17T |    $132Qa |   $4.73Qa | Campus    |   229 | 100% |  100%  100%   82% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [342,346,235,230,181,173,166,157] upg[5,5,5,5,4,4,4,4]
+ 9h55m00s | 73h55m00s |     $7.17T |    $135Qa |   $7.46Qa | Campus    |   229 | 100% |  100%  100%   82% |  100.0 | 5136 |    0% | Halcyon+Hyperscaler+Ministry | [342,346,235,230,181,173,166,157] upg[5,5,5,5,4,4,4,4]
+10h00m00s | 74h00m00s |     $1.47T |     $116T |    $46.7T | Campus    |   147 | 100% |   98%   99%   96% |  100.0 | 10272 |    1% | Weatherbot+Hyperscaler+Ministry | [233,238,151,146,117,108,95,87] upg[5,5,4,4,4,4,3,3]
+
+--- Buys per minute (active) ---
+
+00m00s:   6  2  0  3  4  2  6  6  5  3  1  0  2 14  0  3  0  0 16 20 12  8 14 12  6  0  0 16  0  8
+30m00s:  16 18  8 17 26 16 13  1  6  9  6 36  2  3  5  1 13 12 14  9 15  8 25  8  8 16 16  2  0 41
+1h00m00s:   8 21 24  2  7  6 38  1  6  3  1  9 30  5 19 17 20  4 16  8 24  9  0 29 29  5 10  9  5 13
+1h30m00s:  44  0  0  7 12  5 39 63  0  4 17  9 22  2 18 42 25  2 24 42  0  6 18 12  5 10 34 34 32  1
+2h00m00s: 187 48 26 49 27  8 32 66 11  5  8 41 37  4  2  8 48 20 24183 70 69 12 99 19 15 73  3  4 46
+2h30m00s:  46 40 25 24  0  0  2  4 23 32313126 91 44 69 48 69 52 19  0 37 18333196115104 83 19 24 56
+3h00m00s: 360299192 64 85 40  0 53 26 30 19  8 30  8  9 10 11  8 12  0  0  0  0  0  0  1  7  6  8  4
+3h30m00s:  13  4  0 13276360243149 47 57 38 27 21 17 21  0  0  0  1 17 16 11 11 10 11  8 13  1  1  2
+4h00m00s: 198  0  0  0  0204360360179 82 41 31  0  0 26 21 18 19 14  3  2 16 12  8 10  7  0  0  0  0
+4h30m00s:   0  2 13  8  8  2  9  9  7  3  8  3  9  0  8  3  0  8  0  7  2  0  9  2  0  9  0  0  1  9
+5h00m00s: 125 16  0  0  4  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0
+5h30m00s:   0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0 24360360352139 21 36 37 24
+6h00m00s: 315  0  0  0  0  8  1  0  0  0  0  0 16  0  2  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0
+6h30m00s:   0  0  0  0  3  0  0  0  0  7  0  1  0  0  0  0  2  6  1  0  0  0  0  0  7  0  3  0  0  0
+7h00m00s:  78  0  0  0  0  0  0  0  0  0  0  0  8  0  0  0  2  0  0  0  0  0  0  0  0  0  0  0  0  0
+7h30m00s:   0  0  0  0  2  6  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  4
+8h00m00s:  36  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  2  5  0  0  0  0  0
+8h30m00s:   0  2  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0
+9h00m00s:   0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0
+9h30m00s:   0  0  0  2  6  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0204360360294
+
+--- Exits ---
+41m13s (active 41m13s): $27.0M shares 0->3 run 41m13s stage Warehouse fill 100% infra 12%
+1h06m39s (active 1h06m39s): $27.0M shares 3->6 run 25m26s stage Warehouse fill 97% infra 13%
+1h36m53s (active 1h36m53s): $217M shares 6->12 run 30m14s stage Hall fill 98% infra 13%
+10h00m00s (active 2h00m00s): $11.7B shares 12->34 run 23m07s stage Hall fill 99% infra 8%
+10h19m11s (active 2h19m11s): $39.4B shares 34->68 run 19m11s stage Hall fill 99% infra 2%
+10h39m57s (active 2h39m57s): $315B shares 68->136 run 20m46s stage Hall fill 100% infra 8%
+10h51m57s (active 2h51m57s): $2.69T shares 136->275 run 12m00s stage Campus fill 100% infra 7%
+19h00m00s (active 3h00m00s): $49.5T shares 275->642 run 08m03s stage Campus fill 100% infra 1%
+19h34m13s (active 3h34m13s): $265T shares 642->1284 run 34m13s stage Campus fill 100% infra 2%
+28h05m25s (active 4h05m25s): $2.12Qa shares 1284->2568 run 31m12s stage Campus fill 100% infra 4%
+37h51m55s (active 5h51m55s): $16.9Qa shares 2568->5136 run 1h46m30s stage Campus fill 100% infra 0%
+73h56m25s (active 9h56m25s): $136Qa shares 5136->10272 run 4h04m30s stage Campus fill 100% infra 0%
+
+--- Final state ---
+t=74h00m00s active=10h00m00s shares=10272 exits=12 stage=Campus racks=147 fill=100% income=$1.47T/s val=$116T cash=$46.7T uptime=100.0
+owned=[233,238,151,146,117,108,95,87] upg=[5,5,4,4,4,4,3,3] infra=[PDU:6 Subpanel:3 Genset:69 Substation:50 HV Feed:57 SMR:29 Box Fan:6 Window AC:3 Split AC:50 CRAC:55 Chiller:35 Cryo:16 Immersion:4 Switch:6 Biz Fiber:3 Fiber Uplink:42 Core Router:54 IX Port:39 Cable Landing:9] effUpg=[Containment,VSD fans,Compression,Economizer] globals=11 milestones=40
+spend this run: servers 89%, upgrades 0%, infra 1%, racks 0%, moves 0%, globals 10%, refresh 0%, qol 0%
+over-capacity ticks: 0.0%  mean max-utilisation: 99%

@@ -9,5 +9,8 @@ matrix/mac/
 .claude/
 .playwright-mcp/
 
+# Dev tooling for the data center game (economy sim, pacing reports, headless screenshots, tests)
+datacenter/tools/
+
 # Development tools (the local dev server and balance scripts); not part of the public site
 tools/

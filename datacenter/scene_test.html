@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scene test</title>
+<link rel="icon" href="data:,">
+<!--
+Drives scene.js without the sim. URL params build a fake state, then buttons fire bus events live.
+  stage=1..5      racks=N (default: the stage's carried count)   fill=0..1 (slots filled, placement order)
+  incident=N      first N lit racks go amber                     dark=N      the next N racks go dark
+  eff=0..1        power efficiency (hall brightness)             power= cool= net=   meter utilisations u
+  event=heatwave|viral|ddos|investor   civic=0 hides the Civic   skyline=N   infra=auto | id:n,id:n
+  effs=containment,vsd,compression,economizer   efficiency upgrades owned (their cues in the hall)
+  mits=ups,dual_carrier,scrubbing,spares        mitigations owned (props in their lanes)   staff=0..5 (the NOC desk, one monitor per hire)
+  band=top,bottom   portrait: the canvas band (px) the view is fitted to, as ui.js would pass it (default 14%..60%)
+  polar= az= zoom=   camera (degrees)   bloom=0   quality=low|high (phones default to low)   auto=1 (auto-degrade; default off here)
+  freeze=1 stops the scene clock; do=exit|sweep|breaker|offline|stage:N|upgrade|milestone|server|rack fires after load;
+  step=S advances the frozen clock S seconds after `do` (deterministic mid-animation screenshots).
+window.__scene, window.__state, window.__ready (Promise). Stats (draw calls, triangles, fps) refresh every second.
+The 'pick check' button logs scene.debug.pickCheck(): every rack projected and picked back (misses must be []).
+-->
+<style>
+html,body{margin:0;height:100%;background:#07090f;color:#dfe6ee;font:12px/1.4 system-ui,sans-serif;overflow:hidden}
+canvas{display:block;width:100vw;height:100vh;touch-action:none}
+#hud{position:fixed;top:8px;left:8px;max-width:min(420px,calc(100vw - 16px));background:rgba(10,14,22,.65);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:8px 10px;backdrop-filter:blur(8px)}
+#stats{font-variant-numeric:tabular-nums;white-space:pre-wrap;margin-bottom:6px}
+#btns{display:flex;flex-wrap:wrap;gap:4px}
+button{background:#1b2230;color:#dfe6ee;border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:4px 7px;font:inherit;cursor:pointer}
+button:hover{background:#28324a}
+#hud.min #btns{display:none}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><div id="stats">loading…</div><div id="btns"></div></div>
+<script type="module">
+import * as data from './data.js';
+import { createScene } from './scene.js';
+
+const q = new URLSearchParams(location.search);
+const num = (k, d) => (q.has(k) ? Number(q.get(k)) : d);
+const stageN = Math.min(5, Math.max(1, num('stage', 1)));
+const S = data.STAGES[stageN - 1];
+const racksN = Math.min(S.footprints.length, Math.max(0, num('racks', S.carried)));
+const fill = Math.min(1, Math.max(0, num('fill', 0.5)));
+
+// ---- fake state ---------------------------------------------------------------------------------------------------------------
+const avail = data.TIERS.filter(t => t.stage <= stageN);
+function tierFor(rack, slot) {
+  // older racks hold older tiers, with a little per-slot variety so a hall is a mix, not stripes
+  const k = racksN > 1 ? rack / (racksN - 1) : 1;
+  let i = Math.floor(k * (avail.length - 0.001));
+  if (slot % 3 === 2 && i > 0) i--;
+  return avail[Math.max(0, Math.min(avail.length - 1, i))].id;
+}
+const totalSlots = Math.round(fill * racksN * data.RACK_SLOTS);
+const racks = [];
+for (let r = 0; r < racksN; r++) {
+  const servers = [];
+  for (let s = 0; s < data.RACK_SLOTS; s++) servers.push(r * data.RACK_SLOTS + s < totalSlots ? tierFor(r, s) : null);
+  racks.push({ servers, dark: false, incident: null });
+}
+const lit = racks.map((r, i) => i).filter(i => racks[i].servers.some(Boolean));
+lit.slice(0, num('incident', 0)).forEach(i => { racks[i].incident = { id: 'inc_disk', t0: 0, flavor: 'Disk failing' }; });
+lit.slice(num('incident', 0), num('incident', 0) + num('dark', 0)).forEach(i => { racks[i].dark = true; });
+
+const infra = {};
+const infraParam = q.get('infra');
+if (infraParam === 'auto') {
+  for (const d of data.INFRA) if (d.stage <= stageN) infra[d.id] = d.max ? Math.min(d.max, 1 + stageN) : (d.stage === stageN ? 2 + stageN : 1 + Math.floor(stageN / 2));
+} else if (infraParam) {
+  for (const part of infraParam.split(',')) { const [id, n] = part.split(':'); if (id) infra[id.trim()] = Number(n ?? 1); }
+}
+const eventId = q.get('event') ? 'ev_' + q.get('event').replace(/^ev_/, '') : null;
+const effUpgrades = (q.get('effs') || '').split(',').map(s => s.trim()).filter(Boolean).map(s => (s.startsWith('eff_') ? s : 'eff_' + s));
+const mitigations = (q.get('mits') || '').split(',').map(s => s.trim()).filter(Boolean).map(s => (s.startsWith('mit_') ? s : 'mit_' + s));
+
+const state = {
+  v: 1,
+  account: { shares: 0, milestones: [], skyline: num('skyline', 0), flags: { breakerSeen: false }, lifetime: {}, settings: { bloom: q.get('bloom') !== '0', sound: false }, tickerRecent: [], savedAt: Date.now() },
+  run: { cash: 50, valuation: 0, uptime: 100, stage: stageN, runTime: 0, noRedSince: 0, racks, racksBoughtThisStage: 0, infra, bought: {}, upgrades: {},
+    globals: 0, effUpgrades, mitigations, staff: Math.min(5, Math.max(0, num('staff', 0))), contracts: { active: [], board: [], boardAge: 0 }, event: eventId ? { id: eventId, tLeft: 60, handled: false } : null, lastIncidentAt: 0 },
+};
+const u = { power: num('power', 0.6), cooling: num('cool', 0.5), network: num('net', 0.4) };
+const derived = { power: { u: u.power, cap: 1, demand: u.power }, cooling: { u: u.cooling, cap: 1, demand: u.cooling }, network: { u: u.network, cap: 1, demand: u.network },
+  efficiency: num('eff', 1), blackout: false, income: 1 };
+window.__state = state;
+
+// ---- scene ---------------------------------------------------------------------------------------------------------------------
+const canvas = document.getElementById('c');
+const stats = document.getElementById('stats'), btns = document.getElementById('btns'), hud = document.getElementById('hud');
+if (innerWidth < 600 || q.get('hud') === '0') hud.classList.add('min'); // keep the phone frame visible; tap the stats line to expand
+stats.addEventListener('click', () => hud.classList.toggle('min'));
+let scene;
+window.__ready = (async () => {
+  scene = await createScene({ canvas, data, assetsBase: './assets/' });
+  window.__scene = scene;
+  scene.setAutoQuality(q.get('auto') === '1');
+  if (q.has('quality')) scene.setQuality(q.get('quality'));
+  if (q.has('band')) { const [a, b] = q.get('band').split(',').map(Number); scene.setViewportBand(a, b); }
+  scene.setBloom(q.get('bloom') !== '0');
+  if (q.get('freeze') === '1') scene.debug.setFrozen(true);
+  scene.start();
+  await scene.setState(state, derived);
+  scene.apply('meters', { ...derived, uptime: 100 });
+  if (eventId) scene.apply('event', { id: eventId, on: true });
+  if (q.get('civic') === '0') scene.three.world.setCivic(false);
+  if (q.has('polar') || q.has('az') || q.has('zoom')) scene.debug.setView({ polarDeg: q.has('polar') ? num('polar') : undefined, azimuthDeg: q.has('az') ? num('az') : undefined, zoom: num('zoom', 1) });
+  if (q.get('freeze') === '1') scene.debug.step(1.3); // past the boot fade
+  const action = q.get('do');
+  if (action) { await new Promise(r => setTimeout(r, 50)); doAction(action); }
+  if (q.has('step')) scene.debug.step(num('step'));
+  return scene;
+})();
+
+// ---- actions ----------------------------------------------------------------------------------------------------------------------
+const run = state.run;
+function nextSlot() {
+  for (let r = 0; r < run.racks.length; r++) { const s = run.racks[r].servers.indexOf(null); if (s >= 0) return { rack: r, slot: s }; }
+  return null;
+}
+function addServer() {
+  const at = nextSlot(); if (!at) return;
+  const tier = tierFor(at.rack, at.slot);
+  run.racks[at.rack].servers[at.slot] = tier;
+  scene.apply('serverAdded', { rack: at.rack, slot: at.slot, tier });
+}
+function addRack() {
+  if (run.racks.length >= S.footprints.length) return;
+  run.racks.push({ servers: Array(8).fill(null), dark: false, incident: null });
+  scene.apply('rackAdded', { rack: run.racks.length - 1 });
+}
+function swap() {
+  const r = run.racks.findIndex(x => x.servers[0]); if (r < 0) return;
+  const from = run.racks[r].servers[0], i = data.TIERS.findIndex(t => t.id === from), to = data.TIERS[Math.min(data.TIERS.length - 1, i + 1)].id;
+  run.racks[r].servers[0] = to;
+  scene.apply('serverSwapped', { rack: r, slot: 0, from, to });
+}
+function incident() {
+  const r = run.racks.findIndex(x => !x.incident && !x.dark && x.servers.some(Boolean)); if (r < 0) return;
+  run.racks[r].incident = { id: 'inc_disk', t0: 0 };
+  scene.apply('incident', { rack: r, flavor: 'Disk failing' });
+}
+function resolve() {
+  const r = run.racks.findIndex(x => x.incident); if (r < 0) return;
+  run.racks[r].incident = null;
+  scene.apply('incidentResolved', { rack: r, bounty: 5 });
+}
+function toggleDark() {
+  const r = run.racks.findIndex(x => x.servers.some(Boolean)); if (r < 0) return;
+  run.racks[r].dark = !run.racks[r].dark;
+  scene.apply('rackDark', { rack: r, dark: run.racks[r].dark });
+}
+function addInfra(id) { run.infra[id] = (run.infra[id] || 0) + 1; scene.apply('infraAdded', { id, count: run.infra[id] }); }
+function addEff(id) { if (!run.effUpgrades.includes(id)) run.effUpgrades.push(id); scene.apply('infraAdded', { id, count: 1 }); }
+function addMit(id) { if (!run.mitigations.includes(id)) run.mitigations.push(id); scene.apply('infraAdded', { id, count: 1 }); }
+function hire() { run.staff = Math.min(5, run.staff + 1); } // no bus event for a hire: the scene reads run.staff
+function goStage(n) {
+  n = Math.min(5, Math.max(1, n));
+  const from = run.stage, T = data.STAGES[n - 1];
+  run.stage = n;
+  while (run.racks.length < T.carried) run.racks.push({ servers: Array(8).fill(null), dark: false, incident: null });
+  run.racks.length = Math.min(run.racks.length, T.footprints.length);
+  scene.apply('stageChanged', { from, to: n });
+}
+function exit() {
+  const from = run.stage;
+  state.account.skyline++; state.account.shares += 1;
+  scene.apply('exit', { shares: state.account.shares, gained: 1, valuation: 1e6, acquirer: 'a company that is legally a shell' });
+  run.stage = 1; run.racks = [{ servers: Array(8).fill(null), dark: false, incident: null }]; run.infra = {};
+  scene.apply('stageChanged', { from, to: 1 });
+}
+let eventOn = {};
+function toggleEvent(id) { eventOn[id] = !eventOn[id]; scene.apply('event', { id, on: eventOn[id] }); }
+function doAction(a) {
+  if (a === 'exit') exit();
+  else if (a === 'sweep') scene.apply('milestone', { id: 'ms_make_me_a_million', fx: 'sweep' });
+  else if (a === 'milestone') scene.apply('milestone', { id: 'ms_lights_on', fx: null });
+  else if (a === 'breaker') scene.apply('breaker', {});
+  else if (a === 'offline') scene.apply('offline', { summary: { text: 'While you were away' } });
+  else if (a === 'upgrade') scene.apply('upgrade', { tier: avail[avail.length - 1].id, level: 1 });
+  else if (a.startsWith('stage:')) goStage(Number(a.slice(6)));
+  else if (a === 'server') addServer();
+  else if (a === 'rack') addRack();
+}
+const actions = {
+  '+server': addServer, '+rack': addRack, 'swap': swap, 'incident': incident, 'resolve': resolve, 'dark': toggleDark,
+  '+fan': () => addInfra('cool_box_fan'), '+pdu': () => addInfra('pwr_pdu'), '+switch': () => addInfra('net_switch'), '+crac': () => addInfra('cool_crac'), '+uplink': () => addInfra('net_fiber_uplink'),
+  '+containment': () => addEff('eff_containment'), '+vsd': () => addEff('eff_vsd'), '+compression': () => addEff('eff_compression'), '+economizer': () => addEff('eff_economizer'),
+  '+ups': () => addMit('mit_ups'), '+dual': () => addMit('mit_dual_carrier'), '+scrub': () => addMit('mit_scrubbing'), '+spares': () => addMit('mit_spares'), 'hire': hire,
+  'pick check': () => console.log('pickCheck', JSON.stringify(scene.debug.pickCheck())),
+  'upgrade': () => doAction('upgrade'), 'milestone': () => doAction('milestone'), '$1M sweep': () => doAction('sweep'), 'breaker': () => doAction('breaker'), 'offline': () => doAction('offline'),
+  'heatwave': () => toggleEvent('ev_heatwave'), 'viral': () => toggleEvent('ev_viral'), 'ddos': () => toggleEvent('ev_ddos'), 'investor': () => toggleEvent('ev_investor_visit'),
+  'stage −': () => goStage(run.stage - 1), 'stage +': () => goStage(run.stage + 1), 'exit': exit,
+  'bloom': () => { state.account.settings.bloom = !state.account.settings.bloom; scene.setBloom(state.account.settings.bloom); },
+  'quality': () => scene.setQuality(scene.quality === 'low' ? 'high' : 'low'),
+  'photo': async () => { const b = await scene.photo(); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'uptime.png'; a.click(); },
+  'focus 0': () => scene.focus(0), 'unfocus': () => scene.debug.unfocus(), 'hide': () => hud.classList.toggle('min'),
+};
+for (const [label, fn] of Object.entries(actions)) { const b = document.createElement('button'); b.textContent = label; b.onclick = () => fn(); btns.appendChild(b); }
+canvas.addEventListener('pointerdown', e => { if (scene) { const b = canvas.getBoundingClientRect(); const r = scene.pick(e.clientX - b.left, e.clientY - b.top); if (r !== null) console.log('pick', r); } });
+
+// ---- stats ----------------------------------------------------------------------------------------------------------------------------
+let frames = 0, last = performance.now();
+function tick() {
+  frames++;
+  const now = performance.now();
+  if (now - last >= 1000 && scene) {
+    const c = scene.debug.counts();
+    const fps = Math.round(frames * 1000 / (now - last));
+    stats.textContent = `stage ${scene.stage}  calls ${c.calls}  tris ${c.triangles}  fps ${fps}  quality ${scene.quality}\nracks ${c.racks}  servers ${c.servers}  leds ${c.leds}  infra ${c.infra}  fit ${scene.debug.fitDistance.toFixed(1)} m  u P${u.power} C${u.cooling} N${u.network} eff ${derived.efficiency}`;
+    frames = 0; last = now;
+  }
+  requestAnimationFrame(tick);
+}
+tick();
+</script>
+</body>
+</html>
