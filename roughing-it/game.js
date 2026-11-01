@@ -120,15 +120,15 @@ function outcome(title, html, next) {
 }
 function hud() {
   $('when').textContent = S.act === 'title' ? 'July 1861' : dateStr();
-  $('phase').textContent = S.act === 'stage' ? (S.mi >= ROUTE ? 'Carson City' : 'Overland stage') : S.act === 'nevada' ? 'Carson City' : S.act === 'paper' ? 'Virginia City' : S.act === 'end' ? 'The End' : 'St. Joseph';
+  $('phase').textContent = (window.ACT_LABELS && ACT_LABELS[S.act]) ? ACT_LABELS[S.act]() : S.act === 'stage' ? (S.mi >= ROUTE ? 'Carson City' : 'Overland stage') : S.act === 'nevada' ? 'Carson City' : S.act === 'paper' ? 'Virginia City' : S.act === 'end' ? 'The End' : 'St. Joseph';
   $('money').textContent = money(S.money);
   $('milesRow').hidden = S.act !== 'stage' && S.act !== 'outfit';
   $('miles').textContent = `${Math.max(0, ROUTE - S.mi).toLocaleString()} mi`;
   bar('hp', S.hp); bar('sp', S.sp);
-  $('paperStats').hidden = S.act !== 'paper';
+  $('paperStats').hidden = !['paper', 'sf', 'pacific', 'lecture'].includes(S.act);
   bar('rd', Math.min(100, S.readers / 4), S.readers); bar('tr', S.trouble);
   const bag = Object.keys(S.items).map(k => `<li>${ITEMS[k].name}</li>`);
-  if (S.act === 'nevada' || S.act === 'paper') {
+  if (S.mkt) {
     const f = Object.entries(S.feet).filter(([, v]) => v > 0).map(([k, v]) => `<li>${v} ft of ${k}</li>`);
     bag.push(...f);
   }
@@ -156,7 +156,7 @@ function title() {
     body: `<p>Your brother Orion has been made Secretary of the new Nevada Territory, and you have been made, by your own appointment, his private secretary. The salary is nothing. The duties are unknown. The prospects are, in your considered opinion, magnificent.</p>
       <p>You have never been west of the Missouri. You picture Indians, buffalo, gold lying about in nuggets, and yourself coming home in a year or two with a fortune and a great many stories. You will be right about the stories.</p>
       <p>Six days up the Missouri by steamboat brings you to St. Joseph and the Overland stage: <b>1,700 miles</b> to Carson City at about a hundred miles a day, fare $150, paid in advance.</p>
-      <blockquote>A trail game in three acts after Mark Twain's <i>Roughing It</i> (1872): the stage, the silver mines, and the newspaper.</blockquote>
+      <blockquote>A trail game after Mark Twain's <i>Roughing It</i> (1872), in three parts: <b>Nevada</b> (the stage, the silver mines, the newspaper), <b>San Francisco</b>, and <b>the Pacific</b>.</blockquote>
       ${best ? `<p class="foot">Best tale so far: ${best.score} points (${esc(best.title)}).</p>` : ''}`,
     choices: [{ t: 'Buy a ticket west', big: true, go: () => { audio(); outfit(); } }],
   });
@@ -195,7 +195,7 @@ function stageDay(first) {
   scene.set(region, { coach: true });
   const seatTxt = S.seat === 'top' ? 'up on the box beside the driver' : 'inside, on the mail sacks';
   show({
-    title: first ? 'The Overland stage' : `Day ${S.day + 1} on the road`,
+    title: first ? 'Part I: Nevada · the Overland stage' : `Day ${S.day + 1} on the road`,
     where: `${S.mi.toLocaleString()} miles out · next: ${next.name} (${next.mi - S.mi} mi) · riding ${seatTxt}`,
     body: first
       ? `<p>The coach is a great swinging cradle on leather thoroughbraces, drawn by six horses and bound for the sunset. The baggage is in the boot, the mail is piled to the windows inside, and you are on top of it. The driver cracks his whip. You are off.</p>`
@@ -549,8 +549,9 @@ function blindLead(found, dust) {
 DISTRICTS.goldhill_none = { ...DISTRICTS.goldhill, weeks: 0 };
 
 // --- the market
-function market(msg) {
-  scene.set('town', { sign: 'STOCK BOARD' });
+// `ctx` lets Part II reuse the board: where to go back to, and how a week passes.
+function market(msg, ctx = { back: () => nevadaWeek(), wait: () => endWeek(1), label: '← back to Carson' }) {
+  scene.set(ctx.scene || 'town', { sign: 'STOCK BOARD' });
   const rows = S.mkt.map((m, i) => {
     const ch = m.p - m.last, own = S.feet[m.name] || 0;
     return `<tr><td>${esc(m.name)}</td><td class="n">${money(m.p * 10).replace('$', '$')}<small>/10ft</small></td><td class="n ${ch > 0 ? 'up' : ch < 0 ? 'dn' : ''}">${ch > 0 ? '▲' : ch < 0 ? '▼' : '·'}${Math.abs(Math.round(ch / (m.last || 1) * 100))}%</td><td class="n">${own}</td>
@@ -559,11 +560,11 @@ function market(msg) {
   page.innerHTML = `<h2>The stock board</h2><p class="where">Cash ${money(S.money)} · your feet are worth ${money(feetWorth())}</p>
     ${msg ? `<p>${msg}</p>` : '<p>Everyone in the Territory trades "feet": shares in a mine, measured along its ledge. The big mines on the Comstock are steady. The wildcats are anybody\'s guess, and the guess is usually wrong. Prices move each week.</p>'}
     <table class="mkt"><tr><th>mine</th><th>price</th><th>week</th><th>yours</th><th></th></tr>${rows}</table>
-    <div class="choices"><button class="btn" id="mktDone">← back to Carson</button><button class="btn" id="mktWait">Wait a week and watch the board</button></div>`;
-  page.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { const m = S.mkt[+b.dataset.b]; S.money -= m.p * 10; S.feet[m.name] = (S.feet[m.name] || 0) + 10; sfx('coin'); hud(); market(`You bought ten feet of ${esc(m.name)}.`); });
-  page.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { const m = S.mkt[+b.dataset.s]; S.money += m.p * 10; S.feet[m.name] -= 10; sfx('coin'); hud(); market(`You sold ten feet of ${esc(m.name)}.`); });
-  $('mktDone').onclick = () => nevadaWeek();
-  $('mktWait').onclick = () => { const before = feetWorth(); endWeek(1); const after = feetWorth(); hud(); if (checkDeath()) return; market(`A week goes by. Your feet went from ${money(before)} to ${money(after)}.`); };
+    <div class="choices"><button class="btn" id="mktDone">${ctx.label}</button><button class="btn" id="mktWait">Wait a week and watch the board</button></div>`;
+  page.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { const m = S.mkt[+b.dataset.b]; S.money -= m.p * 10; S.feet[m.name] = (S.feet[m.name] || 0) + 10; sfx('coin'); hud(); market(`You bought ten feet of ${esc(m.name)}.`, ctx); });
+  page.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { const m = S.mkt[+b.dataset.s]; S.money += m.p * 10; S.feet[m.name] -= 10; sfx('coin'); hud(); market(`You sold ten feet of ${esc(m.name)}.`, ctx); });
+  $('mktDone').onclick = () => ctx.back();
+  $('mktWait').onclick = () => { const before = feetWorth(); const hold = ctx.wait(); const after = feetWorth(); hud(); if (checkDeath()) return; if (hold) return ctx.back(); market(`A week goes by. Your feet went from ${money(before)} to ${money(after)}.`, ctx); };
   hud();
 }
 
@@ -651,7 +652,7 @@ function startPaper() {
   outcome('Virginia City', `<p>Virginia City hangs on the side of Mount Davidson like a town that was thrown there and stuck. Underneath it, the mines go down a thousand feet into hot rock; above it, the saloons, banks, theatres, churches and boarding houses are crowded together on streets so steep that one man's front door looks into his neighbour's chimney. Thirty thousand people and every one of them is in a hurry.</p><p>Your job is to fill a column of local news every day. When there is news, that is easy. When there isn't, the editor says, you will learn.</p>`, paperIssue);
 }
 function paperIssue() {
-  if (S.issue >= 8) return ending('paper');
+  if (S.issue >= 8) return window.partTwo ? partTwo('paper') : ending('paper');
   S.act = 'paper'; scene.set('city', { press: true });
   const leads = drawLeads(4);
   const picks = new Map();
@@ -690,7 +691,7 @@ function duel() {
   show({
     title: 'A challenge', body: `<p>A gentleman you have written about too freely sends round a formal challenge to a duel. Dawn, pistols, a ravine outside town. Your friend Steve Gillis, a small man who is a very good shot, offers to be your second and to teach you to shoot in the meantime.</p>`,
     choices: [
-      { t: 'Accept, and let Steve do some shooting', go: () => `<p>At dawn you practise on a barn door and hit the county instead. Just as your opponent's party comes over the ridge, Steve shoots the head off a little bird at thirty yards, and tells them you did it. Your opponent, hearing this, finds he has urgent business elsewhere.</p><p>Unfortunately duelling has just been made a prison offence in the Territory, and word gets around. Your friends advise you that San Francisco is very pleasant this time of year.</p>` + fx({ sp: 10, readers: 30 }), next: () => ending('duel') },
+      { t: 'Accept, and let Steve do some shooting', go: () => `<p>At dawn you practise on a barn door and hit the county instead. Just as your opponent's party comes over the ridge, Steve shoots the head off a little bird at thirty yards, and tells them you did it. Your opponent, hearing this, finds he has urgent business elsewhere.</p><p>Unfortunately duelling has just been made a prison offence in the Territory, and word gets around. Your friends advise you that San Francisco is very pleasant this time of year.</p>` + fx({ sp: 10, readers: 30 }), next: () => window.partTwo ? partTwo('duel') : ending('duel') },
       { t: 'Print a handsome apology', go: () => `<p>The apology is so handsome that the gentleman is offended all over again, but he cannot quite say why. The matter cools.</p>` + fx({ trouble: -40, readers: -10 }), next: paperIssue },
     ],
   });
@@ -701,18 +702,19 @@ function ending(kind) {
   S.act = 'end';
   const fame = S.readers;
   const total = Math.round(S.money + feetWorth());
-  const score = Math.max(0, Math.round(total / 20 + fame + S.hp / 2 + S.sp / 2 + (S.flags.slade ? 20 : 0) + (S.flags.rich ? 50 : 0) + (S.flags.timber ? 10 : 0) + (S.flags.duel ? 20 : 0)));
+  const score = Math.max(0, Math.round(total / 20 + fame + S.hp / 2 + S.sp / 2 + (S.flags.slade ? 20 : 0) + (S.flags.rich ? 50 : 0) + (S.flags.timber ? 10 : 0) + (S.flags.duel ? 20 : 0) + (S.bonus || 0)));
   const titles = {
     laid: ['Sent home to mend', `<p>The West wore you down. A doctor puts you on a stage back East with a bottle of something and strict orders to rest. Orion goes on without you. Years later you still tell the story, but it's a short one.</p>`],
     quit: ['Took the next coach home', `<p>Your heart went out of it. You took the next stage home and spent the rest of your life telling people you had seen the West. Which was true, as far as it went.</p>`],
     paper: ['A writer, by accident', `<p>Eight issues later you have a name in every saloon on the Comstock, and the name is not quite your own. To sign your pieces you have borrowed the old Mississippi leadsman's call for two fathoms of safe water: <b>Mark Twain</b>.</p><p>In time you go on to San Francisco, then to the Sandwich Islands as a correspondent, then onto the lecture stage, and at last you write it all down in a book. You leave out nothing important, and put in a great many things that are better than the truth.</p>`],
     duel: ['Left for San Francisco, in a hurry', `<p>You take the stage over the Sierra that night, with your column, your reputation and your pen name: <b>Mark Twain</b>, the old Mississippi leadsman's call for two fathoms of safe water. San Francisco gives you a newspaper, an earthquake and, eventually, a voyage to the Sandwich Islands. From there it is only a short trip to the lecture stage and a book about roughing it.</p>`],
   };
+  Object.assign(titles, window.EXTRA_ENDINGS || {});
   const [tt, txt] = titles[kind];
   const best = JSON.parse(localStorage.getItem(BEST_KEY) || 'null');
   const isBest = !best || score > best.score;
   if (isBest) localStorage.setItem(BEST_KEY, JSON.stringify({ score, title: tt }));
-  scene.set(kind === 'paper' || kind === 'duel' ? 'sea' : 'plains', { coach: kind !== 'paper' && kind !== 'duel' });
+  scene.set(kind === 'lecture' ? 'hall' : kind === 'paper' || kind === 'duel' ? 'sea' : 'plains', { coach: kind === 'laid' || kind === 'quit', applause: kind === 'lecture' });
   sfx(kind === 'laid' || kind === 'quit' ? 'bad' : 'fanfare');
   show({
     title: tt, body: txt + `<table class="mkt">
@@ -721,6 +723,7 @@ function ending(kind) {
       <tr><td>Readers</td><td class="n">${fame}</td></tr>
       <tr><td>Health / spirits</td><td class="n">${S.hp} / ${S.sp}</td></tr>
       <tr><td>Coffee with Slade · the blind lead · Tahoe timber · a duel</td><td class="n">${S.flags.slade ? '✓' : '–'} ${S.flags.rich ? '✓' : '–'} ${S.flags.timber ? '✓' : '–'} ${S.flags.duel ? '✓' : '–'}</td></tr>
+      ${S.feats && S.feats.length ? `<tr><td colspan="2">Also: ${S.feats.join(' · ')}</td></tr>` : ''}
       <tr><td><b>Tale score</b></td><td class="n"><b>${score}</b>${isBest ? ' ★ best' : ''}</td></tr></table>
       <p class="foot">After <i>Roughing It</i> by Mark Twain (1872). The narration here is written for this game; the trip, the people and most of the mishaps are his.</p>`,
     choices: [{ t: 'Start over in St. Louis', big: true, go: () => { title(); } }],
@@ -729,6 +732,7 @@ function ending(kind) {
 
 // ---------------------------------------------------------------- the scene painter
 // A 320x160 pixel landscape. set(region, opts) changes the view; roll(ms) runs the coach.
+window.SCENES = window.SCENES || {};
 const scene = (() => {
   const cv = $('scene'), g = cv.getContext('2d');
   const W = 320, H = 160;
@@ -756,17 +760,19 @@ const scene = (() => {
     const dt = Math.min(.05, (now - last) / 1000); last = now;
     const moving = now < rollUntil || (opts.coach && S && S.act === 'end');
     if (moving) offset += dt * 60;
-    const p = PAL[region] || PAL.plains, t = (now - t0) / 1000;
+    const X = window.SCENES && SCENES[region];
+    const p = PAL[region] || (X && X.pal) || PAL.plains, t = (now - t0) / 1000;
     // sky
     const gr = g.createLinearGradient(0, 0, 0, 90); gr.addColorStop(0, p.sky[0]); gr.addColorStop(1, p.sky[1]);
     g.fillStyle = gr; g.fillRect(0, 0, W, 100);
-    if (region === 'sea' || region === 'river') { g.fillStyle = '#fff3c4'; g.beginPath(); g.arc(250, 62, 14, 0, 7); g.fill(); }
+    if (p.night) { g.fillStyle = '#f4f0dc'; g.beginPath(); g.arc(60, 22, 7, 0, 7); g.fill(); g.fillStyle = '#fff'; for (let i = 0; i < 40; i++) g.fillRect((i * 79) % W, (i * 31) % 70, 1, 1); }
+    else if (p.lowsun || region === 'sea' || region === 'river') { g.fillStyle = '#fff3c4'; g.beginPath(); g.arc(250, 62, 14, 0, 7); g.fill(); }
     else { g.fillStyle = '#fff8dc'; g.beginPath(); g.arc(262, 26, 9, 0, 7); g.fill(); }
     // clouds
-    for (let i = 0; i < 4; i++) { const cx = ((i * 97 + t * 3 - offset * .05) % 380 + 380) % 380 - 30, cy = 14 + i * 9; g.fillStyle = region === 'snow' ? '#d9dfe4' : 'rgba(255,255,255,.75)'; g.fillRect(cx, cy, 26, 4); g.fillRect(cx + 5, cy - 3, 14, 3); }
+    if (!p.night) for (let i = 0; i < 4; i++) { const cx = ((i * 97 + t * 3 - offset * .05) % 380 + 380) % 380 - 30, cy = 14 + i * 9; g.fillStyle = region === 'snow' ? '#d9dfe4' : 'rgba(255,255,255,.75)'; g.fillRect(cx, cy, 26, 4); g.fillRect(cx + 5, cy - 3, 14, 3); }
     // far range
     g.fillStyle = p.far;
-    for (let x = 0; x < W; x++) {
+    if (!p.flat) for (let x = 0; x < W; x++) {
       const sx = x + offset * .15;
       let h = p.snow || p.pines ? 48 + hill(sx, .03, 18, 1) : p.buttes ? 70 + (Math.sin(sx * .02) > .55 ? -24 : 0) + hill(sx, .05, 3, 2) : 72 + hill(sx, .02, 8, 3);
       g.fillRect(x, h, 1, 100 - h);
@@ -778,13 +784,14 @@ const scene = (() => {
     if (p.pines) for (let i = 0; i < 26; i++) { const x = ((i * 23 - offset * .45) % 340 + 340) % 340 - 10, y = 78 + (i * 7) % 12; g.fillStyle = '#26402b'; g.fillRect(x + 3, y - 12, 2, 14); for (let k = 0; k < 4; k++) g.fillRect(x + 2 - k, y - 10 + k * 3, 4 + k * 2, 2); }
     // ground
     g.fillStyle = p.ground; g.fillRect(0, 100, W, 60);
-    g.fillStyle = shade(p.ground, -14); g.fillRect(0, 122, W, 6); // road
-    for (let i = 0; i < 40; i++) { const x = ((i * 53 - offset) % 360 + 360) % 360 - 20, y = 104 + (i * 13) % 52; if (y > 120 && y < 130) continue; g.fillStyle = p.dot; g.fillRect(x, y, 4, 2); g.fillRect(x + 1, y - 1, 2, 1); }
+    if (!p.flat) { g.fillStyle = shade(p.ground, -14); g.fillRect(0, 122, W, 6); } // road
+    if (!p.flat) for (let i = 0; i < 40; i++) { const x = ((i * 53 - offset) % 360 + 360) % 360 - 20, y = 104 + (i * 13) % 52; if (y > 120 && y < 130) continue; g.fillStyle = p.dot; g.fillRect(x, y, 4, 2); g.fillRect(x + 1, y - 1, 2, 1); }
     if (region === 'desert' && moving) { g.fillStyle = 'rgba(255,255,255,.25)'; for (let i = 0; i < 20; i++) g.fillRect(((i * 41 + t * 60) % W), 110 + (i * 7) % 30, 6, 1); }
     // set pieces
     if (region === 'town' || region === 'city') town(region === 'city', t);
     if (region === 'mine') mine(t);
     if (region === 'snow') { g.fillStyle = 'rgba(255,255,255,.85)'; for (let i = 0; i < 120; i++) g.fillRect(((i * 61 + t * 30 * (1 + i % 3)) % W), ((i * 37 + t * 40 * (1 + i % 2)) % H), 1 + i % 2, 1 + i % 2); }
+    if (X && X.draw) X.draw(g, t, px, opts, moving, offset);
     if (opts.station) station();
     if (opts.coach) coach(140, 112, t, moving);
     if (opts.pony) pony(t);
