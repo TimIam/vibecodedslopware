@@ -746,7 +746,10 @@ function nextMusic(announce) { setMusic(TRACKS[(TRACKS.indexOf(musicId) + 1) % T
 const player = { x: 0, z: -5, y: 0, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0, pushPhase: 0, plough: 0, runPhase: 0 };
 const bear = { on: false, x: 0, z: 0, dir: 0, phase: 0, rear: 0, flinch: 0 }; // the chaser, whatever it is this run; dir is where it is running
 let state = 'title', score = 0, bonus = 0, best = Number(localStorage.getItem('bearrun-best')) || 0, growlT = 0, overT = 0;
-let far = Number(localStorage.getItem('bearrun-far')) || 0; // farthest distance ever reached in one run: the unlock currency
+// The unlock currency is your best score in one run (distance plus gate and trick bonuses, never less
+// than the distance), so the number on the Best pill is the one the rides ask for. Runs from before
+// rides existed count too: a saved best from back then seeds it.
+let far = Math.max(Number(localStorage.getItem('bearrun-far')) || 0, best);
 let camMode = 0, camBlend = 0, camYaw = 0, bearPull = 0, bearGap = Infinity;
 let screamCd = 0, screamT = 0; // scream cooldown and the time left on the scream pose
 let rideId = RIDES[localStorage.getItem('bearrun-ride')]?.unlock <= far ? localStorage.getItem('bearrun-ride') : 'skis';
@@ -776,17 +779,17 @@ function renderRides() {
     const b = document.createElement('button'); b.type = 'button';
     const locked = r.unlock > far;
     b.className = 'ride' + (id === rideId ? ' on' : '') + (locked ? ' locked' : '');
-    b.innerHTML = `<span class="ri">${locked ? '🔒' : r.icon}</span><b>${r.name}</b><small>${locked ? `Reach ${r.unlock.toLocaleString()} m` : id === rideId ? 'Selected' : 'Unlocked'}</small>`;
-    b.title = locked ? `Reach ${r.unlock.toLocaleString()} m in one run to unlock the ${r.name.toLowerCase()} (farthest so far: ${Math.round(far).toLocaleString()} m)` : r.blurb;
+    b.innerHTML = `<span class="ri">${locked ? '🔒' : r.icon}</span><b>${r.name}</b><small>${locked ? `Score ${r.unlock.toLocaleString()}` : id === rideId ? 'Selected' : 'Unlocked'}</small>`;
+    b.title = locked ? `Score ${r.unlock.toLocaleString()} in one run to unlock the ${r.name.toLowerCase()} (your best so far: ${Math.round(far).toLocaleString()})` : r.blurb;
     b.addEventListener('click', () => { if (locked) { b.classList.add('nope'); setTimeout(() => b.classList.remove('nope'), 400); sfx.hoarse(); } else { selectRide(id); audio(); } });
     el.appendChild(b);
   }
   $('rideHelp').innerHTML = `<b>${V.icon} ${V.name}.</b> ${V.blurb}<br>${V.controls}`;
 }
-function noteDistance(dist) { // the unlock banners fire the moment a line is crossed, mid-run
-  if (dist <= far) return;
-  for (const r of Object.values(RIDES)) if (r.unlock > 0 && far < r.unlock && dist >= r.unlock) { banner(`${r.icon} ${r.name} unlocked!<small>pick it on the start screen</small>`, 2.2); sfx.trick(); }
-  far = dist; localStorage.setItem('bearrun-far', String(Math.round(far)));
+function noteScore(sc) { // the unlock banners fire the moment a line is crossed, mid-run
+  if (sc <= far) return;
+  for (const r of Object.values(RIDES)) if (r.unlock > 0 && far < r.unlock && sc >= r.unlock) { banner(`${r.icon} ${r.name} unlocked!<small>pick it on the start screen</small>`, 2.2); sfx.trick(); }
+  far = sc; localStorage.setItem('bearrun-far', String(Math.round(far)));
 }
 
 
@@ -967,7 +970,6 @@ function step(dt, t) {
 
   // Bear.
   const dist = Math.max(0, -p.z - 5);
-  noteDistance(dist);
   stormTarget = THREE.MathUtils.clamp((dist - STORM_AT) / 600, 0, 1);
   if (!stormOn && dist >= STORM_AT) { stormOn = true; banner('❄️ Snow<small>visibility dropping</small>', 2); }
   if (!bear.on && dist > BEAR_WAKES) {
@@ -1038,6 +1040,7 @@ function step(dt, t) {
   }
 
   score = Math.round(dist) + bonus;
+  noteScore(score);
   // HUD
   $('dist').textContent = `${Math.round(dist)} m`;
   $('speed').textContent = Math.round(p.v * 3.6);
@@ -1166,7 +1169,7 @@ function frame(ts) {
         $('final').textContent = score;
         $('overTitle').textContent = `The ${P.name.toLowerCase()} got you`;
         const next = Object.values(RIDES).find(r => r.unlock > far);
-        $('overSub').textContent = (score >= best ? 'New best run! ' : `Best: ${best}. `) + (next ? `Reach ${next.unlock.toLocaleString()} m in one run to unlock the ${next.name.toLowerCase()} (farthest so far: ${Math.round(far).toLocaleString()} m).` : 'Everything is unlocked.');
+        $('overSub').textContent = (score >= best ? 'New best run! ' : `Best: ${best}. `) + (next ? `Score ${next.unlock.toLocaleString()} in one run to unlock the ${next.name.toLowerCase()} (your best: ${Math.round(far).toLocaleString()}).` : 'Everything is unlocked.');
         $('bestv').textContent = best;
         $('over').hidden = false;
         $('againBtn').focus();
