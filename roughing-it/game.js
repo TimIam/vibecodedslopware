@@ -62,6 +62,13 @@ function dateStr() {
   const d = new Date(START.getTime() + S.day * 864e5);
   return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
+// Deal from a shuffled deck per list, so flavour lines don't repeat until all have been used.
+const decks = new Map();
+function deal(arr) {
+  let d = decks.get(arr);
+  if (!d || !d.length) { d = [...arr].sort(() => Math.random() - .5); decks.set(arr, d); }
+  return d.pop();
+}
 function log(t) { S.journal.unshift(t); S.journal.length = Math.min(S.journal.length, 40); }
 
 // Apply deltas and return a short readout like "+5 spirits, −$3".
@@ -192,7 +199,7 @@ function stageDay(first) {
     where: `${S.mi.toLocaleString()} miles out · next: ${next.name} (${next.mi - S.mi} mi) · riding ${seatTxt}`,
     body: first
       ? `<p>The coach is a great swinging cradle on leather thoroughbraces, drawn by six horses and bound for the sunset. The baggage is in the boot, the mail is piled to the windows inside, and you are on top of it. The driver cracks his whip. You are off.</p>`
-      : `<p>${pick(flavor[region])}</p>`,
+      : `<p>${deal(flavor[region])}</p>`,
     choices: [
       { t: 'Ride on', sub: 'a day of travel, about a hundred miles', go: travel },
       { t: S.seat === 'top' ? 'Climb inside onto the mail sacks' : 'Climb up beside the driver', sub: S.seat === 'top' ? 'warmer, safer, duller' : 'better views and better lies; worse weather', go: () => { S.seat = S.seat === 'top' ? 'inside' : 'top'; stageDay(); } },
@@ -223,7 +230,7 @@ function travel() {
       if (EV[next.ev]) return EV[next.ev](daily);
     }
     if (Math.random() < .72) return randomEvent(daily, before);
-    outcome(`Day ${S.day}`, `<p>${pick(quiet)}</p>` + daily, stageDay);
+    outcome(`Day ${S.day}`, `<p>${deal(quiet)}</p>` + daily, stageDay);
   }, 1500);
   page.querySelectorAll('button').forEach(b => b.disabled = true);
 }
@@ -242,6 +249,18 @@ const quiet = [
   'The driver tells you a story about a man in Julesburg that you suspect is about the driver.',
   'A long, rocking, dozing day. You wake each time the coach hits a hole, which is often, and dream of beds.',
   'You change horses at a station every few hours. Each station keeper is shabbier and more cheerful than the last.',
+  'Orion reads the laws of Nevada Territory aloud from a pamphlet. There are not many laws yet. He reads them twice.',
+  'A passenger snores in a key you did not know existed. By noon you can hum along.',
+  'The mail sacks shift in the night and you wake with a letter to a Mrs. Hopkins of Sacramento pressed into your cheek.',
+  'The driver lets you hold the reins for a mile on the flat. The horses know at once and treat you accordingly.',
+  'A wagon train of emigrants creaks past going the same way at a tenth of the speed. You wave. They do not.',
+  'You discover that a man can sleep sitting up, lying down, or wedged at a diagonal, but not well in any of them.',
+  'Dinner at the station is beans. Supper is the beans that were left over from dinner, with an apology.',
+  'A dust devil whirls along beside the coach for a while like a friendly ghost, then wanders off to bother someone else.',
+  'You try to write a letter home and produce a page that looks like an earthquake signed it.',
+  'At a lonely station a little girl shows you her pet prairie dog, which bites you. She is very proud of it.',
+  'The driver points out a hill that he says is haunted, then another, then admits most of them are.',
+  'The night is so clear that the stars seem close enough to rattle when the coach hits a rut.',
 ];
 
 // Random road events. `if` limits where they can happen; `once` means at most once per trip.
@@ -294,8 +313,8 @@ const ROAD = [
 ];
 
 function randomEvent(daily) {
-  const pool = ROAD.filter(e => (!e.if || e.if()) && !(e.once && S.flags['ev_' + e.id]));
-  if (!pool.length) return outcome(`Day ${S.day}`, `<p>${pick(quiet)}</p>` + daily, stageDay);
+  const pool = ROAD.filter(e => (!e.if || e.if()) && !S.flags['ev_' + e.id]);
+  if (!pool.length) return outcome(`Day ${S.day}`, `<p>${deal(quiet)}</p>` + daily, stageDay);
   const e = pick(pool);
   S.flags['ev_' + e.id] = 1;
   e.go(daily);
@@ -390,7 +409,7 @@ function nevadaWeek(note) {
   show({
     title: `Silver fever: week ${S.week + 1}`,
     where: `Carson City, ${dateStr()} · cash ${money(S.money)}${worth ? ` · feet worth ${money(worth)}` : ''}`,
-    body: (note || '') + `<p>${S.week === 0 ? 'The whole Territory has silver fever. Men talk of nothing but ledges, feet, assays and "indications". Everyone owns feet in a mine; nobody, as far as you can tell, owns anything else. Within a week you have it worse than any of them.' : pick(nevFlavor)}</p><p class="where">Living costs $8 a week.</p>`,
+    body: (note || '') + `<p>${S.week === 0 ? 'The whole Territory has silver fever. Men talk of nothing but ledges, feet, assays and "indications". Everyone owns feet in a mine; nobody, as far as you can tell, owns anything else. Within a week you have it worse than any of them.' : deal(nevFlavor)}</p><p class="where">Living costs $8 a week.</p>`,
     choices: [
       { t: 'Go prospecting', sub: 'pick a district and dig for a ledge', go: () => { prospectMenu(); } },
       { t: 'Trade in mining feet', sub: 'buy and sell shares in the mines', go: () => { market(); } },
@@ -405,7 +424,12 @@ const nevFlavor = [
   'A man at the hotel shows you a chunk of rock and says it assays at a thousand dollars a ton. You believe him because you want to.',
   'Every man you meet is a millionaire on paper. The paper is the main product of the Territory.',
   'Orion is learning the work of a Secretary, which mostly consists of explaining to Washington why it costs so much.',
-  'The Zephyr blew the roof off the hotel kitchen again. The cook served dinner anyway, with dust.',
+  'The Zephyr blew the roof off the hotel kitchen again. The cook served dinner anyway, with dust.',  'A man sells you a map to a lost ledge. It turns out he sells a great many of them.',
+  'The assay office has a line out the door. Half the line is carrying the same kind of worthless rock you are.',
+  'It snows in the morning and is hot by afternoon. Locals say if you do not like the weather, wait an hour and it will get worse.',
+  'A camel train comes through town on the way to the salt marshes. Every horse on the street files a complaint.',
+  'Your landlady raises the rent on the grounds that the Territory is booming. You point out that you are not.',
+  'Somebody at the hotel is selling feet in a mine that is, he admits under questioning, still mostly a theory.',
 ];
 function feetWorth() { if (!S.mkt) return 0; return Math.round(S.mkt.reduce((s, m) => s + (S.feet[m.name] || 0) * m.p, 0)); }
 function endWeek(n) {
@@ -603,6 +627,21 @@ const LEADS = [
   { id: 'fire', name: 'The fire companies parade', text: 'Every fire company in town turns out in red shirts and brass. Anybody left out of the write-up will never forgive you.', base: 8, risk: 5 },
   { id: 'ball', name: 'The Sanitary Fund ball', text: 'The ladies of the town are raising money for the war wounded. Write it up with care. Or not.', base: 11, risk: 16 },
 ];
+// The big pool of extra stories lives in leads.js (window.EXTRA_LEADS). Every issue offers four
+// you haven't seen: nothing repeats within a run, and across runs the least-recently-seen come first.
+const ALL_LEADS = LEADS.concat(window.EXTRA_LEADS || []);
+const SEEN_KEY = 'roughing-it-seen-leads';
+function drawLeads(n) {
+  const used = new Set(S.usedLeads || (S.usedLeads = []));
+  let seen = JSON.parse(localStorage.getItem(SEEN_KEY) || '[]');
+  let fresh = ALL_LEADS.filter(l => !used.has(l.id) && !seen.includes(l.id));
+  if (fresh.length < n) { seen = []; fresh = ALL_LEADS.filter(l => !used.has(l.id)); }
+  const out = fresh.sort(() => Math.random() - .5).slice(0, n);
+  for (const l of out) { S.usedLeads.push(l.id); seen.push(l.id); }
+  localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
+  return out;
+}
+const PLAIN = ['You report it straight, and the town nods along over its coffee.', 'A sober, accurate paragraph. The editor calls it "respectable", which is not a compliment.', 'Just the facts. Two people read it all the way through, and one of them was you.', 'Plain and true. Nobody is angry, and nobody remembers it by supper.'];
 const EMB = [{ k: 'plain', name: 'plain facts', r: 1, t: .5 }, { k: 'stretch', name: 'stretched', r: 1.6, t: 1 }, { k: 'whopper', name: 'a whopper', r: 2.6, t: 2 }];
 
 function startPaper() {
@@ -614,7 +653,7 @@ function startPaper() {
 function paperIssue() {
   if (S.issue >= 8) return ending('paper');
   S.act = 'paper'; scene.set('city', { press: true });
-  const leads = [...LEADS].sort(() => Math.random() - .5).slice(0, 4);
+  const leads = drawLeads(4);
   const picks = new Map();
   const render = () => {
     page.innerHTML = `<h2>Issue ${S.issue + 1} of 8</h2><p class="where">Virginia City, ${dateStr()} · choose two stories and how much to improve them</p>
@@ -633,14 +672,16 @@ function printIssue(leads, picks) {
     const l = leads.find(x => x.id === id), e = EMB.find(x => x.k === ek);
     const r = Math.round(l.base * e.r * rnd(.8, 1.2) * (has('notebook') ? 1.1 : 1));
     let t = Math.round(l.risk * e.t * rnd(.7, 1.3));
-    if (l.pay && ek !== 'plain') { const c = ri(30, 90); cash += c; notes.push(`The mine's owners show their gratitude: ${money(c)} in feet, sold at once.`); }
+    if (l.pay && ek !== 'plain') { const c = ri(30, 90); cash += c; notes.push(`The grateful parties show their gratitude: ${money(c)}, discreetly.`); }
+    if (l.s || l.w) notes.push(`<b>${l.name}.</b> ` + (ek === 'whopper' ? l.w : ek === 'stretch' ? l.s : pick(PLAIN)));
     if (id === 'fanshaw') notes.push(ek === 'whopper' ? 'Your account of Scotty and the minister has the whole town repeating Scotty\'s half of the conversation in saloons for a month.' : 'Your funeral piece is gentle and very funny, and Scotty buys you a drink for it.');
     if (id === 'petrified' && ek === 'whopper') { notes.push('In your version the petrified man is thumbing his nose at the reader, if anyone reads closely. Papers back East reprint it as fact. Scientists write in.'); t += 4; }
     if (id === 'rival' && ek !== 'plain') notes.push('The rival editor replies in print that you are a liar, a coward and a poor speller. Only the third is fair.');
     rd += r; tr += t;
   }
-  const head = pick(['TERRIBLE AFFAIR ON C STREET', 'STARTLING INTELLIGENCE', 'THE ZEPHYR\'S LATEST', 'A REMARKABLE OCCURRENCE', 'FROM OUR OWN CORRESPONDENT', 'LOCAL MATTERS']);
-  const html = `<div class="headline">${head}</div><p>${notes.join(' ') || 'The issue goes out and the town reads it at breakfast.'}</p>` + fx({ readers: rd, trouble: tr, money: cash, sp: 3 }) + `<p class="where">+$25 salary</p>`;
+  const first = leads.find(x => x.id === [...picks.keys()][0]);
+  const head = esc(first.name).toUpperCase();
+  const html = `<div class="headline">${head}</div>${notes.map(n => `<p>${n}</p>`).join('') || '<p>The issue goes out and the town reads it at breakfast.</p>'}` + fx({ readers: rd, trouble: tr, money: cash, sp: 3 }) + `<p class="where">+$25 salary</p>`;
   if (S.trouble >= 100 && !S.flags.duel) return outcome('Off the press', html, duel);
   outcome('Off the press', html, paperIssue);
 }
