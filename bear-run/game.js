@@ -743,7 +743,7 @@ function nextMusic(announce) { setMusic(TRACKS[(TRACKS.indexOf(musicId) + 1) % T
 
 // ---------- game state ----------
 const player = { x: 0, z: -5, y: 0, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0, pushPhase: 0, plough: 0, runPhase: 0 };
-const bear = { on: false, x: 0, z: 0, phase: 0, rear: 0, flinch: 0 }; // the chaser, whatever it is this run
+const bear = { on: false, x: 0, z: 0, dir: 0, phase: 0, rear: 0, flinch: 0 }; // the chaser, whatever it is this run; dir is where it is running
 let state = 'title', score = 0, bonus = 0, best = Number(localStorage.getItem('bearrun-best')) || 0, growlT = 0, overT = 0;
 let far = Number(localStorage.getItem('bearrun-far')) || 0; // farthest distance ever reached in one run: the unlock currency
 let camMode = 0, camBlend = 0, camYaw = 0, bearPull = 0, bearGap = Infinity;
@@ -806,7 +806,7 @@ function reset() {
   seed = (Math.random() * 1e9) | 0;
   Object.assign(player, { x: 0, z: -5, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0, pushPhase: 0, plough: 0 });
   player.y = height(player.x, player.z);
-  Object.assign(bear, { on: false, x: 0, z: 0, phase: 0, rear: 0, flinch: 0 });
+  Object.assign(bear, { on: false, x: 0, z: 0, dir: 0, phase: 0, rear: 0, flinch: 0 });
   screamCd = 0; screamT = 0;
   bearGap = Infinity; bearPull = 0;
   bearMesh.visible = false; skier.visible = true;
@@ -970,7 +970,7 @@ function step(dt, t) {
   stormTarget = THREE.MathUtils.clamp((dist - STORM_AT) / 600, 0, 1);
   if (!stormOn && dist >= STORM_AT) { stormOn = true; banner('❄️ Snow<small>visibility dropping</small>', 2); }
   if (!bear.on && dist > BEAR_WAKES) {
-    bear.on = true; bear.x = p.x * 0.5; bear.z = p.z + 60;
+    bear.on = true; bear.x = p.x * 0.5; bear.z = p.z + 60; bear.dir = Math.atan2(p.x - bear.x, p.z - bear.z);
     bearMesh.visible = true; $('bear').style.display = 'block';
     banner(`${P.icon} ${P.a}<small>keep moving</small>`, 2); sfx.growl();
   }
@@ -981,12 +981,35 @@ function step(dt, t) {
     const base = Math.min(V.chase.cap, V.chase.base + dist / 350);
     let spd = base + Math.max(0, gap - 40) * 0.3;
     if (bear.flinch > 0) { bear.flinch -= dt; spd = 0; } // a scream stops it in its tracks for a moment
+    // It runs at you, but around the trees: anything in a cone ahead nudges its heading to the clear
+    // side, and if it still touches a trunk or rock it is pushed out along it, so it slides round.
+    const bR = V.pursuer === 'bear' ? 0.9 : 1.3, bci = Math.floor(-bear.z / CHUNK);
+    const fx = Math.sin(bear.dir), fz = Math.cos(bear.dir), rx = fz, rz = -fx; // forward and right
+    let avoid = 0;
+    for (let i = bci - 1; i <= bci + 1; i++) {
+      const c = chunks.get(i); if (!c) continue;
+      for (const o of c.objs) {
+        if (o.type === 'gate' || o.type === 'ramp') continue;
+        const ox = o.x - bear.x, oz = o.z - bear.z, along = ox * fx + oz * fz, side = ox * rx + oz * rz, clear = o.r + bR + 0.8;
+        if (along > -0.5 && along < 10 && Math.abs(side) < clear) avoid -= (side < 0 ? -1 : 1) * (1 - Math.max(0, along) / 10) * (clear - Math.abs(side)) / clear * 1.3;
+      }
+    }
+    const want = Math.atan2(bx, bz) + THREE.MathUtils.clamp(avoid, -1.2, 1.2);
+    bear.dir += THREE.MathUtils.clamp(wrapAngle(want - bear.dir), -5 * dt, 5 * dt);
     const mv = Math.min(gap, spd * dt);
-    bear.x += (bx / (gap || 1)) * mv; bear.z += (bz / (gap || 1)) * mv;
+    bear.x += Math.sin(bear.dir) * mv; bear.z += Math.cos(bear.dir) * mv;
+    for (let i = bci - 1; i <= bci + 1; i++) {
+      const c = chunks.get(i); if (!c) continue;
+      for (const o of c.objs) {
+        if (o.type === 'gate' || o.type === 'ramp') continue;
+        const ox = bear.x - o.x, oz = bear.z - o.z, rr = o.r + bR, d2 = ox * ox + oz * oz;
+        if (d2 < rr * rr) { const d = Math.sqrt(d2) || 1; bear.x = o.x + ox / d * rr; bear.z = o.z + oz / d * rr; }
+      }
+    }
     bear.phase += spd * dt * 0.55;
     const gy = height(bear.x, bear.z);
     bearMesh.position.set(bear.x, gy, bear.z);
-    bearMesh.rotation.y = Math.atan2(bx, bz);
+    bearMesh.rotation.y = bear.dir;
     const ud = bearMesh.userData;
     animateBeast(ud, bear.phase);
     if (bear.flinch > 0) rearBeast(ud, Math.min(1, bear.flinch / SCREAM_FLINCH * 2.5) * Math.min(1, (SCREAM_FLINCH - bear.flinch) * 6)); // startled: rears back
