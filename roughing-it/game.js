@@ -134,6 +134,7 @@ function hud() {
   }
   $('bag').innerHTML = bag.join('') || '<li>nothing but the clothes you stand in</li>';
   $('journal').innerHTML = S.journal.map(t => `<div>${t}</div>`).join('');
+  if (window.drawMap) drawMap();
 }
 function bar(id, v, label) {
   const f = $(id + 'Bar'); f.style.width = clamp(v, 0, 100) + '%';
@@ -402,6 +403,7 @@ function tickMarket() {
 }
 
 function nevadaWeek(note) {
+  S.loc = null;
   S.act = 'nevada';
   scene.set('town', { sign: 'CARSON CITY' });
   const worth = feetWorth();
@@ -456,6 +458,7 @@ function prospectMenu() {
   });
 }
 function dig(key) {
+  S.loc = key;
   const D = DISTRICTS[key];
   scene.set('mine', {});
   const N = 24, cells = Array.from({ length: N }, () => ({ t: 'rock', dug: false }));
@@ -570,6 +573,7 @@ function market(msg, ctx = { back: () => nevadaWeek(), wait: () => endWeek(1), l
 
 // --- one-off adventures
 function tahoe() {
+  S.loc = 'tahoe';
   S.flags.tahoe = 1; scene.set('tahoe', {});
   show({
     title: 'Lake Tahoe', where: 'With Johnny, on foot over the mountains',

@@ -495,7 +495,7 @@ function hornet() {
 }
 
 function sailHome(forced) {
-  S.act = 'pacific'; S.isle = null;
+  S.act = 'pacific'; S.isle = null; S.homeward = 1;
   scene.set('ocean', { schooner: true });
   const unwritten = S.notes;
   S.letters += Math.floor(unwritten / 3); // you write up what you can on the voyage home
