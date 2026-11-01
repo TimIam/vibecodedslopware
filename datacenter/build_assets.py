@@ -636,8 +636,9 @@ STAGE_GEO = {  # w, d from data.js STAGES[n].size; yard = -STAGES[n].geo.yardZ; 
 }
 
 def aisle_ys(rows, kind):
-    """Blender y of each aisle of the given kind ('hot'/'cold') for the row layout in data.js (row 0 nearest the camera
-    faces it; facing alternates). Odd row counts add the hot strip behind the last, camera-facing row."""
+    """Blender y of each aisle of the given kind ('hot'/'cold') for the row layout in data.js (every row faces the
+    camera; the kinds are a floor pattern: aisle 0 behind the front row is hot, then alternating). Odd row counts
+    add the hot strip behind the last row."""
     ys = []
     for r in range(rows - 1):
         if (r % 2 == 0) == (kind == "hot"):
