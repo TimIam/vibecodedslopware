@@ -6,6 +6,8 @@ import { RACK, ROWS, RACKS_PER_ROW, RACK_X0, HALL, SERVER, COST } from './config
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const T = (x, y, z) => new THREE.Matrix4().makeTranslation(x, y, z);
 const RY = a => new THREE.Matrix4().makeRotationY(a);
+// loose debris: membership bit 3, collides with everything except the player (bit 1), so parts on the floor never block you
+const DEBRIS_GROUPS = 0x0004FFFE;
 const _m = new THREE.Matrix4(), _m2 = new THREE.Matrix4(), _v = new THREE.Vector3(), _q = new THREE.Quaternion();
 
 // Geometric centre + half extents of every detachable piece, in its asset's local (glTF, Y-up) frame.
@@ -277,8 +279,8 @@ export class World {
   detach(kitName, idx, root, pieceKey, impulse, atPoint, ent, cost = PIECES[pieceKey].cost) {
     const { R, phys } = this.G; const P = PIECES[pieceKey];
     const c = P.c.clone().applyMatrix4(root); root.decompose(_v, _q, new THREE.Vector3());
-    const body = phys.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(c.x, c.y, c.z).setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }).setLinearDamping(0.05).setAngularDamping(0.2));
-    const col = phys.createCollider(R.ColliderDesc.cuboid(P.h.x, P.h.y, P.h.z).setMass(P.mass).setFriction(0.5).setRestitution(0.1), body);
+    const body = phys.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(c.x, c.y, c.z).setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }).setLinearDamping(0.35).setAngularDamping(0.8));
+    const col = phys.createCollider(R.ColliderDesc.cuboid(P.h.x, P.h.y, P.h.z).setMass(P.mass).setFriction(0.6).setRestitution(0.05).setCollisionGroups(DEBRIS_GROUPS), body);
     const item = { kind: 'loose', what: pieceKey, kit: this.kits[kitName], idx, body, col, local: T(-P.c.x, -P.c.y, -P.c.z), t: this.time, frozen: false, ent, mass: P.mass, label: P.label };
     this.ents.set(col.handle, item); this.loose.push(item);
     if (impulse) body.applyImpulseAtPoint(impulse, atPoint || c, true);
@@ -290,8 +292,8 @@ export class World {
     const { R, phys } = this.G; const rack = sv.rack, spec = sv.spec;
     _m.multiplyMatrices(rack.root, sv.local); _m.decompose(_v, _q, new THREE.Vector3());
     const c = new THREE.Vector3(0, spec.h / 2, 0).applyMatrix4(_m); if (offset) c.add(offset);
-    const body = phys.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(c.x, c.y, c.z).setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }).setLinearDamping(0.05).setAngularDamping(0.3));
-    const col = phys.createCollider(R.ColliderDesc.cuboid(0.24, spec.h / 2, spec.d / 2).setMass(spec.mass).setFriction(0.5).setRestitution(0.05), body);
+    const body = phys.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(c.x, c.y, c.z).setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }).setLinearDamping(0.4).setAngularDamping(1.0));
+    const col = phys.createCollider(R.ColliderDesc.cuboid(0.24, spec.h / 2, spec.d / 2).setMass(spec.mass).setFriction(0.6).setRestitution(0.02).setCollisionGroups(DEBRIS_GROUPS), body);
     const wasDestroyed = sv.destroyed;
     sv.attached = false; sv.body = body;
     const item = { kind: 'loose', what: 'server', sv, kit: sv.kit, idx: sv.idx, body, col, local: T(0, -spec.h / 2, 0), t: this.time, frozen: false, mass: spec.mass, label: spec.U + 'U server' };
@@ -309,9 +311,9 @@ export class World {
     if (cause !== 'fire' && cause !== 'water') { sv.rack.kw -= sv.attached ? sv.spec.kw : 0; }
   }
   recycleLoose() {
-    if (this.loose.length <= 240) return;
+    if (this.loose.length <= 150) return;
     const { phys } = this.G;
-    const idx = this.loose.findIndex(l => !l.frozen && l.body.isSleeping() && this.time - l.t > 4 && l !== this.G.player.carrying);
+    const idx = this.loose.findIndex(l => !l.frozen && l.body.isSleeping() && this.time - l.t > 2.5 && l !== this.G.player.carrying);
     if (idx < 0) return;
     const l = this.loose[idx]; l.frozen = true; this.ents.delete(l.col.handle); phys.removeCollider(l.col, false); phys.removeRigidBody(l.body); this.loose.splice(idx, 1);
   }

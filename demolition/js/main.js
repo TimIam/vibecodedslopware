@@ -113,6 +113,7 @@ async function boot() {
     G.fx.update(dt || 0.001, G.systems.fires);
     G.hud.update(G.systems.snapshot(), dt || 0.001);
     composer.render();
+    G.player.renderViewmodel(renderer, scene); // tools and hands drawn last on their own layer + camera, so they never clip
   }
   say(''); start.classList.add('ready'); document.getElementById('play').disabled = false;
   requestAnimationFrame(frame);
