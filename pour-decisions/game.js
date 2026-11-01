@@ -251,6 +251,8 @@ const RATE = 1; // ounces per second of free pour
 function newStats() { return { tips: 0, served: 0, perfect: 0, caught: 0, walkouts: 0, peeks: 0 }; }
 
 // ---------- Build the bar ----------
+// Shelf tags only have room for two short lines.
+const SHELF_TAG = { rye: 'Rye', coffee: 'Coffee Liqueur', raspberry: 'Rasp. Liqueur', coconut: 'Coconut Cream', passion: 'Passion Fruit', lemonlime: 'Lemon-Lime', absinthe: 'Absinthe', worcestershire: 'Worcs. Sauce', irish: 'Irish Whiskey', angostura: 'Angostura' };
 function buildBar() {
   const rack = $('#rack');
   for (const [k, D] of Object.entries(GLASSES)) {
@@ -268,7 +270,8 @@ function buildBar() {
     for (const it of list) {
       const b = document.createElement('button');
       b.className = 'btl'; b.dataset.k = it.key; b.dataset.name = it.name; b.setAttribute('aria-label', it.name);
-      b.innerHTML = bottleSVG(it);
+      const lbl = SHELF_TAG[it.key] || it.name;
+      b.innerHTML = bottleSVG(it) + `<span class="tag${lbl.split(/[\s-]/).some(w => w.length > 8) ? ' sm' : ''}">${esc(lbl)}</span>`;
       b.addEventListener('pointerdown', e => startPour(e, it.key, b));
       b.addEventListener('contextmenu', e => e.preventDefault());
       $('#row' + (n + 1)).append(b);
@@ -288,6 +291,7 @@ function buildBar() {
   document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => setMethod(b.dataset.m));
   $('#bIce').onclick = toggleIce;
   $('#bDump').onclick = () => { if (G.glass) { G.glass = null; sfx('pop'); renderGlass(); } };
+  $('#bPin').onclick = pinRecipe;
   $('#bServe').onclick = serve;
 }
 
@@ -382,6 +386,48 @@ function renderGlass() {
     h += `<div class="meta">${extra.map(esc).join(' · ')}</div>`;
   } else h = '<div style="color:#8a7a5a">Pick a glass from the rack, then press and hold bottles on the back bar to pour.</div>';
   $('#contents').innerHTML = h;
+  renderRecipe(view);
+}
+
+// ---------- The recipe card pinned to the ticket ----------
+// Free on night 1. After that, pinning (or peeking in the book) costs a quarter of the tip.
+function pinRecipe() {
+  const c = G.cust;
+  if (!canAct()) { toast('Nobody\'s waiting on a drink.'); return; }
+  if (!c.pinned) {
+    c.pinned = true;
+    if (G.night > 1 && !c.peeked) { c.peeked = true; G.stats.peeks++; }
+    sfx('pop');
+  }
+  renderRecipe();
+}
+function renderRecipe(view = G.glass) {
+  const c = G.cust, r = c && c.phase === 'waiting' ? c.order : null, box = $('#recipe');
+  document.querySelectorAll('.need').forEach(b => b.classList.remove('need'));
+  $('#bPin').disabled = !r || c.pinned;
+  if (!r) { box.innerHTML = '<div class="hint">No order yet.</div>'; return; }
+  if (!c.pinned) {
+    box.innerHTML = `<div class="ord">${esc(r.name)}</div><div class="hint">Know it by heart? Make it. Or tap <b>📋 Pin recipe</b> and lose a quarter of the tip.</div>`;
+    return;
+  }
+  const need = (sel) => { const el = document.querySelector(sel); if (el) el.classList.add('need'); };
+  const mark = ok => ok ? '<i class="ok">✓</i>' : '<i></i>';
+  let h = `<div class="ord">${esc(r.name)}</div><div class="rl${r.ings.length > 4 ? ' two' : ''}">`;
+  for (const w of r.ings) {
+    const it = ING[w.k], have = view ? (view.items.find(i => i.k === w.k) || { a: 0 }).a : 0;
+    const dash = it.kind === 'dash', d = have - w.a;
+    const st = dash ? (have === 0 ? '' : Math.abs(d) <= 1 ? 'ok' : d > 0 ? 'over' : '') : Math.abs(d) <= .13 ? 'ok' : d > 0 ? 'over' : '';
+    if (st !== 'ok') need(`.btl[data-k="${w.k}"]`);
+    const amt = dash ? w.a + ' dash' + (w.a > 1 ? 'es' : '') : oz(w.a);
+    h += `<div class="line ${st}">${mark(st === 'ok')}<span>${esc(it.name)}</span><b>${amt}${st === 'over' ? ' ⚠' : ''}</b></div>`;
+  }
+  const glassOk = view && view.type === r.glass, iceOk = view && view.ice === r.ice, mOk = view && (view.method || 'build') === r.method;
+  if (!glassOk) need(`.gl[data-g="${r.glass}"]`);
+  if (r.ice && !(view && view.ice)) need('#bIce');
+  if (!mOk) need(`[data-m="${r.method}"]`);
+  const garn = r.garnish.map(g => { const ok = view && view.garn.has(g); if (!ok) need(`.gar[data-k="${g}"]`); return `<span class="${ok ? 'ok' : ''}">${esc(GARNISH[g])}</span>`; });
+  h += `</div><div class="meta"><span class="${glassOk ? 'ok' : ''}">${GLASSES[r.glass].name}</span> · <span class="${iceOk ? 'ok' : ''}">${r.ice ? 'Ice' : 'No ice'}</span> · <span class="${mOk ? 'ok' : ''}">${METHODS[r.method]}</span>${garn.length ? ' · ' + garn.join(', ') : ''}</div>`;
+  box.innerHTML = h;
 }
 function updatePourRead() {
   if (!G.pour) return;
@@ -469,8 +515,8 @@ const ORDER_LINES = ['I\'ll have a {d}.', 'Can I get a {d}?', '{d}, please.', 'M
 function newOrder(c, again) {
   c.order = pickDrink(c);
   const r = c.order;
-  c.patienceMax = (32 + 7 * r.ings.length + 3 * r.garnish.length + (r.method !== 'build' ? 4 : 0)) * Math.max(.65, 1 - .06 * (G.night - 1));
-  c.patience = c.patienceMax; c.peeked = false; c.chatted = false; c.charmed = false; c.phase = 'waiting';
+  c.patienceMax = (60 + 12 * r.ings.length + 5 * r.garnish.length + (r.method !== 'build' ? 8 : 0)) * Math.max(.75, 1 - .04 * (G.night - 1));
+  c.patience = c.patienceMax; c.peeked = false; c.pinned = G.night === 1; c.chatted = false; c.charmed = false; c.phase = 'waiting';
   let line = pick(ORDER_LINES).replace('{d}', `<span class="order">${esc(r.name)}</span>`);
   if (c.p.look.bear) line += Math.random() < .5 ? ' Hold the gravity.' : '';
   if (again) line = pick(['Another round!', 'Hit me again.', 'Okay, one more.', 'Keep \'em coming!']) + ' ' + line;
@@ -479,7 +525,7 @@ function newOrder(c, again) {
     if (!G.genre || G.musicLeft <= 0) say(`<br><small><i>${slur("It's dead quiet in here.", c)}</i></small>`, true);
     else if (G.genre !== c.p.genre && Math.random() < .7) say(`<br><small><i>${esc(slur(pick(HINT[c.p.genre]), c))}</i></small>`, true);
   }
-  renderCustomer();
+  renderCustomer(); renderRecipe();
 }
 
 function say(html, append) {
@@ -516,7 +562,7 @@ function arrive() {
 }
 function leave(c, happy) {
   if (c.phase === 'leaving') return;
-  c.phase = 'leaving';
+  c.phase = 'leaving'; renderRecipe();
   if (!happy) flashExpr(c, 'angry', 3000);
   setTimeout(() => {
     const w = $('#custWrap');
@@ -663,7 +709,7 @@ function serve() {
   const qf = res.q >= .97 ? 1.3 : res.q;
   const moodF = .4 + c.mood / 100 * 1.1;
   const speedF = .75 + .5 * (c.patience / c.patienceMax);
-  let tip = base * qf * moodF * speedF * (c.peeked ? .5 : 1) + (c.charmed ? 1.5 : 0);
+  let tip = base * qf * moodF * speedF * (c.peeked ? .75 : 1) + (c.charmed ? 1.5 : 0);
   tip = Math.max(.25, Math.round(tip * 4) / 4);
   G.tips += tip; G.stats.tips += tip; G.stats.served++;
   if (res.q >= .97) G.stats.perfect++;
@@ -671,7 +717,7 @@ function serve() {
   flashExpr(c, 'happy', 2200); sfx('ding');
   const verdict = res.q >= .97 ? pick(['Perfect.', 'Now THAT is a drink.', 'Chef\'s kiss.', 'Exactly how I like it.']) : res.q >= .8 ? pick(['Pretty good!', 'Not bad.', 'That hits.']) : pick(['Eh. It\'s drinkable.', 'Hm. Close enough.', 'I\'ve had better.']);
   say(slur(verdict, c));
-  toast(`💵 +${money(tip)} tip${c.peeked ? ' <small>(halved: you peeked)</small>' : ''}${c.charmed ? ' <small>(+charm)</small>' : ''}`, 'money');
+  toast(`💵 +${money(tip)} tip${c.peeked ? ' <small>(−25%: recipe card)</small>' : ''}${c.charmed ? ' <small>(+charm)</small>' : ''}`, 'money');
   if (res.notes.length) toast(res.notes.slice(0, 4).map(esc).join('<br>'), '', 4200);
   setTimeout(() => {
     if (G.cust !== c || !G.running) return;
@@ -738,9 +784,9 @@ function fired(reason) {
 // ---------- Recipe book ----------
 let bookSel = null;
 function openBook(practice) {
-  const c = G.cust, peek = !practice && c && c.phase === 'waiting';
-  if (peek && !c.peeked) { c.peeked = true; G.stats.peeks++; }
-  $('#peekWarn').hidden = !peek;
+  const c = G.cust, peek = !practice && c && c.phase === 'waiting' && !c.pinned;
+  if (peek) pinRecipe();
+  $('#peekWarn').hidden = !peek || G.night === 1;
   $('#ovBook').classList.remove('hidden');
   $('#bookSearch').value = ''; renderBookList();
   $('#bookSearch').focus();

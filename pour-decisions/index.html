@@ -85,10 +85,24 @@ button{font:inherit;color:inherit;cursor:pointer}
 #pourRead{position:absolute;top:-28px;left:-8px;right:-8px;text-align:center;background:var(--paper);color:var(--ink);border:2.5px solid var(--ink);border-radius:10px;font-weight:700;padding:1px 4px;display:none;z-index:6;white-space:nowrap}
 #pourRead.on{display:block}
 .ticket{background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:8px;padding:6px 12px;box-shadow:3px 3px 0 rgba(0,0,0,.4);display:flex;flex-direction:column;gap:4px;min-width:0}
-.ticket h3{margin:0;font:20px "Bangers",sans-serif;letter-spacing:1px}
-#contents{font-size:13.5px;line-height:1.35;flex:1;min-height:0;overflow:auto;columns:2;column-gap:18px}
-#contents .line{display:flex;justify-content:space-between;border-bottom:1px dashed #c9bfa0;break-inside:avoid}
-#contents .meta{column-span:all;color:#6b5a40;font-size:12.5px;margin-top:2px}
+.ticket h3{margin:0;font:18px/1.1 "Bangers",sans-serif;letter-spacing:1px}
+.tbody{flex:1;min-height:0;display:grid;grid-template-columns:1.35fr 1fr;gap:14px}
+.tcol{min-height:0;display:flex;flex-direction:column}
+.tcol+.tcol{border-left:2px dashed #c9bfa0;padding-left:12px}
+.thead{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.tool.pin{font-size:12px;padding:1px 8px;background:#ffe9a6}
+.tool.pin:disabled{display:none}
+#recipe,#contents{font-size:12.5px;line-height:1.25;flex:1;min-height:0;overflow:auto}
+#contents .line,#recipe .line{display:flex;justify-content:space-between;gap:6px;border-bottom:1px dashed #c9bfa0;break-inside:avoid}
+#contents .meta,#recipe .meta{color:#6b5a40;font-size:11.5px;margin-top:2px}
+#recipe .ord{font-weight:700;color:#a3162c;font-size:14px}
+#recipe .hint{color:#6b5a40;font-size:12px}
+#recipe .rl.two{columns:2;column-gap:12px}
+#recipe .line i{width:12px;flex:none;font-style:normal;color:#2a8a3e;font-weight:700}
+#recipe .line span{flex:1}
+#recipe .line.ok{color:#2a8a3e}
+#recipe .line.over{color:#c0283a}
+#recipe .meta .ok{color:#2a8a3e;font-weight:700}
 .tools{display:flex;gap:6px;align-items:center}
 .tool{background:#fff;border:2.5px solid var(--ink);border-radius:10px;padding:3px 10px;font-weight:700;box-shadow:0 2px 0 var(--ink)}
 .tool.on{background:var(--gold)}
@@ -107,12 +121,18 @@ button{font:inherit;color:inherit;cursor:pointer}
 .stock{flex:1;min-height:0;display:grid;grid-template-columns:1fr 380px;grid-template-rows:minmax(0,1fr);gap:10px;padding:8px 10px 8px;background:#1c120c}
 .shelves{position:relative;display:flex;flex-direction:column;justify-content:space-between;border:5px solid #5a3018;border-radius:6px;padding:0 6px;
   background:linear-gradient(115deg,transparent 0 30%,rgba(255,255,255,.05) 31% 38%,transparent 39% 62%,rgba(255,255,255,.04) 63% 66%,transparent 67%),linear-gradient(#2d3b42,#1a2328)}
-.row{position:relative;flex:1 1 0;min-height:0;display:flex;align-items:flex-end;justify-content:space-around;padding:0 2px 9px}
+.row{position:relative;flex:1 1 0;min-height:0;display:flex;align-items:flex-end;justify-content:space-around;padding:0 2px 1px}
 .row::before{content:"";position:absolute;left:-6px;right:-6px;top:0;height:22px;background:linear-gradient(rgba(255,196,110,.28),transparent);pointer-events:none}
-.row::after{content:"";position:absolute;left:-6px;right:-6px;bottom:0;height:9px;background:linear-gradient(#c8844a,#8a4f26);border-top:1px solid #f0b070;border-bottom:2px solid var(--ink);box-shadow:0 3px 4px rgba(0,0,0,.6)}
-.btl{position:relative;background:none;border:0;padding:0;touch-action:none;display:flex;align-items:flex-end;z-index:1}
-.btl svg{display:block;width:37px;height:83px;transition:transform .1s;filter:drop-shadow(0 2px 0 rgba(0,0,0,.4))}
-.row.mixers .btl svg{width:33px;height:74px}
+.row::after{content:"";position:absolute;left:-6px;right:-6px;bottom:0;height:22px;background:linear-gradient(#c8844a,#8a4f26);border-top:1px solid #f0b070;border-bottom:2px solid var(--ink);box-shadow:0 3px 4px rgba(0,0,0,.6)}
+.btl{position:relative;background:none;border:0;padding:0;touch-action:none;display:flex;flex-direction:column;align-items:center;z-index:1;width:38px}
+.btl svg{display:block;width:30px;height:66px;transition:transform .1s;filter:drop-shadow(0 2px 0 rgba(0,0,0,.4))}
+.row.mixers .btl svg{width:28px;height:62px}
+.btl .tag{display:flex;align-items:center;justify-content:center;width:38px;height:19px;margin-top:1px;background:#fffbea;color:var(--ink);border:1px solid var(--ink);border-radius:3px;font-size:8.5px;font-weight:700;line-height:1;text-align:center;overflow:hidden;letter-spacing:-.2px}
+.btl .tag.sm{font-size:7.5px}
+.btl.need .tag{background:var(--gold);box-shadow:0 0 0 2px #fff,0 0 8px 3px var(--gold)}
+.btl.need svg{filter:drop-shadow(0 0 5px #ffe066) drop-shadow(0 0 2px #fff)}
+.gar.need,.gl.need{border-color:var(--gold);box-shadow:0 0 8px 2px var(--gold)}
+.tool.need{box-shadow:0 0 0 2px var(--gold),0 0 8px 2px var(--gold)}
 .btl:hover svg{transform:translateY(-5px)}
 .btl.pouring svg{transform:translateY(-8px) rotate(-14deg)}
 .btl::after,.gar::after{content:attr(data-name);position:absolute;left:50%;bottom:calc(100% + 2px);transform:translateX(-50%);background:var(--paper);color:var(--ink);border:2px solid var(--ink);border-radius:8px;padding:1px 7px;font-size:13px;font-weight:700;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;z-index:30}
@@ -227,8 +247,10 @@ button{font:inherit;color:inherit;cursor:pointer}
       <div class="empty" id="emptyNote">Grab a glass →</div>
     </div>
     <div class="ticket">
-      <h3 id="tGlass">No glass</h3>
-      <div id="contents"></div>
+      <div class="tbody">
+        <div class="tcol"><div class="thead"><h3>Order</h3><button class="tool pin" id="bPin">📋 Pin recipe</button></div><div id="recipe"></div></div>
+        <div class="tcol"><h3 id="tGlass">No glass</h3><div id="contents"></div></div>
+      </div>
       <div class="tools">
         <button class="tool" data-m="build">Build</button>
         <button class="tool" data-m="stir">🥄 Stir</button>
@@ -267,8 +289,8 @@ button{font:inherit;color:inherit;cursor:pointer}
     <h3>How to tend</h3>
     <ul>
       <li><b>Card everyone.</b> Tap <b>Check ID</b> and compare: does the photo look like them? Does the first name match what they told you? Are they 21 by tonight's date? Is the card expired? Real cards have a shiny hologram and no typos. Serve a minor and you're <b>fired</b> on the spot.</li>
-      <li><b>Mix it right.</b> Pick a glass from the rack, scoop ice from the well if it's served on the rocks, then <b>press and hold</b> a bottle to free-pour (about 1 oz a second; a quick tap is ¼ oz). Hover a bottle to see what it is. Choose Build, Stir, Shake or Blend, add the garnish from the tray, and <b>Serve</b>.</li>
-      <li><b>The recipe book</b> is always there, but peeking while a customer waits halves your tip, and the clock keeps ticking.</li>
+      <li><b>Mix it right.</b> Pick a glass from the rack, scoop ice from the well if it's served on the rocks, then <b>press and hold</b> a bottle to free-pour (about 1 oz a second; a quick tap is ¼ oz). Every bottle has a shelf tag. Choose Build, Stir, Shake or Blend, add the garnish from the tray, and <b>Serve</b>.</li>
+      <li><b>The recipe card.</b> Night 1 is training: the recipe is pinned to the ticket and the bottles, glass and garnish you need light up. From night 2, tap <b>📋 Pin recipe</b> when you need it; it costs a quarter of that drink's tip.</li>
       <li><b>Keep the jukebox going.</b> Silence sours the room. Everybody has a favorite genre, and they'll hint at it.</li>
       <li><b>Charm them.</b> Chat once per drink. Some people want you to listen, some want a laugh, some want a compliment.</li>
       <li><b>Watch the drunks.</b> Rosy cheeks are fine. Swaying, droopy eyes and hiccups mean <b>Cut Off</b>: serve water, no more booze. Over-serving is a strike. Three strikes and you're out.</li>
@@ -281,7 +303,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 <div class="ov hidden" id="ovBook">
   <div class="card" style="max-width:780px">
     <div style="display:flex;justify-content:space-between;align-items:center"><h2>Recipe Book</h2><button class="big alt" id="bBookClose">Close</button></div>
-    <div class="warnline" id="peekWarn" hidden>A customer is waiting: peeking now halves this drink's tip.</div>
+    <div class="warnline" id="peekWarn" hidden>A customer is waiting: their recipe is now pinned to your ticket, and this drink's tip drops by a quarter.</div>
     <div class="book">
       <div><input id="bookSearch" placeholder="Search 125 drinks…" autocomplete="off"><div id="bookList"></div></div>
       <div id="bookPage">Pick a drink.</div>
