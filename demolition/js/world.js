@@ -280,11 +280,11 @@ export class World {
     if (P.cost) this.cost(pieceKey, P.label, 1, P.cost);
     return item;
   }
-  ejectServer(sv, vel, cause = 'Smashed') {
+  ejectServer(sv, vel, cause = 'Smashed', offset = null) {
     if (!sv.attached) return;
     const { R, phys } = this.G; const rack = sv.rack, spec = sv.spec;
     _m.multiplyMatrices(rack.root, sv.local); _m.decompose(_v, _q, new THREE.Vector3());
-    const c = new THREE.Vector3(0, spec.h / 2, 0).applyMatrix4(_m);
+    const c = new THREE.Vector3(0, spec.h / 2, 0).applyMatrix4(_m); if (offset) c.add(offset);
     const body = phys.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(c.x, c.y, c.z).setRotation({ x: _q.x, y: _q.y, z: _q.z, w: _q.w }).setLinearDamping(0.05).setAngularDamping(0.3));
     const col = phys.createCollider(R.ColliderDesc.cuboid(0.24, spec.h / 2, spec.d / 2).setMass(spec.mass).setFriction(0.5).setRestitution(0.05), body);
     sv.attached = false; sv.body = body;
@@ -382,7 +382,7 @@ export class World {
     const front = local.z > 0.45, rear = local.z < -0.45, side = Math.abs(local.x) > 0.25 && !front && !rear, top = local.y > 1.95;
     // a knocked-off door clears the cabinet and falls flat in the aisle instead of jamming against the rack
     const side_ = new THREE.Vector3(normal.z, 0, -normal.x).multiplyScalar(local.x >= 0 ? 1 : -1);
-    const doorImp = { x: normal.x * 25 + side_.x * 70 + dir.x * 10, y: 12, z: normal.z * 25 + side_.z * 70 + dir.z * 10 };
+    const doorImp = { x: normal.x * 20 + side_.x * 30 + dir.x * 8, y: 10, z: normal.z * 20 + side_.z * 30 + dir.z * 8 };
     const doorAt = new THREE.Vector3(point.x, 1.9, point.z); // hit high on the door so it rotates outward over its sill
     let did = false;
     if (front && rack.parts.door_front) { rack.parts.door_front = false; this.detach('door_front', rack.id, rack.root, 'door_front', doorImp, doorAt, rack); S.stats.doors++; did = true; this.log(`${rack.name}: front door torn off its hinges.`); }
@@ -398,10 +398,10 @@ export class World {
       if (near.length) {
         const out = front ? 1 : -1;
         for (const sv of near) {
-          const v = new THREE.Vector3(dir.x, 0.8, dir.z).multiplyScalar(2.5 + Math.random() * 2);
-          const fwd = new THREE.Vector3(0, 0, out).applyQuaternion(_q.setFromRotationMatrix(rack.root)).multiplyScalar(-1.2);
-          v.add(fwd); // slides out the way it went in, then goes where the hammer sent it
-          this.ejectServer(sv, v);
+          // the chassis shears off its rails and comes out the side you hit, at the player's feet
+          const fwd = new THREE.Vector3(0, 0, out).applyQuaternion(_q.setFromRotationMatrix(rack.root));
+          const v = fwd.clone().multiplyScalar(1.6 + Math.random() * 1.6).add(new THREE.Vector3((Math.random() - 0.5) * 1.2, 1.2 + Math.random(), 0));
+          this.ejectServer(sv, v, 'Smashed', fwd.multiplyScalar(sv.spec.d * 0.5 + 0.15));
           if (rack.powered) { fx.sparkBurst(point, 18, normal, 1, 4); if (Math.random() < (sv.type === 'gpu' ? 0.06 : 0.025)) S.startFire(point.clone().add(new THREE.Vector3(0, 0.1, 0)), rack, 'PSU short'); }
         }
         au.clang(1.1); did = true;
