@@ -598,89 +598,160 @@ window.EXTRA_ENDINGS = {
 };
 
 // =============================================================== scenes for Parts II & III
+// Drawn with the sprite helpers in art.js (window.ART). Each scene paints on top of the shared
+// sky/mountains/ground background described by its palette.
+const A = window.ART;
+const church = () => A.spr('church', 26, 46, x => {
+  A.rect(x, 4, 22, 18, 24, '#f4f4ee'); A.poly(x, [[2, 23], [13, 14], [24, 23]], '#8a3a2a');
+  A.rect(x, 10, 6, 6, 16, '#f4f4ee'); A.poly(x, [[9, 7], [13, 0], [17, 7]], '#8a3a2a'); A.rect(x, 12, 9, 2, 3, '#3a2616');
+  A.rect(x, 11, 34, 4, 12, '#5a3a22'); A.rect(x, 6, 27, 3, 5, '#2e3a48'); A.rect(x, 17, 27, 3, 5, '#2e3a48');
+}, '#2a1d12');
+const hut = v => A.spr('hut' + v, 24, 18, x => {
+  A.poly(x, [[0, 8], [12, 0], [24, 8]], v % 2 ? '#b8a060' : '#a08848'); for (let i = 2; i < 22; i += 3) A.rect(x, i, 3 + Math.abs(12 - i) * .4, 1, 5, '#8a7438');
+  A.rect(x, 3, 8, 18, 10, v % 2 ? '#e8e4d8' : '#c8b890'); A.rect(x, 10, 11, 4, 7, '#3a2616');
+}, '#2a1d12');
+const canoe = () => A.spr('canoe', 30, 10, x => {
+  A.poly(x, [[0, 5], [28, 5], [25, 8], [3, 8]], '#5a3a22'); A.rect(x, 4, 1, 20, 1, '#7a5a3a'); A.rect(x, 8, 1, 1, 5, '#7a5a3a'); A.rect(x, 20, 1, 1, 5, '#7a5a3a');
+  A.rect(x, 12, 0, 3, 5, '#a0522d'); A.rect(x, 12, -1, 3, 2, '#2a1d12');
+}, '#1e140c');
+const cat = () => A.spr('cat', 9, 6, x => { A.ell(x, 4, 3.5, 3.2, 2, '#8a8a8a'); A.circ(x, 7, 2.4, 1.6, '#8a8a8a'); A.poly(x, [[6, 1.6], [6.4, 0], [7.2, 1.2]], '#8a8a8a'); A.rect(x, 0, 2, 1, 2, '#8a8a8a'); }, '#3a3a3a');
+function puff(g, x, y, t, col, n = 6, rise = 26) {
+  for (let i = 0; i < n; i++) { const a = (t * .4 + i / n) % 1; g.globalAlpha = (1 - a) * .7; g.fillStyle = col; g.beginPath(); g.arc(x + a * 10 + Math.sin(a * 6 + i) * 2, y - a * rise, 1.5 + a * 4, 0, 7); g.fill(); }
+  g.globalAlpha = 1;
+}
+const sfHill = x => 30 * Math.exp(-(((x - 236) / 58) ** 2)) + 18 * Math.exp(-(((x - 120) / 44) ** 2));
+
 Object.assign(window.SCENES, {
   sf: {
-    pal: { sky: ['#a9c3d6', '#ece4d0'], far: '#8f9a8a', mid: '#5f88a8', ground: '#a89a7c', dot: '#7a7a5a', lake: true },
+    pal: { sky: ['#94b6d2', '#ece4d0'], far: '#7f8a7e', mid: '#5a86a8', ground: '#a89a7c', dot: '#7a7a5a', lake: true, noprops: true },
     draw(g, t, px, o) {
-      // hills of houses climbing away from the bay
-      const shake = o.quake ? Math.sin(t * 30) * 2 : 0;
-      for (let i = 0; i < 22; i++) { const x = i * 15 - 4 + shake * (i % 2 ? 1 : -1), h = 14 + (i * 7) % 12, y = 104 - Math.abs(Math.sin(i * .5)) * 18 - (i > 12 ? 6 : 0); px(x, y - h, 12, h, ['#e8e0cc', '#cdbca0', '#b9a07c', '#ddd2bc'][i % 4]); px(x - 1, y - h - 2, 14, 2, '#6a4a32'); px(x + 3, y - h + 4, 3, 3, '#3a2a1a'); }
-      // ships at the wharves
-      for (let i = 0; i < 4; i++) { const x = 20 + i * 70 + Math.sin(t * .5 + i) * 1.5; px(x, 98, 30, 4, '#3a2616'); px(x + 8, 70, 1, 28, '#3a2616'); px(x + 20, 74, 1, 24, '#3a2616'); px(x + 3, 72, 10, 1, '#3a2616'); }
-      // fog rolling in from the left
-      const fog = o.fog ? .7 : .35 + .2 * Math.sin(t * .2);
-      for (let i = 0; i < 9; i++) { g.fillStyle = `rgba(240,240,236,${fog * (1 - i / 12)})`; g.fillRect(((t * 6 + i * 40) % 380) - 60, 50 + i * 6, 90, 8); }
-      if (o.press) { px(240, 120, 60, 26, '#e8e0cc'); px(238, 116, 64, 5, '#2a1d12'); g.fillStyle = '#2a1d12'; g.font = '7px monospace'; g.fillText('MORNING CALL', 242, 130); }
+      const shake = o.quake ? Math.round(Math.sin(t * 34) * 2) : 0;
+      // the hills the city climbs
+      for (let x = 70; x < 320; x++) { const h = Math.round(sfHill(x)); g.fillStyle = '#9a8a6a'; g.fillRect(x, 104 - h, 1, h + 14); }
+      // rows of painted houses up the hills
+      for (let row = 2; row >= 0; row--) for (let x = 64 + row * 7; x < 324; x += 17) {
+        const base = 112 - Math.round(sfHill(x + 8) * (1 - row * .22)) - row * 9;
+        g.drawImage(A.victorian(Math.floor(A.hash(x * 3 + row) * 5) + row), x + (row % 2 ? shake : -shake), base - 40);
+      }
+      // the waterfront: brick blocks and a wharf with ships
+      g.fillStyle = '#6a5038'; g.fillRect(0, 103, 70, 3); for (let x = 2; x < 70; x += 6) g.fillRect(x, 106, 2, 6);
+      g.drawImage(A.schooner(), 4 + Math.round(Math.sin(t * .8)), 58);
+      for (let i = 0; i < 4; i++) { const b = A.brick(i + 2, ['', 'HOTEL', 'BANK', ''][i]); g.drawImage(b, 66 + i * 33 + shake, 120 - b.height); }
+      if (o.press) { const b = A.brick(9, 'MORNING CALL', 52); g.drawImage(b, 236, 122 - b.height); }
+      // the afternoon fog coming in through the Gate
+      const fog = o.fog ? .75 : .38 + .18 * Math.sin(t * .15);
+      for (let i = 0; i < 12; i++) { const y = 46 + i * 5, x = ((t * (5 + i % 3) + i * 53) % 420) - 90; g.fillStyle = `rgba(242,242,238,${fog * (1 - i / 16)})`; g.fillRect(Math.round(x), y, 110, 4); g.fillRect(Math.round(x) + 14, y - 2, 70, 2); }
     },
   },
   hill: {
-    pal: { sky: ['#9cc4dd', '#eaf0d8'], far: '#7f9a6a', mid: '#6f8f4f', ground: '#a8a060', dot: '#5f7a3f' },
+    pal: { sky: ['#8ec0e0', '#eef2da'], far: '#7f9a6a', mid: '#6f8f4f', ground: '#a8a060', dot: '#5f7a3f', hills: true, noprops: true, noroad: true },
     draw(g, t, px, o) {
-      for (let i = 0; i < 7; i++) { const x = 20 + i * 46, y = 92 + (i % 3) * 4; g.fillStyle = '#3f5a2f'; g.beginPath(); g.arc(x, y - 8, 9, 0, 7); g.fill(); px(x - 1, y - 2, 3, 10, '#4a3520'); }
-      px(200, 96, 44, 22, '#7a5a3a'); px(196, 92, 52, 5, '#4a3520'); px(216, 104, 8, 14, '#2a1d12'); px(236, 80, 4, 12, '#5a3f25');
-      g.fillStyle = 'rgba(220,220,220,.5)'; g.fillRect(236 + Math.sin(t) * 2, 72 - (t * 6 % 10), 4, 4);
-      // a grey cat on the porch
-      px(204, 112, 6, 4, '#8a8a8a'); px(209, 110, 3, 3, '#8a8a8a'); px(203, 110, 1, 3, '#8a8a8a');
-      if (o.tavern) { g.fillStyle = 'rgba(160,180,200,.5)'; for (let i = 0; i < 80; i++) g.fillRect((i * 37 + t * 20) % 320, (i * 53 + t * 90) % 160, 1, 4); }
+      for (const [x, y, v] of [[6, 100, 0], [48, 96, 1], [96, 102, 2], [140, 97, 3], [272, 99, 4], [300, 104, 5]]) g.drawImage(A.oak(v), x, y - 22);
+      const c = A.cabin(2); g.drawImage(c, 186, 120 - c.height); puff(g, 222, 88, t, '#d8d4cc');
+      g.drawImage(cat(), 190, 113);
+      // a wash pan and a rocker by the creek
+      g.fillStyle = '#6a8ab0'; g.fillRect(0, 130, 320, 3); g.fillStyle = '#9ab4d0'; for (let x = 0; x < 320; x += 9) g.fillRect((x + Math.round(t * 6)) % 320, 130, 3, 1);
+      g.fillStyle = '#5a3f25'; g.fillRect(120, 124, 12, 5); g.fillStyle = '#8a8a8a'; g.fillRect(140, 127, 7, 2);
+      for (const [x, y, v] of [[30, 150, 6], [250, 152, 7]]) g.drawImage(A.oak(v), x, y - 22);
+      if (o.tavern) { g.fillStyle = 'rgba(170,190,210,.6)'; for (let i = 0; i < 120; i++) g.fillRect((i * 37 + t * 24) % 320, (i * 53 + t * 110) % 160, 1, 4); }
     },
   },
   ocean: {
-    pal: { sky: ['#7fb4d8', '#e8f0ee'], far: '#4f86ad', mid: '#3a75a3', ground: '#2f6592', dot: '#4f86ad', lake: true, flat: true },
+    pal: { sky: ['#6aa8d8', '#eaf2f0'], far: '#4f86ad', mid: '#3a76a4', ground: '#2f6592', dot: '#4f86ad', flat: true },
     draw(g, t, px, o) {
-      g.fillStyle = 'rgba(255,255,255,.35)'; for (let i = 0; i < 40; i++) g.fillRect(((i * 47 + t * 12) % 340) - 10, 104 + (i * 13) % 54, 6 + i % 5, 1);
-      const bob = Math.sin(t * 1.4) * 2, x = 120;
-      if (o.steamer) { px(x, 96 + bob, 90, 8, '#2a1d12'); px(x + 10, 86 + bob, 66, 10, '#f4ecd2'); px(x + 40, 62 + bob, 6, 24, '#2a1d12'); px(x + 20, 74 + bob, 2, 12, '#4a3520'); px(x + 70, 72 + bob, 2, 14, '#4a3520'); g.fillStyle = '#9b2d20'; g.beginPath(); g.arc(x + 46, 96 + bob, 9, Math.PI, 0); g.fill(); for (let i = 0; i < 4; i++) { g.fillStyle = `rgba(60,50,40,${.5 - i * .1})`; g.fillRect(x + 36 - i * 10 - (t * 8 % 10), 54 - i * 5 + bob, 8, 6); } }
-      if (o.schooner) { px(x, 98 + bob, 60, 6, '#3a2616'); px(x + 20, 54 + bob, 2, 44, '#3a2616'); px(x + 40, 60 + bob, 2, 38, '#3a2616'); px(x + 6, 58 + bob, 13, 34, '#f4ecd2'); px(x + 24, 62 + bob, 15, 30, '#f4ecd2'); }
-      if (Math.sin(t * .7) > .6) { const fx2 = ((t * 60) % 360) - 20; px(fx2, 112 - Math.abs(Math.sin(t * 6)) * 6, 4, 2, '#cfe0ea'); }
+      const bob = Math.round(Math.sin(t * 1.3) * 1.5);
+      if (o.steamer) { const s = A.steamer(); g.drawImage(s, 110, 70 + bob); puff(g, 162, 72 + bob, t, '#5a5048', 7, 34); }
+      if (o.schooner) g.drawImage(A.schooner(), 128, 76 + bob);
+      // gulls and the odd flying fish
+      for (let i = 0; i < 3; i++) { const x = ((t * (18 + i * 5) + i * 120) % 360) - 20, y = 30 + i * 9 + Math.sin(t * 2 + i) * 3, w = Math.sin(t * 8 + i) > 0; g.fillStyle = '#2a2a2a'; g.fillRect(Math.round(x), Math.round(y), 1, 1); g.fillRect(Math.round(x) - 2, Math.round(y) - (w ? 1 : 0), 2, 1); g.fillRect(Math.round(x) + 1, Math.round(y) - (w ? 1 : 0), 2, 1); }
+      if (Math.sin(t * .7) > .5) { const fx = ((t * 70) % 380) - 30, fy = 128 - Math.abs(Math.sin(t * 5)) * 8; g.fillStyle = '#d8e8f0'; g.fillRect(Math.round(fx), Math.round(fy), 4, 1); g.fillRect(Math.round(fx) + 1, Math.round(fy) - 1, 2, 1); }
     },
   },
   island: {
-    pal: { sky: ['#6fb0e0', '#f2f4e2'], far: '#3f7a4a', mid: '#2fa0b0', ground: '#ecdcaa', dot: '#7fb04a', lake: true, lowsun: false },
+    pal: { sky: ['#56a2dc', '#f2f4e2'], far: '#3f7a4a', mid: '#2aa0b4', ground: '#ecdcaa', dot: '#7fb04a', lake: true, noprops: true, noroad: true },
     draw(g, t, px, o) {
-      if (o.mountain) { g.fillStyle = '#5a6e5a'; g.beginPath(); g.moveTo(60, 86); g.lineTo(170, 26); g.lineTo(290, 86); g.fill(); }
-      // surf on the reef
-      g.fillStyle = 'rgba(255,255,255,.8)'; for (let i = 0; i < 16; i++) g.fillRect(((i * 23 + t * 10) % 330) - 10, 98 + Math.sin(t * 2 + i) * 1.5, 10, 2);
-      // palms
-      for (const [x, s] of [[30, 1], [70, .8], [250, 1.1], [290, .9]]) { const sway = Math.sin(t * 1.2 + x) * 2; for (let k = 0; k < 6; k++) px(x + k * s * .6 + sway * k / 6, 136 - k * 8 * s, 3, 9, '#7a5a3a'); const tx = x + 4 * s + sway, ty = 136 - 48 * s; g.fillStyle = '#2f6a2f'; for (let a = 0; a < 6; a++) { const an = a / 6 * Math.PI * 2; for (let r = 0; r < 14 * s; r += 2) g.fillRect(tx + Math.cos(an) * r, ty + Math.sin(an) * r * .5 + r * r * .02, 3, 2); } }
-      if (o.harbor) { px(140, 92, 3, 26, '#3a2616'); px(160, 90, 3, 28, '#3a2616'); px(132, 112, 40, 6, '#3a2616'); px(186, 84, 20, 26, '#f4f4ee'); px(194, 74, 4, 10, '#f4f4ee'); px(195, 70, 2, 4, '#3a2616'); }
+      if (o.mountain) {
+        A.poly(g, [[40, 92], [120, 40], [168, 30], [220, 42], [300, 92]], '#4e6a52');
+        A.poly(g, [[168, 30], [220, 42], [300, 92], [200, 92]], '#5f7d60');
+        g.fillStyle = '#7a8a7a'; g.fillRect(150, 30, 26, 2);
+        for (let i = 0; i < 40; i++) { g.fillStyle = 'rgba(40,70,46,.6)'; g.fillRect(60 + (i * 37) % 220, 70 + (i * 13) % 20, 2, 1); }
+      }
+      // reef surf and the beach edge
+      for (let x = 0; x < 320; x++) { const w = Math.sin(x * .12 + t * 2) + Math.sin(x * .05 - t); if (w > .9) { g.fillStyle = '#ffffff'; g.fillRect(x, 92 + (w > 1.5 ? 0 : 1), 1, 1); } }
+      g.fillStyle = 'rgba(255,255,255,.85)'; for (let x = 0; x < 320; x += 2) g.fillRect(x, 103 + Math.round(Math.sin(x * .2 + t * 3)), 2, 1);
+      g.drawImage(canoe(), Math.round(((t * 6) % 380) - 40), 92);
+      if (o.harbor) {
+        g.fillStyle = '#6a5038'; g.fillRect(118, 100, 46, 3); for (let x = 120; x < 164; x += 6) g.fillRect(x, 103, 2, 6);
+        g.drawImage(church(), 180, 120 - 46); g.drawImage(hut(0), 210, 102); g.drawImage(hut(1), 236, 104); g.drawImage(hut(2), 150, 106);
+        g.drawImage(A.schooner(), 92, 56);
+      } else { g.drawImage(hut(1), 200, 104); g.drawImage(hut(2), 226, 106); }
+      for (const [x, v] of [[2, 0], [44, 1], [262, 2], [290, 3]]) { const sway = Math.round(Math.sin(t * 1.1 + x) * 1); g.drawImage(A.palm(v), x + sway, 154 - 44); }
     },
   },
   volcano: {
-    pal: { sky: ['#140c14', '#4a1a14'], far: '#1a1210', mid: '#2a1612', ground: '#1e1614', dot: '#3a2016', night: true },
-    draw(g, t, px) {
-      g.fillStyle = '#0e0a0a'; g.fillRect(0, 100, 320, 60);
-      // the fire lake and fountains
-      for (let x = 60; x < 260; x++) { const y = 120 + Math.sin(x * .07 + t) * 2; g.fillStyle = `rgb(${200 + 55 * Math.sin(x * .3 + t * 3) | 0},${70 + 40 * Math.sin(x * .2 + t * 2) | 0},20)`; g.fillRect(x, y, 1, 10); }
-      for (let i = 0; i < 30; i++) { const ph = (t * 1.3 + i * .37) % 2, x = 100 + (i * 37) % 120, y = 120 - Math.sin(ph / 2 * Math.PI) * (20 + i % 4 * 10); g.fillStyle = ph < 1 ? '#ffd060' : '#ff6a20'; g.fillRect(x + ph * 4, y, 2, 2); }
-      for (let i = 0; i < 14; i++) { g.fillStyle = 'rgba(255,90,30,.5)'; g.fillRect((i * 29) % 320, 134 + (i * 7) % 20, 18, 1); }
-      g.fillStyle = 'rgba(255,90,40,.18)'; g.fillRect(0, 0, 320, 100);
-      px(20, 98, 30, 12, '#2a1d12'); px(18, 94, 34, 4, '#3a2616'); px(30, 100, 4, 6, '#ffb040');
+    pal: { sky: ['#120a12', '#4a1a14'], far: '#1a1210', mid: '#2a1612', ground: '#1e1614', dot: '#3a2016', night: true, noprops: true, noroad: true, flat: true },
+    draw(g, t) {
+      // glow on the underside of the sky
+      for (let y = 40; y < 100; y++) { const a = (y - 40) / 60 * .45; if (a > 0) { g.fillStyle = `rgba(255,${80 + y}, 30,${a * .6})`; g.fillRect(0, y, 320, 1); } }
+      // crater walls and the black floor
+      g.fillStyle = '#140c0a'; g.fillRect(0, 96, 320, 64);
+      A.poly(g, [[0, 96], [0, 70], [40, 74], [70, 86], [90, 98]], '#22140f'); A.poly(g, [[320, 96], [320, 66], [270, 72], [240, 86], [226, 98]], '#22140f');
+      for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(255,${90 + (i % 5) * 20},30,${.35 + (i % 3) * .15})`; const x = (i * 53) % 320, y = 132 + (i * 11) % 26; g.fillRect(x, y, 6 + (i % 4) * 3, 1); }
+      // the lake of fire
+      for (let x = 70; x < 250; x++) {
+        const edge = 6 * Math.sqrt(Math.max(0, 1 - ((x - 160) / 90) ** 2));
+        for (let y = Math.round(116 - edge); y < 116 + edge; y++) {
+          const v = Math.sin(x * .25 + t * 3 + y) + Math.sin(x * .07 - t * 1.4) + A.h2((x + t * 12) | 0, y) * .8;
+          g.fillStyle = v > 1.5 ? '#fff0a0' : v > .7 ? '#ffb040' : v > -.4 ? '#ff6a20' : '#b82a10'; g.fillRect(x, y, 1, 1);
+        }
+      }
+      for (let i = 0; i < 40; i++) { const ph = (t * 1.2 + i * .37) % 2, x = 110 + (i * 37) % 100, y = 112 - Math.sin(ph / 2 * Math.PI) * (16 + i % 5 * 9); g.fillStyle = ph < 1 ? '#fff0a0' : '#ff6a20'; g.fillRect(Math.round(x + ph * 4), Math.round(y), 2, 2); }
+      // the Volcano House on the rim, with a lamp lit
+      const c = A.cabin(3); g.drawImage(c, 12, 74 - c.height + 14); g.fillStyle = '#ffd070'; g.fillRect(19, 76, 6, 4);
     },
   },
   summit: {
-    pal: { sky: ['#2a3a6a', '#f6c08a'], far: '#5a4a5a', mid: '#e8e2e0', ground: '#6a5048', dot: '#8a6a58', lowsun: true },
-    draw(g, t, px) {
-      g.fillStyle = '#f2ece6'; g.fillRect(0, 84, 320, 20);
-      for (let i = 0; i < 20; i++) { g.fillStyle = 'rgba(255,240,230,.9)'; g.beginPath(); g.arc((i * 19 + t * 2) % 340 - 10, 86 + (i % 3) * 2, 8 + i % 4, 0, 7); g.fill(); }
-      g.fillStyle = '#4a3a3a'; g.beginPath(); g.moveTo(240, 86); g.lineTo(262, 66); g.lineTo(290, 86); g.fill();
-      for (let i = 0; i < 3; i++) { g.fillStyle = '#7a5040'; g.beginPath(); g.moveTo(60 + i * 60, 140); g.lineTo(80 + i * 60, 118); g.lineTo(100 + i * 60, 140); g.fill(); }
+    pal: { sky: ['#283a6e', '#f6be86'], far: '#4a3e52', mid: '#e8e2e0', ground: '#6a4a40', dot: '#8a6a58', lowsun: true, noprops: true, noroad: true, hills: true, noclouds: true },
+    draw(g, t) {
+      // Mauna Kea and Mauna Loa standing out of the clouds, far across the channel
+      A.poly(g, [[200, 82], [236, 62], [262, 60], [300, 82]], '#3a3048'); A.poly(g, [[250, 84], [286, 70], [320, 74], [320, 84]], '#423650');
+      g.fillStyle = '#f0ece8'; g.fillRect(234, 62, 30, 2);
+      // the sea of clouds below the summit
+      for (let i = 0; i < 26; i++) g.drawImage(A.cloud(i % 6), Math.round(((i * 23 + t * 1.5) % 360) - 30), 72 + (i % 4) * 5);
+      g.fillStyle = '#f4f0ee'; g.fillRect(0, 92, 320, 12);
+      // the crater: red-brown cinder cones in a vast floor
+      g.fillStyle = '#5a3e36'; g.fillRect(0, 104, 320, 56);
+      for (let i = 0; i < 4; i++) { const x = 40 + i * 70, h = 20 + (i % 2) * 8; A.poly(g, [[x, 146], [x + 18, 146 - h], [x + 26, 146 - h], [x + 44, 146]], '#8a4a36'); A.poly(g, [[x + 26, 146 - h], [x + 44, 146], [x + 30, 146]], '#a85a40'); }
+      g.fillStyle = '#3a2a24'; g.fillRect(0, 150, 320, 10);
+      for (let i = 0; i < 6; i++) { const x = ((t * 3 + i * 60) % 340) - 10; g.fillStyle = 'rgba(255,230,200,.25)'; g.fillRect(Math.round(x), 96 + i, 40, 1); }
     },
   },
   hall: {
-    pal: { sky: ['#2a1410', '#4a2418'], far: '#3a1a14', mid: '#5a2418', ground: '#2a1a12', dot: '#2a1a12', night: true },
+    pal: { sky: ['#2a1410', '#4a2418'], far: '#3a1a14', mid: '#5a2418', ground: '#2a1a12', dot: '#2a1a12', night: true, noprops: true, noroad: true, flat: true },
     draw(g, t, px, o) {
-      g.fillStyle = '#5a1a14'; g.fillRect(0, 0, 320, 160);
-      // curtains and proscenium
-      for (let x = 0; x < 320; x += 6) { g.fillStyle = x % 12 ? '#8a2418' : '#7a1c12'; g.fillRect(x, 0, 6, 20); }
-      for (let x = 0; x < 44; x += 4) { g.fillStyle = x % 8 ? '#8a2418' : '#6a1810'; g.fillRect(x, 0, 4, 110); g.fillRect(316 - x, 0, 4, 110); }
-      px(0, 0, 320, 4, '#c9a040');
-      // stage, lectern, the lecturer
-      px(30, 92, 260, 18, '#6a4a2a'); px(30, 90, 260, 3, '#c9a040');
-      for (let i = 0; i < 12; i++) { const lit = o.lit || o.applause; g.fillStyle = lit ? `rgba(255,220,140,${.6 + .3 * Math.sin(t * 5 + i)})` : '#806040'; g.fillRect(40 + i * 21, 88, 4, 3); }
-      px(170, 64, 14, 26, '#3a2616'); px(166, 62, 22, 4, '#4a3520');
-      px(152, 56, 10, 34, '#1a1414'); px(153, 46, 8, 10, '#e0c08a'); px(152, 44, 10, 4, '#5a3a24'); px(153, 56, 8, 2, '#f0f0f0');
-      // audience
-      for (let r = 0; r < 4; r++) for (let i = 0; i < 26; i++) { const bob = (o.applause || o.lit) ? Math.round(Math.sin(t * (8 + i % 3) + i + r) * 1.2) : 0; px(4 + i * 12 + r * 3, 118 + r * 11 + bob, 8, 7, r % 2 ? '#1a0f0c' : '#24140e'); px(5 + i * 12 + r * 3, 115 + r * 11 + bob, 6, 4, r % 2 ? '#1a0f0c' : '#24140e'); }
+      g.fillStyle = '#4a1612'; g.fillRect(0, 0, 320, 160);
+      for (let x = 0; x < 320; x += 6) { g.fillStyle = x % 12 ? '#8a2418' : '#7a1c12'; g.fillRect(x, 0, 6, 22); g.fillStyle = '#c9a040'; g.fillRect(x + 2, 20, 2, 2); }
+      for (let x = 0; x < 46; x += 4) { const c = x % 8 ? '#8a2418' : '#6a1810'; g.fillStyle = c; g.fillRect(x, 0, 4, 112); g.fillRect(316 - x, 0, 4, 112); }
+      g.fillStyle = '#c9a040'; g.fillRect(0, 0, 320, 3); g.fillRect(46, 22, 228, 1);
+      // gaslight on the backdrop
+      const lit = o.lit || o.applause;
+      g.fillStyle = lit ? 'rgba(255,210,140,.18)' : 'rgba(255,210,140,.06)'; g.beginPath(); g.ellipse(160, 70, 90, 50, 0, 0, 7); g.fill();
+      // the stage, footlights, lectern and the lecturer in his white suit... well, dark coat
+      g.fillStyle = '#6a4a2a'; g.fillRect(30, 92, 260, 18); g.fillStyle = '#7a5a34'; for (let x = 30; x < 290; x += 10) g.fillRect(x, 92, 1, 18); g.fillStyle = '#c9a040'; g.fillRect(30, 90, 260, 2);
+      for (let i = 0; i < 12; i++) { g.fillStyle = lit ? `rgba(255,220,140,${.7 + .3 * Math.sin(t * 5 + i)})` : '#806040'; g.fillRect(40 + i * 21, 87, 4, 3); }
+      g.fillStyle = '#3a2616'; g.fillRect(172, 64, 14, 26); g.fillStyle = '#4a3520'; g.fillRect(168, 62, 22, 4); g.fillStyle = '#efe3c4'; g.fillRect(172, 60, 8, 2);
+      const gest = Math.sin(t * 1.5) > .3 && lit;
+      g.fillStyle = '#1a1414'; g.fillRect(152, 56, 11, 34); g.fillStyle = '#e0c08a'; g.fillRect(153, 45, 9, 10); g.fillStyle = '#cfcfcf'; g.fillRect(152, 42, 11, 4); g.fillRect(151, 44, 2, 6);
+      g.fillStyle = '#5a3a2a'; g.fillRect(155, 54, 5, 2); g.fillStyle = '#f0f0f0'; g.fillRect(155, 56, 5, 3);
+      g.fillStyle = '#1a1414'; g.fillRect(gest ? 162 : 162, gest ? 50 : 60, 3, gest ? 8 : 10); g.fillStyle = '#e0c08a'; g.fillRect(gest ? 163 : 162, gest ? 48 : 70, 2, 2);
+      // the audience, heads bobbing when they laugh
+      const hats = ['#1a0f0c', '#2a1810', '#3a2416', '#5a3a2a', '#24140e'];
+      for (let r = 0; r < 4; r++) for (let i = 0; i < 27; i++) {
+        const x = 2 + i * 12 + r * 3 - (r % 2) * 6, y = 118 + r * 11, bob = o.applause || lit ? Math.round(Math.sin(t * (7 + i % 3) + i + r) * 1.2) : 0;
+        g.fillStyle = r % 2 ? '#140a08' : '#1c0f0a'; g.fillRect(x, y + bob, 9, 9);
+        g.fillStyle = '#3a2418'; g.fillRect(x + 2, y - 4 + bob, 5, 5);
+        const hv = A.hash(i * 13 + r); if (hv < .4) { g.fillStyle = hats[i % 5]; g.fillRect(x + 1, y - 7 + bob, 7, 1); g.fillRect(x + 2, y - 9 + bob, 5, 2); } else if (hv < .6) { g.fillStyle = '#6a2a4a'; g.fillRect(x + 1, y - 6 + bob, 7, 2); g.fillRect(x + 5, y - 8 + bob, 3, 2); }
+      }
     },
   },
 });
