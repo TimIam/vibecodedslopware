@@ -53,9 +53,11 @@ export class Rig {
     const xA = Rc - n.target;
     if (kind === 'top') { const a = deg(n.top); y = h0 + (frontX - xA) * Math.tan(a); upAxis = new THREE.Vector3(Math.cos(a), Math.sin(a), 0); }
     else if (kind === 'bottom') { const b = deg(n.bottom); y = h0 - (frontX - xA) * Math.tan(b); upAxis = new THREE.Vector3(Math.cos(b), -Math.sin(b), 0); }
-    else if (kind === 'back' || kind === 'strap') { y = h0 + (cut.back?.step ?? cut.bore?.step ?? 0); upAxis = new THREE.Vector3(-1, 0, 0); }
-    else if (kind === 'bore') { y = h0 + (cut.bore?.step ?? 0); upAxis = new THREE.Vector3(1, 0, 0); }
-    const xAxis = new THREE.Vector3(0, 0, 1);
+    // a tapered hinge angles the back cut and bore across the stem; the bar follows that line (the strap release stays square)
+    const ty = Math.tan((kind === 'back' ? cut.back?.yaw : kind === 'bore' ? cut.bore?.yaw : 0) || 0);
+    if (kind === 'back' || kind === 'strap') { y = h0 + (cut.back?.step ?? cut.bore?.step ?? 0); upAxis = new THREE.Vector3(-1, 0, ty).normalize(); }
+    else if (kind === 'bore') { y = h0 + (cut.bore?.step ?? 0); upAxis = new THREE.Vector3(1, 0, -ty).normalize(); }
+    const xAxis = new THREE.Vector3(ty, 0, 1).normalize();
     const zAxis = new THREE.Vector3().crossVectors(xAxis, upAxis).normalize();
     const m = new THREE.Matrix4().makeBasis(xAxis, upAxis, zAxis);
     this.saw.quaternion.setFromRotationMatrix(m);
@@ -65,17 +67,17 @@ export class Rig {
     const reach = Math.min(Rc + 0.06, (bb.max.x - bb.min.x) * 0.5);
     const startZ = -(Rc + 0.08);
     // saw origin = front - xAxis*(bb.min.x - startZ...) - up*edgeY
-    const o = front.clone().addScaledVector(xAxis, startZ - bb.min.x).addScaledVector(upAxis, -edgeY + 0.004);
+    const o = front.clone().addScaledVector(xAxis, startZ / xAxis.z - bb.min.x).addScaledVector(upAxis, -edgeY + 0.004);
     if (active) o.add(new THREE.Vector3((Math.random() - 0.5) * 0.004, (Math.random() - 0.5) * 0.004, (Math.random() - 0.5) * 0.006));
     this.saw.position.copy(o);
     this.saw.visible = true;
     if (this.chain && active) this.chain.position.y += (Math.random() - 0.5) * 0.0008;
     if (active) {
-      const emit = new THREE.Vector3(frontX, y, startZ + 0.1);
+      const emit = new THREE.Vector3(frontX + (startZ + 0.1) * ty, y, startZ + 0.1);
       this.particles.emit(emit, new THREE.Vector3(0, 0.6, -2.2).add(upAxis.clone().multiplyScalar(-0.4)), 6);
     }
     // the faller stands at the side, leaning in
-    this.setFaller(-0.15 - (kind === 'back' ? 0.25 : 0), -(Rc + 0.75), y);
+    this.setFaller(-0.15 - (kind === 'back' || kind === 'strap' ? 0.25 : 0), -(Rc + 0.75), y);
     void reach;
   }
 

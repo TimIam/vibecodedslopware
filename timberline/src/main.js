@@ -568,7 +568,7 @@ function handleSaw(dt) {
     else frontX = -Rc + b.strapCut;
   }
   sfx.sawSet(active ? (f.pinched ? 0.35 : 0.95) : 0.18, active ? 1 : 0);
-  G.rig.placeSaw(kind === 'bore' ? 'bore' : kind === 'strap' ? 'back' : kind, c, frontX, active && !f.pinched);
+  G.rig.placeSaw(kind, c, frontX, active && !f.pinched);
   if (active && ['back', 'bore', 'strap'].includes(kind)) { f.checkRelease(); if (f.phase !== 'standing') onRelease(); }
 }
 function blocked(msg) { if (G.time - G.blockMsg > 2.5) { toast(msg, 'bad'); G.blockMsg = G.time; } }
@@ -588,7 +588,7 @@ function handleAxe(dt) {
   $('meter').querySelector('.needle').style.left = `calc(${G.meterPos * 100}% - 1px)`;
   const target = G.step === 'notch'
     ? new THREE.Vector3(Rc - Math.min(n.dTop, n.dBot) * 0.6, tr.h0 + 0.02, 0)
-    : new THREE.Vector3(-Rc + c.back.progress * 0.8, tr.h0 + c.back.step, 0);
+    : new THREE.Vector3(-Rc + c.back.progress * 0.7, tr.h0 + c.back.step + c.back.progress * 0.35, 0);
   let phase = 1;
   if (swingState) {
     swingState.t += dt;
@@ -903,7 +903,14 @@ function drawPlan() {
   if (n.dBot > 0) line(Rc, tr.h0 - (Rc - xA) * tb, Rc - n.dBot, tr.h0 - (Rc - n.dBot - xA) * tb, '#f2c230', 3);
   const yb = tr.h0 + (c.method === 'bore' && c.bore ? c.bore.step : c.back.step);
   line(-Rc, yb, xA - D * 0.1, yb, 'rgba(143,209,106,0.6)', 1, [3, 3]);
-  if (c.method === 'standard' && c.back.progress > 0) line(-Rc, yb, -Rc + c.back.progress, yb, '#ebe5d3', 3);
+  if (c.method === 'standard' && c.back.progress > 0) {
+    const xf = -Rc + c.back.progress;
+    if (n.type === 'axe') { // chopped back notch: flat bottom, 45° top
+      const pts = [S(xf, yb), S(-Rc - 0.05, yb), S(-Rc - 0.05, yb + c.back.progress + 0.05)];
+      pctx.fillStyle = '#20160e'; pctx.beginPath(); pts.forEach(([u, v], i) => (i ? pctx.lineTo(u, v) : pctx.moveTo(u, v))); pctx.fill();
+    }
+    line(-Rc, yb, xf, yb, '#ebe5d3', 3);
+  }
   if (c.bore) { const b = c.bore; line(b.hingeBack - (b.hingeBack - (-Rc + b.strap)) * Math.min(1, b.progress), yb, b.hingeBack, yb, '#ebe5d3', 3); if (b.strapCut) line(-Rc, yb, -Rc + b.strapCut, yb, '#ebe5d3', 3); }
   pctx.restore();
   pctx.fillStyle = '#ebe5d3'; pctx.font = '500 14px "IBM Plex Mono", monospace';

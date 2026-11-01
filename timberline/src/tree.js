@@ -178,7 +178,13 @@ export class TreeModel {
     g.translate(0, y + thick / 2, 0);
     return this.planarUV(g, this.Rc);
   }
+  shearZ(g, t) { // x += z*t: turns a square back cut into a tapered one
+    if (t) g.applyMatrix4(new THREE.Matrix4().set(1, 0, t, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1));
+    return this.planarUV(g, this.Rc);
+  }
   get Rc() { return this.radiusAt(this.h0); }
+  // back-cut kerf, wider than a real chain so the removed wood reads from the cutting camera
+  get backKerf() { return THREE.MathUtils.clamp(this.R * 2 * 0.04, 0.016, 0.026); }
 
   cutterBrushes(cut) {
     const R = this.Rc + 0.25, h0 = this.h0, Z = this.Rc + 0.3;
@@ -200,19 +206,19 @@ export class TreeModel {
     }
     const b = cut.back;
     if (b && b.progress > 0.002) {
-      const yb = h0 + b.step, ty = Math.tan(b.yaw);
-      const xb = (z) => -this.Rc + b.progress + z * ty;
-      out.push(this.slabXZ([[-R, -Z], [xb(-Z), -Z], [xb(Z), Z], [-R, Z]], yb, KERF));
+      const yb = h0 + b.step, xf = -this.Rc + b.progress;
+      // an axe can't make a kerf: it chops a notch in from the back, flat at the back-cut height with a 45° top
+      const g = n?.type === 'axe'
+        ? this.prismXY([[xf, yb - 0.002], [-R, yb - 0.002], [-R, yb + (xf + R)]], Z)
+        : this.slabXZ([[-R, -Z], [xf, -Z], [xf, Z], [-R, Z]], yb, this.backKerf);
+      out.push(this.shearZ(g, Math.tan(b.yaw)));
     }
     const bo = cut.bore;
     if (bo && bo.progress > 0.002) {
-      const yb = h0 + bo.step, ty = Math.tan(bo.yaw);
-      const xS = -this.Rc + bo.strap;
-      const xH = (z) => bo.hingeBack + z * ty;
-      const span = (xH(0) - xS) * Math.min(1, bo.progress);
-      const xFront = (z) => xH(z), xBack = (z) => xH(z) - span;
-      out.push(this.slabXZ([[xBack(-Z), -Z], [xFront(-Z), -Z], [xFront(Z), Z], [xBack(Z), Z]], yb, KERF));
-      if (bo.strapCut > 0.002) out.push(this.slabXZ([[-R, -Z], [-this.Rc + bo.strapCut, -Z], [-this.Rc + bo.strapCut, Z], [-R, Z]], yb, KERF));
+      const yb = h0 + bo.step, xS = -this.Rc + bo.strap;
+      const span = (bo.hingeBack - xS) * Math.min(1, bo.progress);
+      out.push(this.shearZ(this.slabXZ([[bo.hingeBack - span, -Z], [bo.hingeBack, -Z], [bo.hingeBack, Z], [bo.hingeBack - span, Z]], yb, this.backKerf), Math.tan(bo.yaw)));
+      if (bo.strapCut > 0.002) out.push(this.slabXZ([[-R, -Z], [-this.Rc + bo.strapCut, -Z], [-this.Rc + bo.strapCut, Z], [-R, Z]], yb, this.backKerf));
     }
     return out;
   }
