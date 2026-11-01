@@ -134,6 +134,7 @@ function hud() {
   }
   $('bag').innerHTML = bag.join('') || '<li>nothing but the clothes you stand in</li>';
   $('journal').innerHTML = S.journal.map(t => `<div>${t}</div>`).join('');
+  if (window.drawMap) drawMap();
 }
 function bar(id, v, label) {
   const f = $(id + 'Bar'); f.style.width = clamp(v, 0, 100) + '%';
@@ -402,6 +403,7 @@ function tickMarket() {
 }
 
 function nevadaWeek(note) {
+  S.loc = null;
   S.act = 'nevada';
   scene.set('town', { sign: 'CARSON CITY' });
   const worth = feetWorth();
@@ -456,6 +458,7 @@ function prospectMenu() {
   });
 }
 function dig(key) {
+  S.loc = key;
   const D = DISTRICTS[key];
   scene.set('mine', {});
   const N = 24, cells = Array.from({ length: N }, () => ({ t: 'rock', dug: false }));
@@ -570,6 +573,7 @@ function market(msg, ctx = { back: () => nevadaWeek(), wait: () => endWeek(1), l
 
 // --- one-off adventures
 function tahoe() {
+  S.loc = 'tahoe';
   S.flags.tahoe = 1; scene.set('tahoe', {});
   show({
     title: 'Lake Tahoe', where: 'With Johnny, on foot over the mountains',
@@ -730,137 +734,7 @@ function ending(kind) {
   });
 }
 
-// ---------------------------------------------------------------- the scene painter
-// A 320x160 pixel landscape. set(region, opts) changes the view; roll(ms) runs the coach.
-window.SCENES = window.SCENES || {};
-const scene = (() => {
-  const cv = $('scene'), g = cv.getContext('2d');
-  const W = 320, H = 160;
-  let region = 'river', opts = {}, rollUntil = 0, offset = 0, last = 0, t0 = performance.now();
-  const PAL = {
-    plains: { sky: ['#8fc1de', '#f0e2b6'], far: '#9db07a', mid: '#8a9a55', ground: '#c2ae6c', dot: '#7c8a46' },
-    bluffs: { sky: ['#93bfda', '#f2dfb0'], far: '#c79f6a', mid: '#a88355', ground: '#c9b07a', dot: '#7c8a46', buttes: true },
-    rockies: { sky: ['#7fb0d6', '#e3e6e4'], far: '#7f8ea3', mid: '#64726b', ground: '#a69a72', dot: '#7f8f6a', snow: true },
-    salt: { sky: ['#8cbcdc', '#f4ecd2'], far: '#93a0b0', mid: '#8fb9c8', ground: '#d8ceaa', dot: '#8a9a55', lake: true },
-    desert: { sky: ['#b8d2e2', '#fbf1d8'], far: '#cdbfa6', mid: '#e1d6c0', ground: '#ece4d2', dot: '#a9a58a' },
-    sierra: { sky: ['#86b6da', '#e6eee8'], far: '#6f8197', mid: '#3e5a41', ground: '#8a7f5e', dot: '#2f4a32', pines: true },
-    town: { sky: ['#9cc4dd', '#f1e3bb'], far: '#9d8f7e', mid: '#8b7f68', ground: '#b9a374', dot: '#8b8a5a' },
-    mine: { sky: ['#95bedb', '#f2e1b8'], far: '#a28e74', mid: '#8c7454', ground: '#9c8460', dot: '#7c7a52' },
-    city: { sky: ['#8ab3d3', '#efdcb5'], far: '#8d7a66', mid: '#7b6750', ground: '#9a8460', dot: '#6e6a4a' },
-    snow: { sky: ['#b8c2cc', '#e8ecef'], far: '#cfd6dc', mid: '#dfe5e9', ground: '#f2f5f7', dot: '#c2cbd2' },
-    tahoe: { sky: ['#7db4e0', '#e7f1f2'], far: '#6f8197', mid: '#2e6fa8', ground: '#c9b98e', dot: '#2f4a32', pines: true, lake: true },
-    sea: { sky: ['#f2a65e', '#f9e2b0'], far: '#5f7f9a', mid: '#3f6f94', ground: '#c9b98e', dot: '#8a9a55', lake: true },
-    river: { sky: ['#e9a466', '#f6dcaa'], far: '#6d7f5a', mid: '#7d6a48', ground: '#6e5b3e', dot: '#4f6b3a', lake: true },
-  };
-  // cheap deterministic hills
-  const hill = (x, f, a, s) => Math.sin(x * f + s) * a + Math.sin(x * f * 2.3 + s * 1.7) * a * .45 + Math.sin(x * f * 5.1 + s * .3) * a * .18;
-  function px(x, y, w, h, c) { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), w, h); }
-
-  function draw(now) {
-    const dt = Math.min(.05, (now - last) / 1000); last = now;
-    const moving = now < rollUntil || (opts.coach && S && S.act === 'end');
-    if (moving) offset += dt * 60;
-    const X = window.SCENES && SCENES[region];
-    const p = PAL[region] || (X && X.pal) || PAL.plains, t = (now - t0) / 1000;
-    // sky
-    const gr = g.createLinearGradient(0, 0, 0, 90); gr.addColorStop(0, p.sky[0]); gr.addColorStop(1, p.sky[1]);
-    g.fillStyle = gr; g.fillRect(0, 0, W, 100);
-    if (p.night) { g.fillStyle = '#f4f0dc'; g.beginPath(); g.arc(60, 22, 7, 0, 7); g.fill(); g.fillStyle = '#fff'; for (let i = 0; i < 40; i++) g.fillRect((i * 79) % W, (i * 31) % 70, 1, 1); }
-    else if (p.lowsun || region === 'sea' || region === 'river') { g.fillStyle = '#fff3c4'; g.beginPath(); g.arc(250, 62, 14, 0, 7); g.fill(); }
-    else { g.fillStyle = '#fff8dc'; g.beginPath(); g.arc(262, 26, 9, 0, 7); g.fill(); }
-    // clouds
-    if (!p.night) for (let i = 0; i < 4; i++) { const cx = ((i * 97 + t * 3 - offset * .05) % 380 + 380) % 380 - 30, cy = 14 + i * 9; g.fillStyle = region === 'snow' ? '#d9dfe4' : 'rgba(255,255,255,.75)'; g.fillRect(cx, cy, 26, 4); g.fillRect(cx + 5, cy - 3, 14, 3); }
-    // far range
-    g.fillStyle = p.far;
-    if (!p.flat) for (let x = 0; x < W; x++) {
-      const sx = x + offset * .15;
-      let h = p.snow || p.pines ? 48 + hill(sx, .03, 18, 1) : p.buttes ? 70 + (Math.sin(sx * .02) > .55 ? -24 : 0) + hill(sx, .05, 3, 2) : 72 + hill(sx, .02, 8, 3);
-      g.fillRect(x, h, 1, 100 - h);
-      if (p.snow && h < 46) { g.fillStyle = '#f4f6f6'; g.fillRect(x, h, 1, 46 - h); g.fillStyle = p.far; }
-    }
-    // mid layer: lake, or hills
-    if (p.lake) { g.fillStyle = p.mid; g.fillRect(0, 86, W, 18); g.fillStyle = 'rgba(255,255,255,.35)'; for (let i = 0; i < 12; i++) g.fillRect(((i * 37 + t * 8) % W), 90 + (i % 4) * 3, 8, 1); }
-    else { g.fillStyle = p.mid; for (let x = 0; x < W; x++) { const h = 88 + hill(x + offset * .4, .04, 5, 5); g.fillRect(x, h, 1, 104 - h); } }
-    if (p.pines) for (let i = 0; i < 26; i++) { const x = ((i * 23 - offset * .45) % 340 + 340) % 340 - 10, y = 78 + (i * 7) % 12; g.fillStyle = '#26402b'; g.fillRect(x + 3, y - 12, 2, 14); for (let k = 0; k < 4; k++) g.fillRect(x + 2 - k, y - 10 + k * 3, 4 + k * 2, 2); }
-    // ground
-    g.fillStyle = p.ground; g.fillRect(0, 100, W, 60);
-    if (!p.flat) { g.fillStyle = shade(p.ground, -14); g.fillRect(0, 122, W, 6); } // road
-    if (!p.flat) for (let i = 0; i < 40; i++) { const x = ((i * 53 - offset) % 360 + 360) % 360 - 20, y = 104 + (i * 13) % 52; if (y > 120 && y < 130) continue; g.fillStyle = p.dot; g.fillRect(x, y, 4, 2); g.fillRect(x + 1, y - 1, 2, 1); }
-    if (region === 'desert' && moving) { g.fillStyle = 'rgba(255,255,255,.25)'; for (let i = 0; i < 20; i++) g.fillRect(((i * 41 + t * 60) % W), 110 + (i * 7) % 30, 6, 1); }
-    // set pieces
-    if (region === 'town' || region === 'city') town(region === 'city', t);
-    if (region === 'mine') mine(t);
-    if (region === 'snow') { g.fillStyle = 'rgba(255,255,255,.85)'; for (let i = 0; i < 120; i++) g.fillRect(((i * 61 + t * 30 * (1 + i % 3)) % W), ((i * 37 + t * 40 * (1 + i % 2)) % H), 1 + i % 2, 1 + i % 2); }
-    if (X && X.draw) X.draw(g, t, px, opts, moving, offset);
-    if (opts.station) station();
-    if (opts.coach) coach(140, 112, t, moving);
-    if (opts.pony) pony(t);
-    if (region === 'sea') ship(t);
-    if (region === 'river') steamboat(t);
-    if (opts.wind) { g.fillStyle = 'rgba(200,180,140,.5)'; for (let i = 0; i < 40; i++) g.fillRect(((i * 47 + t * 160) % W), 60 + (i * 11) % 80, 10, 1); px(((t * 120) % 360) - 20, 70 + Math.sin(t * 3) * 10, 6, 4, '#3a2a1a'); }
-    requestAnimationFrame(draw);
-  }
-  function shade(hex, d) { const n = parseInt(hex.slice(1), 16); const c = v => clamp(v + d, 0, 255); return `rgb(${c(n >> 16)},${c((n >> 8) & 255)},${c(n & 255)})`; }
-  function coach(x, y, t, moving) {
-    const bob = moving ? Math.round(Math.sin(t * 14)) : 0;
-    // dust
-    if (moving) for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(210,190,150,${.5 - i * .07})`; g.fillRect(x - 6 - i * 6 + Math.sin(t * 9 + i) * 2, y + 8 - i, 6 + i, 4); }
-    // horses (two pairs drawn as one team)
-    for (let k = 0; k < 3; k++) {
-      const hx = x + 46 + k * 18, leg = moving ? Math.round(Math.sin(t * 16 + k) * 2) : 0;
-      px(hx, y - 2 + bob, 13, 6, k % 2 ? '#5a3a24' : '#6e4a2c'); px(hx + 12, y - 6 + bob, 4, 6, '#5a3a24'); px(hx + 14, y - 7 + bob, 3, 3, '#4a2e1a');
-      px(hx + 1 + leg, y + 4, 2, 6, '#3a2616'); px(hx + 10 - leg, y + 4, 2, 6, '#3a2616');
-      px(hx - 6, y + bob, 7, 1, '#2a1d12');
-    }
-    // body
-    const by = y - 14 + bob;
-    px(x, by, 42, 18, '#9b2d20'); px(x + 2, by + 2, 38, 2, '#c94a35'); px(x + 6, by + 5, 10, 7, '#f0e2b6'); px(x + 22, by + 5, 10, 7, '#f0e2b6');
-    px(x - 2, by - 4, 46, 4, '#3a2616'); px(x + 4, by - 8, 30, 4, '#c2ae8a'); px(x + 8, by - 10, 12, 2, '#9c8a6a'); // luggage on top
-    if (S && S.seat === 'top' && S.act === 'stage') { px(x + 34, by - 12, 4, 8, '#2a1d12'); px(x + 33, by - 14, 6, 2, '#2a1d12'); }
-    px(x + 40, by + 2, 6, 8, '#3a2616'); // driver's box
-    px(x + 41, by - 5, 4, 7, '#4a3520'); px(x + 40, by - 7, 6, 2, '#2a1d12'); // driver
-    // wheels
-    for (const wx of [x + 6, x + 34]) {
-      g.fillStyle = '#2a1d12'; g.beginPath(); g.arc(wx, y + 6, 6, 0, 7); g.fill();
-      g.fillStyle = '#c2ae6c'; g.beginPath(); g.arc(wx, y + 6, 4, 0, 7); g.fill();
-      const a = moving ? t * 10 : 0; g.strokeStyle = '#2a1d12'; g.lineWidth = 1;
-      for (let s = 0; s < 3; s++) { const aa = a + s * Math.PI / 3; g.beginPath(); g.moveTo(wx - Math.cos(aa) * 4, y + 6 - Math.sin(aa) * 4); g.lineTo(wx + Math.cos(aa) * 4, y + 6 + Math.sin(aa) * 4); g.stroke(); }
-    }
-  }
-  function pony(t) {
-    const x = ((t * 140) % 420) - 60, y = 98, leg = Math.round(Math.sin(t * 22) * 2);
-    px(x, y, 11, 5, '#2a1d12'); px(x + 10, y - 4, 3, 5, '#2a1d12'); px(x + 3, y - 6, 3, 6, '#9b2d20'); px(x + 3, y - 8, 3, 2, '#e0c08a');
-    px(x + 1 + leg, y + 5, 1, 5, '#2a1d12'); px(x + 8 - leg, y + 5, 1, 5, '#2a1d12');
-  }
-  function station() { px(30, 92, 50, 22, '#7a5a3a'); px(26, 88, 58, 5, '#4a3520'); px(44, 102, 8, 12, '#2a1d12'); px(62, 98, 8, 6, '#e8c870'); px(52, 80, 4, 8, '#5a3f25'); }
-  function town(city, t) {
-    const base = 116;
-    for (let i = 0; i < (city ? 12 : 8); i++) {
-      const x = 4 + i * (city ? 27 : 38), h = city ? 28 + (i * 13) % 22 - i * 1.2 : 18 + (i * 7) % 12, yb = city ? base - i * 2 : base;
-      px(x, yb - h, city ? 24 : 30, h, ['#cfc3a8', '#b49470', '#e6dcc4', '#9e7a58'][i % 4]);
-      px(x - 1, yb - h - 3, city ? 26 : 32, 3, '#5a3f25');
-      for (let w = 0; w < 2; w++) px(x + 4 + w * 10, yb - h + 6, 5, 6, '#3a2a1a');
-      if (!city && i % 2 === 0) px(x - 1, yb - h - 10, 18, 8, '#e6dcc4'); // false front
-    }
-    if (opts.sign) { g.fillStyle = '#2a1d12'; g.font = '8px monospace'; g.fillText(opts.sign, 8, 140); }
-    if (opts.press) { px(250, 92, 52, 24, '#e6dcc4'); px(248, 88, 56, 5, '#2a1d12'); g.fillStyle = '#2a1d12'; g.font = '7px monospace'; g.fillText('ENTERPRISE', 252, 100); }
-  }
-  function mine(t) {
-    px(40, 70, 36, 34, '#6b5638'); px(50, 84, 14, 20, '#1b130d'); px(46, 80, 22, 4, '#5a3f25');
-    px(180, 56, 3, 50, '#4a3520'); px(206, 56, 3, 50, '#4a3520'); px(176, 56, 38, 3, '#4a3520');
-    g.fillStyle = '#3a2616'; g.beginPath(); g.arc(194, 52, 6, 0, 7); g.fill();
-    for (let i = 0; i < 8; i++) px(90 + i * 9, 104 - (i % 3) * 2, 7, 4, '#9a8b72');
-    if (opts.cabin) { px(250, 88, 40, 20, '#7a5a3a'); px(246, 84, 48, 5, '#4a3520'); px(264, 96, 8, 12, '#2a1d12'); px(282, 74, 4, 10, '#5a3f25'); g.fillStyle = 'rgba(220,220,220,.5)'; g.fillRect(282 + Math.sin(t) * 2, 66 - (t * 6 % 10), 4, 4); }
-    // a little miner swinging a pick
-    const sw = Math.sin(t * 5) > 0;
-    px(120, 106, 5, 8, '#3a4a6a'); px(120, 102, 5, 4, '#e0c08a'); px(119, 100, 7, 2, '#5a3f25');
-    px(sw ? 125 : 124, sw ? 100 : 104, 7, 1, '#2a1d12');
-  }
-  function ship(t) { const x = 190 + Math.sin(t * .4) * 4, y = 92 + Math.sin(t * 1.3); px(x, y, 46, 6, '#2a1d12'); px(x + 8, y - 26, 2, 26, '#4a3520'); px(x + 26, y - 30, 2, 30, '#4a3520'); px(x + 2, y - 22, 14, 16, '#f4ecd2'); px(x + 20, y - 26, 16, 20, '#f4ecd2'); }
-  function steamboat(t) { const x = 110, y = 90; px(x, y, 80, 6, '#f4ecd2'); px(x + 6, y - 8, 64, 8, '#f4ecd2'); px(x + 30, y - 14, 16, 6, '#f4ecd2'); px(x + 20, y - 30, 4, 22, '#2a1d12'); px(x + 28, y - 30, 4, 22, '#2a1d12'); px(x - 4, y - 4, 10, 10, '#9b2d20'); for (let i = 0; i < 3; i++) { g.fillStyle = `rgba(60,50,40,${.5 - i * .15})`; g.fillRect(x + 20 + i * 6 - (t * 6 % 6), y - 38 - i * 6, 8, 6); } }
-  requestAnimationFrame(n => { last = n; draw(n); });
-  return { set(r, o) { region = r; opts = o || {}; }, roll(ms) { rollUntil = performance.now() + ms; sfx('clop', ms); } };
-})();
+// The scene painter lives in art.js (loaded before this file): scene.set(region, opts), scene.roll(ms).
 
 // ---------------------------------------------------------------- sound
 let AC = null, muted = localStorage.getItem('roughing-it-mute') === '1';
