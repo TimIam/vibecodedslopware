@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Brush, Evaluator, INTERSECTION } from 'three-bvh-csg';
 import { SPECIES, LOCATIONS, TOOLS, NOTCH_PRESETS } from './data.js';
-import { World, wind } from './world.js';
+import { World, wind, shadowRes, disposeGeometry } from './world.js';
 import { TreeModel } from './tree.js';
 import { Felling } from './physics.js';
 import { Rig, Chips, AXE_T } from './tools.js';
@@ -20,7 +20,8 @@ const money = (v) => (v < 0 ? '−$' : '$') + Math.abs(Math.round(v)).toLocaleSt
 
 // ---------------- renderer ----------------
 const canvas = $('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+// no MSAA on the canvas: the composer draws into its own targets and only a full-screen quad reaches it
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -282,10 +283,11 @@ function startJob(loc) {
   selectTree(0);
 }
 
+// take a helper object out of the scene and free its geometry
+const drop = (o) => { if (o) { o.parent?.remove(o); disposeGeometry(o); } return null; };
 function cleanupTree() {
   G.rig?.dispose(); G.rig = null;
-  G.guides?.parent?.remove(G.guides); G.guides = null;
-  G.preview?.parent?.remove(G.preview); G.preview = null;
+  G.guides = drop(G.guides); G.preview = drop(G.preview);
   sfx.sawStop();
   G.felling = null; G.tree = null;
   clearTimeout(G.resultTimer);
@@ -315,7 +317,7 @@ function selectTree(i) {
   G.chopN = 0;
   f.cut.back.step = job.tool.kind === 'axe' ? 0.05 : 0;
   G.step = 'sizeup'; G.activeCut = 'top'; G.cutStarted = false; G.csgDirty = true; G.csgT = 0;
-  G.creakT = 1; G.retreatWarned = false; G.blockMsg = 0;
+  G.creakT = 1; G.retreatWarned = false; G.blockMsg = 0; G.wedgeHinted = false;
   buildGuides();
   camTo('sizeup');
   renderPanel(); renderJobCard();
@@ -371,7 +373,7 @@ function arrowHead(x0, z0, az, d, size, color) {
   return new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, depthWrite: false, transparent: true, fog: false }));
 }
 function buildGuides() {
-  G.guides?.parent?.remove(G.guides);
+  drop(G.guides);
   const tr = G.tree, s = tr.spec, g = new THREE.Group();
   const az = tr.aim;
   g.add(ribbon(groundPath(s.x, s.z, az, tr.Rc + 0.4, tr.H - 1, 0.6), 0.16, 0xff6b1a));
@@ -395,7 +397,7 @@ function quad(a, b, c, d) {
 const previewMat = new THREE.MeshBasicMaterial({ color: 0xff6b1a, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false });
 const previewMat2 = new THREE.MeshBasicMaterial({ color: 0x8fd16a, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false });
 function buildPreview() {
-  G.preview?.parent?.remove(G.preview);
+  G.preview = drop(G.preview);
   if (!['notch', 'back'].includes(G.step)) return;
   const tr = G.tree, c = G.felling.cut, n = c.notch, Rc = tr.Rc, h0 = tr.h0, Z = Rc + 0.08;
   const xA = Rc - n.target, X = Rc + 0.12;
@@ -532,6 +534,7 @@ function showAction() {
   $('hold').disabled = false;
   show('meter', axe);
   $('wedgeBtn').hidden = !(G.step === 'back' && save.owned.includes('wedges'));
+  $('wedgeBtn').className = 'side-btn'; delete $('wedgeBtn').dataset.state;
   $('retreat').classList.remove('urgent');
   $('retreat').innerHTML = '<kbd>R</kbd>Retreat';
   if (axe) { const sw = $('meter').querySelector('.sweet'); sw.style.left = (50 - job.tool.sweet * 50) + '%'; sw.style.width = job.tool.sweet * 100 + '%'; }
@@ -594,11 +597,27 @@ function walkBackIn() {
   $('retreat').innerHTML = '<kbd>R</kbd>Retreat';
   toast('Back at the stump.');
 }
+// a wedge needs a few inches of back cut to sit in
+function wedgeDepthOK(f) {
+  const prog = f.cut.method === 'bore' ? (f.cut.bore?.strapCut || 0) + 0.25 : f.cut.back.progress;
+  return prog >= Math.min(0.12, G.tree.Rc * 0.6);
+}
+// The wedge button is dim until the cut will take a wedge, then green and pulsing while the tree needs lifting
+// (leaning back or sitting near vertical), red once the kerf has closed on the bar, plain green when it's optional.
+function updateWedgeBtn() {
+  const b = $('wedgeBtn'), f = G.felling, tr = G.tree;
+  if (b.hidden || !f || f.phase !== 'standing') return;
+  const lean = f.driving(new THREE.Vector2()).x, oneDeg = tr.mass * 9.81 * tr.hc * 0.017;
+  const wasGo = b.dataset.state === 'go';
+  const state = !wedgeDepthOK(f) ? 'wait' : f.pinched ? 'urgent' : (wasGo ? lean < oneDeg : lean < 0) ? 'go' : 'ready';
+  if (b.dataset.state === state) return;
+  b.dataset.state = state; b.className = 'side-btn ' + state;
+  if (state === 'go' && !G.wedgeHinted) { G.wedgeHinted = true; toast('The back cut will take a wedge now. Drive it in (E) to lift the tree.', 'ok'); }
+}
 function driveWedge() {
   const f = G.felling;
   if (!f || G.step !== 'back' || !save.owned.includes('wedges')) return;
-  const prog = f.cut.method === 'bore' ? (f.cut.bore?.strapCut || 0) + 0.25 : f.cut.back.progress;
-  if (prog < Math.min(0.12, G.tree.Rc * 0.6)) { toast('The back cut isn\'t deep enough to set a wedge yet.'); return; }
+  if (!wedgeDepthOK(f)) { toast('The back cut isn\'t deep enough to set a wedge yet.'); return; }
   if (f.wedges < 3 && f.wedgeLift >= f.wedges * 0.012) { f.wedges++; G.rig.addWedge(f.cut, f.wedges - 1); }
   const maxLift = f.wedges * 0.022;
   const hard = f.pinched ? 0.6 : 1;
@@ -779,7 +798,7 @@ function onRelease() {
   } else {
     tr.split(f.cut);
   }
-  G.preview?.parent?.remove(G.preview); G.preview = null;
+  G.preview = drop(G.preview);
   banner('TIMBER!', f.player.retreating ? 'Keep walking' : 'Retreat — press R', 2200);
   if (!f.player.retreating) $('retreat').classList.add('urgent');
   $('hold').disabled = true; show('meter', false); $('wedgeBtn').hidden = true;
@@ -1113,7 +1132,7 @@ function frame(dt) {
       if (fc.t > 3) G.faceChunk = null;
     }
     if (G.step === 'falling' && !f.player.retreating && G.time - G.releaseAt > 2 && !G.retreatWarned) { G.retreatWarned = true; toast('Get off the stump!', 'bad'); }
-    planT -= dt; if (planT <= 0) { drawPlan(); refreshBackReadout(); planT = 0.07; }
+    planT -= dt; if (planT <= 0) { drawPlan(); refreshBackReadout(); updateWedgeBtn(); planT = 0.07; }
   }
   if (G.mode === 'harvest') harvester?.update(dt);
   if (G.mode === 'menu' && world) {
@@ -1151,14 +1170,20 @@ function renderView(dt) {
   if (camera.fov !== 55 && fovKick <= 0.01) { camera.fov = 55; camera.updateProjectionMatrix(); }
 }
 
-// Drop ambient occlusion, then resolution, if the frame rate can't keep up.
+// If the frame rate sits under ~45 fps, step quality down one notch at a time, least visible first.
+const QUALITY_STEPS = [
+  () => pixelRatio > 1.25 && (pixelRatio = 1.25, resize(), 'render scale 1.25×'),
+  () => post?.aoOn && post.aoQuality !== 'Low' && (post.setAOQuality('Low'), 'ambient occlusion low'),
+  () => pixelRatio > 1 && (pixelRatio = 1, resize(), 'render scale 1×'),
+  () => shadowRes.value > 2048 && (shadowRes.value = 2048, world && (world.sun.shadow.dispose(), world.sun.shadow.map = null, world.sun.shadow.mapSize.setScalar(2048)), 'shadow map 2048'),
+  () => post?.aoOn && (post.setAO(false), 'ambient occlusion off'),
+];
 let frameEma = 1 / 60, qualityT = 0;
 function watchQuality(raw) {
   frameEma += (raw - frameEma) * 0.03;
   qualityT += raw;
-  if (qualityT < 4) return;
-  if (frameEma > 0.03 && post?.aoOn) { post.setAO(false); qualityT = 0; console.info('Timberline: ambient occlusion off for frame rate'); }
-  else if (frameEma > 0.036 && pixelRatio > 1) { pixelRatio = 1; resize(); qualityT = 0; console.info('Timberline: render scale 1×'); }
+  if (qualityT < 3 || frameEma < 0.022) return;
+  for (const step of QUALITY_STEPS) { const done = step(); if (done) { qualityT = 0; console.info('Timberline: ' + done + ' for frame rate'); return; } }
 }
 
 function toMenu() {

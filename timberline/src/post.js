@@ -51,6 +51,8 @@ export async function createPost(renderer, scene, camera) {
     composer, finish,
     get aoOn() { return !!ao && ao.enabled; },
     setAO(on) { if (!ao) return; ao.enabled = on; render.enabled = !on; },
+    aoQuality: ao ? 'Medium' : null,
+    setAOQuality(mode) { if (!ao) return; ao.setQualityMode(mode); this.aoQuality = mode; },
     setSize(w, h, pr) { composer.setPixelRatio(pr); composer.setSize(w, h); },
     render(dt) { finish.uniforms.time.value += dt; composer.render(dt); },
   };

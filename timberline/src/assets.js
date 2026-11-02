@@ -2,6 +2,8 @@
 // so the game still runs if a model is missing.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { SimplifyModifier } from 'three/addons/modifiers/SimplifyModifier.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rockMaterial } from './textures.js';
 
 const NAMES = ['axe', 'chainsaw', 'harvester', 'wedge', 'crown_conifer', 'crown_broadleaf', 'rock', 'faller'];
@@ -11,6 +13,7 @@ function fixMaterials(root) {
   root.traverse((o) => {
     if (!o.isMesh) return;
     o.castShadow = true; o.receiveShadow = true;
+    o.geometry.userData.shared = true; // clones and instances reuse it; disposeGeometry leaves it alone
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     for (const m of mats) {
       if (m.name?.toLowerCase().includes('glass')) { m.transparent = true; m.opacity = Math.min(m.opacity ?? 1, 0.35); m.depthWrite = false; }
@@ -66,9 +69,25 @@ export const assets = {
       });
     }
     this[key] = out.length ? out : fallback();
+    for (const p of this[key]) p.geometry.userData.shared = true;
     return this[key];
   },
   crownParts(kind) { return this.parts('crown_' + kind, () => (kind === 'conifer' ? fallbackConifer() : fallbackBroadleaf())); },
+  // The same crowns with about a fifth of the triangles, for the background ring 50 m and more out in the haze.
+  crownPartsFar(kind) {
+    const key = '_far_' + kind;
+    return (this[key] ||= this.crownParts(kind).map((p) => {
+      const tris = (p.geometry.index ? p.geometry.index.count : p.geometry.attributes.position.count) / 3;
+      if (tris < 200) return p;
+      try {
+        const g = mergeVertices(p.geometry.clone().deleteAttribute('normal')); // weld hard-edge splits so it can collapse across them
+        const geometry = new SimplifyModifier().modify(g, Math.floor(g.attributes.position.count * 0.78));
+        geometry.computeVertexNormals();
+        geometry.userData.shared = true;
+        return { ...p, geometry };
+      } catch { return p; }
+    }));
+  },
   rockParts() {
     const parts = this.parts('rock', fallbackRocks);
     for (const p of parts) if (!p.centered) { p.matrix.elements[12] = 0; p.matrix.elements[14] = 0; p.centered = true; } // rocks are laid out side by side in the file

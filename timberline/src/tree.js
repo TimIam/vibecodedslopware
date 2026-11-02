@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { Brush, Evaluator, ADDITION, SUBTRACTION, INTERSECTION } from 'three-bvh-csg';
 import { barkMaterial, endGrainMaterial } from './textures.js';
 import { assets } from './assets.js';
-import { BARK_TONE } from './world.js';
+import { BARK_TONE, disposeGeometry } from './world.js';
 
 const KERF = 0.009;
 const evaluator = new Evaluator();
@@ -247,6 +247,7 @@ export class TreeModel {
       const b = new Brush(g, this.endMat); b.updateMatrixWorld();
       result = evaluator.evaluate(result, b, SUBTRACTION);
     }
+    if (this.buttMesh.geometry !== this.buttGeo) this.buttMesh.geometry.dispose(); // the previous cut's mesh
     this.cutResult = result;
     this.buttMesh.geometry = result.geometry;
     this.buttMesh.material = result.material;
@@ -310,7 +311,7 @@ export class TreeModel {
   }
   upperPoint(yLocal, target = new THREE.Vector3()) { target.set(0, yLocal - this.breakY, 0); return this.upper.localToWorld(target); }
 
-  dispose() { this.root.parent?.remove(this.root); }
+  dispose() { this.root.parent?.remove(this.root); disposeGeometry(this.root); }
 }
 
 // rotation that tilts +Y toward local direction t (2D: x forward, y=z side) by |t| radians

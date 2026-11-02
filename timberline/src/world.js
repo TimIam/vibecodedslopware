@@ -15,6 +15,8 @@ const lerp = (a, b, t) => a + (b - a) * t;
 // overall bark tone per bark style, used to tint the crown models' branches to match their trunks
 export const BARK_TONE = { birch: 0xd9d4c8, aspen: 0xb9bca8, pine: 0x6e4c38, spruce: 0x5c4b3f, ponderosa: 0x8a5b3c, dfir: 0x5b4231, cedar: 0x7c4b36, oak: 0x4b3b2d, ash: 0x77746b, maple: 0x6a6258 };
 export const wind = { value: new THREE.Vector2(0, 0.01) };
+// sun shadow map resolution; the game's auto-quality may lower it
+export const shadowRes = { value: 4096 };
 // A clone of a material whose vertices sway with height (local y from 0 at the base up), phased per instance.
 function swaying(mat, power, amp) {
   const key = `_sway${power}_${amp}`;
@@ -55,6 +57,7 @@ export class World {
   constructor(scene, renderer, loc, seed) {
     this.scene = scene; this.loc = loc; this.seed = seed;
     this.group = new THREE.Group(); scene.add(this.group);
+    this.ownTextures = [];
     this.r = rng(seed);
     const n = makeNoise(seed);
     const slope = Math.tan(THREE.MathUtils.degToRad(loc.slope));
@@ -103,7 +106,7 @@ export class World {
     const sunLight = new THREE.DirectionalLight(0xffe4c0, 3.1);
     sunLight.position.copy(sun).multiplyScalar(80);
     sunLight.castShadow = true;
-    sunLight.shadow.mapSize.set(4096, 4096);
+    sunLight.shadow.mapSize.setScalar(shadowRes.value);
     const c = sunLight.shadow.camera; c.left = -40; c.right = 40; c.top = 40; c.bottom = -40; c.near = 1; c.far = 260;
     sunLight.shadow.bias = -0.0004; sunLight.shadow.normalBias = 0.04; sunLight.shadow.radius = 2.5; sunLight.shadow.blurSamples = 12;
     this.group.add(sunLight); this.group.add(sunLight.target);
@@ -216,8 +219,6 @@ export class World {
       bg.push(this.makeTreeSpec(Math.cos(a) * d, Math.sin(a) * d, false));
     }
     const all = specs.concat(bg);
-    const byCrown = { conifer: [], broadleaf: [] };
-    for (const s of all) byCrown[s.sp.crown].push(s);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3();
     const up = new THREE.Vector3(0, 1, 0), tint = new THREE.Color();
     // trunks: one instanced tapered cylinder per bark style
@@ -226,6 +227,7 @@ export class World {
     const trunkGeo = new THREE.CylinderGeometry(0.12, 1, 1, 10, 1, true); trunkGeo.translate(0, 0.5, 0);
     for (const [bark, list] of Object.entries(byBark)) {
       const mat = barkMaterial(bark).clone(); mat.map = mat.map.clone(); mat.map.repeat.set(1, 6); mat.normalMap = mat.normalMap.clone(); mat.normalMap.repeat.set(1, 6);
+      this.ownTextures.push(mat.map, mat.normalMap);
       const im = new THREE.InstancedMesh(trunkGeo, mat, list.length);
       list.forEach((s, i) => {
         const tilt = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(Math.sin(s.lean.az), 0, -Math.cos(s.lean.az)), THREE.MathUtils.degToRad(s.lean.deg) * 0.5);
@@ -239,9 +241,17 @@ export class World {
       im.castShadow = true; im.receiveShadow = true;
       this.group.add(im);
     }
+    // crowns: the stand at full detail with shadows; the background ring (out past the shadow camera, in the haze)
+    // at low detail without them, split into sectors so the ones behind the camera get frustum-culled
+    const SECTORS = 8, sector = (s) => Math.floor((Math.atan2(s.z, s.x) / (Math.PI * 2) + 0.5) * SECTORS) % SECTORS;
+    const crownSets = [];
     for (const kind of ['conifer', 'broadleaf']) {
-      const list = byCrown[kind]; if (!list.length) continue;
-      const parts = assets.crownParts(kind);
+      crownSets.push({ kind, list: specs.filter((s) => s.sp.crown === kind), far: false });
+      for (let k = 0; k < SECTORS; k++) crownSets.push({ kind, list: bg.filter((s) => s.sp.crown === kind && sector(s) === k), far: true });
+    }
+    for (const { kind, list, far } of crownSets) {
+      if (!list.length) continue;
+      const parts = far ? assets.crownPartsFar(kind) : assets.crownParts(kind);
       for (const part of parts) {
         const branch = /bark|branch|wood/i.test(part.material.name || "");
         const baseCol = part.material.color || new THREE.Color(1, 1, 1);
@@ -262,7 +272,7 @@ export class World {
           } else im.setColorAt(i, tint.setRGB(l * (1 + w), l * (1 + w * 0.3), l * (1 - w)));
           (s._inst ||= []).push([im, i]);
         });
-        im.castShadow = true; im.receiveShadow = true;
+        im.castShadow = im.receiveShadow = !far;
         this.group.add(im);
       }
     }
@@ -300,6 +310,7 @@ export class World {
     }
     // grass / fern cards
     const tex = grassTexture();
+    this.ownTextures.push(tex);
     const mat = swaying(new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1, color: 0xb8c4a0 }), 1.5, 9);
     const g1 = new THREE.PlaneGeometry(1, 0.7); g1.translate(0, 0.35, 0);
     const g2 = g1.clone().rotateY(Math.PI / 2);
@@ -403,11 +414,20 @@ export class World {
     for (const [im, i] of s._inst || []) { im.setMatrixAt(i, zero); im.instanceMatrix.needsUpdate = true; }
   }
 
+  // Free what this world put on the GPU: its geometry (not the shared model meshes), its own textures,
+  // the sky environment map and the 4096² shadow map, which would otherwise pile up job after job.
   dispose() {
     this.scene.remove(this.group);
-    this.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    disposeGeometry(this.group);
+    for (const t of this.ownTextures) t.dispose();
+    this.sun.shadow.dispose();
+    this.envMap.dispose();
     this.scene.environment = null;
   }
+}
+
+export function disposeGeometry(root) {
+  root.traverse((o) => { if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose(); });
 }
 
 export function distToSeg2(x, z, a, b) {

@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { assets } from './assets.js';
 import { Faller, makeCapsuleFaller } from './faller.js';
+import { disposeGeometry } from './world.js';
 
 // grip points in each tool's own model space (see the handle geometry in tools/blender/build_assets.py)
 const SAW_REAR_GRIP = new THREE.Vector3(-0.05, -0.004, 0.0);
@@ -265,7 +266,9 @@ export class Rig {
   driveWedges(depth) { for (const w of this.wedgeMeshes) w.position.x = -this.tree.Rc - 0.02 + depth; }
 
   update(dt) { this.dt = dt; this.particles.update(dt); this.updateMark(dt); this.fig?.tick(dt); }
-  dispose() { this.group.parent?.remove(this.group); this.faller.parent?.remove(this.faller); this.particles.points.parent?.remove(this.particles.points); }
+  dispose() {
+    for (const o of [this.group, this.faller, this.particles.points]) { o.parent?.remove(o); disposeGeometry(o); }
+  }
 }
 
 // soft round sprite shared by all particle systems

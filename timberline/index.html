@@ -156,6 +156,14 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .side-btn kbd { background: rgba(255,255,255,0.1); box-shadow: inset 0 -2px 0 rgba(0,0,0,0.35); color: var(--bone-dim); }
 #retreat.urgent { background: var(--bad); border-color: transparent; color: white; animation: pulse 0.5s infinite alternate var(--ease); box-shadow: 0 0 0 0 var(--bad), 0 0 30px color-mix(in srgb, var(--bad) 70%, transparent); }
 #retreat.urgent kbd { color: #fff; background: rgba(0,0,0,0.2); }
+#wedgeBtn { transition: background 0.25s, border-color 0.25s, color 0.25s, opacity 0.25s, transform 0.12s var(--ease); }
+#wedgeBtn.wait { opacity: 0.45; }
+#wedgeBtn.ready { border-color: color-mix(in srgb, var(--ok) 75%, transparent); color: var(--ok); }
+#wedgeBtn.go { background: var(--ok); border-color: transparent; color: #11200a; animation: wedgego 0.55s infinite alternate var(--ease); }
+#wedgeBtn.go kbd { color: #11200a; background: rgba(0,0,0,0.14); }
+#wedgeBtn.urgent { background: var(--bad); border-color: transparent; color: #fff; animation: pulse 0.5s infinite alternate var(--ease); }
+#wedgeBtn.urgent kbd { color: #fff; background: rgba(0,0,0,0.2); }
+@keyframes wedgego { to { transform: scale(1.07); box-shadow: 0 0 0 8px color-mix(in srgb, var(--ok) 25%, transparent), 0 0 36px var(--ok); } }
 @keyframes pulse { to { transform: scale(1.07); box-shadow: 0 0 0 8px color-mix(in srgb, var(--bad) 25%, transparent), 0 0 40px var(--bad); } }
 #meter { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(92px + env(safe-area-inset-bottom, 0px)); width: 320px; height: 14px; border-radius: 99px; background: rgba(10, 14, 12, 0.7); box-shadow: inset 0 0 0 1px var(--stroke-2), var(--shadow); backdrop-filter: blur(10px); overflow: visible; }
 #meter .sweet { position: absolute; top: 2px; bottom: 2px; border-radius: 99px; background: linear-gradient(90deg, color-mix(in srgb, var(--ok) 40%, transparent), color-mix(in srgb, var(--ok) 85%, transparent), color-mix(in srgb, var(--ok) 40%, transparent)); box-shadow: 0 0 14px color-mix(in srgb, var(--ok) 50%, transparent); }
