@@ -69,11 +69,21 @@ kbd{display:inline-block;min-width:22px;padding:1px 6px;border:1px solid #b9b39c
 #overS div{display:grid}
 #overS b{font-size:22px}
 #overS span{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:#5f6a55}
-#paused .card{cursor:pointer}
+.settings{display:grid;gap:8px;margin:16px auto 0;max-width:400px;text-align:left;font-size:13.5px;background:#f3ecdb;border-radius:12px;padding:12px 14px}
+.settings label{display:grid;grid-template-columns:120px 1fr 44px;align-items:center;gap:10px}
+.settings input[type=range]{width:100%;accent-color:#a8452a}
+.settings b{font-variant-numeric:tabular-nums;text-align:right;font-size:12.5px}
+.settings .view{display:flex;align-items:center;gap:8px}
+.settings .view span{width:120px}
+.settings .view button{flex:1;appearance:none;border:1px solid #c9bfa6;background:#fbf8ef;border-radius:9px;padding:6px 8px;font:600 12.5px/1.2 inherit;font-family:inherit;color:#3c4634;cursor:pointer}
+.settings .view button.on{background:#2f3b28;border-color:#2f3b28;color:#f3ead2}
+#softnote{top:102px;left:50%;transform:translateX(-50%);font-size:12.5px;font-weight:600;color:#fff;background:rgba(20,30,15,.55);padding:5px 12px;border-radius:999px;white-space:nowrap}
+#softnote[hidden]{display:none}
+body.playing.soft #game{cursor:crosshair}
 .mouse-only{font-size:12.5px;color:#7a6f55;margin-top:12px!important}
 @media (max-width:700px){#hint{display:none}#stats{gap:10px}#cutbox{transform:scale(.8);transform-origin:left bottom}}
 </style>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.min.js"}}</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"}}</script>
 </head>
 <body>
 <nav class="site-topbar" aria-label="Site">
@@ -97,20 +107,21 @@ kbd{display:inline-block;min-width:22px;padding:1px 6px;border:1px solid #b9b39c
   <div class="bar" id="strain"><i></i></div>
   <small><span>strain</span><span id="strainLbl">untouched</span></small>
 </div>
-<div id="stuck" class="hud">STUCK: pull it back out<i></i></div>
+<div id="stuck" class="hud"><span id="stuckT">STUCK: pull it back out</span><i></i></div>
 <div id="stamLbl" class="hud">stamina</div>
 <div id="stam" class="hud"><i></i></div>
 <div id="warn" class="hud"></div>
+<div id="softnote" class="hud" hidden>Mouse not captured: the axe follows your pointer. Click the game to capture it.</div>
 <div id="pops" class="hud"></div>
 <div id="hint" class="hud pill">
   <kbd>mouse</kbd> hands · hold <kbd>LMB</kbd> to swing hard<br>
   <kbd>W</kbd><kbd>S</kbd> step in/out · <kbd>A</kbd><kbd>D</kbd> circle · <kbd>Shift</kbd> run<br>
-  <kbd>R</kbd> new clearing · <kbd>[</kbd><kbd>]</kbd> mouse speed · <kbd>M</kbd> mute
+  <kbd>V</kbd> view · <kbd>R</kbd> new clearing · <kbd>M</kbd> mute · <kbd>Esc</kbd> settings
 </div>
 
 <div id="title" class="overlay">
-  <div class="card">
-    <h1>Fell <em>Swoop</em> <span class="demo">DEMO</span></h1>
+  <div class="card" id="titleCard">
+    <h1 id="titleCardH">Fell <em>Swoop</em> <span class="demo">DEMO</span></h1>
     <p>Six pines. One heavy axe. The mouse is your hands, the axe has weight, and nothing swings for you.</p>
     <div class="keys">
       <span class="k"><kbd>mouse</kbd></span><span>move your hands; the axe follows, a beat behind</span>
@@ -120,12 +131,18 @@ kbd{display:inline-block;min-width:22px;padding:1px 6px;border:1px solid #b9b39c
     </div>
     <p class="tip">Wind up wide, then hold the button and swing <b>through</b> the trunk, edge first. When it bites, pull it back out.
       A tree falls toward the side you chopped out: cut a deep notch on the side you want it to land, finish from the other side, and step clear.</p>
+    <div class="settings" id="settings">
+      <label><span>Mouse sensitivity</span><input type="range" id="setSens" min="35" max="300" step="5"><b id="setSensV"></b></label>
+      <label><span>Music</span><input type="range" id="setMusic" min="0" max="100" step="5"><b id="setMusicV"></b></label>
+      <label><span>Sound effects</span><input type="range" id="setSfx" min="0" max="100" step="5"><b id="setSfxV"></b></label>
+      <div class="view"><span>View</span><button type="button" data-view="first">First person</button><button type="button" data-view="third">Third person</button></div>
+    </div>
     <button class="go" id="start">Start chopping</button>
-    <p class="mouse-only">Needs a mouse. Esc to pause.</p>
+    <p class="mouse-only">Needs a mouse. Esc pauses and opens these settings.</p>
   </div>
 </div>
 <div id="paused" class="overlay" hidden>
-  <div class="card"><h2>Paused</h2><p>Click to pick the axe back up.</p></div>
+  <div class="card" id="pauseCard"><h2>Paused</h2><button class="go" id="resume">Keep chopping</button></div>
 </div>
 <div id="over" class="overlay" hidden>
   <div class="card">

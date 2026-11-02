@@ -9,7 +9,7 @@ export const GRIP_LOCAL = new THREE.Vector3(0, 0.1, 0);      // bottom hand: whe
 export const TOP_HAND_LOCAL = new THREE.Vector3(0, 0.31, 0);
 export const REACH = 0.64;                                   // chest to bottom hand, arms straight
 const K_PEN = 0.00011;    // metres of bite per joule of square, edge-first impact
-const K_HOLD = 3200;      // newtons of grip the wood has per metre of bite
+const K_HOLD = 2600;      // newtons of grip the wood has per metre of bite
 const EDGE = [[0.104, 0.708], [0.113, 0.746], [0.1175, 0.79], [0.113, 0.834], [0.104, 0.872]];
 const SAMPLES = [
   ...EDGE.map(([x, y]) => ({ p: new THREE.Vector3(x, y, 0), kind: 'edge' })),
@@ -108,7 +108,7 @@ export class Axe {
     this.topRel = TOP_HAND_LOCAL.clone().sub(this.comL);
     this.headRel = new THREE.Vector3(0.06, HEAD_Y, 0).sub(this.comL);
     this.edgeRel = new THREE.Vector3(0.1175, HEAD_Y, 0).sub(this.comL);
-    this.mode = 'held'; this.stuck = null; this.grace = 0; this.graceTree = null; this.sleep = 0;
+    this.mode = 'held'; this.stuck = null; this.sleep = 0; this.effort = 0;
     this.F = new THREE.Vector3(); this.T = new THREE.Vector3(); this.reachJ = new THREE.Vector3();
     this.events = [];
     this.group = new THREE.Group();
@@ -169,7 +169,6 @@ export class Axe {
 
   step(h, tgt, env) {
     this.updateInertia();
-    if (this.grace > 0) this.grace -= h;
     if (this.mode === 'stuck') { this.stepStuck(h, tgt); return; }
     if (this.mode === 'free' && this.sleep > 0.4) { this.F.set(0, 0, 0); this.T.set(0, 0, 0); return; }
     this.xPrev.copy(this.x); this.qPrev.copy(this.q);
@@ -203,38 +202,56 @@ export class Axe {
     }
   }
 
+  // Every sample point is checked against the ground, standing wood and fallen logs, a few passes
+  // per substep, so pushing one point out of the wood can't leave another one in it unnoticed.
   collide(h, tgt, env) {
-    for (const s of this.samples) {
-      const p = this.toWorld(s.rel, _p);
-      if (p.y < 0) { this.groundContact(s, p, tgt); return; }
-      for (const tree of env.trees) {
-        if (this.grace > 0 && tree === this.graceTree) continue;
-        if (tree.solidAt(p.x, p.y, p.z)) { this.trunkContact(s, p, tree, tgt); return; }
-        if (tree.state !== 'standing') {
-          const pen = tree.logContact(p, _n);
-          if (pen > 0) { this.x.addScaledVector(_n, pen); this.hitSurface(s, p, _n, null, tgt, 0.2); return; }
+    for (let pass = 0; pass < 3; pass++) {
+      let hit = false;
+      for (const s of this.samples) {
+        const p = this.toWorld(s.rel, _p);
+        if (p.y < 0) { this.groundContact(s, p, tgt); if (this.mode === 'stuck') return; hit = true; continue; }
+        const prev = _pp.copy(s.rel).applyQuaternion(this.qPrev).add(this.xPrev);
+        for (const tree of env.trees) {
+          let inside = tree.solidAt(p.x, p.y, p.z);
+          if (!inside && pass === 0) {
+            // A fast point can hop over thin wood in one substep: look halfway along its move too.
+            _sp.lerpVectors(prev, p, 0.5);
+            if (tree.solidAt(_sp.x, _sp.y, _sp.z)) { this.x.add(_tmp.subVectors(_sp, p)); p.copy(_sp); inside = true; }
+          }
+          if (inside) {
+            this.woodContact(s, p, prev, tree, tgt);
+            if (this.mode === 'stuck') return;
+            hit = true; break;
+          }
+          if (tree.state !== 'standing') {
+            const pen = tree.logContact(p, _n);
+            if (pen > 0) { this.x.addScaledVector(_n, pen); this.hitSurface(s, p, _n, null, tgt, 0.2, pass === 0); hit = true; break; }
+          }
         }
       }
+      if (!hit) break;
     }
   }
 
-  trunkContact(s, p, tree, tgt) {
-    _n.set(p.x - tree.x, 0, p.z - tree.z);
-    const rho = _n.length(); if (rho < 1e-6) _n.set(1, 0, 0); else _n.divideScalar(rho);
+  woodContact(s, p, prev, tree, tgt) {
+    const n = tree.normalAt(p.x, p.y, p.z, _n);
     const vp = this.pointVel(p, _vp);
-    if (s.kind === 'edge' && this.mode === 'held' && vp.dot(this.axisW(0, _bx)) > 1.2 && this.chop(p, vp, _n, tree, tgt, s)) return;
-    const prev = _pp.copy(s.rel).applyQuaternion(this.qPrev).add(this.xPrev);
-    if (!tree.solidAt(prev.x, prev.y, prev.z)) {
-      // Fresh contact: undo this substep's move, then knock the velocity back off the wood.
-      this.x.copy(this.xPrev); this.q.copy(this.qPrev); this.updateInertia();
-      this.hitSurface(s, p, _n, tree, tgt, s.kind === 'handle' ? 0.35 : 0.25, s.kind !== 'edge');
-    } else {
-      // Already inside (left there by a bite): ease it out toward the chest and kill motion inward.
-      _d.subVectors(tgt.chest, p).setY(0).normalize().add(_n).normalize();
-      this.x.addScaledVector(_d, 0.003);
-      const vin = this.pointVel(p, _vp).dot(_d);
-      if (vin < 0) this.applyImpulse(_J.copy(_d).multiplyScalar(-vin * this.effMass(p, _d)), p);
+    const fresh = !tree.solidAt(prev.x, prev.y, prev.z);
+    if (fresh && s.kind === 'edge' && this.mode === 'held' && vp.dot(this.axisW(0, _bx)) > 1.2 && this.chop(p, vp, n, tree, tgt, s)) return;
+    // Push it straight back out of the wood along the surface normal, then take away the speed into it.
+    let d = 0;
+    while (d < 0.05 && tree.solidAt(p.x + n.x * d, p.y + n.y * d, p.z + n.z * d)) d += 0.003;
+    this.x.addScaledVector(n, d + 0.001); p.addScaledVector(n, d + 0.001);
+    this.hitSurface(s, p, n, tree, tgt, s.kind === 'handle' ? 0.3 : 0.2, fresh && s.kind !== 'edge');
+  }
+
+  // Is any part of the axe inside this tree's wood (or, with no tree, under the ground)?
+  embedded(tree) {
+    for (const s of this.samples) {
+      const p = this.toWorld(s.rel, _p);
+      if (tree ? tree.solidAt(p.x, p.y, p.z) : p.y < 0) return true;
     }
+    return false;
   }
 
   hitSurface(s, p, n, tree, tgt, rest, report = true) {
@@ -329,7 +346,8 @@ export class Axe {
       if (st.wsgn !== 0) { st.hold *= 0.84; this.emit({ type: 'wiggle' }); }
       st.wsgn = Math.sign(side);
     }
-    if (effort > 0.45 * st.hold) st.hold -= (effort - 0.45 * st.hold) * h * 1.5;
+    // Any steady pull works it loose in the end; tensing just gets it out sooner.
+    if (effort > 0.2 * st.hold) st.hold -= effort * h * 0.9;
     st.strain = Math.min(1.5, effort / Math.max(1, st.hold));
     st.flex += (Math.max(-1, Math.min(1, side / 220)) * 0.045 - st.flex) * Math.min(1, h * 30);
     st.flex2 += (Math.max(-1, Math.min(1, _lat.dot(st.e) / 260)) * 0.035 - st.flex2) * Math.min(1, h * 30);
@@ -340,9 +358,10 @@ export class Axe {
   release(speed, yank) {
     const st = this.stuck; if (!st) return;
     this.mode = 'held'; this.stuck = null;
+    // Slide it back out along the bite until no part of the head is left in the wood.
+    this.x.addScaledVector(st.u, -0.004);
+    for (let i = 0; i < 20 && this.embedded(st.tree); i++) this.x.addScaledVector(st.u, -0.005);
     this.v.copy(st.u).multiplyScalar(-speed); this.w.set(0, 0, 0);
-    this.x.addScaledVector(st.u, -0.006);
-    this.grace = 0.15; this.graceTree = st.tree;
     if (yank) this.emit({ type: 'yank', tree: st.tree, depth: st.depth });
   }
 

@@ -95,6 +95,23 @@ export class Tree {
     return lx * lx + lz * lz < r * r;
   }
 
+  // Outward surface normal at a point in the wood: away from where the wood is, read off the
+  // bitmaps, so the floor and faces of a notch push the axe out the right way. Radial when the
+  // neighbourhood is all wood or all air.
+  normalAt(px, py, pz, out) {
+    const d = this.cs * 1.6, dy = SLICE_H * 1.6;
+    let gx = 0, gy = 0, gz = 0;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) {
+      if ((a || b || c) && this.solidAt(px + a * d, py + b * dy, pz + c * d)) { gx -= a; gy -= b; gz -= c; }
+    }
+    const lx = px - this.x, lz = pz - this.z, rho = Math.hypot(lx, lz) || 1;
+    _rad.set(lx / rho, 0, lz / rho);
+    out.set(gx, gy, gz);
+    const L = out.length();
+    if (L < 1.5) return out.copy(_rad);
+    return out.divideScalar(L).addScaledVector(_rad, 0.15).normalize();
+  }
+
   // Mesh ---------------------------------------------------------------------
   buildRows() {
     const rows = [];
@@ -406,4 +423,4 @@ export class Tree {
     }
   }
 }
-const _d = new THREE.Vector3();
+const _d = new THREE.Vector3(), _rad = new THREE.Vector3();

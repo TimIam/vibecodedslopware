@@ -6,6 +6,9 @@ import { Axe, HEAD_Y, GRIP_LOCAL, REACH } from './axe.js';
 import { Arms } from './arms.js';
 import { Sfx } from './audio.js';
 import { Fx } from './fx.js';
+import { Faller } from './faller.js';
+import { Lumberjack } from './body.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -31,7 +34,23 @@ const mats = {
   crown: new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.92 }),
 };
 const axe = new Axe(scene);
-const arms = new Arms(scene, plaidTexture());
+const plaid = plaidTexture();
+const arms = new Arms(scene, plaid);
+
+// Settings, remembered per browser.
+const SETTINGS_KEY = 'fellswoop.settings.v1';
+const settings = { sens: 1, music: 0.5, sfx: 1, view: 'first' };
+try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch { /* private mode */ }
+const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* ignore */ } };
+
+// The third-person body: Timberline's faller if it loads, a simple lumberjack until then.
+const body = { fig: null, simple: new Lumberjack(scene, plaid) };
+body.simple.setVisible(false);
+new GLTFLoader().loadAsync('assets/faller.glb').then(gltf => {
+  const fig = new Faller(gltf.scene);
+  if (!fig.ok) return;
+  fig.root.visible = false; scene.add(fig.root); body.fig = fig;
+}).catch(() => { /* keep the simple body */ });
 
 function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight, pr = renderer.getPixelRatio();
@@ -53,7 +72,7 @@ const player = {
 };
 const chest = V();
 const keys = {};
-const input = { lmb: false, locked: false, soft: false, sens: 1 };
+const input = { lmb: false, locked: false, soft: false, sens: settings.sens };
 const SENS = 1 / 550;
 const cursor = { x: 0.45, y: 0.15, sx: 0.45, sy: 0.15, px: 0.45, py: 0.15, vx: 0, vy: 0, bit: new THREE.Vector2(-1, 0) };
 const AIM = { x: 0, y: -0.05 };
@@ -114,6 +133,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'KeyR' && G.mode !== 'title') { newClearing(G.seed + 1); if (G.mode === 'over') { setMode('play'); lock(); } }
   if (e.code === 'KeyM') $('mute').textContent = sfx.toggleMute() ? 'sound off' : '';
+  if (e.code === 'KeyV' && G.mode === 'play') { setView(settings.view === 'third' ? 'first' : 'third'); popup(settings.view === 'third' ? 'third person' : 'first person', 'meh'); }
   if (e.code === 'BracketLeft') nudgeSens(1 / 1.15);
   if (e.code === 'BracketRight') nudgeSens(1.15);
   if (e.code === 'Escape' && input.soft && G.mode === 'play') setMode('paused');
@@ -129,13 +149,38 @@ canvas.addEventListener('mousedown', e => {
 });
 addEventListener('mouseup', e => { if (e.button === 0) input.lmb = false; });
 addEventListener('mousemove', e => {
-  if (G.mode !== 'play' || player.dead || (!input.locked && !input.soft)) return;
-  cursor.x = clamp(cursor.x + e.movementX * SENS * input.sens, -1.1, 1.1);
-  cursor.y = clamp(cursor.y - e.movementY * SENS * input.sens, -1.1, 1.1);
+  if (G.mode !== 'play' || player.dead) return;
+  if (input.locked) {
+    cursor.x = clamp(cursor.x + e.movementX * SENS * input.sens, -1.1, 1.1);
+    cursor.y = clamp(cursor.y - e.movementY * SENS * input.sens, -1.1, 1.1);
+  } else {
+    // No pointer lock (the browser refused it, or Esc was pressed): the swing follows where the
+    // pointer is on the game view, so the edge of the window is the edge of the swing.
+    const r = canvas.getBoundingClientRect();
+    const nx = ((e.clientX - r.left) / r.width) * 2 - 1, ny = ((e.clientY - r.top) / r.height) * 2 - 1;
+    const k = 1.25 * Math.sqrt(input.sens);
+    cursor.x = clamp(nx * k, -1.1, 1.1); cursor.y = clamp(-ny * k + 0.1, -1.1, 1.1);
+  }
 });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-function nudgeSens(k) { input.sens = clamp(input.sens * k, 0.35, 3); popup(`mouse ${Math.round(input.sens * 100)}%`, 'meh'); }
+function nudgeSens(k) { setSens(clamp(input.sens * k, 0.35, 3)); popup(`mouse ${Math.round(input.sens * 100)}%`, 'meh'); }
+function setSens(v) { input.sens = settings.sens = v; saveSettings(); syncSettingsUi(); }
+function setView(v) { settings.view = v; saveSettings(); syncSettingsUi(); }
+
+// Settings panel: lives in the title card and moves into the pause card.
+function syncSettingsUi() {
+  $('setSens').value = Math.round(settings.sens * 100); $('setSensV').textContent = `${Math.round(settings.sens * 100)}%`;
+  $('setMusic').value = Math.round(settings.music * 100); $('setMusicV').textContent = `${Math.round(settings.music * 100)}%`;
+  $('setSfx').value = Math.round(settings.sfx * 100); $('setSfxV').textContent = `${Math.round(settings.sfx * 100)}%`;
+  for (const b of document.querySelectorAll('[data-view]')) b.classList.toggle('on', b.dataset.view === settings.view);
+}
+$('setSens').oninput = e => setSens(e.target.value / 100);
+$('setMusic').oninput = e => { settings.music = e.target.value / 100; sfx.setMusicVolume(settings.music); saveSettings(); syncSettingsUi(); };
+$('setSfx').oninput = e => { settings.sfx = e.target.value / 100; sfx.setSfxVolume(settings.sfx); saveSettings(); syncSettingsUi(); };
+for (const b of document.querySelectorAll('[data-view]')) b.onclick = () => setView(b.dataset.view);
+sfx.sfxVol = settings.sfx; sfx.musicVol = settings.music;
+syncSettingsUi();
 
 function lock() {
   const soft = () => { input.soft = true; };
@@ -155,9 +200,12 @@ function setMode(m) {
   G.mode = m;
   $('title').hidden = m !== 'title'; $('paused').hidden = m !== 'paused'; $('over').hidden = m !== 'over';
   document.body.classList.toggle('playing', m === 'play');
+  if (m === 'paused') $('pauseCard').insertBefore($('settings'), $('resume'));
+  if (m === 'title') $('titleCard').insertBefore($('settings'), $('start'));
 }
-$('start').onclick = () => { sfx.init(); setMode('play'); lock(); };
-$('paused').onclick = () => { sfx.init(); setMode('play'); lock(); };
+const startAudio = () => { sfx.init(); sfx.startMusic(); };
+$('start').onclick = () => { startAudio(); setMode('play'); lock(); };
+$('resume').onclick = () => { startAudio(); setMode('play'); lock(); };
 $('again').onclick = () => { newClearing(G.lastDead ? G.seed : G.seed + 1); setMode('play'); lock(); };
 
 // The swing ---------------------------------------------------------------------
@@ -484,12 +532,56 @@ function updateCamera(dt) {
   G.shake = Math.max(0, G.shake - dt * 2.8);
   const s = G.shake * G.shake * 0.03;
   yaw += (Math.random() - 0.5) * s; pitch += (Math.random() - 0.5) * s;
-  if (player.dead) {
+  if (settings.view === 'third') {
+    // Over the right shoulder, looking past you at the tree.
+    G.tpYaw = G.tpYaw ?? player.yaw;
+    G.tpYaw += wrapAng(player.yaw - G.tpYaw) * (1 - Math.exp(-dt * 5));
+    const tf = _v.set(-Math.sin(G.tpYaw), 0, -Math.cos(G.tpYaw)), tr = _w.set(-tf.z, 0, tf.x);
+    _eye.copy(player.pos).addScaledVector(tf, -2.3).addScaledVector(tr, 0.7).setY(2.05);
+    _tmp.copy(player.pos).addScaledVector(tf, 0.9).setY(1.05).lerp(G.lookPt, G.watch ? 0.85 : 0.3);
+    const ex = _tmp.x - _eye.x, ey = _tmp.y - _eye.y, ez = _tmp.z - _eye.z;
+    yaw = Math.atan2(-ex, -ez) + (Math.random() - 0.5) * s; pitch = Math.atan2(ey, Math.hypot(ex, ez)) + (Math.random() - 0.5) * s; roll = 0;
+  } else if (player.dead) {
     player.deadT += dt; const k = smooth(0, 0.7, player.deadT);
     _eye.y = THREE.MathUtils.lerp(_eye.y, 0.22, k); roll += k * 1.25; pitch = THREE.MathUtils.lerp(pitch, 0.35, k);
   }
   camera.position.copy(_eye);
   camera.rotation.set(pitch, yaw, roll, 'YXZ');
+}
+
+// Third person: pose Timberline's faller on the axe (or the simple lumberjack if it hasn't loaded).
+const _c = V(), _sh = V(), _pole = V();
+function poseBody(dt) {
+  const third = settings.view === 'third';
+  const fig = body.fig;
+  if (fig) fig.root.visible = third;
+  body.simple.setVisible(third && !fig);
+  arms.setVisible(!player.dead && (!third || !fig));
+  if (!third) return;
+  basis(player.yaw);
+  const moving = Math.min(1, player.vel.length() / 2);
+  if (!fig) { body.simple.update(player.pos, player.yaw, player.twist, player.sway, player.bob, moving, player.dead, dt); return; }
+  const root = fig.root;
+  root.position.copy(player.pos).add(player.sway).setY(0);
+  root.rotation.set(0, Math.atan2(-B.F.z, B.F.x), 0);
+  fig.rest();
+  if (moving > 0.2 && axe.mode !== 'stuck') { fig.speed = player.vel.length(); fig.walk(dt); }
+  else fig.chopStance(1.4, -clamp(sw.phiA || 0, -1.6, 1.6) * 0.3 - player.twist, 0.14 + Math.max(0, -(sw.thA || 0)) * 0.25);
+  // Put the faller's shoulders where the swing's shoulders are.
+  root.updateMatrixWorld(true);
+  _sh.copy(player.pos).addScaledVector(B.U, 1.4).addScaledVector(B.F, -0.07).add(player.sway).sub(fig.shoulders());
+  root.position.x += _sh.x; root.position.z += _sh.z;
+  if (player.dead) { G.deadFall = Math.min(1, (G.deadFall || 0) + dt * 2.2); root.rotateZ(-G.deadFall * 1.5); root.position.y += 0.12 * G.deadFall; }
+  else G.deadFall = 0;
+  root.updateMatrixWorld(true);
+  if (axe.mode === 'free' || player.dead) fig.armsFree(0);
+  else {
+    fig.j.chest.getWorldPosition(_c);
+    fig.reach('R', axe.renderPoint(axe.topRel, _ht), _pole.copy(_c).addScaledVector(B.R, 0.7).addScaledVector(B.F, -0.2).setY(_c.y - 0.45));
+    fig.reach('L', axe.renderPoint(axe.gripRel, _hb), _pole.copy(_c).addScaledVector(B.R, -0.6).addScaledVector(B.F, -0.2).setY(_c.y - 0.6));
+  }
+  if (G.target) fig.look(_tmp.set(G.target.x, 1.0, G.target.z));
+  fig.tick(dt);
 }
 
 function updateArms() {
@@ -552,6 +644,9 @@ function updateHud(dt) {
   ret.className = 'hud' + (input.lmb ? ' tense' : '') + (off ? ' off' : '') + (axe.mode === 'stuck' ? ' stuck' : '');
   ret.hidden = G.mode !== 'play' || player.dead || axe.mode === 'free';
 
+  const soft = G.mode === 'play' && !input.locked && !player.dead;
+  document.body.classList.toggle('soft', soft); $('softnote').hidden = !soft;
+
   hudT -= dt; if (hudT > 0) return; hudT = 0.08;
   $('felled').textContent = `${G.felled}/${G.trees.length}`;
   $('time').textContent = fmtTime(G.t);
@@ -561,6 +656,7 @@ function updateHud(dt) {
   $('stam').classList.toggle('low', player.stamina < 0.3);
   const strain = axe.mode === 'stuck' ? axe.stuck.strain : 0;
   $('stuck').style.opacity = axe.mode === 'stuck' ? 1 : 0;
+  if (axe.mode === 'stuck') $('stuckT').textContent = input.lmb ? 'STUCK: pull it back out' : 'STUCK: hold the mouse button and pull back';
   $('stuck').firstElementChild.style.width = `${Math.round(Math.min(1, strain) * 100)}%`;
   const tr = G.target;
   $('strain').firstElementChild.style.width = tr ? `${Math.round(Math.min(1, tr.analysis.ratio) * 100)}%` : '0%';
@@ -587,6 +683,7 @@ function update(dt) {
   fx.update(dt);
   axe.sync();
   updateArms();
+  poseBody(dt);
   updateCamera(dt);
   world.follow(player.pos);
   sfx.tick();
@@ -614,5 +711,7 @@ if (/localhost|127\.0\.0\.1/.test(location.hostname)) {
     freeze(v = true) { frozen = v; },
     // Run the simulation forward without rendering: n frames of dt each.
     run(n = 1, dt = 1 / 60, each) { for (let i = 0; i < n; i++) { update(dt); if (each) each(i); } updateHud(1); renderer.render(scene, camera); },
+    // Same, without drawing anything: for long headless stress runs.
+    sim(n = 1, dt = 1 / 60) { for (let i = 0; i < n; i++) update(dt); },
   };
 }
