@@ -452,7 +452,7 @@ function prospectMenu() {
   show({
     title: 'Where to dig?', body: `<p>Prospecting means riding into the hills, looking for "croppings" of quartz, and breaking off samples to see if there is silver inside. It costs money for the outfit and weeks of your life, and pays nothing at all, until suddenly it does.</p>`,
     choices: [
-      ...Object.entries(DISTRICTS).map(([k, d]) => ({ t: d.name, sub: `${d.weeks} week${d.weeks > 1 ? 's' : ''}, outfit ${money(d.cost)}. ${d.text}`, disabled: S.money < d.cost, go: () => { S.money -= d.cost; dig(k); } })),
+      ...Object.entries(DISTRICTS).map(([k, d]) => ({ t: d.name, sub: `${Math.max(1, d.weeks)} week${Math.max(1, d.weeks) > 1 ? 's' : ''}, outfit ${money(d.cost)}. ${d.text}`, disabled: S.money < d.cost, go: () => { S.money -= d.cost; dig(k); } })),
       { t: '← back to Carson', go: () => { nevadaWeek(); } },
     ],
   });
@@ -490,13 +490,15 @@ function dig(key) {
   };
   render(`<i>${D.text}</i>`);
 }
-function finishDig(key, found, dust) {
-  const D = DISTRICTS[key];
-  endWeek(D.weeks);
+// `followup` is true when the snowstorm or the blind lead hands control back: the weeks were
+// already spent, so it costs no more time.
+function finishDig(key, found, dust, followup = false) {
+  const D = DISTRICTS[key], weeks = followup ? 0 : Math.max(1, D.weeks);
+  endWeek(weeks);
   let html = '';
-  const fxs = { money: dust, hp: -4 * D.weeks, sp: found.length ? 12 : -6 };
-  if (key === 'humboldt' && !S.flags.snow) return snowstorm(found, dust);
-  if (key === 'esmeralda' && !S.flags.blind && Math.random() < .75) return blindLead(found, dust);
+  const fxs = { money: dust, hp: -4 * weeks, sp: found.length ? 12 : -6 };
+  if (!followup && key === 'humboldt' && !S.flags.snow) return snowstorm(found, dust);
+  if (!followup && key === 'esmeralda' && !S.flags.blind && Math.random() < .75) return blindLead(found, dust);
   if (found.length) {
     const names = ['the Monarch of the Mountains', 'the Sam Clemens Extension', 'the Lucky Fool', 'the Orion', 'the Sagebrush Queen', 'the Glory of Washoe', 'the Josh', 'the Higbie Hope'].filter(n => !S.mkt.some(m => m.name.toLowerCase() === n));
     const name = names.length ? pick(names) : `the Claim No. ${S.mkt.length}`;
@@ -509,7 +511,7 @@ function finishDig(key, found, dust) {
       { t: 'Hold your feet', sub: 'it joins the market as your own mine', go: () => { const m = { name: name.replace(/^the /, 'The '), p: Math.round(val / 100 * 10) / 10, vol: .45, drift: 0, last: val / 100 }; S.mkt.push(m); S.feet[m.name] = 100; return `<p>You hold. You own a hundred feet of ${m.name}, and are a capitalist.</p>`; }, next: nevadaWeek },
     ] });
   }
-  outcome('Home empty-handed', `<p>${D.weeks ? `${D.weeks} week${D.weeks > 1 ? 's' : ''} of digging and you` : 'You'} come home with blisters, sunburn and a sack of samples that make the assayer laugh.</p>` + fx(fxs), nevadaWeek);
+  outcome('Home empty-handed', `<p>${weeks ? `${weeks} week${weeks > 1 ? 's' : ''} of digging and you` : 'You'} come home with blisters, sunburn and a sack of samples that make the assayer laugh.</p>` + fx(fxs), nevadaWeek);
 }
 
 function snowstorm(found, dust) {
@@ -530,10 +532,9 @@ function snowstorm(found, dust) {
         { t: 'Keep your solemn vow', go: () => { S.vices = false; for (const v of vices) delete S.items[v]; return `<p>You are a reformed man. This lasts, by your count, until breakfast.</p>` + fx({ sp: -10 }); } },
         { t: 'Go and find your pipe in the snow', go: () => `<p>You slip out behind the station to look for it, and find Ballou already there digging for his cards and Ollendorff for his bottle. Nobody says a word about it. Nobody ever does.</p>` + fx({ sp: 10 }) },
       ],
-    }, () => { S.flags.snowDone = 1; finishDig('humboldt_done', found, dust); });
+    }, () => { S.flags.snowDone = 1; finishDig('humboldt', found, dust, true); });
   });
 }
-DISTRICTS.humboldt_done = { ...DISTRICTS.humboldt, weeks: 0 };
 
 function blindLead(found, dust) {
   S.flags.blind = 1; scene.set('mine', { cabin: true });
@@ -544,12 +545,11 @@ function blindLead(found, dust) {
       <p>You file the claim. All night you lie awake and plan your mansion. For ten days you are, on paper, millionaires.</p>
       <p>Then a note: your old friend <b>Captain Nye</b> is lying sick at a ranch nine miles away, and asks for you. And the same day, Higbie rides off to hunt a legendary lost cement mine, leaving you a note to do the work on the claim.</p>`,
     choices: [
-      { t: 'Go and nurse Captain Nye', sub: 'what a friend would do', go: () => { log('Nursed Captain Nye. Lost the blind lead.'); return `<p>You nurse the Captain for nine days. He is a terrible patient and you are a worse nurse, and he recovers to spite you. You ride back to the cabin on the tenth day and find a crowd at your claim. Higbie read your note, which said you would do the work; you read his, which said he would. Neither of you did. The claim is "jumped", and your million is gone in a night.</p><p>For the rest of your life you will tell people you were a millionaire for ten days, and it will be perfectly true.</p>` + fx({ sp: 4, hp: -4 }); }, next: () => finishDig('goldhill_none', found, dust) },
+      { t: 'Go and nurse Captain Nye', sub: 'what a friend would do', go: () => { log('Nursed Captain Nye. Lost the blind lead.'); return `<p>You nurse the Captain for nine days. He is a terrible patient and you are a worse nurse, and he recovers to spite you. You ride back to the cabin on the tenth day and find a crowd at your claim. Higbie read your note, which said you would do the work; you read his, which said he would. Neither of you did. The claim is "jumped", and your million is gone in a night.</p><p>For the rest of your life you will tell people you were a millionaire for ten days, and it will be perfectly true.</p>` + fx({ sp: 4, hp: -4 }); }, next: () => finishDig('esmeralda', found, dust, true) },
       { t: 'Stay and work the claim', sub: 'what a millionaire would do', go: () => { S.flags.rich = 1; const v = ri(9000, 16000); log(`Kept the blind lead. Sold for ${money(v)}.`); return `<p>You send a doctor to Captain Nye, with your apologies, and you pick up a shovel. On the tenth day the claim is yours by law. A syndicate from San Francisco buys you out for <b>${money(v)}</b>.</p><p>You have done better than the book. The man who wrote it did not.</p>` + fx({ money: v + extra, sp: 25 }); }, next: nevadaWeek },
     ],
   });
 }
-DISTRICTS.goldhill_none = { ...DISTRICTS.goldhill, weeks: 0 };
 
 // --- the market
 // `ctx` lets Part II reuse the board: where to go back to, and how a week passes.
