@@ -101,6 +101,8 @@ svg.i { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none;
 .chip:active:not(:disabled) { transform: scale(0.96); }
 .chip[aria-pressed="true"] { border-color: transparent; background: color-mix(in srgb, var(--hivis) 22%, transparent); color: #ffd2b5; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hivis) 70%, transparent); }
 .chip:disabled { opacity: 0.38; cursor: not-allowed; }
+#panel h3 .chip.reset { float: right; margin-top: 2px; padding: 5px 11px; font-size: 12px; letter-spacing: 0.1em; color: var(--bone-dim); }
+#panel h3 .chip.reset:hover { color: var(--bone); }
 .slider { margin: 12px 0; }
 .slider .top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px; }
 .slider .val { font-family: var(--f-mono); font-size: 13px; color: var(--bone); font-variant-numeric: tabular-nums; }

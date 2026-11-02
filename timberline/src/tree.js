@@ -24,7 +24,7 @@ export class TreeModel {
     world.group.add(this.root);
     this.leanGroup = new THREE.Group(); this.root.add(this.leanGroup);
     this.aim = 0;
-    this.h0 = sp && spec.dbh > 0.5 ? 0.45 : 0.35; // stump height of the notch apex
+    this.h0 = spec.axeStump ? 0.9 : sp && spec.dbh > 0.5 ? 0.45 : 0.35; // notch apex height: ax work is chopped standing, at about waist height
     this.buttTop = this.h0 + 2.4 * this.R + 0.25;
     this.buildStem();
     this.setAim(spec.lean.az); // default: lay with the lean

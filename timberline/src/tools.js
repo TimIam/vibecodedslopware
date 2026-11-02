@@ -6,7 +6,32 @@ import { Faller, makeCapsuleFaller } from './faller.js';
 // grip points in each tool's own model space (see the handle geometry in tools/blender/build_assets.py)
 const SAW_REAR_GRIP = new THREE.Vector3(-0.05, -0.004, 0.0);
 const SAW_FRONT_GRIP = new THREE.Vector3(0.21, 0.05, -0.12);
-const AXE_GRIPS = [new THREE.Vector3(0, 0.05, 0), new THREE.Vector3(0, 0.24, 0)];
+const AXE_BUTT = 0.035, AXE_HEAD = 0.86; // left-hand grip and head centre, metres up the handle
+
+// Felling-axe swing, after the USFS ax manual ("An Ax to Grind"): right-handed, the left hand stays at
+// the butt while the right slides from about 3/4 up the handle down to it; the ax goes back over the right
+// shoulder and the bit enters the wood at about 45 degrees. An ax's edge runs parallel to its handle, so to
+// cut a notch face across the trunk the handle lies across the trunk at impact: the chopper stands beside
+// the tree with the face on his right. Times in seconds from the button press.
+export const AXE_T = { up: 0.42, top: 0.48, hit: 0.66, stick: 0.76, end: 1.0 };
+const smooth = (k) => k * k * (3 - 2 * k);
+// u: how far the hands are from impact (0) toward the top of the backswing (1); w: the same for the handle,
+// which lags on the downswing (the wrists stay cocked) and catches up just before impact.
+const U_REST = 0.14;
+function axeSwing(t) {
+  if (t == null) return { u: U_REST, w: U_REST, slide: 0, stick: 0, twist: 0 };
+  const T = AXE_T, lerp = THREE.MathUtils.lerp, cl = (v) => THREE.MathUtils.clamp(v, 0, 1);
+  if (t < T.up) { const k = smooth(t / T.up), u = lerp(U_REST, 1, k); return { u, w: u, slide: k, stick: 0, twist: -0.55 * k }; }
+  if (t < T.top) return { u: 1, w: 1, slide: 1, stick: 0, twist: -0.55 };
+  if (t < T.hit) {
+    const k = (t - T.top) / (T.hit - T.top), kk = k * k; // accelerating downstroke
+    const rel = cl((k - 0.45) / 0.55);
+    return { u: 1 - kk, w: 1 - rel * rel, slide: 1 - cl(k / 0.7), stick: 0, twist: lerp(-0.55, 0.18, kk) };
+  }
+  if (t < T.stick) return { u: 0, w: 0, slide: 0, stick: 1, twist: 0.18 };
+  const k = smooth(cl((t - T.stick) / (T.end - T.stick)));
+  return { u: lerp(0, U_REST, k), w: lerp(0, U_REST, k), slide: 0, stick: 1 - k, twist: lerp(0.18, 0, k) };
+}
 
 const deg = THREE.MathUtils.degToRad;
 
@@ -120,26 +145,61 @@ export class Rig {
   }
 
   // axe: swing animation toward the target point; t in 0..1 drives one swing
-  placeAxe(target, swingPhase) {
-    const tr = this.tree;
-    // the swing turns about the shoulders, so the hands travel overhead and down with the axe
-    const shoulder = new THREE.Vector3(target.x - 0.12, Math.max(1.15, target.y + 0.95), -(tr.Rc + 0.72));
-    this.axePivot.position.copy(shoulder);
+  // stroke: { P: where the bit lands, t: its travel into the wood, h: handle direction at impact (hands to head) },
+  // all in the cut frame (leanGroup); time: seconds into the swing, or null while resting between swings.
+  placeAxe(stroke, time) {
+    const sw = axeSwing(time), { P, t, h } = stroke, up = new THREE.Vector3(0, 1, 0);
+    const L = AXE_HEAD - AXE_BUTT;
+    const H = P.clone().addScaledVector(h, -L); // hands at impact, both at the butt
+    // shoulders: back along the handle line and up, so arms and handle make one long lever at impact
+    const S = H.clone().addScaledVector(h, -0.28).addScaledVector(t, -0.12).addScaledVector(up, 0.42);
+    // the chopper's own frame: facing the strike; right; back
+    const F = P.clone().sub(S).setY(0).normalize(), R = new THREE.Vector3().crossVectors(F, up), B = F.clone().negate();
+    // top of the backswing: hands up by the right ear, handle pointing back and up over the right shoulder
+    const aImp = H.clone().sub(S), aTop = R.clone().multiplyScalar(0.16).addScaledVector(up, 0.3).addScaledVector(B, 0.05);
+    const hTop = h.clone().multiplyScalar(-0.85).addScaledVector(t, -0.45).addScaledVector(up, 0.4).normalize();
+    const turn = (from, to, k) => from.clone().normalize().applyQuaternion(new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(from.clone().normalize(), to.clone().normalize()), k));
+    const hands = S.clone().add(turn(aImp, aTop, sw.u).multiplyScalar(THREE.MathUtils.lerp(aImp.length(), aTop.length(), sw.u)));
+    const qh = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(h, hTop), sw.w);
+    const handle = h.clone().applyQuaternion(qh).normalize();
+    hands.addScaledVector(t, 0.015 * sw.stick); // the bit sinks into the wood on impact
+    // the ax: +Y up the handle, +X the bit; the bit turns with the handle, so it enters exactly along t at impact
+    const X = t.clone().addScaledVector(h, -t.dot(h)).normalize().applyQuaternion(qh);
+    X.addScaledVector(handle, -X.dot(handle)).normalize();
+    const Z = new THREE.Vector3().crossVectors(X, handle).normalize();
+    this.axePivot.position.copy(hands).addScaledVector(handle, -AXE_BUTT);
+    this.axePivot.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, handle, Z));
     this.axePivot.visible = true;
-    const dir = target.clone().sub(shoulder).normalize();
-    const raise = Math.max(0, 1 - swingPhase) * 2.3; // 0 at impact
-    const side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
-    const d = dir.clone().applyAxisAngle(side, raise);
-    // axe +Y = handle toward head, +X = edge
-    const yAxis = d;
-    const xAxis = new THREE.Vector3().crossVectors(side, yAxis).normalize().negate();
-    const zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
-    this.axePivot.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
-    const len = shoulder.distanceTo(target);
-    this.axe.position.set(0, len - 0.86, 0); // head (0.86 up the handle) on the target at impact
+    this.axe.position.set(0, 0, 0);
     this.axe.updateMatrixWorld(true);
-    const g0 = this.axe.localToWorld(AXE_GRIPS[0].clone()), g1 = this.axe.localToWorld(AXE_GRIPS[1].clone());
-    this.workAt(tr.root.worldToLocal(g0.clone()), g0, g1, this.group.localToWorld(target.clone()), true);
+    const left = this.axe.localToWorld(new THREE.Vector3(0, AXE_BUTT, 0));
+    const right = this.axe.localToWorld(new THREE.Vector3(0, THREE.MathUtils.lerp(0.12, 0.66, sw.slide), 0));
+    this.chopper(this.group.localToWorld(S.clone()), this.group.localToWorld(P.clone()), right, left, { twist: sw.twist, lift: sw.u });
+  }
+
+  // Pose the chopper: shoulders at Sw (world), facing the strike, turning and bending with the swing, hands on the grips.
+  chopper(Sw, Pw, rightW, leftW, sw) {
+    const tr = this.tree;
+    if (!this.fig) { const l = tr.root.worldToLocal(Sw.clone()); this.setFaller(l.x, l.z, 1); return; }
+    const Sl = tr.root.worldToLocal(Sw.clone()), Pl = tr.root.worldToLocal(Pw.clone());
+    const fx = Pl.x - Sl.x, fz = Pl.z - Sl.z, fl = Math.hypot(fx, fz) || 1;
+    const yaw = Math.atan2(-fz / fl, fx / fl);
+    this.place(Sl.x, Sl.z, yaw);
+    const fig = this.fig, gy = this.faller.position.y;
+    this.mode = 'work';
+    fig.rest();
+    fig.chopStance(Sl.y - gy, sw.twist, 0.12 + 0.25 * (1 - sw.lift));
+    // slide the body so the shoulders sit on the swing axis
+    this.faller.updateMatrixWorld(true);
+    const sh = tr.root.worldToLocal(fig.shoulders());
+    this.place(this.faller.position.x + (Sl.x - sh.x), this.faller.position.z + (Sl.z - sh.z), yaw);
+    this.faller.updateMatrixWorld(true);
+    const q = this.faller.getWorldQuaternion(new THREE.Quaternion());
+    const R = new THREE.Vector3(0, 0, 1).applyQuaternion(q), F = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
+    const c = fig.j.chest.getWorldPosition(new THREE.Vector3());
+    fig.reach('R', rightW, c.clone().addScaledVector(R, 0.7).addScaledVector(F, -0.2).add(new THREE.Vector3(0, -0.45, 0)));
+    fig.reach('L', leftW, c.clone().addScaledVector(R, -0.6).addScaledVector(F, -0.2).add(new THREE.Vector3(0, -0.6, 0)));
+    fig.look(Pw);
   }
 
   // Stand the faller so the right-hand grip is in front of them, then pose: stance from grip height, IK onto both grips.
