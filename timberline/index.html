@@ -142,7 +142,7 @@ input[type=range]:disabled { opacity: 0.4; cursor: not-allowed; }
 #plan canvas { display: block; width: 300px; height: 168px; border-radius: var(--r-sm); }
 #plan .lbl { display: flex; justify-content: space-between; margin: 0 2px 6px; }
 
-#actionbar { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 10px; align-items: stretch; animation: rise 0.4s var(--ease); }
+#actionbar { position: absolute; left: 50%; translate: -50% 0; /* not transform: the rise animation would override it */ bottom: calc(18px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 10px; align-items: stretch; animation: rise 0.4s var(--ease); }
 #hold { position: relative; display: flex; align-items: center; justify-content: center; gap: 12px; min-width: 250px; padding: 16px 26px; border: 0; border-radius: 99px; cursor: pointer; color: #1d0c02;
   background: linear-gradient(180deg, #ff8a3d, var(--hivis) 60%, #ea560b); box-shadow: 0 14px 30px -10px color-mix(in srgb, var(--hivis) 90%, transparent), inset 0 1px 0 rgba(255,255,255,0.4);
   font-family: var(--f-display); font-weight: 800; font-size: 20px; letter-spacing: 0.14em; text-transform: uppercase; user-select: none; -webkit-user-select: none; touch-action: none; transition: transform 0.12s var(--ease), filter 0.2s; }
@@ -288,10 +288,16 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
   #plan { display: none; }
   #jobcard .facts { display: none; }
   #jobcard { min-width: 0; padding: 10px 12px; }
+  #hud { top: calc(70px + env(safe-area-inset-top, 0px)); left: max(12px, env(safe-area-inset-left, 0px)); } /* below the wallet, not under it */
+  #wallet { right: max(12px, env(safe-area-inset-right, 0px)); }
   #jobcard h2 { font-size: 19px; }
   #wallet > div:not(#menuBtn) { min-width: 0; padding: 7px 10px; }
   #wallet .v { font-size: 15px; }
-  #hold { min-width: 160px; font-size: 16px; padding: 14px 18px; }
+  #hold { min-width: 0; font-size: 15px; padding: 14px 16px; white-space: nowrap; }
+  /* Wedge + cut + retreat must fit a phone: no keyboard hints, tighter buttons */
+  #actionbar { gap: 6px; max-width: calc(100% - 24px); }
+  #hold kbd, .side-btn kbd { display: none; }
+  .side-btn { padding: 0 13px; font-size: 13px; }
   #meter { width: 230px; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
   #modal h2 { font-size: 30px; }
   .grade { width: 64px; height: 64px; font-size: 44px; border-radius: 18px; }

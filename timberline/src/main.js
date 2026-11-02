@@ -529,7 +529,7 @@ function renderPanel() {
       <p class="note">${bore ? 'Plunge behind the hinge to set its thickness exactly, sweep back leaving a strap of holding wood, then release the strap from behind. The tree goes when the strap does — no barber chair.' : 'Cut toward the notch, level with ' + (c.notch.type === 'open' ? 'the apex.' : 'or a little above the apex (the step).') + ' Watch the hinge gauge and stop — let the tree go on its own.'}${backLean ? ' <b>Back-leaner:</b> set wedges before the kerf closes.' : ''}</p>
       ${slider('step', 'Back cut height vs apex', -3, 10, 0.5, +(c.back.step * 100).toFixed(1), (v) => `${v > 0 ? '+' : ''}${v} cm`, locked)}
       ${slider('yaw', 'Hinge taper', -8, 8, 0.5, +rad2deg(c.back.yaw).toFixed(1), (v) => (v === 0 ? 'parallel' : `${Math.abs(v)}° · thick ${v > 0 ? 'left' : 'right'}`), locked)}
-      ${bore ? slider('plan', 'Planned hinge', 5, 20, 0.5, +((c.hingePlan / D) * 100).toFixed(1), (v) => `${v}% · ${cm(D * v / 100)} cm`, locked) : ''}
+      ${bore ? slider('hingePlan', 'Planned hinge', 5, 20, 0.5, +((c.hingePlan / D) * 100).toFixed(1), (v) => `${v}% · ${cm(D * v / 100)} cm`, locked) : ''}
       <div class="readout">
         <div><div class="lbl">Hinge thickness</div><div class="v ${tState}" id="rT">${cm(T)} cm · ${Math.round((T / D) * 100)}%</div></div>
         <div><div class="lbl">Hinge width</div><div class="v" id="rW">${cm(W)} cm · ${Math.round((W / D) * 100)}%</div></div>
@@ -543,7 +543,7 @@ function renderPanel() {
     p.querySelectorAll('[data-cut]').forEach((b) => b.addEventListener('click', () => { G.activeCut = b.dataset.cut; renderPanel(); }));
     bindSlider('step', (v) => `${v > 0 ? '+' : ''}${v} cm`, (v) => { c.back.step = v / 100; buildPreview(); });
     bindSlider('yaw', (v) => (v === 0 ? 'parallel' : `${Math.abs(v)}° · thick ${v > 0 ? 'left' : 'right'}`), (v) => { c.back.yaw = deg(v); buildPreview(); });
-    bindSlider('plan', (v) => `${v}% · ${cm(D * v / 100)} cm`, (v) => { c.hingePlan = D * v / 100; buildPreview(); });
+    bindSlider('hingePlan', (v) => `${v}% · ${cm(D * v / 100)} cm`, (v) => { c.hingePlan = D * v / 100; buildPreview(); });
   } else if (G.step === 'falling') {
     p.innerHTML = `<div class="stepno">${icon('tree')}Timber</div><h3>Falling</h3><p>Walk your escape route — get at least 5 m back and to the side. Watch the butt and the top.</p><div id="fallLog"></div>`;
   }
