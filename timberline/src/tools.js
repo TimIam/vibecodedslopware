@@ -25,6 +25,31 @@ export class Rig {
     this.particles = new Chips(tree.spec.sp.sap);
     tree.leanGroup.add(this.particles.points);
     this.swing = 0; this.swingT = 0;
+    // axe strike mark: a dot where the bit landed, ringed by an arc that drains until the next swing
+    const mr = THREE.MathUtils.clamp(tree.R * 0.4, 0.03, 0.07);
+    const markMat = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, side: THREE.DoubleSide, fog: false });
+    this.mark = new THREE.Group();
+    this.mark.add(new THREE.Mesh(new THREE.CircleGeometry(mr * 0.35, 16), markMat(0xffffff, 0.9)));
+    this.markRing = new THREE.Mesh(new THREE.RingGeometry(mr * 0.68, mr, 32), markMat(0xff6b1a, 0.95));
+    this.mark.add(this.markRing);
+    this.mark.visible = false; this.markR = mr;
+    this.group.add(this.mark);
+  }
+
+  // show where the axe landed for the rest of the swing (dur seconds); normal points out of the struck face
+  markHit(pos, normal, dur) {
+    this.mark.position.copy(pos).addScaledVector(normal, 0.004);
+    this.mark.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+    this.markT = 0; this.markDur = dur;
+    this.mark.visible = true;
+  }
+  updateMark(dt) {
+    if (!this.mark.visible) return;
+    this.markT += dt;
+    const left = 1 - this.markT / this.markDur;
+    if (left <= 0) { this.mark.visible = false; return; }
+    this.markRing.geometry.dispose();
+    this.markRing.geometry = new THREE.RingGeometry(this.markR * 0.68, this.markR, 32, 1, Math.PI / 2, Math.PI * 2 * left);
   }
 
   // stretch the guide bar (and chain) to the tool's bar length
@@ -123,7 +148,7 @@ export class Rig {
   }
   driveWedges(depth) { for (const w of this.wedgeMeshes) w.position.x = -this.tree.Rc - 0.02 + depth; }
 
-  update(dt) { this.particles.update(dt); }
+  update(dt) { this.particles.update(dt); this.updateMark(dt); }
   dispose() { this.group.parent?.remove(this.group); this.faller.parent?.remove(this.faller); this.particles.points.parent?.remove(this.particles.points); }
 }
 

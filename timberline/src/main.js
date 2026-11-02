@@ -588,7 +588,7 @@ function handleAxe(dt) {
   $('meter').querySelector('.needle').style.left = `calc(${G.meterPos * 100}% - 1px)`;
   const target = G.step === 'notch'
     ? new THREE.Vector3(Rc - Math.min(n.dTop, n.dBot) * 0.6, tr.h0 + 0.02, 0)
-    : new THREE.Vector3(-Rc + c.back.progress * 0.7, tr.h0 + c.back.step + c.back.progress * 0.35, 0);
+    : new THREE.Vector3(-Rc + c.back.progress * 0.5, tr.h0 + c.back.step + 0.01, 0);
   let phase = 1;
   if (swingState) {
     swingState.t += dt;
@@ -611,6 +611,11 @@ function handleAxe(dt) {
         renderPanel();
       } else {
         c.back.progress = Math.min(Rc * 2.05, c.back.progress + bite);
+        // mark where the bit landed on the notch floor (the face the back camera sees) until the next swing
+        const p = c.back.progress, inFloor = p > 0.03;
+        // keep the mark's back edge on the floor where it can (the front edge may tuck under the uncut wood)
+        const xm = -Rc + Math.min(p - 0.005, Math.max(p * 0.5, G.rig.markR));
+        G.rig.markHit(new THREE.Vector3(inFloor ? xm : -Rc,tr.h0 + c.back.step + (inFloor ? -0.002 : 0.012), 0), new THREE.Vector3(inFloor ? 0 : -1, inFloor ? 1 : 0, 0), 0.72 - 0.28);
         f.checkRelease();
         if (f.phase !== 'standing') onRelease();
       }
