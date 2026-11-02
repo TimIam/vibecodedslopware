@@ -33,42 +33,69 @@ export function setWind(speed) {
   live.wind.f.frequency.setTargetAtTime(300 + speed * 60, t, 0.6);
 }
 
-// ---- Chainsaw: sawtooth + pulse through a resonant filter, rpm 0..1, load 0..1
-export function sawStart() {
-  if (!ctx || live.saw) return;
-  const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), lfo = ctx.createOscillator();
-  const lg = ctx.createGain(), f = ctx.createBiquadFilter(), g = ctx.createGain(), dist = ctx.createWaveShaper();
-  o1.type = 'sawtooth'; o2.type = 'square'; lfo.type = 'square';
-  const curve = new Float32Array(256);
-  for (let i = 0; i < 256; i++) { const x = i / 128 - 1; curve[i] = Math.tanh(x * 3); }
-  dist.curve = curve;
-  f.type = 'lowpass'; f.Q.value = 4;
-  lg.gain.value = 0.4; lfo.connect(lg).connect(g.gain);
-  const n = noise(true), nf = ctx.createBiquadFilter(), ng = ctx.createGain();
-  nf.type = 'highpass'; nf.frequency.value = 2500; ng.gain.value = 0;
-  n.connect(nf).connect(ng).connect(master);
-  o1.connect(dist); o2.connect(dist); dist.connect(f).connect(g).connect(master);
-  g.gain.value = 0.0;
-  o1.start(); o2.start(); lfo.start(); n.start();
-  live.saw = { o1, o2, lfo, f, g, ng, n };
-  sawSet(0.15, 0);
+// ---- Chainsaws. Each saw has two voices that crossfade with the throttle:
+// idle: the low, loping burble of a two-stroke at tick-over (chain stopped);
+// cutting: wide open and screaming, bogging down in the wood, with the chain rasping through it.
+// Firing rates follow engine speed (about 2,800 rpm idle, 10-13,000 rpm wide open); bigger engines are lower and fuller.
+const SAWS = {
+  sawSmall:  { idle: 52, wot: 212, bog: 48, idleTone: 900, cutTone: 3400, q: 7, sub: 0.15, gain: 0.85, rasp: 0.07 },
+  sawPro:    { idle: 46, wot: 186, bog: 30, idleTone: 700, cutTone: 2900, q: 4.5, sub: 0.3, gain: 1, rasp: 0.09 },
+  sawBig:    { idle: 39, wot: 158, bog: 20, idleTone: 520, cutTone: 2300, q: 3, sub: 0.5, gain: 1.15, rasp: 0.11 },
+  harvester: { idle: 58, wot: 230, bog: 25, idleTone: 600, cutTone: 3000, q: 3, sub: 0.2, gain: 0.8, rasp: 0.12 },
+};
+const shaper = (k) => { const c = new Float32Array(256); for (let i = 0; i < 256; i++) c[i] = Math.tanh((i / 128 - 1) * k); const w = ctx.createWaveShaper(); w.curve = c; return w; };
+export function sawStart(model = 'harvester') {
+  if (!ctx) return;
+  if (live.saw) { if (live.saw.model === model) return; sawStop(); }
+  const p = SAWS[model] || SAWS.sawPro, osc = [];
+  const make = (type, hz) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = hz; osc.push(o); return o; };
+  const out = ctx.createGain(); out.gain.value = 0; out.connect(master);
+  // idle voice: pulse + sub through a dull filter, with an uneven lope (a cold two-stroke "four-strokes" at idle)
+  const iA = make('sawtooth', p.idle), iSub = make('sine', p.idle / 2), lope = make('sine', 2.7), lopeG = ctx.createGain();
+  lopeG.gain.value = p.idle * 0.06; lope.connect(lopeG); lopeG.connect(iA.frequency); lopeG.connect(iSub.frequency);
+  const iPulse = make('square', p.idle / 2), iPulseG = ctx.createGain(), iAmp = ctx.createGain();
+  iAmp.gain.value = 0.55; iPulseG.gain.value = 0.45; iPulse.connect(iPulseG).connect(iAmp.gain);
+  const iF = ctx.createBiquadFilter(); iF.type = 'lowpass'; iF.frequency.value = p.idleTone; iF.Q.value = 2;
+  const iSubG = ctx.createGain(); iSubG.gain.value = p.sub;
+  const idle = ctx.createGain(); idle.gain.value = 0;
+  iA.connect(shaper(2)).connect(iF).connect(iAmp).connect(idle); iSub.connect(iSubG).connect(idle); idle.connect(out);
+  // cutting voice: two slightly detuned saws, hard-clipped, through a resonant muffler band
+  const cA = make('sawtooth', p.wot), cB = make('sawtooth', p.wot * 1.012), cHalf = make('square', p.wot / 2);
+  const cMix = ctx.createGain(), cHalfG = ctx.createGain(); cMix.gain.value = 0.5; cHalfG.gain.value = 0.25;
+  const cF = ctx.createBiquadFilter(); cF.type = 'lowpass'; cF.frequency.value = p.cutTone; cF.Q.value = p.q;
+  const cBody = ctx.createBiquadFilter(); cBody.type = 'peaking'; cBody.frequency.value = p.wot * 3; cBody.gain.value = 6; cBody.Q.value = 1.5;
+  const cut = ctx.createGain(); cut.gain.value = 0;
+  cA.connect(cMix); cB.connect(cMix); cHalf.connect(cHalfG).connect(cMix);
+  cMix.connect(shaper(4)).connect(cBody).connect(cF).connect(cut).connect(out);
+  // chain in the wood: bright rasping noise chopped at the tooth rate, plus a low chip rumble
+  const n = noise(true), rF = ctx.createBiquadFilter(), rAmp = ctx.createGain(), teeth = make('square', 310), teethG = ctx.createGain();
+  rF.type = 'bandpass'; rF.frequency.value = 4200; rF.Q.value = 0.9; rAmp.gain.value = 0.5; teethG.gain.value = 0.5; teeth.connect(teethG).connect(rAmp.gain);
+  const chipF = ctx.createBiquadFilter(); chipF.type = 'lowpass'; chipF.frequency.value = 500; const chipG = ctx.createGain(); chipG.gain.value = 0.5;
+  const rasp = ctx.createGain(); rasp.gain.value = 0;
+  n.connect(rF).connect(rAmp).connect(rasp); n.connect(chipF).connect(chipG).connect(rasp); rasp.connect(out);
+  for (const o of osc) o.start(); n.start();
+  out.gain.setTargetAtTime(0.24 * p.gain, ctx.currentTime, 0.08);
+  live.saw = { model, p, osc, n, out, idle, cut, rasp, cA, cB, cHalf, cF, iA, rpm: 0 };
+  sawSet(0, 0);
 }
+// rpm 0 (idle) .. 1 (wide open), load 0..1 (how hard the chain is in the wood)
 export function sawSet(rpm, load) {
   const s = live.saw; if (!s) return;
-  const t = ctx.currentTime;
-  const hz = 45 + rpm * 165 - load * 35; // firing frequency
-  s.o1.frequency.setTargetAtTime(hz, t, 0.05);
-  s.o2.frequency.setTargetAtTime(hz * 0.5, t, 0.05);
-  s.lfo.frequency.setTargetAtTime(hz * 0.5, t, 0.05);
-  s.f.frequency.setTargetAtTime(500 + rpm * 2600, t, 0.05);
-  s.g.gain.setTargetAtTime(0.10 + rpm * 0.14, t, 0.05);
-  s.ng.gain.setTargetAtTime(load * 0.10, t, 0.05);
+  const t = ctx.currentTime, p = s.p;
+  const tc = rpm > s.rpm ? 0.07 : 0.3; // revs up fast, winds down slower
+  s.rpm = rpm;
+  const hz = p.idle + (p.wot - p.idle) * rpm - p.bog * load * rpm;
+  for (const [o, k] of [[s.cA, 1], [s.cB, 1.012], [s.cHalf, 0.5]]) o.frequency.setTargetAtTime(hz * k, t, tc);
+  s.cF.frequency.setTargetAtTime(p.cutTone * (0.35 + 0.65 * rpm) * (1 - 0.15 * load), t, tc);
+  const open = Math.min(1, Math.max(0, (rpm - 0.08) / 0.5));
+  s.idle.gain.setTargetAtTime(0.65 * (1 - open), t, tc);
+  s.cut.gain.setTargetAtTime(open * (0.95 + 0.25 * load), t, tc);
+  s.rasp.gain.setTargetAtTime(load * rpm * p.rasp * 4, t, 0.05);
 }
 export function sawStop() {
   const s = live.saw; if (!s) return;
-  const t = ctx.currentTime;
-  s.g.gain.setTargetAtTime(0, t, 0.15); s.ng.gain.setTargetAtTime(0, t, 0.1);
-  setTimeout(() => { try { s.o1.stop(); s.o2.stop(); s.lfo.stop(); s.n.stop(); } catch {} }, 700);
+  s.out.gain.setTargetAtTime(0, ctx.currentTime, 0.15);
+  setTimeout(() => { try { for (const o of s.osc) o.stop(); s.n.stop(); } catch {} }, 900);
   live.saw = null;
 }
 

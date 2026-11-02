@@ -201,6 +201,12 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 .grade.g-B { background: linear-gradient(160deg, #e8f59a, #b7d14a); box-shadow: 0 12px 30px -10px #b7d14a, inset 0 1px 0 rgba(255,255,255,0.5); }
 .grade.g-D, .grade.g-F { background: linear-gradient(160deg, #ff8a78, #e0392a); color: #2a0703; box-shadow: 0 12px 30px -10px #e0392a, inset 0 1px 0 rgba(255,255,255,0.35); }
 @keyframes pop { 0% { opacity: 0; transform: scale(0.4) rotate(-12deg); } 70% { transform: scale(1.08) rotate(2deg); } 100% { opacity: 1; transform: none; } }
+.took { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 16px 0 0; font-size: 14px; color: var(--bone-dim); }
+.took svg { width: 16px; height: 16px; flex: none; }
+.took b { color: var(--bone); font-family: 'IBM Plex Mono', monospace; font-weight: 500; }
+.took .rec, .took .best { font-family: var(--f-display); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; font-size: 12px; padding: 3px 9px; border-radius: 99px; }
+.took .rec { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--ok); }
+.took .best { border: 1px solid var(--stroke); }
 .ledger { width: 100%; border-collapse: collapse; margin: 18px 0 14px; font-size: 14px; }
 .ledger td { padding: 8px 0; border-bottom: 1px solid var(--stroke); color: var(--bone-dim); }
 .ledger td:last-child { text-align: right; font-family: var(--f-mono); color: var(--bone); font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: 12px; }

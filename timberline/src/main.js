@@ -16,6 +16,7 @@ const deg = THREE.MathUtils.degToRad, rad2deg = THREE.MathUtils.radToDeg;
 const clamp = THREE.MathUtils.clamp, lerp = THREE.MathUtils.lerp;
 const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const cm = (m) => (m * 100).toFixed(1);
+const clock = (sec) => { const t = Math.max(0, Math.round(sec)), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, ss = String(t % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`; };
 const money = (v) => (v < 0 ? '−$' : '$') + Math.abs(Math.round(v)).toLocaleString('en-US');
 
 // ---------------- renderer ----------------
@@ -41,8 +42,21 @@ window.addEventListener('resize', resize);
 
 // ---------------- save ----------------
 const SAVE_KEY = 'timberline.v1';
-const fresh = () => ({ cash: 0, health: 100, owned: ['axe'], equipped: 'axe', stats: { felled: 0, jobs: 0, earned: 0, injuries: 0, accSum: 0, accN: 0, best: null } });
-let save = (() => { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.owned) return Object.assign(fresh(), s); } catch {} return fresh(); })();
+// a new career starts with an axe and the farm saw; cuts remembers your last notch and back-cut settings per tool type;
+// bestTime holds the fastest clean tree (arrival to on the ground, seconds) per location
+const fresh = () => ({ cash: 0, health: 100, owned: ['axe', 'sawSmall'], equipped: 'sawSmall', cuts: {}, bestTime: {}, stats: { felled: 0, jobs: 0, earned: 0, injuries: 0, accSum: 0, accN: 0, best: null, timeSum: 0 } });
+let save = (() => {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (s && s.owned) {
+      const out = Object.assign(fresh(), s);
+      out.stats = Object.assign(fresh().stats, s.stats);
+      if (!out.owned.includes('sawSmall')) out.owned.push('sawSmall'); // everyone has a saw from the start now
+      return out;
+    }
+  } catch {}
+  return fresh();
+})();
 const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch {} };
 
 // ---------------- game state ----------------
@@ -120,6 +134,7 @@ const ICON = {
   ppe: '<path d="M4 15a8 8 0 0 1 16 0z"/><path d="M2 15h20M12 7V4"/>',
   machine: '<rect x="2" y="12" width="12" height="5" rx="1"/><circle cx="5" cy="19" r="2"/><circle cx="11" cy="19" r="2"/><path d="M14 13h3l3-7M20 6l2 2"/><path d="M5 12V8h5v4"/>',
   lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   tree: '<path d="M12 2 5 12h4l-3 5h12l-3-5h4z"/><path d="M12 17v5"/>',
 };
 const icon = (k, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24">${ICON[k]}</svg>`;
@@ -175,7 +190,7 @@ function renderMenu() {
   const s = save.stats;
   $('stats').innerHTML = [
     ['Cash', money(save.cash)], ['Health', Math.round(save.health)], ['Trees down', s.felled],
-    ['Mean lay error', s.accN ? (s.accSum / s.accN).toFixed(1) + '°' : '—'], ['Injuries', s.injuries], ['Equipped', TOOLS[save.equipped].name],
+    ['Mean lay error', s.accN ? (s.accSum / s.accN).toFixed(1) + '°' : '—'], ['Injuries', s.injuries], ['Time in the woods', clock(s.timeSum)], ['Equipped', TOOLS[save.equipped].name],
   ].map(([k, v], i) => `<div><div class="lbl">${k}</div><div class="v${i === 0 ? ' cash' : ''}">${v}</div></div>`).join('');
   for (const t of ['contracts', 'gear', 'notes']) $('tab-' + t).setAttribute('aria-selected', String(menuTab === t));
   const body = $('tabbody');
@@ -186,7 +201,7 @@ function renderMenu() {
       const d = difficulty(l);
       return `<div class="card${ok ? '' : ' locked'}" style="animation-delay:${LOCATIONS.indexOf(l) * 60}ms"><div class="art">${locArt(l)}<span class="badge">${icon(l.tier === 'axe' ? 'axe' : l.tier === 'harvester' ? 'machine' : 'saw')}${l.tier === 'axe' ? 'Axe work' : l.tier === 'harvester' ? 'Machine' : 'Chainsaw'}</span><span class="pay">${money(l.basePay)}/tree</span></div>
       <div class="region">${l.region}<span class="diff" title="Difficulty ${d} of 5">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= d ? 'on' : ''}"></i>`).join('')}</span></div><h4>${l.name}</h4><p>${l.blurb}</p>
-      <div class="specs"><span>Slope <b>${l.slope}°</b></span><span>DBH <b>${Math.round(l.dbh[0] * 100)}–${Math.round(l.dbh[1] * 100)} cm</b></span><span>Trees <b>${l.trees}</b></span></div>
+      <div class="specs"><span>Slope <b>${l.slope}°</b></span><span>DBH <b>${Math.round(l.dbh[0] * 100)}–${Math.round(l.dbh[1] * 100)} cm</b></span><span>Trees <b>${l.trees}</b></span>${save.bestTime[l.id] != null ? `<span>Best <b>${clock(save.bestTime[l.id])}</b></span>` : ''}</div>
       <div class="species">${sp}</div>
       ${ok ? `<button class="go" data-loc="${l.id}">Take contract →</button>` : `<div class="req">${icon('lock')}${tierText[l.tier]}</div><button class="go ghost" disabled>Locked</button>`}</div>`;
     }).join('')}</div>
@@ -316,12 +331,29 @@ function selectTree(i) {
   else applyPreset('open');
   G.chopN = 0;
   f.cut.back.step = job.tool.kind === 'axe' ? 0.05 : 0;
+  restoreCut();
+  G.treeT0 = performance.now(); G.cutT0 = G.releaseT = G.landT = null;
   G.step = 'sizeup'; G.activeCut = 'top'; G.cutStarted = false; G.csgDirty = true; G.csgT = 0;
   G.creakT = 1; G.retreatWarned = false; G.blockMsg = 0; G.wedgeHinted = false;
   buildGuides();
   camTo('sizeup');
   renderPanel(); renderJobCard();
   show('panel', true); show('plan', true); show('actionbar', false); show('meter', false);
+}
+
+// The last notch and back-cut settings you used with this kind of tool carry over to the next tree.
+function rememberCut() {
+  const c = G.felling.cut, D = G.tree.R * 2;
+  save.cuts[job.tool.kind] = { type: c.notch.type, top: c.notch.top, bottom: c.notch.bottom, depth: c.notch.target / D, step: c.back.step, yaw: c.back.yaw, method: c.method, plan: c.hingePlan / D };
+  persist();
+}
+function restoreCut() {
+  const m = save.cuts[job.tool.kind]; if (!m) return;
+  const c = G.felling.cut, D = G.tree.R * 2, axe = job.tool.kind === 'axe';
+  Object.assign(c.notch, { type: axe ? 'axe' : m.type, top: m.top, bottom: m.bottom, target: D * m.depth });
+  Object.assign(c.back, { step: m.step, yaw: m.yaw });
+  c.method = m.method === 'bore' && job.tool.bore ? 'bore' : 'standard';
+  c.hingePlan = D * m.plan;
 }
 
 function applyPreset(key) {
@@ -343,6 +375,7 @@ function renderJobCard() {
       <span>${icon('weight')}Weight</span><span>${(tr.mass / 1000).toFixed(1)} t</span>
       <span>${icon('wind')}Wind</span><span>${f.wind.speed.toFixed(1)} m/s</span>
       <span>${icon(job.tool.kind === 'axe' ? 'axe' : 'saw')}Tool</span><span>${job.tool.name}</span>
+      <span>${icon('clock')}Time</span><span class="mono" id="treeClock">${clock(((G.landT || performance.now()) - G.treeT0) / 1000)}</span>
     </div>`;
 }
 
@@ -471,13 +504,14 @@ function renderPanel() {
     $('resetTree').onclick = () => restartTree(G.treeIdx);
     p.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => { applyPreset(b.dataset.preset); renderPanel(); buildPreview(); }));
     p.querySelectorAll('[data-cut]').forEach((b) => b.addEventListener('click', () => { G.activeCut = b.dataset.cut; renderPanel(); }));
-    bindSlider('top', (v) => v + '°', (v) => { n.top = v; n.type = 'custom'; buildPreview(); });
-    bindSlider('bot', (v) => v + '°', (v) => { n.bottom = v; n.type = 'custom'; buildPreview(); });
+    bindSlider('top', (v) => v + '°', (v) => { n.top = v; if (!axe) n.type = 'custom'; buildPreview(); });
+    bindSlider('bot', (v) => v + '°', (v) => { n.bottom = v; if (!axe) n.type = 'custom'; buildPreview(); });
     bindSlider('depth', (v) => `${v}% · ${cm(D * v / 100)} cm`, (v) => { n.target = D * v / 100; buildPreview(); });
     $('next').onclick = () => {
       if (n.top + n.bottom < 12) { toast('Open the notch wider — at least 12°.', 'bad'); return; }
       G.step = 'back'; G.activeCut = c.method === 'bore' ? 'bore' : 'back'; G.cutStarted = false;
-      if (axe) { c.back.step = 0.05; G.chopN = 0; }
+      if (axe) G.chopN = 0;
+      rememberCut();
       camTo('back');
       renderPanel(); buildPreview(); showAction();
     };
@@ -676,7 +710,8 @@ function handleSaw(dt) {
     if (kind === 'bore') frontX = b.hingeBack - (b.hingeBack - (-Rc + b.strap)) * b.progress;
     else frontX = -Rc + b.strapCut;
   }
-  sfx.sawSet(active ? (f.pinched ? 0.35 : 0.95) : 0.18, active ? 1 : 0);
+  if (!f.player.retreating) sfx.sawStart(job.toolKey); // idling whenever the saw is in your hands
+  sfx.sawSet(active ? (f.pinched ? 0.3 : 1) : 0, active ? (f.pinched ? 1 : 0.85) : 0);
   if (active && !f.pinched) shake = Math.max(shake, 0.22); // bar vibration
   G.rig.placeSaw(kind, c, frontX, active && !f.pinched);
   if (active && ['back', 'bore', 'strap'].includes(kind)) { f.checkRelease(); if (f.phase !== 'standing') onRelease(); }
@@ -789,7 +824,7 @@ function onRelease() {
   endHold();
   G.step = 'falling';
   sfx.crack(1); sfx.rush(3); kick(0.4, 1.5);
-  if (job.tool.kind === 'saw') { sfx.sawSet(0.15, 0); setTimeout(() => sfx.sawStop(), 600); }
+  if (job.tool.kind === 'saw') { sfx.sawSet(0, 0); setTimeout(() => sfx.sawStop(), 900); }
   if (f.barber) {
     tr.barberChair(f.cut);
     tr.fallPivot.userData.x0 = tr.fallPivot.position.x;
@@ -802,7 +837,8 @@ function onRelease() {
   banner('TIMBER!', f.player.retreating ? 'Keep walking' : 'Retreat — press R', 2200);
   if (!f.player.retreating) $('retreat').classList.add('urgent');
   $('hold').disabled = true; show('meter', false); $('wedgeBtn').hidden = true;
-  G.releaseAt = G.time;
+  G.releaseAt = G.time; G.releaseT = performance.now();
+  rememberCut();
   setTimeout(() => { if (G.step === 'falling') camTo('fall'); }, 900);
   renderPanel();
 }
@@ -814,11 +850,12 @@ function handleFellingEvents() {
       case 'gust': if (G.step !== 'falling') toast('Gust coming through the crowns.', ''); break;
       case 'hingeBreak': sfx.crack(0.7); break;
       case 'land':
+        G.landT = performance.now();
         sfx.impact(clamp(G.tree.mass / 2500, 0.4, 1.6)); kick(clamp(G.tree.mass / 3000, 0.35, 1.1), clamp(G.tree.mass / 800, 1.5, 5));
         dust(G.felling.tipPos, 60); dust(G.tree.stemPoint(G.tree.H * 0.5), 40);
         G.resultTimer = setTimeout(finishTree, 2600);
         break;
-      case 'hung': sfx.crack(0.8); G.resultTimer = setTimeout(finishTree, 3000); break;
+      case 'hung': G.landT = performance.now(); sfx.crack(0.8); G.resultTimer = setTimeout(finishTree, 3000); break;
       case 'brush': sfx.crack(0.4); break;
       case 'zap': sfx.zap(); flash(0x99ccff); screenFlash.set(0.7, 0.85, 1, 0.6); kick(0.5); break;
       case 'hurt': sfx.alarm(); flash(0xff2200); screenFlash.set(0.55, 0.02, 0, 0.7); kick(0.7); save.health -= e.amount; save.stats.injuries++; updateWallet(); break;
@@ -905,13 +942,18 @@ function finishTree() {
   if (f.releaseStats && (tr10 < 0.05 || tr10 > 0.17)) score -= 10;
   const letter = score >= 90 ? 'A' : score >= 78 ? 'B' : score >= 62 ? 'C' : score >= 45 ? 'D' : 'F';
 
+  // time taken: from arriving at the tree to it hitting the ground; fastest clean tree per location is kept
+  const took = ((G.landT || performance.now()) - G.treeT0) / 1000, cutting = G.cutT0 && G.releaseT ? (G.releaseT - G.cutT0) / 1000 : null;
+  const prevBest = save.bestTime[loc.id], record = clean && !f.playerHitBy && (prevBest == null || took < prevBest);
+  if (record) save.bestTime[loc.id] = took;
+  save.stats.timeSum += took;
   save.cash += pay;
   const brokeNow = pay < 0 && save.cash < 200;
   save.stats.felled++; save.stats.earned += Math.max(0, pay);
   if (landed) { save.stats.accSum += err; save.stats.accN++; }
   job.done.add(G.treeIdx);
   tr.spec.felled = true;
-  job.results.push({ pay, letter, err });
+  job.results.push({ pay, letter, err, took });
   persist(); updateWallet();
   if (pay > 0) sfx.cash();
 
@@ -920,6 +962,7 @@ function finishTree() {
   const delay = (i) => `style="animation-delay:${0.25 + i * 0.06}s"`;
   $('modalCard').innerHTML = `<div class="result-head"><div class="grade g-${letter}">${letter}</div><div><div class="lbl">${tr.spec.sp.name} · ${cm(D)} cm DBH · ${tr.H.toFixed(0)} m</div>
     <h2>${f.playerHitBy ? 'Injured' : has('hangup') ? 'Hung up' : f.barber ? 'Barber chair' : err < 5 ? 'On the stake' : err < 15 ? 'Down' : 'Down, but wide'}</h2></div></div>
+    <p class="took">${icon('clock')}<span><b>${clock(took)}</b> on this tree${cutting != null ? ` · ${clock(cutting)} cutting` : ''}</span>${record ? `<span class="rec">${prevBest == null ? 'First time on the board' : 'New best · was ' + clock(prevBest)}</span>` : prevBest != null ? `<span class="best">Best here ${clock(prevBest)}</span>` : ''}</p>
     <table class="ledger">${lines.map(([k, v], i) => `<tr class="${v < 0 ? 'neg' : ''}" ${delay(i)}><td>${k}</td><td>${money(v)}</td></tr>`).join('')}
     <tr class="total" ${delay(lines.length)}><td>Paid</td><td id="paidV">${money(0)}</td></tr></table>
     <div class="lbl">What happened</div>
@@ -957,10 +1000,11 @@ function countUp(el, v, ms, wait = 0) {
 // Under $200 after a loss: the crew lets you go and the career starts over.
 function bankrupt(why) {
   const stats = save.stats;
-  save = fresh(); save.stats.best = stats.best; persist();
+  const bestTime = save.bestTime;
+  save = fresh(); save.stats.best = stats.best; save.bestTime = bestTime; persist();
   window.__timberline && (window.__timberline.save = save);
   clearWorld(); toMenu();
-  $('modalCard').innerHTML = `<div class="lbl">Out of money</div><h2>Starting over</h2><p>${why} Your gear is sold to cover it, and you start again with a hand axe at the homestead woodlot.</p>
+  $('modalCard').innerHTML = `<div class="lbl">Out of money</div><h2>Starting over</h2><p>${why} Your gear is sold to cover it, and you start again with a hand axe and the farm saw.</p>
     <div class="btn-row"><button class="go" id="bOk" type="button">Back to the woodlot</button></div>`;
   show('modal', true);
   $('bOk').onclick = () => show('modal', false);
@@ -974,7 +1018,7 @@ function endJob(hospital = false) {
   persist();
   clearWorld();
   toMenu();
-  if (!hospital && res.length) toast(`Contract closed: ${res.length} trees, ${money(total)} paid.`, 'ok');
+  if (!hospital && res.length) toast(`Contract closed: ${res.length} trees in ${clock(res.reduce((a, r) => a + r.took, 0))}, ${money(total)} paid.`, 'ok');
 }
 function endHarvest(r) {
   save.cash += r.pay; save.stats.felled += r.trees; save.stats.earned += r.pay; save.stats.jobs++;
@@ -1093,10 +1137,10 @@ function drawPlan() {
 }
 
 // ---------------- frame loop ----------------
-const clock = new THREE.Clock();
+const frameClock = new THREE.Clock();
 let planT = 0, menuOrbit = 0;
 function tick() {
-  const raw = clock.getDelta();
+  const raw = frameClock.getDelta();
   if (!document.hidden) watchQuality(Math.min(raw, 0.1));
   frame(Math.min(raw, 0.05));
   requestAnimationFrame(tick);
@@ -1114,6 +1158,7 @@ function frame(dt) {
     if (G.step === 'falling') G.rig.hideTool();
     // guide planes step back once cutting starts so the wood being removed stays readable
     previewMat.opacity = previewMat2.opacity = G.cutStarted ? 0.1 : 0.28;
+    if (G.cutStarted && !G.cutT0) G.cutT0 = performance.now(); // the clock on the cutting itself starts at the first bite
     // CSG refresh
     G.csgT -= dt;
     if (G.csgDirty && G.csgT <= 0 && G.step !== 'falling' && G.step !== 'sizeup') { G.tree.updateCuts(f.cut); G.csgDirty = false; G.csgT = 0.12; }
@@ -1132,7 +1177,7 @@ function frame(dt) {
       if (fc.t > 3) G.faceChunk = null;
     }
     if (G.step === 'falling' && !f.player.retreating && G.time - G.releaseAt > 2 && !G.retreatWarned) { G.retreatWarned = true; toast('Get off the stump!', 'bad'); }
-    planT -= dt; if (planT <= 0) { drawPlan(); refreshBackReadout(); updateWedgeBtn(); planT = 0.07; }
+    planT -= dt; if (planT <= 0) { drawPlan(); refreshBackReadout(); updateWedgeBtn(); if ($('treeClock')) $('treeClock').textContent = clock(((G.landT || performance.now()) - G.treeT0) / 1000); planT = 0.07; }
   }
   if (G.mode === 'harvest') harvester?.update(dt);
   if (G.mode === 'menu' && world) {
