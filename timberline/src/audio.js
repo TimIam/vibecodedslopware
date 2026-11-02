@@ -145,3 +145,4 @@ export function clank() { thump(900, 0.08, 0.3); burst({ dur: 0.06, freq: 4000, 
 export function cash() { thump(1200, 0.08, 0.15); thump(1600, 0.12, 0.15, 0.09); }
 export function alarm() { for (let i = 0; i < 3; i++) thump(880, 0.12, 0.25, i * 0.18); }
 export function zap() { for (let i = 0; i < 8; i++) burst({ dur: 0.05, freq: 3000 + Math.random() * 3000, q: 1, gain: 0.5, delay: i * 0.04 }); thump(60, 0.6, 0.6); }
+export function tick() { thump(2200, 0.035, 0.05); burst({ dur: 0.02, freq: 5000, q: 2, gain: 0.04 }); }

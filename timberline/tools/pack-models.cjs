@@ -1,5 +1,5 @@
 // Packs assets/models/*.glb into assets/web/*.js modules (base64) so hosts that
-// don't serve .glb can still deliver the Blender models. Run: node tools/pack-models.js
+// don't serve .glb can still deliver the Blender models. Run: node tools/pack-models.cjs
 const fs = require('fs'), path = require('path');
 const src = path.join(__dirname, '..', 'assets', 'models'), out = path.join(__dirname, '..', 'assets', 'web');
 fs.mkdirSync(out, { recursive: true });

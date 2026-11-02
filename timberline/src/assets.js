@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { rockMaterial } from './textures.js';
 
-const NAMES = ['axe', 'chainsaw', 'harvester', 'wedge', 'crown_conifer', 'crown_broadleaf', 'rock'];
+const NAMES = ['axe', 'chainsaw', 'harvester', 'wedge', 'crown_conifer', 'crown_broadleaf', 'rock', 'faller'];
 const models = {};
 
 function fixMaterials(root) {
@@ -28,7 +28,7 @@ export const assets = {
       try {
         let gltf;
         try {
-          const mod = await import(`../assets/web/${n}.js`); // base64-packed GLB (see tools/pack-models.js)
+          const mod = await import(`../assets/web/${n}.js`); // base64-packed GLB (see tools/pack-models.cjs)
           const bin = Uint8Array.from(atob(mod.default), (c) => c.charCodeAt(0));
           gltf = await loader.parseAsync(bin.buffer, '');
         } catch {
@@ -89,6 +89,7 @@ export const assets = {
   },
   axe() { return models.axe ? models.axe.clone(true) : fallbackAxe(); },
   wedge() { return models.wedge ? models.wedge.clone(true) : fallbackWedge(); },
+  faller() { return models.faller ? models.faller.clone(true) : null; },
   harvester() { return models.harvester ? models.harvester.clone(true) : fallbackHarvester(); },
   has(n) { return !!models[n]; },
 };

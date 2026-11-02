@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { Brush, Evaluator, ADDITION, SUBTRACTION, INTERSECTION } from 'three-bvh-csg';
 import { barkMaterial, endGrainMaterial } from './textures.js';
 import { assets } from './assets.js';
+import { BARK_TONE } from './world.js';
 
 const KERF = 0.009;
 const evaluator = new Evaluator();
@@ -45,7 +46,7 @@ export class TreeModel {
     }
     const geo = new THREE.LatheGeometry(pts, seg);
     const uv = geo.attributes.uv;
-    const around = Math.max(1, Math.round((Math.PI * 2 * this.radiusAt(y0)) / 0.5));
+    const around = Math.max(1, Math.round((Math.PI * 2 * this.radiusAt(0.5)) / 0.5)); // same wrap count as the butt section, so the bark lines up at the joint
     const len = (y1 - y0) / 0.55;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * around, uv.getY(i) * len + y0 / 0.55);
     return geo;
@@ -64,7 +65,7 @@ export class TreeModel {
 
     const topOfStem = sp.crown === 'conifer' ? H : this.spec.crownBase + this.spec.crownLen * 0.45;
     this.breakY = Math.min(topOfStem - 1, Math.max(this.buttTop + 1, H * this.spec.breakAt));
-    const log1 = new THREE.Mesh(this.lathe(this.buttTop, this.breakY, 12), this.bark);
+    const log1 = new THREE.Mesh(this.lathe(this.buttTop - 0.03, this.breakY, 12), this.bark); // overlaps the butt so the joint shows no seam
     this.upper = new THREE.Group(); this.upper.position.y = this.breakY;
     const log2geo = this.lathe(this.breakY, topOfStem, 14); log2geo.translate(0, -this.breakY, 0);
     const log2 = new THREE.Mesh(log2geo, this.bark);
@@ -80,7 +81,11 @@ export class TreeModel {
     // heavy side: shift crown toward crownOffset
     const co = this.spec.crownOffset;
     this.crownOffsetWorld = new THREE.Vector2(Math.cos(co.az) * co.m, Math.sin(co.az) * co.m);
-    crown.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    crown.traverse((o) => {
+      if (!o.isMesh) return;
+      o.castShadow = true; o.receiveShadow = true;
+      if (/bark|branch|wood/i.test(o.material.name || "")) { o.material = o.material.clone(); o.material.color.set(BARK_TONE[sp.bark] ?? 0x5a4a3c); } // branches match this species
+    });
     this.crown = crown; this.upper.add(crown);
 
     // dead branch stubs below the crown
@@ -186,11 +191,22 @@ export class TreeModel {
   // back-cut kerf, wider than a real chain so the removed wood reads from the cutting camera
   get backKerf() { return THREE.MathUtils.clamp(this.R * 2 * 0.04, 0.016, 0.026); }
 
+  // An axe notch as chopped so far: each face keeps its final angle and its apex moves in with depth,
+  // so the V opens up swing by swing. The two faces meet at (xi, yi); unequal depths shift that point.
+  axeNotch(n) {
+    const ta = Math.tan(THREE.MathUtils.degToRad(n.top)), tb = Math.tan(THREE.MathUtils.degToRad(n.bottom)), h0 = this.h0;
+    const xt = this.Rc - n.dTop, xb = this.Rc - n.dBot;
+    const xi = (xt * ta + xb * tb) / Math.max(1e-6, ta + tb), yi = h0 + (xi - xt) * ta;
+    return { ta, tb, xi, yi, top: (x) => h0 + (x - xt) * ta, bot: (x) => h0 - (x - xb) * tb };
+  }
+
   cutterBrushes(cut) {
     const R = this.Rc + 0.25, h0 = this.h0, Z = this.Rc + 0.3;
     const out = [];
     const n = cut.notch;
-    if (n) {
+    if (n && n.type === 'axe' && !n.removed) {
+      if (Math.max(n.dTop, n.dBot) > 0.002) { const v = this.axeNotch(n); out.push(this.prismXY([[v.xi, v.yi], [R, v.bot(R)], [R, v.top(R)]], Z)); }
+    } else if (n) {
       const xA = this.Rc - n.target;
       const ta = Math.tan(THREE.MathUtils.degToRad(n.top)), tb = Math.tan(THREE.MathUtils.degToRad(n.bottom));
       const kerfAlong = (tanA, sign, depth) => {

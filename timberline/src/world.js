@@ -11,6 +11,33 @@ export function rng(seed) {
 }
 const lerp = (a, b, t) => a + (b - a) * t;
 
+// Shared wind clock for foliage sway: x = time, y = amplitude in model units (set by the game each frame).
+// overall bark tone per bark style, used to tint the crown models' branches to match their trunks
+export const BARK_TONE = { birch: 0xd9d4c8, aspen: 0xb9bca8, pine: 0x6e4c38, spruce: 0x5c4b3f, ponderosa: 0x8a5b3c, dfir: 0x5b4231, cedar: 0x7c4b36, oak: 0x4b3b2d, ash: 0x77746b, maple: 0x6a6258 };
+export const wind = { value: new THREE.Vector2(0, 0.01) };
+// A clone of a material whose vertices sway with height (local y from 0 at the base up), phased per instance.
+function swaying(mat, power, amp) {
+  const key = `_sway${power}_${amp}`;
+  if (mat.userData[key]) return mat.userData[key];
+  const m = mat.clone();
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uWind = wind;
+    sh.vertexShader = 'uniform vec2 uWind;\n' + sh.vertexShader.replace("#include <begin_vertex>", `#include <begin_vertex>
+      #ifdef USE_INSTANCING
+        vec2 wp = instanceMatrix[3].xz;
+      #else
+        vec2 wp = vec2(0.0);
+      #endif
+      float ph = wp.x * 0.37 + wp.y * 0.23;
+      float hgt = pow(clamp(position.y, 0.0, 1.0), ${power.toFixed(2)}) * uWind.y * ${amp.toFixed(2)};
+      transformed.x += (sin(uWind.x * 1.1 + ph) * 0.7 + sin(uWind.x * 2.9 + ph * 1.7) * 0.3) * hgt;
+      transformed.z += cos(uWind.x * 0.8 + ph * 1.3) * 0.6 * hgt;`);
+  };
+  m.customProgramCacheKey = () => key;
+  mat.userData[key] = m;
+  return m;
+}
+
 function makeNoise(seed) {
   const r = rng(seed), perm = new Uint8Array(512), grad = new Float32Array(256);
   for (let i = 0; i < 256; i++) { perm[i] = i; grad[i] = r() * 2 - 1; }
@@ -69,19 +96,19 @@ export class World {
     skyScene.add(sky2);
     this.envMap = pmrem.fromScene(skyScene, 0.04).texture;
     this.scene.environment = this.envMap;
-    this.scene.environmentIntensity = 0.55;
+    this.scene.environmentIntensity = 0.6;
     pmrem.dispose();
 
     this.scene.fog = new THREE.FogExp2(loc.fog, loc.density);
-    const sunLight = new THREE.DirectionalLight(0xfff1dc, 2.6);
+    const sunLight = new THREE.DirectionalLight(0xffe4c0, 3.1);
     sunLight.position.copy(sun).multiplyScalar(80);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.set(4096, 4096);
-    const c = sunLight.shadow.camera; c.left = -45; c.right = 45; c.top = 45; c.bottom = -45; c.near = 1; c.far = 260;
-    sunLight.shadow.bias = -0.0004; sunLight.shadow.normalBias = 0.04;
+    const c = sunLight.shadow.camera; c.left = -40; c.right = 40; c.top = 40; c.bottom = -40; c.near = 1; c.far = 260;
+    sunLight.shadow.bias = -0.0004; sunLight.shadow.normalBias = 0.04; sunLight.shadow.radius = 2.5; sunLight.shadow.blurSamples = 12;
     this.group.add(sunLight); this.group.add(sunLight.target);
     this.sun = sunLight;
-    const hemi = new THREE.HemisphereLight(0xcfe0ff, 0x4a3f2a, 0.35);
+    const hemi = new THREE.HemisphereLight(new THREE.Color(loc.fog).lerp(new THREE.Color(0xd8e8ff), 0.5), 0x5a4a30, 0.45);
     this.group.add(hemi);
   }
   focus(x, z) {
@@ -192,7 +219,7 @@ export class World {
     const byCrown = { conifer: [], broadleaf: [] };
     for (const s of all) byCrown[s.sp.crown].push(s);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3();
-    const up = new THREE.Vector3(0, 1, 0);
+    const up = new THREE.Vector3(0, 1, 0), tint = new THREE.Color();
     // trunks: one instanced tapered cylinder per bark style
     const byBark = {};
     for (const s of all) (byBark[s.sp.bark] ||= []).push(s);
@@ -205,6 +232,8 @@ export class World {
         const topH = s.sp.crown === 'conifer' ? s.h : s.crownBase + s.crownLen * 0.35;
         m.compose(p.set(s.x, s.y - 0.2, s.z), tilt, sc.set(s.dbh / 2 * 1.15, topH + 0.2, s.dbh / 2 * 1.15));
         im.setMatrixAt(i, m);
+        const v = 0.85 + ((s.seed >> 3) % 100) / 100 * 0.3;
+        im.setColorAt(i, tint.setRGB(v, v, v));
         (s._inst ||= []).push([im, i]);
       });
       im.castShadow = true; im.receiveShadow = true;
@@ -214,7 +243,9 @@ export class World {
       const list = byCrown[kind]; if (!list.length) continue;
       const parts = assets.crownParts(kind);
       for (const part of parts) {
-        const im = new THREE.InstancedMesh(part.geometry, part.material, list.length);
+        const branch = /bark|branch|wood/i.test(part.material.name || "");
+        const baseCol = part.material.color || new THREE.Color(1, 1, 1);
+        const im = new THREE.InstancedMesh(part.geometry, swaying(part.material, 2, 1), list.length);
         list.forEach((s, i) => {
           const tilt = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(Math.sin(s.lean.az), 0, -Math.cos(s.lean.az)), THREE.MathUtils.degToRad(s.lean.deg) * 0.5);
           const yaw = new THREE.Quaternion().setFromAxisAngle(up, (s.seed % 628) / 100);
@@ -223,6 +254,12 @@ export class World {
           m.compose(p.set(s.x + base.x, s.y + base.y, s.z + base.z), tilt.clone().multiply(yaw), sc.set(wscale, s.crownLen, wscale));
           m.multiply(part.matrix);
           im.setMatrixAt(i, m);
+          // per-tree colour: lightness and a warm/cool shift so the stand doesn't look cloned
+          const u = ((s.seed % 997) / 997), w = (((s.seed >> 5) % 89) / 89 - 0.5) * 0.16, l = 0.78 + u * 0.36;
+          if (branch) {
+            const b = tint.set(BARK_TONE[s.sp.bark] ?? 0x5a4a3c);
+            im.setColorAt(i, tint.setRGB(b.r / Math.max(0.02, baseCol.r), b.g / Math.max(0.02, baseCol.g), b.b / Math.max(0.02, baseCol.b)));
+          } else im.setColorAt(i, tint.setRGB(l * (1 + w), l * (1 + w * 0.3), l * (1 - w)));
           (s._inst ||= []).push([im, i]);
         });
         im.castShadow = true; im.receiveShadow = true;
@@ -263,19 +300,21 @@ export class World {
     }
     // grass / fern cards
     const tex = grassTexture();
-    const mat = new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1, color: 0xb8c4a0 });
+    const mat = swaying(new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1, color: 0xb8c4a0 }), 1.5, 9);
     const g1 = new THREE.PlaneGeometry(1, 0.7); g1.translate(0, 0.35, 0);
     const g2 = g1.clone().rotateY(Math.PI / 2);
     const g3 = g1.clone().rotateY(Math.PI / 4);
     const merged = mergeGeos([g1, g2, g3]);
     const count = 2600;
     const im = new THREE.InstancedMesh(merged, mat, count);
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), gc = new THREE.Color();
     for (let i = 0; i < count; i++) {
       const a = r() * Math.PI * 2, d = lerp(1, 80, Math.sqrt(r()));
       const x = Math.cos(a) * d, z = Math.sin(a) * d, k = lerp(0.5, 1.4, r());
       m.compose(p.set(x, this.height(x, z) - 0.03, z), q.setFromAxisAngle(up, r() * 6.28), s.set(k, k * lerp(0.6, 1.3, r()), k));
       im.setMatrixAt(i, m);
+      const gl = lerp(0.7, 1.15, r()), gw = (r() - 0.5) * 0.25;
+      im.setColorAt(i, gc.setRGB(gl * (1 + gw), gl, gl * (1 - gw)));
     }
     im.receiveShadow = true;
     this.group.add(im);

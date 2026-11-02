@@ -2,13 +2,14 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Brush, Evaluator, INTERSECTION } from 'three-bvh-csg';
 import { SPECIES, LOCATIONS, TOOLS, NOTCH_PRESETS } from './data.js';
-import { World } from './world.js';
+import { World, wind } from './world.js';
 import { TreeModel } from './tree.js';
 import { Felling } from './physics.js';
 import { Rig, Chips } from './tools.js';
 import { assets } from './assets.js';
 import { HarvesterMode } from './harvester.js';
 import * as sfx from './audio.js';
+import { createPost } from './post.js';
 
 const $ = (id) => document.getElementById(id);
 const deg = THREE.MathUtils.degToRad, rad2deg = THREE.MathUtils.radToDeg;
@@ -20,18 +21,20 @@ const money = (v) => (v < 0 ? '−$' : '$') + Math.abs(Math.round(v)).toLocaleSt
 // ---------------- renderer ----------------
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.82;
+renderer.toneMappingExposure = 0.9;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(55, 1, 0.05, 3000);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true; controls.dampingFactor = 0.08; controls.maxPolarAngle = Math.PI * 0.53; controls.minDistance = 0.6; controls.maxDistance = 220;
+let post = null, pixelRatio = Math.min(window.devicePixelRatio, 1.5);
 function resize() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
+  renderer.setPixelRatio(pixelRatio);
   renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  post?.setSize(w, h, pixelRatio);
 }
 window.addEventListener('resize', resize);
 
@@ -59,8 +62,9 @@ function camTo(name) {
   let p, t;
   if (name === 'sizeup') { p = L(-Math.max(7, H * 0.42), Math.max(4, H * 0.32), -Math.max(6, H * 0.42)); t = L(H * 0.15, H * 0.3, 0); }
   if (name === 'sight') { p = L(-3.5, 1.7, 0.2); t = L(H, 1.5, 0); }
-  if (name === 'cut') { p = L(R * 1.6 + 0.9, h0 + 0.55 + R * 0.8, -(R * 2.4 + 1.5)); t = L(0, h0 + 0.05, 0); }
-  if (name === 'back') { p = L(-(R * 1.8 + 1.2), h0 + 0.6 + R * 0.8, -(R * 2.4 + 1.3)); t = L(0, h0 + 0.05, 0); }
+  // cutting cameras look from across the trunk so the faller (who works from -z) is in view, not in the way
+  if (name === 'cut') { p = L(R * 1.6 + 0.9, h0 + 0.55 + R * 0.8, R * 2.4 + 1.5); t = L(0, h0 + 0.05, 0); }
+  if (name === 'back') { p = L(-(R * 1.8 + 1.2), h0 + 0.6 + R * 0.8, R * 2.4 + 1.3); t = L(0, h0 + 0.05, 0); }
   if (name === 'fall') {
     // watch from whichever side is clearer of buildings and standing trees
     const cands = [-1, 1].map((sd) => L(H * 0.32, Math.max(3, H * 0.22), sd * H * 0.95));
@@ -76,7 +80,8 @@ function toast(text, kind = '') {
   const el = document.createElement('div');
   el.className = 'toast glass ' + kind; el.textContent = text;
   $('toasts').appendChild(el);
-  setTimeout(() => el.remove(), 4200);
+  setTimeout(() => el.classList.add('out'), 3900);
+  setTimeout(() => el.remove(), 4250);
   while ($('toasts').children.length > 4) $('toasts').firstChild.remove();
 }
 let bannerTimer = 0;
@@ -93,12 +98,67 @@ function updateWallet() {
 }
 function slider(id, label, min, max, step, value, fmt, disabled = false) {
   return `<div class="slider"><div class="top"><label class="lbl" for="${id}">${label}</label><span class="val" id="${id}-v">${fmt(value)}</span></div>
-  <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${value}" ${disabled ? 'disabled' : ''}></div>`;
+  <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${value}" style="--p:${((value - min) / (max - min)) * 100}%" ${disabled ? 'disabled' : ''}></div>`;
 }
 function bindSlider(id, fmt, fn) {
   const el = $(id); if (!el) return;
-  el.addEventListener('input', () => { const v = parseFloat(el.value); $(id + '-v').textContent = fmt(v); fn(v); });
+  el.addEventListener('input', () => { const v = parseFloat(el.value); el.style.setProperty('--p', ((v - el.min) / (el.max - el.min)) * 100 + '%'); $(id + '-v').textContent = fmt(v); fn(v); });
 }
+
+// inline line icons (24×24, stroked)
+const ICON = {
+  ruler: '<path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2m1-5 2 2m1-5 2 2"/>',
+  height: '<path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4"/>',
+  lean: '<path d="M6 21 15 4"/><path d="M4 21h8"/>',
+  weight: '<path d="M6 9h12l2 12H4z"/><circle cx="12" cy="6" r="2.5"/>',
+  wind: '<path d="M3 9h11a3 3 0 1 0-3-3M3 15h15a3 3 0 1 1-3 3"/>',
+  tool: '<path d="m14 7 3-3 3 3-3 3"/><path d="M15.5 8.5 4 20"/>',
+  axe: '<path d="M14 4c3 0 6 3 6 6l-5 1-2-2z"/><path d="M13 9 3 21"/>',
+  saw: '<rect x="3" y="9" width="8" height="7" rx="2"/><path d="M11 11h9a1.5 1.5 0 0 1 0 3h-9"/><path d="M5 9V7h4"/>',
+  wedge: '<path d="M4 18 20 9v9z"/><path d="M8 18v-2"/>',
+  ppe: '<path d="M4 15a8 8 0 0 1 16 0z"/><path d="M2 15h20M12 7V4"/>',
+  machine: '<rect x="2" y="12" width="12" height="5" rx="1"/><circle cx="5" cy="19" r="2"/><circle cx="11" cy="19" r="2"/><path d="M14 13h3l3-7M20 6l2 2"/><path d="M5 12V8h5v4"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  tree: '<path d="M12 2 5 12h4l-3 5h12l-3-5h4z"/><path d="M12 17v5"/>',
+};
+const icon = (k, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24">${ICON[k]}</svg>`;
+const stepper = (n) => `<div class="stepper">${[1, 2, 3].map((i) => `<div class="${i < n ? 'done' : i === n ? 'now' : ''}"></div>`).join('')}</div>
+  <div class="stepper-labels">${['Size up', 'Face cut', 'Back cut'].map((t, i) => `<span class="${i + 1 === n ? 'now' : ''}" style="font-family:var(--f-display);font-weight:600;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:${i + 1 === n ? 'var(--bone)' : 'var(--mute)'}">${t}</span>`).join('')}</div>`;
+
+// A small landscape for each contract card, drawn from the location's own colours.
+function locArt(l) {
+  let seed = [...l.id].reduce((a, c) => a * 31 + c.charCodeAt(0), 7) >>> 0;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const fog = l.fog, g = l.ground, conifer = l.species.some((k) => SPECIES[k].crown === 'conifer'), broad = l.species.some((k) => SPECIES[k].crown === 'broadleaf');
+  const tilt = l.slope * 1.4;
+  const ridge = (y0, amp, n) => { let d = `M0 ${y0}`; for (let i = 0; i <= n; i++) { const x = (i / n) * 320; d += ` L${x.toFixed(1)} ${(y0 + (rnd() - 0.5) * amp - (x / 320) * tilt).toFixed(1)}`; } return d + ' L320 120 L0 120 Z'; };
+  const trees = (y0, count, scale, color) => {
+    let out = '';
+    for (let i = 0; i < count; i++) {
+      const x = rnd() * 320, y = y0 - (x / 320) * tilt + rnd() * 8, h = (16 + rnd() * 18) * scale;
+      const cone = conifer && (!broad || rnd() < 0.6);
+      out += cone ? `<path d="M${x.toFixed(1)} ${(y - h).toFixed(1)} L${(x - h * 0.28).toFixed(1)} ${y.toFixed(1)} L${(x + h * 0.28).toFixed(1)} ${y.toFixed(1)}Z" fill="${color}"/>`
+        : `<rect x="${(x - 0.8 * scale).toFixed(1)}" y="${(y - h * 0.55).toFixed(1)}" width="${(1.6 * scale).toFixed(1)}" height="${(h * 0.55).toFixed(1)}" fill="${color}"/><circle cx="${x.toFixed(1)}" cy="${(y - h * 0.62).toFixed(1)}" r="${(h * 0.3).toFixed(1)}" fill="${color}"/>`;
+    }
+    return out;
+  };
+  const extra = l.hazards.includes('powerline') ? `<path d="M0 46 Q160 60 320 40" stroke="#1a1f1c" stroke-width="0.8" fill="none" opacity="0.7"/><rect x="226" y="40" width="2" height="40" fill="#2a2a24"/>`
+    : l.hazards.includes('cabin') ? `<path d="M232 78 l14 -10 l14 10 v12 h-28z" fill="#3a2a1e"/><rect x="249" y="82" width="5" height="8" fill="#ffb347" opacity="0.8"/>`
+    : l.tier === 'harvester' ? `<rect x="210" y="84" width="34" height="9" rx="2" fill="#e8a020"/><circle cx="216" cy="95" r="3.5" fill="#222"/><circle cx="238" cy="95" r="3.5" fill="#222"/><path d="M240 84 L262 66 L270 70" stroke="#e8a020" stroke-width="2.5" fill="none"/>` : '';
+  return `<svg viewBox="0 0 320 112" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs><linearGradient id="sk-${l.id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${fog}" stop-opacity="0.55"/><stop offset="1" stop-color="${fog}"/></linearGradient>
+    <radialGradient id="sn-${l.id}" cx="0.78" cy="0.22" r="0.5"><stop offset="0" stop-color="#fff6e0" stop-opacity="0.9"/><stop offset="1" stop-color="#fff6e0" stop-opacity="0"/></radialGradient></defs>
+    <rect width="320" height="112" fill="#6f8f9c"/><rect width="320" height="112" fill="url(#sk-${l.id})"/><rect width="320" height="112" fill="url(#sn-${l.id})"/>
+    <path d="${ridge(58, 22, 9)}" fill="${g[2]}" opacity="0.35"/>
+    ${trees(70, 26, 0.6, g[2] + '99')}
+    <path d="${ridge(80, 12, 7)}" fill="${g[1]}" opacity="0.8"/>
+    ${trees(88, 16, 1, '#1e2a1e')}${extra}
+    <path d="${ridge(98, 6, 6)}" fill="${g[0]}"/>
+    ${trees(118, 5, 1.8, '#121a13')}
+    <rect width="320" height="112" fill="url(#sk-${l.id})" opacity="0.12"/>
+  </svg>`;
+}
+const difficulty = (l) => clamp(Math.round(l.slope / 9 + l.dbh[1] * 2.2 + l.lean[1] / 7 + l.hazards.length * 0.6), 1, 5);
 
 // ---------------- menu ----------------
 const tierOk = (loc) => {
@@ -115,19 +175,22 @@ function renderMenu() {
   $('stats').innerHTML = [
     ['Cash', money(save.cash)], ['Health', Math.round(save.health)], ['Trees down', s.felled],
     ['Mean lay error', s.accN ? (s.accSum / s.accN).toFixed(1) + '°' : '—'], ['Injuries', s.injuries], ['Equipped', TOOLS[save.equipped].name],
-  ].map(([k, v]) => `<div><div class="lbl">${k}</div><div class="v">${v}</div></div>`).join('');
+  ].map(([k, v], i) => `<div><div class="lbl">${k}</div><div class="v${i === 0 ? ' cash' : ''}">${v}</div></div>`).join('');
   for (const t of ['contracts', 'gear', 'notes']) $('tab-' + t).setAttribute('aria-selected', String(menuTab === t));
   const body = $('tabbody');
   if (menuTab === 'contracts') {
     body.innerHTML = `<div class="cards">${LOCATIONS.map((l) => {
       const ok = tierOk(l);
       const sp = [...new Set(l.species)].map((k) => SPECIES[k].name).join(', ');
-      return `<div class="card"><div class="region">${l.region}</div><h4>${l.name}</h4><p>${l.blurb}</p>
-      <div class="specs"><span>Slope <b>${l.slope}°</b></span><span>DBH <b>${Math.round(l.dbh[0] * 100)}–${Math.round(l.dbh[1] * 100)} cm</b></span><span>Trees <b>${l.trees}</b></span><span>Base <b>${money(l.basePay)}</b>/tree</span></div>
-      <div class="specs">${sp}</div>
-      ${ok ? `<button class="go" data-loc="${l.id}">Take contract</button>` : `<div class="req">${tierText[l.tier]}</div><button class="go ghost" disabled>Locked</button>`}</div>`;
-    }).join('')}</div>`;
-    body.querySelectorAll('[data-loc]').forEach((b) => b.addEventListener('click', () => { sfx.initAudio(); startJob(LOCATIONS.find((l) => l.id === b.dataset.loc)); }));
+      const d = difficulty(l);
+      return `<div class="card${ok ? '' : ' locked'}" style="animation-delay:${LOCATIONS.indexOf(l) * 60}ms"><div class="art">${locArt(l)}<span class="badge">${icon(l.tier === 'axe' ? 'axe' : l.tier === 'harvester' ? 'machine' : 'saw')}${l.tier === 'axe' ? 'Axe work' : l.tier === 'harvester' ? 'Machine' : 'Chainsaw'}</span><span class="pay">${money(l.basePay)}/tree</span></div>
+      <div class="region">${l.region}<span class="diff" title="Difficulty ${d} of 5">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= d ? 'on' : ''}"></i>`).join('')}</span></div><h4>${l.name}</h4><p>${l.blurb}</p>
+      <div class="specs"><span>Slope <b>${l.slope}°</b></span><span>DBH <b>${Math.round(l.dbh[0] * 100)}–${Math.round(l.dbh[1] * 100)} cm</b></span><span>Trees <b>${l.trees}</b></span></div>
+      <div class="species">${sp}</div>
+      ${ok ? `<button class="go" data-loc="${l.id}">Take contract →</button>` : `<div class="req">${icon('lock')}${tierText[l.tier]}</div><button class="go ghost" disabled>Locked</button>`}</div>`;
+    }).join('')}</div>
+    <div class="controls-hint"><span><kbd>Space</kbd> cut / swing</span><span><kbd>E</kbd> wedge</span><span><kbd>R</kbd> retreat</span><span><kbd>Drag</kbd> orbit camera</span><span><kbd>Scroll</kbd> zoom</span></div>`;
+    body.querySelectorAll('[data-loc]').forEach((b) => b.addEventListener('click', () => { sfx.initAudio(); sfx.tick(); fadeThen(() => startJob(LOCATIONS.find((l) => l.id === b.dataset.loc))); }));
   } else if (menuTab === 'gear') {
     body.innerHTML = `<div class="cards">${Object.entries(TOOLS).map(([k, t]) => {
       const own = save.owned.includes(k);
@@ -136,7 +199,8 @@ function renderMenu() {
       if (!own) btn = `<button class="go" data-buy="${k}" ${save.cash < t.price ? 'disabled' : ''}>Buy · ${money(t.price)}</button>`;
       else if (equipable) btn = save.equipped === k ? `<button class="go ghost" disabled>Equipped</button>` : `<button class="go ghost" data-eq="${k}">Equip</button>`;
       else btn = `<button class="go ghost" disabled>Owned</button>`;
-      return `<div class="card"><div class="region">${t.kind === 'machine' ? 'Machine' : t.kind === 'gear' ? 'Gear' : t.kind === 'saw' ? 'Chainsaw' : 'Axe'}</div><h4>${t.name}</h4><p>${t.desc}</p>${btn}</div>`;
+      const ic = t.kind === 'machine' ? 'machine' : t.kind === 'saw' ? 'saw' : t.kind === 'axe' ? 'axe' : k === 'wedges' ? 'wedge' : 'ppe';
+      return `<div class="card${own ? ' owned' : ''}"><div class="icon-art">${icon(ic, '')}</div><div class="region">${t.kind === 'machine' ? 'Machine' : t.kind === 'gear' ? 'Gear' : t.kind === 'saw' ? 'Chainsaw' : 'Axe'}${own ? ' · owned' : ''}</div><h4>${t.name}</h4><p>${t.desc}</p>${btn}</div>`;
     }).join('')}</div>
     <p class="note" style="margin-top:14px;color:var(--bone-dim)">Health recovers 15 points per contract. Reset career: <button class="chip" id="resetBtn" type="button">Start over</button></p>`;
     body.querySelectorAll('[data-buy]').forEach((b) => b.addEventListener('click', () => {
@@ -154,7 +218,12 @@ function renderMenu() {
     body.innerHTML = `<div class="notes">${FIELD_NOTES.map(([h, p]) => `<section><h5>${h}</h5><p>${p}</p></section>`).join('')}</div>`;
   }
 }
-for (const t of ['contracts', 'gear', 'notes']) $('tab-' + t).addEventListener('click', () => { menuTab = t; renderMenu(); });
+for (const t of ['contracts', 'gear', 'notes']) $('tab-' + t).addEventListener('click', () => { if (menuTab !== t) sfx.tick(); menuTab = t; renderMenu(); });
+// fade to black, run the (possibly slow) scene change, fade back in
+function fadeThen(fn) {
+  $('fade').classList.add('on');
+  setTimeout(() => { try { fn(); } finally { requestAnimationFrame(() => $('fade').classList.remove('on')); } }, 360);
+}
 
 const FIELD_NOTES = [
   ['Size up first', 'Read lean (sight it from two directions), crown weight, wind, dead tops and neighbouring crowns. Pick a lay that hits a gap, then clear two escape routes at 45° behind the stump.'],
@@ -255,13 +324,13 @@ function renderJobCard() {
   const done = job.done.size;
   $('jobcard').innerHTML = `<div class="lbl">${job.loc.name} · tree ${done + 1 > job.trees.length ? job.trees.length : done + 1} of ${job.trees.length}</div>
     <h2>${s.sp.name}</h2><div class="sub"><i>${s.sp.sci}</i></div>
-    <div class="facts mono">
-      <span>DBH</span><span>${cm(s.dbh)} cm</span>
-      <span>Height</span><span>${s.h.toFixed(1)} m</span>
-      <span>Lean</span><span>${s.lean.deg.toFixed(1)}° · ${Math.abs(leanRel).toFixed(0)}° ${leanRel >= 0 ? 'right' : 'left'} of lay</span>
-      <span>Weight</span><span>${(tr.mass / 1000).toFixed(1)} t</span>
-      <span>Wind</span><span>${f.wind.speed.toFixed(1)} m/s</span>
-      <span>Tool</span><span>${job.tool.name}</span>
+    <div class="facts">
+      <span>${icon('ruler')}DBH</span><span>${cm(s.dbh)} cm</span>
+      <span>${icon('height')}Height</span><span>${s.h.toFixed(1)} m</span>
+      <span>${icon('lean')}Lean</span><span>${s.lean.deg.toFixed(1)}° · ${Math.abs(leanRel).toFixed(0)}° ${leanRel >= 0 ? 'right' : 'left'} of lay</span>
+      <span>${icon('weight')}Weight</span><span>${(tr.mass / 1000).toFixed(1)} t</span>
+      <span>${icon('wind')}Wind</span><span>${f.wind.speed.toFixed(1)} m/s</span>
+      <span>${icon(job.tool.kind === 'axe' ? 'axe' : 'saw')}Tool</span><span>${job.tool.name}</span>
     </div>`;
 }
 
@@ -343,7 +412,7 @@ function renderPanel() {
     const leanRel = rad2deg(wrap(tr.aim - s.lean.az));
     const heavy = s.crownOffset.m / Math.max(0.01, s.crownR);
     const others = job.trees.map((t, i) => ({ t, i })).filter(({ i }) => !job.done.has(i));
-    p.innerHTML = `<div class="stepno">STEP 1 OF 3</div><h3>Size up</h3>
+    p.innerHTML = `${stepper(1)}<h3>Size up</h3>
       <p>${s.lean.deg < 1.5 ? 'Stands nearly plumb.' : `Leans <b>${s.lean.deg.toFixed(1)}°</b>.`} ${heavy > 0.18 ? 'Crown is noticeably heavier on one side.' : 'Crown is fairly balanced.'} ${s.rot ? '<b>A conk low on the stem — expect hollow heartwood.</b>' : ''} ${tr.H > 45 ? 'It\'s a big one: every degree of lay error is metres at the top.' : ''}</p>
       <p class="note">Orange: your lay. Green: escape routes. Red: lean. Look for gaps between neighbouring crowns — a hang-up costs money and nerve.${world.hazards.length ? ' Keep it off ' + world.hazards.map((h) => h.name).join(' and ') + '.' : ''}</p>
       ${slider('aim', 'Lay relative to lean', -180, 180, 1, Math.round(leanRel), (v) => `${v > 0 ? '+' : ''}${v}°`)}
@@ -374,7 +443,7 @@ function renderPanel() {
       return `<div class="gauge"><div class="slider top" style="display:flex;justify-content:space-between"><span class="lbl" style="${active ? 'color:var(--hivis)' : ''}">${label}</span><span class="val mono">${cm(d)} / ${cm(n.target)} cm</span></div>
         <div class="track"><div class="fill" style="width:${clamp(d / max, 0, 1) * 100}%;${d > n.target + 0.015 ? 'background:var(--bad)' : ''}"></div><div class="tgt" style="left:${(1 / 1.6) * 100}%"></div></div></div>`;
     };
-    p.innerHTML = `<div class="stepno">STEP 2 OF 3</div><h3>Face cut</h3>
+    p.innerHTML = `${stepper(2)}<h3>Face cut</h3>
       ${axe ? '<p class="note">Chop a V notch: alternate down-strokes and up-strokes. Time each swing on the meter — sloppy swings make the two faces miss each other.</p>' : `
       <div class="row">${Object.entries(NOTCH_PRESETS).map(([k, v]) => `<button class="chip" data-preset="${k}" aria-pressed="${n.type === k}" ${locked ? 'disabled' : ''}>${v.name}</button>`).join('')}</div>
       <p class="note">${NOTCH_PRESETS[n.type]?.note || 'Custom notch.'}</p>`}
@@ -408,7 +477,7 @@ function renderPanel() {
     const bore = c.method === 'bore';
     const M = f.driving();
     const backLean = M.x < 0;
-    p.innerHTML = `<div class="stepno">STEP 3 OF 3</div><h3>${tool.kind === 'axe' ? 'Back chop' : 'Back cut'}</h3>
+    p.innerHTML = `${stepper(3)}<h3>${tool.kind === 'axe' ? 'Back chop' : 'Back cut'}</h3>
       ${tool.kind === 'axe' ? '' : `<div class="row"><button class="chip" data-method="standard" aria-pressed="${!bore}" ${locked ? 'disabled' : ''}>Standard</button><button class="chip" data-method="bore" aria-pressed="${bore}" ${locked || !tool.bore ? 'disabled' : ''}>Bore cut${tool.bore ? '' : ' (pro saw)'}</button></div>`}
       <p class="note">${bore ? 'Plunge behind the hinge to set its thickness exactly, sweep back leaving a strap of holding wood, then release the strap from behind. The tree goes when the strap does — no barber chair.' : 'Cut toward the notch, level with ' + (c.notch.type === 'open' ? 'the apex.' : 'or a little above the apex (the step).') + ' Watch the hinge gauge and stop — let the tree go on its own.'}${backLean ? ' <b>Back-leaner:</b> set wedges before the kerf closes.' : ''}</p>
       ${slider('step', 'Back cut height vs apex', -3, 10, 0.5, +(c.back.step * 100).toFixed(1), (v) => `${v > 0 ? '+' : ''}${v} cm`, locked)}
@@ -428,7 +497,7 @@ function renderPanel() {
     bindSlider('yaw', (v) => (v === 0 ? 'parallel' : `${Math.abs(v)}° · thick ${v > 0 ? 'left' : 'right'}`), (v) => { c.back.yaw = deg(v); buildPreview(); });
     bindSlider('plan', (v) => `${v}% · ${cm(D * v / 100)} cm`, (v) => { c.hingePlan = D * v / 100; buildPreview(); });
   } else if (G.step === 'falling') {
-    p.innerHTML = `<div class="stepno">TIMBER</div><h3>Falling</h3><p>Walk your escape route — get at least 5 m back and to the side. Watch the butt and the top.</p><div id="fallLog"></div>`;
+    p.innerHTML = `<div class="stepno">${icon('tree')}Timber</div><h3>Falling</h3><p>Walk your escape route — get at least 5 m back and to the side. Watch the butt and the top.</p><div id="fallLog"></div>`;
   }
 }
 function refreshBackReadout() {
@@ -447,7 +516,7 @@ function refreshBackReadout() {
 function showAction() {
   const axe = job.tool.kind === 'axe';
   show('actionbar', true);
-  $('hold').textContent = axe ? 'Swing  [Space]' : 'Hold to cut  [Space]';
+  $('hold').innerHTML = axe ? 'Swing <kbd>Space</kbd>' : 'Hold to cut <kbd>Space</kbd>';
   $('hold').disabled = false;
   show('meter', axe);
   $('wedgeBtn').hidden = !(G.step === 'back' && save.owned.includes('wedges'));
@@ -568,6 +637,7 @@ function handleSaw(dt) {
     else frontX = -Rc + b.strapCut;
   }
   sfx.sawSet(active ? (f.pinched ? 0.35 : 0.95) : 0.18, active ? 1 : 0);
+  if (active && !f.pinched) shake = Math.max(shake, 0.22); // bar vibration
   G.rig.placeSaw(kind, c, frontX, active && !f.pinched);
   if (active && ['back', 'bore', 'strap'].includes(kind)) { f.checkRelease(); if (f.phase !== 'standing') onRelease(); }
 }
@@ -579,15 +649,23 @@ function swingAxe() {
   const p = G.meterPos;
   const off = Math.abs(p - 0.5), sweet = job.tool.sweet / 2;
   const q = off <= sweet ? 1 : Math.max(0.15, 1 - (off - sweet) * 2.4);
-  swingState = { t: 0, q, hit: false };
+  // face notch: alternate down-strokes into the top face and up-strokes into the bottom face
+  swingState = { t: 0, q, hit: false, face: (G.chopN = (G.chopN || 0) + 1) % 2 ? 'top' : 'bot' };
   sfx.swish();
 }
 function handleAxe(dt) {
   const f = G.felling, c = f.cut, tr = G.tree, Rc = tr.Rc, n = c.notch;
   G.meterPos = 0.5 + 0.5 * Math.sin(G.time * 3.4);
   $('meter').querySelector('.needle').style.left = `calc(${G.meterPos * 100}% - 1px)`;
+  // where the bit lands on a face of the chopped V: halfway between the bark and where the faces meet
+  const onFace = (face) => {
+    const v = tr.axeNotch(n), x = (Rc + v.xi) / 2;
+    const nrm = face === 'top' ? new THREE.Vector3(v.ta, -1, 0) : new THREE.Vector3(v.tb, 1, 0);
+    return { p: new THREE.Vector3(x, face === 'top' ? v.top(x) : v.bot(x), 0), n: nrm.normalize() };
+  };
+  const nextFace = swingState ? swingState.face : ((G.chopN || 0) + 1) % 2 ? 'top' : 'bot';
   const target = G.step === 'notch'
-    ? new THREE.Vector3(Rc - Math.min(n.dTop, n.dBot) * 0.6, tr.h0 + 0.02, 0)
+    ? onFace(nextFace).p
     : new THREE.Vector3(-Rc + c.back.progress * 0.5, tr.h0 + c.back.step + 0.01, 0);
   let phase = 1;
   if (swingState) {
@@ -601,11 +679,14 @@ function handleAxe(dt) {
       const bite = D * (G.step === 'notch' ? 0.035 : 0.03) * job.tool.power * q / f.sp.hardness * (0.85 + Math.random() * 0.3);
       G.cutStarted = true; G.csgDirty = true;
       sfx.chop(0.5 + q * 0.5);
+      G.hitstop = 0.035 + q * 0.035; kick(0.18 + q * 0.17);
       G.rig.particles.emit(target, new THREE.Vector3(0.4, 1.2, -1.6), 10 + q * 10, 1.4);
       if (G.step === 'notch') {
-        const err = (1 - q) * bite * 0.9 * (Math.random() < 0.5 ? 1 : -1);
-        n.dTop = Math.min(Rc * 1.9, n.dTop + bite + Math.max(0, err));
-        n.dBot = Math.min(Rc * 1.9, n.dBot + bite + Math.max(0, -err));
+        // each stroke deepens one face (twice the bite, so the notch grows at the same pace); sloppy swings over- or under-cut it
+        const key = swingState.face === 'top' ? 'dTop' : 'dBot';
+        n[key] = Math.min(Rc * 1.9, Math.max(0, n[key] + bite * 2 + (1 - q) * bite * 0.9 * (Math.random() * 2 - 0.6)));
+        const hit = onFace(swingState.face);
+        G.rig.markHit(hit.p, hit.n, 0.72 - 0.28);
         if (q < 0.6) toast('Glancing blow.', '');
         if (!n.removed && n.dTop >= n.target - 0.01 && n.dBot >= n.target - 0.01) dropFace();
         renderPanel();
@@ -630,7 +711,8 @@ function dropFace() {
   const f = G.felling, tr = G.tree, n = f.cut.notch;
   n.removed = true;
   G.csgDirty = true;
-  try {
+  if (job.tool.kind === 'axe') G.rig.particles.emit(new THREE.Vector3(tr.Rc, tr.h0, 0), new THREE.Vector3(1.2, 1.4, 0), 40, 1.8);
+  else try {
     const R = tr.Rc + 0.25, h0 = tr.h0, xA = tr.Rc - n.target;
     const ta = Math.tan(deg(n.top)), tb = Math.tan(deg(n.bottom));
     const wedge = new Brush(tr.prismXY([[xA, h0], [R, h0 - (R - xA) * tb], [R, h0 + (R - xA) * ta]], tr.Rc + 0.3), tr.endMat);
@@ -641,7 +723,7 @@ function dropFace() {
     tr.leanGroup.add(m);
     G.faceChunk = { mesh: m, v: new THREE.Vector3(0.6, 0.2, 0), w: 1.5, t: 0 };
   } catch (e) { console.warn(e); }
-  sfx.crack(0.35);
+  sfx.crack(0.35); kick(0.25);
   toast('Face is out.', 'ok');
   renderPanel();
 }
@@ -652,13 +734,13 @@ function onRelease() {
   const f = G.felling, tr = G.tree;
   endHold();
   G.step = 'falling';
-  sfx.crack(1); sfx.rush(3);
+  sfx.crack(1); sfx.rush(3); kick(0.4, 1.5);
   if (job.tool.kind === 'saw') { sfx.sawSet(0.15, 0); setTimeout(() => sfx.sawStop(), 600); }
   if (f.barber) {
     tr.barberChair(f.cut);
     tr.fallPivot.userData.x0 = tr.fallPivot.position.x;
     f.kick = { left: 0.8 + tr.R, speed: 5 }; f.kickOffset = 0;
-    shake = 0.6;
+    kick(0.9, 3);
   } else {
     tr.split(f.cut);
   }
@@ -678,14 +760,14 @@ function handleFellingEvents() {
       case 'gust': if (G.step !== 'falling') toast('Gust coming through the crowns.', ''); break;
       case 'hingeBreak': sfx.crack(0.7); break;
       case 'land':
-        sfx.impact(clamp(G.tree.mass / 2500, 0.4, 1.6)); shake = clamp(G.tree.mass / 4000, 0.15, 0.9);
+        sfx.impact(clamp(G.tree.mass / 2500, 0.4, 1.6)); kick(clamp(G.tree.mass / 3000, 0.35, 1.1), clamp(G.tree.mass / 800, 1.5, 5));
         dust(G.felling.tipPos, 60); dust(G.tree.stemPoint(G.tree.H * 0.5), 40);
         G.resultTimer = setTimeout(finishTree, 2600);
         break;
       case 'hung': sfx.crack(0.8); G.resultTimer = setTimeout(finishTree, 3000); break;
       case 'brush': sfx.crack(0.4); break;
-      case 'zap': sfx.zap(); flash(0x99ccff); break;
-      case 'hurt': sfx.alarm(); flash(0xff2200); save.health -= e.amount; save.stats.injuries++; updateWallet(); break;
+      case 'zap': sfx.zap(); flash(0x99ccff); screenFlash.set(0.7, 0.85, 1, 0.6); kick(0.5); break;
+      case 'hurt': sfx.alarm(); flash(0xff2200); screenFlash.set(0.55, 0.02, 0, 0.7); kick(0.7); save.health -= e.amount; save.stats.injuries++; updateWallet(); break;
       case 'release': break;
       default:
         if (e.text) toast(e.text, ['side', 'kick', 'dutchman', 'barberchair', 'break', 'nohinge', 'backward', 'cabin', 'fence', 'powerline', 'injury', 'hangup', 'brushed'].includes(e.type) ? 'bad' : '');
@@ -780,26 +862,36 @@ function finishTree() {
 
   const dead = save.health <= 0;
   const remaining = job.trees.map((t, i) => i).filter((i) => !job.done.has(i));
-  $('modalCard').innerHTML = `<div class="grade">${letter}</div><div class="lbl">${tr.spec.sp.name} · ${cm(D)} cm DBH · ${tr.H.toFixed(0)} m</div>
-    <h2>${f.playerHitBy ? 'Injured' : has('hangup') ? 'Hung up' : f.barber ? 'Barber chair' : err < 5 ? 'On the stake' : err < 15 ? 'Down' : 'Down, but wide'}</h2>
-    <table class="ledger">${lines.map(([k, v]) => `<tr><td>${k}</td><td>${money(v)}</td></tr>`).join('')}
-    <tr class="total"><td>Paid</td><td>${money(pay)}</td></tr></table>
+  const delay = (i) => `style="animation-delay:${0.25 + i * 0.06}s"`;
+  $('modalCard').innerHTML = `<div class="result-head"><div class="grade g-${letter}">${letter}</div><div><div class="lbl">${tr.spec.sp.name} · ${cm(D)} cm DBH · ${tr.H.toFixed(0)} m</div>
+    <h2>${f.playerHitBy ? 'Injured' : has('hangup') ? 'Hung up' : f.barber ? 'Barber chair' : err < 5 ? 'On the stake' : err < 15 ? 'Down' : 'Down, but wide'}</h2></div></div>
+    <table class="ledger">${lines.map(([k, v], i) => `<tr class="${v < 0 ? 'neg' : ''}" ${delay(i)}><td>${k}</td><td>${money(v)}</td></tr>`).join('')}
+    <tr class="total" ${delay(lines.length)}><td>Paid</td><td id="paidV">${money(0)}</td></tr></table>
     <div class="lbl">What happened</div>
-    <ul class="why">${why.map(([k, t]) => `<li class="${k}">${t}</li>`).join('')}</ul>
+    <ul class="why">${why.map(([k, t], i) => `<li class="${k}" ${delay(lines.length + 1 + i)}>${t}</li>`).join('')}</ul>
     ${dead ? `<p class="state-bad">You're going to the hospital. Medical bills take ${money(Math.max(200, save.cash * 0.3))}.</p>` : ''}
-    <button class="go" id="mNext" type="button">${dead ? 'Back to camp' : remaining.length ? 'Next tree →' : 'Finish contract'}</button>
-    ${!dead && remaining.length ? '<button class="go ghost" id="mLook" type="button">Look around first</button>' : ''}`;
+    <div class="btn-row">${!dead && remaining.length ? '<button class="go ghost" id="mLook" type="button">Look around</button>' : ''}
+    <button class="go" id="mNext" type="button">${dead ? 'Back to camp' : remaining.length ? 'Next tree →' : 'Finish contract'}</button></div>`;
   show('modal', true); show('actionbar', false);
+  countUp($('paidV'), pay, 900, 450 + lines.length * 60);
   $('mNext').onclick = () => {
     show('modal', false);
     if (dead) { save.cash -= Math.max(200, save.cash * 0.3); save.health = 60; persist(); endJob(true); return; }
-    if (remaining.length) selectTree(remaining[0]); else endJob();
+    if (remaining.length) selectTree(remaining[0]); else fadeThen(() => endJob());
   };
   $('mLook')?.addEventListener('click', () => {
     show('modal', false);
-    const p = $('panel'); p.innerHTML = '<div class="stepno">INSPECT</div><h3>Look around</h3><p>Orbit with the mouse to inspect the stump and the lay.</p><button class="go" id="mBack" type="button">Next tree →</button>';
+    const p = $('panel'); p.innerHTML = '<div class="stepno">Inspect</div><h3>Look around</h3><p>Orbit with the mouse to inspect the stump and the lay.</p><button class="go" id="mBack" type="button">Next tree →</button>';
     $('mBack').onclick = () => selectTree(remaining[0]);
   });
+}
+
+// animate a money figure from 0 to v
+function countUp(el, v, ms, wait = 0) {
+  const t0 = performance.now() + wait;
+  const step = (now) => { const k = clamp((now - t0) / ms, 0, 1), e = 1 - Math.pow(1 - k, 3); el.textContent = money(v * e); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+  setTimeout(() => (el.textContent = money(v)), wait + ms + 50); // in case frames are throttled
 }
 
 function endJob(hospital = false) {
@@ -820,10 +912,10 @@ function endHarvest(r) {
 
 $('menuBtn').addEventListener('click', () => {
   if (G.mode === 'menu') return;
-  $('modalCard').innerHTML = `<h2>Leave the contract?</h2><p>Trees already down stay paid. The rest go to another crew.</p>
-    <button class="go" id="lYes" type="button">Back to camp</button><button class="go ghost" id="lNo" type="button">Keep working</button>`;
+  $('modalCard').innerHTML = `<div class="lbl">Camp</div><h2>Leave the contract?</h2><p>Trees already down stay paid. The rest go to another crew.</p>
+    <div class="btn-row"><button class="go ghost" id="lNo" type="button">Keep working</button><button class="go" id="lYes" type="button">Back to camp</button></div>`;
   show('modal', true);
-  $('lYes').onclick = () => { show('modal', false); if (G.mode === 'harvest') harvester.finish(); else endJob(); };
+  $('lYes').onclick = () => { show('modal', false); fadeThen(() => { if (G.mode === 'harvest') harvester.finish(); else endJob(); }); };
   $('lNo').onclick = () => show('modal', false);
 });
 
@@ -838,14 +930,16 @@ function drawPlan() {
   const cx = 160, cy = 170, s = 128 / Rc;
   const P = (x, z) => [cx + z * s, cy - x * s];
   pctx.save();
-  pctx.beginPath(); pctx.arc(cx, cy, Rc * s, 0, Math.PI * 2); pctx.fillStyle = '#d9c7a0'; pctx.fill();
+  const sp = tr.spec.sp, grd = pctx.createRadialGradient(cx, cy, 0, cx, cy, Rc * s);
+  grd.addColorStop(0, sp.heart); grd.addColorStop(0.62, sp.heart); grd.addColorStop(0.74, sp.sap); grd.addColorStop(1, sp.sap);
+  pctx.beginPath(); pctx.arc(cx, cy, Rc * s, 0, Math.PI * 2); pctx.fillStyle = grd; pctx.fill();
   pctx.clip();
-  pctx.strokeStyle = 'rgba(120,80,40,0.25)'; pctx.lineWidth = 1;
+  pctx.strokeStyle = 'rgba(70,40,18,0.2)'; pctx.lineWidth = 1;
   for (let r = 0.08; r < 1; r += 0.08) { pctx.beginPath(); pctx.arc(cx, cy, Rc * s * r, 0, Math.PI * 2); pctx.stroke(); }
   const xA = Rc - n.target;
   const rect = (x0, x1, z0, z1, fill) => { const [a, b] = P(x1, z0), [c2, d] = P(x0, z1); pctx.fillStyle = fill; pctx.fillRect(a, b, c2 - a, d - b); };
   // notch
-  if (n.removed) rect(xA, Rc + 0.1, -Rc - 0.1, Rc + 0.1, '#20160e');
+  if (n.removed) rect(xA, Rc + 0.1, -Rc - 0.1, Rc + 0.1, '#0b100d');
   else if (n.dTop > 0 || n.dBot > 0) rect(xA, Rc + 0.1, -Rc - 0.1, Rc + 0.1, 'rgba(255,107,26,0.18)');
   // kerf lines
   for (const [d, col] of [[n.dTop, '#ff6b1a'], [n.dBot, '#f2c230']]) if (d > 0) {
@@ -857,14 +951,14 @@ function drawPlan() {
   const Z = Rc + 0.1;
   if (c.method === 'standard' && c.back.progress > 0) {
     const ty = Math.tan(c.back.yaw), xb = (z) => -Rc + c.back.progress + z * ty;
-    poly([[-Rc - 0.1, -Z], [xb(-Z), -Z], [xb(Z), Z], [-Rc - 0.1, Z]], '#20160e');
+    poly([[-Rc - 0.1, -Z], [xb(-Z), -Z], [xb(Z), Z], [-Rc - 0.1, Z]], '#0b100d');
     poly([[xb(-Z), -Z], [xA, -Z], [xA, Z], [xb(Z), Z]], 'rgba(255,107,26,0.55)');
   } else if (c.bore) {
     const b = c.bore, ty = Math.tan(b.yaw), xH = (z) => b.hingeBack + z * ty, xS = -Rc + b.strap;
     const span = (b.hingeBack - xS) * Math.min(1, b.progress);
-    poly([[xH(-Z) - span, -Z], [xH(-Z), -Z], [xH(Z), Z], [xH(Z) - span, Z]], '#20160e');
+    poly([[xH(-Z) - span, -Z], [xH(-Z), -Z], [xH(Z), Z], [xH(Z) - span, Z]], '#0b100d');
     poly([[xH(-Z), -Z], [xA, -Z], [xA, Z], [xH(Z), Z]], 'rgba(255,107,26,0.55)');
-    if (b.strapCut > 0) poly([[-Rc - 0.1, -Z], [-Rc + b.strapCut, -Z], [-Rc + b.strapCut, Z], [-Rc - 0.1, Z]], '#20160e');
+    if (b.strapCut > 0) poly([[-Rc - 0.1, -Z], [-Rc + b.strapCut, -Z], [-Rc + b.strapCut, Z], [-Rc - 0.1, Z]], '#0b100d');
     else poly([[-Rc - 0.1, -Z], [xS, -Z], [xS, Z], [-Rc - 0.1, Z]], 'rgba(127,183,217,0.35)');
   }
   if (tr.spec.rot && (c.back.progress > 0 || n.removed)) { pctx.beginPath(); pctx.arc(cx, cy, tr.spec.rot * Rc * s, 0, Math.PI * 2); pctx.fillStyle = 'rgba(60,40,25,0.75)'; pctx.fill(); }
@@ -874,7 +968,7 @@ function drawPlan() {
     pctx.setLineDash([4, 4]); pctx.strokeStyle = '#8fd16a'; pctx.lineWidth = 1.5; pctx.beginPath(); pctx.moveTo(x1, y1); pctx.lineTo(x2, y2); pctx.stroke(); pctx.setLineDash([]);
   }
   pctx.restore();
-  pctx.strokeStyle = '#3a2a20'; pctx.lineWidth = 4; pctx.beginPath(); pctx.arc(cx, cy, Rc * s, 0, Math.PI * 2); pctx.stroke();
+  pctx.strokeStyle = '#2b221b'; pctx.lineWidth = 6; pctx.beginPath(); pctx.arc(cx, cy, Rc * s, 0, Math.PI * 2); pctx.stroke();
   // arrows
   const arrow = (ang, len, col, label) => {
     const x2 = cx + Math.sin(ang) * len, y2 = cy - Math.cos(ang) * len;
@@ -891,16 +985,18 @@ function drawPlan() {
   const S = (x, y) => [ox + x * s2, oy - (y - tr.h0) * s2];
   pctx.save();
   pctx.beginPath(); pctx.rect(340, 0, 260, H); pctx.clip();
-  pctx.fillStyle = '#5a4634';
+  pctx.fillStyle = '#2b221b';
   const [l1, t1] = S(-Rc, tr.h0 + 1.2), [r1, b1] = S(Rc, tr.h0 - 1.2);
   pctx.fillRect(l1, t1, r1 - l1, b1 - t1);
-  pctx.fillStyle = '#d9c7a0';
-  pctx.fillRect(l1 + 4, t1, r1 - l1 - 8, b1 - t1);
+  const lg = pctx.createLinearGradient(l1, 0, r1, 0);
+  lg.addColorStop(0, sp.sap); lg.addColorStop(0.2, sp.heart); lg.addColorStop(0.8, sp.heart); lg.addColorStop(1, sp.sap);
+  pctx.fillStyle = lg;
+  pctx.fillRect(l1 + 5, t1, r1 - l1 - 10, b1 - t1);
   const ta = Math.tan(deg(n.top)), tb = Math.tan(deg(n.bottom));
   const line = (x0, y0, x1, y1, col, w = 2, dash) => { const [a, b] = S(x0, y0), [c2, d] = S(x1, y1); pctx.strokeStyle = col; pctx.lineWidth = w; pctx.setLineDash(dash || []); pctx.beginPath(); pctx.moveTo(a, b); pctx.lineTo(c2, d); pctx.stroke(); pctx.setLineDash([]); };
   if (n.removed) {
     const pts = [S(xA, tr.h0), S(Rc + 0.05, tr.h0 + (Rc + 0.05 - xA) * ta), S(Rc + 0.05, tr.h0 - (Rc + 0.05 - xA) * tb)];
-    pctx.fillStyle = '#20160e'; pctx.beginPath(); pts.forEach(([u, v], i) => (i ? pctx.lineTo(u, v) : pctx.moveTo(u, v))); pctx.fill();
+    pctx.fillStyle = '#0b100d'; pctx.beginPath(); pts.forEach(([u, v], i) => (i ? pctx.lineTo(u, v) : pctx.moveTo(u, v))); pctx.fill();
   }
   line(xA, tr.h0, Rc, tr.h0 + (Rc - xA) * ta, 'rgba(255,107,26,0.5)', 1, [3, 3]);
   line(xA, tr.h0, Rc, tr.h0 - (Rc - xA) * tb, 'rgba(242,194,48,0.5)', 1, [3, 3]);
@@ -912,7 +1008,7 @@ function drawPlan() {
     const xf = -Rc + c.back.progress;
     if (n.type === 'axe') { // chopped back notch: flat bottom, 45° top
       const pts = [S(xf, yb), S(-Rc - 0.05, yb), S(-Rc - 0.05, yb + c.back.progress + 0.05)];
-      pctx.fillStyle = '#20160e'; pctx.beginPath(); pts.forEach(([u, v], i) => (i ? pctx.lineTo(u, v) : pctx.moveTo(u, v))); pctx.fill();
+      pctx.fillStyle = '#0b100d'; pctx.beginPath(); pts.forEach(([u, v], i) => (i ? pctx.lineTo(u, v) : pctx.moveTo(u, v))); pctx.fill();
     }
     line(-Rc, yb, xf, yb, '#ebe5d3', 3);
   }
@@ -928,22 +1024,29 @@ function drawPlan() {
 const clock = new THREE.Clock();
 let planT = 0, menuOrbit = 0;
 function tick() {
-  frame(Math.min(clock.getDelta(), 0.05));
+  const raw = clock.getDelta();
+  if (!document.hidden) watchQuality(Math.min(raw, 0.1));
+  frame(Math.min(raw, 0.05));
   requestAnimationFrame(tick);
 }
 function frame(dt) {
+  if (G.hitstop > 0) { G.hitstop -= dt; dt *= 0.06; } // axe impact freeze-frame
   G.time += dt;
+  const ws = job?.wind?.speed ?? 2;
+  wind.value.x += dt * (0.7 + ws * 0.12); wind.value.y = 0.006 + ws * 0.0022;
   if (G.mode === 'fell' && G.felling) {
     const f = G.felling;
     f.update(dt);
     G.rig.update(dt);
     if (G.step === 'notch' || G.step === 'back') { if (job.tool.kind === 'saw') handleSaw(dt); else handleAxe(dt); }
     if (G.step === 'falling') G.rig.hideTool();
+    // guide planes step back once cutting starts so the wood being removed stays readable
+    previewMat.opacity = previewMat2.opacity = G.cutStarted ? 0.1 : 0.28;
     // CSG refresh
     G.csgT -= dt;
     if (G.csgDirty && G.csgT <= 0 && G.step !== 'falling' && G.step !== 'sizeup') { G.tree.updateCuts(f.cut); G.csgDirty = false; G.csgT = 0.12; }
     // the faller walks out
-    if (f.player.retreating) G.rig.setFaller(f.player.x, f.player.z, 1.4);
+    if (f.player.retreating) G.rig.setFaller(f.player.x, f.player.z, 1.4, 'walk');
     // creaks as the holding wood loads up
     if (G.step === 'back' && f.load > 0.6) { G.creakT -= dt * f.load; if (G.creakT < 0) { sfx.creak(f.load); G.creakT = 0.6 + Math.random() * 1.2; } }
     if (G.step === 'falling' && f.phase === 'hinge') { G.creakT -= dt * 3; if (G.creakT < 0) { sfx.creak(1); G.creakT = 0.25 + Math.random() * 0.3; } }
@@ -974,8 +1077,35 @@ function frame(dt) {
   flashLight.intensity *= 0.85;
   dustFx?.update(dt);
   controls.update();
-  if (shake > 0.001) { camera.position.add(new THREE.Vector3((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake)); shake *= 0.9; }
-  renderer.render(scene, camera);
+  renderView(dt);
+}
+
+// Camera shake from "trauma" (smooth noise, decays), an FOV kick, and a screen flash; all applied only for the render.
+let fovKick = 0;
+const screenFlash = new THREE.Vector4();
+function kick(amount, fov = 0) { shake = Math.min(1.2, shake + amount); fovKick = Math.max(fovKick, fov); }
+function renderView(dt) {
+  shake = Math.max(0, shake - dt * 1.4);
+  fovKick *= Math.exp(-dt * 5);
+  const t = G.time * 31, s = shake * shake;
+  const off = new THREE.Vector3(Math.sin(t) + Math.sin(t * 2.3), Math.sin(t * 1.7 + 1) + Math.sin(t * 3.1), Math.sin(t * 1.3 + 2)).multiplyScalar(s * 0.06);
+  const roll = Math.sin(t * 0.9 + 4) * s * 0.02;
+  camera.position.add(off); camera.rotateZ(roll);
+  if (fovKick > 0.01) { camera.fov = 55 + fovKick; camera.updateProjectionMatrix(); }
+  screenFlash.w *= Math.exp(-dt * 4);
+  if (post) { post.finish.uniforms.flash.value.copy(screenFlash); post.render(dt); } else renderer.render(scene, camera);
+  camera.rotateZ(-roll); camera.position.sub(off);
+  if (camera.fov !== 55 && fovKick <= 0.01) { camera.fov = 55; camera.updateProjectionMatrix(); }
+}
+
+// Drop ambient occlusion, then resolution, if the frame rate can't keep up.
+let frameEma = 1 / 60, qualityT = 0;
+function watchQuality(raw) {
+  frameEma += (raw - frameEma) * 0.03;
+  qualityT += raw;
+  if (qualityT < 4) return;
+  if (frameEma > 0.03 && post?.aoOn) { post.setAO(false); qualityT = 0; console.info('Timberline: ambient occlusion off for frame rate'); }
+  else if (frameEma > 0.036 && pixelRatio > 1) { pixelRatio = 1; resize(); qualityT = 0; console.info('Timberline: render scale 1×'); }
 }
 
 function toMenu() {
@@ -994,12 +1124,14 @@ function toMenu() {
 
 // ---------------- boot ----------------
 (async function boot() {
+  post = await createPost(renderer, scene, camera);
   resize();
   await assets.load((p) => { $('loadBar').style.width = Math.round(p * 100) + '%'; });
   $('loadMsg').textContent = 'Growing the stand…';
   await new Promise((r) => setTimeout(r, 30));
   toMenu();
-  show('loading', false);
+  $('loading').style.opacity = '0';
+  setTimeout(() => show('loading', false), 650);
   requestAnimationFrame(tick);
-  window.__timberline = { G, get world() { return world; }, get job() { return job; }, get harvester() { return harvester; }, save, startJob, LOCATIONS, camera, controls, THREE, shot: () => { controls.update(); renderer.render(scene, camera); return fetch('/shot', { method: 'POST', body: canvas.toDataURL('image/jpeg', 0.85) }); }, look: (p, t) => { tween = null; camera.position.copy(p); controls.target.copy(t); }, step: (n = 1, dt = 1 / 60) => { for (let i = 0; i < n; i++) frame(dt); } };
+  window.__timberline = { G, get post() { return post; }, get world() { return world; }, get job() { return job; }, get harvester() { return harvester; }, save, startJob, LOCATIONS, camera, controls, THREE, shot: () => { controls.update(); renderView(0); return fetch('/shot', { method: 'POST', body: canvas.toDataURL('image/jpeg', 0.85) }); }, look: (p, t) => { tween = null; camera.position.copy(p); controls.target.copy(t); }, step: (n = 1, dt = 1 / 60) => { for (let i = 0; i < n; i++) frame(dt); } };
 })();
