@@ -54,6 +54,23 @@ export class Faller {
     }
   }
 
+  // Chopping stance: feet a shoulder-width apart, knees bent just enough to bring the shoulders to height
+  // shoulderH, the trunk turned (twist, + = toward the left) and bent forward (bend, radians).
+  chopStance(shoulderH, twist, bend) {
+    const j = this.j, T = this.thighLen, S = this.shinLen, rest = this.pelvisY + 0.475;
+    const torsoDrop = 0.475 * (1 - Math.cos(bend + 0.1));
+    const legDrop = (c) => (T + S) - (T * Math.cos(c * 0.95) + S * Math.cos(c * 0.95 - c * 1.25));
+    let crouch = 0; // the crouch whose leg shortening makes up the rest of the height difference
+    for (let i = 0; i < 14; i++) crouch = THREE.MathUtils.clamp(crouch + (rest - legDrop(crouch) - torsoDrop - shoulderH) * 1.6, 0, 1);
+    const hip = crouch * 0.95, knee = crouch * 1.25;
+    j.pelvis.position.y = this.pelvisY - legDrop(crouch);
+    j.thR.rotation.set(-0.13, 0, hip - 0.12); j.shR.rotation.set(0, 0, -knee); j.ftR.rotation.set(0.1, 0, knee - hip + 0.12);
+    j.thL.rotation.set(0.13, 0, hip + 0.22); j.shL.rotation.set(0, 0, -knee); j.ftL.rotation.set(-0.1, 0, knee - hip - 0.22);
+    j.pelvis.rotation.set(0, twist * 0.35, 0);
+    j.spine.rotation.set(0, twist * 0.4, -bend); j.chest.rotation.set(0, twist * 0.35, -0.1);
+  }
+  shoulders() { return this.j.uaR.getWorldPosition(new THREE.Vector3()).add(this.j.uaL.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5); }
+
   // Two-bone IK: put the grip marker of one hand on a world-space target, elbow toward a pole point.
   reach(side, target, pole) {
     const j = this.j, ua = j['ua' + side], fa = j['fa' + side], g = j['g' + side];

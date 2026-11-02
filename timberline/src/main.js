@@ -5,7 +5,7 @@ import { SPECIES, LOCATIONS, TOOLS, NOTCH_PRESETS } from './data.js';
 import { World, wind } from './world.js';
 import { TreeModel } from './tree.js';
 import { Felling } from './physics.js';
-import { Rig, Chips } from './tools.js';
+import { Rig, Chips, AXE_T } from './tools.js';
 import { assets } from './assets.js';
 import { HarvesterMode } from './harvester.js';
 import * as sfx from './audio.js';
@@ -63,7 +63,7 @@ function camTo(name) {
   if (name === 'sizeup') { p = L(-Math.max(7, H * 0.42), Math.max(4, H * 0.32), -Math.max(6, H * 0.42)); t = L(H * 0.15, H * 0.3, 0); }
   if (name === 'sight') { p = L(-3.5, 1.7, 0.2); t = L(H, 1.5, 0); }
   // cutting cameras look from across the trunk so the faller (who works from -z) is in view, not in the way
-  if (name === 'cut') { p = L(R * 1.6 + 0.9, h0 + 0.55 + R * 0.8, R * 2.4 + 1.5); t = L(0, h0 + 0.05, 0); }
+  if (name === 'cut') { p = L(R * 1.6 + 0.9, h0 + 0.55 + R * 0.8, (job.tool.kind === 'axe' ? -1 : 1) * (R * 2.4 + 1.5)); t = L(0, h0 + 0.05, 0); }
   if (name === 'back') { p = L(-(R * 1.8 + 1.2), h0 + 0.6 + R * 0.8, R * 2.4 + 1.3); t = L(0, h0 + 0.05, 0); }
   if (name === 'fall') {
     // watch from whichever side is clearer of buildings and standing trees
@@ -265,6 +265,7 @@ function startJob(loc) {
     return;
   }
   const jobs = world.generateStand(loc.trees);
+  if (TOOLS[save.equipped].kind === 'axe') for (const sp of jobs) sp.axeStump = true;
   world.addHazards(loc.hazards, jobs);
   world.scatterGround();
   world.buildLeaveTrees(jobs);
@@ -290,6 +291,14 @@ function cleanupTree() {
   clearTimeout(G.resultTimer);
 }
 
+// fresh copy of tree i (uncut, standing), then select it
+function restartTree(i) {
+  const old = job.trees[i];
+  old.dispose();
+  job.trees[i] = new TreeModel(old.spec, world);
+  selectTree(i);
+  toast('Tree reset: start the cut again.');
+}
 function selectTree(i) {
   cleanupTree();
   G.treeIdx = i;
@@ -301,9 +310,10 @@ function selectTree(i) {
   G.rig.setFaller(-tree.Rc - 1.5, -(tree.Rc + 1.2), 1);
   world.focus(tree.spec.x, tree.spec.z);
   const D = tree.R * 2;
-  if (job.tool.kind === 'axe') Object.assign(f.cut.notch, { type: 'axe', top: 45, bottom: 30, target: D * 0.3 });
+  if (job.tool.kind === 'axe') Object.assign(f.cut.notch, { type: 'axe', top: 45, bottom: 0, target: D * 0.33 }); // level bottom, 45-degree top, a third deep
   else applyPreset('open');
-  f.cut.back.step = job.tool.kind === 'axe' ? 0.03 : 0;
+  G.chopN = 0;
+  f.cut.back.step = job.tool.kind === 'axe' ? 0.05 : 0;
   G.step = 'sizeup'; G.activeCut = 'top'; G.cutStarted = false; G.csgDirty = true; G.csgT = 0;
   G.creakT = 1; G.retreatWarned = false; G.blockMsg = 0;
   buildGuides();
@@ -443,7 +453,7 @@ function renderPanel() {
       return `<div class="gauge"><div class="slider top" style="display:flex;justify-content:space-between"><span class="lbl" style="${active ? 'color:var(--hivis)' : ''}">${label}</span><span class="val mono">${cm(d)} / ${cm(n.target)} cm</span></div>
         <div class="track"><div class="fill" style="width:${clamp(d / max, 0, 1) * 100}%;${d > n.target + 0.015 ? 'background:var(--bad)' : ''}"></div><div class="tgt" style="left:${(1 / 1.6) * 100}%"></div></div></div>`;
     };
-    p.innerHTML = `${stepper(2)}<h3>Face cut</h3>
+    p.innerHTML = `${stepper(2)}<h3>Face cut<button class="chip reset" id="resetTree" type="button" title="Start this tree over">Reset</button></h3>
       ${axe ? '<p class="note">Chop a V notch: alternate down-strokes and up-strokes. Time each swing on the meter — sloppy swings make the two faces miss each other.</p>' : `
       <div class="row">${Object.entries(NOTCH_PRESETS).map(([k, v]) => `<button class="chip" data-preset="${k}" aria-pressed="${n.type === k}" ${locked ? 'disabled' : ''}>${v.name}</button>`).join('')}</div>
       <p class="note">${NOTCH_PRESETS[n.type]?.note || 'Custom notch.'}</p>`}
@@ -456,6 +466,7 @@ function renderPanel() {
       ${gauge('Top cut', n.dTop, G.activeCut === 'top')}${gauge('Bottom cut', n.dBot, G.activeCut === 'bottom')}`}
       <p id="notchStatus">${status}</p>
       <button class="go ${n.removed ? '' : 'ghost'}" id="next" type="button" ${n.dTop + n.dBot > 0 ? '' : 'disabled'}>${n.removed ? 'Back cut →' : 'Back cut anyway →'}</button>`;
+    $('resetTree').onclick = () => restartTree(G.treeIdx);
     p.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => { applyPreset(b.dataset.preset); renderPanel(); buildPreview(); }));
     p.querySelectorAll('[data-cut]').forEach((b) => b.addEventListener('click', () => { G.activeCut = b.dataset.cut; renderPanel(); }));
     bindSlider('top', (v) => v + '°', (v) => { n.top = v; n.type = 'custom'; buildPreview(); });
@@ -464,7 +475,7 @@ function renderPanel() {
     $('next').onclick = () => {
       if (n.top + n.bottom < 12) { toast('Open the notch wider — at least 12°.', 'bad'); return; }
       G.step = 'back'; G.activeCut = c.method === 'bore' ? 'bore' : 'back'; G.cutStarted = false;
-      if (axe) c.back.step = 0.03;
+      if (axe) { c.back.step = 0.05; G.chopN = 0; }
       camTo('back');
       renderPanel(); buildPreview(); showAction();
     };
@@ -477,7 +488,7 @@ function renderPanel() {
     const bore = c.method === 'bore';
     const M = f.driving();
     const backLean = M.x < 0;
-    p.innerHTML = `${stepper(3)}<h3>${tool.kind === 'axe' ? 'Back chop' : 'Back cut'}</h3>
+    p.innerHTML = `${stepper(3)}<h3><button class="chip reset" id="resetTree" type="button" title="Start this tree over">Reset</button>${tool.kind === 'axe' ? 'Back chop' : 'Back cut'}</h3>
       ${tool.kind === 'axe' ? '' : `<div class="row"><button class="chip" data-method="standard" aria-pressed="${!bore}" ${locked ? 'disabled' : ''}>Standard</button><button class="chip" data-method="bore" aria-pressed="${bore}" ${locked || !tool.bore ? 'disabled' : ''}>Bore cut${tool.bore ? '' : ' (pro saw)'}</button></div>`}
       <p class="note">${bore ? 'Plunge behind the hinge to set its thickness exactly, sweep back leaving a strap of holding wood, then release the strap from behind. The tree goes when the strap does — no barber chair.' : 'Cut toward the notch, level with ' + (c.notch.type === 'open' ? 'the apex.' : 'or a little above the apex (the step).') + ' Watch the hinge gauge and stop — let the tree go on its own.'}${backLean ? ' <b>Back-leaner:</b> set wedges before the kerf closes.' : ''}</p>
       ${slider('step', 'Back cut height vs apex', -3, 10, 0.5, +(c.back.step * 100).toFixed(1), (v) => `${v > 0 ? '+' : ''}${v} cm`, locked)}
@@ -491,6 +502,7 @@ function renderPanel() {
       </div>
       ${bore ? `<div class="row"><button class="chip" data-cut="bore" aria-pressed="${G.activeCut === 'bore'}">1 · Plunge &amp; sweep</button><button class="chip" data-cut="strap" aria-pressed="${G.activeCut === 'strap'}" ${(c.bore?.progress || 0) >= 1 ? '' : 'disabled'}>2 · Release strap</button></div>` : ''}
       <p class="note">Target ${cm(D * 0.1)} cm (10% of DBH). Hold <b>Space</b> or the button to cut, <b>E</b> to drive a wedge, <b>R</b> to walk out.</p>`;
+    $('resetTree').onclick = () => restartTree(G.treeIdx);
     p.querySelectorAll('[data-method]').forEach((b) => b.addEventListener('click', () => { c.method = b.dataset.method; G.activeCut = c.method === 'bore' ? 'bore' : 'back'; renderPanel(); buildPreview(); }));
     p.querySelectorAll('[data-cut]').forEach((b) => b.addEventListener('click', () => { G.activeCut = b.dataset.cut; renderPanel(); }));
     bindSlider('step', (v) => `${v > 0 ? '+' : ''}${v} cm`, (v) => { c.back.step = v / 100; buildPreview(); });
@@ -521,12 +533,13 @@ function showAction() {
   show('meter', axe);
   $('wedgeBtn').hidden = !(G.step === 'back' && save.owned.includes('wedges'));
   $('retreat').classList.remove('urgent');
+  $('retreat').innerHTML = '<kbd>R</kbd>Retreat';
   if (axe) { const sw = $('meter').querySelector('.sweet'); sw.style.left = (50 - job.tool.sweet * 50) + '%'; sw.style.width = job.tool.sweet * 100 + '%'; }
 }
 
 // ---------------- input ----------------
 const holdBtn = $('hold');
-const startHold = (e) => { e?.preventDefault(); sfx.initAudio(); if (job?.tool?.kind === 'axe') swingAxe(); else { G.holding = true; holdBtn.classList.add('active'); } };
+const startHold = (e) => { e?.preventDefault(); sfx.initAudio(); if (G.felling?.player.retreating && G.step === 'back') { walkBackIn(); return; } if (job?.tool?.kind === 'axe') swingAxe(); else { G.holding = true; holdBtn.classList.add('active'); } };
 const endHold = () => { G.holding = false; holdBtn.classList.remove('active'); };
 holdBtn.addEventListener('pointerdown', startHold);
 for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) holdBtn.addEventListener(ev, endHold);
@@ -566,12 +579,20 @@ canvas.addEventListener('pointerup', (e) => {
 
 function doRetreat() {
   if (G.mode !== 'fell' || !G.felling || !['back', 'falling'].includes(G.step)) return;
-  if (G.felling.player.retreating) return;
+  if (G.felling.player.retreating) { walkBackIn(); return; }
   endHold();
   G.felling.retreat();
   G.rig.hideTool(); sfx.sawStop();
   $('retreat').classList.remove('urgent');
-  if (G.step === 'back') toast('You stepped out of the cut.');
+  if (G.step === 'back') { toast('You stepped out of the cut. Press R (or the button) to walk back in.'); $('retreat').innerHTML = '<kbd>R</kbd>Back in'; }
+}
+// back to the stump while the tree is still standing
+function walkBackIn() {
+  const f = G.felling;
+  if (G.step !== 'back' || f.phase !== 'standing' || !f.player.retreating) return;
+  f.returnToStump();
+  $('retreat').innerHTML = '<kbd>R</kbd>Retreat';
+  toast('Back at the stump.');
 }
 function driveWedge() {
   const f = G.felling;
@@ -645,65 +666,67 @@ function blocked(msg) { if (G.time - G.blockMsg > 2.5) { toast(msg, 'bad'); G.bl
 
 let swingState = null;
 function swingAxe() {
-  if (!['notch', 'back'].includes(G.step) || swingState || G.felling.player.retreating) return;
+  if (!['notch', 'back'].includes(G.step) || swingState) return;
+  if (G.felling.player.retreating) { walkBackIn(); return; }
   const p = G.meterPos;
   const off = Math.abs(p - 0.5), sweet = job.tool.sweet / 2;
   const q = off <= sweet ? 1 : Math.max(0.15, 1 - (off - sweet) * 2.4);
-  // face notch: alternate down-strokes into the top face and up-strokes into the bottom face
+  // strokes alternate: a 45-degree stroke down into the sloped face, then a flatter one along the floor
   swingState = { t: 0, q, hit: false, face: (G.chopN = (G.chopN || 0) + 1) % 2 ? 'top' : 'bot' };
-  sfx.swish();
+  setTimeout(() => sfx.swish(), AXE_T.top * 1000);
+}
+// A stroke: where the bit lands (P), its travel into the wood (t, 45 degrees to the sloped face, nearly level
+// for the floor) and the handle at impact (h, across the trunk from the chopper standing beside it), plus the
+// struck face's outward normal for the hit mark.
+function axeStroke(face) {
+  const f = G.felling, c = f.cut, tr = G.tree, Rc = tr.Rc, n = c.notch, V = THREE.Vector3;
+  if (G.step === 'notch') {
+    const v = tr.axeNotch(n), x = (Rc + v.xi) / 2;
+    return face === 'top'
+      ? { P: new V(x, v.top(x), 0), t: new V(-1, -1, 0).normalize(), h: new V(0, 0, -1), nrm: new V(v.ta, -1, 0).normalize() }
+      : { P: new V(x, v.bot(x), 0), t: new V(-1, -0.3, 0).normalize(), h: new V(0, 0, -1), nrm: new V(v.tb, 1, 0).normalize() };
+  }
+  const p = c.back.progress, yb = tr.h0 + c.back.step, x = -Rc + Math.max(0.004, p * 0.5);
+  return face === 'top'
+    ? { P: new V(x, yb + Math.max(0.004, p * 0.5), 0), t: new V(1, -1, 0).normalize(), h: new V(0, 0, 1), nrm: new V(-1, -1, 0).normalize() }
+    : { P: new V(x, yb, 0), t: new V(1, -0.3, 0).normalize(), h: new V(0, 0, 1), nrm: new V(0, 1, 0) };
 }
 function handleAxe(dt) {
   const f = G.felling, c = f.cut, tr = G.tree, Rc = tr.Rc, n = c.notch;
   G.meterPos = 0.5 + 0.5 * Math.sin(G.time * 3.4);
   $('meter').querySelector('.needle').style.left = `calc(${G.meterPos * 100}% - 1px)`;
-  // where the bit lands on a face of the chopped V: halfway between the bark and where the faces meet
-  const onFace = (face) => {
-    const v = tr.axeNotch(n), x = (Rc + v.xi) / 2;
-    const nrm = face === 'top' ? new THREE.Vector3(v.ta, -1, 0) : new THREE.Vector3(v.tb, 1, 0);
-    return { p: new THREE.Vector3(x, face === 'top' ? v.top(x) : v.bot(x), 0), n: nrm.normalize() };
-  };
-  const nextFace = swingState ? swingState.face : ((G.chopN || 0) + 1) % 2 ? 'top' : 'bot';
-  const target = G.step === 'notch'
-    ? onFace(nextFace).p
-    : new THREE.Vector3(-Rc + c.back.progress * 0.5, tr.h0 + c.back.step + 0.01, 0);
-  let phase = 1;
+  const face = swingState ? swingState.face : ((G.chopN || 0) + 1) % 2 ? 'top' : 'bot';
+  let stroke = axeStroke(face);
   if (swingState) {
     swingState.t += dt;
-    phase = swingState.t < 0.28 ? swingState.t / 0.28 : swingState.t < 0.42 ? 1 : 1 - (swingState.t - 0.42) / 0.3;
-    if (!swingState.hit && swingState.t >= 0.28) {
+    if (!swingState.hit && swingState.t >= AXE_T.hit) {
       swingState.hit = true;
       const q = swingState.q;
-      const chord = G.step === 'notch' ? f.chordAtX(Rc - Math.min(n.dTop, n.dBot)) : f.chordAtX(-Rc + c.back.progress);
       const D = tr.R * 2;
-      const bite = D * (G.step === 'notch' ? 0.035 : 0.03) * job.tool.power * q / f.sp.hardness * (0.85 + Math.random() * 0.3);
+      // a stroke a second or so: each bites a little deeper than the old quick tap did
+      const bite = 1.2 * D * (G.step === 'notch' ? 0.035 : 0.03) * job.tool.power * q / f.sp.hardness * (0.85 + Math.random() * 0.3);
       G.cutStarted = true; G.csgDirty = true;
       sfx.chop(0.5 + q * 0.5);
       G.hitstop = 0.035 + q * 0.035; kick(0.18 + q * 0.17);
-      G.rig.particles.emit(target, new THREE.Vector3(0.4, 1.2, -1.6), 10 + q * 10, 1.4);
       if (G.step === 'notch') {
         // each stroke deepens one face (twice the bite, so the notch grows at the same pace); sloppy swings over- or under-cut it
-        const key = swingState.face === 'top' ? 'dTop' : 'dBot';
+        const key = face === 'top' ? 'dTop' : 'dBot';
         n[key] = Math.min(Rc * 1.9, Math.max(0, n[key] + bite * 2 + (1 - q) * bite * 0.9 * (Math.random() * 2 - 0.6)));
-        const hit = onFace(swingState.face);
-        G.rig.markHit(hit.p, hit.n, 0.72 - 0.28);
         if (q < 0.6) toast('Glancing blow.', '');
         if (!n.removed && n.dTop >= n.target - 0.01 && n.dBot >= n.target - 0.01) dropFace();
         renderPanel();
       } else {
         c.back.progress = Math.min(Rc * 2.05, c.back.progress + bite);
-        // mark where the bit landed on the notch floor (the face the back camera sees) until the next swing
-        const p = c.back.progress, inFloor = p > 0.03;
-        // keep the mark's back edge on the floor where it can (the front edge may tuck under the uncut wood)
-        const xm = -Rc + Math.min(p - 0.005, Math.max(p * 0.5, G.rig.markR));
-        G.rig.markHit(new THREE.Vector3(inFloor ? xm : -Rc,tr.h0 + c.back.step + (inFloor ? -0.002 : 0.012), 0), new THREE.Vector3(inFloor ? 0 : -1, inFloor ? 1 : 0, 0), 0.72 - 0.28);
         f.checkRelease();
         if (f.phase !== 'standing') onRelease();
       }
+      // chips fly back out of the cut, against the stroke
+      G.rig.particles.emit(stroke.P, stroke.t.clone().multiplyScalar(-1.6).add(new THREE.Vector3(0, 1.1, 0)), 10 + q * 10, 1.2);
+      if (G.step === 'notch' || G.step === 'back') { const after = axeStroke(face); G.rig.markHit(after.P, after.nrm, AXE_T.end - AXE_T.hit); }
     }
-    if (swingState.t > 0.72) swingState = null;
+    if (swingState.t > AXE_T.end) swingState = null;
   }
-  if (G.step === 'notch' || G.step === 'back') G.rig.placeAxe(target, phase);
+  if (G.step === 'notch' || G.step === 'back') G.rig.placeAxe(stroke, swingState ? swingState.t : null);
 }
 
 // The notch piece falls out (CSG intersection gives the real chunk with bark and end grain)
@@ -852,6 +875,7 @@ function finishTree() {
   const letter = score >= 90 ? 'A' : score >= 78 ? 'B' : score >= 62 ? 'C' : score >= 45 ? 'D' : 'F';
 
   save.cash += pay;
+  const brokeNow = pay < 0 && save.cash < 200;
   save.stats.felled++; save.stats.earned += Math.max(0, pay);
   if (landed) { save.stats.accSum += err; save.stats.accN++; }
   job.done.add(G.treeIdx);
@@ -876,7 +900,12 @@ function finishTree() {
   countUp($('paidV'), pay, 900, 450 + lines.length * 60);
   $('mNext').onclick = () => {
     show('modal', false);
-    if (dead) { save.cash -= Math.max(200, save.cash * 0.3); save.health = 60; persist(); endJob(true); return; }
+    if (dead) {
+      const bill = Math.max(200, save.cash * 0.3);
+      if (save.cash < 200) { bankrupt(`The hospital bill was ${money(bill)} and you had ${money(save.cash)}.`); return; }
+      save.cash -= bill; save.health = 60; persist(); endJob(true); return;
+    }
+    if (brokeNow) { bankrupt(`Fines took you down to ${money(save.cash)}, under the $200 you need to keep working.`); return; }
     if (remaining.length) selectTree(remaining[0]); else fadeThen(() => endJob());
   };
   $('mLook')?.addEventListener('click', () => {
@@ -892,6 +921,18 @@ function countUp(el, v, ms, wait = 0) {
   const step = (now) => { const k = clamp((now - t0) / ms, 0, 1), e = 1 - Math.pow(1 - k, 3); el.textContent = money(v * e); if (k < 1) requestAnimationFrame(step); };
   requestAnimationFrame(step);
   setTimeout(() => (el.textContent = money(v)), wait + ms + 50); // in case frames are throttled
+}
+
+// Under $200 after a loss: the crew lets you go and the career starts over.
+function bankrupt(why) {
+  const stats = save.stats;
+  save = fresh(); save.stats.best = stats.best; persist();
+  window.__timberline && (window.__timberline.save = save);
+  clearWorld(); toMenu();
+  $('modalCard').innerHTML = `<div class="lbl">Out of money</div><h2>Starting over</h2><p>${why} Your gear is sold to cover it, and you start again with a hand axe at the homestead woodlot.</p>
+    <div class="btn-row"><button class="go" id="bOk" type="button">Back to the woodlot</button></div>`;
+  show('modal', true);
+  $('bOk').onclick = () => show('modal', false);
 }
 
 function endJob(hospital = false) {

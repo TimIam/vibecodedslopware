@@ -356,6 +356,8 @@ export class Felling {
     return { x: tr.spec.x + v.x, z: tr.spec.z + v.z };
   }
   retreat() { if (!this.player.retreating) { this.player.retreating = true; this.retreatTime = this.time; } }
+  // walk back to the stump (only while the tree still stands)
+  returnToStump() { const pl = this.player; pl.retreating = false; pl.retreated = 0; pl.x = -this.tree.Rc * 0.2; pl.z = -(this.tree.Rc + 0.6); this.retreatTime = null; }
   updatePlayer(dt) {
     const pl = this.player;
     if (pl.retreating && pl.retreated < 7) {
