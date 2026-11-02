@@ -120,7 +120,8 @@ addEventListener('mousemove', e => {
   input.mdx += e.movementX * SENS * input.sens; input.mdy += e.movementY * SENS * input.sens;
 });
 canvasEl.addEventListener('contextmenu', e => e.preventDefault());
-canvasEl.addEventListener('wheel', e => { if (G.mode === 'play') { H.lift = clamp(H.lift - e.deltaY * 0.0006, 0, 0.55); e.preventDefault(); } }, { passive: false });
+// Wheel (or Q/E) sets how high your hand rests; it stays there until you change it.
+canvasEl.addEventListener('wheel', e => { if (G.mode === 'play') { H.height = clamp(H.height - Math.sign(e.deltaY) * 0.025, 0, 0.45); e.preventDefault(); } }, { passive: false });
 function nudgeSens(k) { input.sens = clamp(input.sens * k, 0.35, 3); popup(`mouse ${Math.round(input.sens * 100)}%`, 'meh'); }
 function lock() {
   const soft = () => { input.soft = true; };
@@ -146,7 +147,7 @@ function setButtons(l, r) {
 
 // The hand -------------------------------------------------------------------------------------
 const H = {
-  pos: V(L.stations[1].x, 1.08, 0), vel: V(), tgt: V(), cur: { x: 0, z: -0.05 }, lift: 0, liftZ: 0, held: null, door: null,
+  pos: V(L.stations[1].x, 1.08, 0), vel: V(), tgt: V(), cur: { x: 0, z: -0.05 }, lift: 0, height: 0, liftZ: 0, held: null, door: null,
   handful: null, pressStart: false, impactArmed: true, lastAng: null, pose: 'open', sprT: 0, prevVy: 0, acc: V(), prevVel: V(),
   under: { top: 0.92 }, contact: false, sauceT: 0,
 };
@@ -892,7 +893,8 @@ function updateHand(dt) {
   const dx = input.mdx, dy = input.mdy; input.mdx = input.mdy = 0;
   const lift = lifting();
   if (lift) { H.lift = clamp(H.lift - dy * 1.15, 0, 0.6); H.cur.x += dx; }
-  else { H.cur.x += dx; H.cur.z += dy; H.lift = Math.max(0, H.lift - dt * 1.4); }
+  else { H.cur.x += dx; H.cur.z += dy; H.lift = Math.max(0, H.lift - dt * 0.45); }  // let go of Space and the arm settles, it doesn't drop
+  H.height = clamp(H.height + ((keys.KeyQ ? 1 : 0) - (keys.KeyE ? 1 : 0)) * 0.3 * dt, 0, 0.45);
   H.cur.x = clamp(H.cur.x, -1.25, 1.25); H.cur.z = clamp(H.cur.z, -1.0, 0.55);
   // circling detector (for spinning dough)
   const a = Math.min(1, dt / 0.05), ivx = dx / Math.max(dt, 1e-3), ivy = dy / Math.max(dt, 1e-3);
@@ -917,7 +919,7 @@ function updateHand(dt) {
   else if (H.handful) below = 0.08;
   const u = topAt(tx, probeZ, H.pos.y + 0.12, ex);
   H.under = u;
-  let ty = Math.max(u.top + below, 0.985) + H.lift;
+  let ty = Math.max(u.top + below, 0.985) + H.height + H.lift;
   // RMB presses the palm (or whatever is in it) down onto what's below
   const press = input.rmb && !H.door;
   if (press) ty = u.top + (held?.kind === 'ladle' ? 0.152 : held?.kind === 'peel' ? 0.03 : held?.kind === 'tub' ? 0.118 : held instanceof Pie ? 0.03 : H.handful ? 0.05 : -0.05);
@@ -931,7 +933,8 @@ function updateHand(dt) {
   const wn = held?.kind === 'peel' ? 9.5 : held ? 13 : 17, zeta = 0.8;
   const aMax = held?.kind === 'peel' ? 16 : 34 / (1 + mass);
   _v.subVectors(H.tgt, H.pos).multiplyScalar(wn * wn).addScaledVector(H.vel, -2 * zeta * wn);
-  const ay = clamp(_v.y * (press && !held ? 2.6 : 1.2), -90, 55); _v.y = 0;
+  // pounding slams down hard; otherwise the arm is held up and lowers under control
+  const ay = press ? clamp(_v.y * (held ? 1.2 : 2.6), -90, 55) : clamp(_v.y * 0.9, -14, 40); _v.y = 0;
   if (_v.length() > aMax) _v.setLength(aMax);
   H.vel.x += _v.x * dt; H.vel.z += _v.z * dt; H.vel.y += ay * dt;
   if (lift) H.vel.y += (H.tgt.y - H.pos.y) * 30 * dt;  // lifting is quick: it's your whole arm
@@ -1215,7 +1218,7 @@ function resetLine() {
   for (const w of waiters) { w.carry = null; w.sayT = 0; w.z = -2.6; }
   for (const h of helpers) { h.task = null; h.idle = 3; }
   H.held = null; H.handful = null; H.door = null; buildHandful(null);
-  H.cur.x = 0; H.cur.z = -0.05; H.lift = 0;
+  H.cur.x = 0; H.cur.z = -0.05; H.lift = 0; H.height = 0;
 }
 function startDay() {
   resetLine();
