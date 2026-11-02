@@ -10,6 +10,8 @@ const PLACES = {
   bridger: [41.32, -110.39], slc: [40.76, -111.89, 'Salt Lake'], desert: [40.1, -114.6], ruby: [40.2, -116.8],
   carson: [39.16, -119.77, 'Carson'], vc: [39.31, -119.65, 'Virginia City'], tahoe: [39.1, -120.03, 'Tahoe'],
   humboldt: [40.45, -118.13, 'Humboldt'], esmeralda: [38.29, -118.9, 'Aurora'], goldhill: [39.29, -119.66],
+  friday: [38.97, -119.93], summit: [38.81, -120.03], strawberry: [38.8, -120.15], placerville: [38.73, -120.8, 'Placerville'],
+  folsom: [38.68, -121.18], sacramento: [38.58, -121.49, 'Sacramento'],
   sf: [37.77, -122.42, 'San Francisco'], hill: [37.98, -120.43, 'Jackass Hill'],
   oahu: [21.31, -157.86, 'Honolulu'], maui: [20.8, -156.33, 'Maui'], hawaii: [19.6, -155.5, 'Hawaii'],
 };
@@ -40,6 +42,10 @@ function whereNow() {
   }
   if (S.act === 'nevada') return P(S.loc && PLACES[S.loc] ? S.loc : 'carson');
   if (S.act === 'paper') return P('vc');
+  if (S.act === 'westward' && typeof WEST !== 'undefined') {
+    for (let i = 0; i < WEST.length - 1; i++) { const a = WEST[i], b = WEST[i + 1]; if (S.wmi <= b.mi) return lerp(P(a.k), P(b.k), (S.wmi - a.mi) / (b.mi - a.mi)); }
+    return P('sacramento');
+  }
   if (S.act === 'sf') return P('sf');
   if (S.act === 'pocket') return P('hill');
   if (S.act === 'pacific') {
@@ -69,6 +75,7 @@ function mapCaption() {
   if (S.act === 'stage') return `${S.mi.toLocaleString()} of 1,700 miles to Carson City`;
   if (S.act === 'nevada') return S.loc ? { humboldt: 'Prospecting in the Humboldt', esmeralda: 'Prospecting at Aurora', goldhill: 'Scratching at Gold Hill', tahoe: 'On the shore of Lake Tahoe' }[S.loc] || 'Carson City' : 'Carson City, Nevada Territory';
   if (S.act === 'paper') return 'Virginia City, on the Comstock';
+  if (S.act === 'westward') return S.wmi >= 158 ? 'Down the Sacramento River by night boat' : `${S.wmi} of 158 miles to Sacramento`;
   if (S.act === 'sf') return 'San Francisco';
   if (S.act === 'pocket') return 'Jackass Hill, Tuolumne County';
   if (S.act === 'pacific') return S.isle ? `${{ oahu: 'Oahu', maui: 'Maui', hawaii: 'Island of Hawaii' }[S.isle]}, the Sandwich Islands` : 'On the Pacific';
@@ -96,7 +103,7 @@ function paint(here) {
   g.fillStyle = '#7f9a5a';
   for (const [k, r] of [['oahu', 2], ['maui', 2], ['hawaii', 3]]) { const [x, y] = P(k); g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
   // the whole route, dotted
-  const route = [...STAGE.map(s => P(s[1])), P('vc'), P('sf'), P('oahu')];
+  const route = [...STAGE.map(s => P(s[1])), P('vc'), P('carson'), P('friday'), P('summit'), P('strawberry'), P('placerville'), P('folsom'), P('sacramento'), P('sf'), P('oahu')];
   g.strokeStyle = 'rgba(42,29,18,.55)'; g.setLineDash([2, 2]); g.beginPath();
   route.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke(); g.setLineDash([]);
   // the trail so far
@@ -116,6 +123,7 @@ function paint(here) {
   const labels = [['stjoe', -1], ['slc', 0]];
   labels.push([S.act === 'pacific' && S.isle ? S.isle : 'oahu', 0]);
   if (S.act === 'paper') labels.push(['vc', 1]);
+  else if (S.act === 'westward') labels.push(['sacramento', 1]);
   else if (['sf', 'pocket', 'pacific', 'lecture', 'end'].includes(S.act)) labels.push(['sf', 1]);
   else labels.push(['carson', 1]);
   if (S.act === 'nevada' && S.loc && PLACES[S.loc] && PLACES[S.loc][2]) labels.push([S.loc, S.loc === 'humboldt' ? 0 : 1]);

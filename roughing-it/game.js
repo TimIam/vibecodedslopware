@@ -18,16 +18,16 @@ const BEST_KEY = 'roughing-it-best';
 
 // ---------------------------------------------------------------- items
 const ITEMS = {
-  dictionary: { name: 'Unabridged Dictionary', lb: 12, cost: 0, note: 'Six pounds of words, twice over. Good for a writer. Murderous on a rough road.' },
-  pistol: { name: 'Smith & Wesson seven-shooter', lb: 2, cost: 12, note: 'Shoots a ball like a homeopathic pill. Makes a man feel armed.' },
-  pipe: { name: 'Pipe & tobacco', lb: 2, cost: 4, note: 'Keeps the spirits up a little every day.' },
-  blankets: { name: 'Wool blankets', lb: 6, cost: 6, note: 'The mountain nights are cold, even in August.' },
-  canteen: { name: 'Canteen', lb: 2, cost: 3, note: 'There is a desert out there that has heard of you.' },
-  coat: { name: 'Heavy coat & boots', lb: 7, cost: 15, note: 'Nevada has winters. Nobody mentions this.' },
-  cards: { name: 'Deck of cards', lb: 1, cost: 1, note: 'For station poker. For better or worse.' },
-  whiskey: { name: 'Jug of whiskey', lb: 4, cost: 3, note: 'Medicinal. Also currency.' },
-  notebook: { name: 'Notebook & pencils', lb: 1, cost: 2, note: 'For writing it all down. You will want to.' },
-  medicine: { name: 'Patent medicine', lb: 1, cost: 5, note: 'Cures everything, according to the bottle.' },
+  dictionary: { name: 'Unabridged Dictionary', lb: 12, cost: 0, note: 'Twelve pounds of the English language, unabridged. A comfort on a desk; a battering-ram on a rough road.' },
+  pistol: { name: 'Smith & Wesson seven-shooter', lb: 2, cost: 12, note: 'Shoots a ball like a homeopathic pill; it takes the whole seven to make a dose for a grown man.' },
+  pipe: { name: 'Pipe & tobacco', lb: 2, cost: 4, note: 'Keeps a man’s spirits up a little every day, like a small salary.' },
+  blankets: { name: 'Wool blankets', lb: 6, cost: 6, note: 'The nights in the Rockies are as cold in August as a creditor’s heart.' },
+  canteen: { name: 'Canteen', lb: 2, cost: 3, note: 'There is a desert out yonder, and it has heard you are coming.' },
+  coat: { name: 'Heavy coat & boots', lb: 7, cost: 15, note: 'Nevada has winters. The emigrant pamphlets are silent on the point.' },
+  cards: { name: 'Deck of cards', lb: 1, cost: 1, note: 'For poker at the stations, where the freighters will be powerful glad to see you.' },
+  whiskey: { name: 'Jug of whiskey', lb: 4, cost: 3, note: 'Medicinal, according to the jug. Also legal tender west of the Missouri.' },
+  notebook: { name: 'Notebook & pencils', lb: 1, cost: 2, note: 'For setting it all down, against the day somebody pays you for it.' },
+  medicine: { name: 'Patent medicine', lb: 1, cost: 5, note: 'Cures everything from the ague to melancholy, on the word of the man who bottled it.' },
 };
 const LIMIT = 25; // the stage company allowed each passenger twenty-five pounds
 
@@ -154,9 +154,9 @@ function title() {
   show({
     title: 'Roughing It',
     where: 'St. Louis, July 1861',
-    body: `<p>Your brother Orion has been made Secretary of the new Nevada Territory, and you have been made, by your own appointment, his private secretary. The salary is nothing. The duties are unknown. The prospects are, in your considered opinion, magnificent.</p>
-      <p>You have never been west of the Missouri. You picture Indians, buffalo, gold lying about in nuggets, and yourself coming home in a year or two with a fortune and a great many stories. You will be right about the stories.</p>
-      <p>Six days up the Missouri by steamboat brings you to St. Joseph and the Overland stage: <b>1,700 miles</b> to Carson City at about a hundred miles a day, fare $150, paid in advance.</p>
+    body: `<p>Your brother Orion has been appointed Secretary of the new Nevada Territory, and you have been appointed, by nobody but yourself, his private secretary: an office with no salary and no duties that anybody can name, but with prospects which you consider, after due reflection, to be magnificent.</p>
+      <p>You have never been west of the Missouri. You picture buffalo and prairie dogs and antelope, and gold lying about in nuggets to be shovelled up like coal, and yourself coming home to the States in a year or two with a fortune and a carpetbag full of stories. You will be right about the stories.</p>
+      <p>Six days up the Missouri by steamboat, a good part of them spent aground on sandbars, brings you to St. Joseph and the Overland stage: <b>1,700 miles</b> to Carson City at about a hundred miles a day, fare $150 a head, paid in advance, as every prudent stage company requires.</p>
       <blockquote>A trail game after Mark Twain's <i>Roughing It</i> (1872), in three parts: <b>Nevada</b> (the stage, the silver mines, the newspaper), <b>San Francisco</b>, and <b>the Pacific</b>.</blockquote>
       ${best ? `<p class="foot">Best tale so far: ${best.score} points (${esc(best.title)}).</p>` : ''}`,
     choices: [{ t: 'Buy a ticket west', big: true, go: () => { audio(); outfit(); } }],
@@ -173,7 +173,7 @@ function outfit() {
     show({
       title: 'Twenty-five pounds',
       where: 'The Overland office, St. Joseph',
-      body: `<p>The stage company allows each passenger twenty-five pounds of baggage. Your swallow-tail coat, white kid gloves and patent-leather boots must go home on the steamboat. Choose what rides with you. Orion insists on the dictionary; you may overrule him.</p>
+      body: `<p>The stage company allows each passenger twenty-five pounds of baggage and not an ounce over, and the agent has a scale and a disposition to use it. Your swallow-tail coat, white kid gloves and patent-leather boots must go back to St. Louis on the steamboat. Choose what rides with you. Orion insists on the dictionary; you may overrule him, though it has never yet been done.</p>
         <div class="items">${Object.entries(ITEMS).map(([k, it]) => `<button class="item${chosen.has(k) ? ' on' : ''}" data-k="${k}"><span><b>${it.name}</b><small>${it.note}</small></span><span class="wt">${it.lb} lb${it.cost ? `<br>$${it.cost}` : ''}</span></button>`).join('')}</div>
         <p class="scale${over ? ' over' : ''}">${lb} / ${LIMIT} lb · ${money(cost)} of your ${money(S.money)}${over ? ' · the agent shakes his head' : ''}</p>`,
       choices: [{ t: over ? 'Too heavy: put something back' : 'Climb aboard the coach', big: true, disabled: over || cost > S.money, go: () => {
@@ -199,13 +199,13 @@ function stageDay(first) {
     title: first ? 'Part I: Nevada · the Overland stage' : `Day ${S.day + 1} on the road`,
     where: `${S.mi.toLocaleString()} miles out · next: ${next.name} (${next.mi - S.mi} mi) · riding ${seatTxt}`,
     body: first
-      ? `<p>The coach is a great swinging cradle on leather thoroughbraces, drawn by six horses and bound for the sunset. The baggage is in the boot, the mail is piled to the windows inside, and you are on top of it. The driver cracks his whip. You are off.</p>`
+      ? `<p>The coach is a great swinging and swaying cradle on leather thoroughbraces, drawn by six handsome horses and bound for the sunset. The baggage is in the boot, twenty-seven hundred pounds of mail are piled to the windows inside, and you are on top of it. The driver cracks his whip like a pistol shot, the hostlers let go of the leaders, and away you go.</p>`
       : `<p>${deal(flavor[region])}</p>`,
     choices: [
       { t: 'Ride on', sub: 'a day of travel, about a hundred miles', go: travel },
-      { t: S.seat === 'top' ? 'Climb inside onto the mail sacks' : 'Climb up beside the driver', sub: S.seat === 'top' ? 'warmer, safer, duller' : 'better views and better lies; worse weather', go: () => { S.seat = S.seat === 'top' ? 'inside' : 'top'; stageDay(); } },
-      { t: 'Lay over a day at the station', sub: 'rest up (+health, +spirits) for $3 and a day', go: () => { S.day++; return `<p>You let the coach go on without you and sleep in a real bunk under a real roof. The station keeper's wife feeds you something that is nearly bread.</p>` + fx({ hp: 12, sp: 6, money: -3 }); }, next: () => stageDay() },
-      { t: 'Take a dose of patent medicine', if: () => has('medicine') && S.hp < 70, go: () => `<p>It tastes of turpentine and good intentions. You feel better at once, possibly from fright.</p>` + fx({ hp: 15, lose: 'medicine' }), next: () => stageDay() },
+      { t: S.seat === 'top' ? 'Climb inside onto the mail sacks' : 'Climb up beside the driver', sub: S.seat === 'top' ? 'warmer and safer, and as dull as a sermon' : 'better views and better lies; worse weather', go: () => { S.seat = S.seat === 'top' ? 'inside' : 'top'; stageDay(); } },
+      { t: 'Lay over a day at the station', sub: 'rest up (+health, +spirits) for $3 and a day', go: () => { S.day++; return `<p>You let the coach go on without you and slept in a real bunk under a real roof, and the station keeper’s wife fed you saleratus bread, as yellow as gold and very nearly as heavy.</p>` + fx({ hp: 12, sp: 6, money: -3 }); }, next: () => stageDay() },
+      { t: 'Take a dose of patent medicine', if: () => has('medicine') && S.hp < 70, go: () => `<p>It tasted of turpentine and good intentions. You felt better at once, possibly from fright.</p>` + fx({ hp: 15, lose: 'medicine' }), next: () => stageDay() },
     ],
   });
 }
@@ -237,79 +237,79 @@ function travel() {
 }
 
 const flavor = {
-  plains: ['The plains roll off in every direction like a green sea that has given up. The road is a single dusty seam across it.', 'Prairie dogs sit on their mounds and watch you go by with the air of creditors.', 'The sky out here is a great deal larger than the one back home, and it does not seem to know you.'],
-  bluffs: ['Sandstone bluffs stand up out of the plain like the ruins of a city nobody bothered to build.', 'The North Platte runs alongside, wide and shallow and the colour of coffee with milk.'],
-  rockies: ['The road climbs. The air thins and sharpens. Snow on the far peaks in August, which strikes you as showing off.', 'Sagebrush everywhere: grey-green, knee-high, and smelling like a medicine cabinet.', 'The mules are swapped for fresh ones every ten miles or so. You envy the mules.'],
-  salt: ['The valley of the Great Salt Lake opens below, green and irrigated and astonishingly tidy.'],
-  desert: ['Nothing but alkali dust, white and fine as flour, in the eyes and teeth and soul.', 'The sun bakes the coach like a loaf. The horizon trembles in the heat.'],
-  town: ['Carson City is near.'],
+  plains: ['The plains roll off in every direction like a green ocean that has lain down to rest, and the road runs across it in a single dusty seam, as straight as a deacon’s back.', 'Prairie dogs sit up on their mounds and watch the coach go by with the cold, patient look of creditors who know where you board.', 'The sky out here is a considerable sight larger than the one back in Missouri, and it does not appear to have been introduced to you.'],
+  bluffs: ['Sandstone bluffs stand up out of the plain like the ruins of a great city that nobody ever got around to building.', 'The North Platte runs alongside, a mile wide and an inch deep, and the colour of station coffee with the milk already in it.'],
+  rockies: ['The road climbs, and the air thins and sharpens as it goes, and there is snow on the far peaks in the middle of August, which strikes you as showing off.', 'Sagebrush in every direction, grey-green and knee-high, a forest of little live oaks to anybody who lies down to look at it, and smelling like a patent-medicine shop.', 'The mules are swapped for fresh ones every ten miles or so. Nobody offers to swap the passengers.'],
+  salt: ['The valley of the Great Salt Lake opens out below, green and ditched and irrigated, and as tidy as a Presbyterian parlour.'],
+  desert: ['Nothing but alkali dust, white and fine as flour, in a man’s eyes and teeth and whiskers, and presently in his religion.', 'The sun bakes the coach like a loaf of saleratus bread, and the horizon trembles in the heat like a man with the ague.'],
+  town: ['Carson City is near, the driver says, in the voice of a man who has said it before and been believed.'],
 };
 const quiet = [
-  'An uneventful day, if you do not count the jolting, the dust, the heat, the cold, and the mail sacks, which you have come to know personally.',
-  'You count sagebrush for an hour. You lose count. You start again.',
-  'The driver tells you a story about a man in Julesburg that you suspect is about the driver.',
-  'A long, rocking, dozing day. You wake each time the coach hits a hole, which is often, and dream of beds.',
-  'You change horses at a station every few hours. Each station keeper is shabbier and more cheerful than the last.',
-  'Orion reads the laws of Nevada Territory aloud from a pamphlet. There are not many laws yet. He reads them twice.',
-  'A passenger snores in a key you did not know existed. By noon you can hum along.',
-  'The mail sacks shift in the night and you wake with a letter to a Mrs. Hopkins of Sacramento pressed into your cheek.',
-  'The driver lets you hold the reins for a mile on the flat. The horses know at once and treat you accordingly.',
-  'A wagon train of emigrants creaks past going the same way at a tenth of the speed. You wave. They do not.',
-  'You discover that a man can sleep sitting up, lying down, or wedged at a diagonal, but not well in any of them.',
-  'Dinner at the station is beans. Supper is the beans that were left over from dinner, with an apology.',
-  'A dust devil whirls along beside the coach for a while like a friendly ghost, then wanders off to bother someone else.',
-  'You try to write a letter home and produce a page that looks like an earthquake signed it.',
-  'At a lonely station a little girl shows you her pet prairie dog, which bites you. She is very proud of it.',
-  'The driver points out a hill that he says is haunted, then another, then admits most of them are.',
-  'The night is so clear that the stars seem close enough to rattle when the coach hits a rut.',
+  'It was an uneventful day, if you did not count the jolting and the dust, the heat at noon and the cold at midnight, and the mail sacks, which you had come to know personally, one by one.',
+  'You counted sagebrush for an hour and got to four thousand one hundred and eleven, then lost your place and had to begin again at the first bush, which was by then forty miles back.',
+  'The driver told you about a man in Julesburg who had been a terror in his day, and you suspected, from the loving detail, that the man was the driver.',
+  'It was a long rocking dozing day. You woke each time the coach struck a chuck-hole, which was about every fourth minute, and in between you dreamed of feather beds in the States.',
+  'You changed horses at a station every few hours, and each station keeper was shabbier than the last and in better spirits, which you put down to the climate.',
+  'Orion read the laws of Nevada Territory aloud from a pamphlet. There were not many laws yet, so he read them twice, with expression.',
+  'A passenger snored in a key you had never heard out of any steamboat calliope, and by noon you could hum along.',
+  'The mail sacks shifted in the night, and you woke with a letter to a Mrs. Hopkins of Sacramento printed backwards on your cheek.',
+  'The driver let you hold the reins for a mile on the flat. The horses knew it at once, the way a schoolroom knows a substitute teacher, and treated you accordingly.',
+  'You overtook a train of emigrant wagons creaking along the same road at a tenth of your speed, and waved to them with a great deal of feeling. They did not wave back.',
+  'You discovered that a man can sleep sitting up, or lying down, or wedged at a diagonal between two mail sacks, but not well in any of them.',
+  'Dinner at the station was beans. Supper was the beans left over from dinner, served with an apology and a little more bacon rind.',
+  'A dust devil whirled along beside the coach for three miles like a sociable ghost, and then wandered off across the sagebrush to bother an emigrant.',
+  'You tried to write a letter home on your knee, and produced a page that looked as if an earthquake had signed it before witnesses.',
+  'At a lonely station a little girl showed you her pet prairie dog, which bit you. She was very proud of it.',
+  'The driver pointed out a hill that he said was haunted, and then another, and at last allowed that most of the hills on his division were haunted, and the company made no extra charge for it.',
+  'The night was so clear that the stars seemed near enough to rattle when the coach hit a rut.',
 ];
 
 // Random road events. `if` limits where they can happen; `once` means at most once per trip.
 const ROAD = [
   { id: 'dict', once: 1, if: () => has('dictionary') && S.mi > 150, go: daily => show({
-    title: 'The dictionary', body: `<p>The coach plunges into a gully and comes up the far side at a run. Everything inside rises into the air together: you, Orion, the mail, the water canteen, and the Unabridged Dictionary, which comes down on you corner-first like the wrath of a schoolmaster. It does this again at the next gully, and the next. By noon it has bruised every passenger and learned nothing.</p>${daily}`,
+    title: 'The dictionary', body: `<p>The coach plunges into a gully and comes up the far side at a run, and everything inside rises into the air together: you, Orion, the mail, the water canteen, and the Unabridged Dictionary, which comes down on you corner-first like the wrath of a schoolmaster. It does this again at the next gully, and the next, and the one after. By noon it has bruised every passenger in the coach and learned nothing.</p>${daily}`,
     choices: [
-      { t: 'Pitch it out of the window', go: () => `<p>It lands open in the sagebrush, somewhere in the middle of the letter M. You feel lighter, and somehow less educated.</p>` + fx({ sp: 6, lose: 'dictionary' }) },
-      { t: 'Keep it; a writer needs words', go: () => `<p>You wedge it under the mail sacks. It escapes twice more before dark.</p>` + fx({ hp: -8 }) },
+      { t: 'Pitch it out of the window', go: () => `<p>It landed open in the sagebrush, somewhere about the middle of the letter M, and lay there instructing the coyotes. You felt lighter, and a good deal less educated.</p>` + fx({ sp: 6, lose: 'dictionary' }) },
+      { t: 'Keep it; a writer needs words', go: () => `<p>You wedged it under the mail sacks. It got loose twice more before dark and fell on Orion both times, which he bore like a Christian and a brother.</p>` + fx({ hp: -8 }) },
     ] }, stageDay) },
-  { id: 'jack', once: 1, if: () => S.mi < 900, go: daily => outcome('A jackass rabbit', `<p>A rabbit with ears like a mule's sits by the road and considers you. The driver fires a shot near it to show you what it can do, and it lays its ears back and leaves for the horizon at a speed that would embarrass the telegraph. You never knew a rabbit could express contempt.</p>` + fx({ sp: 8 }) + daily, stageDay) },
-  { id: 'coyote', once: 1, go: daily => outcome('A coyote', `<p>A coyote trots alongside for a mile: a thin, hungry, disreputable thing with a tail that apologises for the rest of him. When a town dog from the station comes out to chase it, the coyote merely lopes a little faster, glancing back with mild interest, until the dog is miles from home and wondering where all his confidence went.</p>` + fx({ sp: 6 }) + daily, stageDay) },
+  { id: 'jack', once: 1, if: () => S.mi < 900, go: daily => outcome('A jackass rabbit', `<p>A jackass rabbit with ears like a mule’s sat by the road and considered you. The driver fired a shot near it to show you what it could do, and it laid its ears back and left for the horizon at a gait that would have shamed the telegraph, and was presently a speck, and then a rumour. You had never known a rabbit could express contempt.</p>` + fx({ sp: 8 }) + daily, stageDay) },
+  { id: 'coyote', once: 1, go: daily => outcome('A coyote', `<p>A coyote trotted alongside for a mile: a long, slim, sorry-looking skeleton with a tail that apologised for the rest of him. When a town dog from the station came out to chase it, full of self-esteem, the coyote merely loped a little faster, glancing back over his shoulder with a mild interest, until the dog was miles from home in the sagebrush and could not think where all his confidence had gone.</p>` + fx({ sp: 6 }) + daily, stageDay) },
   { id: 'slum', go: daily => show({
-    title: 'Station breakfast', body: `<p>At the station the keeper serves a drink called slumgullion. It pretends to be tea, but there is too much dishrag, sand and old bacon rind in it to deceive the intelligent traveller. Beside it lies a lump of bread and some bacon that has evidently seen army service.</p>${daily}`,
+    title: 'Station breakfast', body: `<p>At the station the keeper sets out a beverage he calls slumgullion. It pretends to be tea, but there is too much dishrag and sand and old bacon rind in it to deceive the intelligent traveller. Beside it lie a lump of bread and some bacon which the army condemned and the stage company bought cheap.</p>${daily}`,
     choices: [
-      { t: 'Eat it all, like a westerner', go: () => Math.random() < .55 ? `<p>It stays down. You feel you have passed some initiation.</p>` + fx({ hp: 4, sp: 3 }) : `<p>It does not stay down.</p>` + fx({ hp: -7 }) },
-      { t: 'Pay a dollar for the keeper\'s private eggs', go: () => `<p>Two eggs, fried by a man who has evidently heard of eggs. Worth every cent.</p>` + fx({ money: -1, hp: 6 }) },
-      { t: 'Skip it', go: () => `<p>You go hungry and smug.</p>` + fx({ hp: -3 }) },
+      { t: 'Eat it all, like a westerner', go: () => Math.random() < .55 ? `<p>It stayed down. You felt you had been initiated into some secret order of the plains.</p>` + fx({ hp: 4, sp: 3 }) : `<p>It did not stay down. You gave it back to the plains, which had the better right to it.</p>` + fx({ hp: -7 }) },
+      { t: 'Pay a dollar for the keeper’s private eggs', go: () => `<p>He brought you two eggs, fried by a man who had evidently heard of eggs, and they were worth every cent of the dollar and part of another.</p>` + fx({ money: -1, hp: 6 }) },
+      { t: 'Skip it', go: () => `<p>You went hungry, and smug, which is a poor diet but a light one.</p>` + fx({ hp: -3 }) },
     ] }, stageDay) },
   { id: 'brace', go: daily => show({
-    title: 'A broken thoroughbrace', body: `<p>With a crack like a rifle shot one of the leather straps the coach swings on gives way, and the whole body sags over on one side like a tired cow.</p>${daily}`,
+    title: 'A broken thoroughbrace', body: `<p>With a crack like a rifle shot one of the great leather thoroughbraces the coach swings on gives way, and the whole body sags over on one side like a cow that has decided to lie down and think.</p>${daily}`,
     choices: [
-      { t: 'Help the driver mend it', go: () => `<p>Two hours of rawhide, profanity and leverage. The driver says you curse like a natural and you take it kindly.</p>` + fx({ sp: 4, hp: -3 }) },
-      { t: 'Sit in the shade and offer advice', go: () => `<p>It takes the rest of the day. Your advice is not taken.</p>` + fx({ day: 1, sp: -2 }) },
+      { t: 'Help the driver mend it', go: () => `<p>It took two hours of rawhide and leverage, and a good deal of profanity, which you supplied. The driver said you swore like a natural-born mule-skinner, and you took it kindly.</p>` + fx({ sp: 4, hp: -3 }) },
+      { t: 'Sit in the shade and offer advice', go: () => `<p>It took the rest of the day. You gave a great deal of advice, all of it free, and it was valued at exactly that.</p>` + fx({ day: 1, sp: -2 }) },
     ] }, stageDay) },
   { id: 'poker', if: () => has('cards'), go: daily => show({
-    title: 'A game at the station', body: `<p>A pair of freighters at the station have a table, a lamp and an expression of great innocence. They would welcome a friendly hand.</p>${daily}`,
+    title: 'A game at the station', body: `<p>A pair of freighters at the station have a table, a tallow candle, a greasy deck and an expression of great innocence, and they let it be known that they would welcome a friendly hand, for small stakes, among gentlemen.</p>${daily}`,
     choices: [
-      { t: 'Play for $10', if: () => S.money >= 10, go: () => Math.random() < .45 ? `<p>You win, which surprises everyone, you most of all.</p>` + fx({ money: ri(14, 30), sp: 6 }) : `<p>Their innocence was, it turns out, an act.</p>` + fx({ money: -10, sp: -4 }) },
-      { t: 'Decline politely', go: () => `<p>They seem genuinely hurt. You keep your money.</p>` },
+      { t: 'Play for $10', if: () => S.money >= 10, go: () => Math.random() < .45 ? `<p>You won, which surprised everybody at the table, and you most of all.</p>` + fx({ money: ri(14, 30), sp: 6 }) : `<p>Their innocence, you learned, was a thing they put on for strangers, like a Sunday coat.</p>` + fx({ money: -10, sp: -4 }) },
+      { t: 'Decline politely', go: () => `<p>They looked as hurt as two deacons passed over at the collection. You kept your money.</p>` },
     ] }, stageDay) },
   { id: 'storm', if: () => S.mi < 1100, go: daily => outcome('Thunderstorm', S.seat === 'top'
-    ? `<p>A storm comes over the plain in a black wall and breaks right on top of you. Up on the box there is nowhere to go. The lightning is close enough to read by. You arrive at the next station soaked to the bone and greatly impressed.</p>` + fx({ hp: -9, sp: 3 }) + daily
-    : `<p>A storm rolls over the plain. Inside the coach, snug among the mail, you watch the lightning walk across the prairie on legs of fire. It is the finest show you have ever seen and you did not pay for it.</p>` + fx({ sp: 6 }) + daily, stageDay) },
-  { id: 'liar', if: () => S.seat === 'top', go: daily => outcome('The driver talks', `<p>The driver points with his whip to a hill where, he says, he once outran a band of road agents with the mules on fire and the mail sacks singing hymns. You believe every word, and decide this is the right way to tell a story: absolutely straight-faced and a little bigger than the facts.</p>` + fx({ sp: 9 }) + (has('notebook') ? '<p>You write it all down.</p>' : '') + daily + ((S.flags.lies = (S.flags.lies || 0) + 1), ''), stageDay) },
-  { id: 'buffalo', once: 1, if: () => S.mi > 200 && S.mi < 700, go: daily => outcome('Bemis and the buffalo', `<p>At the station a fellow passenger named Bemis comes back from a buffalo hunt with his clothes torn and his dignity in worse shape. The bull chased him, he says, and he climbed a tree, and the bull climbed after him. Someone points out that buffalo cannot climb trees. Bemis says this one could, because he was so mad. Nobody can prove otherwise.</p>` + fx({ sp: 10 }) + daily, stageDay) },
+    ? `<p>A storm came over the plain in a black wall and broke right on top of you. Up on the box there was nowhere to go, and the lightning was close enough to read a newspaper by, if you had had a dry one. You reached the next station soaked to the marrow and greatly impressed.</p>` + fx({ hp: -9, sp: 3 }) + daily
+    : `<p>A storm rolled over the plain. Snug inside among the mail sacks, you watched the lightning walk across the prairie on legs of fire, and it was a finer show than any circus that ever came to Hannibal, and nobody passed the hat.</p>` + fx({ sp: 6 }) + daily, stageDay) },
+  { id: 'liar', if: () => S.seat === 'top', go: daily => outcome('The driver talks', `<p>The driver pointed with his whip to a hill where, he said, he had once outrun a band of road agents with the mules on fire and the mail sacks singing the Doxology. You believed every word of it, and it came to you that this was the right way to tell a story: perfectly grave, with no expression at all, and a size or two larger than the facts.</p>` + fx({ sp: 9 }) + (has('notebook') ? '<p>You wrote it all down that night, and improved it.</p>' : '') + daily + ((S.flags.lies = (S.flags.lies || 0) + 1), ''), stageDay) },
+  { id: 'buffalo', once: 1, if: () => S.mi > 200 && S.mi < 700, go: daily => outcome('Bemis and the buffalo', `<p>At the station a fellow passenger named Bemis came back from a buffalo hunt with his clothes in ribbons and his dignity in worse repair. The bull had chased him, he said, and he had climbed a tree, and the bull had climbed up after him. Somebody remarked that a buffalo cannot climb a tree. Bemis said that ordinarily it could not, but this one was so powerful mad it would have climbed a liberty pole. He looked around the table for anybody disposed to argue, and found nobody.</p>` + fx({ sp: 10 }) + daily, stageDay) },
   { id: 'river', if: () => S.mi < 1100, go: daily => show({
-    title: 'High water at the crossing', body: `<p>The river ahead is up and running fast and brown. The driver looks at it, and then looks at the passengers, and offers you the choice like a host offering a second helping.</p>${daily}`,
+    title: 'High water at the crossing', body: `<p>The river ahead is up and running fast and brown, with whole cottonwoods going by in it. The driver looks at the river, and then at the passengers, and offers you the choice like a hostess offering a second helping of something she cooked herself.</p>${daily}`,
     choices: [
-      { t: 'Ford it now', go: () => Math.random() < .7 ? `<p>The coach floats for a terrible moment and then the wheels find the bottom. Everyone cheers, including the mules.</p>` + fx({ sp: 5 }) : `<p>The coach lurches and dumps half the passengers into the river. You are fished out downstream, wetter and wiser.</p>` + fx({ hp: -10, lose: pick(Object.keys(S.items)) }) },
-      { t: 'Wait for the water to drop', go: () => `<p>You wait a day by the bank. The river goes down, and so do your spirits.</p>` + fx({ day: 1, sp: -4, hp: 3 }) },
+      { t: 'Ford it now', go: () => Math.random() < .7 ? `<p>The coach floated for one terrible moment, like a steamboat with no pilot, and then the wheels found the bottom again. Everybody cheered, including the mules.</p>` + fx({ sp: 5 }) : `<p>The coach lurched and emptied half its passengers into the river. You were fished out a quarter of a mile downstream, with a quart and a half of the river inside you.</p>` + fx({ hp: -10, lose: pick(Object.keys(S.items)) }) },
+      { t: 'Wait for the water to drop', go: () => `<p>You waited a day on the bank. The river went down, and so did your spirits, at about the same rate.</p>` + fx({ day: 1, sp: -4, hp: 3 }) },
     ] }, stageDay) },
   { id: 'agents', if: () => S.mi > 400, go: daily => show({
-    title: 'Rumours of road agents', body: `<p>At the station there is talk that road agents have been stopping coaches on this stretch. The other passengers start hiding money in their boots, their hats and each other.</p>${daily}`,
+    title: 'Rumours of road agents', body: `<p>At the station there is talk that road agents have been stopping coaches on this stretch, and the other passengers begin hiding their money in their boots and their hats and the linings of their coats, and one man in his Bible, which he says no road agent will ever open.</p>${daily}`,
     choices: [
-      { t: 'Keep your seven-shooter in your lap', if: () => has('pistol'), go: () => `<p>Nothing happens. You decide your pistol frightened them off, and nobody can prove otherwise.</p>` + fx({ sp: 6 }) },
-      { t: 'Hide your money in the dictionary', if: () => has('dictionary'), go: () => `<p>Under "Q". No robber would ever look under Q.</p>` + fx({ sp: 4 }) },
-      { t: 'Sit tight and worry', go: () => Math.random() < .25 ? `<p>Two men with flour-sack masks stop the coach at dusk. They are polite, quick, and gone with some of your money.</p>` + fx({ money: -Math.min(S.money, ri(20, 60)), sp: -8 }) : `<p>Nothing happens, though you lie awake all night making sure of it.</p>` + fx({ hp: -3 }) },
+      { t: 'Keep your seven-shooter in your lap', if: () => has('pistol'), go: () => `<p>Nothing happened. You concluded that your pistol had frightened them off, and nobody has ever been able to prove otherwise.</p>` + fx({ sp: 6 }) },
+      { t: 'Hide your money in the dictionary', if: () => has('dictionary'), go: () => `<p>You put it under "Q", reasoning that no road agent in the Territory would ever look under Q, and you were right.</p>` + fx({ sp: 4 }) },
+      { t: 'Sit tight and worry', go: () => Math.random() < .25 ? `<p>Two men with flour sacks over their heads stopped the coach at dusk. They were as polite as bank clerks and a good deal quicker, and were gone into the sagebrush with part of your money before you had properly made their acquaintance.</p>` + fx({ money: -Math.min(S.money, ri(20, 60)), sp: -8 }) : `<p>Nothing happened, though you lay awake the whole night making sure of it.</p>` + fx({ hp: -3 }) },
     ] }, stageDay) },
 ];
 
@@ -323,45 +323,45 @@ function randomEvent(daily) {
 
 // Fixed events at the big stops along the road.
 const EV = {
-  pony: daily => { scene.set('plains', { coach: true, pony: true }); outcome('The Pony Express!', `<p>Near Fort Kearney the driver shouts, "Here he comes!" Far off across the plain a black speck appears, grows, becomes a horse and rider sweeping toward you, and is past in a whoosh of wind and a wave of the hand, the mail pouch bouncing behind him. Then he is a speck again, and then nothing. It is over in a moment, and you would not have missed it for the fare.</p>` + fx({ sp: 14 }) + daily, stageDay); },
+  pony: daily => { scene.set('plains', { coach: true, pony: true }); outcome('The Pony Express!', `<p>Near Fort Kearney the driver sang out, "Here he comes!" Far off across the dead level of the plain a black speck appeared, and grew, and turned into a horse and rider rising and falling and coming on like a shot out of a gun; then there was a drumming of hoofs and a wave of the hand, and he went past in a gust of wind with the mail pouch bouncing behind him. In a minute he was a speck again, and then nothing at all. The whole affair lasted about as long as a sneeze, and you would not have missed it for twice the fare.</p>` + fx({ sp: 14 }) + daily, stageDay); },
   mudwagon: daily => show({
     title: 'Julesburg: change of coaches', where: 'Overland City, also called Julesburg',
-    body: `<p>At Julesburg your fine coach is swapped for a "mud-wagon", a cheaper, harder rig. There is less room, and the agent eyes your baggage with fresh suspicion. The mail must go through. The passengers' comfort is less certain.</p>${daily}`,
+    body: `<p>At Julesburg your fine Concord coach is swapped for a "mud-wagon", a cheaper and harder rig built on the principle that a passenger is a kind of mail that complains. There is less room, and the agent eyes your baggage with a fresh and personal suspicion. The mail must go through; the passengers may go through if there is space.</p>${daily}`,
     choices: [
-      { t: 'Argue for your things', go: () => Math.random() < .5 ? `<p>You win the argument by not stopping talking. The agent gives up.</p>` + fx({ sp: 4 }) : `<p>The agent wins by simply throwing something off.</p>` + fx({ lose: pick(Object.keys(S.items)), sp: -4 }) },
-      { t: 'Bribe the agent with whiskey', if: () => has('whiskey'), go: () => `<p>The agent finds your baggage weighs exactly nothing.</p>` + fx({ lose: 'whiskey', sp: 3 }) },
+      { t: 'Argue for your things', go: () => Math.random() < .5 ? `<p>You won the argument by the simple method of never once stopping talking, until the agent gave up and went to talk to the mules, who listened better.</p>` + fx({ sp: 4 }) : `<p>The agent won it by the simpler method of throwing something off.</p>` + fx({ lose: pick(Object.keys(S.items)), sp: -4 }) },
+      { t: 'Bribe the agent with whiskey', if: () => has('whiskey'), go: () => `<p>The agent took one long pull at the jug and found that your baggage weighed nothing whatever.</p>` + fx({ lose: 'whiskey', sp: 3 }) },
     ] }, stageDay),
-  bluffs: daily => outcome("Scott's Bluffs", `<p>The bluffs rise from the plain like a fortress, and the driver says a man died beneath them, years ago, alone and abandoned by his party, and crawled sixty miles before he gave up. He tells this as he tells everything: as though it were the weather.</p><p>You look at the bluffs for a long time after.</p>` + fx({ sp: 2 }) + daily, stageDay),
+  bluffs: daily => outcome("Scott's Bluffs", `<p>The bluffs rose from the plain like a fortress, and the driver told you that a man had died beneath them, years ago, sick and abandoned by his party, and that he had crawled sixty miles to get there before he gave it up. He told it the way he told everything, as if it were the weather or the price of hay.</p><p>You looked back at the bluffs for a long while after, and did not say much until the next station.</p>` + fx({ sp: 2 }) + daily, stageDay),
   slade: daily => { scene.set('rockies', { station: true }); show({
     title: 'Breakfast with Slade', where: 'Rocky Ridge station, in the Rocky Mountains',
-    body: `<p>For a week the drivers have talked of Slade, the division agent: a man said to have killed twenty-six men, some of them for very little. You have pictured him as a giant with horns.</p><p>At Rocky Ridge you sit down to breakfast and the gentle, quiet, friendly man at the head of the table, the one who passes the bacon so courteously, turns out to be Slade. There is one cup of coffee left in the pot. He offers it to you.</p>${daily}`,
+    body: `<p>For a week the drivers and conductors have talked of nothing but Slade, the division agent: a man said to have killed twenty-six men, some of them for very little and one or two for less. You have pictured him as something between a grizzly and a giant, with horns.</p><p>At Rocky Ridge you sit down to breakfast, and the mild, soft-spoken gentleman at the head of the table, the one who passes the bacon so courteously, is Slade. There is one cup of coffee left in the pot, and he offers it to you.</p>${daily}`,
     choices: [
-      { t: 'Politely decline. After you, sir.', go: () => { S.flags.slade = 1; return `<p>He insists, and fills your cup with his own hand, and you drink it under the eye of the most famous desperado in the West. You leave the table more alive than you expected, and very anxious not to have offended him.</p>` + fx({ sp: 10 }); } },
-      { t: 'Accept with thanks', go: () => { S.flags.slade = 1; return `<p>You drink it. He smiles. You will spend years wondering whether you were ever in any real danger, and tell the story at every dinner party you attend for the rest of your life.</p>` + fx({ sp: 8 }); } },
-      { t: 'Ask him about the twenty-six men', go: () => (S.flags.slade = 1) && `<p>The table goes very quiet. Slade considers you for a long moment, then laughs, and passes you the bacon. Orion kicks you under the table hard enough to raise a lump.</p>` + fx({ hp: -4, sp: 12 }) },
+      { t: 'Politely decline. After you, sir.', go: () => { S.flags.slade = 1; return `<p>He insisted, and filled your cup with his own hand, and you drank it under the eye of the most celebrated desperado on the Overland road. You left the table rather more alive than you had expected to, and powerful anxious not to have offended him by anything you had said or failed to say.</p>` + fx({ sp: 10 }); } },
+      { t: 'Accept with thanks', go: () => { S.flags.slade = 1; return `<p>You drank it, and he smiled, and passed the sugar. You spent years afterward wondering whether you had ever been in any real danger, and told the story at every dinner table you sat down to for the rest of your life, a little larger each time.</p>` + fx({ sp: 8 }); } },
+      { t: 'Ask him about the twenty-six men', go: () => (S.flags.slade = 1) && `<p>The table went as still as a church before the collection. Slade considered you for a long moment, then laughed, and passed you the bacon. Orion kicked you under the table hard enough to raise a lump the size of a hen’s egg.</p>` + fx({ hp: -4, sp: 12 }) },
     ] }, stageDay); },
-  southpass: daily => outcome('South Pass', `<p>You cross the backbone of the continent so gently you would never know it: a broad, grassy saddle, a few patches of old snow. From here the waters run to the Pacific. In the night the cold comes down off the peaks like a falling wall.</p>` + (has('blankets') ? `<p>You are glad of your blankets.</p>` + fx({ sp: 5 }) : `<p>You have no blankets and spend the night in a shivering heap of mail.</p>` + fx({ hp: -10 })) + daily, stageDay),
+  southpass: daily => outcome('South Pass', `<p>You crossed the backbone of the continent so easily you would never have known it, by a broad grassy saddle with a few patches of old snow lying about; from there on, every creek you met was bound for the Pacific. In the night the cold came down off the peaks like a falling wall.</p>` + (has('blankets') ? `<p>You were never so glad of anything as of your blankets.</p>` + fx({ sp: 5 }) : `<p>You had no blankets, and spent the night burrowed into the mail like a gopher, shivering in time with the coach.</p>` + fx({ hp: -10 })) + daily, stageDay),
   greenriver: daily => show({
-    title: 'Green River', body: `<p>At Green River station there is talk of a lame mule that needs shooting and nobody wants to do it. Somebody remembers that you have a pistol.</p>${daily}`,
+    title: 'Green River', body: `<p>At Green River station there is a lame mule that needs shooting, and nobody cares to do it, and somebody remembers that you have a pistol.</p>${daily}`,
     choices: [
-      { t: 'Show them your seven-shooter', if: () => has('pistol'), go: () => `<p>You aim with great care. The ball goes somewhere. The mule looks around, faintly interested. The station keeper takes the pistol away from you, very gently, and does the job with his own.</p>` + fx({ sp: -3 }) },
-      { t: 'Stay out of it', go: () => `<p>You go and admire the river instead. It is very green. The name was not a lie.</p>` + fx({ sp: 3 }) },
+      { t: 'Show them your seven-shooter', if: () => has('pistol'), go: () => `<p>You aimed with great care, and the ball went somewhere in Utah Territory. The mule looked around with a faint, polite interest. The station keeper took the pistol away from you as tenderly as if you had been a child with a carving knife, and did the job with his own.</p>` + fx({ sp: -3 }) },
+      { t: 'Stay out of it', go: () => `<p>You went down and admired the river instead. It was green, uncommon green, and you thought it handsome of the West to have named one thing on the square.</p>` + fx({ sp: 3 }) },
     ] }, stageDay),
   saltlake: daily => { scene.set('salt', { coach: true }); show({
     title: 'Great Salt Lake City', where: 'Two days in the City of the Saints',
-    body: `<p>After weeks of sagebrush, Salt Lake City is a marvel: broad streets, running water in the gutters, orchards, neat houses, and an air of having been built by people who meant it. The stage lays over two days.</p>${daily}`,
+    body: `<p>After weeks of sagebrush, Salt Lake City is a marvel: broad streets with clear mountain water running down the gutters, orchards, neat adobe houses, and an air of having been built by people who meant it and expected to stay. The stage lays over two days.</p>${daily}`,
     choices: [
-      { t: 'Call on Brigham Young with Orion', go: () => `<p>The great man is calm and kindly and talks to Orion about everything except what Orion came to talk about. When you leave he lays a fatherly hand on your head and asks Orion whether you are his child, and whether a boy or a girl. You were twenty-five. You decide not to bring it up.</p>` + fx({ sp: 10, day: 2 }) },
-      { t: 'Try the local "valley tan" whiskey', go: () => `<p>It is said to be made of imported fire and brimstone. You believe it.</p>` + fx({ sp: 12, hp: -6, day: 2 }) },
-      { t: 'Rest, eat, and buy a canteen', sub: '$5', if: () => S.money >= 5, go: () => `<p>Two full nights' sleep and real meals at a table. You buy a canteen, because a driver said "the desert" in a tone you did not like.</p>` + fx({ hp: 16, sp: 4, money: -5, gain: 'canteen', day: 2 }) },
+      { t: 'Call on Brigham Young with Orion', go: () => `<p>The great man was calm and kindly, and talked with Orion about everything under the sun except what Orion had come to talk about, and never once looked at you. When you rose to leave he laid a fatherly hand on your head and asked Orion whether this was his child, and whether it was a boy or a girl. You were twenty-five years old and wore a moustache. You decided not to bring it up.</p>` + fx({ sp: 10, day: 2 }) },
+      { t: 'Try the local "valley tan" whiskey', go: () => `<p>It was said to be made of fire and brimstone imported for the purpose. After one swallow you were in no position to dispute it.</p>` + fx({ sp: 12, hp: -6, day: 2 }) },
+      { t: 'Rest, eat, and buy a canteen', sub: '$5', if: () => S.money >= 5, go: () => `<p>You had two full nights’ sleep and real meals at a real table. You bought a canteen, because a driver had said "the desert" in a tone of voice you did not like.</p>` + fx({ hp: 16, sp: 4, money: -5, gain: 'canteen', day: 2 }) },
     ] }, stageDay); },
   alkali: daily => { scene.set('desert', { coach: true }); show({
     title: 'The alkali desert', where: 'Forty-odd miles without water',
-    body: `<p>You had thought a desert would be romantic: shimmering sands, caravans, mirages. It is nothing of the kind. It is forty miles of white alkali dust under a sun like a shovel full of coals, and it rises in a fine cloud that gets into everything a man owns, including his opinions.</p>${daily}`,
+    body: `<p>You had thought a desert would be romantic, with caravans of camels and shimmering sands out of the Arabian Nights. It is nothing of the kind. It is forty miles of white alkali dust under a sun like a shovelful of live coals, and the dust rises in a fine cloud that gets into everything a man owns, including his opinions.</p>${daily}`,
     choices: [
-      { t: 'Ration the canteen', if: () => has('canteen'), go: () => `<p>Sip by sip, mile by mile. You arrive cracked and white as a miller but on your own feet.</p>` + fx({ hp: -5 }) },
-      { t: 'Share the canteen with the mules', if: () => has('canteen'), go: () => `<p>The mules are grateful in the way mules are, which is to say not visibly. But they keep moving, and so do you.</p>` + fx({ hp: -9, sp: 8 }) },
-      { t: 'Endure it', go: () => `<p>By the end you have no spit, no voice, and no romance about deserts left at all.</p>` + fx({ hp: has('canteen') ? -8 : -20, sp: -6 }) },
+      { t: 'Ration the canteen', if: () => has('canteen'), go: () => `<p>You took it sip by sip and mile by mile, and came out at the far end cracked and white as a miller, but on your own feet.</p>` + fx({ hp: -5 }) },
+      { t: 'Share the canteen with the mules', if: () => has('canteen'), go: () => `<p>The mules were grateful in the way mules are grateful, which is to say not so you would notice. But they kept moving, and so did you.</p>` + fx({ hp: -9, sp: 8 }) },
+      { t: 'Endure it', go: () => `<p>By the end you had no spit and no voice left, and not one particle of romance about deserts, which you have never got back.</p>` + fx({ hp: has('canteen') ? -8 : -20, sp: -6 }) },
     ] }, stageDay); },
   carson: () => arriveCarson(),
 };
@@ -369,11 +369,11 @@ const EV = {
 function arriveCarson() {
   scene.set('town', { sign: 'CARSON CITY', wind: true });
   const late = S.day > 24;
-  const html = `<p>On the twentieth day or so, a wooden town of white frame houses comes out of the dust. Carson City! Before you can admire it, the afternoon <b>Washoe Zephyr</b> arrives: a wind that picks up the town by its loose parts and throws them around. Hats, shingles, tin cans, blankets, dogs and a donkey go past at a respectable height. The locals say that when a stranger sees the Zephyr he either goes home on the next stage or stays for life.</p>
-    ${late ? `<p>You are ${S.day - 20} days behind than the timetable. Orion is sworn in only after an anxious week of telegrams.</p>` : '<p>Orion is sworn in as Secretary at once, and you are the private secretary of a man with no office, no desk and no salary.</p>'}`
+  const html = `<p>On the twentieth day or thereabouts a wooden town of little white frame houses came up out of the dust. Carson City! Before you could get a good look at it, the afternoon <b>Washoe Zephyr</b> arrived: a wind that took the town up by its loose parts and threw them about. Hats went by, and shingles and tin cans and blankets, and dogs and a donkey, all at a respectable height and in no hurry to come down. The citizens told you that when a stranger first sees the Zephyr he either goes home on the next stage or stays for life.</p>
+    ${late ? `<p>You were ${S.day - 20} days behind the timetable, and Orion was sworn in only after an anxious week of telegrams to Washington.</p>` : '<p>Orion was sworn in as Secretary at once, and you became private secretary to a man with no office and no desk, at a salary of nothing a year, paid promptly.</p>'}`
     + fx({ sp: late ? -5 : 8 });
   outcome('Carson City', html, () => show({
-    title: 'Stay or go?', body: `<p>A wind like that is a question. How do you answer?</p>`,
+    title: 'Stay or go?', body: `<p>A wind like that asks a man a question, and expects an answer before the next stage leaves.</p>`,
     choices: [
       { t: 'Stay. This is the place.', big: true, go: () => { S.act = 'nevada'; S.week = 0; initMarket(); nevadaWeek(); } },
     ],
@@ -396,7 +396,7 @@ function tickMarket() {
     m.last = m.p;
     let r = Math.exp(m.drift + m.vol * (Math.random() + Math.random() + Math.random() - 1.5) * 1.4);
     if (Math.random() < .05) { r = 3; news.push({ m, text: `${m.name} struck a new ledge! The price tripled.` }); }
-    else if (Math.random() < .05 && m.p < 30) { r = .15; news.push({ m, text: `${m.name}: the ledge "pinched out". The feet are worth about what the paper is.` }); }
+    else if (Math.random() < .05 && m.p < 30) { r = .15; news.push({ m, text: `${m.name}: the ledge has "pinched out", and the feet are worth about what the paper is, or a little less.` }); }
     m.p = Math.max(.1, Math.round(m.p * r * 100) / 100);
   }
   return news;
@@ -411,27 +411,27 @@ function nevadaWeek(note) {
   show({
     title: `Silver fever: week ${S.week + 1}`,
     where: `Carson City, ${dateStr()} · cash ${money(S.money)}${worth ? ` · feet worth ${money(worth)}` : ''}`,
-    body: (note || '') + `<p>${S.week === 0 ? 'The whole Territory has silver fever. Men talk of nothing but ledges, feet, assays and "indications". Everyone owns feet in a mine; nobody, as far as you can tell, owns anything else. Within a week you have it worse than any of them.' : deal(nevFlavor)}</p><p class="where">Living costs $8 a week.</p>`,
+    body: (note || '') + `<p>${S.week === 0 ? 'The whole Territory has the silver fever. Men talk of nothing but ledges and feet and assays and "indications", and every man you meet owns feet in a mine; nobody, so far as you can discover, owns anything else. Within a week you have it worse than any of them, and are calculating your fortune on the backs of envelopes.' : deal(nevFlavor)}</p><p class="where">Board and lodging run $8 a week, in advance.</p>`,
     choices: [
       { t: 'Go prospecting', sub: 'pick a district and dig for a ledge', go: () => { prospectMenu(); } },
       { t: 'Trade in mining feet', sub: 'buy and sell shares in the mines', go: () => { market(); } },
       { t: 'Stake a timber claim at Lake Tahoe', sub: 'a week in the woods with Johnny', if: () => !S.flags.tahoe, go: () => { tahoe(); } },
       { t: 'Buy a horse at the auction', if: () => !S.flags.plug, go: () => { plug(); } },
       { t: 'Write a letter to the Territorial Enterprise', sub: `${S.flags.letters || 0} sent so far`, go: () => { writeLetter(); } },
-      { t: 'Rest a week in Carson', sub: '+health, +spirits', go: () => { endWeek(1); return `<p>You sit in front of the hotel with your feet on the rail and talk silver with everyone who passes.</p>` + fx({ hp: 10, sp: 6 }); }, next: nevadaWeek },
+      { t: 'Rest a week in Carson', sub: '+health, +spirits', go: () => { endWeek(1); return `<p>You sat in front of the hotel for a week with your boots on the rail, and talked silver with every man who passed, and were tolerably rich by Saturday on the strength of conversation alone.</p>` + fx({ hp: 10, sp: 6 }); }, next: nevadaWeek },
     ],
   });
 }
 const nevFlavor = [
-  'A man at the hotel shows you a chunk of rock and says it assays at a thousand dollars a ton. You believe him because you want to.',
-  'Every man you meet is a millionaire on paper. The paper is the main product of the Territory.',
-  'Orion is learning the work of a Secretary, which mostly consists of explaining to Washington why it costs so much.',
-  'The Zephyr blew the roof off the hotel kitchen again. The cook served dinner anyway, with dust.',  'A man sells you a map to a lost ledge. It turns out he sells a great many of them.',
-  'The assay office has a line out the door. Half the line is carrying the same kind of worthless rock you are.',
-  'It snows in the morning and is hot by afternoon. Locals say if you do not like the weather, wait an hour and it will get worse.',
-  'A camel train comes through town on the way to the salt marshes. Every horse on the street files a complaint.',
-  'Your landlady raises the rent on the grounds that the Territory is booming. You point out that you are not.',
-  'Somebody at the hotel is selling feet in a mine that is, he admits under questioning, still mostly a theory.',
+  'A man at the hotel shows you a chunk of rock and says it assays at a thousand dollars a ton. You believe him, because you want to, which is how most of the believing in Washoe is done.',
+  'Every man you meet is a millionaire on paper, and paper is the chief product of the Territory, after dust and lawsuits.',
+  'Orion is learning the duties of a Secretary, which consist mainly of explaining to the Comptroller in Washington why a pocket knife cost three dollars.',
+  'The Zephyr has taken the roof off the hotel kitchen again. The cook served dinner anyway, seasoned with about a teaspoonful of Washoe to the plate.',  'A man sells you a map to a lost ledge for four bits, and you learn afterward that he does a brisk trade in them and has sold the same ledge to half of Carson.',
+  'The assay office has a line out the door and halfway down the block, and half the line is carrying the same kind of worthless rock you are, with the same expression.',
+  'It snows in the morning and is hot by afternoon. The old residents say that if you do not like the weather you need only wait an hour, and it will be worse.',
+  'A camel train comes through town on its way to the salt marshes, and every horse on the street files a formal complaint, and two of them leave for California.',
+  'Your landlady raises the rent on the grounds that the Territory is booming. You point out, with dignity, that you are not.',
+  'A man at the hotel is selling feet in a wildcat mine which is, he admits under cross-examination, still mostly a theory and partly a hole.',
 ];
 function feetWorth() { if (!S.mkt) return 0; return Math.round(S.mkt.reduce((s, m) => s + (S.feet[m.name] || 0) * m.p, 0)); }
 function endWeek(n) {
@@ -444,15 +444,15 @@ function endWeek(n) {
 
 // --- prospecting
 const DISTRICTS = {
-  humboldt: { name: 'Humboldt', weeks: 3, cost: 40, digs: 9, veins: 2, glitter: 4, value: [600, 4000], text: 'Two hundred miles north-east by wagon, with Ballou the blacksmith and the young Prussians, Ollendorff and the other. The papers say the Humboldt is the richest country on earth.' },
-  esmeralda: { name: 'Esmeralda (Aurora)', weeks: 2, cost: 25, digs: 7, veins: 2, glitter: 2, value: [300, 2500], text: 'South to Aurora, where the Wide West is booming and Calvin Higbie, a big honest miner with a cabin, could use a partner.' },
-  goldhill: { name: 'Gold Hill pockets', weeks: 1, cost: 8, digs: 5, veins: 1, glitter: 1, value: [80, 500], text: 'A short ride. Small pockets, picked over, but a man might scratch up something.' },
+  humboldt: { name: 'Humboldt', weeks: 3, cost: 40, digs: 9, veins: 2, glitter: 4, value: [600, 4000], text: 'Two hundred miles north-east by wagon, with Mr. Ballou the blacksmith and the young Prussians, Ollendorff and the other. The newspapers say the Humboldt is the richest country on the face of the earth, and the newspapers own feet there.' },
+  esmeralda: { name: 'Esmeralda (Aurora)', weeks: 2, cost: 25, digs: 7, veins: 2, glitter: 2, value: [300, 2500], text: 'South to Aurora, where the Wide West is booming, and where Calvin Higbie, a big, honest, good-natured miner with a cabin and no partner, is in the market for one.' },
+  goldhill: { name: 'Gold Hill pockets', weeks: 1, cost: 8, digs: 5, veins: 1, glitter: 1, value: [80, 500], text: 'A short ride. The pockets are small and picked over by every pilgrim on the Comstock, but a man might scratch up two bits’ worth.' },
 };
 function prospectMenu() {
   show({
-    title: 'Where to dig?', body: `<p>Prospecting means riding into the hills, looking for "croppings" of quartz, and breaking off samples to see if there is silver inside. It costs money for the outfit and weeks of your life, and pays nothing at all, until suddenly it does.</p>`,
+    title: 'Where to dig?', body: `<p>Prospecting means riding into the hills, hunting for "croppings" of quartz, and knocking off samples with a hammer to see whether there is silver inside. It costs money for the outfit and weeks out of your life, and it pays nothing whatever, week after week, until all of a sudden it pays everything.</p>`,
     choices: [
-      ...Object.entries(DISTRICTS).map(([k, d]) => ({ t: d.name, sub: `${d.weeks} week${d.weeks > 1 ? 's' : ''}, outfit ${money(d.cost)}. ${d.text}`, disabled: S.money < d.cost, go: () => { S.money -= d.cost; dig(k); } })),
+      ...Object.entries(DISTRICTS).map(([k, d]) => ({ t: d.name, sub: `${Math.max(1, d.weeks)} week${Math.max(1, d.weeks) > 1 ? 's' : ''}, outfit ${money(d.cost)}. ${d.text}`, disabled: S.money < d.cost, go: () => { S.money -= d.cost; dig(k); } })),
       { t: '← back to Carson', go: () => { nevadaWeek(); } },
     ],
   });
@@ -472,84 +472,84 @@ function dig(key) {
   cells.forEach((c, i) => { if (c.t === 'vein') near(i).forEach(j => cells[j].q = true); });
   let digs = D.digs, found = [], dust = 0;
   const render = msg => {
-    page.innerHTML = `<h2>${D.name}</h2><p class="where">${digs} dig${digs === 1 ? '' : 's'} left. Pale rock is quartz, which is a good sign. Glittering rock glitters.</p>
+    page.innerHTML = `<h2>${D.name}</h2><p class="where">${digs} dig${digs === 1 ? '' : 's'} left. Pale rock is quartz, which is an indication. Glittering rock glitters, and that is all it has ever been known to do.</p>
       ${msg ? `<p>${msg}</p>` : ''}
       <div class="grid">${cells.map((c, i) => `<button class="cell${c.dug ? ' dug' + (c.t === 'vein' ? ' vein' : '') : c.q ? ' q' : (c.t === 'mica' || c.t === 'gold') ? ' g' : ''}" data-i="${i}" ${c.dug || !digs ? 'disabled' : ''} aria-label="rock ${i + 1}">${c.dug ? { rock: '·', crop: '◇', vein: '⛏', mica: '✧', gold: '★' }[c.t] : (c.t === 'mica' || c.t === 'gold') ? '✦' : ''}</button>`).join('')}</div>
       <div class="choices"><button class="btn" id="digDone">${digs ? 'Give up and head home' : 'Pack up and head home →'}</button></div>`;
     page.querySelectorAll('.cell').forEach(b => b.onclick = () => {
       const c = cells[+b.dataset.i]; c.dug = true; digs--; sfx('pick');
       let m;
-      if (c.t === 'vein') { const v = ri(...D.value); found.push(v); m = `<b>A ledge!</b> A seam of grey, heavy, silver-bearing quartz runs right through it. Your hands shake as you write out the claim notice.`; sfx('good'); }
-      else if (c.t === 'gold') { const v = ri(30, 120); dust += v; m = `Real gold! A few flakes, but real. Worth ${money(v)}.`; }
-      else if (c.t === 'mica') { m = pick(['It glitters like a jeweller\'s window. You fill your pockets. Ballou looks at it and says "mica", and throws it away, and you hate him a little.', 'Glittering flakes everywhere! Mica, says the old hand. Worthless. All that glitters, as somebody should have warned you.']); }
-      else if (c.t === 'crop') { m = `A cropping of quartz. Promising. Not rich. You keep digging nearby.`; }
-      else m = pick(['Country rock. Nothing.', 'Nothing but rock and blisters.', 'Rock. Ordinary, honest, worthless rock.']);
+      if (c.t === 'vein') { const v = ri(...D.value); found.push(v); m = `<b>A ledge!</b> A seam of grey, heavy, silver-bearing quartz ran clean through the rock. Your hands shook so that you spoiled two notices before you got the claim written out fair.`; sfx('good'); }
+      else if (c.t === 'gold') { const v = ri(30, 120); dust += v; m = `Real gold! Only a few flakes, but real, and worth ${money(v)} at the assay office.`; }
+      else if (c.t === 'mica') { m = pick(['It glittered like a jeweller’s window, and you filled your pockets with it. Ballou looked at it and said "mica", and threw it away, and you hated him for the better part of an afternoon.', 'Glittering flakes everywhere! Mica, said the old hand, and worthless. All that glitters, as your Sunday-school teacher could have told you, and very likely did.']); }
+      else if (c.t === 'crop') { m = `A cropping of quartz, promising but not rich. You kept digging close by, the way a man keeps feeling in a pocket he has already searched.`; }
+      else m = pick(['Country rock, and nothing in it.', 'Nothing but rock and blisters, in about equal amounts.', 'Rock: plain, honest, worthless rock, such as the Territory has more of than any country on earth.']);
       render(m);
     });
     $('digDone').onclick = () => finishDig(key, found, dust);
   };
   render(`<i>${D.text}</i>`);
 }
-function finishDig(key, found, dust) {
-  const D = DISTRICTS[key];
-  endWeek(D.weeks);
+// `followup` is true when the snowstorm or the blind lead hands control back: the weeks were
+// already spent, so it costs no more time.
+function finishDig(key, found, dust, followup = false) {
+  const D = DISTRICTS[key], weeks = followup ? 0 : Math.max(1, D.weeks);
+  endWeek(weeks);
   let html = '';
-  const fxs = { money: dust, hp: -4 * D.weeks, sp: found.length ? 12 : -6 };
-  if (key === 'humboldt' && !S.flags.snow) return snowstorm(found, dust);
-  if (key === 'esmeralda' && !S.flags.blind && Math.random() < .75) return blindLead(found, dust);
+  const fxs = { money: dust, hp: -4 * weeks, sp: found.length ? 12 : -6 };
+  if (!followup && key === 'humboldt' && !S.flags.snow) return snowstorm(found, dust);
+  if (!followup && key === 'esmeralda' && !S.flags.blind && Math.random() < .75) return blindLead(found, dust);
   if (found.length) {
     const names = ['the Monarch of the Mountains', 'the Sam Clemens Extension', 'the Lucky Fool', 'the Orion', 'the Sagebrush Queen', 'the Glory of Washoe', 'the Josh', 'the Higbie Hope'].filter(n => !S.mkt.some(m => m.name.toLowerCase() === n));
     const name = names.length ? pick(names) : `the Claim No. ${S.mkt.length}`;
     const val = found.reduce((a, b) => a + b, 0);
-    html += `<p>You stake your claim and name it <b>${name}</b>. Back in town, a speculator offers ${money(val)} for your feet. You could also hold them and hope.</p>`;
+    html += `<p>You staked your claim and named it <b>${name}</b>. Back in town a speculator in a stovepipe hat offered you ${money(val)} for your feet, cash down. You might also hold them and hope, which is cheaper, and has been known to pay.</p>`;
     page.innerHTML = ''; // replaced by show
     log(`Struck a ledge: ${name}.`);
     return show({ title: 'A claim of your own', body: html + fx(fxs), choices: [
-      { t: `Sell for ${money(val)}`, go: () => `<p>You sell. You are rich, for the Territory, for a week or two.</p>` + fx({ money: val, sp: 6 }), next: nevadaWeek },
-      { t: 'Hold your feet', sub: 'it joins the market as your own mine', go: () => { const m = { name: name.replace(/^the /, 'The '), p: Math.round(val / 100 * 10) / 10, vol: .45, drift: 0, last: val / 100 }; S.mkt.push(m); S.feet[m.name] = 100; return `<p>You hold. You own a hundred feet of ${m.name}, and are a capitalist.</p>`; }, next: nevadaWeek },
+      { t: `Sell for ${money(val)}`, go: () => `<p>You sold, and were rich, as riches go in the Territory, for a week or two.</p>` + fx({ money: val, sp: 6 }), next: nevadaWeek },
+      { t: 'Hold your feet', sub: 'it joins the market as your own mine', go: () => { const m = { name: name.replace(/^the /, 'The '), p: Math.round(val / 100 * 10) / 10, vol: .45, drift: 0, last: val / 100 }; S.mkt.push(m); S.feet[m.name] = 100; return `<p>You held. You owned a hundred feet of ${m.name}, and were a capitalist, and began to look at speculators with a cold eye.</p>`; }, next: nevadaWeek },
     ] });
   }
-  outcome('Home empty-handed', `<p>${D.weeks ? `${D.weeks} week${D.weeks > 1 ? 's' : ''} of digging and you` : 'You'} come home with blisters, sunburn and a sack of samples that make the assayer laugh.</p>` + fx(fxs), nevadaWeek);
+  outcome('Home empty-handed', `<p>${weeks ? `${weeks} week${weeks > 1 ? 's' : ''} of digging and you` : 'You'} came home with blisters and a sunburn and a sack of samples that made the assayer laugh until he had to sit down.</p>` + fx(fxs), nevadaWeek);
 }
 
 function snowstorm(found, dust) {
   S.flags.snow = 1; scene.set('snow', {});
   show({
     title: 'Lost in the snow', where: 'Coming home from the Humboldt, with Ballou and Ollendorff',
-    body: `<p>On the way back a snowstorm comes down on you so thick you cannot see the horses' ears. Ollendorff, who says he has a compass in his head, leads. After an hour you find a fresh trail in the snow and follow it joyfully. After another hour you notice that it is your own: you have been riding in a circle. Night comes. The snow keeps coming.</p>`,
+    body: `<p>On the way back a snowstorm comes down on you so thick you cannot see the horses’ ears. Ollendorff, who says he has a compass in his head as sure as any Mississippi pilot’s, takes the lead. After an hour you strike a fresh trail in the snow and follow it joyfully, and after another hour you notice that it is your own, and that you have been riding in a circle with great energy. Night comes on, and the snow keeps coming.</p>`,
     choices: [
-      { t: 'Light a fire with the last matches', go: () => `<p>Four matches. Each one goes out. Ollendorff tries to light a fire by firing his pistol into a pile of twigs, as he read in a book. The twigs fly away. The horses run off.</p>` + fx({ hp: -10 }) },
-      { t: 'Huddle together and wait', go: () => `<p>You lie down in the snow with your companions, and solemnly forgive each other everything, and wait to die.</p>` + fx({ hp: -14 }) },
+      { t: 'Light a fire with the last matches', go: () => `<p>There were four matches, and each one went out. Ollendorff tried to light a fire by firing his pistol into a pile of twigs, as he had read of its being done in a book; the twigs flew off into the dark, and the horses, taking the hint, went after them.</p>` + fx({ hp: -10 }) },
+      { t: 'Huddle together and wait', go: () => `<p>You lay down in the snow with your companions, and you all solemnly forgave each other everything you could remember, and some things you could not, and composed yourselves to die.</p>` + fx({ hp: -14 }) },
     ],
   }, () => {
     const vices = ['pipe', 'cards', 'whiskey'].filter(has);
     show({
-      title: 'Fifteen steps', body: `<p>You wake at dawn, stiff and alive, and look around. The stage station is <b>fifteen steps away</b>. Its lights were burning all night. You can hear the horses in the stable.</p>
-        <p>In the night, expecting death, each of you renounced his vices. Ballou threw away his pack of cards. Ollendorff threw away his bottle. You threw away your pipe.</p>`,
+      title: 'Fifteen steps', body: `<p>You woke at dawn, stiff and astonished to be alive, and looked about you. The stage station stood <b>fifteen steps away</b>. Its lights had been burning all night, and you could hear the horses stamping in the stable.</p>
+        <p>In the night, expecting death, each of you had renounced his vices for good: Ballou had thrown away his pack of cards, and Ollendorff his bottle, and you your pipe, with speeches.</p>`,
       choices: [
-        { t: 'Keep your solemn vow', go: () => { S.vices = false; for (const v of vices) delete S.items[v]; return `<p>You are a reformed man. This lasts, by your count, until breakfast.</p>` + fx({ sp: -10 }); } },
-        { t: 'Go and find your pipe in the snow', go: () => `<p>You slip out behind the station to look for it, and find Ballou already there digging for his cards and Ollendorff for his bottle. Nobody says a word about it. Nobody ever does.</p>` + fx({ sp: 10 }) },
+        { t: 'Keep your solemn vow', go: () => { S.vices = false; for (const v of vices) delete S.items[v]; return `<p>You were a reformed man. It lasted, by your own count, until a little after breakfast.</p>` + fx({ sp: -10 }); } },
+        { t: 'Go and find your pipe in the snow', go: () => `<p>You slipped out behind the station to look for it, and found Ballou already there digging for his cards, and Ollendorff for his bottle. Nobody said a word about it then, and nobody has mentioned it since.</p>` + fx({ sp: 10 }) },
       ],
-    }, () => { S.flags.snowDone = 1; finishDig('humboldt_done', found, dust); });
+    }, () => { S.flags.snowDone = 1; finishDig('humboldt', found, dust, true); });
   });
 }
-DISTRICTS.humboldt_done = { ...DISTRICTS.humboldt, weeks: 0 };
 
 function blindLead(found, dust) {
   S.flags.blind = 1; scene.set('mine', { cabin: true });
   const extra = found.reduce((a, b) => a + b, 0);
   show({
     title: 'The blind lead', where: 'Esmeralda, with Calvin Higbie',
-    body: `<p>Higbie comes into the cabin one night and closes the door very carefully. He has found it: a <b>blind lead</b>, a rich vein hidden inside the Wide West's ground that belongs to nobody yet. By the laws of the district, you and Higbie can claim it; but you must begin work on it within <b>ten days</b> or anyone may take it.</p>
-      <p>You file the claim. All night you lie awake and plan your mansion. For ten days you are, on paper, millionaires.</p>
-      <p>Then a note: your old friend <b>Captain Nye</b> is lying sick at a ranch nine miles away, and asks for you. And the same day, Higbie rides off to hunt a legendary lost cement mine, leaving you a note to do the work on the claim.</p>`,
+    body: `<p>Higbie comes into the cabin one night and shuts the door behind him very carefully, and stands there, pale. He has found it: a <b>blind lead</b>, a rich vein hidden inside the Wide West’s ground that belongs to nobody yet. By the laws of the district you and Higbie may claim it, but you must begin work on it within <b>ten days</b> or any man may take it.</p>
+      <p>You file the claim. All night you lie awake and plan your mansion, with a billiard room and a brownstone front and a trip to Europe afterward. For ten days you are, on paper, millionaires.</p>
+      <p>Then a note comes: your old friend <b>Captain Nye</b> is lying sick at a ranch nine miles off, and asks for you. The same day Higbie rides off to hunt the Whiteman cement mine, a legendary affair nobody has ever found twice, leaving you a note to do the work on the claim.</p>`,
     choices: [
-      { t: 'Go and nurse Captain Nye', sub: 'what a friend would do', go: () => { log('Nursed Captain Nye. Lost the blind lead.'); return `<p>You nurse the Captain for nine days. He is a terrible patient and you are a worse nurse, and he recovers to spite you. You ride back to the cabin on the tenth day and find a crowd at your claim. Higbie read your note, which said you would do the work; you read his, which said he would. Neither of you did. The claim is "jumped", and your million is gone in a night.</p><p>For the rest of your life you will tell people you were a millionaire for ten days, and it will be perfectly true.</p>` + fx({ sp: 4, hp: -4 }); }, next: () => finishDig('goldhill_none', found, dust) },
-      { t: 'Stay and work the claim', sub: 'what a millionaire would do', go: () => { S.flags.rich = 1; const v = ri(9000, 16000); log(`Kept the blind lead. Sold for ${money(v)}.`); return `<p>You send a doctor to Captain Nye, with your apologies, and you pick up a shovel. On the tenth day the claim is yours by law. A syndicate from San Francisco buys you out for <b>${money(v)}</b>.</p><p>You have done better than the book. The man who wrote it did not.</p>` + fx({ money: v + extra, sp: 25 }); }, next: nevadaWeek },
+      { t: 'Go and nurse Captain Nye', sub: 'what a friend would do', go: () => { log('Nursed Captain Nye. Lost the blind lead.'); return `<p>You nursed the Captain for nine days. He was a terrible patient and you were a worse nurse, and he got well, as near as you could judge, out of pure spite. You rode back to the cabin on the tenth day and found a crowd at your claim. Higbie had left you a note to do the work, and you had left him one to do it, and each of you, reading the other’s, had considered the matter in good hands. Neither of you lifted a pick. The claim was "jumped", and your million was gone in a night, like a circus leaving town.</p><p>For the rest of your life you told people you had been a millionaire for ten days, and it was perfectly true.</p>` + fx({ sp: 4, hp: -4 }); }, next: () => finishDig('esmeralda', found, dust, true) },
+      { t: 'Stay and work the claim', sub: 'what a millionaire would do', go: () => { S.flags.rich = 1; const v = ri(9000, 16000); log(`Kept the blind lead. Sold for ${money(v)}.`); return `<p>You sent a doctor to Captain Nye with your compliments and apologies, and you picked up a shovel. On the tenth day the claim was yours by law, and a syndicate of San Francisco capitalists in stovepipe hats bought you out for <b>${money(v)}</b>.</p><p>You had done better than the book. The man who wrote it did not.</p>` + fx({ money: v + extra, sp: 25 }); }, next: nevadaWeek },
     ],
   });
 }
-DISTRICTS.goldhill_none = { ...DISTRICTS.goldhill, weeks: 0 };
 
 // --- the market
 // `ctx` lets Part II reuse the board: where to go back to, and how a week passes.
@@ -561,13 +561,13 @@ function market(msg, ctx = { back: () => nevadaWeek(), wait: () => endWeek(1), l
       <td><button class="btn" data-b="${i}" ${S.money < m.p * 10 ? 'disabled' : ''}>buy</button> <button class="btn" data-s="${i}" ${own < 10 ? 'disabled' : ''}>sell</button></td></tr>`;
   }).join('');
   page.innerHTML = `<h2>The stock board</h2><p class="where">Cash ${money(S.money)} · your feet are worth ${money(feetWorth())}</p>
-    ${msg ? `<p>${msg}</p>` : '<p>Everyone in the Territory trades "feet": shares in a mine, measured along its ledge. The big mines on the Comstock are steady. The wildcats are anybody\'s guess, and the guess is usually wrong. Prices move each week.</p>'}
+    ${msg ? `<p>${msg}</p>` : '<p>Everybody in the Territory trades in "feet": shares in a mine, measured by the foot along its ledge. The big mines on the Comstock are as steady as a deacon. The wildcats are anybody’s guess, and the guess is generally wrong. Prices move every week, mostly on talk.</p>'}
     <table class="mkt"><tr><th>mine</th><th>price</th><th>week</th><th>yours</th><th></th></tr>${rows}</table>
     <div class="choices"><button class="btn" id="mktDone">${ctx.label}</button><button class="btn" id="mktWait">Wait a week and watch the board</button></div>`;
   page.querySelectorAll('[data-b]').forEach(b => b.onclick = () => { const m = S.mkt[+b.dataset.b]; S.money -= m.p * 10; S.feet[m.name] = (S.feet[m.name] || 0) + 10; sfx('coin'); hud(); market(`You bought ten feet of ${esc(m.name)}.`, ctx); });
   page.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { const m = S.mkt[+b.dataset.s]; S.money += m.p * 10; S.feet[m.name] -= 10; sfx('coin'); hud(); market(`You sold ten feet of ${esc(m.name)}.`, ctx); });
   $('mktDone').onclick = () => ctx.back();
-  $('mktWait').onclick = () => { const before = feetWorth(); const hold = ctx.wait(); const after = feetWorth(); hud(); if (checkDeath()) return; if (hold) return ctx.back(); market(`A week goes by. Your feet went from ${money(before)} to ${money(after)}.`, ctx); };
+  $('mktWait').onclick = () => { const before = feetWorth(); const hold = ctx.wait(); const after = feetWorth(); hud(); if (checkDeath()) return; if (hold) return ctx.back(); market(`A week went by. Your feet went from ${money(before)} to ${money(after)}.`, ctx); };
   hud();
 }
 
@@ -577,10 +577,10 @@ function tahoe() {
   S.flags.tahoe = 1; scene.set('tahoe', {});
   show({
     title: 'Lake Tahoe', where: 'With Johnny, on foot over the mountains',
-    body: `<p>You and a young man called Johnny walk up into the mountains to stake a timber claim on the shore of Lake Tahoe. The lake lies in the pines like a sheet of blue glass, so clear you can see the rocks on the bottom eighty feet down, and seem to float in the air above them. You fence your claim with a few brush piles and call yourselves landowners. You sleep on the sand, fish all day, and feel healthier than you have in your life.</p><p>On the last evening you build a campfire to cook supper, in the dry pine needles near your timber.</p>`,
+    body: `<p>You and a young man called Johnny walk up over the mountains to stake a timber claim on the shore of Lake Tahoe. The lake lies in the pines like a sheet of blue glass, so clear that you can see the rocks on the bottom eighty feet down, and seem, in the boat, to be floating in the air above them. You fence your claim with a few brush piles and call yourselves landowners. You sleep on the sand and fish all day, and feel healthier than you have since you were ten years old.</p><p>On the last evening you build a campfire to cook supper, among the dry pine needles close by your timber.</p>`,
     choices: [
-      { t: 'Clear the needles and bank the fire carefully', go: () => { S.flags.timber = 1; endWeek(1); return `<p>Nothing burns but supper. You leave your timber claim standing, and some weeks later sell it to a sawmill man for <b>$350</b>.</p>` + fx({ money: 350, hp: 15, sp: 15 }); }, next: nevadaWeek },
-      { t: 'Light it and go fetch the frying pan', go: () => { endWeek(1); return `<p>You come back to find the fire has run up into the pines. In minutes the whole hillside is a roaring sheet of flame. You and Johnny sit in the boat out on the lake and watch your timber, your fence, your claim and your provisions go up together. It is the most magnificent sight you have ever seen, and it was your fault.</p>` + fx({ hp: 10, sp: 4 }); }, next: nevadaWeek },
+      { t: 'Clear the needles and bank the fire carefully', go: () => { S.flags.timber = 1; endWeek(1); return `<p>Nothing burned but supper. You left your timber claim standing, and some weeks later sold it to a sawmill man for <b>$350</b>, and have regarded yourself ever since as a lumber baron in a small way.</p>` + fx({ money: 350, hp: 15, sp: 15 }); }, next: nevadaWeek },
+      { t: 'Light it and go fetch the frying pan', go: () => { endWeek(1); return `<p>You came back to find the fire had run up into the pines, and in a few minutes the whole mountainside was one roaring sheet of flame. You and Johnny sat in the boat out on the lake and watched your timber and your fence and your provisions go up together, with your claim on top. It was the most magnificent sight you had ever seen, and it was entirely your own doing.</p>` + fx({ hp: 10, sp: 4 }); }, next: nevadaWeek },
     ],
   });
 }
@@ -588,10 +588,10 @@ function plug() {
   S.flags.plug = 1;
   show({
     title: 'A Genuine Mexican Plug', where: 'The horse auction on the plaza',
-    body: `<p>An auctioneer is selling a horse he calls a "Genuine Mexican Plug". A stranger whispers to you that it is the finest horse in the Territory, and that he would buy it himself if he had the money. The bidding stands at $22.</p>`,
+    body: `<p>An auctioneer on the plaza is selling a horse he calls a "Genuine Mexican Plug", and a stranger at your elbow whispers that it is the finest horse in the Territory, and that he would buy it himself this minute if he had the money about him. The bidding stands at $22.</p>`,
     choices: [
-      { t: 'Bid $27', if: () => S.money >= 27, go: () => { endWeek(1); return `<p>The Plug is yours. You climb on. It goes straight up into the air with all four feet bunched together, comes down, goes up again, and leaves you on a fence. A crowd gathers to admire the performance. The stranger, it turns out, was the auctioneer's brother. Over the next week the Plug kicks, bites, bucks, and eats your hat. You finally give him away, and the new owner thanks you, which is suspicious.</p>` + fx({ money: -27, hp: -12, sp: 6 }); }, next: nevadaWeek },
-      { t: 'Keep your money', go: () => `<p>A newcomer buys him. You watch the horse throw the man onto a roof. You go back to the hotel and feel wise.</p>` + fx({ sp: 4 }), next: nevadaWeek },
+      { t: 'Bid $27', if: () => S.money >= 27, go: () => { endWeek(1); return `<p>The Plug was yours. You climbed on, and he went straight up into the air with all four feet bunched together, came down, went up again, and left you astride a fence. A crowd gathered to admire the performance and offer opinions. The stranger, you learned, was the auctioneer’s brother. Over the following week the Plug kicked and bit and bucked, and ate the better part of your hat. You finally gave him away, and the new owner thanked you, which you considered suspicious.</p>` + fx({ money: -27, hp: -12, sp: 6 }); }, next: nevadaWeek },
+      { t: 'Keep your money', go: () => `<p>A newcomer from the States bought him, and you watched the horse put the man on the roof of a livery stable. You went back to the hotel and felt wise for the rest of the day.</p>` + fx({ sp: 4 }), next: nevadaWeek },
     ],
   });
 }
@@ -600,8 +600,8 @@ function writeLetter() {
   endWeek(1);
   const n = S.flags.letters;
   let bonus = (has('notebook') ? 6 : 0) + (S.flags.lies ? 4 : 0) + (has('dictionary') ? 3 : 0);
-  const html = `<p>You write a letter to the <i>Territorial Enterprise</i> in Virginia City about ${pick(['the legislature, which you describe as a menagerie', 'the Washoe Zephyr and the donkey it carried off', 'your mining adventures, made only slightly worse than they were', 'a local orator whose speech you summarise as a long low rumble'])}, and sign it "Josh".</p>`
-    + `<p>${n === 1 ? 'To your surprise they print it.' : n === 2 ? 'They print it, and people quote it at you in the saloon.' : 'The editor writes back.'}</p>` + fx({ sp: 4 + bonus });
+  const html = `<p>You wrote a letter to the <i>Territorial Enterprise</i> in Virginia City about ${pick(['the legislature, which you described as a menagerie with the cages left open', 'the Washoe Zephyr, and a donkey it carried off toward Utah', 'your mining adventures, made only a little worse than they were', 'a local orator whose two-hour speech you reported in full as a long low rumble'])}, and signed it "Josh".</p>`
+    + `<p>${n === 1 ? 'To your astonishment they printed it.' : n === 2 ? 'They printed it, and men you had never met quoted it back at you across the bar.' : 'The editor wrote back, on the paper’s own letterhead.'}</p>` + fx({ sp: 4 + bonus });
   if (n >= 3 && !S.flags.offer) return outcome('A letter from Virginia City', html, () => reporterOffer('letters'));
   outcome('A letter to the paper', html, nevadaWeek);
 }
@@ -611,26 +611,26 @@ function reporterOffer(why) {
   scene.set('city', {});
   show({
     title: 'Twenty-five dollars a week',
-    body: `<p>${why === 'forced' ? 'Four months of silver fever have left you with a great many opinions about rock and not much else.' : ''} A letter arrives from the <i>Territorial Enterprise</i>: they want you as city editor and reporter in Virginia City, at <b>$25 a week</b>.</p><p>Twenty-five dollars a week! You had been aiming at a million. But a man can eat on twenty-five dollars, and the mines are not paying you to eat.</p>`,
+    body: `<p>${why === 'forced' ? 'Four months of silver fever have left you with a great many opinions about rock, one pair of boots, and very little else.' : ''} A letter arrives from the <i>Territorial Enterprise</i>: they want you as city editor and reporter in Virginia City, at <b>$25 a week</b>.</p><p>Twenty-five dollars a week! You had been aiming at a million, and it was a considerable come-down. But a man can eat on twenty-five dollars a week, and drink a little, and the mines have shown no disposition whatever to pay you for either.</p>`,
     choices: [
       { t: 'Take the job', big: true, go: () => { startPaper(); } },
-      { t: 'Hang on for one more strike', if: () => why !== 'forced', go: () => `<p>You write back that you will think about it. You do think about it, at night mostly.</p>`, next: () => { S.flags.offer = 0; S.flags.letters = 0; nevadaWeek(); } },
+      { t: 'Hang on for one more strike', if: () => why !== 'forced', go: () => `<p>You wrote back that you would think it over. You did think it over, mostly at night, and mostly about the twenty-five dollars.</p>`, next: () => { S.flags.offer = 0; S.flags.letters = 0; nevadaWeek(); } },
     ],
   });
 }
 
 // ---------------------------------------------------------------- ACT 3: the newspaper
 const LEADS = [
-  { id: 'fanshaw', name: "Buck Fanshaw's funeral", text: 'A great fireman is dead, and his friend Scotty Briggs has gone to arrange things with the new minister. The minister speaks seminary; Scotty speaks Washoe. Neither understands a word the other says.', base: 22, risk: 6 },
-  { id: 'petrified', name: 'A petrified man', text: 'Somebody claims to have found a man turned to stone in the desert, sitting up. You could report it straight, or improve on it considerably.', base: 12, risk: 14 },
-  { id: 'legis', name: 'The legislature', text: 'The Territorial legislature is in session. It is a bear garden and a circus and very well attended.', base: 10, risk: 12 },
-  { id: 'mill', name: 'A quartz mill accident', text: 'A boiler at one of the stamp mills has gone up. Nobody was killed, but a cat was blown clear to the next ward.', base: 10, risk: 4 },
-  { id: 'strike', name: 'A new strike on the Comstock', text: 'Every mine on the Comstock wants to be written up. Most of them send a few feet of stock along with the request.', base: 14, risk: 8, pay: true },
-  { id: 'zephyr', name: 'The Zephyr strikes again', text: 'The afternoon wind has rearranged the town. Several roofs are now in other counties.', base: 9, risk: 2 },
-  { id: 'rival', name: 'The rival editor', text: 'The editor of the Virginia Union has said something about your spelling. Honour demands a reply.', base: 16, risk: 22 },
-  { id: 'brawl', name: 'A saloon shooting', text: 'Somebody shot somebody at the bar again. The town is used to it, but readers like the details.', base: 13, risk: 7 },
-  { id: 'fire', name: 'The fire companies parade', text: 'Every fire company in town turns out in red shirts and brass. Anybody left out of the write-up will never forgive you.', base: 8, risk: 5 },
-  { id: 'ball', name: 'The Sanitary Fund ball', text: 'The ladies of the town are raising money for the war wounded. Write it up with care. Or not.', base: 11, risk: 16 },
+  { id: 'fanshaw', name: "Buck Fanshaw's funeral", text: 'Buck Fanshaw, a great fireman and a pillar of the saloons, is dead, and his friend Scotty Briggs has gone round to arrange the funeral with the new minister. The minister talks seminary and Scotty talks Washoe, and in an hour and a half neither has understood a word the other said.', base: 22, risk: 6 },
+  { id: 'petrified', name: 'A petrified man', text: 'Somebody claims to have found a man turned to stone out in the desert, sitting up, and the coroner has been sent for. You could report it straight, or improve on it considerably.', base: 12, risk: 14 },
+  { id: 'legis', name: 'The legislature', text: 'The Territorial legislature is in session at Carson, and is as good as a circus and a bear garden put together, and draws a better house than either.', base: 10, risk: 12 },
+  { id: 'mill', name: 'A quartz mill accident', text: 'A boiler at one of the stamp mills has gone up. Nobody was killed, but a cat was blown clear into the next ward and arrived there, witnesses say, in a temper.', base: 10, risk: 4 },
+  { id: 'strike', name: 'A new strike on the Comstock', text: 'Every mine on the Comstock wants a notice in the paper, and most of them send a few feet of stock along with the request, out of pure friendship.', base: 14, risk: 8, pay: true },
+  { id: 'zephyr', name: 'The Zephyr strikes again', text: 'The afternoon Zephyr has rearranged the town again. Several roofs are now in other counties, and one is believed to be in California.', base: 9, risk: 2 },
+  { id: 'rival', name: 'The rival editor', text: 'The editor of the Virginia Union has printed something about your spelling, and honour, as it is understood on the Comstock, demands a reply.', base: 16, risk: 22 },
+  { id: 'brawl', name: 'A saloon shooting', text: 'Somebody shot somebody at a bar on C Street again. The town is used to it by now, but the readers like the particulars.', base: 13, risk: 7 },
+  { id: 'fire', name: 'The fire companies parade', text: 'Every fire company in town turns out in red shirts and brass helmets, with a band. Any company left out of the write-up will remember it at the next election, and at the next fire.', base: 8, risk: 5 },
+  { id: 'ball', name: 'The Sanitary Fund ball', text: 'The ladies of the town are giving a ball for the Sanitary Fund, for the Union wounded in the War. Write it up with care, or not, and take the consequences.', base: 11, risk: 16 },
 ];
 // The big pool of extra stories lives in leads.js (window.EXTRA_LEADS). Every issue offers four
 // you haven't seen: nothing repeats within a run, and across runs the least-recently-seen come first.
@@ -646,14 +646,14 @@ function drawLeads(n) {
   localStorage.setItem(SEEN_KEY, JSON.stringify(seen));
   return out;
 }
-const PLAIN = ['You report it straight, and the town nods along over its coffee.', 'A sober, accurate paragraph. The editor calls it "respectable", which is not a compliment.', 'Just the facts. Two people read it all the way through, and one of them was you.', 'Plain and true. Nobody is angry, and nobody remembers it by supper.'];
+const PLAIN = ['You reported it straight, and the town nodded over its coffee and turned to the stock quotations.', 'It was a sober, accurate paragraph. The editor called it "respectable", which on the Comstock is not a compliment.', 'You gave the bare facts. Two men read it clear through, and one of them was you, and the other was the compositor, who had to.', 'It was plain and true. Nobody was angry, and nobody remembered it by supper.'];
 const EMB = [{ k: 'plain', name: 'plain facts', r: 1, t: .5 }, { k: 'stretch', name: 'stretched', r: 1.6, t: 1 }, { k: 'whopper', name: 'a whopper', r: 2.6, t: 2 }];
 
 function startPaper() {
   S.act = 'paper'; S.issue = 0; S.trouble = 0; S.readers = 20 + (S.flags.letters || 0) * 6 + (S.flags.lies || 0) * 3;
   log('Joined the Territorial Enterprise.');
   scene.set('city', {});
-  outcome('Virginia City', `<p>Virginia City hangs on the side of Mount Davidson like a town that was thrown there and stuck. Underneath it, the mines go down a thousand feet into hot rock; above it, the saloons, banks, theatres, churches and boarding houses are crowded together on streets so steep that one man's front door looks into his neighbour's chimney. Thirty thousand people and every one of them is in a hurry.</p><p>Your job is to fill a column of local news every day. When there is news, that is easy. When there isn't, the editor says, you will learn.</p>`, paperIssue);
+  outcome('Virginia City', `<p>Virginia City hung on the side of Mount Davidson like a town that had been thrown there and stuck. Under it the mines went down a thousand feet into hot rock; above, the saloons and banks, the theatres and churches and boarding houses were crowded together on streets so steep that one man’s front door looked down his neighbour’s chimney. There were fifteen thousand people in it, and every one of them was in a hurry, and most of them were rich, or about to be.</p><p>Your job was to fill a column of local news every day. When there was news, the editor said, that would be easy; when there wasn’t, you would learn.</p>`, paperIssue);
 }
 function paperIssue() {
   if (S.issue >= 8) return window.partTwo ? partTwo('paper') : ending('paper');
@@ -677,26 +677,26 @@ function printIssue(leads, picks) {
     const l = leads.find(x => x.id === id), e = EMB.find(x => x.k === ek);
     const r = Math.round(l.base * e.r * rnd(.8, 1.2) * (has('notebook') ? 1.1 : 1));
     let t = Math.round(l.risk * e.t * rnd(.7, 1.3));
-    if (l.pay && ek !== 'plain') { const c = ri(30, 90); cash += c; notes.push(`The grateful parties show their gratitude: ${money(c)}, discreetly.`); }
+    if (l.pay && ek !== 'plain') { const c = ri(30, 90); cash += c; notes.push(`The grateful parties showed their gratitude in the customary way: ${money(c)}, discreetly, in an envelope.`); }
     if (l.s || l.w) notes.push(`<b>${l.name}.</b> ` + (ek === 'whopper' ? l.w : ek === 'stretch' ? l.s : pick(PLAIN)));
-    if (id === 'fanshaw') notes.push(ek === 'whopper' ? 'Your account of Scotty and the minister has the whole town repeating Scotty\'s half of the conversation in saloons for a month.' : 'Your funeral piece is gentle and very funny, and Scotty buys you a drink for it.');
-    if (id === 'petrified' && ek === 'whopper') { notes.push('In your version the petrified man is thumbing his nose at the reader, if anyone reads closely. Papers back East reprint it as fact. Scientists write in.'); t += 4; }
-    if (id === 'rival' && ek !== 'plain') notes.push('The rival editor replies in print that you are a liar, a coward and a poor speller. Only the third is fair.');
+    if (id === 'fanshaw') notes.push(ek === 'whopper' ? 'Your account of Scotty and the minister had the whole town repeating Scotty’s half of the conversation in the saloons for a month, and the minister’s half in church.' : 'Your funeral piece was tender and very funny, and Scotty bought you a drink on it and said you had done Buck proud.');
+    if (id === 'petrified' && ek === 'whopper') { notes.push('In your version the petrified man was winking one eye and thumbing his nose at the reader, for anybody who read closely. Nobody did. Papers back East reprinted it as sober fact, and a scientist in London wrote in about it.'); t += 4; }
+    if (id === 'rival' && ek !== 'plain') notes.push('The rival editor replied in print that you were a liar, a coward and a poor speller. Only the third was fair.');
     rd += r; tr += t;
   }
   const first = leads.find(x => x.id === [...picks.keys()][0]);
   const head = esc(first.name).toUpperCase();
-  const html = `<div class="headline">${head}</div>${notes.map(n => `<p>${n}</p>`).join('') || '<p>The issue goes out and the town reads it at breakfast.</p>'}` + fx({ readers: rd, trouble: tr, money: cash, sp: 3 }) + `<p class="where">+$25 salary</p>`;
+  const html = `<div class="headline">${head}</div>${notes.map(n => `<p>${n}</p>`).join('') || '<p>The issue went out, and the town read it at breakfast along with its ham and its mining stocks.</p>'}` + fx({ readers: rd, trouble: tr, money: cash, sp: 3 }) + `<p class="where">+$25 salary</p>`;
   if (S.trouble >= 100 && !S.flags.duel) return outcome('Off the press', html, duel);
   outcome('Off the press', html, paperIssue);
 }
 function duel() {
   S.flags.duel = 1; scene.set('city', {});
   show({
-    title: 'A challenge', body: `<p>A gentleman you have written about too freely sends round a formal challenge to a duel. Dawn, pistols, a ravine outside town. Your friend Steve Gillis, a small man who is a very good shot, offers to be your second and to teach you to shoot in the meantime.</p>`,
+    title: 'A challenge', body: `<p>A gentleman you have written about too freely sends round a formal challenge to a duel, with pistols, at dawn, in a ravine outside town. Your friend Steve Gillis, a small man and a dead shot, offers to act as your second and to teach you to shoot in the meantime, which he calculates should take about a night.</p>`,
     choices: [
-      { t: 'Accept, and let Steve do some shooting', go: () => `<p>At dawn you practise on a barn door and hit the county instead. Just as your opponent's party comes over the ridge, Steve shoots the head off a little bird at thirty yards, and tells them you did it. Your opponent, hearing this, finds he has urgent business elsewhere.</p><p>Unfortunately duelling has just been made a prison offence in the Territory, and word gets around. Your friends advise you that San Francisco is very pleasant this time of year.</p>` + fx({ sp: 10, readers: 30 }), next: () => window.partTwo ? partTwo('duel') : ending('duel') },
-      { t: 'Print a handsome apology', go: () => `<p>The apology is so handsome that the gentleman is offended all over again, but he cannot quite say why. The matter cools.</p>` + fx({ trouble: -40, readers: -10 }), next: paperIssue },
+      { t: 'Accept, and let Steve do some shooting', go: () => `<p>At dawn you practised on a barn door, and hit the county, but not the door. Just as your opponent’s party came over the ridge, Steve shot the head off a little sparrow at thirty yards and told them you had done it, and your opponent, hearing that, recollected urgent business elsewhere and went to attend to it.</p><p>Unfortunately duelling had lately been made a penitentiary offence in the Territory, and word got around, and your friends advised you that San Francisco was very pleasant at that time of year, and that the stage left at four.</p>` + fx({ sp: 10, readers: 30 }), next: () => window.partTwo ? partTwo('duel') : ending('duel') },
+      { t: 'Print a handsome apology', go: () => `<p>The apology was so handsome that the gentleman was offended all over again, though he could not have told you exactly where. The matter cooled.</p>` + fx({ trouble: -40, readers: -10 }), next: paperIssue },
     ],
   });
 }
@@ -708,10 +708,10 @@ function ending(kind) {
   const total = Math.round(S.money + feetWorth());
   const score = Math.max(0, Math.round(total / 20 + fame + S.hp / 2 + S.sp / 2 + (S.flags.slade ? 20 : 0) + (S.flags.rich ? 50 : 0) + (S.flags.timber ? 10 : 0) + (S.flags.duel ? 20 : 0) + (S.bonus || 0)));
   const titles = {
-    laid: ['Sent home to mend', `<p>The West wore you down. A doctor puts you on a stage back East with a bottle of something and strict orders to rest. Orion goes on without you. Years later you still tell the story, but it's a short one.</p>`],
-    quit: ['Took the next coach home', `<p>Your heart went out of it. You took the next stage home and spent the rest of your life telling people you had seen the West. Which was true, as far as it went.</p>`],
-    paper: ['A writer, by accident', `<p>Eight issues later you have a name in every saloon on the Comstock, and the name is not quite your own. To sign your pieces you have borrowed the old Mississippi leadsman's call for two fathoms of safe water: <b>Mark Twain</b>.</p><p>In time you go on to San Francisco, then to the Sandwich Islands as a correspondent, then onto the lecture stage, and at last you write it all down in a book. You leave out nothing important, and put in a great many things that are better than the truth.</p>`],
-    duel: ['Left for San Francisco, in a hurry', `<p>You take the stage over the Sierra that night, with your column, your reputation and your pen name: <b>Mark Twain</b>, the old Mississippi leadsman's call for two fathoms of safe water. San Francisco gives you a newspaper, an earthquake and, eventually, a voyage to the Sandwich Islands. From there it is only a short trip to the lecture stage and a book about roughing it.</p>`],
+    laid: ['Sent home to mend', `<p>The West wore you down. A doctor put you on a stage back to the States with a bottle of something brown and strict orders to rest, and Orion went on with the Territory’s business without you. Years afterward you still told the story, but it was a short one, and nobody asked for it twice.</p>`],
+    quit: ['Took the next coach home', `<p>Your heart went out of it. You took the next stage home and spent the rest of your life telling people in Missouri that you had seen the West, which was true, as far as it went, and it had not gone far.</p>`],
+    paper: ['A writer, by accident', `<p>Eight issues later you had a name in every saloon on the Comstock, and the name was not quite your own. To sign your pieces you had borrowed the old Mississippi leadsman’s call for two fathoms of safe water: <b>Mark Twain</b>.</p><p>In time you went on to San Francisco, and to the Sandwich Islands as a correspondent, and onto the lecture platform, and at last you wrote it all down in a book. You left out nothing important, and put in a great many things that were better than the truth.</p>`],
+    duel: ['Left for San Francisco, in a hurry', `<p>You took the stage over the Sierra that night, with Steve Gillis for company and your pen name in your pocket: <b>Mark Twain</b>, the old Mississippi leadsman’s call for two fathoms of safe water. San Francisco gave you a newspaper, and an earthquake, and in time a voyage to the Sandwich Islands; from there it was only a short trip to the lecture platform and a book about roughing it.</p>`],
   };
   Object.assign(titles, window.EXTRA_ENDINGS || {});
   const [tt, txt] = titles[kind];
