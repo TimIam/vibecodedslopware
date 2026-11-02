@@ -52,6 +52,19 @@ const RIDES = {
 };
 const PURSUERS = { bear: { name: 'Bear', icon: '\ud83d\udc3b', a: 'A bear!' }, yeti: { name: 'Yeti', icon: '\ud83e\udd8d', a: 'A yeti!' } };
 const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
+// Tricks. Each landed trick adds points and a burst of speed. Doing the same trick on landing after
+// landing halves its reward each time (chain[kind] counts the landings in a row that included it),
+// so mixing tricks pays and spamming one does not.
+const TRICKS = {
+  spin:  { pts: 150, kick: 1.5 },  // per 360 (a board's 180 scores half)
+  front: { pts: 250, kick: 3.0, name: 'Front flip' },
+  back:  { pts: 250, kick: 3.0, name: 'Back flip' },
+  grab:  { pts: 100, kick: 1.5 },
+};
+const GRAB_NAMES = { skis: 'Mute grab', board: 'Indy grab', sled: 'No-hander', bear: 'Cannonball' };
+const FLIP_RATE = Math.PI * 2 / 0.75; // a flip takes 0.75 s; land before it finishes and you wipe out
+const GRAB_MIN = 0.3;                 // a grab counts once held this long
+const chain = { spin: 0, front: 0, back: 0, grab: 0 };
 // A snowboard has no front or back: either end can lead ("switch"). For the board, slip is measured
 // against whichever end is nearer the travel line, so it lies in (-90deg, 90deg]; every other ride
 // has a front and slip is the plain angle between facing and travel.
@@ -768,7 +781,8 @@ function setMusic(id, announce) {
 function nextMusic(announce) { setMusic(TRACKS[(TRACKS.indexOf(musicId) + 1) % TRACKS.length], announce); }
 
 // ---------- game state ----------
-const player = { x: 0, z: -5, y: 0, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0, pushPhase: 0, plough: 0, runPhase: 0 };
+const player = { x: 0, z: -5, y: 0, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0, pushPhase: 0, plough: 0, runPhase: 0,
+  flip: 0, flipDir: 0, flipTarget: 0, flips: { front: 0, back: 0 }, grabT: 0, grabbing: false, qWas: false };
 const bear = { on: false, x: 0, z: 0, dir: 0, phase: 0, rear: 0, flinch: 0 }; // the chaser, whatever it is this run; dir is where it is running
 let state = 'title', score = 0, bonus = 0, best = Number(localStorage.getItem('bearrun-best')) || 0, growlT = 0, overT = 0;
 // The unlock currency is your best score in one run (distance plus gate and trick bonuses, never less
@@ -824,12 +838,13 @@ function noteScore(sc) { // the unlock banners fire the moment a line is crossed
 
 
 const keys = new Set();
-const touch = { L: false, R: false, U: false, D: false };
+const touch = { L: false, R: false, U: false, D: false, Q: false };
 const input = () => ({
   steer: (keys.has('ArrowRight') || keys.has('KeyD') || touch.R ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('KeyA') || touch.L ? 1 : 0),
   push: keys.has('ArrowUp') || keys.has('KeyW') || touch.U,      // double-pole push
   plough: keys.has('ArrowDown') || keys.has('KeyS') || touch.D,  // snowplough
   tuck: keys.has('ShiftLeft') || keys.has('ShiftRight'),
+  trick: keys.has('KeyQ') || touch.Q, // in the air: grab, or with W/S a front/back flip
 });
 
 const bannerEl = $('banner'); let bannerT = 0;
@@ -839,6 +854,7 @@ function reset() {
   for (const i of [...chunks.keys()]) dropChunk(i);
   seed = (Math.random() * 1e9) | 0;
   Object.assign(player, { x: 0, z: -5, vy: 0, v: 0, heading: 0, vdir: 0, slip: 0, slipT: 0, air: false, airT: 0, spin: 0, crashT: 0, steer: 0, pushPhase: 0, plough: 0 });
+  resetAirTricks(); for (const k in chain) chain[k] = 0;
   player.y = height(player.x, player.z);
   Object.assign(bear, { on: false, x: 0, z: 0, dir: 0, phase: 0, rear: 0, flinch: 0 });
   screamCd = 0; screamT = 0;
@@ -863,9 +879,38 @@ function start() {
   banner('Go!', 0.9);
 }
 
+// Score what was landed: each trick earns its points and speed, halved for every landing in a row that
+// already included it. Shows the combo, the points, the speed gained and a hint when a repeat paid less.
+function landTricks() {
+  const p = player, done = [], names = [];
+  // A board lands either way round, so it scores half-turns: a 180 rides away switch.
+  const step = twinTip() ? Math.PI : Math.PI * 2, turns = Math.round(Math.abs(p.spin) / step), deg = Math.round(step * 180 / Math.PI);
+  if (turns) { done.push(['spin', turns * (twinTip() ? 0.5 : 1)]); names.push(`${turns * deg}`); }
+  for (const f of ['front', 'back']) if (p.flips[f]) { done.push([f, p.flips[f]]); names.push(p.flips[f] > 1 ? `${p.flips[f]}\u00d7 ${TRICKS[f].name.toLowerCase()}` : TRICKS[f].name); }
+  if (p.grabT >= GRAB_MIN) { done.push(['grab', 1]); names.push(GRAB_NAMES[V.kind]); }
+  let pts = Math.round(p.airT * 25), kick = 0, tired = false;
+  const did = new Set(done.map(([k]) => k));
+  for (const [kind, n] of done) {
+    const factor = Math.pow(0.5, chain[kind]); // 1, 1/2, 1/4... for the same trick landing after landing
+    if (chain[kind]) tired = true;
+    pts += Math.round(TRICKS[kind].pts * n * factor); kick += TRICKS[kind].kick * n * factor;
+  }
+  for (const k in chain) chain[k] = did.has(k) ? chain[k] + 1 : 0;
+  p.v += kick;
+  if (done.length) sfx.trick();
+  if (done.length || p.airT > 0.6) {
+    bonus += pts;
+    const title = done.length ? names.join(' + ') + '!' : 'Big air!';
+    banner(`${title}<small>+${pts}${kick > 0.05 ? ` \u00b7 +${Math.round(kick * 3.6)} km/h` : ''}${tired ? ' \u00b7 same again pays less' : ''}</small>`, 1.3);
+  }
+}
+function resetAirTricks() {
+  const p = player; p.flip = 0; p.flipDir = 0; p.flipTarget = 0; p.flips.front = p.flips.back = 0; p.grabT = 0; p.grabbing = false;
+}
 function crash() {
   if (player.crashT > 0) return;
   player.crashT = 1.3; player.v *= 0.1; player.spin = 0; player.slipT = 0;
+  resetAirTricks(); for (const k in chain) chain[k] = 0; // a wipeout breaks every chain
   sfx.crash();
   emitSpray(player.x, player.y + 0.5, player.z, 0, 2, 0, 40, 4);
   banner('Wipeout!', 0.9);
@@ -882,6 +927,7 @@ function scream() {
 }
 
 const _p = new V3(), _up = new V3(0, 1, 0), _yaw = new THREE.Quaternion(), _tilt = new THREE.Quaternion();
+const _pitch = new THREE.Quaternion(), _xAxis = new V3(1, 0, 0), _mid = new V3(), _mid2 = new V3();
 
 function step(dt, t) {
   const inp = input();
@@ -894,6 +940,17 @@ function step(dt, t) {
     if (p.crashT <= 0) { p.crashT = 0; p.vdir = startLine(p.heading); p.slip = 0; p.slipT = 0; }
   } else if (p.air) {
     p.heading += inp.steer * V.spin * dt; p.spin += inp.steer * V.spin * dt;
+    // Trick button: a fresh press starts a flip if W or S is held (one at a time), otherwise a grab,
+    // held for as long as the button is.
+    if (inp.trick && !p.qWas && !p.flipDir) {
+      if (inp.push || inp.plough) { p.flipDir = inp.push ? -1 : 1; p.flipTarget = p.flip + p.flipDir * Math.PI * 2; }
+    }
+    p.grabbing = inp.trick && !p.flipDir;
+    if (p.grabbing) p.grabT += dt;
+    if (p.flipDir) {
+      p.flip += p.flipDir * FLIP_RATE * dt;
+      if ((p.flip - p.flipTarget) * p.flipDir >= 0) { p.flips[p.flipDir < 0 ? 'front' : 'back']++; p.flip = p.flipTarget; p.flipDir = 0; }
+    }
   } else {
     p.steer += (inp.steer - p.steer) * Math.min(1, dt * 10);
     // Turning the skis is quick when slow and heavy when fast; the edges follow more slowly still.
@@ -937,23 +994,22 @@ function step(dt, t) {
   const dx = Math.sin(p.vdir) * p.v * dt, dz = -Math.cos(p.vdir) * p.v * dt;
   p.x = THREE.MathUtils.clamp(p.x + dx, -WIDTH / 2 + 4, WIDTH / 2 - 4); p.z += dz;
   const g2 = height(p.x, p.z);
+  p.qWas = inp.trick;
   if (p.air) {
     p.vy -= 20 * dt; p.y += p.vy * dt; p.airT += dt;
     if (p.y <= g2) {
       p.y = g2; p.air = false;
       p.heading = wrapAngle(p.heading);
       const slip = slipOf(p.heading, p.vdir);
-      if (Math.abs(slip) > THREE.MathUtils.degToRad(V.landSlip) && p.v > 4) crash();
+      // Land mid-flip (more than ~35 degrees from upright) and you wipe out, however straight you are.
+      const flipOff = Math.abs(wrapAngle(p.flip));
+      if ((Math.abs(slip) > THREE.MathUtils.degToRad(V.landSlip) && p.v > 4) || flipOff > 0.6) crash();
       else {
         p.vdir = THREE.MathUtils.clamp(wrapAngle(p.vdir + slip), -MAX_LINE, MAX_LINE); p.heading = clampFacing(p.heading); p.slip = 0; p.slipT = 0; // the edges bite and you carve off along the board, whichever end leads
         sfx.land(); emitSpray(p.x, g2 + 0.1, p.z, 0, 1.5, 0, 24, 3);
-        // A board lands either way round, so it scores half-turns: a 180 rides away switch.
-        const step = twinTip() ? Math.PI : Math.PI * 2, turns = Math.round(Math.abs(p.spin) / step), deg = Math.round(step * 180 / Math.PI);
-        let pts = Math.round(p.airT * 25), msg = '';
-        if (turns) { pts += turns * (twinTip() ? 75 : 150); msg = `${turns * deg}!`; sfx.trick(); }
-        if (p.airT > 0.6 || turns) { bonus += pts; banner(`${msg || 'Big air!'}<small>+${pts}</small>`, 1.1); }
+        landTricks();
       }
-      p.spin = 0; lastStamp = null;
+      p.spin = 0; resetAirTricks(); lastStamp = null;
     }
   } else {
     p.y = g2; p.airT = 0;
@@ -1128,6 +1184,15 @@ function poseSkier(dt) {
   _yaw.setFromAxisAngle(_up, -p.heading - (ud.kind === 'board' ? 1.45 * p.plough : 0));
   _tilt.setFromUnitVectors(_up, p.air ? _up : _n);
   skier.quaternion.copy(_tilt).multiply(_yaw);
+  if (p.air && p.flip) {
+    // Pitch round the middle of the ride (not the feet), so a flip turns in place.
+    const mid = ud.kind === 'sled' || ud.kind === 'bear' ? 0.75 : 0.9;
+    _pitch.setFromAxisAngle(_xAxis, p.flip);
+    _mid.set(0, mid, 0); _mid2.copy(_mid).applyQuaternion(_pitch);
+    skier.quaternion.multiply(_pitch);
+    _mid.sub(_mid2).applyQuaternion(_yaw).applyQuaternion(_tilt); skier.position.add(_mid);
+  }
+  const grabbing = p.air && p.grabbing;
   const body = ud.body, k = p.crashT > 0 ? Math.min(1, (1.3 - p.crashT) * 5) : 0;
   const live = !p.air && p.crashT <= 0;
   const pushing = inp.push && live, braking = p.plough;
@@ -1144,6 +1209,7 @@ function poseSkier(dt) {
       ud.inner.rotation.x = -0.18 * braking; ud.inner.position.y = -0.08 * braking;
       ud.legs[0].rotation.x = ud.legs[1].rotation.x = -0.7 * braking; ud.legs[2].rotation.x = ud.legs[3].rotation.x = -0.35 * braking;
     }
+    if (grabbing) { ud.legs[0].rotation.x = ud.legs[1].rotation.x = 1.1; ud.legs[2].rotation.x = ud.legs[3].rotation.x = -1.1; } // cannonball: all four tucked
     if (screamT > 0) rearBeast(ud, Math.min(1, screamT * 4));
     ud.inner.rotation.z += ((k ? 1.3 * k : -lean * 0.6) - ud.inner.rotation.z) * Math.min(1, dt * 8);
     if (braking > 0.05) ud.inner.position.y = 0;
@@ -1161,13 +1227,14 @@ function poseSkier(dt) {
     h.position.y = 0.03 + 1.6 * Math.abs(Math.sin(h.rotation.x)) + 0.6 * Math.abs(Math.sin(h.rotation.z));
     ud.skiL.rotation.y = ud.skiR.rotation.y = -p.steer * 0.45;
     // Rider: hunched over the bars, tucks down on the gas, braces back on the brake, counter-leans into turns.
-    ease(ud.upper.rotation, 'x', screamT > 0 ? 0.35 : pushing ? -0.55 : braking > 0.05 ? -0.15 : -0.35, 8, dt);
+    ease(ud.upper.rotation, 'x', grabbing ? 0.7 : screamT > 0 ? 0.35 : pushing ? -0.55 : braking > 0.05 ? -0.15 : -0.35, 8, dt); // no-hander: sits up and back, hands off the bars
+    ease(body.position, 'y', (0.8 - HIP * 0.85) + (grabbing ? 0.25 : 0), 10, dt);
     ease(body.rotation, 'z', -lean * 0.9, 8, dt);
     return;
   }
   // Skis and board. Bends happen at the hip (upper.rotation.x, negative is forward); crouching folds the
   // legs (lower.scale.y) and drops the hip with them, so the feet stay planted.
-  const tucking = (inp.tuck || (pushing && V.wTuck)) && V.canTuck && !p.air;
+  const tucking = ((inp.tuck || (pushing && V.wTuck)) && V.canTuck && !p.air) || grabbing;
   if (k) {
     body.rotation.set(-0.3 * k, 0, 1.4 * k);
     body.position.y = 0.39 * k; // lying on its side the arm is the lowest part
@@ -1292,7 +1359,7 @@ addEventListener('resize', resize);
 resize();
 
 // ---------- input ----------
-const GAME_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'KeyA', 'KeyD', 'KeyW', 'KeyS', 'ShiftLeft', 'ShiftRight']);
+const GAME_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'KeyA', 'KeyD', 'KeyW', 'KeyS', 'ShiftLeft', 'ShiftRight', 'KeyQ']);
 addEventListener('keydown', e => {
   if (e.target.closest?.('.site-topbar')) return;
   if (e.code === 'KeyC') { toggleCam(); return; }
@@ -1306,7 +1373,7 @@ addEventListener('keydown', e => {
   if (GAME_KEYS.has(e.code)) { e.preventDefault(); if (!e.repeat) keys.add(e.code); }
 });
 addEventListener('keyup', e => keys.delete(e.code));
-addEventListener('blur', () => { keys.clear(); touch.L = touch.R = touch.U = touch.D = false; });
+addEventListener('blur', () => { keys.clear(); touch.L = touch.R = touch.U = touch.D = touch.Q = false; });
 
 function hold(id, k) {
   const el = $(id);
@@ -1315,7 +1382,7 @@ function hold(id, k) {
   el.addEventListener('pointerdown', on);
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, off);
 }
-hold('tL', 'L'); hold('tR', 'R'); hold('tU', 'U'); hold('tD', 'D'); hold('tJ', 'J');
+hold('tL', 'L'); hold('tR', 'R'); hold('tU', 'U'); hold('tD', 'D'); hold('tJ', 'J'); hold('tQ', 'Q');
 $('tE').addEventListener('pointerdown', e => { e.preventDefault(); audio(); scream(); });
 
 function toggleCam() {

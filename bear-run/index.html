@@ -57,6 +57,8 @@ kbd{display:inline-block;min-width:24px;padding:1px 6px;border:1px solid #b9c7d3
 #touch{left:0;right:0;bottom:0;height:150px;display:none;pointer-events:none}
 #touch button{pointer-events:auto;position:absolute;bottom:18px;width:68px;height:68px;border-radius:50%;border:1px solid rgba(20,40,60,.15);background:rgba(255,255,255,.6);font:700 24px/1 inherit;color:#1f3142;touch-action:none}
 #tL{left:16px}#tR{left:96px}#tE{left:176px}#tJ{right:176px}#tD{right:96px}#tU{right:16px}
+#tQ{right:176px;bottom:96px!important}
+#touch{height:190px}
 #touch button.small{font-size:11px;font-weight:700}
 @media (pointer:coarse){#touch{display:block}#tools{bottom:auto;top:120px}#bear{bottom:104px}.desk{display:none}}
 @media (max-width:520px){.rides{grid-template-columns:repeat(2,1fr)}}
@@ -90,6 +92,7 @@ kbd{display:inline-block;min-width:24px;padding:1px 6px;border:1px solid #b9c7d3
   <button id="tR" type="button" aria-label="Steer right">▶</button>
   <button id="tE" type="button" aria-label="Scream for help">😱</button>
   <button id="tJ" type="button" aria-label="Hop">⤒</button>
+  <button id="tQ" type="button" class="small" aria-label="Trick (in the air)">★<br>trick</button>
   <button id="tD" type="button" class="small" aria-label="Snowplough to slow down">▼<br>plough</button>
   <button id="tU" type="button" class="small" aria-label="Push with poles">▲<br>push</button>
 </div>
@@ -104,11 +107,12 @@ kbd{display:inline-block;min-width:24px;padding:1px 6px;border:1px solid #b9c7d3
     <div class="keys desk">
       <span><kbd>←</kbd> <kbd>→</kbd></span><span>Steer (spin when airborne)</span>
       <span><kbd>Space</kbd></span><span>Hop</span>
+      <span><kbd>Q</kbd></span><span>In the air: grab. <kbd>Q</kbd>+<kbd>W</kbd> front flip, <kbd>Q</kbd>+<kbd>S</kbd> back flip. Tricks give speed; the same trick again gives half.</span>
       <span><kbd>E</kbd></span><span>Scream (or roar). Startles the chaser, briefly. Once in a while.</span>
       <span><kbd>C</kbd></span><span>Chase / top-down camera</span>
       <span><kbd>Tab</kbd></span><span>Next music track: lo-fi chill, alpine run, yeti chase, off</span>
     </div>
-    <p class="mob">◀ ▶ steer · 😱 scream · ▲ push · ▼ brake · ⤒ hop</p>
+    <p class="mob">◀ ▶ steer · 😱 scream · ▲ push · ▼ brake · ⤒ hop · ★ trick (with ▲/▼ to flip)</p>
     <button class="go" id="startBtn" type="button">Start</button>
   </div>
 </div>
