@@ -52,13 +52,9 @@ export class Sfx {
     tone.connect(this.musicBus);
     const wow = c.createOscillator(); wow.frequency.value = 0.45;
     this.wow = c.createGain(); this.wow.gain.value = 8; wow.connect(this.wow); wow.start();
-    const len = c.sampleRate * 3, b = c.createBuffer(1, len, c.sampleRate), d = b.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() < 0.0005 ? (Math.random() * 2 - 1) * 0.8 : 0) + (Math.random() * 2 - 1) * 0.01;
-    const cr = c.createBufferSource(); cr.buffer = b; cr.loop = true;
-    const crf = c.createBiquadFilter(); crf.type = 'highpass'; crf.frequency.value = 1500;
-    const crg = c.createGain(); crg.gain.value = 0.3;
-    cr.connect(crf); crf.connect(crg); crg.connect(this.musicBus); cr.start();
-    this.music = { out: tone, next: c.currentTime + 0.2, step: 0, phrase: null };
+    // Hats skip the warm filter (through it they turn to hiss) and go straight to the bus, quietly.
+    const air = c.createGain(); air.gain.value = 0.7; air.connect(this.musicBus);
+    this.music = { out: tone, air, next: c.currentTime + 0.2, step: 0, phrase: null };
     this.musicTimer = setInterval(() => this.scheduleMusic(), 80);
   }
   scheduleMusic() {
@@ -103,21 +99,21 @@ export class Sfx {
   }
   bass(t, n, dur) {
     const g = this.ctx.createGain();
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.2, t + 0.015);
-    g.gain.exponentialRampToValueAtTime(0.11, t + 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.16, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.09, t + 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     this.osc('sine', n, t, dur).connect(g); g.connect(this.music.out);
   }
   kick(t) {
     const c = this.ctx, o = c.createOscillator(), g = c.createGain();
     o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.42, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.28, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
     o.connect(g); g.connect(this.music.out); o.start(t); o.stop(t + 0.35);
   }
-  hit(t, type, f, q, peak, dec) {
+  hit(t, type, f, q, peak, dec, out = this.music.out) {
     const c = this.ctx, s = c.createBufferSource(); s.buffer = this.noise;
     const fl = c.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q;
-    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + dec);
-    s.connect(fl); fl.connect(g); g.connect(this.music.out); s.start(t, Math.random() * 1.5); s.stop(t + dec + 0.05);
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(peak, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + dec);
+    s.connect(fl); fl.connect(g); g.connect(out); s.start(t, Math.random() * 1.5); s.stop(t + dec + 0.05);
   }
   snare(t) {
     this.hit(t, 'bandpass', 1700, 0.7, 0.15, 0.16);
@@ -125,7 +121,7 @@ export class Sfx {
     g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.08, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
     o.connect(g); g.connect(this.music.out); o.start(t); o.stop(t + 0.1);
   }
-  hat(t, v) { this.hit(t, 'highpass', 7000, 0.5, 0.045 * v, 0.035 + v * 0.02); }
+  hat(t, v) { this.hit(t, 'bandpass', 8500, 1.2, 0.03 * v, 0.03 + v * 0.015, this.music.air); }
   flute(t, n, dur) {
     const c = this.ctx, g = c.createGain();
     g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.05, t + 0.09);

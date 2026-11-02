@@ -61,6 +61,12 @@ function gloveGeometry() {
   return out;
 }
 
+const _s = new THREE.Vector3();
+function segDist(p, a, b) {
+  _s.subVectors(b, a); const t = Math.max(0, Math.min(1, _s.dot(_e2.subVectors(p, a)) / Math.max(1e-9, _s.lengthSq())));
+  return _e2.copy(a).addScaledVector(_s, t).distanceTo(p);
+}
+const _e2 = new THREE.Vector3();
 function mesh(geo, mat) { const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.frustumCulled = false; return m; }
 function placeBone(m, a, b) {
   _d.subVectors(b, a); const l = _d.length();
@@ -74,13 +80,14 @@ export class Arms {
     const skin = new THREE.MeshStandardMaterial({ map: skinTex(), roughness: 0.62 });
     const leather = new THREE.MeshStandardMaterial({ map: leatherTex(), roughness: 0.7 });
     const cuffLeather = new THREE.MeshStandardMaterial({ map: leatherTex(), roughness: 0.75, color: 0xb8a088, side: THREE.DoubleSide });
-    const upperG = limb([[0.044, 0], [0.05, 0.12], [0.053, 0.38], [0.049, 0.7], [0.045, 0.94], [0.043, 1]]);
-    const foreG = limb([[0.039, 0], [0.042, 0.12], [0.041, 0.35], [0.035, 0.7], [0.03, 0.95], [0.029, 1]]);
+    const upperG = limb([[0, 0], [0.03, 0.015], [0.044, 0.04], [0.05, 0.12], [0.053, 0.38], [0.049, 0.7], [0.045, 0.94], [0.036, 0.98], [0, 1]]);
+    const foreG = limb([[0, 0], [0.028, 0.02], [0.039, 0.06], [0.042, 0.12], [0.041, 0.35], [0.035, 0.7], [0.03, 0.95], [0.022, 0.99], [0, 1]]);
     const elbowG = new THREE.SphereGeometry(0.044, 14, 10);
     const rollG = new THREE.TorusGeometry(0.046, 0.017, 10, 20); rollG.rotateX(Math.PI / 2);
     const roll2G = new THREE.TorusGeometry(0.044, 0.013, 8, 20); roll2G.rotateX(Math.PI / 2);
     const cuffG = new THREE.CylinderGeometry(0.036, 0.046, 0.06, 16, 1, true); cuffG.translate(0, 0.03, 0);
     const gloveG = gloveGeometry();
+    this.shown = true;
     this.sides = [0, 1].map(() => {
       const s = {
         upper: mesh(upperG, sleeve), elbow: mesh(elbowG, sleeve), roll: mesh(rollG, rolled), roll2: mesh(roll2G, rolled),
@@ -92,7 +99,7 @@ export class Arms {
   }
 
   // shoulders and hands are world points; pole hints which way each elbow bends.
-  update(shoulders, hands, poles, axeQ) {
+  update(shoulders, hands, poles, axeQ, eye = null) {
     _hy.set(0, 1, 0).applyQuaternion(axeQ);
     this.sides.forEach((s, i) => {
       const S = shoulders[i], H = hands[i];
@@ -118,9 +125,15 @@ export class Arms {
       s.roll.position.copy(s.elbowPos).addScaledVector(_m, 0.035); s.roll.quaternion.setFromUnitVectors(Y, _m);
       s.roll2.position.copy(s.elbowPos).addScaledVector(_m, 0.062); s.roll2.quaternion.setFromUnitVectors(Y, _m);
       s.cuff.position.copy(wrist).addScaledVector(_m, -0.035); s.cuff.quaternion.setFromUnitVectors(Y, _m);
+      // Raising the axe brings the elbows past your face: drop whatever would fill the screen.
+      if (eye) {
+        const nearUpper = segDist(eye, S, s.elbowPos) < 0.25 && s.elbowPos.y > eye.y - 0.32, nearFore = segDist(eye, s.elbowPos, wrist) < 0.14;
+        s.upper.visible = s.elbow.visible = s.roll.visible = s.roll2.visible = this.shown && !nearUpper && !nearFore;
+        s.fore.visible = s.cuff.visible = this.shown && !nearFore;
+      }
     });
   }
 
-  setVisible(v) { for (const s of this.sides) for (const k of Arms.PARTS) s[k].visible = v; }
+  setVisible(v) { this.shown = v; for (const s of this.sides) for (const k of Arms.PARTS) s[k].visible = v; }
 }
 Arms.PARTS = ['upper', 'elbow', 'roll', 'roll2', 'fore', 'cuff', 'hand'];

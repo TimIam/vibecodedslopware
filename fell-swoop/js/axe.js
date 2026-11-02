@@ -8,7 +8,7 @@ export const HEAD_Y = 0.79;
 export const GRIP_LOCAL = new THREE.Vector3(0, 0.1, 0);      // bottom hand: where the arms pull
 export const TOP_HAND_LOCAL = new THREE.Vector3(0, 0.31, 0);
 export const REACH = 0.64;                                   // chest to bottom hand, arms straight
-const K_PEN = 0.00011;    // metres of bite per joule of square, edge-first impact
+const K_PEN = 0.00013;    // metres of bite per joule of square, edge-first impact
 const K_HOLD = 2600;      // newtons of grip the wood has per metre of bite
 const EDGE = [[0.104, 0.708], [0.113, 0.746], [0.1175, 0.79], [0.113, 0.834], [0.104, 0.872]];
 const SAMPLES = [
@@ -103,7 +103,7 @@ export class Axe {
     this.x = new THREE.Vector3(); this.v = new THREE.Vector3(); this.q = new THREE.Quaternion(); this.w = new THREE.Vector3();
     this.xPrev = new THREE.Vector3(); this.qPrev = new THREE.Quaternion();
     this.Iw = new THREE.Matrix3(); this.IwInv = new THREE.Matrix3(); this.R = new THREE.Matrix3();
-    this.samples = SAMPLES.map(s => ({ kind: s.kind, rel: s.p.clone().sub(this.comL) }));
+    this.samples = SAMPLES.map(s => ({ kind: s.kind, rel: s.p.clone().sub(this.comL), y: s.p.y }));
     this.gripRel = GRIP_LOCAL.clone().sub(this.comL);
     this.topRel = TOP_HAND_LOCAL.clone().sub(this.comL);
     this.headRel = new THREE.Vector3(0.06, HEAD_Y, 0).sub(this.comL);
@@ -275,9 +275,7 @@ export class Axe {
     const align = _vh.dot(b), into = deep ? 1 : -b.dot(n), flat = Math.abs(_vh.dot(zf)), speedIn = Math.max(0, vp.dot(b));
     const E = 0.5 * (this.effMass(p, b) + 0.5 * tgt.strength) * speedIn * speedIn;
     const q = smooth(0.42, 0.88, align) * smooth(0.0, 0.4, into);
-    // The same swing goes less deep across a wider trunk.
-    const wide = Math.max(0.5, Math.min(1.6, Math.pow(0.36 / Math.max(0.05, tree.chordAt(p, ey)), 0.7)));
-    const depth = Math.min(0.06, K_PEN * E * q * wide);
+    const depth = Math.min(0.06, K_PEN * E * q);
     const info = { type: 'glance', energy: E, speed, speedIn, depth: 0, quality: q, align, tree, point: p.clone(), normal: n.clone() };
     if (q < 0.22) { info.type = flat > 0.55 ? 'flat' : 'glance'; this.emit(info); return false; }
     // Where exactly the edge met the wood: bisect between last substep and this one.
@@ -291,10 +289,10 @@ export class Axe {
     _ui.copy(b).add(_vh).normalize(); _ui.addScaledVector(ey, -_ui.dot(ey)).normalize(); _wi.crossVectors(ey, _ui);
     info.surf = surf; info.u = _ui.clone();
     if (depth < 0.005) {
-      if (depth > 0.002) tree.carve(surf, ey, _ui, _wi, depth);
+      if (depth > 0.002) tree.carve(surf, ey, _ui, _wi, depth, s.y);
       info.type = 'tap'; info.depth = depth; this.emit(info); return false;
     }
-    const removed = tree.carve(surf, ey, _ui, _wi, depth);
+    const removed = tree.carve(surf, ey, _ui, _wi, depth, s.y);
     info.depth = depth; info.removed = removed;
     if (!removed) { info.type = 'nowood'; this.emit(info); return false; }
     info.type = 'bite';

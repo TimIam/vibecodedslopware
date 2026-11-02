@@ -11,7 +11,6 @@ const COLS = 60;
 const K_STRENGTH = 1.35;  // how much bending the holding wood takes before it lets go
 const G_EFF = 11;         // a little more than real gravity: trees fall in a watchable 3-4 s
 export const sliceH = k => CUT_LO + (k + 0.5) * SLICE_H;
-const clampH = h => Math.max(CUT_LO, Math.min(CUT_HI, h));
 
 export function barkMaterial(map, bump) {
   const m = new THREE.MeshStandardMaterial({ map, bumpMap: bump, bumpScale: 1.4, roughness: 0.93, color: 0xffffff });
@@ -242,24 +241,19 @@ export class Tree {
   }
 
   // Cutting -------------------------------------------------------------------
-  // Width of wood the edge has to get across here: the chord of the trunk along the edge line.
-  chordAt(P, e) {
-    const lx = P.x - this.x, lz = P.z - this.z, ex = e.x, ez = e.z, el = Math.hypot(ex, ez);
-    const r = this.radiusAt(clampH(P.y));
-    if (el < 0.2) return 2 * r;
-    const p = Math.abs(lx * ez - lz * ex) / el;
-    return 2 * Math.sqrt(Math.max(0, r * r - p * p)) / el;
-  }
-
-  // P: where the edge met the wood (world). e: along the edge, u: into the wood, w: across the
-  // blade (orthonormal, world). Each bite deepens a V notch: everything across the trunk that is
-  // short of the new floor (depth past P along u) and inside the V's opening comes out as chips.
+  // P: where the edge met the wood (world). e: along the edge toward the toe, u: into the wood,
+  // w: across the blade (orthonormal, world). ys: how far up the handle the point of the edge that
+  // met the wood is (axe frame), which places the blade's heel and toe along e.
+  // A bite removes what the axe actually goes through: the blade, heel to toe, to `depth` past P
+  // with a slightly rounded floor, opening in a V toward the mouth of the cut where the chips come
+  // out; and behind the heel only the slot the handle needs (it rides 12 cm behind the edge).
   // Returns the number of cells removed.
-  carve(P, e, u, w, depth) {
+  carve(P, e, u, w, depth, ys = 0.79) {
     if (this.state !== 'standing') return 0;
-    const aw = 0.016 + depth * 0.25, open = 0.55, back = 0.42;
+    const aw = 0.014 + depth * 0.22, open = 0.45, back = 0.42;
+    const heel = 0.7 - ys - 0.012, toe = 0.886 - ys + 0.012, mid = 0.79 - ys, handleFloor = depth - 0.09;
     const cx = P.x - this.x, cy = P.y, cz = P.z - this.z;
-    const reachY = Math.abs(w.y) * (aw + back * open) + Math.abs(u.y) * back + 0.02;
+    const reachY = Math.abs(w.y) * (aw + back * open) + Math.abs(u.y) * back + Math.abs(e.y) * 0.5 + 0.02;
     const k0 = Math.max(0, Math.floor((cy - reachY - CUT_LO) / SLICE_H)), k1 = Math.min(NS - 1, Math.floor((cy + reachY - CUT_LO) / SLICE_H));
     if (k1 < k0 || cy < CUT_LO - 0.01 || cy > CUT_HI + 0.01) return 0;
     const NN = GRID * GRID;
@@ -274,10 +268,13 @@ export class Tree {
           const Z = this.cellX(j), z = Z - cz;
           const du = x * u.x + y * u.y + z * u.z;
           if (du > depth || du < -back) continue;
-          const dw = Math.abs(x * w.x + y * w.y + z * w.z), de = x * e.x + y * e.y + z * e.z;
-          // A slightly rounded floor, and the V opens toward the mouth of the notch.
-          if (du > depth - de * de * 0.6) continue;
-          if (dw > aw + Math.max(0, -du) * open) continue;
+          const de = x * e.x + y * e.y + z * e.z;
+          if (de > toe) continue;
+          const dw = Math.abs(x * w.x + y * w.y + z * w.z);
+          if (de >= heel) {
+            const c = de - mid;
+            if (du > depth - c * c * 0.9 || dw > aw + Math.max(0, -du) * open) continue;
+          } else if (du > handleFloor || dw > 0.024 + Math.max(0, -du) * 0.12) continue;
           this.grid[idx] = 0; here++;
           this.n[k]--; this.sx[k] -= X; this.sz[k] -= Z;
         }

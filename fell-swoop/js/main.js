@@ -120,7 +120,7 @@ function newClearing(seed) {
   G.target = first; player.yaw = yawTo(first); basis(player.yaw);
   G.lookPt.set(first.x, 0.95, first.z);
   cursor.x = cursor.sx = cursor.px = 0.45; cursor.y = cursor.sy = cursor.py = 0.15; cursor.bit.set(-1, 0);
-  sw.init = false; sw.dphi = sw.dth = 0;
+  sw.init = false; sw.dphi = sw.dth = 0; sw.phiU = null;
   chest.copy(player.pos).addScaledVector(B.U, 1.32).addScaledVector(B.F, 0.06);
   computeTarget(1 / 600);
   axe.place(tgt.com, pz.q);
@@ -151,17 +151,28 @@ addEventListener('mouseup', e => { if (e.button === 0) input.lmb = false; });
 addEventListener('mousemove', e => {
   if (G.mode !== 'play' || player.dead) return;
   if (input.locked) {
-    cursor.x = clamp(cursor.x + e.movementX * SENS * input.sens, -1.1, 1.1);
-    cursor.y = clamp(cursor.y - e.movementY * SENS * input.sens, -1.1, 1.1);
+    limitSwing(cursor.x + e.movementX * SENS * input.sens, cursor.y - e.movementY * SENS * input.sens, 1, cursor);
   } else {
     // No pointer lock (the browser refused it, or Esc was pressed): the swing follows where the
     // pointer is on the game view, so the edge of the window is the edge of the swing.
     const r = canvas.getBoundingClientRect();
     const nx = ((e.clientX - r.left) / r.width) * 2 - 1, ny = ((e.clientY - r.top) / r.height) * 2 - 1;
-    const k = 1.25 * Math.sqrt(input.sens);
-    cursor.x = clamp(nx * k, -1.1, 1.1); cursor.y = clamp(-ny * k + 0.1, -1.1, 1.1);
+    const k = 1.6 * Math.sqrt(input.sens);
+    limitSwing(nx * k, -ny * k + 0.1, 1, cursor);
   }
 });
+
+// How far a person can take an axe, in swing-space units (x round the body, y up and down):
+// well back over either shoulder or high overhead, but not fully both at once, and never round
+// behind the back. A rounded box (superellipse); slack > 1 is the give in the joints.
+const LIMIT = { xR: 1.5, xL: 1.33, yU: 1.45, yD: 1.0, p: 3.2 };
+function limitSwing(x, y, slack, out) {
+  const nx = x / ((x > 0 ? LIMIT.xR : LIMIT.xL) * slack), ny = y / ((y > 0 ? LIMIT.yU : LIMIT.yD) * slack);
+  const n = Math.pow(Math.abs(nx) ** LIMIT.p + Math.abs(ny) ** LIMIT.p, 1 / LIMIT.p);
+  if (n > 1) { x /= n; y /= n; }
+  out.x = x; out.y = y;
+  return n > 1;
+}
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 function nudgeSens(k) { setSens(clamp(input.sens * k, 0.35, 3)); popup(`mouse ${Math.round(input.sens * 100)}%`, 'meh'); }
@@ -248,7 +259,8 @@ function computeTarget(h) {
   const cx = cursor.sx, cy = cursor.sy;
   const phiT = cx * POSE.PHI, thT = POSE.TH0 + (cy > 0 ? cy * POSE.TH_UP : cy * POSE.TH_DN);
   sphere(phiT, thT, pz.d, pz.ephi, pz.eth);
-  pz.grip.copy(chest).addScaledVector(pz.d, POSE.RG);
+  // Arms straighten as the axe goes up, so the hands pass over your head, not through your face.
+  pz.grip.copy(chest).addScaledVector(pz.d, POSE.RG + 0.19 * smooth(0.25, 1.15, thT));
   pz.head.copy(pz.grip).addScaledVector(pz.d, HEAD_Y - GRIP_LOCAL.y);
   orient(pz.d, pz.ephi, pz.eth, thT, pz.q);
   tgt.com.copy(axe.gripRel).applyQuaternion(pz.q).multiplyScalar(-1).add(pz.grip);
@@ -256,17 +268,37 @@ function computeTarget(h) {
   sw.phi = phiT; sw.th = thT; sw.init = true;
   // Where the axe actually is on its sphere, and how fast it is going round.
   _rr.subVectors(axe.x, chest); const r = Math.max(0.2, _rr.length()); _rr.divideScalar(r);
-  const phiA = Math.atan2(_rr.dot(B.R), _rr.dot(B.F)), thA = Math.asin(clamp(_rr.dot(B.U), -1, 1));
+  // Track the angle round the body continuously: wrapped to ±180°, a swing that carried past your
+  // side would look shortest the other way, round your back.
+  const raw = Math.atan2(_rr.dot(B.R), _rr.dot(B.F));
+  sw.phiU = sw.phiU == null ? raw : sw.phiU + wrapAng(raw - sw.phiU);
+  const phiA = sw.phiU, thA = Math.asin(clamp(_rr.dot(B.U), -1, 1));
   sw.phiA = phiA; sw.thA = thA;
   sphere(phiA, thA, _da, _epA, _etA);
   const ctA = Math.max(0.15, Math.cos(thA));
   updateBitAim(h, phiA, thA, axe.v.dot(_epA) / (r * ctA), axe.v.dot(_etA) / r);
   const rt = tgt.com.distanceTo(chest);
-  tgt.err.copy(_epA).multiplyScalar(wrapAng(phiT - phiA) * r * ctA).addScaledVector(_etA, (thT - thA) * r).addScaledVector(_da, rt - r);
+  tgt.err.copy(_epA).multiplyScalar((phiT - phiA) * r * ctA).addScaledVector(_etA, (thT - thA) * r).addScaledVector(_da, rt - r);
   tgt.vff.copy(_epA).multiplyScalar(sw.dphi * FF * r * ctA).addScaledVector(_etA, sw.dth * FF * r);
   // Held out along the radius, bit aimed; it turns with the swing.
   orient(_da, _epA, _etA, thA, tgt.q);
   tgt.angVel.crossVectors(_da, axe.v).divideScalar(r);
+}
+
+// The axe itself can't be carried past what shoulders and wrists allow, however hard it is swung:
+// past the limit it is put back on it and stops going further.
+const _lim = { x: 0, y: 0 }, _jl = V();
+function jointLimit() {
+  _rr.subVectors(axe.x, chest); const r = _rr.length(); if (r < 0.2) return; _rr.divideScalar(r);
+  const phi = sw.phiU + wrapAng(Math.atan2(_rr.dot(B.R), _rr.dot(B.F)) - sw.phiU), th = Math.asin(clamp(_rr.dot(B.U), -1, 1));
+  const ax = phi / POSE.PHI, ay = (th - POSE.TH0) / thScale(th);
+  if (!limitSwing(ax, ay, 1.08, _lim)) return;
+  const thc = POSE.TH0 + _lim.y * (_lim.y > 0 ? POSE.TH_UP : POSE.TH_DN);
+  sphere(_lim.x * POSE.PHI, thc, _da, _epA, _etA);
+  _jl.copy(chest).addScaledVector(_da, r);
+  _d.subVectors(axe.x, _jl); const L = _d.length();
+  axe.x.copy(_jl); sw.phiU = _lim.x * POSE.PHI;
+  if (L > 1e-6) { _d.divideScalar(L); const vo = axe.v.dot(_d); if (vo > 0) axe.v.addScaledVector(_d, -vo * 1.15); }
 }
 
 function updateDrive() {
@@ -329,6 +361,7 @@ function physicsStep(h) {
   if (pickupK < 1) pickupK = Math.min(1, pickupK + h * 1.6);
   computeTarget(h);
   axe.step(h, tgt, env);
+  if (axe.mode === 'held') jointLimit();
   if (axe.mode !== 'free') {
     acc.F.sub(axe.F);
     _d.subVectors(axe.x, chest); _v.crossVectors(_d, axe.F).add(axe.T);
@@ -584,17 +617,22 @@ function poseBody(dt) {
   fig.tick(dt);
 }
 
+const _tR = V(), _tF = V();
 function updateArms() {
   basis(player.yaw);
-  _sL.copy(player.pos).addScaledVector(B.U, 1.4).addScaledVector(B.R, -0.19).addScaledVector(B.F, -0.07).add(player.sway);
-  _sR.copy(player.pos).addScaledVector(B.U, 1.4).addScaledVector(B.R, 0.19).addScaledVector(B.F, -0.07).add(player.sway);
+  // The shoulders turn with the swing: back on the side you wind up to, round on the follow-through.
+  const ta = G.shoulderTurn = (G.shoulderTurn || 0) + (clamp((sw.phiA || 0) * 0.3, -0.62, 0.7) - (G.shoulderTurn || 0)) * 0.25;
+  _tR.copy(B.R).multiplyScalar(Math.cos(ta)).addScaledVector(B.F, -Math.sin(ta));
+  _tF.copy(B.F).multiplyScalar(Math.cos(ta)).addScaledVector(B.R, Math.sin(ta));
+  _sL.copy(player.pos).addScaledVector(B.U, 1.4).addScaledVector(_tR, -0.19).addScaledVector(_tF, -0.07).add(player.sway);
+  _sR.copy(player.pos).addScaledVector(B.U, 1.4).addScaledVector(_tR, 0.19).addScaledVector(_tF, -0.07).add(player.sway);
   if (axe.mode === 'free') {
     _hb.copy(chest).addScaledVector(B.F, 0.32).addScaledVector(B.U, -0.42).addScaledVector(B.R, -0.16);
     _ht.copy(chest).addScaledVector(B.F, 0.32).addScaledVector(B.U, -0.42).addScaledVector(B.R, 0.16);
   } else { axe.renderPoint(axe.gripRel, _hb); axe.renderPoint(axe.topRel, _ht); }
-  _pL.copy(B.R).multiplyScalar(-0.7).addScaledVector(B.U, -0.7);
-  _pR.copy(B.R).multiplyScalar(0.7).addScaledVector(B.U, -0.7);
-  arms.update([_sL, _sR], [_hb, _ht], [_pL, _pR], axe.renderQ);
+  _pL.copy(_tR).multiplyScalar(-0.7).addScaledVector(B.U, -0.7).addScaledVector(_tF, -0.2);
+  _pR.copy(_tR).multiplyScalar(0.7).addScaledVector(B.U, -0.7).addScaledVector(_tF, -0.2);
+  arms.update([_sL, _sR], [_hb, _ht], [_pL, _pR], axe.renderQ, settings.view === 'third' ? null : camera.position);
 }
 
 const cutCanvas = $('cut'), cutCtx = cutCanvas.getContext('2d');
@@ -682,8 +720,8 @@ function update(dt) {
   if (G.timing && !player.dead && G.mode === 'play' && G.felled < G.trees.length) G.t += dt;
   fx.update(dt);
   axe.sync();
-  updateArms();
   poseBody(dt);
+  updateArms();
   updateCamera(dt);
   world.follow(player.pos);
   sfx.tick();
