@@ -79,7 +79,10 @@ export class World {
     this.rocks = [];
     this.standing = []; // collision trees: {x,z,r,h,crownR,crownBase,sp,model?}
     this.hazards = [];
+    this.keepOut = []; // circles nothing may grow or lie in (buildings)
   }
+  // is a thing of radius rad at (x, z) clear of every building?
+  clear(x, z, rad = 0) { return this.keepOut.every((k) => Math.hypot(k.x - x, k.z - z) > k.r + rad); }
 
   buildSky(renderer) {
     const loc = this.loc, s = loc.sky;
@@ -216,7 +219,8 @@ export class World {
     const bg = [];
     for (let i = 0; i < 520; i++) {
       const a = r() * Math.PI * 2, d = lerp(50, 135, Math.sqrt(r()));
-      bg.push(this.makeTreeSpec(Math.cos(a) * d, Math.sin(a) * d, false));
+      const t = this.makeTreeSpec(Math.cos(a) * d, Math.sin(a) * d, false);
+      if (this.clear(t.x, t.z, t.crownR * 0.7 + 0.8)) bg.push(t);
     }
     const all = specs.concat(bg);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3();
@@ -285,7 +289,7 @@ export class World {
     for (let i = 0; i < 70; i++) {
       const a = r() * Math.PI * 2, d = lerp(3, 70, Math.sqrt(r()));
       const x = Math.cos(a) * d, z = Math.sin(a) * d;
-      if (this.standing.some((s) => Math.hypot(s.x - x, s.z - z) < 1.5)) continue;
+      if (this.standing.some((s) => Math.hypot(s.x - x, s.z - z) < 1.5) || !this.clear(x, z, 1.2)) continue;
       const part = rockParts[i % rockParts.length];
       const mesh = new THREE.Mesh(part.geometry, part.material);
       const s = lerp(0.3, 1.4, Math.pow(r(), 2));
@@ -301,6 +305,7 @@ export class World {
     for (let i = 0; i < 10; i++) {
       const a = r() * Math.PI * 2, d = lerp(8, 60, r()), len = lerp(3, 9, r()), rad = lerp(0.12, 0.3, r());
       const x = Math.cos(a) * d, z = Math.sin(a) * d;
+      if (!this.clear(x, z, len / 2)) continue;
       const geo = new THREE.CylinderGeometry(rad * 0.8, rad, len, 10); geo.rotateZ(Math.PI / 2);
       const mesh = new THREE.Mesh(geo, logMat);
       mesh.position.set(x, this.height(x, z) + rad * 0.6, z); mesh.rotation.y = r() * 6.28;
@@ -322,6 +327,7 @@ export class World {
     for (let i = 0; i < count; i++) {
       const a = r() * Math.PI * 2, d = lerp(1, 80, Math.sqrt(r()));
       const x = Math.cos(a) * d, z = Math.sin(a) * d, k = lerp(0.5, 1.4, r());
+      if (!this.clear(x, z, 0.4)) { im.setMatrixAt(i, m.makeScale(0, 0, 0)); continue; } // no grass through the floor
       m.compose(p.set(x, this.height(x, z) - 0.03, z), q.setFromAxisAngle(up, r() * 6.28), s.set(k, k * lerp(0.6, 1.3, r()), k));
       im.setMatrixAt(i, m);
       const gl = lerp(0.7, 1.15, r()), gw = (r() - 0.5) * 0.25;
@@ -335,11 +341,16 @@ export class World {
     const r = this.r;
     for (const kind of list) {
       if (kind === 'cabin') {
-        // place near a job tree, off to one side
+        // near a job tree, off to one side, on a spot no marked tree (trunk or crown) stands on
         const t = jobs[0];
-        const a = (r() - 0.5) * 1.2 + Math.PI * 0.5;
-        const d = t.h * 0.85;
-        const cx = t.x + Math.cos(a) * d, cz = t.z + Math.sin(a) * d;
+        let a = 0, cx = 0, cz = 0;
+        for (let k = 0; k < 40; k++) {
+          a = (r() - 0.5) * (1.2 + k * 0.12) + Math.PI * 0.5;
+          const d = t.h * (0.85 + (k % 5) * 0.08);
+          cx = t.x + Math.cos(a) * d; cz = t.z + Math.sin(a) * d;
+          if (jobs.every((s) => Math.hypot(s.x - cx, s.z - cz) > 4.2 + s.crownR * 0.7 + 0.8)) break;
+        }
+        this.keepOut.push({ x: cx, z: cz, r: 4.2 }); // the cabin's footprint (6 × 5 m) plus its eaves
         const g = new THREE.Group();
         const wall = new THREE.MeshStandardMaterial({ color: 0x6b4a32, roughness: 0.9 });
         const roof = new THREE.MeshStandardMaterial({ color: 0x3a3e40, roughness: 0.7, metalness: 0.3 });
@@ -352,7 +363,7 @@ export class World {
         g.position.set(cx, this.height(cx, cz), cz); g.rotation.y = -a;
         this.group.add(g);
         this.hazards.push({ kind, name: 'the cabin', x: cx, z: cz, r: 3.6, h: 5, fine: 2500 });
-        this.standing = this.standing.filter((s) => s.job || Math.hypot(s.x - cx, s.z - cz) > 5);
+        this.standing = this.standing.filter((s) => s.job || this.clear(s.x, s.z, s.crownR * 0.7 + 0.8));
       }
       if (kind === 'fence') {
         const t = jobs[Math.min(1, jobs.length - 1)];

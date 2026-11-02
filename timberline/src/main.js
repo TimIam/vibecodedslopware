@@ -664,6 +664,9 @@ function driveWedge() {
 
 // ---------------- cutting ----------------
 function speedFactor() { return 1 + G.tree.R * 2 * 1.5; }
+// Saw advance, m/s. A saw clears roughly a fixed area of wood per second, so on thin stems (and at the edges of any stem)
+// the bar would shoot through; capping it so no full pass takes under ~6 s keeps small trees controllable.
+function sawRate(chord) { return Math.min(G.felling.cutRate(chord) * speedFactor(), G.tree.R * 2 / 6); }
 
 function handleSaw(dt) {
   const f = G.felling, c = f.cut, tr = G.tree, Rc = tr.Rc, kind = G.activeCut;
@@ -675,7 +678,7 @@ function handleSaw(dt) {
     if (active) {
       const x = Rc - n[key], chord = f.chordAtX(x);
       if (chord > f.maxCutChord()) blocked('Your bar can\'t reach across here.');
-      else n[key] = Math.min(Rc * 1.9, n[key] + f.cutRate(chord) * speedFactor() * dt);
+      else n[key] = Math.min(Rc * 1.9, n[key] + sawRate(chord) * dt);
       G.cutStarted = true; G.csgDirty = true;
       if (!n.removed && n.dTop >= n.target - 0.006 && n.dBot >= n.target - 0.006) dropFace();
     }
@@ -685,7 +688,7 @@ function handleSaw(dt) {
       const x = -Rc + c.back.progress, chord = f.chordAtX(x);
       if (f.pinched) blocked('Bar pinched — the kerf closed. Drive wedges (E).');
       else if (chord > f.maxCutChord()) blocked('Your bar can\'t reach across here.');
-      else c.back.progress = Math.min(Rc * 2.05, c.back.progress + f.cutRate(chord) * speedFactor() * dt);
+      else c.back.progress = Math.min(Rc * 2.05, c.back.progress + sawRate(chord) * dt);
       G.cutStarted = true; G.csgDirty = true;
     }
     frontX = -Rc + c.back.progress;
@@ -700,11 +703,11 @@ function handleSaw(dt) {
       if (kind === 'bore') {
         const len = b.hingeBack - (-Rc + b.strap);
         const avgChord = f.chordAtX(b.hingeBack - len / 2);
-        b.progress = Math.min(1, b.progress + (f.cutRate(avgChord) * speedFactor() * dt) / Math.max(0.02, len));
+        b.progress = Math.min(1, b.progress + (sawRate(avgChord) * dt) / Math.max(0.02, len));
         if (b.progress >= 1 && G.activeCut === 'bore') { G.activeCut = 'strap'; renderPanel(); toast('Hinge set. Now release the strap from behind.'); }
       } else {
         if (f.pinched) blocked('Bar pinched — drive wedges (E).');
-        else b.strapCut = Math.min(b.strap + 0.01, b.strapCut + f.cutRate(f.chordAtX(-Rc + b.strapCut)) * speedFactor() * dt * 0.8);
+        else b.strapCut = Math.min(b.strap + 0.01, b.strapCut + sawRate(f.chordAtX(-Rc + b.strapCut)) * dt * 0.8);
       }
     }
     if (kind === 'bore') frontX = b.hingeBack - (b.hingeBack - (-Rc + b.strap)) * b.progress;
@@ -1040,8 +1043,9 @@ const planC = $('planC'), pctx = planC.getContext('2d');
 function drawPlan() {
   const f = G.felling, tr = G.tree; if (!f) return;
   const c = f.cut, n = c.notch, Rc = tr.Rc, D = tr.R * 2;
-  const W = planC.width, H = planC.height;
-  pctx.clearRect(0, 0, W, H);
+  // drawn in a 600 × 336 layout, scaled to whatever resolution the canvas has
+  const W = 600, H = 336, k = planC.width / W;
+  pctx.setTransform(1, 0, 0, 1, 0, 0); pctx.clearRect(0, 0, planC.width, planC.height); pctx.setTransform(k, 0, 0, k, 0, 0);
   // ---- top view
   const cx = 160, cy = 170, s = 128 / Rc;
   const P = (x, z) => [cx + z * s, cy - x * s];
