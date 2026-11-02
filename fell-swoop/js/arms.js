@@ -26,7 +26,7 @@ const leatherTex = () => canvasTex(128, 128, (g, w, h) => {
 });
 
 // A limb segment along +Y from 0 to 1 with a muscle-ish radius profile (scaled to length at runtime).
-function limb(profile, seg = 16) {
+function limb(profile, seg = 20) {
   const g = new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), seg);
   return g;
 }
@@ -81,7 +81,7 @@ export class Arms {
     const leather = new THREE.MeshStandardMaterial({ map: leatherTex(), roughness: 0.7 });
     const cuffLeather = new THREE.MeshStandardMaterial({ map: leatherTex(), roughness: 0.75, color: 0xb8a088, side: THREE.DoubleSide });
     const upperG = limb([[0, 0], [0.03, 0.015], [0.044, 0.04], [0.05, 0.12], [0.053, 0.38], [0.049, 0.7], [0.045, 0.94], [0.036, 0.98], [0, 1]]);
-    const foreG = limb([[0, 0], [0.028, 0.02], [0.039, 0.06], [0.042, 0.12], [0.041, 0.35], [0.035, 0.7], [0.03, 0.95], [0.022, 0.99], [0, 1]]);
+    const foreG = limb([[0, 0], [0.026, 0.02], [0.035, 0.06], [0.037, 0.12], [0.036, 0.35], [0.031, 0.7], [0.027, 0.95], [0.02, 0.99], [0, 1]], 24);
     const elbowG = new THREE.SphereGeometry(0.044, 14, 10);
     const rollG = new THREE.TorusGeometry(0.046, 0.017, 10, 20); rollG.rotateX(Math.PI / 2);
     const roll2G = new THREE.TorusGeometry(0.044, 0.013, 8, 20); roll2G.rotateX(Math.PI / 2);
