@@ -32,6 +32,7 @@ const mats = {
   bark: barkMaterial(bark.map, bark.bump),
   cap: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }),
   crown: new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.92 }),
+  fronds: world.frondMat,
 };
 const axe = new Axe(scene);
 const plaid = plaidTexture();
@@ -74,9 +75,10 @@ const chest = V();
 const keys = {};
 const input = { lmb: false, locked: false, soft: false, sens: settings.sens };
 const SENS = 1 / 550;
-const cursor = { x: 0.45, y: 0.15, sx: 0.45, sy: 0.15, px: 0.45, py: 0.15, vx: 0, vy: 0, bit: new THREE.Vector2(-1, 0) };
-const AIM = { x: 0, y: -0.05 };
-const POSE = { PHI: 1.65, TH0: -0.28, TH_UP: 1.15, TH_DN: 0.72, RG: 0.4 };
+const cursor = { x: 0.45, y: 0.12, sx: 0.45, sy: 0.12, px: 0.45, py: 0.12, vx: 0, vy: 0, bit: new THREE.Vector2(-1, 0) };
+const AIM = { x: 0, y: -0.04 };
+// Up and down get about as much arc per inch of mouse as side to side does.
+const POSE = { PHI: 1.65, TH0: -0.28, TH_UP: 1.5, TH_DN: 1.0, RG: 0.4 };
 const FF = 0.55;   // how much of the target's own motion the arms anticipate
 const tgt = { com: V(), err: V(), vff: V(), q: new THREE.Quaternion(), angVel: V(), chest, wn: 15, zeta: 0.7, aMax: 160, alphaMax: 170, rollMax: 80, grav: 1, strength: 1 };
 const pz = { d: V(), ephi: V(), eth: V(), grip: V(), head: V(), X: V(), Z: V(), q: new THREE.Quaternion() };
@@ -119,7 +121,7 @@ function newClearing(seed) {
   player.stamina = 1; player.stumble = 0; player.dead = false; player.deadT = 0;
   G.target = first; player.yaw = yawTo(first); basis(player.yaw);
   G.lookPt.set(first.x, 0.95, first.z);
-  cursor.x = cursor.sx = cursor.px = 0.45; cursor.y = cursor.sy = cursor.py = 0.15; cursor.bit.set(-1, 0);
+  cursor.x = cursor.sx = cursor.px = 0.45; cursor.y = cursor.sy = cursor.py = 0.12; cursor.bit.set(-1, 0);
   sw.init = false; sw.dphi = sw.dth = 0; sw.phiU = null;
   chest.copy(player.pos).addScaledVector(B.U, 1.32).addScaledVector(B.F, 0.06);
   computeTarget(1 / 600);
@@ -133,7 +135,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'KeyR' && G.mode !== 'title') { newClearing(G.seed + 1); if (G.mode === 'over') { setMode('play'); lock(); } }
   if (e.code === 'KeyM') $('mute').textContent = sfx.toggleMute() ? 'sound off' : '';
-  if (e.code === 'KeyV' && G.mode === 'play') { setView(settings.view === 'third' ? 'first' : 'third'); popup(settings.view === 'third' ? 'third person' : 'first person', 'meh'); }
+  if ((e.code === 'KeyT' || e.code === 'KeyV') && G.mode === 'play') { setView(VIEWS[(VIEWS.indexOf(settings.view) + 1) % VIEWS.length]); popup(VIEW_NAMES[settings.view], 'meh'); }
   if (e.code === 'BracketLeft') nudgeSens(1 / 1.15);
   if (e.code === 'BracketRight') nudgeSens(1.15);
   if (e.code === 'Escape' && input.soft && G.mode === 'play') setMode('paused');
@@ -165,7 +167,7 @@ addEventListener('mousemove', e => {
 // How far a person can take an axe, in swing-space units (x round the body, y up and down):
 // well back over either shoulder or high overhead, but not fully both at once, and never round
 // behind the back. A rounded box (superellipse); slack > 1 is the give in the joints.
-const LIMIT = { xR: 1.5, xL: 1.33, yU: 1.45, yD: 1.0, p: 3.2 };
+const LIMIT = { xR: 1.5, xL: 1.33, yU: 1.11, yD: 0.72, p: 3.2 };
 function limitSwing(x, y, slack, out) {
   const nx = x / ((x > 0 ? LIMIT.xR : LIMIT.xL) * slack), ny = y / ((y > 0 ? LIMIT.yU : LIMIT.yD) * slack);
   const n = Math.pow(Math.abs(nx) ** LIMIT.p + Math.abs(ny) ** LIMIT.p, 1 / LIMIT.p);
@@ -177,6 +179,10 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 function nudgeSens(k) { setSens(clamp(input.sens * k, 0.35, 3)); popup(`mouse ${Math.round(input.sens * 100)}%`, 'meh'); }
 function setSens(v) { input.sens = settings.sens = v; saveSettings(); syncSettingsUi(); }
+// T cycles first person, over the right shoulder, over the left shoulder, and back.
+const VIEWS = ['first', 'third', 'left'], VIEW_NAMES = { first: 'first person', third: 'over the right shoulder', left: 'over the left shoulder' };
+if (!VIEWS.includes(settings.view)) settings.view = 'first';
+const thirdPerson = () => settings.view !== 'first';
 function setView(v) { settings.view = v; saveSettings(); syncSettingsUi(); }
 
 // Settings panel: lives in the title card and moves into the pause card.
@@ -246,9 +252,14 @@ function updateBitAim(h, phiA, thA, dphi, dth) {
   const vx = dphi / POSE.PHI, vy = dth / thScale(thA);
   const tx = AIM.x - ax, ty = AIM.y - ay, dist = Math.hypot(tx, ty), sp = Math.hypot(vx, vy);
   const striking = sp > 1.5 && (vx * tx + vy * ty) > 0.4 * sp * dist;
-  if (dist > 0.3 && !striking) {
-    const a = Math.min(1, h * 7);
-    cursor.bit.x += (tx / dist - cursor.bit.x) * a; cursor.bit.y += (ty / dist - cursor.bit.y) * a;
+  let ax2 = 0, ay2 = 0, a = 0;
+  if (sp > 1.5 && vx * tx + vy * ty > 0.2 * sp * dist) {
+    // A swing at the tree from any direction (down from overhead, rising from low) leads with the
+    // edge; winding up away from it, the edge stays facing the tree.
+    a = Math.min(1, h * 14 * smooth(1.5, 4, sp)); ax2 = vx / sp; ay2 = vy / sp;
+  } else if (dist > 0.3 && !striking) { a = Math.min(1, h * 7); ax2 = tx / dist; ay2 = ty / dist; }
+  if (a > 0) {
+    cursor.bit.x += (ax2 - cursor.bit.x) * a; cursor.bit.y += (ay2 - cursor.bit.y) * a;
     const l = Math.hypot(cursor.bit.x, cursor.bit.y) || 1; cursor.bit.x /= l; cursor.bit.y /= l;
   }
 }
@@ -414,6 +425,8 @@ function popup(text, cls = '', sub = '') {
 }
 function cooled(key, t = 0.35) { const now = performance.now() / 1000; if ((G.cool[key] || 0) > now) return false; G.cool[key] = now + t; return true; }
 
+// Straight down from overhead, the axe meets the trunk at the top of its arc unless you stand back.
+const tooHigh = () => popup('too high', 'meh', G.target && Math.hypot(player.pos.x - G.target.x, player.pos.z - G.target.z) < 1.3 ? 'step back (S) for an overhead, or come in at an angle' : 'chop between knee and chest');
 function handleAxeEvents() {
   for (const e of axe.events) {
     if (['bite', 'tap', 'glance', 'flat', 'nowood', 'handle', 'poll', 'cheek'].includes(e.type) && swing.on) swing.hit = true;
@@ -433,9 +446,9 @@ function handleAxeEvents() {
         break;
       }
       case 'tap': sfx.chop(e.energy * 0.5, 0); if (cooled('tap')) popup('tap', 'meh', 'swing harder: wind up and hold the mouse button'); fx.barkBits(e.point, e.normal, 1, 1); if (e.depth > 0.002) afterCut(e.tree); break;
-      case 'glance': sfx.glance(e.energy); if (e.energy > 20 && cooled('glance')) popup('glanced off', 'bad', 'hit edge-first'); fx.barkBits(e.point, e.normal, 3, 2); break;
+      case 'glance': sfx.glance(e.energy); if (e.energy > 20 && cooled('glance')) { if (e.tree && e.point.y > CUT_HI) tooHigh(); else popup('glanced off', 'bad', 'hit edge-first'); } fx.barkBits(e.point, e.normal, 3, 2); break;
       case 'flat': sfx.flat(e.energy); if (e.energy > 20) { G.shake += 0.2; if (cooled('flat')) popup('flat of the blade', 'bad'); } maybeDrop(e, 90); break;
-      case 'nowood': sfx.flat(e.energy * 0.6); if (cooled('nowood')) popup(e.point.y > CUT_HI - 0.02 ? 'too high' : 'too low', 'meh', 'chop between knee and chest'); break;
+      case 'nowood': sfx.flat(e.energy * 0.6); if (cooled('nowood')) { if (e.point.y > CUT_HI - 0.02) tooHigh(); else popup('too low', 'meh', 'chop between knee and chest'); } break;
       case 'handle':
         if (e.energy < 4) break;
         sfx.handle(e.energy); G.shake += Math.min(0.4, e.energy / 150); player.stamina -= Math.min(0.08, e.energy / 900);
@@ -554,23 +567,28 @@ function updateCamera(dt) {
   G.lookPt.lerp(_look, 1 - Math.exp(-dt * 4));
   _eye.copy(player.pos).addScaledVector(B.U, 1.62).addScaledVector(B.F, 0.03).addScaledVector(player.sway, 0.6);
   _eye.y += Math.sin(player.bob) * 0.012; _eye.addScaledVector(B.R, Math.cos(player.bob * 0.5) * 0.008);
+  // Raising the axe you lean back a touch and look up after it, so your arms go up in front of you.
+  const raise = smooth(0.3, 1.3, G.camTh || 0);
+  if (!G.watch && !player.dead) _eye.addScaledVector(B.F, -0.15 * raise).addScaledVector(B.U, -0.03 * raise);
   const dx = G.lookPt.x - _eye.x, dy = G.lookPt.y - _eye.y, dz = G.lookPt.z - _eye.z;
   let yaw = Math.atan2(-dx, -dz), pitch = Math.atan2(dy, Math.hypot(dx, dz)), roll = -player.sway.dot(B.R) * 0.6;
   // Your head follows your hands a little, so a wind-up stays mostly in view.
   const k = 1 - Math.exp(-dt * 6), follow = axe.mode !== 'free' && !player.dead;
   G.camPhi = (G.camPhi || 0) + ((follow ? clamp(sw.phiA || 0, -1.8, 1.8) : 0) - (G.camPhi || 0)) * k;
   G.camTh = (G.camTh || 0) + ((follow ? clamp((sw.thA || 0) - POSE.TH0, -0.6, 1.4) : 0) - (G.camTh || 0)) * k;
-  if (!G.watch) { yaw = player.yaw + player.twist * 0.5 - G.camPhi * 0.28; pitch = clamp(pitch * 0.72, -0.5, 0.15) + G.camTh * 0.16; }
+  if (!G.watch) { yaw = player.yaw + player.twist * 0.5 - G.camPhi * 0.28; pitch = THREE.MathUtils.lerp(clamp(pitch * 0.72, -0.5, 0.15) + G.camTh * 0.16, 0.34, raise); }
   if (player.stumble > 0) roll += Math.sin(player.stumble * 14) * 0.03 * player.stumble;
   G.shake = Math.max(0, G.shake - dt * 2.8);
   const s = G.shake * G.shake * 0.03;
   yaw += (Math.random() - 0.5) * s; pitch += (Math.random() - 0.5) * s;
-  if (settings.view === 'third') {
-    // Over the right shoulder, looking past you at the tree.
+  if (thirdPerson()) {
+    // Over the right (or left) shoulder, looking past you at the tree.
+    const side = settings.view === 'left' ? -1 : 1;
+    G.tpSide = (G.tpSide ?? side) + (side - (G.tpSide ?? side)) * (1 - Math.exp(-dt * 6));
     G.tpYaw = G.tpYaw ?? player.yaw;
     G.tpYaw += wrapAng(player.yaw - G.tpYaw) * (1 - Math.exp(-dt * 5));
     const tf = _v.set(-Math.sin(G.tpYaw), 0, -Math.cos(G.tpYaw)), tr = _w.set(-tf.z, 0, tf.x);
-    _eye.copy(player.pos).addScaledVector(tf, -2.3).addScaledVector(tr, 0.7).setY(2.05);
+    _eye.copy(player.pos).addScaledVector(tf, -2.3).addScaledVector(tr, 0.7 * G.tpSide).setY(2.05);
     _tmp.copy(player.pos).addScaledVector(tf, 0.9).setY(1.05).lerp(G.lookPt, G.watch ? 0.85 : 0.3);
     const ex = _tmp.x - _eye.x, ey = _tmp.y - _eye.y, ez = _tmp.z - _eye.z;
     yaw = Math.atan2(-ex, -ez) + (Math.random() - 0.5) * s; pitch = Math.atan2(ey, Math.hypot(ex, ez)) + (Math.random() - 0.5) * s; roll = 0;
@@ -585,7 +603,7 @@ function updateCamera(dt) {
 // Third person: pose Timberline's faller on the axe (or the simple lumberjack if it hasn't loaded).
 const _c = V(), _sh = V(), _pole = V();
 function poseBody(dt) {
-  const third = settings.view === 'third';
+  const third = thirdPerson();
   const fig = body.fig;
   if (fig) fig.root.visible = third;
   body.simple.setVisible(third && !fig);
@@ -632,7 +650,7 @@ function updateArms() {
   } else { axe.renderPoint(axe.gripRel, _hb); axe.renderPoint(axe.topRel, _ht); }
   _pL.copy(_tR).multiplyScalar(-0.7).addScaledVector(B.U, -0.7).addScaledVector(_tF, -0.2);
   _pR.copy(_tR).multiplyScalar(0.7).addScaledVector(B.U, -0.7).addScaledVector(_tF, -0.2);
-  arms.update([_sL, _sR], [_hb, _ht], [_pL, _pR], axe.renderQ, settings.view === 'third' ? null : camera.position);
+  arms.update([_sL, _sR], [_hb, _ht], [_pL, _pR], axe.renderQ, thirdPerson() ? null : camera.position);
 }
 
 const cutCanvas = $('cut'), cutCtx = cutCanvas.getContext('2d');
@@ -744,8 +762,8 @@ requestAnimationFrame(frame);
 // Test hooks (local only).
 if (/localhost|127\.0\.0\.1/.test(location.hostname)) {
   window.__fs = {
-    G, axe, player, cursor, input, keys, tgt, pz, newClearing, renderer, scene, camera, sfx, setMode,
-    setCursor(x, y) { cursor.x = x; cursor.y = y; },
+    G, axe, player, cursor, input, keys, tgt, pz, arms, newClearing, renderer, scene, camera, sfx, setMode,
+    setCursor(x, y) { limitSwing(x, y, 1, cursor); },
     freeze(v = true) { frozen = v; },
     // Run the simulation forward without rendering: n frames of dt each.
     run(n = 1, dt = 1 / 60, each) { for (let i = 0; i < n; i++) { update(dt); if (each) each(i); } updateHud(1); renderer.render(scene, camera); },

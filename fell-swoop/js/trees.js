@@ -2,7 +2,7 @@
 // GRID x GRID bitmap of wood. Axe bites clear cells; the mesh reads the bitmaps back to draw
 // the notch, and the bitmaps decide when the holding wood gives out and which way it goes.
 import * as THREE from 'three';
-import { mergeGeoms, paint } from './world.js';
+import { mergeGeoms, paint, frondGeometry } from './world.js';
 
 export const CUT_LO = 0.25, CUT_HI = 1.65, SLICE_H = 0.02;
 export const NS = Math.round((CUT_HI - CUT_LO) / SLICE_H);
@@ -62,8 +62,15 @@ export class Tree {
     this.group = new THREE.Group(); this.group.position.set(x, 0, z);
     this.trunk = new THREE.Mesh(this.sideGeometry(0, this.rows.length - 1), mats.bark);
     this.trunk.castShadow = this.trunk.receiveShadow = true;
-    this.crown = new THREE.Mesh(this.crownGeometry(rng), mats.crown);
-    this.crown.castShadow = true; this.crown.receiveShadow = true;
+    // The crown: a dark core of cones for body, with drooping needle sprays in whorls over it.
+    this.crown = new THREE.Group();
+    const core = new THREE.Mesh(this.crownGeometry(rng), mats.crown);
+    const span = this.height - this.crownBase;
+    const fronds = new THREE.Mesh(frondGeometry(rng, {
+      y0: this.crownBase - 0.15, span: span * 0.96, whorls: 16 + Math.round(span / 2), per: 13,
+      R: f => this.crownR * Math.pow(1 - f, 0.85) * 0.95 + 0.25,
+    }), mats.fronds);
+    for (const m of [core, fronds]) { m.castShadow = true; m.receiveShadow = true; this.crown.add(m); }
     this.group.add(this.trunk, this.crown);
     scene.add(this.group);
     this.analysis = this.analyze();
@@ -199,10 +206,10 @@ export class Tree {
     this.tiers = [];
     for (let t = 0; t < T; t++) {
       const f = t / (T - 1);
-      const R = this.crownR * Math.pow(1 - f, 0.85) * (0.88 + rng() * 0.24) + 0.2;
+      const R = (this.crownR * Math.pow(1 - f, 0.85) * (0.88 + rng() * 0.24) + 0.2) * 0.45;
       const ch = span * 0.3 * (1 - f * 0.45);
       const yb = this.crownBase + f * (span - ch * 0.6);
-      const g = new THREE.ConeGeometry(R, ch, 10, 2);
+      const g = new THREE.ConeGeometry(R, ch, 10, 2, true);
       const p = g.attributes.position;
       for (let k = 0; k < p.count; k++) {
         const y = p.getY(k);
@@ -213,9 +220,9 @@ export class Tree {
         }
       }
       g.translate(0, yb + ch / 2, 0);
-      paint(g, new THREE.Color().setHSL(0.29 + rng() * 0.06, 0.4 + rng() * 0.15, 0.12 + rng() * 0.06 + f * 0.05));
+      paint(g, new THREE.Color().setHSL(0.29 + rng() * 0.06, 0.4 + rng() * 0.15, 0.1 + rng() * 0.05 + f * 0.04));
       parts.push(g);
-      this.tiers.push({ yb, R });
+      this.tiers.push({ yb, R: R / 0.45 * 0.8 });  // the branches over the core hold the log up when it lands
     }
     return mergeGeoms(parts);
   }

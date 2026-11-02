@@ -242,7 +242,7 @@ export class Axe {
     let d = 0;
     while (d < 0.05 && tree.solidAt(p.x + n.x * d, p.y + n.y * d, p.z + n.z * d)) d += 0.003;
     this.x.addScaledVector(n, d + 0.001); p.addScaledVector(n, d + 0.001);
-    this.hitSurface(s, p, n, tree, tgt, s.kind === 'handle' ? 0.3 : 0.2, fresh && s.kind !== 'edge');
+    this.hitSurface(s, p, n, tree, tgt, s.kind === 'handle' ? 0.3 : 0.2, fresh);
   }
 
   // Is any part of the axe inside this tree's wood (or, with no tree, under the ground)?
@@ -258,7 +258,7 @@ export class Axe {
     const vp = this.pointVel(p, _vp), vn = vp.dot(n);
     if (vn >= 0) return;
     const me = this.effMass(p, n);
-    if (report && vn < -1.5) this.emit({ type: s.kind, energy: 0.5 * me * vn * vn, speed: -vn, tree, point: p.clone(), normal: n.clone() });
+    if (report && vn < -1.5) this.emit({ type: s.kind === 'edge' ? 'glance' : s.kind, energy: 0.5 * me * vn * vn, speed: -vn, tree, point: p.clone(), normal: n.clone() });
     _J.copy(n).multiplyScalar(-(1 + rest) * vn * me);
     _vt.copy(vp).addScaledVector(n, -vn); const vt = _vt.length();
     if (vt > 1e-4) { _vt.divideScalar(vt); _J.addScaledVector(_vt, -Math.min(0.35 * _J.length(), vt * this.effMass(p, _vt))); }

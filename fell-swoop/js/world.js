@@ -121,20 +121,93 @@ export function pineGeometry(rng, { height = 1, tiers = 5, radius = 0.22, trunk 
   parts.push(tg);
   for (let i = 0; i < tiers; i++) {
     const f = i / (tiers - 1);
-    const r = radius * (1 - f * 0.78), h = height * (0.36 - f * 0.12);
+    const r = radius * (1 - f * 0.78) * 0.38, h = height * (0.36 - f * 0.12);
     const y = height * (0.22 + f * 0.62);
-    const cg = new THREE.ConeGeometry(r, h, 7, 1);
+    const cg = new THREE.ConeGeometry(r, h, 7, 1, true);
     const p = cg.attributes.position;
     for (let k = 0; k < p.count; k++) {
       if (p.getY(k) < h * 0.4) { const s = 1 + (rng() - 0.5) * 0.3; p.setX(k, p.getX(k) * s); p.setZ(k, p.getZ(k) * s); p.setY(k, p.getY(k) + (rng() - 0.5) * h * 0.12); }
     }
     cg.translate(0, y + h / 2, 0);
-    const col = new THREE.Color().setHSL(0.30 + rng() * 0.05, 0.38 + rng() * 0.15, 0.13 + rng() * 0.07 + f * 0.04);
+    const col = new THREE.Color().setHSL(0.30 + rng() * 0.05, 0.38 + rng() * 0.15, 0.07 + rng() * 0.04 + f * 0.03);
     paint(cg, col);
     parts.push(cg);
   }
   const g = mergeGeoms(parts);
   return g;
+}
+
+// A fir branch spray on transparency: a stem with side twigs, needles all along both.
+// u runs from the base of the branch (0) to its tip (1).
+export function needleTexture(rng) {
+  const W = 256, H = 128, c = canvas(W, H), g = c.getContext('2d');
+  g.lineCap = 'round';
+  const y0 = H / 2, stem = t => y0 + Math.sin(t * Math.PI) * 3;
+  const twigs = [];
+  for (let x = 10; x < W - 14; x += 8 + rng() * 5) {
+    const t = x / W, side = twigs.length % 2 ? -1 : 1, reach = H * 0.44 * Math.pow(Math.sin(Math.PI * Math.min(1, 0.08 + t * 1.0)), 0.7) * (0.78 + rng() * 0.27);
+    const ang = 0.6 + rng() * 0.3;
+    twigs.push([x, stem(t), x + Math.cos(ang) * reach, stem(t) + side * Math.sin(ang) * reach]);
+  }
+  // Body first, thick and dark, so the spray stays solid when it is far away and mipmapped.
+  g.strokeStyle = 'hsl(118,34%,14%)';
+  g.lineWidth = 15; g.beginPath(); g.moveTo(6, stem(0)); g.lineTo(W - 12, stem(1)); g.stroke();
+  for (const [ax, ay, bx, by] of twigs) { g.lineWidth = 9 + rng() * 4; g.beginPath(); g.moveTo(ax, ay); g.lineTo(ax + (bx - ax) * 0.82, ay + (by - ay) * 0.82); g.stroke(); }
+  // Then needles over it: a dark layer and a light one, fanning forward off every twig.
+  const needles = (x0, y0n, x1, y1, len, light) => {
+    const n = Math.max(3, Math.hypot(x1 - x0, y1 - y0n) / 2.2), ang = Math.atan2(y1 - y0n, x1 - x0);
+    for (let i = 0; i < n; i++) {
+      const t = i / n, x = x0 + (x1 - x0) * t, y = y0n + (y1 - y0n) * t, l = len * (0.55 + 0.45 * Math.sin(Math.PI * (0.2 + t * 0.8))) * (0.8 + rng() * 0.4);
+      for (const side of [-1, 1]) {
+        const d = ang + side * (0.7 + rng() * 0.35);
+        g.strokeStyle = light ? `hsl(${88 + rng() * 32},${36 + rng() * 20}%,${34 + rng() * 16}%)` : `hsl(${108 + rng() * 22},${32 + rng() * 14}%,${18 + rng() * 9}%)`;
+        g.lineWidth = light ? 1.6 : 2.4;
+        g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(d) * l, y + Math.sin(d) * l); g.stroke();
+      }
+    }
+  };
+  for (const light of [false, true]) {
+    needles(3, stem(0), W - 5, stem(1), light ? 8 : 11, light);
+    for (const [ax, ay, bx, by] of twigs) needles(ax, ay, bx, by, light ? 7 : 9, light);
+  }
+  const t = tex(c, true, false); t.anisotropy = 8; return t;
+}
+
+// Branches for a conifer: drooping spray cards in whorls up a stem from y0 to y0 + span,
+// radius R(f) at fraction f of the way up. Normals point out from the stem, so the
+// crown is lit like a rounded mass rather than as flat cards.
+export function frondGeometry(rng, { y0, span, R, whorls, per, segs = 4, light = 0.42, hue = 0.25 }) {
+  const parts = [], col = new THREE.Color(), base = new THREE.PlaneGeometry(1, 1, segs, 1);
+  base.rotateX(-Math.PI / 2); base.translate(0.5, 0, 0);
+  for (let w = 0; w < whorls; w++) {
+    const f = (w + rng() * 0.5) / whorls, rad = R(f), y = y0 + f * span, n = Math.max(3, Math.round(per * (0.55 + 0.45 * rad / R(0))));
+    const spin = rng() * 6.28;
+    for (let i = 0; i < n; i++) {
+      const g = base.clone(), L = rad * (1.0 + rng() * 0.3), Wd = L * (0.55 + rng() * 0.18);
+      const droop = (0.18 + rng() * 0.2) * (1 - f * 0.4), tilt = 0.12 + rng() * 0.22 + f * 0.1;
+      const p = g.attributes.position;
+      for (let k = 0; k < p.count; k++) {
+        const x = p.getX(k), z = p.getZ(k);
+        p.setXYZ(k, x * L, -droop * x * x * L + Math.abs(z) * 0.12 * L * x, z * Wd * (0.35 + 0.65 * Math.sin(Math.PI * Math.min(1, x * 1.15 + 0.12))));
+      }
+      g.rotateZ(-tilt); g.rotateX((rng() - 0.5) * 0.5); g.rotateY(spin + (i / n) * Math.PI * 2 + (rng() - 0.5) * 0.4);
+      g.translate(0, y, 0);
+      const nr = new Float32Array(p.count * 3), cl = new Float32Array(p.count * 3);
+      col.setHSL(hue + rng() * 0.06, 0.3 + rng() * 0.18, light + rng() * 0.1 + f * 0.04);
+      for (let k = 0; k < p.count; k++) {
+        const x = p.getX(k), yy = p.getY(k) - y + rad * 0.35, z = p.getZ(k), l = Math.hypot(x, yy, z) || 1;
+        nr[k * 3] = x / l; nr[k * 3 + 1] = yy / l; nr[k * 3 + 2] = z / l;
+        const shade = 0.55 + 0.45 * Math.min(1, Math.hypot(x, z) / L);  // darker in toward the stem
+        cl[k * 3] = col.r * shade; cl[k * 3 + 1] = col.g * shade; cl[k * 3 + 2] = col.b * shade;
+      }
+      g.setAttribute('normal', new THREE.BufferAttribute(nr, 3)); g.setAttribute('color', new THREE.BufferAttribute(cl, 3));
+      parts.push(g);
+    }
+  }
+  return mergeGeoms(parts, true);
+}
+export function frondMaterial(map) {
+  return new THREE.MeshStandardMaterial({ map, vertexColors: true, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.88 });
 }
 
 export function paint(geo, color) {
@@ -144,13 +217,14 @@ export function paint(geo, color) {
   return geo;
 }
 
-// Minimal merge for non-indexed or indexed geometries with position/normal/color (+uv dropped).
-export function mergeGeoms(list) {
+// Minimal merge for non-indexed or indexed geometries with position/normal/color (and uv if asked).
+export function mergeGeoms(list, withUv = false) {
   const geos = list.map(g => g.index ? g.toNonIndexed() : g);
   let n = 0; for (const g of geos) n += g.attributes.position.count;
-  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), col = new Float32Array(n * 3);
+  const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), col = new Float32Array(n * 3), uv = withUv ? new Float32Array(n * 2) : null;
   let o = 0;
   for (const g of geos) {
+    if (uv && g.attributes.uv) uv.set(g.attributes.uv.array, o * 2);
     if (!g.attributes.normal) g.computeVertexNormals();
     pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3);
     if (g.attributes.color) col.set(g.attributes.color.array, o * 3); else col.fill(1, o * 3, (o + g.attributes.position.count) * 3);
@@ -160,6 +234,7 @@ export function mergeGeoms(list) {
   out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   out.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
   out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  if (uv) out.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   return out;
 }
 
@@ -233,6 +308,14 @@ export function buildWorld(scene, renderer) {
   }
   inst.count = placed; inst.castShadow = true; inst.receiveShadow = true;
   scene.add(inst);
+  // Branch sprays on the same trees, so the forest wall reads as needles rather than cones.
+  world.needles = needleTexture(rng);
+  world.frondMat = frondMaterial(world.needles);
+  const fr = frondGeometry(rng, { y0: 0.22, span: 0.72, R: f => 0.21 * (1 - f * 0.82) + 0.025, whorls: 10, per: 10, segs: 2 });
+  const fInst = new THREE.InstancedMesh(fr, world.frondMat, placed);
+  for (let i = 0; i < placed; i++) { inst.getMatrixAt(i, m); fInst.setMatrixAt(i, m); }
+  fInst.castShadow = true; fInst.receiveShadow = true;
+  scene.add(fInst);
 
   // Grass tufts: crossed alpha-tested quads scattered around the clearing.
   const blade = grassBladeTexture(rng);

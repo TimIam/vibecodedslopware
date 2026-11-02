@@ -358,8 +358,8 @@ export class Pie {
   redraw() {
     const P = patterns(), x = this.top.getContext('2d'), t = this.tmp.getContext('2d'), b = this.bake;
     // dough: raw cream -> gold -> brown -> char
-    const doughC = b < 1 ? mix3('#ead9b6', '#e6b469', b) : b < 1.35 ? mix3('#e6b469', '#a8632a', (b - 1) / 0.35) : mix3('#a8632a', '#2a1a10', Math.min(1, (b - 1.35) / 0.4));
-    const crustC = b < 1 ? mix3('#e4cfa6', '#c98a3e', b) : b < 1.35 ? mix3('#c98a3e', '#7a4318', (b - 1) / 0.35) : mix3('#7a4318', '#1c120b', Math.min(1, (b - 1.35) / 0.35));
+    const doughC = b < 1 ? mix3('#ead9b6', '#d4914a', smooth(0.15, 1, b)) : b < 1.35 ? mix3('#d4914a', '#8f4f1f', (b - 1) / 0.35) : mix3('#8f4f1f', '#2a1a10', Math.min(1, (b - 1.35) / 0.4));
+    const crustC = b < 1 ? mix3('#e4cfa6', '#a8622a', smooth(0.15, 1, b)) : b < 1.35 ? mix3('#a8622a', '#5e3010', (b - 1) / 0.35) : mix3('#5e3010', '#1c120b', Math.min(1, (b - 1.35) / 0.35));
     x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1;
     x.fillStyle = crustC; x.fillRect(0, 0, S, S);
     // soft transition from rim to the middle
@@ -373,7 +373,7 @@ export class Pie {
     // cheese, raw then melting then browning
     const melt = smooth(0.15, 0.6, b);
     if (melt < 1) this.layer(x, t, this.cheeseMask, P.cheeseRaw, (1 - melt) * 0.55, []);
-    if (melt > 0) this.layer(x, t, this.cheeseMask, P.cheeseMelt, melt, [[P.spots, smooth(0.75, 1.15, b)], ['#2a170c', smooth(1.25, 1.65, b) * 0.9]]);
+    if (melt > 0) this.layer(x, t, this.cheeseMask, P.cheeseMelt, melt, [[P.spots, smooth(0.55, 1.0, b)], ['#7a4a1c', smooth(0.7, 1.15, b) * 0.22], ['#2a170c', smooth(1.25, 1.65, b) * 0.9]]);
     if (this.torn) {
       x.globalCompositeOperation = 'destination-out'; x.fillStyle = '#000';
       const a = (this.id * 2.4) % 6.28, R = this.meanR * 0.35, cx = (0.5 + Math.cos(a) * R / SPAN) * S, cy = (0.5 - Math.sin(a) * R / SPAN) * S;

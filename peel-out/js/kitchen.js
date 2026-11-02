@@ -18,10 +18,10 @@ export const L = {
     { id: 'pass', x: 4.95, name: 'Pass' },
   ],
   cooler: { x0: -5.7, x1: -4.0, front: -0.04, back: -0.8, mid: -4.85 },
-  OVEN_X: [2.12, 3.14], OVEN_FACE: -0.5, HINGE_Y: 0.972, DOOR_H: 0.26, MOUTH_HALF: 0.3, MOUTH_TOP: 1.22, DECK_BACK: -1.2,
+  OVEN_X: [2.12, 3.14], OVEN_FACE: -0.5, HINGE_Y: 0.972, DOOR_H: 0.4, MOUTH_HALF: 0.36, MOUTH_TOP: 1.36, DECK_BACK: -1.2,
   pass: { x0: 4.28, x1: 5.72, z0: -1.05, z1: -0.42 },
   trash: { x: -1.32, z: 0.07, r: 0.135 },
-  peelHome: { x: -0.62, z: -0.25 }, metalHome: { x: 3.52, z: 0.0 },
+  peelHome: { x: -0.62, z: -0.25 }, metalHome: { x: 3.7, z: 0.08 },
   printer: { x: -3.66, z: -0.5 }, rail: { x0: -3.18, x1: -1.72, y: 1.25, z: -0.735 },
   tray: { x: -2.98, z: -0.46 }, coolerTray: { x: -5.3, z: -0.42 },
   bell: { x: 5.6, z: -0.2 },
@@ -247,7 +247,9 @@ export function buildKitchen(scene, renderer) {
   // Ovens -------------------------------------------------------------------------------
   const ovenFaceZ = L.OVEN_FACE;
   // brick surround across both ovens
-  box(2.14, 2.2, 0.06, M.brick, 2.65, 1.1, ovenFaceZ - 0.03);
+  // only around the oven fronts: a solid slab here would wall off the oven mouths
+  for (const [x0, x1] of [[1.56, 1.64], [2.6, 2.66], [3.62, 3.74]]) box(x1 - x0, 2.2, 0.06, M.brick, (x0 + x1) / 2, 1.1, ovenFaceZ - 0.03);
+  box(2.18, 0.3, 0.06, M.brick, 2.65, 2.05, ovenFaceZ - 0.03);
   box(2.14, 0.06, 0.32, M.brick, 2.65, 2.2, ovenFaceZ - 0.15);
   // hood
   rbox(2.3, 0.4, 0.75, 0.02, M.steel, 2.65, 2.42, -0.48);
@@ -258,7 +260,7 @@ export function buildKitchen(scene, renderer) {
   cabinet(1.54, 3.76, L.COUNTER, -0.5);
   const ovens = L.OVEN_X.map((ox, i) => {
     const g = new THREE.Group(); g.position.set(ox, 0, 0); root.add(g);
-    const W = 0.86, mouthB = L.DECK, mouthT = L.MOUTH_TOP, mh = L.MOUTH_HALF;
+    const W = 0.98, mouthB = L.DECK, mouthT = L.MOUTH_TOP, mh = L.MOUTH_HALF;
     // black enamel front with a mouth cut out
     box(W, 0.9 - 0.0, 0.05, M.black, 0, 0.45 + 0.08, ovenFaceZ + 0.025, { parent: g });         // below mouth (cabinet face)
     box(W, 0.55, 0.05, M.black, 0, mouthT + 0.275, ovenFaceZ + 0.025, { parent: g });          // above
@@ -273,7 +275,7 @@ export function buildKitchen(scene, renderer) {
     const needle = new THREE.Group(); needle.position.z = 0.014; gauge.add(needle);
     box(0.006, 0.062, 0.003, new THREE.MeshBasicMaterial({ color: 0xd22 }), 0, 0.026, 0, { parent: needle, cast: false });
     // interior: stone deck, glowing back
-    const deckMat = new THREE.MeshStandardMaterial({ color: 0x6d5a4a, roughness: 0.95, emissive: 0x2a0d00, emissiveIntensity: 0.5 });
+    const deckMat = new THREE.MeshStandardMaterial({ color: 0x5a4a3e, roughness: 0.95, emissive: 0x2a0d00, emissiveIntensity: 0.5 });
     box(mh * 2 + 0.04, 0.03, 0.75, deckMat, 0, mouthB - 0.015, -0.87, { parent: g, cast: false });
     const glowMat = new THREE.MeshStandardMaterial({ color: 0x2a1408, emissive: 0xff5a10, emissiveIntensity: 0.7, roughness: 1 });
     box(mh * 2 + 0.04, mouthT - mouthB + 0.02, 0.02, glowMat, 0, (mouthB + mouthT) / 2, L.DECK_BACK - 0.03, { parent: g, cast: false });
@@ -287,12 +289,17 @@ export function buildKitchen(scene, renderer) {
     // door on a bottom hinge
     const pivot = new THREE.Group(); pivot.position.set(ox, L.HINGE_Y, ovenFaceZ + 0.04); root.add(pivot);
     const dh = L.DOOR_H;
-    rbox(mh * 2 + 0.06, dh, 0.035, 0.008, M.black, 0, dh / 2, 0, { parent: pivot });
-    const winMat = new THREE.MeshStandardMaterial({ color: 0x110805, emissive: 0xff6a1a, emissiveIntensity: 0.4, roughness: 0.1, metalness: 0.3 });
-    box(0.3, 0.09, 0.004, winMat, 0, dh * 0.45, 0.019, { parent: pivot, cast: false });
-    box(0.32, 0.105, 0.004, M.chrome, 0, dh * 0.45, 0.0175, { parent: pivot, cast: false });
-    const handle = add(new THREE.CylinderGeometry(0.014, 0.014, 0.46, 12), M.chrome, 0, dh - 0.03, 0.07, { parent: pivot, rz: Math.PI / 2 });
-    for (const hx of [-0.21, 0.21]) box(0.022, 0.022, 0.06, M.chrome, hx, dh - 0.03, 0.04, { parent: pivot });
+    // a frame round a big glass window, so you can watch the pie brown with the door shut
+    const dw = mh * 2 + 0.06, ww = 0.56, wh = 0.2, wy = dh * 0.47, bar = (w, h, x, y) => box(w, h, 0.035, M.black, x, y, 0, { parent: pivot });
+    bar(dw, wy - wh / 2, 0, (wy - wh / 2) / 2); bar(dw, dh - wy - wh / 2, 0, (dh + wy + wh / 2) / 2);
+    bar((dw - ww) / 2, wh, -(ww + dw) / 4, wy); bar((dw - ww) / 2, wh, (ww + dw) / 4, wy);
+    const winMat = new THREE.MeshStandardMaterial({ color: 0x3a2416, emissive: 0xff6a1a, emissiveIntensity: 0.05, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.32, depthWrite: false });
+    add(new THREE.PlaneGeometry(ww, wh), winMat, 0, wy, 0.0, { parent: pivot, cast: false, receive: false });
+    for (const [w, h, x, y] of [[ww + 0.02, 0.012, 0, wy + wh / 2], [ww + 0.02, 0.012, 0, wy - wh / 2], [0.012, wh, ww / 2, wy], [0.012, wh, -ww / 2, wy]]) box(w, h, 0.04, M.chrome, x, y, 0.002, { parent: pivot, cast: false });
+    const handle = add(new THREE.CylinderGeometry(0.014, 0.014, 0.6, 12), M.chrome, 0, dh - 0.03, 0.07, { parent: pivot, rz: Math.PI / 2 });
+    for (const hx of [-0.28, 0.28]) box(0.022, 0.022, 0.06, M.chrome, hx, dh - 0.03, 0.04, { parent: pivot });
+    // warm white light inside so the crust colour reads true
+    const inLight = new THREE.PointLight(0xfff0dc, 0, 1.0, 1.4); inLight.position.set(ox, mouthT - 0.05, -0.78); root.add(inLight);
     const light = new THREE.PointLight(0xff7a2a, 0, 1.6, 1.8); light.position.set(ox, 1.12, -0.42); root.add(light);
     // "out of order" tape across oven 2 until it is fixed
     let tape = null;
@@ -302,7 +309,7 @@ export function buildKitchen(scene, renderer) {
       for (const a of [-0.32, 0.32]) add(new THREE.PlaneGeometry(0.95, 0.07), tm, 0, 0, a > 0 ? 0.002 : 0, { parent: tape, rz: a, cast: false });
       add(new THREE.PlaneGeometry(0.34, 0.2), new THREE.MeshStandardMaterial({ map: labelTexture('OUT OF ORDER', { w: 256, h: 150, bg: '#fffbe8', fg: '#b01c10', font: '800 30px "Segoe UI",sans-serif', border: '#b01c10' }) }), 0, 0.2, 0.004, { parent: tape, cast: false });
     }
-    return { i, x: ox, group: g, pivot, handle, angle: 0, vel: 0, temp: 1, glowMat, sideMat, winMat, deckMat, flame, light, needle, tape, locked: i === 1, openFor: 0 };
+    return { i, x: ox, group: g, pivot, handle, angle: 0, vel: 0, temp: 1, glowMat, sideMat, winMat, deckMat, flame, light, inLight, needle, tape, locked: i === 1, openFor: 0 };
   });
 
   // Pass window ----------------------------------------------------------------------------
@@ -397,9 +404,10 @@ export function buildKitchen(scene, renderer) {
         o.sideMat.emissiveIntensity = 0.15 + glow * 0.6;
         o.deckMat.emissiveIntensity = 0.2 + glow * 0.5;
         o.flame.material.opacity = o.locked ? 0 : clamp(glow, 0, 1) * flick;
-        o.winMat.emissiveIntensity = 0.1 + glow * 0.8 * flick;
+        o.winMat.emissiveIntensity = 0.03 + glow * 0.1 * flick;
+        o.inLight.intensity = o.locked ? 0 : (0.12 + glow * 0.38) * flick;
         const open = Math.sin(o.angle);
-        o.light.intensity = o.locked ? 0 : (0.25 + open * 2.6) * glow * flick;
+        o.light.intensity = o.locked ? 0 : (0.2 + open * 1.1) * glow * flick;
         o.needle.rotation.z = 2.1 - clamp(glow, 0, 1.15) * 3.7;
       }
       const coolerOpen = Math.max(doors[0].angle, doors[1].angle);
