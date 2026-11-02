@@ -202,7 +202,7 @@ function onGrab() {
   for (const o of K.ovens) {
     if (o.locked) continue;
     const hw = ovenHandle(o, _v);
-    if (Math.abs(hp.x - o.x) < 0.25 && Math.abs(hp.z - hw.z) < 0.1 && Math.abs(hp.y - hw.y) < 0.25) { H.door = { type: 'oven', o }; sfx.grab(); return; }
+    if (Math.abs(hp.x - o.x) < 0.32 && Math.abs(hp.z - hw.z) < 0.1 && Math.abs(hp.y - hw.y) < 0.42) { H.door = { type: 'oven', o }; sfx.grab(); return; }
   }
   // a pie coming down out of the air: catch it
   for (const p of pies) if (p.support?.kind === 'air' && p.tossed && Math.hypot(p.pos.x - hp.x, p.pos.z - hp.z) < 0.08 + p.meanR * 0.4 && Math.abs(p.pos.y - hp.y) < 0.12) { catchPie(p); return; }
@@ -1045,8 +1045,10 @@ function updateCamera(dt) {
   if ((G.camX <= -4.95 && G.camV < 0) || (G.camX >= 5.05 && G.camV > 0)) G.camV = 0;
   const hx = (H.pos.x - G.camX), sh = G.shake; G.shake *= Math.exp(-dt * 20);
   const lookUp = G.camX < -4 ? 0.12 : G.camX > 4 ? 0.1 : 0;
-  camera.position.set(G.camX + hx * 0.06 + rand(-sh, sh), 1.74 + lookUp * 0.3 + rand(-sh, sh), 1.14);
-  _v.set(G.camX + hx * 0.18, 0.94 + lookUp, -0.32 + H.cur.z * 0.06);
+  // at the ovens you crouch a little to look in through the mouth
+  const ov = smooth(1.2, 0.35, Math.abs(G.camX - L.stations[3].x));
+  camera.position.set(G.camX + hx * 0.06 + rand(-sh, sh), 1.74 + lookUp * 0.3 - ov * 0.16 + rand(-sh, sh), 1.14 - ov * 0.1);
+  _v.set(G.camX + hx * 0.18, 0.94 + lookUp + ov * 0.1, -0.32 - ov * 0.33 + H.cur.z * 0.06);
   camera.lookAt(_v);
 }
 
@@ -1101,7 +1103,7 @@ function updateHud() {
   K.ovens.forEach((o, i) => {
     const el = tagEls[i];
     if (o.locked) { el.style.display = 'none'; return; }
-    project(_v.set(o.x, 1.92, L.OVEN_FACE + 0.06), scr);
+    project(_v.set(o.x - 0.2, L.MOUTH_TOP + 0.17, L.OVEN_FACE + 0.06), scr);
     const vis = scr.z < 1 && scr.x > -60 && scr.x < innerWidth + 60;
     el.style.display = vis ? '' : 'none'; if (!vis) return;
     el.style.transform = `translate(${scr.x}px, ${scr.y}px) translate(-50%,-50%)`;
