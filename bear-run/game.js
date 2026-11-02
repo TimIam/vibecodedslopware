@@ -28,30 +28,46 @@ const RIDES = {
     // Gravity along the slope, no more: ~83 km/h upright, ~100 tucked, ten seconds to get there.
     accel: G_ALONG, friction: 0.35, drag: 0.0046, dragTuck: 0.0031, tuck: 0, canTuck: true, push: 4.5, pushMax: 10, stroke: true, plough: 6,
     fallSlip: 10, fallSpeed: 11, landSlip: 30, steer: 2.8, steerFade: 25, grip: 2.8, gripFade: 14, spin: 6.5, bodyR: 0.35, scrub: 1.5,
-    chase: { base: 15.5, cap: 25.5 }, pursuer: 'bear',
+    chase: { base: 13, cap: 21 }, pursuer: 'bear',
     blurb: 'Tap to carve. Hold a turn at speed and the skis slide 10\u00b0 off your line, and down you go.',
     controls: '<kbd>W</kbd> pole push \u00b7 <kbd>S</kbd> snowplough \u00b7 <kbd>Shift</kbd> tuck \u00b7 <kbd>E</kbd> scream', pad: ['push', 'plough'] },
   snowboard: { name: 'Snowboard', icon: '\ud83c\udfc2', unlock: 2000, kind: 'board',
     accel: G_ALONG, friction: 0.35, drag: 0.0046, dragTuck: 0.0031, tuck: 0, canTuck: true, wTuck: true, push: 0, pushMax: 8, stroke: false, plough: 7,
     fallSlip: 14, fallSpeed: 9, landSlip: 40, steer: 3.4, steerFade: 22, grip: 3.0, gripFade: 16, spin: 8.5, bodyR: 0.35, scrub: 0.7,
-    chase: { base: 15.5, cap: 25.5 }, pursuer: 'bear',
-    blurb: 'Quicker spins and an edge that holds, until it catches: 14\u00b0 off your line above 32 km/h and you eat snow.',
+    chase: { base: 13, cap: 21 }, pursuer: 'bear',
+    blurb: 'Quicker spins, rides either end first (land a 180 and ride away switch), and an edge that holds until it catches: 14\u00b0 off your line above 32 km/h and you eat snow.',
     controls: '<kbd>W</kbd> crouch \u00b7 <kbd>S</kbd> heel-side stop \u00b7 <kbd>E</kbd> scream', pad: ['crouch', 'stop'] },
   snowmobile: { name: 'Snowmobile', icon: '\ud83d\udef7', unlock: 5000, kind: 'sled',
     accel: 1.5, friction: 0.6, drag: 0.0028, dragTuck: 0.0028, tuck: 0, push: 9, pushMax: 42, stroke: false, plough: 10,
     fallSlip: 24, fallSpeed: 13, landSlip: 45, steer: 2.0, steerFade: 30, grip: 1.9, gripFade: 18, spin: 3, bodyR: 0.7, scrub: 1.2,
-    chase: { base: 22, cap: 36 }, pursuer: 'bear',
+    chase: { base: 18, cap: 28 }, pursuer: 'bear',
     blurb: 'Hold W for throttle. Heavy and fast; yank it past 24\u00b0 at speed and it rolls.',
     controls: '<kbd>W</kbd> throttle \u00b7 <kbd>S</kbd> brake \u00b7 <kbd>E</kbd> scream', pad: ['gas', 'brake'] },
   bear: { name: 'Bear', icon: '\ud83d\udc3b', unlock: 10000, kind: 'bear',
     accel: 2.0, friction: 0.5, drag: 0.004, dragTuck: 0.004, tuck: 0, push: 7, pushMax: 24, stroke: false, plough: 9,
     fallSlip: 40, fallSpeed: 14, landSlip: 60, steer: 3.2, steerFade: 40, grip: 3.0, gripFade: 40, spin: 4, bodyR: 0.6, scrub: 1.5,
-    chase: { base: 17, cap: 28 }, pursuer: 'yeti',
+    chase: { base: 12, cap: 19 }, pursuer: 'yeti',
     blurb: 'Paws grip anything. Something higher up the food chain has noticed.',
     controls: '<kbd>W</kbd> sprint \u00b7 <kbd>S</kbd> dig in \u00b7 <kbd>E</kbd> roar', pad: ['sprint', 'dig in'] },
 };
 const PURSUERS = { bear: { name: 'Bear', icon: '\ud83d\udc3b', a: 'A bear!' }, yeti: { name: 'Yeti', icon: '\ud83e\udd8d', a: 'A yeti!' } };
 const wrapAngle = a => Math.atan2(Math.sin(a), Math.cos(a));
+// A snowboard has no front or back: either end can lead ("switch"). For the board, slip is measured
+// against whichever end is nearer the travel line, so it lies in (-90deg, 90deg]; every other ride
+// has a front and slip is the plain angle between facing and travel.
+const twinTip = () => V.kind === 'board';
+// Nothing turns round to climb: travel stays within MAX_LINE of straight downhill, and a ride's facing
+// within MAX_FACE (a board's nearer end, so it can still ride tail-first, which is still downhill).
+const MAX_LINE = THREE.MathUtils.degToRad(80), MAX_FACE = THREE.MathUtils.degToRad(84);
+function clampFacing(h) {
+  h = wrapAngle(h);
+  if (!twinTip()) return THREE.MathUtils.clamp(h, -MAX_FACE, MAX_FACE);
+  const flip = Math.abs(h) > Math.PI / 2, a = THREE.MathUtils.clamp(flip ? wrapAngle(h + Math.PI) : h, -MAX_FACE, MAX_FACE);
+  return flip ? wrapAngle(a + Math.PI) : a;
+}
+const startLine = heading => (twinTip() && Math.cos(heading) < 0 ? wrapAngle(heading + Math.PI) : heading);
+const slipOf = (heading, dir) => { const s = wrapAngle(heading - dir); return twinTip() ? wrapAngle(2 * s) / 2 : s; };
+const switched = (heading, dir) => twinTip() && Math.cos(heading - dir) < 0; // riding tail-first
 
 // ---------- renderer / scene ----------
 const canvas = $('game');
@@ -308,7 +324,7 @@ function makeBoarder() {
   const stance = new THREE.Group(); stance.rotation.y = 1.05;
   const { body, lower, upper, poles } = makeRider(false);
   stance.add(body); root.add(skis, stance);
-  root.userData = { kind: 'board', body, lower, upper, skis, skiL: null, skiR: null, poles };
+  root.userData = { kind: 'board', body, lower, upper, skis, stance, skiL: null, skiR: null, poles };
   return shadowy(root);
 }
 function makeSnowmobile(colour) {
@@ -875,24 +891,26 @@ function step(dt, t) {
   if (p.crashT > 0) {
     p.crashT -= dt;
     p.v = Math.max(0, p.v - 12 * dt);
-    if (p.crashT <= 0) { p.crashT = 0; p.vdir = p.heading; p.slip = 0; p.slipT = 0; }
+    if (p.crashT <= 0) { p.crashT = 0; p.vdir = startLine(p.heading); p.slip = 0; p.slipT = 0; }
   } else if (p.air) {
     p.heading += inp.steer * V.spin * dt; p.spin += inp.steer * V.spin * dt;
   } else {
     p.steer += (inp.steer - p.steer) * Math.min(1, dt * 10);
     // Turning the skis is quick when slow and heavy when fast; the edges follow more slowly still.
     const steerRate = V.steer / (1 + p.v / V.steerFade), grip = V.grip / (1 + p.v / V.gripFade);
+    // Settling and lining up pull the facing onto the travel line; a board settles onto whichever
+    // end is nearer, so riding switch stays switch.
     if (inp.steer) p.heading += inp.steer * steerRate * dt;
-    else p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 2.0 * dt); // skis settle into the travel line
-    if (((inp.tuck || (inp.push && V.wTuck)) && V.canTuck) || inp.plough) p.heading += wrapAngle(p.vdir - p.heading) * Math.min(1, 4 * dt); // a tuck or a plough lines you up
-    if (p.v < 1) p.vdir = p.heading;
+    else p.heading -= slipOf(p.heading, p.vdir) * Math.min(1, 2.0 * dt); // skis settle into the travel line
+    if (((inp.tuck || (inp.push && V.wTuck)) && V.canTuck) || inp.plough) p.heading -= slipOf(p.heading, p.vdir) * Math.min(1, 4 * dt); // a tuck or a plough lines you up
+    if (p.v < 1) p.vdir = startLine(p.heading);
     else {
-      const d = wrapAngle(p.heading - p.vdir);
+      const d = slipOf(p.heading, p.vdir); // the edges pull the line toward the nearer end of the board
       p.vdir += THREE.MathUtils.clamp(d, -grip * dt, grip * dt);
       p.vdir -= Math.sin(p.vdir) * 0.5 * dt; // the slope pulls your line downhill
     }
-    p.heading = wrapAngle(p.heading); p.vdir = wrapAngle(p.vdir);
-    p.slip = wrapAngle(p.heading - p.vdir);
+    p.heading = clampFacing(p.heading); p.vdir = THREE.MathUtils.clamp(wrapAngle(p.vdir), -MAX_LINE, MAX_LINE);
+    p.slip = slipOf(p.heading, p.vdir);
     // Skidding scrubs speed; hold it too long at speed and you go down. Once a slide has started
     // fast it keeps counting even as the skid bleeds speed: scrubbing under the line does not save you.
     p.v = Math.max(0, p.v - Math.abs(Math.sin(p.slip)) * p.v * V.scrub * dt);
@@ -924,14 +942,15 @@ function step(dt, t) {
     if (p.y <= g2) {
       p.y = g2; p.air = false;
       p.heading = wrapAngle(p.heading);
-      const slip = wrapAngle(p.heading - p.vdir);
+      const slip = slipOf(p.heading, p.vdir);
       if (Math.abs(slip) > THREE.MathUtils.degToRad(V.landSlip) && p.v > 4) crash();
       else {
-        p.vdir = p.heading; p.slip = 0; p.slipT = 0; // the skis bite and you carve off the way they point
+        p.vdir = THREE.MathUtils.clamp(wrapAngle(p.vdir + slip), -MAX_LINE, MAX_LINE); p.heading = clampFacing(p.heading); p.slip = 0; p.slipT = 0; // the edges bite and you carve off along the board, whichever end leads
         sfx.land(); emitSpray(p.x, g2 + 0.1, p.z, 0, 1.5, 0, 24, 3);
-        const turns = Math.round(Math.abs(p.spin) / (Math.PI * 2));
+        // A board lands either way round, so it scores half-turns: a 180 rides away switch.
+        const step = twinTip() ? Math.PI : Math.PI * 2, turns = Math.round(Math.abs(p.spin) / step), deg = Math.round(step * 180 / Math.PI);
         let pts = Math.round(p.airT * 25), msg = '';
-        if (turns) { pts += turns * 150; msg = turns === 1 ? '360!' : `${turns * 360}!`; sfx.trick(); }
+        if (turns) { pts += turns * (twinTip() ? 75 : 150); msg = `${turns * deg}!`; sfx.trick(); }
         if (p.airT > 0.6 || turns) { bonus += pts; banner(`${msg || 'Big air!'}<small>+${pts}</small>`, 1.1); }
       }
       p.spin = 0; lastStamp = null;
@@ -972,9 +991,13 @@ function step(dt, t) {
           const rx = vx - 1.6 * dot * nx, rz = vz - 1.6 * dot * nz; // partial restitution
           const speedBefore = p.v;
           p.v = Math.hypot(rx, rz) * 0.6;
-          if (p.v > 0.5) p.vdir = Math.atan2(rx, -rz);
+          if (p.v > 0.5) {
+            // A bounce can knock you sideways but never back up the hill: whatever would point uphill is lost.
+            const d = Math.atan2(rx, -rz), dc = THREE.MathUtils.clamp(d, -MAX_LINE, MAX_LINE);
+            p.v *= Math.max(0.15, Math.cos(d - dc)); p.vdir = dc;
+          }
           emitSpray(p.x, p.y + 0.3, p.z, nx * 2, 1.5, nz * 2, 14, 2.5);
-          p.slip = wrapAngle(p.heading - p.vdir);
+          p.slip = slipOf(p.heading, p.vdir);
           if (speedBefore > V.fallSpeed * 0.6 && Math.abs(p.slip) > THREE.MathUtils.degToRad(V.fallSlip)) crash();
           else if (speedBefore > 3) noise(0.12, 0.15, 500);
         }
@@ -995,8 +1018,10 @@ function step(dt, t) {
   if (bear.on) {
     const bx = p.x - bear.x, bz = p.z - bear.z;
     gap = Math.hypot(bx, bz);
-    const base = Math.min(V.chase.cap, V.chase.base + dist / 350);
-    let spd = base + Math.max(0, gap - 40) * 0.3;
+    // The chaser is tuned below the ride's top speed: a clean run pulls away, a crash or a stop lets it in.
+    // Left far behind it closes up to about 40 m, but never faster than a little over its cap.
+    const base = Math.min(V.chase.cap, V.chase.base + dist / 600);
+    let spd = Math.min(V.chase.cap + 3, base + Math.max(0, gap - 40) * 0.3);
     if (bear.flinch > 0) { bear.flinch -= dt; spd = 0; } // a scream stops it in its tracks for a moment
     // It runs at you, but around the trees: anything in a cone ahead nudges its heading to the clear
     // side, and if it still touches a trunk or rock it is pushed out along it, so it slides round.
@@ -1150,6 +1175,8 @@ function poseSkier(dt) {
     ease(ud.upper.rotation, 'x', -0.3, 8, dt);
   } else {
     const board = ud.kind === 'board';
+    // Riding switch, the rider's chest opens toward the other end of the board (the one now leading).
+    if (board) ease(ud.stance.rotation, 'y', switched(p.heading, p.vdir) ? Math.PI - 1.05 : 1.05, 6, dt);
     // Hip bend: rest, tuck/crouch, snowplough, heel-side stop (sit back), pole push (drive down over the poles), scream (lean back).
     const bend = screamT > 0 ? 0.35
       : tucking ? (board ? -0.55 : -0.75)
