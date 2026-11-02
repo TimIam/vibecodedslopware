@@ -22,9 +22,9 @@ window.ACT_LABELS = {
 
 // =============================================================== PART II: SAN FRANCISCO
 const LODGING = {
-  lick: { name: 'the Lick House', cost: 30, hp: 2, sp: 3, note: 'Velvet chairs, gaslight, a dining room like a cathedral. The feet in your pocket pay for it, for now.' },
-  board: { name: 'a boarding house on Bush Street', cost: 12, hp: 0, sp: 0, note: 'Clean sheets, hash on Tuesdays, a landlady with a memory for rent.' },
-  garret: { name: 'a garret on Minna Street', cost: 4, hp: -3, sp: -3, note: 'A slanted ceiling, a cot, and a window onto other people’s chimneys.' },
+  lick: { name: 'the Lick House', cost: 30, hp: 2, sp: 3, note: 'Velvet chairs, gaslight, and a dining room like a cathedral with a bill of fare. The feet in your pocket pay for it, for now.' },
+  board: { name: 'a boarding house on Bush Street', cost: 12, hp: 0, sp: 0, note: 'Clean sheets, hash on Tuesdays and most other days, and a landlady with a memory for rent like a county clerk’s.' },
+  garret: { name: 'a garret on Minna Street', cost: 4, hp: -3, sp: -3, note: 'A slanted ceiling, a cot, and a fine view of other people’s chimneys, which are the only warm things on Minna Street.' },
 };
 
 // =============================================================== THE ROAD WEST: Virginia City to San Francisco
@@ -65,7 +65,7 @@ function westMode() {
   scene.set('city', {});
   show({
     title: 'How to go', where: 'C Street, Virginia City, the morning of departure',
-    body: `<p>There are two ways down to Sacramento for a man of your means. There is the Pioneer line, which is fast, and the freight teams, which are cheap, and there is a great deal of argument in the saloons as to which is the more dangerous.</p>`,
+    body: `<p>There are two ways down to Sacramento for a man of your means, which are not extensive. There is the Pioneer line, which is fast, and the freight teams, which are cheap, and there is a great deal of argument in the saloons as to which is the more dangerous.</p>`,
     choices: [
       ...Object.entries(MODES).map(([k, m]) => ({ t: `Go by ${m.name} · $${m.fare}`, sub: m.note, disabled: S.money < m.fare, go: () => { S.wmode = k; S.money -= m.fare; log(`Left Virginia City by ${m.name}.`); westDay(true); } })),
       { t: 'Walk beside a freight team and work your passage', sub: 'free; you are the swamper, and you help with the mules', if: () => S.money < 10, go: () => { S.wmode = 'wagon'; S.flags.swamper = 1; log('Walked out of Washoe working for a teamster.'); westDay(true); } },
@@ -88,7 +88,7 @@ function westDay(first) {
     choices: [
       { t: S.wmode === 'stage' ? 'Roll on' : 'Plod on', sub: S.wmode === 'stage' ? 'about thirty miles before the next change of horses' : 'about fifteen miles, if the mules agree to it', go: westTravel },
       { t: S.seat === 'top' ? 'Climb down inside' : 'Ride up on the box with the driver', if: () => S.wmode === 'stage', sub: S.seat === 'top' ? 'out of the dust and the weather' : 'the view, the conversation, and the dust', go: () => { S.seat = S.seat === 'top' ? 'inside' : 'top'; westDay(); } },
-      { t: 'Get down and walk the grade to spare the horses', if: () => S.wmi < 100, sub: 'harder on you, easier on your conscience', go: () => { S.wstep++; S.day += S.wstep % 2 ? 0 : 1; S.wmi = Math.min(WEST_END, S.wmi + 8); return '<p>You walk up the grade beside the team with your coat over your arm, and arrive at the top with a fine appetite, a moral glow, and a blister of the size and character of a silver dollar.</p>' + fx({ hp: -3, sp: 6 }); }, next: () => westDay() },
+      { t: 'Get down and walk the grade to spare the horses', if: () => S.wmi < 100, sub: 'harder on you, easier on your conscience', go: () => { S.wstep++; S.day += S.wstep % 2 ? 0 : 1; S.wmi = Math.min(WEST_END, S.wmi + 8); return '<p>You walked up the grade beside the team with your coat over your arm, and arrived at the top with a fine appetite, a moral glow, and a blister of the size and general character of a Washoe silver dollar.</p>' + fx({ hp: -3, sp: 6 }); }, next: () => westDay() },
       { t: 'Lay over at the station', sub: 'a bunk and two meals for $2, and a day lost', disabled: S.money < 2, go: () => { S.day++; return `<p>${pick(['You lay over a day at the station. The keeper fed you beef that had evidently been killed in self-defence, and a pie that had been made, as near as you could judge, out of the same beef. You slept twelve hours and rose a new man, with the old man’s appetite.', 'You took a day off at the station and sat on the porch watching the freight wagons crawl by. Every teamster that passed said good morning in a voice that would have stripped paint, and meant it kindly.'])}</p>` + fx({ hp: 10, sp: 5, money: -2 }); }, next: () => westDay() },
       { t: 'Take a dose of patent medicine', if: () => has('medicine') && S.hp < 70, go: () => '<p>It tasted of tar and good intentions, and it cured you of everything but the taste.</p>' + fx({ hp: 14, lose: 'medicine' }), next: () => westDay() },
     ],
@@ -133,7 +133,7 @@ const WEST_QUIET = [
   'You counted freight wagons for an hour, going the other way, loaded to the sky with flour, whiskey, mining machinery and hope. You gave up at a hundred and eleven.',
   'Nothing happened for twenty miles, and you were grateful to it.',
   'You changed horses at a station where the keeper had a tame bear on a chain, and the bear had the better manners of the two.',
-  'A passenger read aloud from a newspaper a week old. The news was old, but so was the passenger, and he enjoyed it.',
+  'A passenger read aloud from a <i>Sacramento Union</i> a week old, war news and all. The news was old, but so was the passenger, and he enjoyed it.',
   'You dozed, and dreamed you were rich, and woke in a chuckhole and were not.',
 ];
 
@@ -143,7 +143,7 @@ const WEV = {
     title: 'Carson City', where: 'A change of horses and a last look at Orion',
     body: `<p>At Carson you had time to run up to the Secretary’s office and shake hands with Orion, who was trying to make a Territory balance its books, which is a thing that has never yet been done by a Territory. He gave you a great deal of good advice and asked whether you needed money, in the tone of a man hoping very hard that you would say no.</p>${daily}`,
     choices: [
-      { t: 'Say no, like a gentleman', go: () => '<p>You said no. Orion was so relieved that he gave you twenty dollars anyway, out of sheer gratitude, which is the most Orion thing that was ever done.</p>' + fx({ money: 20, sp: 6 }) },
+      { t: 'Say no, like a gentleman', go: () => '<p>You said no. Orion was so relieved that he gave you twenty dollars anyway, out of sheer gratitude, which was Orion all over, and always had been.</p>' + fx({ money: 20, sp: 6 }) },
       { t: 'Say yes, like a brother', go: () => '<p>You said yes. Orion turned out his pockets and found eleven dollars, a pencil, and a petition to Congress. You took the eleven dollars and left him the petition, which was worth about the same.</p>' + fx({ money: 11, sp: 2 }) },
     ] }, () => westDay()); },
   bigler: daily => { westScene({ lake: true }); outcome('Lake Bigler', `<p>The road came down to Friday’s Station on the shore of Lake Bigler, which the Californians are trying to call Lake Tahoe, and the lake lay there in the pines as blue as ever, and as indifferent to your troubles. You had dinner at the station, a dollar, and it was worth seventy-five cents.</p>${S.flags.tahoe && !S.flags.timber ? '<p>Across the water you could see a long black scar up the side of a mountain, where some fool had let a campfire get away from him. You looked at it with a sort of proprietary interest, and kept your mouth shut.</p>' : ''}` + fx({ money: -1, sp: 6, hp: 3 }) + daily, () => westDay()); },
@@ -237,10 +237,10 @@ function riverNight() {
   S.wmi = WEST_END;
   show({
     title: 'Down the river', where: 'Aboard the Chrysopolis, all night, a hundred and twenty miles to the bay',
-    body: `<p>The <i>Chrysopolis</i> backed out from the levee at two in the afternoon with her band playing and her whistle going and every man aboard who could find a rail leaning on it. ${S.flags.cabin ? 'You had a stateroom with a real bed in it, and white sheets, and a little window on the river, and you looked at the bed the way a man looks at his first love.' : S.flags.stowaway ? 'You lay behind a stack of cotton bales near the paddle box and hoped the purser was a nearsighted man.' : 'You found yourself a corner among the freight with a sack of oats for a pillow.'}</p><p>In the saloon after supper a quiet gentleman in a black coat had opened a game of faro, and was dealing to anyone with money and a hopeful disposition.</p>`,
+    body: `<p>The <i>Chrysopolis</i> backed out from the levee at two in the afternoon with her band playing and her whistle going and every man aboard who could find a rail leaning on it. ${S.flags.cabin ? 'You had a stateroom with a real bed in it, and white sheets, and a little window on the river, and you looked at the bed the way a man looks at his first love.' : S.flags.stowaway ? 'You lay behind a stack of cotton bales near the paddle box and hoped the purser was a nearsighted man.' : 'You staked out a corner among the freight, like a claim, with a sack of oats for a pillow.'}</p><p>In the saloon after supper a quiet gentleman in a black coat had opened a game of faro, and was dealing to anyone with money and a hopeful disposition.</p>`,
     choices: [
       { t: 'Try your luck at faro · $10', disabled: S.money < 10, go: () => Math.random() < .3 ? '<p>You won forty dollars in an hour, which surprised the gentleman in the black coat more than it did you, and he closed the game shortly after, saying he had a headache.</p>' + fx({ money: 40, sp: 8 }) : '<p>You lost ten dollars in eleven minutes, and the gentleman thanked you so handsomely that you almost felt you had made a friend.</p>' + fx({ money: -10, sp: -4 }) },
-      { t: 'Go up on deck and watch the river', go: () => '<p>You stood at the rail while the sun went down over the tule marshes and the river widened out toward the bay, and the paddle wheels thrashed along under you with the old sound you remembered from the Mississippi, and for an hour you were a cub pilot again, reading the water, and you were not sorry at all.</p>' + fx({ sp: 10 }) },
+      { t: 'Go up on deck and watch the river', go: () => '<p>You stood at the rail while the sun went down over the tule marshes and the river widened out toward the bay, and the paddle wheels thrashed along under you with the old sound you remembered from the Mississippi, and for an hour you were a cub pilot again, reading the water, and you would not have traded that hour for twenty feet of Ophir.</p>' + fx({ sp: 10 }) },
       { t: S.flags.cabin ? 'Go to bed in a bed' : 'Sleep where you are', go: () => S.flags.stowaway && Math.random() < .5 ? '<p>The purser found you at midnight with a lantern and an expression. You talked, eloquently, for some time, and at the end of it he let you sleep in the barber’s chair for a dollar, which was the best bargain struck on the river that night.</p>' + fx({ money: -1, hp: 5 }) : '<p>You slept the whole night through with the engine thumping under you like a great heart, and woke with the boat standing still.</p>' + fx({ hp: S.flags.cabin ? 12 : 6 }) },
     ],
   }, () => arriveSF());
@@ -261,8 +261,8 @@ function sfStart(kind) {
   setDate(1864, 5, 31);
   scene.set('sf', {});
   show({ title: 'San Francisco', where: 'The Broadway wharf, at sunrise', body: `
-    <p>The <i>Chrysopolis</i> came down through the Carquinez Strait in the grey of the morning and out onto the bay, and there was San Francisco, piled up on its sand hills in the sun like a city that had been poured out of a sack and not yet swept together. After two years of sagebrush, it was a marvel. There were gaslit streets, and horse cars drawn along iron rails by a pair of patient horses, and French restaurants, and booksellers with the newest books from New York only five weeks old, and ladies in silk, and a fog that came in through the Golden Gate every afternoon like a tide of wet wool. Nobody in all of it had ever heard of you.</p>
-    <p>You had a little silver stock in your pocket: twenty feet of Hale &amp; Norcross, which every broker on Montgomery Street assured you was about to climb. On the strength of it you took rooms at the Lick House, the finest hotel on the coast, and ordered dinner in the manner of a capitalist.</p>
+    <p>The <i>Chrysopolis</i> came down through the Carquinez Strait in the grey of the morning and out onto the bay, and there was San Francisco, piled up on its sand hills in the sun like a city that had been poured out of a sack and not yet swept together. To a man fresh from two years of sagebrush and alkali it was a marvel and a revelation. There were gaslit streets, and horse cars drawn along iron rails by a pair of patient horses, and French restaurants, and booksellers with the newest books from New York only five weeks old, and ladies in silk, and a fog that came in through the Golden Gate every afternoon like a tide of wet wool. There were a hundred and twenty thousand people in it, and not one of them had ever heard of you.</p>
+    <p>You had a little silver stock in your pocket: twenty feet of Hale &amp; Norcross, which every broker on Montgomery Street assured you was about to climb, and they ought to know, for they were selling it. On the strength of it you took rooms at the Lick House, the finest hotel on the coast, and ordered dinner in the manner of a capitalist, which is to say without looking at the right-hand side of the bill of fare.</p>
     <blockquote>A week at a time, now. Pay your lodgings, watch the stock board, and keep an eye out for the chance of a lifetime, which in San Francisco generally turns up wearing a stovepipe hat and selling something.</blockquote>`,
     choices: [{ t: 'Begin →', big: true, go: () => { sfHub(); } }] });
 }
@@ -274,7 +274,7 @@ function sfHub(note) {
   if (S.sfWeek >= 18 && !S.flags.union) return unionOffer(true);
   const L = LODGING[S.lodging];
   const worth = feetWorth();
-  const warn = S.sfWeek === S.flags.crashWeek - 1 ? '<p><i>The board is giddy this week. Bootblacks are buying feet. Your barber gives you a tip on the Gould &amp; Curry while he shaves you. It is the kind of week old brokers remember afterwards.</i></p>' : '';
+  const warn = S.sfWeek === S.flags.crashWeek - 1 ? '<p><i>The board is giddy this week. The bootblacks are buying feet, and your barber gave you a tip on the Gould &amp; Curry while he had the razor at your throat, which is a poor time to argue with a man. The old brokers will remember this week afterwards, and wish they did not.</i></p>' : '';
   show({
     title: `San Francisco, week ${S.sfWeek + 1}`,
     where: `${dateStr()} · living at ${L.name} ($${L.cost}/wk) · cash ${money(S.money)}${worth ? ` · feet worth ${money(worth)}` : ''}`,
@@ -286,22 +286,22 @@ function sfHub(note) {
       { t: 'See the city', sub: 'a week of wandering', go: () => { cityWeek(); } },
       { t: 'Go pocket-mining at Jackass Hill', sub: 'a few weeks in the gold country with an old friend', if: () => !S.flags.pocket, go: () => { pocketTrip(); } },
       { t: 'Change your lodgings', go: () => { lodgingMenu(); } },
-      { t: 'Rest a week', sub: '+health, +spirits', go: () => { sfWeekEnd(1); return `<p>You sleep late, walk on the beach at North Point, and let the fog take care of the afternoons.</p>` + fx({ hp: 8, sp: 6 }); }, next: () => sfHub() },
+      { t: 'Rest a week', sub: '+health, +spirits', go: () => { sfWeekEnd(1); return `<p>You slept late, walked on the beach at North Point, and let the fog attend to the afternoons, which it did without being asked.</p>` + fx({ hp: 8, sp: 6 }); }, next: () => sfHub() },
       { t: 'Accept the Sacramento Union’s commission to the Sandwich Islands', big: true, if: () => S.sfWeek >= 6 && !S.flags.union, go: () => { unionOffer(false); } },
     ],
   });
 }
 const SF_FLAVOR = [
-  'Montgomery Street is a river of stovepipe hats, every one of them talking about feet.',
-  'A sea captain at the hotel bar tells you about Honolulu: warm rain, flowers in December, no snow ever. You find you cannot stop thinking about it.',
-  'The fog comes in at four o’clock as if it had an appointment.',
-  'At the Occidental a man introduces himself as a millionaire and borrows a dollar from you.',
-  'The horse car up Third Street is so crowded that you ride the whole way on the step with one foot and a great deal of faith.',
-  'Booksellers on Montgomery Street have the newest novels from New York only five weeks late. It feels like civilisation.',
-  'A clipper comes in through the Gate under full sail, and the whole waterfront stops work to watch her.',
-  'The city has more newspapers than it has readers, and you are beginning to know most of the editors by their debts.',
-  'A street preacher in Portsmouth Square predicts the end of the world on Thursday. On Friday he is there again, unembarrassed.',
-  'A week of perfect weather, which the locals call unusual every single time.',
+  'Montgomery Street is a river of stovepipe hats, and every hat in it has been talking about feet since breakfast.',
+  'A sea captain at the hotel bar told you about Honolulu: warm rain, flowers in December, and no snow since the Creation. You have thought about very little else since, and your work shows it.',
+  'The fog comes in through the Gate at four o’clock, as punctual as a creditor, and sits down on the town as if it had paid for the room.',
+  'At the Occidental a gentleman introduced himself as a millionaire three times over, and borrowed a dollar off you to get home on. You have not seen the dollar since, nor the millions.',
+  'The horse car up Third Street is so crowded that you ride the whole way on the step, on one foot and a great deal of faith, and the horses look round at every block to see whether you are still there.',
+  'The booksellers on Montgomery Street have the newest novels from New York only five weeks late, which after Washoe is very like reading tomorrow’s paper.',
+  'A clipper came in through the Gate under full sail, and the whole waterfront knocked off work to watch her, stevedores, hackmen and two policemen, though the policemen had not been working anyway.',
+  'The city has more newspapers than it has readers, and you are beginning to know most of the editors by their debts, and they you by yours.',
+  'A street preacher in Portsmouth Square predicted the end of the world for Thursday. On Friday he was back on his barrel, not a particle embarrassed, with a new date and a revised arithmetic.',
+  'A week of perfect weather, which the old residents call unusual, and have called unusual every week since ’49.',
 ];
 
 function sfWeekEnd(n) {
@@ -327,9 +327,9 @@ function crash() {
 
 function lodgingMenu() {
   show({
-    title: 'Where to sleep', body: `<p>In San Francisco a man’s address tells you what his stocks did this week. You can move up or down as your fortunes require. Most people move in one direction.</p>`,
+    title: 'Where to sleep', body: `<p>In San Francisco a man’s address is a kind of stock report: you can read in it what his feet did last week. A body may move up or down as his fortunes require, and the general run of the population, so far as you observed, moved down, and carried their own trunks.</p>`,
     choices: [
-      ...Object.entries(LODGING).map(([k, L]) => ({ t: `${L.name[0].toUpperCase() + L.name.slice(1)} · $${L.cost} a week`, sub: L.note + (S.lodging === k ? ' (you live here now)' : ''), disabled: S.lodging === k, go: () => { const up = L.cost > LODGING[S.lodging].cost; S.lodging = k; log(`Moved to ${L.name}.`); return `<p>${up ? 'You move up in the world, with a hired cart and a little swagger.' : 'You move down in the world, carrying your own trunk, by the back stairs, after dark.'}</p>`; }, next: () => sfHub() })),
+      ...Object.entries(LODGING).map(([k, L]) => ({ t: `${L.name[0].toUpperCase() + L.name.slice(1)} · $${L.cost} a week`, sub: L.note + (S.lodging === k ? ' (you live here now)' : ''), disabled: S.lodging === k, go: () => { const up = L.cost > LODGING[S.lodging].cost; S.lodging = k; log(`Moved to ${L.name}.`); return `<p>${up ? 'You moved up in the world, with a hired dray and a little swagger, and tipped the drayman two bits to be seen doing it.' : 'You moved down in the world, carrying your own trunk, by the back stairs, after dark, which is the customary hour for that kind of removal.'}</p>`; }, next: () => sfHub() })),
       { t: '← stay where you are', go: () => { sfHub(); } },
     ],
   });
@@ -337,20 +337,20 @@ function lodgingMenu() {
 
 // --- the Morning Call: drudgery with the odd bright spot
 const CALL = [
-  { t: 'Police court', b: 'Every morning at nine the city’s drunks, brawlers and stray philosophers are paraded before Judge Shepheard (who has heard it all) and fined five dollars apiece.', a: ['Write it up as comedy', 'Your account of a sailor who defended himself in verse runs on page one. The sailor writes in to praise the review.', { readers: 8, sp: 3 }], c: ['Give the plain list of names and fines', 'Forty names, forty fines. The compositors set it in their sleep, and so do the readers.', { sp: -3 }] },
-  { t: 'The theatre', b: 'A touring company is doing a melodrama in which the heroine is rescued from a sawmill, a train, a flood and the villain, in that order, in one evening.', a: ['Review it honestly', 'You say the sawmill gave the best performance. The manager stops sending you free tickets.', { readers: 7, sp: 4 }], c: ['Review it kindly', 'You praise the scenery and the heroine’s lungs. The manager sends round a box of cigars.', { sp: 2, money: 5 }] },
-  { t: 'A fire on Kearny Street', b: 'The bells ring at midnight. A cigar store is burning, and four volunteer companies are racing each other to be first at the hydrant.', a: ['Run to it', 'You arrive in time to be soaked by two companies at once, both claiming the honour.', { hp: -5, readers: 6 }], c: ['Report it from the saloon across the street', 'You get the whole story from the firemen as they come in to recover. It is more vivid than the fire.', { readers: 3, sp: 3 }] },
-  { t: 'The shipping list', b: 'Your duties include listing every ship in and out of the harbour, with its tonnage and cargo. There are a great many ships. They are all very similar.', a: ['Liven it up', 'You describe a lumber schooner as "proud and mysterious". The editor removes the adjectives with a long knife.', { sp: -2 }], c: ['Copy it out faithfully', 'You copy it out. A small part of you dies, but the tonnage is correct.', { sp: -5 }] },
-  { t: 'A runaway on Montgomery Street', b: 'A grocer’s horse has taken fright at a velocipede and gone down Montgomery Street with the cart, the grocer and a barrel of pickles.', a: ['Chase it', 'You run four blocks and arrive in time to see the horse eating the pickles, calm as a deacon.', { hp: -3, readers: 6 }], c: ['Interview the velocipede', 'Its owner, a dentist, insists it was the horse’s fault. You print both sides. Nobody is satisfied.', { readers: 4 }] },
-  { t: 'A séance on Stockton Street', b: 'A medium is raising spirits for fifty cents a head. Your editor wants the story; the spirits want fifty cents.', a: ['Ask the spirits hard questions', 'You ask the departed for the price of Ophir next week. The table bangs twice and the medium asks you to leave.', { readers: 8, sp: 4 }], c: ['Report what you saw, politely', 'The spirits knocked, a trumpet floated, and a lady fainted on schedule. You write it straight and let the readers decide.', { readers: 3 }] },
-  { t: 'The Board of Supervisors', b: 'The Supervisors are debating whether to pave a street. They have been debating it since the street was a sand dune.', a: ['Report the debate as a war', 'Your dispatch from the "Battle of Folsom Street" is cut by half and still annoys four Supervisors.', { readers: 6, trouble: 4 }], c: ['Report the vote', 'They voted to discuss it again. You report that, in one sentence.', { sp: -3 }] },
-  { t: 'A perpetual motion machine', b: 'A man in a basement on Jackson Street has built a wheel that will turn forever, he says, as soon as he gets it started.', a: ['Watch it for an hour', 'It does not move. Neither does the inventor, who stares at it with such faith that you write a gentle piece about hope.', { readers: 6, sp: 3 }], c: ['Note it and move on', 'Two lines on page three. Next week a second man builds a second machine to keep the first one company.', { readers: 1 }] },
-  { t: 'A lost child', b: 'A small boy was lost on the waterfront for a whole day and turned up asleep in a coil of rope on a Sydney packet.', a: ['Write it warmly', 'Mothers all over the city read it twice. A sea captain sends the boy a parrot.', { readers: 7, sp: 6 }], c: ['Write it briskly', 'Found, returned, spanked. Three lines.', { readers: 1 }] },
-  { t: 'The hotel arrivals', b: 'Another duty: the list of everyone who checked into the city’s hotels yesterday, spelled the way they spelled it themselves.', a: ['Make up a few distinguished guests', 'You add "the Duke of Washoe and suite" to the Occidental list. Three ladies call at the hotel to see him.', { readers: 5, trouble: 6 }], c: ['Copy the list', 'Mr. Smith of Stockton. Mr. Smith of Sacramento. Another Mr. Smith. You begin to suspect a conspiracy.', { sp: -4 }] },
-  { t: 'A prizefight', b: 'Two heavyweights are to fight on a barge in the bay, out of the police’s reach, for a purse of two thousand dollars.', a: ['Go out on the tug', 'Seventy rounds. The barge drifts halfway to Oakland. You write the whole thing as a naval battle.', { hp: -3, readers: 9 }], c: ['Get the result by telegraph', 'Somebody won. You have it by eleven.', { readers: 2 }] },
-  { t: 'A billiard match', b: 'The champion of the Pacific coast is playing the champion of Nevada at the What Cheer House. You know nothing whatever about billiards.', a: ['Bluff it with technical terms', 'Your account is full of "kisses", "draws" and "a magnificent English". Billiard players read it with tears of laughter.', { readers: 7 }], c: ['Report the score', 'Five hundred to four hundred and something. You leave the something out.', { sp: -2 }] },
-  { t: 'A wedding on Rincon Hill', b: 'A banker’s daughter marries a mining superintendent. There are four hundred guests and a cake shaped like a stamp mill.', a: ['Describe the cake in detail', 'The cake piece is a sensation. Two bakeries ask who did it.', { readers: 6, money: 5 }], c: ['Describe the bride', 'You describe the bride as charming. Her mother writes to say she was radiant. You print a correction.', { readers: 2 }] },
-  { t: 'Sunday at the Cliff House', b: 'All the city’s horses go out to the Cliff House on Sunday to look at the sea lions, and all the city’s people go with them.', a: ['Interview a sea lion', 'You quote the largest one at length. He is against the tariff and in favour of fish.', { readers: 8, sp: 4 }], c: ['Count the carriages', 'Two hundred and twelve. You check twice.', { sp: -2 }] },
+  { t: 'Police court', b: 'Every morning at nine the city’s drunks, brawlers and stray philosophers were paraded before Judge Shepheard, who had heard every excuse in the language and some in Chinook, and fined five dollars apiece.', a: ['Write it up as comedy', 'Your account of a sailor who conducted his own defence in rhymed verse ran on page one. The sailor wrote in to praise the review, and asked for six copies for his mother.', { readers: 8, sp: 3 }], c: ['Give the plain list of names and fines', 'Forty names, forty fines. The compositors set it in their sleep, and the readers took it the same way.', { sp: -3 }] },
+  { t: 'The theatre', b: 'A touring company was doing a melodrama in which the heroine was rescued from a sawmill, a railroad train, a flood and the villain, in that order, all in one evening and at no extra charge.', a: ['Review it honestly', 'You wrote that the sawmill gave the best performance of the evening and ought to have been called before the curtain. The manager stopped sending you free tickets.', { readers: 7, sp: 4 }], c: ['Review it kindly', 'You praised the scenery and the heroine’s lungs, which were considerable. The manager sent round a box of cigars, and they were better than the play.', { sp: 2, money: 5 }] },
+  { t: 'A fire on Kearny Street', b: 'The bells rang at midnight. A cigar store was afire, and four volunteer companies were racing one another through the streets to be first at the hydrant, which mattered a great deal more to them than the cigar store.', a: ['Run to it', 'You arrived in time to be soaked by two companies at once, both of them claiming the honour, and the cigar store burned to the ground while they argued it.', { hp: -5, readers: 6 }], c: ['Report it from the saloon across the street', 'You got the whole story from the firemen as they came in to recover their strength. It was considerably more vivid than the fire, and lasted longer.', { readers: 3, sp: 3 }] },
+  { t: 'The shipping list', b: 'Among your duties was a list of every ship in and out of the harbour, with her tonnage and her cargo. There were a great many ships, and they had all apparently been built by the same man out of the same lumber.', a: ['Liven it up', 'You described a lumber schooner as "proud and mysterious." The editor removed the adjectives with a long knife and some remarks.', { sp: -2 }], c: ['Copy it out faithfully', 'You copied it out, every ton of it, and felt your intellect shrinking like a wool shirt in hot water; but the tonnage was correct.', { sp: -5 }] },
+  { t: 'A runaway on Montgomery Street', b: 'A grocer’s horse took fright at a velocipede and went down Montgomery Street at a dead run, with the cart, the grocer and a barrel of pickles.', a: ['Chase it', 'You ran four blocks and came up in time to find the horse standing in an alley eating the pickles, as calm as a deacon at a church supper.', { hp: -3, readers: 6 }], c: ['Interview the velocipede', 'Its owner, a dentist, maintained that it was the horse’s fault. You printed both sides, and neither side was satisfied, which is how you know it was fair.', { readers: 4 }] },
+  { t: 'A séance on Stockton Street', b: 'A medium on Stockton Street was raising spirits at four bits a head. Your editor wanted the story; the spirits wanted the four bits.', a: ['Ask the spirits hard questions', 'You asked the departed what Ophir would be quoted at next week. The table banged twice, and the medium asked you to leave, and the spirits, so far as you could make out, sided with her.', { readers: 8, sp: 4 }], c: ['Report what you saw, politely', 'The spirits knocked, a tin trumpet floated about the room, and a lady fainted on schedule. You wrote it straight and let the readers decide, and most of them decided against the spirits.', { readers: 3 }] },
+  { t: 'The Board of Supervisors', b: 'The Supervisors were debating whether to pave a street. They had been debating it since the street was a sand dune, and the dune had moved twice in the meantime.', a: ['Report the debate as a war', 'Your dispatch from the "Battle of Folsom Street" was cut by half and still annoyed four Supervisors, which you considered a fair return on the ink.', { readers: 6, trouble: 4 }], c: ['Report the vote', 'They voted to discuss it again. You reported that, in one sentence, which was more than the subject had earned.', { sp: -3 }] },
+  { t: 'A perpetual motion machine', b: 'A man in a basement on Jackson Street had built a wheel that would turn forever, he said, just as soon as he could get it started.', a: ['Watch it for an hour', 'It did not move in the hour. Neither did the inventor, who sat and looked at it with such a faith as you have seen at a camp-meeting, and you went home and wrote a kindly piece about hope, and were not ashamed of it.', { readers: 6, sp: 3 }], c: ['Note it and move on', 'Two lines on page three. The next week a second man built a second machine, to keep the first one company.', { readers: 1 }] },
+  { t: 'A lost child', b: 'A small boy was lost on the waterfront for a whole day, and was turned up at last asleep in a coil of rope aboard a Sydney packet.', a: ['Write it warmly', 'Mothers all over the city read it twice, and some of them read it aloud to their husbands. A sea captain sent the boy a parrot, which was more than the boy’s father had ever done.', { readers: 7, sp: 6 }], c: ['Write it briskly', 'Lost, found, returned and spanked: three lines, and the boy would have said that was three too many.', { readers: 1 }] },
+  { t: 'The hotel arrivals', b: 'Another duty was the list of everybody who had put up at the city’s hotels the day before, spelled the way they spelled it themselves, which was not always the way Providence intended.', a: ['Make up a few distinguished guests', 'You added "the Duke of Washoe and suite" to the Occidental list. Three ladies called at the hotel next day to see him, and the clerk has not forgiven you yet.', { readers: 5, trouble: 6 }], c: ['Copy the list', 'Mr. Smith of Stockton, Mr. Smith of Sacramento, and another Mr. Smith, of nowhere in particular. You began to suspect a conspiracy.', { sp: -4 }] },
+  { t: 'A prizefight', b: 'Two heavyweights were to fight on a barge out in the bay, beyond the reach of the police, for a purse of two thousand dollars in gold.', a: ['Go out on the tug', 'They fought seventy rounds, and the barge drifted halfway to Oakland while they did it. You wrote up the whole affair as a naval engagement, with broadsides.', { hp: -3, readers: 9 }], c: ['Get the result by telegraph', 'Somebody won. You had it by eleven o’clock, and could not have told the two of them apart on the street.', { readers: 2 }] },
+  { t: 'A billiard match', b: 'The champion of the Pacific coast was to play the champion of Nevada at the What Cheer House, and you knew nothing whatever about billiards except that it was played in saloons.', a: ['Bluff it with technical terms', 'Your account was full of "kisses," "draws" and "a magnificent English." Billiard players read it with the tears running down their faces, though not for the reason you intended.', { readers: 7 }], c: ['Report the score', 'Five hundred to four hundred and something. You left the something out, as being nobody’s business.', { sp: -2 }] },
+  { t: 'A wedding on Rincon Hill', b: 'A banker’s daughter was married to a mining superintendent. There were four hundred guests and a cake built in the shape of a stamp mill, stamps and all.', a: ['Describe the cake in detail', 'The cake piece was a sensation. Two bakeries called to ask who had done it, and a mining company wanted to know whether it would crush ore.', { readers: 6, money: 5 }], c: ['Describe the bride', 'You described the bride as charming. Her mother wrote to say she had been radiant. You printed a correction, and the mother was not satisfied with that either.', { readers: 2 }] },
+  { t: 'Sunday at the Cliff House', b: 'Of a Sunday every horse in the city went out to the Cliff House to look at the sea lions, and every man, woman and child in the city went along behind the horses.', a: ['Interview a sea lion', 'You quoted the largest one at length. He was against the tariff, in favour of fish, and sound on the Union.', { readers: 8, sp: 4 }], c: ['Count the carriages', 'Two hundred and twelve. You counted twice, to be sure of it, and the readers did not count at all.', { sp: -2 }] },
 ];
 function callWeek() {
   scene.set('sf', { press: true });
@@ -358,7 +358,7 @@ function callWeek() {
   const e = deal(CALL);
   show({
     title: `On the Call: ${e.t}`, where: 'Morning Call, Commercial Street · $40 this week',
-    body: `<p>Your days run from nine in the morning to eleven at night: the police court, the hotels, the theatres, the ships, the fires and whatever else the city does when nobody is looking. You are the only reporter on the paper.</p><p>${e.b}</p>`,
+    body: `<p>Your days ran from nine in the morning till eleven at night: the police court, the hotels, the theatres, the ships, the fires, and whatever else the city did when it supposed nobody was looking. You were the only reporter on the paper, and the paper took care that you never forgot it.</p><p>${e.b}</p>`,
     choices: [e.a, e.c].map(([t, r, d]) => ({ t, go: () => { S.callWeeks = (S.callWeeks || 0) + 1; sfWeekEnd(1); return `<p>${r}</p>` + fx({ ...d, money: 40 + (d.money || 0), sp: -4 + (d.sp || 0) }); }, next: () => sfHub() })),
   });
 }
@@ -366,75 +366,75 @@ function callStory() {
   S.flags.callStory = 1;
   show({
     title: 'The story the Call won’t print',
-    body: `<p>One Sunday you watch a gang of young toughs stone a Chinese laundryman in the street while a policeman looks on with interest and does nothing at all. You go back to the office and write it up with every bit of fire you have.</p><p>The next morning it is not in the paper. The editor explains that the <i>Call</i> is read by the very people who did it, and the paper must think of its subscribers.</p>`,
+    body: `<p>One Sunday you saw a gang of young hoodlums stone a Chinese laundryman in the street, while a policeman stood by and looked on with interest, as at a dog-fight, and did nothing whatever. You went back to the office and wrote it up with every bit of fire you had in you.</p><p>The next morning it was not in the paper. The editor explained that the <i>Call</i> was read by the very people who did such things, and that a paper must think of its subscribers; and he said it as if it settled the matter, which for him it did.</p>`,
     choices: [
-      { t: 'Quit, and take the story somewhere that will print it', go: () => { S.callJob = false; S.flags.fired = 1; feat('Quit the Call on principle'); log('Left the Morning Call.'); sfWeekEnd(1); return `<p>You walk out. The piece runs in the <i>Enterprise</i> back in Virginia City instead, under your own name, and it stings everyone it should. You are out of a regular job, but you have discovered the one thing that makes you angriest, and you will write about it for the rest of your life.</p>` + fx({ readers: 25, sp: 6, trouble: 10 }); }, next: () => sfHub() },
-      { t: 'Swallow it and keep your $40 a week', go: () => { sfWeekEnd(1); return `<p>You keep the job. You also keep the story, folded in your coat pocket, and every so often you take it out and read it again.</p>` + fx({ money: 40, sp: -12 }); }, next: () => sfHub() },
+      { t: 'Quit, and take the story somewhere that will print it', go: () => { S.callJob = false; S.flags.fired = 1; feat('Quit the Call on principle'); log('Left the Morning Call.'); sfWeekEnd(1); return `<p>You walked out. The piece ran instead in the <i>Enterprise</i>, back in Virginia City, over your own name, and it stung everybody it ought to have stung, and a policeman or two besides. You were out of a regular job, and you had found out what it was that made you angriest in the world, and you went on writing about it, off and on, for forty years.</p>` + fx({ readers: 25, sp: 6, trouble: 10 }); }, next: () => sfHub() },
+      { t: 'Swallow it and keep your $40 a week', go: () => { sfWeekEnd(1); return `<p>You kept the job. You also kept the story, folded in your coat pocket, and every so often you took it out and read it over again, and it never once improved your appetite.</p>` + fx({ money: 40, sp: -12 }); }, next: () => sfHub() },
     ],
   });
 }
 
 // --- sketches for the literary weeklies
 const SKETCHES = [
-  { n: 'Answers to Correspondents', d: 'A mock advice column, answering letters nobody sent: what to do about a moustache that will not grow, and whether a gentleman may eat pie with a knife.', r: 16 },
-  { n: 'A Ball at the Lick House, reported as a battle', d: 'The fashionable world arrives in silk and lace, and you report each lady’s gown like a general describing troop movements.', r: 15 },
-  { n: 'Etiquette for Earthquakes', d: 'A guide for the polite San Franciscan: whom to bow to while the chimney is falling, and in what order to rescue one’s relatives.', r: 18, if: () => S.flags.quake },
-  { n: 'The Story of the Bad Little Boy', d: 'A boy who steals jam, tells lies and skips Sunday school, and who, unlike the boys in the Sunday-school books, is never once punished for it.', r: 20 },
-  { n: 'How to Cure a Cold', d: 'Every remedy your friends gave you, taken one after another: whiskey, gin, mustard plasters, a quart of salt water, and a lady’s advice to drink a quart of warm salt water.', r: 17 },
+  { n: 'Answers to Correspondents', d: 'A mock advice column, answering letters nobody sent: what to do about a moustache that will not grow, and whether a gentleman may eat pie with his knife in the presence of a lady.', r: 16 },
+  { n: 'A Ball at the Lick House, reported as a battle', d: 'The fashionable world arrives in silk and lace, and you report each lady’s gown the way a general reports troop movements, with the casualties.', r: 15 },
+  { n: 'Etiquette for Earthquakes', d: 'A guide for the polite San Franciscan: whom to bow to while the chimney is coming down, and in what order to rescue one’s relatives, beginning with the rich ones.', r: 18, if: () => S.flags.quake },
+  { n: 'The Story of the Bad Little Boy', d: 'A boy who steals jam, tells lies and skips Sunday school, and who, unlike the boys in the Sunday-school books, is never once struck by lightning for it, and prospers.', r: 20 },
+  { n: 'How to Cure a Cold', d: 'Every remedy your friends gave you, taken one after another and some of them all at once: whiskey, gin, mustard plasters, a cold shower, and a lady’s advice to drink a quart of warm salt water, which you took, and which took you.', r: 17 },
   { n: 'The City Directory, reviewed as a novel', d: 'Too many characters, no plot, and a great many Smiths, but a powerful ending in the Z’s.', r: 14 },
-  { n: 'Ode to the Fog', d: 'A mock-heroic poem in nine stanzas to the San Francisco fog, which never reads poetry and arrives at four regardless.', r: 11 },
-  { n: 'Advice to Young Men Going West', d: 'Bring a coat. Bring a second coat. Do not buy feet from a man in a stovepipe hat. Do not buy a horse from his brother.', r: 15 },
+  { n: 'Ode to the Fog', d: 'A mock-heroic poem in nine stanzas to the San Francisco fog, which never reads poetry and arrives at four o’clock regardless.', r: 11 },
+  { n: 'Advice to Young Men Going West', d: 'Bring a coat. Bring a second coat. Do not buy feet from a man in a stovepipe hat, and do not buy a horse from his brother, and do not believe a word their uncle says about either.', r: 15 },
   { n: 'A Visit to the Mint, as told by a coin', d: 'A twenty-dollar piece describes its birth in the Mint, its first owner, and the indignity of being bet on a horse called Lightning.', r: 13 },
-  { n: 'Lucretia Smith’s Soldier', d: 'A sentimental war romance, done so very sentimentally that it turns inside out at the end, and the soldier turns out to be someone else entirely.', r: 16 },
+  { n: 'Lucretia Smith’s Soldier', d: 'A war romance in the sentimental style, laid on so thick that it turns inside out at the end, when the wounded soldier she has nursed for weeks proves to be somebody else entirely.', r: 16 },
   { n: 'A Complaint about the Horse Cars', d: 'An open letter to the horse-car company from a man who has ridden the whole length of Third Street standing on another man’s foot.', r: 12 },
-  { n: 'Dinner with the Mining Men', d: 'A dinner party where every sentence, including the grace, is about feet, assessments and assays.', r: 13 },
+  { n: 'Dinner with the Mining Men', d: 'A dinner party at which every sentence, the grace included, is about feet, assessments and assays.', r: 13 },
   { n: 'Concerning the Dogs of San Francisco', d: 'A census of the city’s dogs, their politics, and their opinion of the new dog tax.', r: 12 },
-  { n: 'The Lodging-House Ghost', d: 'A ghost haunts your boarding house, rattling chains at night. On investigation it turns out to want only a better room.', r: 15 },
-  { n: 'A Literary Tea', d: 'You are invited to a tea where everyone is a poet. You are asked to read. You read the shipping list, with feeling.', r: 14 },
+  { n: 'The Lodging-House Ghost', d: 'A ghost haunts your boarding house, rattling chains all night. On investigation he proves to want nothing but a better room, like everybody else in the house.', r: 15 },
+  { n: 'A Literary Tea', d: 'You are invited to a tea where everybody is a poet, and are asked to read, and read them the shipping list, with feeling, and two ladies weep.', r: 14 },
   { n: 'An Inquiry into the Great Bean Question', d: 'Boarding houses serve beans seven days a week. You investigate why, and whether the beans are the same beans.', r: 12 },
   { n: 'My Late Senatorial Secretaryship', d: 'Your service as private secretary to a statesman, during which you answered every letter he received with the wrong answer.', r: 17 },
   { n: 'The Facts in the Case of the Great Beef Contract', d: 'A citizen tries for thirty years to collect a government bill for thirty barrels of beef, and is passed from office to office into eternity.', r: 18 },
   { n: 'Washoe, explained to an Eastern lady', d: 'Patient answers to an imaginary lady in Boston who wants to know whether Nevada has streets, and whether the Zephyr is a young man.', r: 13 },
-  { n: 'The Petrified Man, revisited', d: 'Your old hoax, followed into the papers of the East, which have treated it with total seriousness and asked for photographs.', r: 14, if: () => (S.usedLeads || []).includes('petrified') },
-  { n: 'The Celebrated Jumping Frog of Calaveras County', d: 'The story you heard in the Angel’s Camp tavern, about a gambler, his trained frog Dan’l Webster, and a stranger with a pocketful of quail shot, told exactly as the old man told it: slowly, gravely, and without once noticing that it is funny.', r: 60, if: () => S.flags.frogHeard, frog: true },
+  { n: 'The Petrified Man, revisited', d: 'Your old hoax, followed into the papers of the East, which have taken it with perfect seriousness and written to ask for a photograph.', r: 14, if: () => (S.usedLeads || []).includes('petrified') },
+  { n: 'The Celebrated Jumping Frog of Calaveras County', d: 'The story you heard in the Angel’s Camp tavern, about a gambler, his educated frog Dan’l Webster, and a stranger with a pocketful of quail shot, told exactly as the old man told it: slowly, gravely, and without once suspecting that it was funny.', r: 60, if: () => S.flags.frogHeard, frog: true },
 ];
 function sketchWeek() {
   scene.set('sf', {});
   const avail = SKETCHES.filter(k => (!k.if || k.if()) && !(S.sketched || []).includes(k.n));
-  if (!avail.length) return outcome('Writer’s block', '<p>You sit at your desk all week and write nothing at all except a letter to your mother asking for nothing in particular.</p>', () => { sfWeekEnd(1); sfHub(); });
+  if (!avail.length) return outcome('Writer’s block', '<p>You sat at your desk all week and wrote nothing at all except a letter to your mother asking for nothing in particular, and you were three days on that.</p>', () => { sfWeekEnd(1); sfHub(); });
   // the frog, once heard, is always offered
   const frog = avail.find(k => k.frog);
   const opts = [...(frog ? [frog] : []), ...avail.filter(k => !k.frog).sort(() => Math.random() - .5)].slice(0, 3);
   show({
     title: 'A sketch for the weeklies', where: 'The Californian and the Golden Era pay a few dollars and a great deal of attention',
-    body: `<p>The literary weeklies are where the city’s young writers show off for each other. ${S.flags.harte ? 'Bret Harte has promised to look over whatever you write; his pencil is merciless and his advice is good.' : 'The pay is poor, but the readers are the kind who remember a name.'}</p><p>Which sketch will you write this week?</p>`,
+    body: `<p>The literary weeklies are where the city’s young writers show off for one another. ${S.flags.harte ? 'Bret Harte has promised to look over whatever you write; his pencil is merciless and his advice is good, which is a rare combination in a friend.' : 'The pay is poor, but the readers are the kind who remember a name, and sometimes the name is spelt right.'}</p><p>Which sketch will you write this week?</p>`,
     choices: opts.map(k => ({ t: k.n, sub: k.d, go: () => {
       S.sketched = S.sketched || []; S.sketched.push(k.n);
       let r = Math.round(k.r * rnd(.8, 1.25) * (S.flags.harte ? 1.3 : 1) * (has('notebook') ? 1.1 : 1));
       sfWeekEnd(1);
       if (k.frog) {
         feat('The Jumping Frog'); addBonus(60); log('Published the Jumping Frog.');
-        return `<p>You write the frog story down. It runs in the <i>Saturday Press</i> in New York, and then in every newspaper in the country that owns a pair of scissors. People who have never heard of Washoe are quoting Dan’l Webster at breakfast. Within a month you are, for the first time, a little famous.</p>` + fx({ readers: r, money: 15, sp: 15 });
+        return `<p>You wrote the frog story down. It ran in the <i>Saturday Press</i> in New York, and then in every newspaper in the country that owned a pair of scissors. People who had never heard of Washoe were quoting Dan’l Webster at breakfast. Inside of a month you were, for the first time in your life, a little famous, and did not know what to do with it.</p>` + fx({ readers: r, money: 15, sp: 15 });
       }
-      return `<p>${pick(['The piece runs on Saturday. By Monday people are quoting it to you, wrongly.', 'The editor laughs out loud at it, which he says he has not done since the Mexican War.', 'It runs, and a paper in Sacramento steals it the next week, which is the sincerest form of praise on this coast.', 'A lady at the Lick House asks if you are the man who wrote it, then whether you are ashamed of yourself. You are not.'])}</p>` + fx({ readers: r, money: ri(6, 15), sp: 5 });
+      return `<p>${pick(['The piece ran on Saturday. By Monday people were quoting it back to you, wrong.', 'The editor laughed out loud at it, which he said he had not done since the Mexican War, and he seemed a little put out about it.', 'It ran, and a paper in Sacramento stole it the next week, which is the sincerest form of praise on this coast and the only kind you can depend on.', 'A lady at the Lick House asked whether you were the man who wrote it, and then whether you were not ashamed of yourself. You were not, and said so, and she has not spoken to you since.'])}</p>` + fx({ readers: r, money: ri(6, 15), sp: 5 });
     } })),
   }, () => sfHub());
 }
 
 // --- the city
 const CITY = [
-  { t: 'The Cliff House', b: 'You hire a buggy and drive out the long road to the Cliff House, where the Pacific breaks white on the rocks and the sea lions sit on Seal Rock barking like a convention of aldermen.', fx: { sp: 9 } },
-  { t: 'The Mint', id: 'harte', b: 'At the Branch Mint you meet the secretary to the superintendent, a neat, quiet, clever young man named Bret Harte who edits the Californian on the side. He has read your Washoe pieces. He offers to read your sketches before they go to print.', fx: { sp: 8, readers: 4 }, then: () => { S.flags.harte = 1; feat('Befriended Bret Harte'); } },
-  { t: 'Mission Dolores', b: 'You walk out to the old adobe mission at the edge of the city, older than anything else in San Francisco, with roses in the graveyard and a calm about it that the rest of the city has not had time for.', fx: { sp: 7, hp: 2 } },
-  { t: 'Telegraph Hill', b: 'From the top of Telegraph Hill a man with a semaphore signals ship arrivals to the city: arms up for a sidewheel steamer, arms out for a brig. You watch half the waterfront run to the wharves when he raises his arms.', fx: { sp: 6 } },
-  { t: 'A Chinese theatre on Jackson Street', b: 'A play is in progress at the Chinese theatre, a historical drama that, the man beside you explains, began a week ago and will go on for some weeks yet. The costumes are magnificent, the orchestra is magnificent and loud, and the audience comes and goes with great courtesy. You stay three hours and understand a great deal more than you expected.', fx: { sp: 8 } },
-  { t: 'The Oakland ferry', b: 'You take the ferry across the bay to Oakland for no reason but the ride. Gulls follow the boat the whole way, hoping you are carrying bread. You are not, and they let you know it.', fx: { sp: 6, hp: 2 } },
-  { t: 'A Turkish bath', b: 'You try the new Turkish bath on Washington Street: steam, a marble slab, and a man who folds you up like a shirt. You emerge two inches taller and a new man, and the new man is very tired.', fx: { hp: 8, money: -3 } },
-  { t: 'A waterfront saloon', b: 'Down on the waterfront, sailors from every country on earth are telling lies in every language on earth. A whaler from Nantucket tells you about the Sandwich Islands until the bar closes.', fx: { sp: 6, hp: -2 }, then: () => { S.flags.heardIslands = 1; } },
-  { t: 'Woodward’s Gardens', b: 'A rich man has opened his gardens to the public: lawns, a conservatory, a sea-lion pool, a museum, a bear named Ben, and a balloon on Sundays. You spend a whole afternoon there and forget about stocks entirely.', fx: { sp: 9 } },
-  { t: 'Portsmouth Square', b: 'In the old plaza a political speaker stands on a barrel and explains for two hours what is wrong with everything. A dog sits in front of him the whole time, listening with great attention, and is the only one to leave unconvinced.', fx: { sp: 5, readers: 2 } },
-  { t: 'An evening with the Bohemians', b: 'You fall in with the city’s young writers and artists, who meet in a back room on Montgomery Street to drink, argue and read each other their work. They are poor, brilliant, and certain they will be famous. A few of them are right.', fx: { sp: 8, readers: 4 } },
-  { t: 'The Pioneers’ parade', b: 'The Society of California Pioneers marches up Montgomery Street, old men who came in ’49, each one of whom would cheerfully explain that the city was much better before you arrived.', fx: { sp: 5 } },
+  { t: 'The Cliff House', b: 'You hired a buggy and drove out the long sand road to the Cliff House, where the Pacific broke white on the rocks and the sea lions sat on Seal Rock barking like a convention of aldermen with a contract to let.', fx: { sp: 9 } },
+  { t: 'The Mint', id: 'harte', b: 'At the Branch Mint you met the secretary to the superintendent, a neat, clever young man named Bret Harte, who edited the <i>Californian</i> on the side and parted his hair with great exactness. He had read your Washoe pieces. He offered to look over your sketches before they went to print, and you were wise enough to let him.', fx: { sp: 8, readers: 4 }, then: () => { S.flags.harte = 1; feat('Befriended Bret Harte'); } },
+  { t: 'Mission Dolores', b: 'You walked out to the old adobe mission at the edge of town, built when San Francisco was nothing but sand and Spaniards, with roses in the graveyard and a calm about it that the rest of the city had never found the time for.', fx: { sp: 7, hp: 2 } },
+  { t: 'Telegraph Hill', b: 'On the top of Telegraph Hill a man with a semaphore signalled the ship arrivals to the city: arms up for a sidewheel steamer, arms out for a brig. You watched half the waterfront break for the wharves every time he raised his arms, like a congregation let out at the benediction.', fx: { sp: 6 } },
+  { t: 'A Chinese theatre on Jackson Street', b: 'A play was in progress at the Chinese theatre, a historical drama which, the gentleman beside you explained, had begun a week ago and would go on some weeks yet. The costumes were magnificent, the orchestra was magnificent and loud, and the audience came and went with great courtesy. You stayed three hours and understood a good deal more than you expected, which is more than you can say for most plays in English.', fx: { sp: 8 } },
+  { t: 'The Oakland ferry', b: 'You took the ferry across the bay to Oakland for no reason but the ride. The gulls followed the boat the whole way in the belief that you were carrying bread. You were not, and they told you what they thought of you all the way back.', fx: { sp: 6, hp: 2 } },
+  { t: 'A Turkish bath', b: 'You tried the new Turkish bath on Washington Street: steam, a marble slab, and an attendant who folded you up like a shirt and put you away. You came out two inches taller and a new man, and the new man wanted to lie down.', fx: { hp: 8, money: -3 } },
+  { t: 'A waterfront saloon', b: 'Down on the waterfront, sailors out of every country on earth were telling lies in every language on earth. A whaler from Nantucket told you about the Sandwich Islands till the bar closed, and then went on telling the lamp-post.', fx: { sp: 6, hp: -2 }, then: () => { S.flags.heardIslands = 1; } },
+  { t: 'Woodward’s Gardens', b: 'A rich man had thrown his gardens open to the public: lawns, a conservatory, a sea-lion pond, a museum, a bear named Ben, and a balloon on Sundays. You spent a whole afternoon there and never once thought of stocks, which is the highest praise a San Franciscan can give a place.', fx: { sp: 9 } },
+  { t: 'Portsmouth Square', b: 'In the old plaza a political speaker stood on a barrel and explained for two hours what was wrong with everything, beginning with the Copperheads. A dog sat in front of him the whole time, listening with great attention, and was the only member of the audience who went away unconvinced.', fx: { sp: 5, readers: 2 } },
+  { t: 'An evening with the Bohemians', b: 'You fell in with the city’s young writers and artists, who met in a back room on Montgomery Street to drink, argue and read one another their work. They were poor and brilliant and certain they would be famous, and a few of them were right, which is a better average than the mines.', fx: { sp: 8, readers: 4 } },
+  { t: 'The Pioneers’ parade', b: 'The Society of California Pioneers marched up Montgomery Street, old men who had come in ’49, every one of whom would explain to you, cheerfully and at length, that the town had been a great deal better before you came.', fx: { sp: 5 } },
 ];
 function cityWeek() {
   const e = deal(CITY);
@@ -447,11 +447,11 @@ function quake() {
   scene.set('sf', { quake: true });
   show({
     title: 'Earthquake!', where: 'A Sunday, about noon',
-    body: `<p>You are walking along Third Street when the world takes a step to the left. Then to the right. A frame house across the way leans out over the street like a man looking for a coin, thinks better of it, and settles back. A church bell rings all by itself. The whole street fills with people in every degree of dress, from Sunday best to bath towels, all looking up.</p><p>Then it is over, and a man beside you says, quite calmly, "That was a good one."</p>`,
+    body: `<p>You were walking along Third Street when the world took a step to the left, and then thought better of it and took one to the right. A frame house across the way leaned out over the street like a man looking for a dropped quarter, changed its mind, and settled back. A church bell rang all by itself, without benefit of clergy. In a moment the street was full of people in every degree of dress, from Sunday best to a bath towel, every one of them looking up.</p><p>Then it was over, and a man beside you remarked, quite calmly, "That was a good one," and lit his cigar.</p>`,
     choices: [
-      { t: 'Stand and take notes on everyone else', go: () => { S.flags.quakeNotes = 1; feat('Took notes during the earthquake'); return `<p>You note a man running out of a hotel with only a cigar, a lady carrying a birdcage with no bird, and a fireman who slid down a pole and kept going. It will make a very good sketch.</p>` + fx({ sp: 10, readers: 6 }); } },
-      { t: 'Run for the middle of the street', go: () => `<p>You run for the middle of the street and are knocked down by a horse car that is running for the middle of the street too. Nothing broken but your dignity.</p>` + fx({ hp: -6, sp: 4 }) },
-      { t: 'Duck into a doorway', go: () => `<p>You shelter in a doorway that turns out to belong to a saloon, and the saloon-keeper offers everyone a free drink to steady the nerves. You steady yours twice.</p>` + fx({ sp: 6, hp: -1 }) },
+      { t: 'Stand and take notes on everyone else', go: () => { S.flags.quakeNotes = 1; feat('Took notes during the earthquake'); return `<p>You noted a man running out of a hotel with nothing in the world but a cigar, a lady carrying a birdcage with no bird in it, and a fireman who slid down his pole and kept on going. It would make a very good sketch, and it did.</p>` + fx({ sp: 10, readers: 6 }); } },
+      { t: 'Run for the middle of the street', go: () => `<p>You ran for the middle of the street and were knocked flat by a horse car whose horses were running for the middle of the street too. Nothing was broken but your dignity, and that had been cracked before.</p>` + fx({ hp: -6, sp: 4 }) },
+      { t: 'Duck into a doorway', go: () => `<p>You sheltered in a doorway that proved to belong to a saloon, and the barkeeper set out a free drink all round to steady the nerves. You steadied yours twice, and would have gone a third time, but the earthquake was over.</p>` + fx({ sp: 6, hp: -1 }) },
     ],
   }, () => sfHub());
 }
@@ -460,10 +460,10 @@ function pauper() {
   scene.set('sf', { fog: true });
   show({
     title: 'Down and out', where: S.flags.crashed ? 'After the silver bubble burst' : 'At the bottom of your purse',
-    body: `<p>The money is gone. ${S.flags.ruined ? 'The feet that were going to make you rich are now worth less than the paper they are written on, and you were going to sell next week.' : ''} You owe the landlady, the tailor and the restaurant, and you have taken to walking down side streets to avoid all three. For weeks at a time you do not have ten cents. You learn exactly how long a man can make a cup of coffee last at a free-lunch counter.</p>`,
+    body: `<p>The money was gone. ${S.flags.ruined ? 'The feet that were going to make you rich were worth less now than the paper they were printed on, and you had meant to sell next week.' : ''} You owed the landlady, the tailor and the restaurant, and took to walking down side streets to dodge all three. For weeks together you had not ten cents to your name. You learned to the minute how long a man can make one cup of coffee last at a free-lunch counter, and how long the barkeeper will let him.</p>`,
     choices: [
-      { t: 'Borrow from Steve Gillis', go: () => `<p>Steve hands over fifty dollars without a word, which is the kind of friend Steve is. You pay him back, eventually, in the form of a great many dinners.</p>` + fx({ money: 50, sp: 4 }) },
-      { t: 'Move to the garret and tighten your belt', go: () => { S.lodging = 'garret'; return `<p>You move to a garret on Minna Street and live on bread, coffee and pride. The pride runs out first.</p>` + fx({ money: 20, sp: -6 }); } },
+      { t: 'Borrow from Steve Gillis', go: () => `<p>Steve handed over fifty dollars without a word, which was the kind of friend Steve was. You paid him back, eventually, in the form of a great many dinners, most of which he paid for.</p>` + fx({ money: 50, sp: 4 }) },
+      { t: 'Move to the garret and tighten your belt', go: () => { S.lodging = 'garret'; return `<p>You moved to a garret on Minna Street and lived on bread, coffee and pride. The pride gave out first.</p>` + fx({ money: 20, sp: -6 }); } },
       { t: 'Go up to Jackass Hill until it blows over', if: () => !S.flags.pocket, go: () => { pocketTrip(); } },
     ],
   }, () => sfHub());
@@ -475,20 +475,20 @@ function pocketTrip() {
   scene.set('hill', {});
   show({
     title: 'Jackass Hill', where: 'Tuolumne County, in the old gold country',
-    body: `<p>You go up into the foothills to stay with your friend Jim Gillis, Steve’s brother, in his cabin on Jackass Hill. The great days of the gold rush are long over here. The towns are half empty, the hills are green with oaks, and the few men left make a living at <b>pocket mining</b>: hunting for little nests of gold that the old miners missed, by washing pan after pan of dirt down a hillside and following the trail of specks uphill to their source.</p>
-      <p>Jim’s partner is an old miner called Dick Baker, a grave, kind, slow-spoken man who has been looking for one more good pocket for eighteen years. He owns a large grey cat.</p>`,
+    body: `<p>You went up into the foothills to stay with your friend Jim Gillis, Steve’s brother, in his cabin on Jackass Hill. The great days of the gold rush were long over there. The camps were half empty, the hills were green with oaks, and the few men left made a living at <b>pocket mining</b>: hunting for little nests of gold the forty-niners had missed, by washing pan after pan of dirt down a hillside and following the trail of specks uphill to where they came from.</p>
+      <p>Jim’s partner was an old miner named Dick Baker, a grave, kind, slow-spoken man, who had been hunting one more good pocket for eighteen years and was not discouraged yet. He owned a large grey cat.</p>`,
     choices: [{ t: 'Ask Dick about the cat', go: () => tomQuartz() }],
   });
 }
 function tomQuartz() {
   S.flags.tomquartz = 1;
   show({
-    title: 'Tom Quartz', body: `<p>Dick tells you, very seriously, about another cat he once had, called Tom Quartz: a cat of great judgment, who supervised all of Dick’s mining and knew more about it than most men. Tom Quartz was against quartz mining, Dick says. He thought it was a new-fangled notion.</p>
-      <p>One day, while they were blasting a shaft, Tom Quartz went to sleep at the bottom of it. The fuse was lit. There was a great roar, and up out of the shaft, among a cloud of rocks and dirt, went Tom Quartz, turning over and over, spitting and clawing, a hundred and fifty feet into the air. He came down some way off, with his fur singed and a look on his face as though to say, "I hope you are satisfied."</p>
-      <p>"After that," says Dick, "you never saw a cat so prejudiced against quartz mining in your life."</p>`,
+    title: 'Tom Quartz', body: `<p>Dick told you, very seriously, about another cat he had once owned, named Tom Quartz: a cat of uncommon judgment, who superintended all of Dick’s mining and knew more about it than any man in the camp. Tom Quartz did not hold with quartz mining, Dick said. He considered it a new-fangled arrangement.</p>
+      <p>One day, while they were blasting a shaft, Tom Quartz went to sleep at the bottom of it on a gunny sack. The fuse was lit. There was a roar, and up out of that shaft, in a cloud of rocks and dirt, went Tom Quartz, turning over and over, a-snorting and a-sneezing and a-clawing, a hundred and fifty feet into the air. He came down some way off, with his fur singed and a look on his face as much as to say, "I hope you are satisfied."</p>
+      <p>"After that," said Dick, "you never see a cat so prejudiced agin quartz mining as what he was."</p>`,
     choices: [
-      { t: 'Ask whether the story is true', go: () => `<p>Dick looks at you with deep reproach. You never ask again.</p>` + fx({ sp: 8 }) },
-      { t: 'Write it down word for word', go: () => { feat('Wrote down Tom Quartz'); return `<p>You write it in your notebook exactly as he told it. You can feel it is worth more than any pocket in the county.</p>` + fx({ sp: 10, readers: 4 }); } },
+      { t: 'Ask whether the story is true', go: () => `<p>Dick looked at you with such a deep and settled reproach that you never asked again, and are sorry yet that you asked the once.</p>` + fx({ sp: 8 }) },
+      { t: 'Write it down word for word', go: () => { feat('Wrote down Tom Quartz'); return `<p>You wrote it in your notebook exactly as he told it, dialect and all. You had a notion it was worth more than any pocket in the county, and you were right, though it was some years paying out.</p>` + fx({ sp: 10, readers: 4 }); } },
     ],
   }, () => panning());
 }
@@ -500,15 +500,15 @@ function panning() {
   const panned = new Map(); let pans = 14, found = 0, dust = 0;
   const render = msg => {
     page.innerHTML = `<h2>Pocket hunting</h2><p class="where">${pans} pans left · the hilltop is at the top. Each pan shows the specks of gold in it. The specks fan out downhill from the pocket: follow them up to where they narrow, and dig.</p>
-      ${msg ? `<p>${msg}</p>` : '<p>You start at the bottom of the slope with a pan, a bucket of water and a great deal of hope.</p>'}
+      ${msg ? `<p>${msg}</p>` : '<p>You start at the bottom of the slope with a pan, a bucket of water and a great deal of hope, which is the regular outfit for the business.</p>'}
       <div class="grid" style="grid-template-columns:repeat(${C},1fr);max-width:480px">${Array.from({ length: R * C }, (_, i) => { const c = i % C, r = (i - c) / C, k = `${c},${r}`, v = panned.get(k); return `<button class="cell${v !== undefined ? ' dug' + (v === 'P' ? ' vein' : '') : ''}" data-c="${c}" data-r="${r}" ${v !== undefined || !pans || found ? 'disabled' : ''} style="font-family:VT323,monospace;font-size:20px;${v > 0 ? 'color:#f3d38c' : ''}" aria-label="pan at column ${c + 1}, row ${r + 1}">${v === undefined ? '' : v === 'P' ? '★' : v === 0 ? '·' : '•' + v}</button>`; }).join('')}</div>
       <div class="choices"><button class="btn" id="panDone">${pans && !found ? 'Give up and go back to the cabin' : 'Back to the cabin →'}</button></div>`;
     page.querySelectorAll('.cell').forEach(b => b.onclick = () => {
       const c = +b.dataset.c, r = +b.dataset.r, v = specks(c, r); panned.set(`${c},${r}`, v); pans--; sfx('pick');
       let m;
-      if (v === 'P') { found = ri(500, 2600); sfx('good'); m = `<b>A pocket!</b> The pan comes up yellow. You dig with your hands, and out of a seam the size of a hat come lumps of gold as big as beans. Dick Baker takes off his hat and holds it to his chest. It is worth <b>${money(found)}</b>.`; }
-      else if (v > 0) { dust += v; m = `${v} specks. ${v >= 6 ? 'Close. The trail is narrowing.' : v >= 3 ? 'Warmer.' : 'A faint trace.'}`; }
-      else m = pick(['Nothing but dirt.', 'Not a speck.', 'Dick shakes his head: off the trail.']);
+      if (v === 'P') { found = ri(500, 2600); sfx('good'); m = `<b>A pocket!</b> The pan came up yellow. You dug with your hands, and out of a seam no bigger than a hat came lumps of gold as big as beans. Dick Baker took off his hat and held it to his chest, as at a funeral, only happier. It was worth <b>${money(found)}</b>.`; }
+      else if (v > 0) { dust += v; m = `${v} specks. ${v >= 6 ? 'Close; the trail is narrowing like a funnel.' : v >= 3 ? 'Warmer.' : 'A faint trace, about enough to gild a flea.'}`; }
+      else m = pick(['Nothing but dirt, and poor dirt at that.', 'Not a speck.', 'Dick shook his head: off the trail.']);
       render(m);
     });
     $('panDone').onclick = () => finishPocket(found, dust, [...panned.keys()].some(k => { const [c, r] = k.split(',').map(Number); return Math.abs(c - pc) <= 1 && Math.abs(r - pr) <= 1; }));
@@ -518,21 +518,21 @@ function panning() {
 function finishPocket(found, dust, close) {
   sfWeekEnd(3); S.act = 'pocket';
   let html;
-  if (found) { feat('Found a gold pocket'); html = `<p>You come down from Jackass Hill richer than you went up, which almost nobody does.</p>` + fx({ money: found + dust, sp: 15 }); }
-  else if (close) html = `<p>On the last afternoon you are one pan from the pocket, you are sure of it, when a cold rain sets in. You leave a bucket of dirt standing, unwashed, and go back to the cabin to dry off. Two strangers come along the next morning, wash your bucket out of curiosity, and take a fortune out of the hillside where you left off. You hear about it a week later, in town, from one of them.</p>` + fx({ money: dust, sp: -6 });
-  else html = `<p>Three weeks of panning and you have a little dust, sore knees and a deep respect for Dick Baker’s patience.</p>` + fx({ money: dust, hp: 4 });
+  if (found) { feat('Found a gold pocket'); html = `<p>You came down from Jackass Hill richer than you went up, which was a thing hardly anybody in Tuolumne County had done since ’52.</p>` + fx({ money: found + dust, sp: 15 }); }
+  else if (close) html = `<p>On the last afternoon you were one pan from the pocket, you were sure of it, when a cold rain set in. You left a bucket of dirt standing, unwashed, and went back to the cabin to dry off. Two strangers came along next morning, washed out your bucket from idle curiosity, and took a fortune out of the hillside where you had left off. You heard about it a week later, in town, from one of them, who was very pleasant about it.</p>` + fx({ money: dust, sp: -6 });
+  else html = `<p>Three weeks of panning, and you had a little dust, two sore knees and a deep respect for Dick Baker’s patience, which was the only thing on the hill that never gave out.</p>` + fx({ money: dust, hp: 4 });
   outcome('Down from the hill', html, () => frogTavern());
 }
 function frogTavern() {
   scene.set('hill', { tavern: true });
   show({
     title: 'A rainy week at Angel’s Camp', where: 'The tavern at Angel’s Camp, Calaveras County',
-    body: `<p>On the way back it rains for a week, and you and Jim sit in the tavern at Angel’s Camp with nothing to do but eat beans and listen. An old fellow called Ben Coon, a former river pilot, fat and solemn, tells a long story about a man called Smiley who would bet on anything, and a frog called Dan’l Webster that he taught to jump, and a stranger who filled the frog full of quail shot so it could not get off the ground.</p><p>Coon tells it without the least idea that it is funny. He tells it as if it were a sermon. You and Jim nearly die.</p>`,
+    body: `<p>On the way back it rained for a week, and you and Jim sat in the tavern at Angel’s Camp with nothing to do but eat beans and listen. An old fellow named Ben Coon, a former river pilot, fat and solemn, told a long story about a man called Smiley who would bet on anything that moved, and a frog called Dan’l Webster that he had educated to jump, and a stranger who filled the frog full of quail shot so that he couldn’t budge.</p><p>Coon told it without the least suspicion that there was anything funny about it. He told it as if it were a sermon, and a sad one. You and Jim very nearly died.</p>`,
     choices: [
-      { t: 'Remember every word', go: () => { S.flags.frogHeard = 1; log('Heard about a jumping frog.'); return `<p>For the rest of the week you and Jim say "I don’t see no p’ints about that frog that’s any better’n any other frog" to each other at every meal, and laugh until the landlord asks you to leave. You will write it down when you get back to the city.</p>` + fx({ sp: 14 }); } },
-      { t: 'Try to get some sleep', go: () => `<p>You sleep through the best story you will ever hear. Jim tells it to you later, worse.</p>` + fx({ hp: 4 }) },
+      { t: 'Remember every word', go: () => { S.flags.frogHeard = 1; log('Heard about a jumping frog.'); return `<p>For the rest of the week you and Jim say "I don’t see no p’ints about that frog that’s any better’n any other frog" to each other at every meal, and laughed till the landlord asked you to take it outdoors. You meant to write it down when you got back to the city.</p>` + fx({ sp: 14 }); } },
+      { t: 'Try to get some sleep', go: () => `<p>You slept through the best story you would ever hear. Jim told it to you afterwards, and told it worse.</p>` + fx({ hp: 4 }) },
     ],
-  }, () => sfHub(`<p>You come back down to the city with mud on your boots and a notebook full of the gold country.</p>`));
+  }, () => sfHub(`<p>You came back down to the city with Calaveras mud on your boots and a notebook full of the gold country.</p>`));
 }
 
 function unionOffer(forced) {
@@ -540,7 +540,7 @@ function unionOffer(forced) {
   scene.set('sf', {});
   show({
     title: 'A letter from the Sacramento Union',
-    body: `<p>${forced ? 'You have had about all of San Francisco a man can stand. ' : ''}The new steamer <i>Ajax</i> is to make a run to the Sandwich Islands, and the <i>Sacramento Union</i> wants a correspondent aboard. They will pay <b>$20 a letter</b>, and your passage, for as many letters as you care to write from the islands about the sugar, the whaling, the volcanoes, the people, and anything else worth the postage.</p><p>Warm rain, a sea like blue silk, flowers in winter. You have been hearing about it in every waterfront saloon in the city.</p>`,
+    body: `<p>${forced ? 'You had had about all of San Francisco a man can stand. ' : ''}The new steamer <i>Ajax</i> was to make a run to the Sandwich Islands, and the <i>Sacramento Union</i> wanted a correspondent aboard. They would pay <b>$20 a letter</b>, and your passage, for as many letters as you cared to write from the islands about the sugar, the whaling, the volcanoes, the people, and anything else worth the postage.</p><p>Warm rain, a sea like blue silk, flowers in winter: you had been hearing about it in every waterfront saloon in the city, until you began to suspect the saloons were in the pay of the islands.</p>`,
     choices: [{ t: 'Pack a bag and sail for Honolulu', big: true, go: () => { partThree(); } }],
   });
 }
@@ -559,17 +559,17 @@ function partThree() {
   log('Part III: sailed for the Sandwich Islands on the Ajax.');
   scene.set('ocean', { steamer: true });
   partCard('III', 'The Pacific', 'March 1866 · aboard the steamer Ajax, bound for Honolulu', `
-    <p>The <i>Ajax</i> steams out through the Golden Gate on a grey morning with a load of passengers, a cargo of hay and potatoes, and you. By noon California is a line on the horizon; by dark it is gone. There are two thousand one hundred miles of ocean between here and Honolulu, and nothing whatever in between.</p>
+    <p>The <i>Ajax</i> steamed out through the Golden Gate on a grey morning with a load of passengers, a cargo of hay and potatoes, and you. By noon California was a line on the horizon; by dark it was gone. There were two thousand one hundred miles of ocean between you and Honolulu, and nothing whatever in between but water and the Old Admiral, of whom more presently.</p>
     <blockquote>In the islands, every day counts. Ride, climb, explore, and gather material (<b>notes</b>). Then turn your notes into <b>letters</b> to the Union: $20 each, and readers by the thousand. You have about ${DAYS} days before the ship home.</blockquote>`, () => voyageDay());
 }
 
 // --- the voyage out
 const VOYAGE = [
-  { t: 'Seasick', b: 'On the second day the <i>Ajax</i> meets a long Pacific swell and begins to roll like a cradle with ambitions. Half the passengers retire below and pray. The other half wish they had.', c: [['Stay on deck in the wind', 'The wind saves you. You are the only man at dinner, and you eat three dinners in sheer triumph.', { hp: 4, sp: 6 }], ['Go below and lie down', 'Below decks it is worse. You spend a day getting to know the ceiling of your cabin very well.', { hp: -8 }]] },
-  { t: 'Whales', b: 'A spout on the starboard bow, and another, and then a whole pod of whales rolling past, their great backs shining like wet rocks.', c: [['Watch them until they’re gone', 'You stay at the rail for an hour. Later a passenger tells you exactly how many barrels of oil each one would make, and you wish he hadn’t.', { sp: 8, notes: 1 }]] },
-  { t: 'Flying fish', b: 'The sea warms and turns a deep blue, and flying fish begin to skitter away from the bow in silver flocks, skimming yards over the waves.', c: [['Try to catch one', 'One lands on deck at your feet of its own accord. The cook fries it for you. It is delicious and a little sad.', { sp: 6, hp: 2 }]] },
-  { t: 'Into the trade winds', b: 'Overnight the air turns soft and warm, and the overcoats go back into the trunks for good. The trade wind blows steady from the northeast, as reliable as a clock.', c: [['Sleep on deck', 'You sleep on deck under stars as bright as lamps, and wake with the sun on your face and a sailor stepping over you.', { hp: 6, sp: 6 }]] },
-  { t: 'Cards in the saloon', b: 'A group of passengers have a game of whist going in the saloon that has lasted since San Francisco and may outlast the voyage.', c: [['Join in', 'You play whist for three days. You do not understand whist when you start, and you understand it less when you finish, but you win four dollars.', { money: 4, sp: 4 }], ['Watch and take notes', 'You take notes on each player’s method of losing. It is a sketch in itself.', { notes: 1 }]] },
+  { t: 'Seasick', b: 'On the second day the <i>Ajax</i> met a long Pacific swell and began to roll like a cradle with ambitions. Half the passengers retired below and prayed. The other half wished they had thought of it.', c: [['Stay on deck in the wind', 'The wind saved you. You were the only man at dinner, and you ate three dinners, out of pure triumph and a spirit of revenge.', { hp: 4, sp: 6 }], ['Go below and lie down', 'Below decks it was worse. You spent a day on your back getting acquainted with the ceiling of your cabin, and could draw it from memory yet.', { hp: -8 }]] },
+  { t: 'Whales', b: 'A spout on the starboard bow, and another, and then a whole school of whales rolling by, their great backs shining like wet rocks in a creek.', c: [['Watch them until they’re gone', 'You stayed at the rail an hour. Afterwards a passenger told you exactly how many barrels of oil each one would try out, and what it would fetch in New Bedford, and you could have thrown him over.', { sp: 8, notes: 1 }]] },
+  { t: 'Flying fish', b: 'The sea warmed and turned a deep blue, and flying fish began to skitter away from the bow in silver flocks, skimming yards over the waves like a handful of new dimes flung by a drunkard.', c: [['Try to catch one', 'One of them landed on deck at your feet of its own accord. The cook fried it for you. It was delicious, and you felt a little low about it afterwards, though not until afterwards.', { sp: 6, hp: 2 }]] },
+  { t: 'Into the trade winds', b: 'Overnight the air turned soft and warm, and the overcoats went back into the trunks for good. The trade wind blew steady out of the northeast, as reliable as a clock, and a great deal more reliable than any clock in Washoe.', c: [['Sleep on deck', 'You slept on deck under stars as big as lamps, and woke with the sun on your face and a sailor stepping over you with a bucket and a remark.', { hp: 6, sp: 6 }]] },
+  { t: 'Cards in the saloon', b: 'A party of passengers had a game of whist going in the saloon that had been running since San Francisco and bid fair to outlast the voyage, and possibly the passengers.', c: [['Join in', 'You played whist for three days. You did not understand whist when you began, and you understood it less when you finished, but you won four dollars, which is all a man can fairly ask of any science.', { money: 4, sp: 4 }], ['Watch and take notes', 'You took notes on each player’s method of losing, which was various. It was a sketch in itself.', { notes: 1 }]] },
 ];
 function voyageDay() {
   S.act = 'pacific'; scene.set('ocean', { steamer: true });
@@ -585,10 +585,10 @@ function admiral() {
   S.flags.admiral = 1; S.voyage++; S.day += 2;
   show({
     title: 'The Old Admiral', where: 'Aboard the Ajax',
-    body: `<p>Among the passengers is a retired whaling captain everyone calls the Admiral: a big, warm-hearted, thunderous old man who has an opinion on every subject and a fact to prove it, most of the facts having been made up on the spot. He argues politics from breakfast to bedtime and has never, in living memory, lost.</p><p>But there is another passenger, a quiet man named Williams, who has been watching the Admiral for days with a thoughtful look.</p>`,
+    body: `<p>Among the passengers was a retired whaling captain whom everybody called the Admiral: a big, warm-hearted, thunderous old man with an opinion on every subject and a fact to prove it, the most of the facts having been manufactured on the spot, to order. He argued politics from breakfast to bedtime and had never, within the memory of man, been beaten.</p><p>But there was another passenger, a mild man named Williams, who had been watching the Admiral for some days with a thoughtful eye, like a man looking over a horse he means to buy.</p>`,
     choices: [
-      { t: 'Egg Williams on', go: () => { feat('Saw the Admiral beaten'); return `<p>Williams starts a political argument with the Admiral and wins it by the Admiral’s own method: by inventing facts faster, quoting books that do not exist, and remembering battles that were never fought, with complete confidence and not a flicker of doubt. The Admiral is routed. He stares at Williams in perfect astonishment, then goes up on deck and is not heard from until Honolulu.</p>` + fx({ sp: 14 }) + '<p class="fx">+2 notes</p>'; }, next: () => { S.notes += 2; voyageDay(); } },
-      { t: 'Argue with the Admiral yourself', go: () => `<p>You hold out for twenty minutes, which is a record. He shakes your hand afterwards and tells you that you are a fine young man and completely wrong about everything.</p>` + fx({ sp: 6, hp: -2 }) + '<p class="fx">+1 note</p>', next: () => { S.notes += 1; voyageDay(); } },
+      { t: 'Egg Williams on', go: () => { feat('Saw the Admiral beaten'); return `<p>Williams opened a political argument with the Admiral and won it by the Admiral’s own method: by inventing facts faster than the Admiral could, quoting books that were never written, and remembering battles that were never fought, all with perfect confidence and not a flicker of shame. The Admiral was routed, horse, foot and artillery. He stared at Williams in perfect astonishment, then went up on deck, and was not heard from again until Honolulu.</p>` + fx({ sp: 14 }) + '<p class="fx">+2 notes</p>'; }, next: () => { S.notes += 2; voyageDay(); } },
+      { t: 'Argue with the Admiral yourself', go: () => `<p>You held out for twenty minutes, which was the record for the voyage. He shook your hand afterwards and told you that you were a fine young man and wrong about everything, and that he would be glad to explain it to you again in the morning.</p>` + fx({ sp: 6, hp: -2 }) + '<p class="fx">+1 note</p>', next: () => { S.notes += 1; voyageDay(); } },
     ],
   });
 }
@@ -596,8 +596,8 @@ function arriveHonolulu() {
   S.isle = 'oahu'; setDate(1866, 3, 18);
   scene.set('island', { harbor: true });
   log('Arrived at Honolulu.');
-  outcome('Honolulu', `<p>On the eleventh morning a long green island rises out of the sea with a crater at one end, and the <i>Ajax</i> steams in past the reef into Honolulu harbour. The water is so clear you can see the coral on the bottom. On the wharf, half the town has turned out to meet the steamer: people in white, people on horseback, people with flowers, and a brass band that is playing something in a key of its own.</p>
-    <p>You step ashore into a warm, damp, sweet-smelling air, under coconut palms, beside a white church and a row of little houses with verandas covered in vines, and feel all the ice of the Sierra melt out of you at once.</p>` + fx({ sp: 14, hp: 6 }), () => isleHub());
+  outcome('Honolulu', `<p>On the eleventh morning a long green island rose out of the sea with a crater at one end of it, and the <i>Ajax</i> steamed in past the reef into Honolulu harbour. The water was so clear you could see the coral on the bottom, and the fish going about their business. On the wharf half the town had turned out to meet the steamer: people in white, people on horseback, people with flowers, and a brass band playing something in a key of its own invention.</p>
+    <p>You stepped ashore into a warm, damp, sweet-smelling air, under coconut palms, beside a white church and a row of little houses with verandas smothered in vines, and felt the ice of the Sierra and the fog of San Francisco melt out of you at once, like a snowbank in a Turkish bath.</p>` + fx({ sp: 14, hp: 6 }), () => isleHub());
 }
 
 // --- island outings. Each takes days, shows its own picture, and asks what you will do there.
@@ -698,7 +698,7 @@ const ACT = {
 const ISLE_EVENTS = [
   { t: 'A centipede', b: 'You woke in the night to find a centipede six inches long, with forty legs and a temper to match, walking across your pillow with the air of a man going home to his own house. You left the bed to him.', fx: { hp: -3, sp: 2 }, flag: 'bugs' },
   { t: 'A scorpion', b: 'A scorpion had taken up lodgings in your boot. You and the scorpion found this out at the same moment, and neither of you was pleased with the arrangement.', fx: { hp: -6, sp: 2 }, flag: 'bugs' },
-  { t: 'Mosquitoes', b: 'The mosquitoes of the islands are the size of small birds and work in shifts. You slept under a net and they sat on top of it all night, waiting, like creditors.', fx: { hp: -4 } },
+  { t: 'Mosquitoes', b: 'The mosquitoes of the islands are the size of small birds and work in shifts. You slept under a net and they sat on top of it all night, waiting, like a sheriff’s posse outside a saloon.', fx: { hp: -4 } },
   { t: 'Poi', b: 'Your hosts served poi, the paste of pounded taro root that is the bread of the islands. It is eaten with the fingers: one-finger poi, or two-finger poi, according to how thick it is. You ate it bravely the first day, and by the third you were asking for it.', fx: { hp: 4, sp: 4 } },
   { t: 'A feast', b: 'You were asked to a feast: a pig roasted underground in an oven of hot stones, fish baked in leaves, sweet potatoes, bananas and poi, all spread on mats under the trees, and singing afterwards that went on long after the moon was up.', fx: { hp: 6, sp: 10 }, notes: 1 },
   { t: 'A legend of Pele', b: 'Your guide told you about Pele, the goddess of the volcano, who lives in the fire pit, and walks the islands as an old woman or a young girl, and does not like to be spoken of lightly. He told it with great seriousness. You resolved to be very polite on the mountain.', fx: { sp: 5 }, notes: 1 },
@@ -745,7 +745,7 @@ function isleHub(note) {
   const hornetReady = S.isle === 'oahu' && S.pday >= 22 && !S.flags.hornet;
   show({
     title: I.name, where: `${dateStr()} · ${left} days left in the islands · ${S.notes} note${S.notes === 1 ? '' : 's'} unwritten · ${S.letters} letter${S.letters === 1 ? '' : 's'} sent`,
-    body: (note || '') + `<p>${S.isle === 'oahu' ? 'Honolulu drowses in the sun under its palms. There is always a horse to hire, a veranda to sit on, and somebody with a story.' : S.isle === 'hawaii' ? 'The biggest island: black lava, green coast, snow on the high mountains, and the volcano always smoking in the distance.' : 'Two great mountains joined by a low green isthmus of cane fields, and over everything the vast slope of Haleakala.'}</p>`,
+    body: (note || '') + `<p>${S.isle === 'oahu' ? 'Honolulu drowses in the sun under its palms, like a planter after dinner. There is always a horse to hire, a veranda to sit on, and somebody on the veranda with a story he has been saving for a stranger.' : S.isle === 'hawaii' ? 'The biggest island of the group: black lava, green coast, snow on the high mountains in the tropics, which nobody at home will believe, and the volcano always smoking off in the distance like a steamboat with her fires banked.' : 'Two great mountains joined by a low green isthmus of cane fields, and over the whole of it the vast slope of Haleakala, which takes up more of the sky than any one mountain has a right to.'}</p>`,
     choices: [
       ...(hornetReady ? [{ t: '⚑ News at the harbour: survivors of a shipwreck!', big: true, go: () => { hornet(); } }] : []),
       ...acts.map(a => ({ t: a.t, sub: `${a.d} day${a.d > 1 ? 's' : ''}`, disabled: a.d > left, go: () => doAct(a) })),
@@ -790,22 +790,22 @@ function writeUnion() {
   const n = Math.min(3, S.notes); S.notes -= n; S.letters++; S.pday++; S.day++;
   const r = Math.round(n * 11 * rnd(.85, 1.2) * (has('notebook') ? 1.1 : 1) * (S.flags.harte ? 1.1 : 1));
   log(`Sent letter no. ${S.letters} to the Union.`);
-  outcome(`Letter no. ${S.letters}`, `<p>${pick(['You write all day at a table on the veranda, in your shirtsleeves, with a pitcher of lemonade and a lizard for company.', 'You write it in one sitting, from breakfast to supper, and it is the best thing you have done in months.', 'You fill twenty pages and send them off by the next ship. In Sacramento, they will set it in type and the whole coast will read it at breakfast a month from now.'])}</p>` + fx({ money: 20, readers: r, sp: 3 }), () => isleHub());
+  outcome(`Letter no. ${S.letters}`, `<p>${pick(['You wrote all day at a table on the veranda, in your shirtsleeves, with a pitcher of lemonade and a lizard for company, and the lizard offered no criticisms.', 'You wrote it at one sitting, from breakfast to supper, and it was the best thing you had done in months, or so it seemed at supper.', 'You filled twenty pages and sent them off by the next ship. In Sacramento they would set it in type, and a month from now the whole coast would be reading it at breakfast and spilling coffee on it.'])}</p>` + fx({ money: 20, readers: r, sp: 3 }), () => isleHub());
 }
 function sailTo(k) {
   S.pday += 2; S.day += 2; S.money -= 10; S.isle = k;
   scene.set('ocean', { schooner: true });
-  outcome(`To ${ISLES[k].name}`, `<p>${pick(['The inter-island schooner is small, crowded and smells powerfully of oranges, pigs and sugar. Everyone aboard is seasick except the pigs.', 'You sleep on deck among sacks of potatoes and a family going to visit relatives, who share their dinner with you and laugh at your seasickness, kindly.', 'A long night rolling in the channel between the islands, and at dawn a new coast, green and black, with the surf breaking white along it.'])}</p>` + fx({ hp: -4, money: 0 }), () => isleHub());
+  outcome(`To ${ISLES[k].name}`, `<p>${pick(['The inter-island schooner was small and crowded, and smelt powerfully of oranges, pigs and sugar. Everybody aboard was seasick except the pigs, who had made the passage before.', 'You slept on deck among sacks of potatoes and a family going to visit relatives, who shared their dinner with you and laughed at your seasickness, though kindly, and gave you a lemon for it.', 'A long night rolling in the channel between the islands, and at dawn a new coast, green and black, with the surf breaking white along the whole length of it.'])}</p>` + fx({ hp: -4, money: 0 }), () => isleHub());
 }
 
 function volcano() {
   scene.set('volcano', {});
   show({
     title: 'Kilauea', where: 'The volcano house, on the rim of the crater, after dark',
-    body: `<p>You ride up through forest and fern into a strange country of cracked black lava, steaming vents and sulphur, to a grass-roofed hotel on the very rim of the crater. And at nightfall you go out and look over the edge.</p><p>Below you lies a pit nine miles round and a thousand feet deep, its floor a vast black plain cracked across and across with rivers of fire. In the middle the lake of fire itself is boiling: a great red cauldron flinging up fountains of molten lava that splash and fall in showers of light, while the glow on the clouds overhead turns the night to a red day. You can read your notebook by it, a mile away.</p>`,
+    body: `<p>You rode up through forest and fern into a strange country of cracked black lava, steaming vents and sulphur, to a grass-roofed hotel on the very rim of the crater, kept by a man who appeared to think nothing of it. At nightfall you went out and looked over the edge.</p><p>Below you lay a pit nine miles round and a thousand feet deep, its floor a vast black plain cracked across and across with rivers of fire. In the middle of it the lake of fire itself was boiling: a great red cauldron flinging up fountains of molten lava that splashed and fell back in showers of light, while the glare on the clouds overhead turned the night into a red day. You could read your notebook by it a mile off, and you did, to make sure.</p>`,
     choices: [
-      { t: 'Climb down to the crater floor with a guide', go: () => { S.flags.volcano = 2; S.notes += 4; feat('Walked on the floor of Kilauea'); return `<p>At midnight, with a lantern and a guide, you climb down the cliff and walk out across the crust of the crater floor. It is warm through your boots. Through the cracks you can see the fire running underneath, a foot down, like the inside of a stove. At the edge of the lake you stand in the glare with your face scorching and watch the fountains rise and fall, and the guide, who is not afraid of anything, quietly tells you to step back. You do not argue.</p>` + fx({ sp: 18, hp: -8 }) + '<p class="fx">+4 notes</p>'; } },
-      { t: 'Watch from the rim all night', go: () => { S.flags.volcano = 1; S.notes += 3; return `<p>You sit on the rim wrapped in a blanket until dawn, watching the fire move and change below you, and do not once think about the stock market. It is the most magnificent thing you have ever seen, and you have seen the Washoe Zephyr.</p>` + fx({ sp: 15 }) + '<p class="fx">+3 notes</p>'; } },
+      { t: 'Climb down to the crater floor with a guide', go: () => { S.flags.volcano = 2; S.notes += 4; feat('Walked on the floor of Kilauea'); return `<p>At midnight, with a lantern and a guide, you climbed down the cliff and walked out across the crust of the crater floor. It was warm through your boot-soles. Through the cracks you could see the fire running underneath, a foot down, like the inside of a stove. At the edge of the lake you stood in the glare with your face scorching and watched the fountains rise and fall, until the guide, who was not afraid of anything on earth, said in a low voice that you had better step back. You did not argue the point.</p>` + fx({ sp: 18, hp: -8 }) + '<p class="fx">+4 notes</p>'; } },
+      { t: 'Watch from the rim all night', go: () => { S.flags.volcano = 1; S.notes += 3; return `<p>You sat on the rim wrapped in a blanket till dawn, watching the fire move and change below you, and never once thought of the stock board. It was the most magnificent thing you had ever seen, and you had seen the Washoe Zephyr take the roof off a church.</p>` + fx({ sp: 15 }) + '<p class="fx">+3 notes</p>'; } },
     ],
   }, () => isleHub());
 }
@@ -813,10 +813,10 @@ function haleakala() {
   scene.set('summit', {});
   show({
     title: 'Haleakala', where: 'Ten thousand feet up, before dawn',
-    body: `<p>You ride up the long slope of Haleakala all afternoon, sleep, or try to, in a stone pen near the summit with the wind howling and the cold coming up out of the ground, and get up at four to see the sun rise.</p><p>The crater of the great mountain lies below you: a gulf twenty miles round and two thousand feet deep, with cinder cones standing in it like pyramids. And as the sky goes grey, you see that the clouds have come in beneath you and filled the whole world from edge to edge, a white, silent sea of cloud with the peaks standing out of it like islands.</p>`,
+    body: `<p>You rode up the long slope of Haleakala all afternoon, slept, or tried to, in a stone pen near the summit with the wind howling and the cold coming up out of the ground like a Sierra winter that had lost its way, and got up at four to see the sun rise.</p><p>The crater of the great mountain lay below you: a gulf twenty miles round and two thousand feet deep, with cinder cones standing in it like pyramids. And as the sky went grey you saw that the clouds had come in beneath you and filled the whole world from edge to edge, a white, still sea of cloud with the peaks standing out of it like islands.</p>`,
     choices: [
-      { t: 'Wait for the sun', go: () => { S.flags.haleakala = 1; S.notes += 3; feat('Saw the sunrise from Haleakala'); return `<p>The sun comes up. The sea of cloud goes pink, then gold, then blinding white; the shadows of the cinder cones stretch out for miles across the crater floor; and for a quarter of an hour you forget that you are cold, or tired, or a newspaperman. It is the most sublime spectacle you have ever witnessed, and you write that down, and then cross it out because it is not enough.</p>` + fx({ sp: 18, hp: -4 }) + '<p class="fx">+3 notes</p>'; } },
-      { t: 'Roll boulders into the crater with the others', go: () => { S.flags.haleakala = 1; S.notes += 2; return `<p>While waiting for the sun, you and your companions amuse yourselves by rolling great boulders off the rim and watching them bound down two thousand feet into the crater, raising dust like cannon shot. It is the kind of thing grown men do on mountains. Then the sun comes up and makes you ashamed of it.</p>` + fx({ sp: 14, hp: -2 }) + '<p class="fx">+2 notes</p>'; } },
+      { t: 'Wait for the sun', go: () => { S.flags.haleakala = 1; S.notes += 3; feat('Saw the sunrise from Haleakala'); return `<p>The sun came up. The sea of cloud went pink, then gold, then a white you could not look at; the shadows of the cinder cones stretched out for miles across the crater floor; and for a quarter of an hour you forgot that you were cold, or tired, or a newspaperman. It was the most sublime spectacle you had ever witnessed, and you wrote that down, and then struck it out, because it did not come anywhere near.</p>` + fx({ sp: 18, hp: -4 }) + '<p class="fx">+3 notes</p>'; } },
+      { t: 'Roll boulders into the crater with the others', go: () => { S.flags.haleakala = 1; S.notes += 2; return `<p>While you waited for the sun, you and your companions amused yourselves rolling great boulders off the rim and watching them bound down two thousand feet into the crater, raising dust like cannon shot. It was the kind of thing grown men will do on a mountain, and you did it till your arms gave out. Then the sun came up and made you ashamed of yourselves, for a while.</p>` + fx({ sp: 14, hp: -2 }) + '<p class="fx">+2 notes</p>'; } },
     ],
   }, () => isleHub());
 }
@@ -825,11 +825,11 @@ function hornet() {
   scene.set('island', { harbor: true });
   show({
     title: 'The Hornet', where: 'Honolulu, June 1866',
-    body: `<p>News runs through the town: fifteen men have come ashore on the island of Hawaii in an open boat, the last survivors of the clipper <i>Hornet</i>, which burned at sea six weeks ago. They have been forty-three days in the boat on ten days’ rations. They are being brought to Honolulu now.</p>
-      <p>It is the biggest story in the Pacific, and every paper in San Francisco would give its eye teeth for it. And you ${S.flags.boils ? 'cannot walk: your saddle boils have put you flat on your back' : 'are laid up with a fever and can hardly stand'}. A ship sails for San Francisco tomorrow morning.</p>`,
+    body: `<p>News ran through the town: fifteen men had come ashore on the island of Hawaii in an open boat, the last survivors of the clipper <i>Hornet</i>, which had burned at sea six weeks before. They had been forty-three days in the boat on ten days’ rations. They were being brought to Honolulu now.</p>
+      <p>It was the biggest story in the Pacific, and every paper in San Francisco would have given its eye teeth for it. And you ${S.flags.boils ? 'could not walk: your saddle boils had put you flat on your back' : 'were laid up with a fever and could hardly stand'}. A ship sailed for San Francisco in the morning.</p>`,
     choices: [
-      { t: 'Have yourself carried to the hospital on a cot', go: () => { S.notes += 2; feat('Got the Hornet scoop'); addBonus(50); log('Scooped the Hornet story.'); return `<p>Anson Burlingame, the American minister to China, who is passing through and has taken a liking to you, has you carried to the hospital on a cot and helps you interview the survivors. They tell you everything: the fire, the boats, the hunger, the captain who kept the log and kept them alive. You write all day and all night without stopping, and at dawn your bundle of pages is flung aboard the schooner just as she casts off.</p><p>It is the first full account to reach the United States. The <i>Union</i> prints it across three columns and pays you ten times your rate. Overnight, you are the man who got the <i>Hornet</i> story.</p>` + fx({ readers: 90, money: 300, hp: -6, sp: 15 }); } },
-      { t: 'Rest, and let the other correspondents have it', go: () => `<p>You rest. The story goes to San Francisco in someone else’s pocket. It is the sensible thing to do, and you never quite forgive yourself.</p>` + fx({ hp: 10, sp: -12 }) },
+      { t: 'Have yourself carried to the hospital on a cot', go: () => { S.notes += 2; feat('Got the Hornet scoop'); addBonus(50); log('Scooped the Hornet story.'); return `<p>Anson Burlingame, the American minister to China, who was passing through on the way to his post and had taken a liking to you, had you carried to the hospital on a cot and helped you interview the survivors. They told you everything: the fire, the boats, the hunger, and the captain who kept the log and kept them alive. You wrote all day and all night without stopping, and at dawn your bundle of pages was flung aboard the schooner just as she cast off.</p><p>It was the first full account to reach the States. The <i>Union</i> printed it across three columns and paid you ten times your rate. Overnight you were the man who got the <i>Hornet</i> story, and nobody remembered that you had got it lying down.</p>` + fx({ readers: 90, money: 300, hp: -6, sp: 15 }); } },
+      { t: 'Rest, and let the other correspondents have it', go: () => `<p>You rested. The story went to San Francisco in somebody else’s pocket. It was the sensible thing to do, and you never entirely forgave yourself for being sensible.</p>` + fx({ hp: 10, sp: -12 }) },
     ],
   }, () => isleHub());
 }
@@ -842,9 +842,9 @@ function sailHome(forced) {
   addBonus(S.letters * 6);
   setDate(1866, 8, 13);
   log(`Sailed home. ${S.letters} letters to the Union.`);
-  outcome('Homeward', `<p>${forced ? 'Your time is up and your money nearly so.' : 'You have seen what you came to see.'} You sail for home on a slow sailing ship that takes three weeks and a half to cross the same sea the <i>Ajax</i> crossed in eleven days. The wind dies for days at a time. You spend them on deck ${unwritten ? `writing up your last ${unwritten} notes, ` : ''}watching the ocean change colour and thinking about money.</p>
-    <p>${S.letters} letters to the <i>Union</i>. A name people now recognise up and down the coast. And no job, and nothing to live on, and no idea what to do next.</p>
-    <p>A friend in San Francisco says: why not give a lecture about the islands? You have never given a lecture in your life.</p>`, () => lecture());
+  outcome('Homeward', `<p>${forced ? 'Your time was up, and your money nearly so.' : 'You had seen what you came to see.'} You sailed for home on a slow sailing ship that took three weeks and a half to cross the same sea the <i>Ajax</i> had crossed in eleven days. The wind died for days at a time. You spent them on deck ${unwritten ? `writing up your last ${unwritten} notes, ` : ''}watching the ocean change colour and thinking about money, which did not change colour or anything else.</p>
+    <p>You had written ${S.letters} letters to the <i>Union</i>, and you had a name that people knew up and down the coast; and you had no job, and nothing to live on, and no more notion what to do next than the ship had of a breeze.</p>
+    <p>A friend in San Francisco said: why not give a lecture about the islands? You had never given a lecture in your life, and said so, and he said that was no objection in California.</p>`, () => lecture());
 }
 
 // =============================================================== FINALE: THE LECTURE
@@ -877,20 +877,20 @@ const BITS = [
   { id: 'cook', n: 'Where Captain Cook fell', v: 3, serious: true, if: () => S.done && S.done.includes('cook') },
 ];
 const DELIVERY = [
-  { k: 'dead', n: 'deadpan', sub: 'grave, slow, as if you had no idea it was funny', m: [1.15, 1.5] },
-  { k: 'grin', n: 'with a grin', sub: 'let them see you enjoying it', m: [.6, 1.1] },
-  { k: 'pause', n: 'with a long pause before the end', sub: 'risky: wait until the silence aches', m: [.5, 1.8] },
+  { k: 'dead', n: 'deadpan', sub: 'grave and slow, like a deacon reading the minutes, as if you had no notion it was funny', m: [1.15, 1.5] },
+  { k: 'grin', n: 'with a grin', sub: 'let them see you enjoy it, the way a drummer laughs at his own stories', m: [.6, 1.1] },
+  { k: 'pause', n: 'with a long pause before the end', sub: 'risky: wait till the silence is so long the gallery begins to shift in its seats', m: [.5, 1.8] },
 ];
 function lecture() {
   S.act = 'lecture'; setDate(1866, 10, 2);
   scene.set('hall', {});
   show({
     title: 'The trouble begins at eight', where: 'San Francisco, October 2, 1866',
-    body: `<p>You rent the biggest hall in the city, Maguire’s Academy of Music, for fifty dollars, half of it borrowed. You have handbills printed and posted all over town, announcing a lecture on the Sandwich Islands by Mark Twain, and closing with a line you are rather proud of: <b>Doors open at 7 o’clock. The trouble will begin at 8.</b></p>
-      <p>Then you spend three days in a cold sweat, convinced that nobody will come, or worse, that they will come and not laugh.</p>`,
+    body: `<p>You rented the biggest hall in the city, Maguire’s Academy of Music, for fifty dollars, half of it borrowed. You had handbills printed and posted all over town, announcing a lecture on the Sandwich Islands by Mark Twain, and closing with a line you were rather proud of: <b>Doors open at 7 o’clock. The trouble will begin at 8.</b></p>
+      <p>Then you spent three days in a cold sweat, convinced that nobody would come, or, what was worse, that they would come and not laugh.</p>`,
     choices: [
-      { t: 'Plant friends in the audience to laugh on your signal', sub: 'insurance; also a risk', go: () => { S.flags.claque = 1; return `<p>You arrange with some large friends from the mines to sit in the parquet and laugh when you look at them, and with a kind lady in a box to laugh whenever you turn your head towards her, whether the joke is good or not. You feel safer. Slightly.</p>`; }, next: lectureBits },
-      { t: 'Trust the material', go: () => `<p>You decide that if the stories are good, they will laugh, and if they are not, you deserve it. This is a very brave decision and you regret it hourly.</p>` + fx({ sp: -4 }), next: lectureBits },
+      { t: 'Plant friends in the audience to laugh on your signal', sub: 'insurance; also a risk', go: () => { S.flags.claque = 1; return `<p>You arranged with some large friends from the mines to sit in the parquette and laugh when you looked at them, and with a kind lady in a box to laugh whenever you turned your head toward her, whether the joke deserved it or not. It made you feel safer, by about the width of a hair.</p>`; }, next: lectureBits },
+      { t: 'Trust the material', go: () => `<p>You decided that if the stories were good they would laugh, and if they were not you deserved what you got. It was a very brave decision, and you regretted it every hour on the hour until the doors opened.</p>` + fx({ sp: -4 }), next: lectureBits },
     ],
   });
 }
@@ -902,7 +902,7 @@ function lectureBits() {
     if (step === Math.min(4, avail.length)) return performLecture(chosen);
     const left = avail.filter(b => !chosen.some(c => c.b.id === b.id));
     page.innerHTML = `<h2>Backstage</h2><p class="where">Choose bit ${step + 1} of ${Math.min(4, avail.length)}, and how to tell it. Everything you lived through on this trip is material.</p>
-      ${chosen.length ? `<p>So far: ${chosen.map(c => `<i>${c.b.n}</i> (${c.d.n})`).join(', ')}.</p>` : `<p>The hall is filling. You can hear them through the curtain: a great murmuring crowd, all the way up to the gallery. Your knees have opinions.</p>`}
+      ${chosen.length ? `<p>So far: ${chosen.map(c => `<i>${c.b.n}</i> (${c.d.n})`).join(', ')}.</p>` : `<p>The hall is filling. You can hear them through the curtain, a great murmuring crowd clear up to the gallery, like the Mississippi coming up in the spring, and your knees have begun to hold opinions of their own.</p>`}
       ${left.map(b => `<div class="lead"><b>${b.n}</b>${b.serious ? ' <small>(a serious one)</small>' : ''}<div class="emb">${DELIVERY.map(d => `<button class="btn" data-b="${b.id}" data-d="${d.k}" title="${d.sub}">${d.n}</button>`).join('')}</div></div>`).join('')}
       <p class="foot">Deadpan is the old Western way: tell it gravely and never let on. A pause before the end can bring the house down or leave it baffled. A serious piece in the middle makes the next laugh bigger. End on your best.</p>`;
     page.querySelectorAll('[data-b]').forEach(btn => btn.onclick = () => { sfx('click'); chosen.push({ b: avail.find(x => x.id === btn.dataset.b), d: DELIVERY.find(x => x.k === btn.dataset.d) }); render(); });
@@ -914,12 +914,12 @@ function performLecture(chosen) {
   let total = 0, prevSerious = false; const lines = [];
   chosen.forEach((c, i) => {
     let v = c.b.v * rnd(...c.d.m);
-    if (c.b.serious) { v = c.b.v * 1.2; lines.push(`<p><b>${c.b.n}.</b> The hall goes perfectly still. You can hear the gas jets hiss. When you finish there is a long silence, and then a great warm wave of applause.</p>`); }
+    if (c.b.serious) { v = c.b.v * 1.2; lines.push(`<p><b>${c.b.n}.</b> The hall went perfectly still. You could hear the gas jets hiss. When you finished there was a long silence, and then a great warm wave of applause, like surf coming in over a reef.</p>`); }
     else {
       if (prevSerious) v *= 1.35;
       if (i === chosen.length - 1 && c.b.v >= 8) v *= 1.3;
-      if (S.flags.claque && Math.random() < .25) { v *= .7; lines.push(`<p><b>${c.b.n}.</b> You glance at the lady in the box to cue her, at a perfectly solemn moment, and she laughs on cue, a great ringing laugh, and the whole house laughs at her, and you, and then at the story, though not quite in the right place.</p>`); }
-      else lines.push(`<p><b>${c.b.n}.</b> ${v > 11 ? 'The house comes apart. Men in the gallery hold on to each other. A gentleman in the front row laughs until he has to be helped out.' : v > 8 ? 'A big laugh, rolling up from the parquet to the gallery and back down again.' : v > 5 ? 'A good laugh, and a few people repeat the last line to each other.' : 'A polite ripple. Somebody coughs. You press on.'}</p>`);
+      if (S.flags.claque && Math.random() < .25) { v *= .7; lines.push(`<p><b>${c.b.n}.</b> You glanced at the lady in the box to cue her, at a perfectly solemn moment, and she let go a great ringing laugh on cue, and the whole house laughed at her, and at you, and then at the story, though not quite in the right place.</p>`); }
+      else lines.push(`<p><b>${c.b.n}.</b> ${v > 11 ? 'The house came apart. Men in the gallery held on to one another. A gentleman in the front row laughed till he had to be helped out, and came back in to hear the rest.' : v > 8 ? 'A big laugh, rolling up from the parquette to the gallery and back down again, like thunder going round a canyon.' : v > 5 ? 'A good laugh, and a few people said the last line over to each other.' : 'A polite ripple, and a cough in the dress circle, and you pressed on.'}</p>`);
     }
     prevSerious = !!c.b.serious; total += v;
   });
@@ -928,13 +928,13 @@ function performLecture(chosen) {
   addBonus(laughs * 4);
   if (laughs >= 34) feat('Brought the house down');
   sfx('fanfare');
-  outcome('Mark Twain, lecturer', `<p>You walk out onto the stage in front of fifteen hundred people. Your mouth is dry, your hands are cold and the first thing you say comes out as a croak. Then they laugh at the croak, and you are all right.</p>${lines.join('')}
-    <p>When it is over the applause goes on so long you do not know whether to bow, leave or start again. The box office takes in <b>${money(take)}</b>. The next morning every paper in the city says the same thing in different words: there has never been anything quite like it.</p>
-    <p>You have found what you were for. It only took a stagecoach, a silver mine, two newspapers, a frog, a volcano and five years.</p>` + fx({ money: take - 50, readers: laughs * 3, sp: 20 }), () => ending('lecture'));
+  outcome('Mark Twain, lecturer', `<p>You walked out onto the stage in front of fifteen hundred people. Your mouth was as dry as an alkali flat, your hands were cold, and the first thing you said came out a croak. Then they laughed at the croak, and you were all right.</p>${lines.join('')}
+    <p>When it was over the applause went on so long that you did not know whether to bow, leave, or begin again. The box office took in <b>${money(take)}</b>. Next morning every paper in the city said the same thing in different words: there had never been anything quite like it on the coast.</p>
+    <p>So you had found your trade at last, after trying all the others; and it had cost you no more than a stagecoach, a silver mine, two newspapers, a frog, a volcano and five years.</p>` + fx({ money: take - 50, readers: laughs * 3, sp: 20 }), () => ending('lecture'));
 }
 
 window.EXTRA_ENDINGS = {
-  lecture: ['The trouble began at eight', `<p>From San Francisco you take the lecture on the road, to Sacramento, to the mining towns, and back over the Sierra to Virginia City, where they turn out to cheer one of their own. Then East, and a trip around the world on a steamship full of pilgrims, and a book about that, and at last, sitting at a desk in Hartford with a box of old notebooks, a book about the West, the stage, the silver, the islands: <i>Roughing It</i>.</p><p>You leave out nothing important, and put in a great many things that are better than the truth.</p>`],
+  lecture: ['The trouble began at eight', `<p>From San Francisco you took the lecture on the road, to Sacramento, to the mining camps, and back over the Sierra to Virginia City, where they turned out to cheer one of their own and to see whether you still owed anybody money. Then East, and a voyage to Europe and the Holy Land in a steamship full of pilgrims, and a book about that; and at last, at a desk with a box of old notebooks, a book about the West, the stage, the silver and the islands: <i>Roughing It</i>.</p><p>You left out nothing important, and put in a great many things that were better than the truth.</p>`],
 };
 
 // =============================================================== scenes for Parts II & III
