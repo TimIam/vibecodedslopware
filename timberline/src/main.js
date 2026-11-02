@@ -665,12 +665,25 @@ function handleSaw(dt) {
 function blocked(msg) { if (G.time - G.blockMsg > 2.5) { toast(msg, 'bad'); G.blockMsg = G.time; } }
 
 let swingState = null;
+// mark where the needle was when Space went down, coloured by how good the swing is
+function showSwingMark(p, q) {
+  const mk = $('meter').querySelector('.hit'), vd = $('meter').querySelector('.verdict');
+  const cls = q >= 1 ? '' : q >= 0.6 ? 'close' : 'miss';
+  mk.className = 'hit'; vd.className = 'verdict';
+  void mk.offsetWidth; // restart the fade
+  mk.style.left = p * 100 + '%';
+  mk.className = 'hit show ' + cls;
+  vd.textContent = q >= 1 ? 'Clean' : q >= 0.6 ? 'Close' : 'Glancing';
+  vd.style.color = q >= 1 ? 'var(--ok)' : q >= 0.6 ? 'var(--warn)' : 'var(--bad)';
+  vd.className = 'verdict show';
+}
 function swingAxe() {
   if (!['notch', 'back'].includes(G.step) || swingState) return;
   if (G.felling.player.retreating) { walkBackIn(); return; }
   const p = G.meterPos;
   const off = Math.abs(p - 0.5), sweet = job.tool.sweet / 2;
   const q = off <= sweet ? 1 : Math.max(0.15, 1 - (off - sweet) * 2.4);
+  showSwingMark(p, q);
   // strokes alternate: a 45-degree stroke down into the sloped face, then a flatter one along the floor
   swingState = { t: 0, q, hit: false, face: (G.chopN = (G.chopN || 0) + 1) % 2 ? 'top' : 'bot' };
   setTimeout(() => sfx.swish(), AXE_T.top * 1000);
@@ -712,7 +725,6 @@ function handleAxe(dt) {
         // each stroke deepens one face (twice the bite, so the notch grows at the same pace); sloppy swings over- or under-cut it
         const key = face === 'top' ? 'dTop' : 'dBot';
         n[key] = Math.min(Rc * 1.9, Math.max(0, n[key] + bite * 2 + (1 - q) * bite * 0.9 * (Math.random() * 2 - 0.6)));
-        if (q < 0.6) toast('Glancing blow.', '');
         if (!n.removed && n.dTop >= n.target - 0.01 && n.dBot >= n.target - 0.01) dropFace();
         renderPanel();
       } else {

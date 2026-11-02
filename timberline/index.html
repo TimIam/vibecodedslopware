@@ -160,7 +160,15 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
 #meter { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(92px + env(safe-area-inset-bottom, 0px)); width: 320px; height: 14px; border-radius: 99px; background: rgba(10, 14, 12, 0.7); box-shadow: inset 0 0 0 1px var(--stroke-2), var(--shadow); backdrop-filter: blur(10px); overflow: visible; }
 #meter .sweet { position: absolute; top: 2px; bottom: 2px; border-radius: 99px; background: linear-gradient(90deg, color-mix(in srgb, var(--ok) 40%, transparent), color-mix(in srgb, var(--ok) 85%, transparent), color-mix(in srgb, var(--ok) 40%, transparent)); box-shadow: 0 0 14px color-mix(in srgb, var(--ok) 50%, transparent); }
 #meter .needle { position: absolute; top: -5px; bottom: -5px; width: 4px; border-radius: 3px; background: #fff; box-shadow: 0 0 10px rgba(255,255,255,0.8); }
-#meter::after { content: 'Swing in the green'; position: absolute; left: 0; right: 0; top: -20px; text-align: center; font-family: var(--f-display); font-weight: 600; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--bone-dim); }
+/* where the last press landed: stays put and fades by the time the next swing is ready */
+#meter .hit { position: absolute; top: -8px; bottom: -8px; width: 6px; margin-left: -3px; border-radius: 3px; opacity: 0; background: #eaffb8; box-shadow: 0 0 0 2px rgba(0,0,0,0.55), 0 0 14px var(--ok); }
+#meter .hit.close { background: var(--warn); box-shadow: 0 0 0 2px rgba(0,0,0,0.55), 0 0 12px var(--warn); }
+#meter .hit.miss { background: var(--bad); box-shadow: 0 0 0 2px rgba(0,0,0,0.55), 0 0 12px var(--bad); }
+#meter .hit.show { animation: hitmark 1.3s ease-out forwards; }
+@keyframes hitmark { 0% { opacity: 1; transform: scaleY(1.5); } 15% { transform: scaleY(1); } 70% { opacity: 0.9; } 100% { opacity: 0; } }
+#meter .verdict { position: absolute; left: 0; right: 0; top: 22px; text-align: center; font-family: var(--f-display); font-weight: 700; font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; opacity: 0; }
+#meter .verdict.show { animation: hitmark 1.3s ease-out forwards; }
+#meter::after { content: 'Press Space in the green'; position: absolute; left: 0; right: 0; top: -20px; text-align: center; font-family: var(--f-display); font-weight: 600; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--bone-dim); }
 
 #banner { position: absolute; left: 50%; top: 24%; transform: translate(-50%, -50%); font-family: var(--f-display); font-weight: 800; font-size: clamp(48px, 10vw, 128px); letter-spacing: 0.04em; color: #fff; pointer-events: none; text-align: center; line-height: 0.92;
   background: linear-gradient(180deg, #fff 0%, #ffd9b8 45%, var(--hivis) 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 6px 24px rgba(0,0,0,0.55)); animation: slam 0.5s var(--ease); }
@@ -301,7 +309,7 @@ kbd { display: inline-grid; place-items: center; min-width: 22px; height: 22px; 
     <div class="lbl"><span>Stump plan · side profile</span><span id="planNote"></span></div>
     <canvas id="planC" width="600" height="336"></canvas>
   </div>
-  <div id="meter" hidden><div class="sweet"></div><div class="needle"></div></div>
+  <div id="meter" hidden><div class="sweet"></div><div class="hit"></div><div class="needle"></div><div class="verdict"></div></div>
   <div id="actionbar" hidden>
     <button class="side-btn" id="wedgeBtn" type="button" hidden><kbd>E</kbd>Wedge</button>
     <button id="hold" type="button">Hold to cut</button>
