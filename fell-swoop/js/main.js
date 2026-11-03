@@ -133,7 +133,6 @@ function newClearing(seed) {
 // Input -------------------------------------------------------------------------
 addEventListener('keydown', e => {
   keys[e.code] = true;
-  if (e.code === 'KeyR' && G.mode !== 'title') { newClearing(G.seed + 1); if (G.mode === 'over') { setMode('play'); lock(); } }
   if (e.code === 'KeyM') $('mute').textContent = sfx.toggleMute() ? 'sound off' : '';
   if ((e.code === 'KeyT' || e.code === 'KeyV') && G.mode === 'play') { setView(VIEWS[(VIEWS.indexOf(settings.view) + 1) % VIEWS.length]); popup(VIEW_NAMES[settings.view], 'meh'); }
   if (e.code === 'BracketLeft') nudgeSens(1 / 1.15);
@@ -223,7 +222,8 @@ function setMode(m) {
 const startAudio = () => { sfx.init(); sfx.startMusic(); };
 $('start').onclick = () => { startAudio(); setMode('play'); lock(); };
 $('resume').onclick = () => { startAudio(); setMode('play'); lock(); };
-$('again').onclick = () => { newClearing(G.lastDead ? G.seed : G.seed + 1); setMode('play'); lock(); };
+$('restart').onclick = () => { startAudio(); newClearing(G.seed + 1); setMode('play'); lock(); };
+$('again').onclick =() => { newClearing(G.lastDead ? G.seed : G.seed + 1); setMode('play'); lock(); };
 
 // The swing ---------------------------------------------------------------------
 // The mouse moves a point in a 2D "swing space": x sweeps the axe around your body,

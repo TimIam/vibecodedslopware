@@ -65,6 +65,8 @@ kbd{display:inline-block;min-width:22px;padding:1px 6px;border:1px solid #b9b39c
 .tip{font-size:13.5px;background:#efe7d2;border-radius:12px;padding:10px 12px;margin-top:16px!important;color:#46503b!important;text-align:left}
 .go{margin-top:20px;appearance:none;border:0;border-radius:999px;padding:12px 30px;background:#a8452a;color:#fff;font:700 17px/1 inherit;font-family:inherit;cursor:pointer;box-shadow:0 4px 0 #6f2a17}
 .go:active{transform:translateY(2px);box-shadow:0 2px 0 #6f2a17}
+.go.alt{margin-top:12px;padding:9px 22px;font-size:14px;background:#fbf8ef;color:#3c4634;border:1px solid #c9bfa6;box-shadow:0 3px 0 #c9bfa6}
+.go.alt:active{box-shadow:0 1px 0 #c9bfa6}
 #overS{display:flex;justify-content:center;gap:18px;margin-top:16px;font-variant-numeric:tabular-nums}
 #overS div{display:grid}
 #overS b{font-size:22px}
@@ -116,7 +118,7 @@ body.playing.soft #game{cursor:crosshair}
 <div id="hint" class="hud pill">
   <kbd>mouse</kbd> hands · hold <kbd>LMB</kbd> to swing hard<br>
   <kbd>W</kbd><kbd>S</kbd> step in/out · <kbd>A</kbd><kbd>D</kbd> circle · <kbd>Shift</kbd> run<br>
-  <kbd>T</kbd> view · <kbd>R</kbd> new clearing · <kbd>M</kbd> mute · <kbd>Esc</kbd> settings
+  <kbd>T</kbd> view · <kbd>M</kbd> mute · <kbd>Esc</kbd> settings, new clearing
 </div>
 
 <div id="title" class="overlay">
@@ -143,7 +145,7 @@ body.playing.soft #game{cursor:crosshair}
   </div>
 </div>
 <div id="paused" class="overlay" hidden>
-  <div class="card" id="pauseCard"><h2>Paused</h2><button class="go" id="resume">Keep chopping</button></div>
+  <div class="card" id="pauseCard"><h2>Paused</h2><button class="go" id="resume">Keep chopping</button><br><button class="go alt" id="restart">New clearing</button></div>
 </div>
 <div id="over" class="overlay" hidden>
   <div class="card">
