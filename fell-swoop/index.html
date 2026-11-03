@@ -29,12 +29,6 @@ body.playing #game{cursor:none}
 #stamLbl{left:50%;bottom:34px;transform:translateX(-50%);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85);text-shadow:0 1px 3px rgba(0,0,0,.5)}
 #stuck{left:50%;bottom:62px;transform:translateX(-50%);width:min(220px,40vw);opacity:0;transition:opacity .15s;text-align:center;color:#fff;font-size:12px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 #stuck i{display:block;height:6px;border-radius:3px;margin-top:4px;background:#f1e3a8;width:0;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
-#reticle{left:0;top:0;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;border:2px solid rgba(255,255,255,.75);box-shadow:0 0 0 1px rgba(0,0,0,.25),inset 0 0 0 1px rgba(0,0,0,.2);transition:border-color .1s,width .1s,height .1s,margin .1s}
-#reticle::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:rgba(255,255,255,.85)}
-#reticle.tense{border-color:#ffb347;width:20px;height:20px;margin:-10px 0 0 -10px}
-#reticle.stuck{border-color:#ff6b4a}
-#reticle.off{opacity:.45}
-#reticle[hidden]{display:none}
 #warn{top:74px;left:50%;transform:translateX(-50%);font-weight:800;font-size:clamp(16px,2.4vw,22px);color:#fff;text-shadow:0 2px 0 #4a1a10,0 4px 18px rgba(60,10,0,.6);white-space:nowrap}
 #warn.hot{animation:flash .35s infinite alternate;color:#ffd2c4}
 @keyframes flash{to{opacity:.35}}
@@ -96,7 +90,6 @@ body.playing.soft #game{cursor:crosshair}
 
 <canvas id="game" tabindex="0" aria-label="Fell Swoop game view"></canvas>
 
-<div id="reticle" class="hud" hidden></div>
 <div id="stats" class="hud pill">
   <div><b id="felled">0/6</b><span>felled</span></div>
   <div><b id="time">0:00</b><span>time</span></div>
@@ -135,10 +128,11 @@ body.playing.soft #game{cursor:crosshair}
     <p class="tip">Wind up wide, then hold the button and swing <b>through</b> the trunk, edge first. When it bites, pull it back out.
       A tree falls toward the side you chopped out: cut a deep notch on the side you want it to land, finish from the other side, and step clear.</p>
     <div class="settings" id="settings">
-      <label><span>Mouse sensitivity</span><input type="range" id="setSens" min="35" max="300" step="5"><b id="setSensV"></b></label>
+      <label><span>Mouse sensitivity</span><input type="range" id="setSens" min="5" max="300" step="5"><b id="setSensV"></b></label>
       <label><span>Music</span><input type="range" id="setMusic" min="0" max="100" step="5"><b id="setMusicV"></b></label>
       <label><span>Sound effects</span><input type="range" id="setSfx" min="0" max="100" step="5"><b id="setSfxV"></b></label>
       <div class="view"><span>View</span><button type="button" data-view="first">First person</button><button type="button" data-view="third">Right shoulder</button><button type="button" data-view="left">Left shoulder</button></div>
+      <div class="view"><span>Screen</span><button type="button" data-full="1">Full screen</button><button type="button" data-full="0">Window</button></div>
     </div>
     <button class="go" id="start">Start chopping</button>
     <p class="mouse-only">Needs a mouse. Esc pauses and opens these settings.</p>

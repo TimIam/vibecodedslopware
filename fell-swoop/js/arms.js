@@ -1,6 +1,7 @@
 // First-person arms: plaid sleeves rolled to the elbow, bare forearms and leather work gloves
 // whose fingers wrap the handle. Two-bone IK from each shoulder to its hand on the handle.
 import * as THREE from 'three';
+import { pickElbow } from './elbow.js';
 
 const UPPER = 0.31, FORE = 0.3;
 const Y = new THREE.Vector3(0, 1, 0);
@@ -91,23 +92,27 @@ export class Arms {
     this.sides = [0, 1].map(() => {
       const s = {
         upper: mesh(upperG, sleeve), elbow: mesh(elbowG, sleeve), roll: mesh(rollG, rolled), roll2: mesh(roll2G, rolled),
-        fore: mesh(foreG, skin), cuff: mesh(cuffG, cuffLeather), hand: mesh(gloveG, leather), elbowPos: new THREE.Vector3(),
+        fore: mesh(foreG, skin), cuff: mesh(cuffG, cuffLeather), hand: mesh(gloveG, leather), elbowPos: new THREE.Vector3(), elbowDir: new THREE.Vector3(),
       };
       for (const k of Arms.PARTS) scene.add(s[k]);
       return s;
     });
   }
 
-  // shoulders and hands are world points; pole hints which way each elbow bends.
-  update(shoulders, hands, poles, axeQ, eye = null) {
+  // shoulders and hands are world points; pole hints which way each elbow bends, and with a torso
+  // the elbow goes wherever near it keeps the arm out of your body.
+  update(shoulders, hands, poles, axeQ, eye = null, torso = null) {
     _hy.set(0, 1, 0).applyQuaternion(axeQ);
     this.sides.forEach((s, i) => {
       const S = shoulders[i], H = hands[i];
-      _d.subVectors(H, S); let dist = _d.length(); _d.divideScalar(dist || 1);
-      dist = Math.min(Math.max(dist, 0.08), UPPER + FORE - 0.002);
-      const ca = (UPPER * UPPER + dist * dist - FORE * FORE) / (2 * UPPER * dist), sa = Math.sqrt(Math.max(0, 1 - ca * ca));
-      _p.copy(poles[i]).addScaledVector(_d, -poles[i].dot(_d)).normalize();
-      s.elbowPos.copy(S).addScaledVector(_d, UPPER * ca).addScaledVector(_p, UPPER * sa);
+      if (torso) pickElbow(S, H, UPPER, FORE, poles[i], torso, s.elbowDir, s.elbowPos);
+      else {
+        _d.subVectors(H, S); let dist = _d.length(); _d.divideScalar(dist || 1);
+        dist = Math.min(Math.max(dist, 0.08), UPPER + FORE - 0.002);
+        const ca = (UPPER * UPPER + dist * dist - FORE * FORE) / (2 * UPPER * dist), sa = Math.sqrt(Math.max(0, 1 - ca * ca));
+        _p.copy(poles[i]).addScaledVector(_d, -poles[i].dot(_d)).normalize();
+        s.elbowPos.copy(S).addScaledVector(_d, UPPER * ca).addScaledVector(_p, UPPER * sa);
+      }
       placeBone(s.upper, S, s.elbowPos);
       s.elbow.position.copy(s.elbowPos);
       // Forearm runs to the wrist, which sits just behind the fist.

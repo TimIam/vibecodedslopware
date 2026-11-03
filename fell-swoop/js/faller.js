@@ -2,6 +2,7 @@
 // two games can change independently): a Blender-built jointed figure posed in code. Arms reach the
 // axe handle with two-bone IK; legs and spine take a chopping stance or walk.
 import * as THREE from 'three';
+import { pickElbow } from './elbow.js';
 
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
 const DOWN = new THREE.Vector3(0, -1, 0);
@@ -31,7 +32,12 @@ export class Faller {
   }
 
   // reset every joint to the rest pose
-  rest() { for (const k in this.j) this.j[k]?.quaternion.identity(); this.j.pelvis.position.y = this.pelvisY; }
+  rest() {
+    for (const k in this.j) this.j[k]?.quaternion.identity();
+    this.j.pelvis.position.y = this.pelvisY;
+    this.uaRest = this.uaRest || { R: this.j.uaR.position.clone(), L: this.j.uaL.position.clone() };
+    this.j.uaR.position.copy(this.uaRest.R); this.j.uaL.position.copy(this.uaRest.L);
+  }
 
   // Stance for working at height workY (in the faller's ground frame): stand, crouch, or kneel on the right knee.
   stance(workY, lean = 0) {
@@ -71,10 +77,29 @@ export class Faller {
   }
   shoulders() { return this.j.uaR.getWorldPosition(new THREE.Vector3()).add(this.j.uaL.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5); }
 
+  // The torso and head in world space, for keeping the elbows out of them (see elbow.js).
+  torso(out) {
+    const ch = this.j.chest; ch.updateMatrixWorld(true);
+    const e = ch.matrixWorld.elements;
+    out.c = (out.c || new THREE.Vector3()).setFromMatrixPosition(ch.matrixWorld);
+    out.f = (out.f || new THREE.Vector3()).set(e[0], e[1], e[2]).normalize();
+    out.u = (out.u || new THREE.Vector3()).set(e[4], e[5], e[6]).normalize();
+    out.r = (out.r || new THREE.Vector3()).set(e[8], e[9], e[10]).normalize();
+    Object.assign(out, { fx: 0.01, a: 0.135, b: 0.17, y0: -0.45, y1: 0.33, y2: 0.68, hr: 0.11 });
+    return out;
+  }
+
   // Two-bone IK: put the grip marker of one hand on a world-space target, elbow toward a pole point.
-  reach(side, target, pole) {
+  // With a torso, the elbow goes wherever near the pole keeps the arm out of the body.
+  reach(side, target, pole, torso = null) {
     const j = this.j, ua = j['ua' + side], fa = j['fa' + side], g = j['g' + side];
     ua.quaternion.identity(); fa.quaternion.identity();
+    if (torso && this.uaRest) {
+      // Reaching across the chest, the shoulder blade slides forward and in.
+      const rest = this.uaRest[side], s = Math.sign(rest.z), hl = j.chest.worldToLocal(_v.copy(target));
+      const across = THREE.MathUtils.clamp(-hl.z * s / 0.35 + 0.25, 0, 1);
+      ua.position.copy(rest).add(_w.set(0.075 * across, -0.012 * across, -s * 0.035 * across));
+    }
     ua.updateMatrixWorld(true);
     const S = ua.getWorldPosition(new THREE.Vector3()), E0 = fa.getWorldPosition(new THREE.Vector3()), G0 = g.getWorldPosition(new THREE.Vector3());
     const L1 = S.distanceTo(E0), L2 = E0.distanceTo(G0);
@@ -86,6 +111,7 @@ export class Faller {
     if (n.lengthSq() < 1e-8) n.set(0, -1, 0);
     n.normalize();
     const E = S.clone().addScaledVector(dir, a).addScaledVector(n, h);
+    if (torso) { this.elbowDir = this.elbowDir || { R: new THREE.Vector3(), L: new THREE.Vector3() }; pickElbow(S, target, L1, L2, n, torso, this.elbowDir[side], E); }
     // upper arm: rotate rest elbow direction onto the solved one (world), expressed in the parent frame
     const pq = ua.parent.getWorldQuaternion(new THREE.Quaternion());
     _q.setFromUnitVectors(E0.sub(S).normalize(), E.clone().sub(S).normalize());

@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { buildWorld, makeRng, barkTexture, plaidTexture, softDotTexture } from './world.js';
 import { Tree, barkMaterial, sliceH, GRID, CUT_HI } from './trees.js';
-import { Axe, HEAD_Y, GRIP_LOCAL, REACH } from './axe.js';
+import { Axe, REACH } from './axe.js';
 import { Arms } from './arms.js';
 import { Sfx } from './audio.js';
 import { Fx } from './fx.js';
@@ -40,7 +40,7 @@ const arms = new Arms(scene, plaid);
 
 // Settings, remembered per browser.
 const SETTINGS_KEY = 'fellswoop.settings.v1';
-const settings = { sens: 1, music: 0.5, sfx: 1, view: 'first' };
+const settings = { sens: 1, music: 0.5, sfx: 1, view: 'first', full: true };
 try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch { /* private mode */ }
 const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* ignore */ } };
 
@@ -73,7 +73,7 @@ const player = {
 };
 const chest = V();
 const keys = {};
-const input = { lmb: false, locked: false, soft: false, sens: settings.sens };
+const input = { lmb: false, locked: false, soft: false, sens: settings.sens, mAvg: 0 };
 const SENS = 1 / 550;
 const cursor = { x: 0.45, y: 0.12, sx: 0.45, sy: 0.12, px: 0.45, py: 0.12, vx: 0, vy: 0, bit: new THREE.Vector2(-1, 0) };
 const AIM = { x: 0, y: -0.04 };
@@ -81,7 +81,7 @@ const AIM = { x: 0, y: -0.04 };
 const POSE = { PHI: 1.65, TH0: -0.28, TH_UP: 1.5, TH_DN: 1.0, RG: 0.4 };
 const FF = 0.55;   // how much of the target's own motion the arms anticipate
 const tgt = { com: V(), err: V(), vff: V(), q: new THREE.Quaternion(), angVel: V(), chest, wn: 15, zeta: 0.7, aMax: 160, alphaMax: 170, rollMax: 80, grav: 1, strength: 1 };
-const pz = { d: V(), ephi: V(), eth: V(), grip: V(), head: V(), X: V(), Z: V(), q: new THREE.Quaternion() };
+const pz = { d: V(), ephi: V(), eth: V(), grip: V(), X: V(), Z: V(), q: new THREE.Quaternion() };
 const acc = { F: V(), Ty: 0, n: 0 };
 const swing = { on: false, peak: 0, hit: false };
 let pickupK = 1;
@@ -152,6 +152,12 @@ addEventListener('mouseup', e => { if (e.button === 0) input.lmb = false; });
 addEventListener('mousemove', e => {
   if (G.mode !== 'play' || player.dead) return;
   if (input.locked) {
+    // Chrome on Windows sometimes reports one huge jump under pointer lock, worst with high-DPI,
+    // high-polling mice: an event far bigger than the ones before it is dropped instead of
+    // flinging the axe to the end of its swing. A real flick only loses its first event.
+    const m = Math.hypot(e.movementX, e.movementY), spike = m > 12 * input.mAvg + 40;
+    input.mAvg += (m - input.mAvg) * (spike ? 0.5 : 0.15);
+    if (spike) return;
     limitSwing(cursor.x + e.movementX * SENS * input.sens, cursor.y - e.movementY * SENS * input.sens, 1, cursor);
   } else {
     // No pointer lock (the browser refused it, or Esc was pressed): the swing follows where the
@@ -176,7 +182,7 @@ function limitSwing(x, y, slack, out) {
 }
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-function nudgeSens(k) { setSens(clamp(input.sens * k, 0.35, 3)); popup(`mouse ${Math.round(input.sens * 100)}%`, 'meh'); }
+function nudgeSens(k) { setSens(clamp(input.sens * k, 0.05, 3)); popup(`mouse ${Math.round(input.sens * 100)}%`, 'meh'); }
 function setSens(v) { input.sens = settings.sens = v; saveSettings(); syncSettingsUi(); }
 // T cycles first person, over the right shoulder, over the left shoulder, and back.
 const VIEWS = ['first', 'third', 'left'], VIEW_NAMES = { first: 'first person', third: 'over the right shoulder', left: 'over the left shoulder' };
@@ -190,26 +196,48 @@ function syncSettingsUi() {
   $('setMusic').value = Math.round(settings.music * 100); $('setMusicV').textContent = `${Math.round(settings.music * 100)}%`;
   $('setSfx').value = Math.round(settings.sfx * 100); $('setSfxV').textContent = `${Math.round(settings.sfx * 100)}%`;
   for (const b of document.querySelectorAll('[data-view]')) b.classList.toggle('on', b.dataset.view === settings.view);
+  for (const b of document.querySelectorAll('[data-full]')) b.classList.toggle('on', (b.dataset.full === '1') === settings.full);
 }
 $('setSens').oninput = e => setSens(e.target.value / 100);
 $('setMusic').oninput = e => { settings.music = e.target.value / 100; sfx.setMusicVolume(settings.music); saveSettings(); syncSettingsUi(); };
 $('setSfx').oninput = e => { settings.sfx = e.target.value / 100; sfx.setSfxVolume(settings.sfx); saveSettings(); syncSettingsUi(); };
 for (const b of document.querySelectorAll('[data-view]')) b.onclick = () => setView(b.dataset.view);
+for (const b of document.querySelectorAll('[data-full]')) b.onclick = () => {
+  settings.full = b.dataset.full === '1'; saveSettings(); syncSettingsUi();
+  if (!settings.full && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+};
 sfx.sfxVol = settings.sfx; sfx.musicVol = settings.music;
 syncSettingsUi();
 
-function lock() {
+function grab() {
   const soft = () => { input.soft = true; };
   try {
     const p = canvas.requestPointerLock({ unadjustedMovement: true });
     if (p && p.catch) p.catch(() => { try { const q = canvas.requestPointerLock(); if (q && q.catch) q.catch(soft); } catch { soft(); } });
   } catch { soft(); }
-  setTimeout(() => { if (!input.locked) soft(); }, 700);
 }
+// Capture the mouse, full screen by default: with the game filling the screen a fast flick has
+// nowhere to escape to, onto another monitor or out of the window.
+function lock() {
+  input.lockAt = performance.now(); input.mAvg = 0;
+  grab();
+  if (settings.full && !document.fullscreenElement && document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  }
+  setTimeout(() => { if (!input.locked) input.soft = true; }, 1200);
+}
+document.addEventListener('fullscreenchange', () => {
+  // Some browsers drop the mouse while the screen changes size: take it back.
+  if (document.fullscreenElement && G.mode === 'play' && !input.locked) grab();
+});
 document.addEventListener('pointerlockchange', () => {
   input.locked = document.pointerLockElement === canvas;
   if (input.locked) input.soft = false;
-  else if (G.mode === 'play') { input.lmb = false; setMode('paused'); }
+  else if (G.mode === 'play') {
+    input.lmb = false;
+    // Lost while going full screen, not by Esc: try again rather than pausing.
+    if (performance.now() - (input.lockAt || 0) < 1000) grab(); else setMode('paused');
+  }
 });
 
 function setMode(m) {
@@ -272,7 +300,6 @@ function computeTarget(h) {
   sphere(phiT, thT, pz.d, pz.ephi, pz.eth);
   // Arms straighten as the axe goes up, so the hands pass over your head, not through your face.
   pz.grip.copy(chest).addScaledVector(pz.d, POSE.RG + 0.19 * smooth(0.25, 1.15, thT));
-  pz.head.copy(pz.grip).addScaledVector(pz.d, HEAD_Y - GRIP_LOCAL.y);
   orient(pz.d, pz.ephi, pz.eth, thT, pz.q);
   tgt.com.copy(axe.gripRel).applyQuaternion(pz.q).multiplyScalar(-1).add(pz.grip);
   if (sw.init) { sw.dphi += ((phiT - sw.phi) / h - sw.dphi) * 0.2; sw.dth += ((thT - sw.th) / h - sw.dth) * 0.2; }
@@ -601,7 +628,7 @@ function updateCamera(dt) {
 }
 
 // Third person: pose Timberline's faller on the axe (or the simple lumberjack if it hasn't loaded).
-const _c = V(), _sh = V(), _pole = V();
+const _c = V(), _sh = V(), _pole = V(), _torsoTP = {};
 function poseBody(dt) {
   const third = thirdPerson();
   const fig = body.fig;
@@ -617,7 +644,7 @@ function poseBody(dt) {
   root.rotation.set(0, Math.atan2(-B.F.z, B.F.x), 0);
   fig.rest();
   if (moving > 0.2 && axe.mode !== 'stuck') { fig.speed = player.vel.length(); fig.walk(dt); }
-  else fig.chopStance(1.4, -clamp(sw.phiA || 0, -1.6, 1.6) * 0.3 - player.twist, 0.14 + Math.max(0, -(sw.thA || 0)) * 0.25);
+  else fig.chopStance(1.4, -clamp(sw.phiA || 0, -2.2, 2.2) * 0.56 - player.twist, 0.14 + Math.max(0, -(sw.thA || 0)) * 0.25);
   // Put the faller's shoulders where the swing's shoulders are.
   root.updateMatrixWorld(true);
   _sh.copy(player.pos).addScaledVector(B.U, 1.4).addScaledVector(B.F, -0.07).add(player.sway).sub(fig.shoulders());
@@ -627,30 +654,38 @@ function poseBody(dt) {
   root.updateMatrixWorld(true);
   if (axe.mode === 'free' || player.dead) fig.armsFree(0);
   else {
-    fig.j.chest.getWorldPosition(_c);
-    fig.reach('R', axe.renderPoint(axe.topRel, _ht), _pole.copy(_c).addScaledVector(B.R, 0.7).addScaledVector(B.F, -0.2).setY(_c.y - 0.45));
-    fig.reach('L', axe.renderPoint(axe.gripRel, _hb), _pole.copy(_c).addScaledVector(B.R, -0.6).addScaledVector(B.F, -0.2).setY(_c.y - 0.6));
+    fig.j.chest.getWorldPosition(_c); fig.torso(_torsoTP);
+    fig.reach('R', axe.renderPoint(axe.topRel, _ht), _pole.copy(_c).addScaledVector(B.R, 0.7).addScaledVector(B.F, -0.2).setY(_c.y - 0.45), _torsoTP);
+    fig.reach('L', axe.renderPoint(axe.gripRel, _hb), _pole.copy(_c).addScaledVector(B.R, -0.6).addScaledVector(B.F, -0.2).setY(_c.y - 0.6), _torsoTP);
   }
   if (G.target) fig.look(_tmp.set(G.target.x, 1.0, G.target.z));
   fig.tick(dt);
 }
 
 const _tR = V(), _tF = V();
+// Your own chest and head, which the first-person arms keep out of (see elbow.js). The head is
+// drawn big so the elbows stay out of your face as well as out of your skull.
+const _torsoFP = { c: V(), f: V(), r: V(), u: new THREE.Vector3(0, 1, 0), fx: -0.02, a: 0.12, b: 0.16, y0: -0.5, y1: 0.15, y2: 0.55, hr: 0.19 };
 function updateArms() {
   basis(player.yaw);
   // The shoulders turn with the swing: back on the side you wind up to, round on the follow-through.
-  const ta = G.shoulderTurn = (G.shoulderTurn || 0) + (clamp((sw.phiA || 0) * 0.3, -0.62, 0.7) - (G.shoulderTurn || 0)) * 0.25;
+  const ta = G.shoulderTurn = (G.shoulderTurn || 0) + (clamp((sw.phiA || 0) * 0.5, -1.0, 0.9) - (G.shoulderTurn || 0)) * 0.25;
   _tR.copy(B.R).multiplyScalar(Math.cos(ta)).addScaledVector(B.F, -Math.sin(ta));
   _tF.copy(B.F).multiplyScalar(Math.cos(ta)).addScaledVector(B.R, Math.sin(ta));
-  _sL.copy(player.pos).addScaledVector(B.U, 1.4).addScaledVector(_tR, -0.19).addScaledVector(_tF, -0.07).add(player.sway);
-  _sR.copy(player.pos).addScaledVector(B.U, 1.4).addScaledVector(_tR, 0.19).addScaledVector(_tF, -0.07).add(player.sway);
   if (axe.mode === 'free') {
     _hb.copy(chest).addScaledVector(B.F, 0.32).addScaledVector(B.U, -0.42).addScaledVector(B.R, -0.16);
     _ht.copy(chest).addScaledVector(B.F, 0.32).addScaledVector(B.U, -0.42).addScaledVector(B.R, 0.16);
   } else { axe.renderPoint(axe.gripRel, _hb); axe.renderPoint(axe.topRel, _ht); }
+  // A hand reaching across the chest brings its shoulder forward and in.
+  const c = _torsoFP.c.copy(player.pos).addScaledVector(B.U, 1.25).add(player.sway);
+  const across = (H, s) => clamp(-_d.subVectors(H, c).dot(_tR) * s / 0.35 + 0.25, 0, 1);
+  const aL = across(_hb, -1), aR = across(_ht, 1);
+  _sL.copy(player.pos).addScaledVector(B.U, 1.4 - 0.012 * aL).addScaledVector(_tR, -0.19 + 0.035 * aL).addScaledVector(_tF, -0.07 + 0.075 * aL).add(player.sway);
+  _sR.copy(player.pos).addScaledVector(B.U, 1.4 - 0.012 * aR).addScaledVector(_tR, 0.19 - 0.035 * aR).addScaledVector(_tF, -0.07 + 0.075 * aR).add(player.sway);
+  _torsoFP.f.copy(_tF); _torsoFP.r.copy(_tR);
   _pL.copy(_tR).multiplyScalar(-0.7).addScaledVector(B.U, -0.7).addScaledVector(_tF, -0.2);
   _pR.copy(_tR).multiplyScalar(0.7).addScaledVector(B.U, -0.7).addScaledVector(_tF, -0.2);
-  arms.update([_sL, _sR], [_hb, _ht], [_pL, _pR], axe.renderQ, thirdPerson() ? null : camera.position);
+  arms.update([_sL, _sR], [_hb, _ht], [_pL, _pR], axe.renderQ, thirdPerson() ? null : camera.position, _torsoFP);
 }
 
 const cutCanvas = $('cut'), cutCtx = cutCanvas.getContext('2d');
@@ -689,17 +724,6 @@ function drawCut() {
 }
 
 function updateHud(dt) {
-  // Where the arms are pulling the axe head: a ring on screen.
-  _v.copy(pz.head).project(camera);
-  const ret = $('reticle'), rw = canvas.clientWidth, rh = canvas.clientHeight;
-  let sx = (_v.x * 0.5 + 0.5) * rw, sy = (-_v.y * 0.5 + 0.5) * rh;
-  const behind = _v.z > 1; if (behind) { sx = rw - sx; sy = rh - sy; }
-  const off = behind || sx < 0 || sx > rw || sy < 0 || sy > rh;
-  sx = clamp(sx, 14, rw - 14); sy = clamp(sy, 14, rh - 14);
-  ret.style.transform = `translate(${sx}px, ${sy + 52}px)`;
-  ret.className = 'hud' + (input.lmb ? ' tense' : '') + (off ? ' off' : '') + (axe.mode === 'stuck' ? ' stuck' : '');
-  ret.hidden = G.mode !== 'play' || player.dead || axe.mode === 'free';
-
   const soft = G.mode === 'play' && !input.locked && !player.dead;
   document.body.classList.toggle('soft', soft); $('softnote').hidden = !soft;
 
