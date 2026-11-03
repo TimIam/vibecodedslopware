@@ -401,7 +401,7 @@ export class Pie {
   sync() {
     if (this.geoDirty) this.updateGeometry();
     if (this.dirty) this.redraw();
-    this.group.position.copy(this.pos); this.group.rotation.y = this.rot;
+    this.group.position.copy(this.pos); this.group.rotation.set(this.tiltX || 0, this.rot, this.tiltZ || 0, 'XZY');
   }
 }
 

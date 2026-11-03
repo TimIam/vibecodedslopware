@@ -55,7 +55,7 @@ export class Waiter {
     this.headG.rotation.z = this.mood < 0.3 ? Math.sin(this.t * 3) * 0.1 : 0;
     if (this.carry) {
       const p = this.carry;
-      p.pos.set(this.x, 1.08 + bob, this.z + 0.28); p.rot += dt * 0.2;
+      p.pos.set(this.x, 1.06 + bob, this.z + Math.cos(this.group.rotation.y) * 0.28);
     }
   }
   headWorld(out) { return out.set(this.x, 1.45, this.z); }

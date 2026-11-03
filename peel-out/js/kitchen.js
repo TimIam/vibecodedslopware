@@ -449,7 +449,7 @@ function tapeTexture() {
   return tex(c);
 }
 
-function boxTopTexture() {
+export function boxTopTexture() {
   const c = canvas(256), x = c.getContext('2d');
   x.fillStyle = '#d2ad7c'; x.fillRect(0, 0, 256, 256);
   x.strokeStyle = '#a3261b'; x.lineWidth = 8; x.beginPath(); x.arc(128, 128, 80, 0, 7); x.stroke();

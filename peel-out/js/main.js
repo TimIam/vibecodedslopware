@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { buildKitchen, L } from './kitchen.js';
 import { Hand } from './hand.js';
 import { Pie } from './pizza.js';
-import { Peel, Ladle, Tub, Tray, Ticket } from './items.js';
+import { Peel, Ladle, Tub, Tray, Ticket, PizzaBox } from './items.js';
 import { Waiter } from './staff.js';
 import { Sfx } from './audio.js';
 import { clamp, lerp, smooth, wrapAng, rand, pick, softDot } from './util.js';
@@ -76,6 +76,9 @@ const trays = [coolerTray, benchTray];
 const items = [woodPeel, metalPeel, ladle, ...tubs, coolerTray, benchTray];
 const pies = [], tickets = [], bits = [];
 for (const it of items) { it.goHome(); it.support = { kind: 'surface', top: it.pos.y }; }
+// open takeout boxes waiting on the pass
+const boxes = [4.53, 5.0, 5.47].map(x => { const b = new PizzaBox(scene); b.home = V(x, L.PASS, -0.66); b.goHome(); b.support = { kind: 'surface' }; b.sync(); return b; });
+const boxUnder = (x, z, m = 0) => boxes.find(b => !b.carried && b.over(x, z, m));
 
 // Game state ---------------------------------------------------------------------------------
 const SAVE_KEY = 'peelout_v1';
@@ -163,6 +166,9 @@ function topAt(x, z, y = 9, ex = null, withPies = true) {
   for (const p of peels) if (p !== ex && !p.held && p.support && p.onBlade(x, z) && p.topY() <= y + 0.03 && p.topY() > r.top) r = { top: p.topY(), kind: 'peel', thing: p };
   for (const t of trays) if (t !== ex && !t.held && t.support && Math.abs(x - t.pos.x) < t.w / 2 && Math.abs(z - t.pos.z) < t.d / 2 && t.pos.y + 0.02 <= y + 0.03 && t.pos.y + 0.02 > r.top) r = { top: t.pos.y + 0.02, kind: 'tray', thing: t };
   for (const t of tubs) if (t !== ex && !t.held && t.support && Math.hypot(x - t.pos.x, z - t.pos.z) < 0.06 && t.pos.y + 0.105 <= y + 0.03 && t.pos.y + 0.105 > r.top) r = { top: t.pos.y + 0.105, kind: 'tub', thing: t };
+  // a box: pies drop in onto its floor, everything else rests on the rim (or the shut lid)
+  const bx = boxUnder(x, z);
+  if (bx) { const top = ex instanceof Pie && !bx.closed ? bx.floorY() : bx.rimY(); if (top <= y + 0.03 && top > r.top) r = { top, kind: 'box', thing: bx }; }
   if (withPies) for (const p of pies) {
     if (p === ex || !p.support || p.support.kind === 'air' || p.support.kind === 'held' || p.support.kind === 'waiter') continue;
     if (ex && p.support.peel === ex) continue;
@@ -204,6 +210,13 @@ function onGrab() {
     const hw = ovenHandle(o, _v);
     if (Math.abs(hp.x - o.x) < 0.32 && Math.abs(hp.z - hw.z) < 0.1 && Math.abs(hp.y - hw.y) < 0.42) { H.door = { type: 'oven', o }; sfx.grab(); return; }
   }
+  // a box lid: grab anywhere over the box. A click flips a full box shut; dragging works too.
+  for (const b of boxes) {
+    if (b.carried || hp.y > b.pos.y + 0.55 || Math.abs(hp.x - b.pos.x) > b.w / 2 + 0.03 || hp.z < b.pos.z - b.w / 2 - 0.16 || hp.z > b.pos.z + b.w / 2 + 0.06) continue;
+    H.door = { type: 'box', b, z0: hp.z, y0: hp.y, lid0: b.lid, moved: false };
+    if (b.pie && b.isOpen) b.lidVel = -7;
+    sfx.grab(); return;
+  }
   // a pie coming down out of the air: catch it
   for (const p of pies) if (p.support?.kind === 'air' && p.tossed && Math.hypot(p.pos.x - hp.x, p.pos.z - hp.z) < 0.08 + p.meanR * 0.4 && Math.abs(p.pos.y - hp.y) < 0.12) { catchPie(p); return; }
   // nearest grabbable
@@ -218,7 +231,7 @@ function onGrab() {
     if (!p.support) continue;
     const gz = p.pos.z + p.gripZ; // along the handle
     const dz = clamp(hp.z, p.pos.z + p.bl / 2, gz + 0.04) - hp.z;
-    consider(p, Math.hypot(p.pos.x - hp.x, dz) + Math.max(0, hp.y - p.pos.y - 0.16), 0.07);
+    consider(p, Math.hypot(p.pos.x - hp.x, dz) + Math.max(0, hp.y - p.pos.y - 0.3), 0.11);
   }
   consider(ladle, ladle.support ? Math.hypot(ladle.pos.x - hp.x, ladle.pos.z + 0.22 - hp.z) : 9, 0.09);
   for (const t of tubs) if (t.support) consider(t, Math.hypot(t.pos.x - hp.x, t.pos.z - hp.z) + Math.max(0, Math.abs(hp.y - t.pos.y - 0.11) - 0.08), 0.075);
@@ -381,6 +394,13 @@ function detachPie(p) {
   const s = p.support;
   if (s?.kind === 'tray') s.tray.slots[s.slot] = null;
   if (s?.kind === 'peel' && s.peel.pie === p) s.peel.pie = null;
+  if (s?.kind === 'box' && s.box.pie === p) s.box.pie = null;
+}
+function putInBox(p, b) {
+  detachPie(p);
+  b.pie = p; p.support = { kind: 'box', box: b }; p.vel.set(0, 0, 0); p.tossed = false;
+  sfx.slide(); sfx.slap(0.35);
+  if (!G.boxTip) { G.boxTip = true; popup('In the box', 'good', 'now grab the box to flip the lid shut'); }
 }
 function removePie(p) {
   detachPie(p);
@@ -401,7 +421,8 @@ function attachToPeel(p, peel) {
   if (peel.pie && peel.pie !== p) return false;
   detachPie(p);
   peel.pie = p;
-  p.support = { kind: 'peel', peel, ox: clamp(p.pos.x - peel.pos.x, -0.08, 0.08), oz: clamp(p.pos.z - peel.pos.z, -0.08, 0.08), vx: 0, vz: 0, stuck: true };
+  // keep where it actually sits on the blade; it settles toward the middle as you carry it
+  p.support = { kind: 'peel', peel, ox: clamp(p.pos.x - peel.pos.x, -peel.bw / 2 + 0.03, peel.bw / 2 - 0.03), oz: clamp(p.pos.z - peel.pos.z, -peel.bl / 2, peel.bl / 2 - 0.02), vx: 0, vz: 0, stuck: true, seat: 0.5 };
   return true;
 }
 function landPie(p, u, vy) {
@@ -409,6 +430,7 @@ function landPie(p, u, vy) {
   if (u.kind === 'trash') { trashPie(p); return; }
   if (u.top < 0.1) { p.ruined = 'dropped'; G.stats.dropped++; sfx.splat(); popup('Dropped it!', 'bad', 'that one\'s for the floor'); p.support = { kind: 'surface', top: 0, s: null }; p.pos.y = 0; p.deadT = 1.4; FX.emit(p.pos, { n: 8, color: 0xf2e6cc, size: 0.04, spread: 0.08, up: 0.3 }); return; }
   if (u.kind === 'peel' && attachToPeel(p, u.thing)) { sfx.slap(0.5); return; }
+  if (u.kind === 'box' && !u.thing.pie && u.thing.isOpen) { putInBox(p, u.thing); return; }
   if (u.kind === 'tray') {
     const t = u.thing, i = t.slots.findIndex(x => !x);
     if (p.flat < 0.3 && i >= 0) { t.slots[i] = p; p.support = { kind: 'tray', tray: t, slot: i }; sfx.slap(0.3); return; }
@@ -427,8 +449,13 @@ function trashPie(p) {
   sfx.trash(); removePie(p);
 }
 // Called every frame for each pie.
+function canYank(pl) {
+  if (pl.metal && K.ovens.some(o => Math.abs(pl.pos.x - o.x) < 0.62)) return false;
+  return topAt(pl.pos.x, pl.tipZ + 0.06, pl.pos.y + 0.05, pl, false).top > 0.5;
+}
 function updatePie(p, dt) {
   const s = p.support;
+  if (s?.kind !== 'peel') p.tiltX = p.tiltZ = 0;
   if (!s || s.kind === 'air') {
     p.vel.y -= 9.8 * dt; p.pos.addScaledVector(p.vel, dt);
     if (p.tossed) {
@@ -456,30 +483,45 @@ function updatePie(p, dt) {
   }
   if (s.kind === 'peel') {
     const pl = s.peel;
+    s.seat = Math.max(0, (s.seat || 0) - dt);
+    // carried over an open box and lowered onto it: the pie slides in
+    if (pl.held && !s.left) {
+      const b = boxUnder(p.pos.x, p.pos.z, -0.05);
+      if (b && !b.pie && b.isOpen && pl.pos.y < b.rimY() + 0.05) { putInBox(p, b); return; }
+    }
     // The yank: jerk the peel back toward you and the pie's own inertia keeps it where it was.
-    if (pl.held && pl.acc.z > 11 && pl.vel.z > 0.45 && !s.left) { s.left = true; s.stuck = false; sfx.slide(); }
+    // Only where there's somewhere for it to land, and never with the metal peel at the ovens
+    // (pulling a pie out is a backward pull too).
+    if (pl.held && pl.acc.z > 11 && pl.vel.z > 0.45 && !s.left && s.seat <= 0 && canYank(pl)) { s.left = true; s.stuck = false; sfx.slide(); }
     if (s.left) {
       s.ox -= pl.vel.x * dt; s.oz -= pl.vel.z * dt; s.vx = -pl.vel.x; s.vz = -pl.vel.z;
       if (pl.vel.z < 0.35) { s.left = false; s.stuck = true; s.vx = s.vz = 0; }
+    } else {
+      // Otherwise it rides on cornmeal: it only skids if the peel is whipped hard, it can't skid
+      // off the blade, and it settles back toward the middle while you carry it.
+      const ax = pl.acc?.x || 0, az = pl.acc?.z || 0, MS = 24, MK = 9;
+      if (s.stuck && Math.hypot(ax, az) > MS) { s.stuck = false; s.vx = 0; s.vz = 0; if (pl.held) sfx.slide(); }
+      if (!s.stuck) {
+        const vr = Math.hypot(s.vx, s.vz);
+        let fx = 0, fz = 0;
+        if (vr > 1e-4) { fx = -s.vx / vr * MK; fz = -s.vz / vr * MK; }
+        s.vx += (-ax + fx) * dt; s.vz += (-az + fz) * dt;
+        if (Math.hypot(s.vx, s.vz) < 0.03 && Math.hypot(ax, az) < MS) { s.vx = s.vz = 0; s.stuck = true; }
+        s.ox += s.vx * dt; s.oz += s.vz * dt;
+      } else if (pl.held) {
+        const k = Math.min(1, dt * 2.5);
+        s.ox += (clamp(s.ox, -0.04, 0.04) - s.ox) * k; s.oz += (clamp(s.oz, -0.05, 0.04) - s.oz) * k;
+      }
+      const mx = pl.bw / 2 - 0.03, z0 = -pl.bl / 2 + 0.02, z1 = pl.bl / 2 - 0.02;
+      if (Math.abs(s.ox) > mx) { s.ox = Math.sign(s.ox) * mx; s.vx = 0; }
+      if (s.oz < z0 || s.oz > z1) { s.oz = clamp(s.oz, z0, z1); s.vz = 0; }
     }
-    // Otherwise it rides on cornmeal: sticks unless you whip the peel around, then skids.
-    const ax = pl.acc?.x || 0, az = pl.acc?.z || 0, MS = 15, MK = 6;
-    if (s.left) { /* handled above */ } else if (s.stuck) {
-      if (Math.hypot(ax, az) > MS) { s.stuck = false; s.vx = 0; s.vz = 0; if (pl.held) sfx.slide(); }
-    }
-    if (!s.stuck && !s.left) {
-      // relative acceleration: -peel accel plus friction opposing relative motion
-      const vr = Math.hypot(s.vx, s.vz);
-      let fx = 0, fz = 0;
-      if (vr > 1e-4) { fx = -s.vx / vr * MK; fz = -s.vz / vr * MK; }
-      else { const a = Math.hypot(ax, az) || 1; fx = ax / a * MK; fz = az / a * MK; }
-      s.vx += (-ax + fx) * dt; s.vz += (-az + fz) * dt;
-      if (Math.hypot(s.vx, s.vz) < 0.03 && Math.hypot(ax, az) < MS) { s.vx = s.vz = 0; s.stuck = true; }
-      s.ox += s.vx * dt; s.oz += s.vz * dt;
-    }
-    p.pos.set(pl.pos.x + s.ox, pl.topY(), pl.pos.z + s.oz);
-    // off the edge?
-    if (Math.abs(s.ox) > pl.bw / 2 + 0.01 || s.oz < -pl.bl / 2 - 0.01 || s.oz > pl.bl / 2 + 0.05) {
+    // sit on the blade, tilted with it
+    _w.set(s.ox, pl.topY() - pl.pos.y, s.oz).applyEuler(_e.set(pl.pitch, 0, pl.roll, 'YXZ'));
+    p.pos.copy(pl.pos).add(_w); p.tiltX = pl.pitch; p.tiltZ = pl.roll;
+    // off the edge? (only a yank gets it here)
+    if (s.left && (Math.abs(s.ox) > pl.bw / 2 + 0.01 || s.oz < -pl.bl / 2 - 0.01)) {
+      p.tiltX = p.tiltZ = 0;
       pl.pie = null;
       p.vel.set(pl.vel.x + s.vx, 0, pl.vel.z + s.vz);
       p.support = { kind: 'air' }; p.tossed = false;
@@ -489,6 +531,11 @@ function updatePie(p, dt) {
     return;
   }
   if (s.kind === 'tray') { s.tray.slotWorld(s.slot, p.pos); return; }
+  if (s.kind === 'box') {
+    const b = s.box; _v.set(b.pos.x, b.floorY(), b.pos.z);
+    if (b.carried) p.pos.copy(_v); else p.pos.lerp(_v, Math.min(1, dt * 12));
+    return;
+  }
   if (s.kind === 'surface') {
     if (s.s?.kind === 'deck') {
       const o = K.ovens[s.s.id];
@@ -515,15 +562,21 @@ function updateItem(it, dt) {
       const zl = zLimit(x, H.pos.y - 0.04, 'peel');
       if (z - it.bl / 2 < zl) z = zl + it.bl / 2;
       const want = H.pos.y - 0.035;
-      const u = Math.max(topAt(x, z, want + 0.02, it, false).top, topAt(x, z - it.bl / 2 + 0.03, want + 0.02, it, false).top);
-      const y = Math.max(want, u);
+      // the blade rides up onto a step (the pass shelf, a box rim) rather than through it
+      const u = Math.max(topAt(x, z, want + 0.14, it, false).top, topAt(x, z - it.bl / 2 + 0.03, want + 0.14, it, false).top);
+      // held low, the blade lies on whatever is under it rather than hovering a few mm over it
+      const y = want - u < 0.05 ? u : want;
       it.pos.set(x, y, z);
-      it.pitch = clamp(Math.atan2(H.pos.y - 0.012 - y, gz) * 0.6, -0.1, 0.25);
-      it.roll = clamp(-H.vel.x * 0.05, -0.08, 0.08);
-      // scoop: blade resting on a surface, slid under a pie that sits on the same surface
-      if (!it.pie && it.vel.z < -0.15) for (const p of pies) {
-        if (p.support?.kind !== 'surface' || Math.abs(p.support.top - y) > 0.02) continue;
-        if (Math.abs(p.pos.x - x) < it.bw / 2 - 0.02 && it.tipZ < p.pos.z - 0.02 && it.tipZ > p.pos.z - p.meanR) { attachToPeel(p, it); sfx.scoop(); break; }
+      // the handle angles toward the hand; a pie on it rides at the same angle
+      // but never so far that the tip, the sides or a pie hanging past them dip into what's below
+      const gap = Math.max(0, y - u);
+      const pMin = -Math.asin(Math.min(1, gap / (it.bl / 2 + 0.07))), rMax = Math.asin(Math.min(1, gap / (it.bw / 2 + 0.04)));
+      it.pitch = clamp(Math.atan2(y + 0.022 - H.pos.y, gz), Math.max(-0.12, pMin), 0.2);
+      it.roll = clamp(-H.vel.x * 0.025, -Math.min(0.04, rMax), Math.min(0.04, rMax));
+      // scoop: blade lying on a surface, pushed under a pie sitting on that same surface
+      if (!it.pie && it.vel.z < -0.03) for (const p of pies) {
+        if (p.support?.kind !== 'surface' || p.ruined === 'dropped' || Math.abs(p.pos.y - y) > 0.035) continue;
+        if (Math.abs(p.pos.x - x) < it.bw / 2 + 0.03 && it.tipZ < p.pos.z + p.meanR * 0.25 && it.tipZ > p.pos.z - p.meanR * 1.2) { attachToPeel(p, it); sfx.scoop(); break; }
       }
     } else if (it.kind === 'ladle') {
       it.pos.copy(H.pos).sub(it.gripOff);
@@ -702,33 +755,37 @@ function judge(p, o) {
   const refuse = p.ruined ? p.ruined : p.bake < 0.55 ? 'raw' : p.bake > (o.bake === 'well' ? 1.6 : 1.45) ? 'burnt' : null;
   return { total, topS, bakeS, sizeS, shapeS, extras, tops, refuse };
 }
-// A pie sitting on the pass gets picked up by whichever server's order it matches best.
+// A shut box on the pass gets picked up by whichever server's order it matches best.
 function checkPass(dt) {
-  for (const p of pies) {
-    const onPass = !p.refused && p.support && (p.support.kind === 'surface' || (p.support.kind === 'peel' && !p.support.peel.held)) &&
-      p.pos.x > L.pass.x0 && p.pos.x < L.pass.x1 && p.pos.z < L.pass.z1 + 0.02 && p.pos.y > L.PASS - 0.02;
-    if (!onPass) { p.passT = 0; continue; }
+  for (const b of boxes) {
+    const p = b.pie;
+    if (!p || b.carried || !b.closed) { if (p) p.passT = 0; continue; }
     p.passT = (p.passT || 0) + dt * (G.bellT > 0 ? 4 : 1);
-    if (p.passT < 1.8) continue;
+    if (p.passT < 1.2) continue;
     const open = openOrders();
     if (!open.length) { if (!p.noOrderSaid) { p.noOrderSaid = true; popup('Nobody ordered that', 'warn', 'no open tickets'); } continue; }
     let best = null, bs = -1, bj = null;
     for (const o of open) { const j = judge(p, o); const s = j.topS * 2 + j.sizeS * 0.5 - (G.time - o.t0) * 0.0005; if (s > bs) { bs = s; best = o; bj = j; } }
-    serve(p, best, bj);
+    serve(b, best, bj);
+  }
+  // a pie left bare on the pass: nobody will carry that out
+  for (const p of pies) {
+    const bare = p.support?.kind === 'surface' && p.pos.x > L.pass.x0 && p.pos.x < L.pass.x1 && p.pos.z < L.pass.z1 + 0.02 && p.pos.y > L.PASS - 0.02;
+    if (bare && !p.bareSaid) { p.bareSaid = true; popup('Box it up', 'warn', 'scoop it into an open box'); }
   }
   G.bellT = Math.max(0, (G.bellT || 0) - dt);
 }
-function serve(p, o, j) {
-  const w = o.waiter;
+function serve(b, o, j) {
+  const w = o.waiter, p = b.pie;
   if (j.refuse) {
-    p.refused = true; G.stats.refused++;
-    say(w, pick(TABLE_LINES.refuse)); sfx.bad();
-    popup(j.refuse === 'raw' ? 'Sent back: raw' : j.refuse === 'burnt' ? 'Sent back: burnt' : j.refuse === 'torn' ? 'Sent back: torn' : 'Sent back', 'bad', 'trash it and fire another');
+    // the server opens it, looks, and bins the whole box
+    G.stats.refused++;
+    say(w, pick(TABLE_LINES.refuse)); sfx.bad(); sfx.trash();
+    popup(j.refuse === 'raw' ? 'Sent back: raw' : j.refuse === 'burnt' ? 'Sent back: burnt' : j.refuse === 'torn' ? 'Sent back: torn' : 'Sent back', 'bad', 'they binned it: fire another');
+    removePie(p); b.reset();
     return;
   }
-  detachPie(p);
-  if (p.support.kind === 'peel') p.support.peel.pie = null;
-  p.support = { kind: 'waiter' }; w.carry = p; w.leaving = 3.2;
+  b.carried = true; b.support = null; w.carry = b; w.leaving = 3.2;
   const elapsed = G.time - o.t0, pf = clamp(1 - elapsed / o.patience, 0, 1);
   const stars = clamp(Math.round((1 + j.total * 4) * 2) / 2, 1, 5);
   const sale = Math.round(o.price * (0.55 + 0.45 * j.total));
@@ -778,13 +835,41 @@ function updateOrders(dt) {
     const o = G.orders.find(x => !x.done && x.waiter === w);
     const f = o ? (G.time - o.t0) / o.patience : 0;
     w.leaving = Math.max(0, w.leaving - dt);
-    if (w.carry && w.leaving <= 0) { const p = w.carry; w.carry = null; removePie(p); }
+    if (w.carry && w.leaving <= 0) { const b = w.carry; w.carry = null; if (b.pie) removePie(b.pie); b.reset(); }
     const active = (!!o && f > 0.25) || (w.carry && w.leaving > 2.4);
     w.tx = 4.45 + i * 0.37;
     w.update(dt, o ? clamp(1.1 - f * 1.2, 0, 1) : 1, active && !(w.carry && w.leaving <= 2.4));
     w.sayT = Math.max(0, w.sayT - dt);
   });
   if (G.lastCall && open.length === 0) { G.endT += dt; if (G.endT > 3) endDay(); }
+}
+
+// Box lids: a lid past upright falls open, below it falls shut. Fresh boxes drop onto the pass.
+function updateBoxes(dt) {
+  for (const b of boxes) {
+    if (b.carried) { b.sync(); if (b.pie) b.pie.pos.set(b.pos.x, b.floorY(), b.pos.z); continue; }
+    if (b.pos.y > b.home.y) {
+      b.vel.y -= 9.8 * dt; b.pos.y += b.vel.y * dt;
+      if (b.pos.y <= b.home.y) { b.pos.y = b.home.y; if (b.vel.y < -1) sfx.knock(0.3); b.vel.y = 0; }
+    }
+    const prev = b.lid, d = H.door?.b === b ? H.door : null;
+    if (d && (Math.abs(H.pos.x - b.pos.x) > 0.5 || Math.abs(H.pos.z - b.pos.z) > 0.6)) H.door = null;
+    if (d) {
+      const dz = H.pos.z - d.z0, dy = Math.min(0, H.pos.y - d.y0);
+      if (Math.abs(dz) > 0.02 || dy < -0.02) d.moved = true;
+      if (d.moved) b.lidVel = (clamp(d.lid0 - dz * 14 + dy * 12, 0, 2.3) - b.lid) * 16;
+      else b.lidVel -= Math.cos(b.lid) * 26 * dt;
+    } else b.lidVel -= Math.cos(b.lid) * 26 * dt;
+    b.lidVel *= Math.exp(-dt * 1.5);
+    b.lid += b.lidVel * dt;
+    if (b.lid <= 0) {
+      if (b.lidVel < -1.5) { sfx.knock(0.5); FX.emit(_v.set(b.pos.x, b.pos.y + 0.05, b.pos.z + b.w / 2), { n: 5, color: 0xffffff, size: 0.03, grow: 0.1, up: 0.15, spread: 0.12, alpha: 0.2, life: 0.6 }); }
+      b.lid = 0; b.lidVel = 0;
+    }
+    if (b.lid >= 2.3) { b.lid = 2.3; b.lidVel = Math.min(0, b.lidVel); }
+    if (prev >= 0.04 && b.closed && b.pie && !b.pie.boxedSaid) { b.pie.boxedSaid = true; popup('Boxed', 'good', openOrders().length ? 'ring the bell' : ''); }
+    b.sync();
+  }
 }
 
 // Helpers you hire ---------------------------------------------------------------------------------
@@ -852,13 +937,17 @@ function planHelper(h) {
       if (p && !heldPeelIn) {
         const ord = openOrders().map(x => [x, judge(p, x).topS]).sort((a, b) => b[1] - a[1])[0]?.[0];
         if (p.bake < (ord ? bakeTarget(ord) : 1) - 0.03) continue;
-        const spot = V(rand(L.pass.x0 + 0.25, L.pass.x1 - 0.25), L.PASS, rand(-0.85, -0.62));
+        const bx = boxes.find(b => !b.pie && !b.carried && b.isOpen && b.pos.y <= b.home.y + 0.001);
+        if (!bx) continue;
+        const spot = bx.pos;
         return [
           { to: V(o.x, 1.3, -0.35), dur: 1.0, pose: 'open' },
           { dur: 0.5, pose: 'grip', each: k => { o.angle = Math.max(o.angle, k * 1.5); o.pivot.rotation.x = o.angle; }, done: () => sfx.ovenDoor(true) },
           { to: V(o.x, 1.15, -0.5), dur: 0.5, pose: 'grip', done: () => { if (p.support?.kind !== 'surface' || p.support.s?.kind !== 'deck') { h.abort = true; return; } detachPie(p); p.support = { kind: 'helper' }; } },
           { to: V(spot.x, 1.25, spot.z + 0.1), dur: 2.4, pose: 'grip', arc: 0.2, each: () => { if (p.support?.kind === 'helper') p.pos.set(h.pos.x, h.pos.y - 0.08, h.pos.z - 0.1); } },
-          { dur: 0.3, done: () => { if (p.support?.kind === 'helper') { p.pos.copy(spot); p.support = { kind: 'surface', top: L.PASS, s: K.surfaces.find(s => s.kind === 'pass') }; sfx.slide(); } } },
+          { dur: 0.3, done: () => { if (p.support?.kind !== 'helper') return; if (bx.pie || bx.carried || !bx.isOpen) { p.pos.set(spot.x, L.PASS, spot.z); p.support = { kind: 'surface', top: L.PASS, s: K.surfaces.find(s => s.kind === 'pass') }; h.abort = true; return; } putInBox(p, bx); } },
+          { to: V(spot.x, 1.22, spot.z - 0.12), dur: 0.35, pose: 'flat' },
+          { to: V(spot.x, 1.1, spot.z + 0.1), dur: 0.35, pose: 'flat', each: k => { if (H.door?.b !== bx) { bx.lid = Math.min(bx.lid, (1 - k) * 2.3); bx.lidVel = 0; } }, done: () => { if (bx.pie && bx.lid < 0.05) { bx.lid = 0; sfx.knock(0.5); } } },
           { to: V(o.x, 1.32, -0.3), dur: 1.6, pose: 'open' },
           { dur: 0.4, pose: 'flat', each: k => { if (!(H.door?.o === o)) { o.angle = Math.min(o.angle, (1 - k) * 1.5); o.pivot.rotation.x = o.angle; } }, done: () => { o.vel = 0; if (o.angle < 0.05) { o.angle = 0; sfx.ovenDoor(false); } } },
         ];
@@ -920,12 +1009,18 @@ function updateHand(dt) {
   const u = topAt(tx, probeZ, H.pos.y + 0.12, ex);
   H.under = u;
   let ty = Math.max(u.top + below, 0.985) + H.height + H.lift;
+  // a peel's blade out in front rests on whatever it is over, and the hand rises with it
+  if (held?.kind === 'peel') {
+    const gz = H.gripZ || held.gripZ, bz = tz - gz;
+    const bt = Math.max(topAt(tx, bz, H.pos.y + 0.1, held, false).top, topAt(tx, bz - held.bl / 2 + 0.03, H.pos.y + 0.1, held, false).top);
+    ty = Math.max(ty, bt + 0.035 + H.height + H.lift);
+  }
   // RMB presses the palm (or whatever is in it) down onto what's below
   const press = input.rmb && !H.door;
   if (press) ty = u.top + (held?.kind === 'ladle' ? 0.152 : held?.kind === 'peel' ? 0.03 : held?.kind === 'tub' ? 0.118 : held instanceof Pie ? 0.03 : H.handful ? 0.05 : -0.05);
   if (H.door) {
     if (H.door.type === 'cooler') coolerHandle(H.door.d, _v), ty = H.door.y;
-    else { ovenHandle(H.door.o, _v); ty = _v.y; }
+    else if (H.door.type === 'oven') { ovenHandle(H.door.o, _v); ty = _v.y; }
   }
   H.tgt.set(tx, ty, tz);
   // spring with a force limit: heavy things lag, overshoot a little, and can't be whipped around instantly
@@ -943,7 +1038,7 @@ function updateHand(dt) {
   if (Math.abs(H.pos.x - G.camX) > 1.4) { H.pos.x = clamp(H.pos.x, G.camX - 1.4, G.camX + 1.4); H.vel.x *= 0.3; }
   if (H.pos.z > 0.62) { H.pos.z = 0.62; H.vel.z = Math.min(0, H.vel.z); }
   // a door handle holds the hand where it is
-  if (H.door) {
+  if (H.door && H.door.type !== 'box') {
     const hw = H.door.type === 'cooler' ? coolerHandle(H.door.d, _w) : ovenHandle(H.door.o, _w);
     if (H.door.type === 'cooler') hw.y = H.door.y;
     H.pos.lerp(hw, Math.min(1, dt * 25)); H.vel.multiplyScalar(0.5);
@@ -1139,10 +1234,11 @@ function updateHud() {
 function heldText() {
   const h = H.held, act = [];
   let name = '';
-  if (H.door) { name = H.door.type === 'cooler' ? 'Cooler door' : `Oven ${H.door.o.i + 1} door`; act.push('move to swing it', 'let go of <kbd>LMB</kbd>'); }
+  if (H.door?.type === 'box') { name = 'Box lid'; act.push('pull toward you to shut it', 'push away to open'); }
+  else if (H.door) { name = H.door.type === 'cooler' ? 'Cooler door' : `Oven ${H.door.o.i + 1} door`; act.push('move to swing it', 'let go of <kbd>LMB</kbd>'); }
   else if (H.handful) { name = `Handful of ${TOPPINGS[H.handful.id].name.toLowerCase()}`; act.push('<kbd>RMB</kbd> sprinkle', 'let go: drop it all'); }
   else if (h instanceof Pie) { name = h.flat > 0.5 ? `Dough · ${h.sizeIn.toFixed(1)}" · ${Math.round(h.roundness * 100)}% round` : 'Dough ball'; act.push(h.flat > 0.6 ? 'hold <kbd>Space</kbd>, circle the mouse, flick up + let go to toss' : 'drop it on the wood peel or bench'); }
-  else if (h?.kind === 'peel') { name = h.metal ? 'Metal peel' : 'Wood peel'; if (h.pie) name += ' + pie'; act.push(h.pie ? 'yank back fast to slide it off' : 'slide it flat under a pie'); }
+  else if (h?.kind === 'peel') { name = h.metal ? 'Metal peel' : 'Wood peel'; if (h.pie) name += ' + pie'; act.push(h.pie ? (h.metal ? 'hold it over an open box on the pass' : 'yank back fast to slide it off') : 'push the blade under a pie'); }
   else if (h?.kind === 'ladle') { name = `Ladle · ${Math.round(h.amount * 100)}% sauce`; act.push('<kbd>RMB</kbd> down on dough and swirl', 'dip in the sauce bin to refill'); }
   else if (h?.kind === 'tub') { name = `Tub of ${TOPPINGS[h.top].name.toLowerCase()}`; act.push('let go over its bin to restock'); }
   else if (h?.kind === 'tray') { name = `Dough tray · ${h.count} balls`; act.push('set it down on the bench'); }
@@ -1164,7 +1260,12 @@ function coachText() {
   if (G.coolerOpenT > 8 && !H.held) return 'Close the cooler: grab a door handle and push it shut.';
   const baked = pies.find(p => p.support?.s?.kind === 'deck' && p.bake > 0.88);
   if (baked && !(H.held === metalPeel)) return baked.bake > 1.2 ? 'PULL IT NOW: metal peel (right of the ovens), open the door, slide it under, pull it out.' : 'Pizza\'s done: grab the metal peel by the ovens, open the door, slide the blade flat under the pie and pull it out.';
-  if (H.held === metalPeel && metalPeel.pie) return 'Carry it right to the pass (D or 5), over the shelf, and yank back to slide it off. Ring the bell.';
+  if (H.held === metalPeel && metalPeel.pie) return G.camX > 4.2 ? 'Hold the pie over an open box: it slides right in.' : 'Carry it to the pass (D or 5). It won\'t slide off on the way.';
+  const inBox = boxes.find(b => b.pie && !b.carried && !b.closed);
+  if (inBox && !H.held) return 'Close the box: grab it (LMB) and the lid flips shut. Then ring the bell.';
+  const boxed = boxes.find(b => b.pie && !b.carried && b.closed && openOrders().length);
+  if (boxed && !H.held && boxed.pie.passT < 0.6) return 'Ring the bell (right end of the pass) and a server takes it.';
+  if (pies.some(p => p.bareSaid && p.support?.kind === 'surface' && p.pos.x > L.pass.x0)) return 'That pie is sitting on the bare pass. Scoop it with the metal peel and lower it into a box.';
   if (unhung) return 'A ticket printed. Hold LMB on it, carry it up to the rail behind the bench, let go.';
   if (!open.length) return G.lastCall ? 'Closing up...' : 'Quiet. Next ticket soon.';
   if (H.held instanceof Pie) return H.held.flat > 0.5 ? 'Put it on the wood peel at the make table (3). Or hold Space, circle the mouse, flick up and let go to toss it bigger.' : 'Drop the ball on the wood peel at the make table (3), or on the bench.';
@@ -1218,6 +1319,7 @@ function resetLine() {
   for (const d of K.doors) { d.angle = 0; d.vel = 0; d.pivot.rotation.y = 0; }
   for (const o of K.ovens) { o.angle = 0; o.vel = 0; o.temp = 1; o.pivot.rotation.x = 0; o.locked = o.i === 1 && !G.upgrades.oven2; if (o.tape) o.tape.visible = o.locked; }
   for (const w of waiters) { w.carry = null; w.sayT = 0; w.z = -2.6; }
+  for (const b of boxes) { b.reset(); b.goHome(); b.support = { kind: 'surface' }; b.sync(); }
   for (const h of helpers) { h.task = null; h.idle = 3; }
   H.held = null; H.handful = null; H.door = null; buildHandful(null);
   H.cur.x = 0; H.cur.z = -0.05; H.lift = 0; H.height = 0;
@@ -1289,6 +1391,7 @@ function update(dt) {
     updateCooler(dt);
     checkPass(dt);
     updateOrders(dt);
+    updateBoxes(dt);
     runHelpers(dt);
     // loops
     const near = clamp(1 - Math.min(...K.ovens.filter(o => !o.locked).map(o => Math.abs(o.x - G.camX))) / 3, 0, 1);
@@ -1344,7 +1447,7 @@ requestAnimationFrame(frame);
 // Test hooks (local only) ----------------------------------------------------------------------------
 if (LOCAL) {
   window.__po = {
-    G, H, K, L, pies, tickets, items, woodPeel, metalPeel, ladle, tubs, trays, waiters, helpers, input, keys, scene, camera, renderer, railSlots,
+    G, H, K, L, pies, tickets, items, boxes, woodPeel, metalPeel, ladle, tubs, trays, waiters, helpers, input, keys, scene, camera, renderer, railSlots,
     startDay, endDay, spawnOrder, setMode, judge,
     freeze(v = true) { frozen = v; },
     // put the hand target at world (x, z) relative to the current camera

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { peelWoodTexture, labelTexture, canvas, tex } from './util.js';
 import { TOPPINGS } from './data.js';
-import { L } from './kitchen.js';
+import { L, boxTopTexture } from './kitchen.js';
 
 class Item {
   constructor(scene, kind) {
@@ -100,6 +100,34 @@ export class Tray extends Item {
   }
   slotWorld(i, out) { return out.set(this.pos.x + this.offs[i][0], this.pos.y + 0.02, this.pos.z + this.offs[i][1]); }
   get count() { return this.slots.filter(Boolean).length; }
+}
+
+// A takeout box on the pass. Origin at the bottom centre; the lid hinges along the back edge.
+let boxTex = null;
+export class PizzaBox extends Item {
+  constructor(scene) {
+    super(scene, 'box');
+    const W = this.w = 0.38, H = this.h = 0.042, t = 0.004;
+    const card = new THREE.MeshStandardMaterial({ color: 0xc9a272, roughness: 0.9 });
+    const inner = new THREE.MeshStandardMaterial({ color: 0xe6d3ad, roughness: 0.95 });
+    this.mesh(new THREE.BoxGeometry(W, t, W), [card, card, inner, card, card, card], 0, t / 2, 0);
+    this.mesh(new THREE.BoxGeometry(W, H, t), card, 0, H / 2, W / 2 - t / 2);
+    this.mesh(new THREE.BoxGeometry(W, H, t), card, 0, H / 2, -W / 2 + t / 2);
+    this.mesh(new THREE.BoxGeometry(t, H, W), card, W / 2 - t / 2, H / 2, 0);
+    this.mesh(new THREE.BoxGeometry(t, H, W), card, -W / 2 + t / 2, H / 2, 0);
+    this.pivot = new THREE.Group(); this.pivot.position.set(0, H, -W / 2); this.group.add(this.pivot);
+    const top = new THREE.MeshStandardMaterial({ map: boxTex ||= boxTopTexture(), roughness: 0.85 });
+    this.mesh(new THREE.BoxGeometry(W + 0.006, t, W + 0.004), [card, card, top, inner, card, card], 0, t / 2, W / 2, this.pivot);
+    this.mesh(new THREE.BoxGeometry(W + 0.006, 0.03, t), card, 0, -0.012, W + 0.002, this.pivot);
+    this.pie = null; this.carried = false; this.lid = 2.3; this.lidVel = 0; this.mass = 0.3; this.support = { kind: 'surface' };
+  }
+  get closed() { return this.lid < 0.04; }
+  get isOpen() { return this.lid > 1.2; }
+  floorY() { return this.pos.y + 0.004; }
+  rimY() { return this.closed ? this.pos.y + this.h + 0.004 : this.pos.y + this.h; }
+  over(x, z, m = 0) { return Math.abs(x - this.pos.x) < this.w / 2 + m && Math.abs(z - this.pos.z) < this.w / 2 + m; }
+  reset() { this.support = { kind: 'surface' }; this.pie = null; this.carried = false; this.lid = 2.3; this.lidVel = 0; this.pos.copy(this.home); this.pos.y += 0.35; this.vel.set(0, 0, 0); }
+  sync() { super.sync(); this.pivot.rotation.x = -this.lid; }
 }
 
 // Order tickets: 3-inch thermal paper.
