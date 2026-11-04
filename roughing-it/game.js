@@ -111,7 +111,8 @@ function show(o, after) {
     box.appendChild(b);
   }
   hud();
-  page.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  // on a phone, go back to the top so the scene shows above the new text; on a desktop, just keep the page in view
+  if (matchMedia('(max-width:700px)').matches) scrollTo({ top: 0, behavior: 'smooth' }); else page.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 function outcome(title, html, next) {
   hud();
