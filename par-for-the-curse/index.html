@@ -49,7 +49,7 @@ h1,h2,h3,.lil{font-family:"Lilita One",Nunito,sans-serif;font-weight:400;letter-
 #clubs kbd{font:900 10px Nunito;color:#6a5f70}
 #shot{left:50%;bottom:96px;transform:translateX(-50%) translateY(10px);padding:6px 14px;opacity:0;transition:.25s;white-space:nowrap;font-weight:800}
 #shot.show{opacity:1;transform:translateX(-50%)}
-#tip{right:16px;bottom:44px;transform:translateY(10px);opacity:0;transition:.3s}
+#tip{right:16px;bottom:66px;transform:translateY(10px);opacity:0;transition:.3s}
 #tip.show{opacity:1;transform:none;animation:nudge 1.6s ease-in-out infinite}
 #tip .tipcard{padding:9px 14px;max-width:min(330px,40vw);text-align:left;font-weight:800;font-size:14px}
 #tip b{display:block;font-family:"Lilita One";font-weight:400;font-size:18px;color:var(--red)}
@@ -67,6 +67,7 @@ h1,h2,h3,.lil{font-family:"Lilita One",Nunito,sans-serif;font-weight:400;letter-
 #rage.hot{animation:wob .25s infinite alternate}
 @keyframes wob{to{transform:rotate(1.5deg) scale(1.03)}}
 #wind{right:16px;top:134px;font-weight:900;color:#fff;text-shadow:0 2px 0 var(--ink),0 0 6px rgba(0,0,0,.4)}
+#view{right:16px;bottom:40px;font-weight:900;font-size:13px;color:#fff;text-shadow:0 2px 0 var(--ink)}
 #mute{right:16px;bottom:16px;font-weight:900;color:#fff;text-shadow:0 2px 0 var(--ink)}
 #netStatus{right:66px;bottom:16px;font-weight:900;font-size:12px;color:#fff;text-shadow:0 2px 0 var(--ink)}
 #toasts{right:14px;top:160px;width:280px;display:flex;flex-direction:column;gap:6px}
@@ -192,11 +193,12 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 <div class="hud" id="pops"></div>
 <div class="hud" id="holeCard"><span class="num" id="hcNum">Hole 1</span><h2 id="hcName">Warm-Up Wobble</h2><div class="par" id="hcPar">Par 3</div><p id="hcBlurb"></p></div>
 <div class="hud chunk" id="shot"></div>
-<div class="hud" id="tip"><div class="tipcard chunk"><b>Your mouse is your hands.</b><span>Drag back <em>↖ up and left</em>, pause, then swing <em>↘ down and right</em> through the ball. Faster swing, longer shot.</span></div></div>
+<div class="hud" id="tip"><div class="tipcard chunk"><b>Your mouse is your hands.</b><span id="tipText"></span></div></div>
 <div class="hud" id="clubs">
   <div><b>Putter</b><kbd>1</kbd></div><div><b>Wedge</b><kbd>2</kbd></div><div><b>Iron</b><kbd>3</kbd></div><div><b>Driver</b><kbd>4</kbd></div>
 </div>
 <div class="hud" id="mute">🔊 M</div>
+<div class="hud" id="view">👁 V first person</div>
 <div class="hud" id="netStatus">connecting…</div>
 <div class="hud chunk" id="help" hidden>
   <h3>How to swing</h3>
@@ -208,7 +210,8 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
     <span class="k"><kbd>F</kbd></span><span>hold to look at the flag</span>
     <span class="k"><kbd>R</kbd></span><span>unplayable lie: back to your last shot, +1</span>
     <span class="k"><kbd>T</kbd> <kbd>G</kbd></span><span>tantrum · dance</span>
-    <span class="k"><kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd><kbd>V</kbd></span><span>shout</span>
+    <span class="k"><kbd>V</kbd></span><span>first / third person</span>
+    <span class="k"><kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd><kbd>J</kbd></span><span>shout</span>
     <span class="k"><kbd>Tab</kbd></span><span>scoreboard</span>
     <span class="k"><kbd>M</kbd> <kbd>N</kbd> <kbd>B</kbd></span><span>mute · music · announcer</span>
   </div>
@@ -233,6 +236,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
       <span class="k">mouse</span><span><b>is your hands.</b> Pull back and up, pause, then swing down through the ball. Fast = far.</span>
       <span class="k"><kbd>A</kbd><kbd>D</kbd></span><span>aim · right mouse to look down the line</span>
       <span class="k"><kbd>1</kbd>–<kbd>4</kbd></span><span>putter, wedge, iron, driver</span>
+      <span class="k"><kbd>V</kbd></span><span>first-person view, Half Sword style</span>
       <span class="k"><kbd>H</kbd></span><span>all the controls</span>
     </div>
     <p class="small-print">Best with a mouse and sound on. Progress saves in this browser.</p>

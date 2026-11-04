@@ -4,7 +4,7 @@
 // way down and whips through. Nothing about the strike is scripted: ball speed, launch and curve all
 // come from where the head is and how it is moving when it meets the ball.
 import * as THREE from 'three';
-import { make, tint, addOutline, manifest } from './assets.js';
+import { make, tint, addOutline, manifest, lib } from './assets.js';
 import { BALL_R, G } from './physics.js';
 
 export const CLUBS = [
@@ -14,6 +14,44 @@ export const CLUBS = [
   { id: 'driver', name: 'Driver', mesh: 'club_driver', len: 0.8, loft: 13, smash: 1.42, vMax: 5.0, aMax: 90, sens: 1.05, k: 900, cock: 1.2 },
 ];
 export const HEAD_R = 0.045;
+const GRIP_Y = 0.42;
+// Shaft angle from vertical at address for club i (the stubby golfers stand well away from the ball).
+function lieAngle(i) {
+  const c = CLUBS[i], drop = GRIP_Y - HEAD_R - 0.012 - G * 0.6 / c.k;
+  return Math.acos(Math.min(1, drop / c.len));
+}
+
+// The Blender clubs are modelled with a vertical shaft and the head square to it (toe toward +X).
+// Bend each head at the hosel so its sole sits flat at the shaft angle the swing actually uses,
+// and work out the wrapper transform that mirrors the toe onto the far side of the ball and puts
+// the head centre back on the shaft line at the club's playing length. Done once per club model.
+const clubFit = new Map();
+function fitClub(i) {
+  if (clubFit.has(i)) return clubFit.get(i);
+  const c = CLUBS[i], info = manifest.clubs?.clubs?.[c.mesh] || {};
+  const hy = (info.hosel_top || [0, -c.len * 0.85, 0])[1];
+  const hc = V(...(info.head_center || [0.07, -c.len * 0.95, 0]));
+  const phi = lieAngle(i);
+  const R = new THREE.Matrix4().makeTranslation(0, hy, 0).multiply(new THREE.Matrix4().makeRotationZ(-phi)).multiply(new THREE.Matrix4().makeTranslation(0, -hy, 0));
+  const Rn = new THREE.Matrix3().setFromMatrix4(new THREE.Matrix4().makeRotationZ(-phi));
+  const t = lib.get(c.mesh);
+  if (t) t.traverse(o => {
+    if (!o.isMesh || o.userData.bent) return;
+    o.userData.bent = true;
+    const p = o.geometry.attributes.position, n = o.geometry.attributes.normal, v = V();
+    for (let k = 0; k < p.count; k++) {
+      if (p.getY(k) >= hy) continue;
+      v.fromBufferAttribute(p, k).applyMatrix4(R); p.setXYZ(k, v.x, v.y, v.z);
+      if (n) { v.fromBufferAttribute(n, k).applyMatrix3(Rn); n.setXYZ(k, v.x, v.y, v.z); }
+    }
+    p.needsUpdate = true; if (n) n.needsUpdate = true;
+    o.geometry.computeBoundingSphere();
+  });
+  const head = hc.clone().applyMatrix4(R); head.x = -head.x;
+  const fit = { q: new THREE.Quaternion().setFromUnitVectors(head.clone().normalize(), DOWN), s: c.len / head.length() };
+  clubFit.set(i, fit);
+  return fit;
+}
 
 export const SKINS = ['#ffd9b8', '#f4c09a', '#e0a47a', '#c68655', '#9a6440', '#6e452b'];
 export const SHIRTS = ['#ff5d73', '#3fa7ff', '#ffd23f', '#2ec4b6', '#a76bff', '#ff8c42', '#7bd389', '#f15bb5', '#ffffff', '#2b2d42'];
@@ -22,7 +60,7 @@ export const HATS = ['cap', 'bucket', 'beanie', 'visor', 'tophat', 'viking', 'no
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const _a = V(), _b = V(), _c = V(), _d = V(), _e = V(), _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
-const DOWN = V(0, -1, 0), UPV = V(0, 1, 0), XV = V(1, 0, 0);
+const DOWN = V(0, -1, 0), UPV = V(0, 1, 0), XV = V(1, 0, 0), PLANE_N = V(0, 0.89, 0.46);
 
 // Body geometry (overridden by the Blender manifest when present).
 function rig() {
@@ -70,7 +108,13 @@ export class Golfer {
     this.hats = {};
     for (const h of HATS) if (h !== 'none') { this.hats[h] = P('hat_' + h); this.hats[h].visible = false; }
     this.crown = P('hat_crown'); this.crown.visible = false;
-    this.clubs = CLUBS.map(c => { const m = P(c.mesh); m.visible = false; return m; });
+    this.clubs = CLUBS.map((c, i) => {
+      const fit = fitClub(i);
+      const m = make(c.mesh, { outline: 0.012 }); m.traverse(o => { if (o.isMesh) o.castShadow = true; });
+      m.scale.set(-fit.s, fit.s, fit.s); m.quaternion.copy(fit.q);
+      const wrap = new THREE.Group(); wrap.add(m); wrap.visible = false; this.body.add(wrap);
+      return wrap;
+    });
     this.club = 3;
     this.headBob = V(); this.headBobV = V();
     this.blink = 0; this.nextBlink = 2;
@@ -160,11 +204,13 @@ export class Golfer {
     const cm = this.clubs[this.club];
     if (cm && s.club) {
       cm.position.copy(s.hands[0]).addScaledVector(s.club, -0.03);
+      // The face turns with the swing plane: it is square to the target at address, faces up the
+      // line on the backswing and closes through impact, the way a real clubface rotates.
       const y = _c.copy(s.club).negate();
-      const z = _d.set(1, 0, 0).addScaledVector(y, -y.x).normalize();
-      if (z.lengthSq() < 0.1) z.set(0, 0, 1);
+      const z = _d.crossVectors(s.planeN || PLANE_N, s.club);
+      if (z.lengthSq() < 1e-4) z.set(1, 0, 0);
+      z.addScaledVector(y, -z.dot(y)).normalize();
       const x = _e.crossVectors(y, z).normalize();
-      z.crossVectors(x, y);
       _m4.makeBasis(x, y, z); cm.quaternion.setFromRotationMatrix(_m4);
     }
   }
@@ -179,7 +225,7 @@ export class Swing {
     const tilt = 0.38;
     const sh = this.R.shoulders[0].y;
     this.S = V(0, this.waistY + sh * Math.cos(tilt), sh * Math.sin(tilt) - 0.02);   // shoulder centre
-    this.gripAddr = V(0, 0.42, 0.29);
+    this.gripAddr = V(0, GRIP_Y, 0.29);
     this.rA = this.S.distanceTo(this.gripAddr);
     this.a0 = V().subVectors(this.gripAddr, this.S).normalize();  // arm direction at address
     this.up2 = V().copy(this.a0).negate();                          // "up" in the arm plane
@@ -196,11 +242,13 @@ export class Swing {
     const drop = this.gripAddr.y - HEAD_R - 0.012 - G * 0.6 / this.club.k;
     this.reachZ = this.gripAddr.z + Math.sqrt(Math.max(0.01, L * L - drop * drop));
     this.d0 = V(0, -drop, this.reachZ - this.gripAddr.z).normalize();
+    this.planeN = V().crossVectors(this.d0, XV).normalize();
     this.ball = V(0.05, BALL_R, this.reachZ);
     this.reset();
   }
   reset() {
-    this.target.set(-0.02, this.rA * 0.995);
+    // Address with the head a little behind the ball (the putter, with locked wrists, needs more room).
+    this.target.set(this.club.cock ? -0.02 : -0.05, this.rA * 0.995);
     this.planePoint(this.target.x, this.target.y, this.hand);
     this.handV.set(0, 0, 0);
     this.prefDir(_a);
@@ -276,7 +324,9 @@ export class Swing {
     if (dist > Rr) return null;
     const vh = this.headV.clone();
     const vf = vh.x;
-    if (vf < 0.25) {
+    // Only a head arriving from outside the ball counts; one already touching it (after a club switch,
+    // or nudged while waiting) is eased back out instead of costing a stroke.
+    if (vf < 0.4 || a.distanceTo(ballLocal) < Rr) {
       // Resting against the ball or moving away: push the head back out, no shot.
       if (dist < Rr) { const n = _d.subVectors(this.head, ballLocal).normalize(); this.head.copy(ballLocal).addScaledVector(n, Rr + 0.002); }
       return null;

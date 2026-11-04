@@ -52,7 +52,7 @@ const S = {
 };
 const ball = { p: V(), v: V(), spin: 0, grounded: false, gN: V(0, 1, 0), gVel: V(), lastGround: null, airT: 0, frozen: false, surfOverride: null, bite: false };
 const look = loadLook();
-try { S.tipDone = localStorage.getItem('pftc-tip') === '1'; } catch (e) {}
+try { S.tipDone = localStorage.getItem('pftc-tip') === '1'; S.fpv = localStorage.getItem('pftc-fpv') === '1'; } catch (e) {}
 let mouseDX = 0, mouseDY = 0;
 const keys = new Set();
 
@@ -142,6 +142,8 @@ async function boot() {
   course.fx.sound = (n, v, p) => A.play(n, v * proximity(p));
   course.fx.event = (k, d) => worldEvent(k, d);
   me = new Golfer(look); scene.add(me.root); me.setClub(3);
+  for (const part of [me.p.head, me.p.eyes, me.p.stache, me.crown, ...Object.values(me.hats)]) part.traverse(o => o.layers.set(1));
+  camera.layers.enable(1); sun.shadow.camera.layers.enable(1);
   swing = new Swing();
   ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 24, 16), toon(0xffffff));
   ballMesh.castShadow = true; addOutline(ballMesh, 0.012); scene.add(ballMesh);
@@ -188,7 +190,7 @@ function settleGolfer(instant) {
   const from = S.golferG.clone();
   golferOrigin(S.golferG);
   swing.reset();
-  if (!instant) { fx.poof(from.clone().add(V(0, 0.5, 0))); fx.poof(S.golferG.clone().add(V(0, 0.5, 0))); me.squash = 1; A.play('poof', 0.7); }
+  if (!instant) { fx.poof(from.clone().add(V(0, 0.5, 0))); if (!S.fpv) fx.poof(S.golferG.clone().add(V(0, 0.5, 0))); else fx.dust(S.golferG.clone(), 10, 0.6); me.squash = 1; A.play('poof', 0.7); }
 }
 
 /* ---------------- title / customisation ---------------- */
@@ -279,11 +281,18 @@ addEventListener('keydown', e => {
   if (k === 'g') { startEmote('dance', 2.4); sendEv({ k: 'emote', e: 'dance' }); }
   if (k === 'r') takeDrop();
   if (k === ' ') { if (S.mode === 'flight' && S.restT > 0) S.restT = 99; e.preventDefault(); }
-  const shouts = { z: 'FORE!', x: 'Nice shot!', c: 'ARGH!', v: 'Hold my juice box.', f: '' };
+  const shouts = { z: 'FORE!', x: 'Nice shot!', c: 'ARGH!', j: 'Hold my juice box.' };
+  if (k === 'v') toggleView();
   if (shouts[k]) shout(shouts[k], true);
   if (k === 'h') $('help').hidden = !$('help').hidden;
 });
 addEventListener('keyup', e => { const k = e.key.toLowerCase(); keys.delete(k); if (k === 'tab') $('board').hidden = true; });
+function toggleView() {
+  S.fpv = !S.fpv;
+  try { localStorage.setItem('pftc-fpv', S.fpv ? '1' : '0'); } catch (e) {}
+  toast(S.fpv ? '👁 First person: mouse right takes it back, left swings through' : '🎥 Third person view');
+  updateHud();
+}
 function setClub(i) {
   if (S.mode !== 'address' && S.mode !== 'title') { S.pendingClub = i; return; }
   swing.setClub(i); me.setClub(i); settleGolfer(true); updateHud(); A.play('click', 0.6);
@@ -454,7 +463,8 @@ function step(dt) {
   }
   // Swing simulation (also runs during flight for the follow-through).
   const swinging = (S.mode === 'address' || S.mode === 'flight') && !S.emote;
-  if (swinging && S.mode === 'address') swing.input(mouseDX, mouseDY);
+  // In first person you look down from the golfer's eyes, so screen-right is away from the target.
+  if (swinging && S.mode === 'address') swing.input(S.fpCam ? -mouseDX : mouseDX, mouseDY);
   mouseDX = mouseDY = 0;
   const sub = 6, h = dt / sub;
   let maxHead = 0;
@@ -609,7 +619,7 @@ const poseIn = { hands: [V(), V()], club: V(), handDir: null, feet: [V(), V()] }
 function poseMe(dt) {
   const f = fDir(), w = wDir();
   const s = poseIn;
-  s.G = S.golferG; s.f = f; s.w = w;
+  s.G = S.golferG; s.f = f; s.w = w; s.planeN = swing.planeN;
   s.hop = 0; s.tilt = 0.38; s.turn = 0; s.shift = 0; s.lean = 0; s.squint = false; s.elbowsUp = false; s.handDir = null; s.headRoll = 0; s.knee = 0.03;
   // Feet follow the ground (slopes, steps).
   for (let k = 0; k < 2; k++) {
@@ -653,6 +663,25 @@ const cam = { pos: V(130, 60, 130), look: V(0, 20, 0), fov: 55 };
 function updateCamera(dt) {
   const f = fDir(), w = wDir();
   let wantPos, wantLook, k = 4;
+  const viewHeld = S.aimHeld || keys.has('shift') || keys.has('f');
+  const fp = S.fpCam = S.fpv && !viewHeld && !S.intro && !S.emote && (S.mode === 'address' || S.mode === 'flight' || S.mode === 'cannon');
+  camera.layers[fp ? 'disable' : 'enable'](1);
+  const fov = fp ? 80 : 55;
+  if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = lerp(camera.fov, fov, 1 - Math.exp(-dt * 8)); camera.updateProjectionMatrix(); }
+  if (fp) {
+    // First person: from the golfer's eyes, watching the ball (and the hands and club below them).
+    const eye = me.p.eyes.getWorldPosition(V()).addScaledVector(w, -0.05).add(V(0, 0.14, 0));
+    // At address aim between the ball and the hands so both gloves and the club are in shot.
+    const tgt = S.mode === 'address' ? ball.p.clone().lerp(localToWorld(swing.hand, V()), 0.4).addScaledVector(f, 0.15) : ball.p.clone();
+    cam.pos.copy(eye);
+    cam.look.lerp(tgt, 1 - Math.exp(-dt * (S.mode === 'address' ? 20 : 6)));
+    camera.position.copy(cam.pos);
+    if (shakeAmt > 0.001) { camera.position.add(V((Math.random() - 0.5) * shakeAmt, (Math.random() - 0.5) * shakeAmt, (Math.random() - 0.5) * shakeAmt).multiplyScalar(0.3)); shakeAmt *= Math.exp(-dt * 6); }
+    camera.lookAt(cam.look);
+    const focus = S.mode === 'flight' ? ball.p : S.golferG;
+    sun.target.position.copy(focus); sun.position.copy(focus).addScaledVector(SUN_DIR, 70);
+    return;
+  }
   if (S.mode === 'title') {
     // Close on my golfer for dressing up, gently orbiting.
     const a = Math.sin(S.t * 0.25) * 0.5;
@@ -750,6 +779,8 @@ function updateHud() {
   $('hThis').textContent = S.holeStrokes; $('hTotal').textContent = S.strokes; $('hFalls').textContent = S.falls;
   [...$('clubs').children].forEach((el, i) => el.classList.toggle('on', i === swing.ci));
   $('mute').textContent = A.isMuted() ? '🔇 M' : '🔊 M';
+  $('view').textContent = S.fpv ? '🎥 V third person' : '👁 V first person';
+  $('tipText').innerHTML = S.fpv ? 'Drag back <em>↗ up and right</em>, pause, then swing <em>↙ down and left</em> through the ball. Faster swing, longer shot.' : 'Drag back <em>↖ up and left</em>, pause, then swing <em>↘ down and right</em> through the ball. Faster swing, longer shot.';
   renderBoard();
 }
 const climbMarks = [];
@@ -850,7 +881,7 @@ function updateOthers(dt) {
     if (!s.e) o.emote = null;
     if (o.emote) o.emoteT += dt;
     const f = fDir(o.aim), w = wDir(o.aim);
-    const pose = { G: o.G, f, w, hands: [V(), V()], club: V(), feet: null, tilt: 0.38, turn: 0, knee: 0.03 };
+    const pose = { G: o.G, f, w, hands: [V(), V()], club: V(), feet: null, tilt: 0.38, turn: 0, knee: 0.03, planeN: o.sw.planeN };
     if (o.emote) {
       const t = o.emoteT;
       pose.hop = Math.abs(Math.sin(t * 10)) * 0.15; pose.tilt = 0.08;
