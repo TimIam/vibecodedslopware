@@ -69,7 +69,7 @@ const B = { F: V(), R: V(), U: new THREE.Vector3(0, 1, 0) };
 const basis = yaw => { B.F.set(-Math.sin(yaw), 0, -Math.cos(yaw)); B.R.set(Math.cos(yaw), 0, -Math.sin(yaw)); };
 const player = {
   pos: V(), yaw: 0, vel: V(), sway: V(), swayV: V(), twist: 0, twistV: 0,
-  stamina: 1, stumble: 0, dead: false, deadT: 0, stepD: 0, bob: 0,
+  stamina: 1, stumble: 0, dead: false, deadT: 0, stepD: 0, bob: 0, dip: 0,
 };
 const chest = V();
 const keys = {};
@@ -97,6 +97,10 @@ function nearestTree(from = player.pos) {
   return best;
 }
 const yawTo = t => Math.atan2(-(t.x - player.pos.x), -(t.z - player.pos.z));
+// From your feet to the bark at chest height. Every kind of swing lands between lo and hi
+// (tools/swingbot.js measures it); plant is where walking in stops you.
+const CHOP = { lo: 0.82, hi: 1.13, plant: 0.97 };
+const gapTo = t => Math.hypot(t.x - player.pos.x, t.z - player.pos.z) - t.radiusAt(1);
 
 function newClearing(seed) {
   G.seed = seed;
@@ -113,13 +117,14 @@ function newClearing(seed) {
   }
   G.felled = 0; G.t = 0; G.timing = false; G.watch = null;
   G.stats = { swings: 0, bites: 0, bestBite: 0, bestSpeed: 0, misses: 0, total: 0, cm: 0, deaths: 0 };
-  // Start a couple of steps from the smallest tree, facing it.
+  // Start at chopping distance from the smallest tree, facing it.
   const first = G.trees.reduce((a, b) => (a.r0 < b.r0 ? a : b));
   _v.set(-first.x, 0, -first.z); if (_v.lengthSq() < 1e-4) _v.set(1, 0, 0); _v.normalize();
-  player.pos.set(first.x, 0, first.z).addScaledVector(_v, 2.2);
+  player.pos.set(first.x, 0, first.z).addScaledVector(_v, first.radiusAt(1) + CHOP.plant);
+  player.gapPrev = 0; player.plantT = 0;
   player.vel.set(0, 0, 0); player.sway.set(0, 0, 0); player.swayV.set(0, 0, 0); player.twist = player.twistV = 0;
-  player.stamina = 1; player.stumble = 0; player.dead = false; player.deadT = 0;
-  G.target = first; player.yaw = yawTo(first); basis(player.yaw);
+  player.stamina = 1; player.stumble = 0; player.dead = false; player.deadT = 0; player.dip = 0;
+  G.target = first; player.yaw = yawTo(first); basis(player.yaw); G.tpYaw = null;
   G.lookPt.set(first.x, 0.95, first.z);
   cursor.x = cursor.sx = cursor.px = 0.45; cursor.y = cursor.sy = cursor.py = 0.12; cursor.bit.set(-1, 0);
   sw.init = false; sw.dphi = sw.dth = 0; sw.phiU = null;
@@ -287,8 +292,10 @@ function updateBitAim(h, phiA, thA, dphi, dth) {
     a = Math.min(1, h * 14 * smooth(1.5, 4, sp)); ax2 = vx / sp; ay2 = vy / sp;
   } else if (dist > 0.3 && !striking) { a = Math.min(1, h * 7); ax2 = tx / dist; ay2 = ty / dist; }
   if (a > 0) {
-    cursor.bit.x += (ax2 - cursor.bit.x) * a; cursor.bit.y += (ay2 - cursor.bit.y) * a;
-    const l = Math.hypot(cursor.bit.x, cursor.bit.y) || 1; cursor.bit.x /= l; cursor.bit.y /= l;
+    // Turn by angle: easing the vector straight across stalls when the new aim is right behind the
+    // old one, as it is at the start of every backhand wind-up.
+    const cur = Math.atan2(cursor.bit.y, cursor.bit.x), ang = cur + wrapAng(Math.atan2(ay2, ax2) - cur) * a;
+    cursor.bit.set(Math.cos(ang), Math.sin(ang));
   }
 }
 
@@ -352,7 +359,16 @@ function updateDrive() {
 function movePlayer(h) {
   if (player.dead || G.mode !== 'play') { player.vel.multiplyScalar(1 - Math.min(1, h * 8)); return; }
   const t = G.target;
-  const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+  let f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+  // Walking up to a tree you plant your feet at chopping distance; keep holding W to go closer.
+  const gap = t ? gapTo(t) : 9;
+  if (f > 0 && player.gapPrev > CHOP.plant && gap <= CHOP.plant && axe.mode !== 'stuck') {
+    _d.set(player.pos.x - t.x, 0, player.pos.z - t.z).normalize();
+    player.pos.set(t.x, 0, t.z).addScaledVector(_d, CHOP.plant + t.radiusAt(1));
+    player.vel.set(0, 0, 0); player.plantT = 0.6;
+  }
+  player.gapPrev = gap;
+  if (f > 0 && player.plantT > 0) { player.plantT -= h; f = 0; } else if (f <= 0) player.plantT = 0;
   const s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
   const run = keys.ShiftLeft || keys.ShiftRight ? 2.2 : 1;
   const sp = 2.0 * run * (axe.mode === 'stuck' ? 0.35 : 1) * (player.stumble > 0 ? 0.5 : 1);
@@ -379,7 +395,7 @@ function movePlayer(h) {
   // An axe stuck in the wood keeps you on the end of your arms.
   if (axe.mode === 'stuck') {
     axe.toWorld(axe.gripRel, _hb);
-    _v.copy(player.pos).addScaledVector(B.U, 1.32).addScaledVector(B.F, 0.06).add(player.sway);
+    _v.copy(player.pos).addScaledVector(B.U, 1.32 - player.dip).addScaledVector(B.F, 0.06).add(player.sway);
     _d.subVectors(_v, _hb); const d = _d.length();
     if (d > REACH + 0.05) { _d.multiplyScalar((d - REACH - 0.05) / d); player.pos.x -= _d.x; player.pos.z -= _d.z; }
   }
@@ -394,8 +410,12 @@ function physicsStep(h) {
   cursor.sx += (cursor.x - cursor.sx) * a; cursor.sy += (cursor.y - cursor.sy) * a;
   movePlayer(h);
   basis(player.yaw);
-  chest.copy(player.pos).addScaledVector(B.U, 1.32).addScaledVector(B.F, 0.06).add(player.sway);
   const tense = updateDrive();
+  // Putting your weight into a hard chop downward in front of you: knees and hips drop the
+  // shoulders, quickly on the way down and back up at leisure.
+  const dipT = axe.mode === 'held' ? 0.15 * smooth(2, 7, -axe.v.y) * smooth(1.3, 0.5, Math.abs(sw.phiA || 0)) * (tense ? 1 : 0.3) : 0;
+  player.dip += (dipT - player.dip) * Math.min(1, h * (dipT > player.dip ? 14 : 3.5));
+  chest.copy(player.pos).addScaledVector(B.U, 1.32 - player.dip).addScaledVector(B.F, 0.06).add(player.sway);
   if (pickupK < 1) pickupK = Math.min(1, pickupK + h * 1.6);
   computeTarget(h);
   axe.step(h, tgt, env);
@@ -453,7 +473,7 @@ function popup(text, cls = '', sub = '') {
 function cooled(key, t = 0.35) { const now = performance.now() / 1000; if ((G.cool[key] || 0) > now) return false; G.cool[key] = now + t; return true; }
 
 // Straight down from overhead, the axe meets the trunk at the top of its arc unless you stand back.
-const tooHigh = () => popup('too high', 'meh', G.target && Math.hypot(player.pos.x - G.target.x, player.pos.z - G.target.z) < 1.3 ? 'step back (S) for an overhead, or come in at an angle' : 'chop between knee and chest');
+const tooHigh = () => popup('too high', 'meh', G.target && gapTo(G.target) < CHOP.plant ? 'step back (S) for an overhead, or come in at an angle' : 'chop between knee and chest');
 function handleAxeEvents() {
   for (const e of axe.events) {
     if (['bite', 'tap', 'glance', 'flat', 'nowood', 'handle', 'poll', 'cheek'].includes(e.type) && swing.on) swing.hit = true;
@@ -468,7 +488,7 @@ function handleAxeEvents() {
         fx.barkBits(e.surf, _v, 2, 1.5);
         fx.puff(e.surf, 2, 0.12, 0xe6d3ad, 0.12, 0.15, 0.7);
         G.stats.bites++; G.stats.cm += cm; G.stats.bestBite = Math.max(G.stats.bestBite, cm); G.stats.bestSpeed = Math.max(G.stats.bestSpeed, e.speed);
-        popup(cm >= 4.5 ? 'deep bite' : cm >= 2.5 ? 'bite' : 'nick', cm >= 4.5 ? 'great' : 'good', `${cm.toFixed(1)} cm · ${e.speed.toFixed(0)} m/s`);
+        popup(cm >= 3.5 ? 'deep bite' : cm >= 1.2 ? 'bite' : 'nick', cm >= 3.5 ? 'great' : 'good', `${cm.toFixed(1)} cm · ${e.speed.toFixed(0)} m/s`);
         afterCut(e.tree);
         break;
       }
@@ -592,31 +612,36 @@ function updateCamera(dt) {
   } else if (t) _look.set(t.x, 0.95, t.z);
   else _look.copy(player.pos).addScaledVector(B.F, 4).setY(1.2);
   G.lookPt.lerp(_look, 1 - Math.exp(-dt * 4));
-  _eye.copy(player.pos).addScaledVector(B.U, 1.62).addScaledVector(B.F, 0.03).addScaledVector(player.sway, 0.6);
+  _eye.copy(player.pos).addScaledVector(B.U, 1.62 - player.dip * 0.85).addScaledVector(B.F, 0.03).addScaledVector(player.sway, 0.6);
   _eye.y += Math.sin(player.bob) * 0.012; _eye.addScaledVector(B.R, Math.cos(player.bob * 0.5) * 0.008);
-  // Raising the axe you lean back a touch and look up after it, so your arms go up in front of you.
-  const raise = smooth(0.3, 1.3, G.camTh || 0);
+  // Raising the axe straight overhead you lean back a touch and look up after it, so your arms go
+  // up in front of you. A wind-up over a shoulder keeps your eyes on the tree.
+  const raise = smooth(0.3, 1.3, G.camTh || 0) * smooth(1.0, 0.4, Math.abs(G.camPhi || 0));
   if (!G.watch && !player.dead) _eye.addScaledVector(B.F, -0.15 * raise).addScaledVector(B.U, -0.03 * raise);
   const dx = G.lookPt.x - _eye.x, dy = G.lookPt.y - _eye.y, dz = G.lookPt.z - _eye.z;
   let yaw = Math.atan2(-dx, -dz), pitch = Math.atan2(dy, Math.hypot(dx, dz)), roll = -player.sway.dot(B.R) * 0.6;
-  // Your head follows your hands a little, so a wind-up stays mostly in view.
-  const k = 1 - Math.exp(-dt * 6), follow = axe.mode !== 'free' && !player.dead;
-  G.camPhi = (G.camPhi || 0) + ((follow ? clamp(sw.phiA || 0, -1.8, 1.8) : 0) - (G.camPhi || 0)) * k;
-  G.camTh = (G.camTh || 0) + ((follow ? clamp((sw.thA || 0) - POSE.TH0, -0.6, 1.4) : 0) - (G.camTh || 0)) * k;
-  if (!G.watch) { yaw = player.yaw + player.twist * 0.5 - G.camPhi * 0.28; pitch = THREE.MathUtils.lerp(clamp(pitch * 0.72, -0.5, 0.15) + G.camTh * 0.16, 0.34, raise); }
+  // Your head turns a little after your hands, and comes back to the tree quickly as you swing.
+  const follow = axe.mode !== 'free' && !player.dead;
+  const phiT = follow ? clamp(sw.phiA || 0, -1.8, 1.8) : 0, thT = follow ? clamp((sw.thA || 0) - POSE.TH0, -0.6, 1.4) : 0;
+  G.camPhi = (G.camPhi || 0) + (phiT - (G.camPhi || 0)) * (1 - Math.exp(-dt * (Math.abs(phiT) < Math.abs(G.camPhi || 0) ? 12 : 5)));
+  G.camTh = (G.camTh || 0) + (thT - (G.camTh || 0)) * (1 - Math.exp(-dt * (thT < (G.camTh || 0) ? 12 : 5)));
+  if (!G.watch) { yaw = player.yaw + player.twist * 0.5 - G.camPhi * 0.13; pitch = THREE.MathUtils.lerp(clamp(pitch * 0.72, -0.5, 0.15) + G.camTh * 0.08, 0.3, raise); }
   if (player.stumble > 0) roll += Math.sin(player.stumble * 14) * 0.03 * player.stumble;
   G.shake = Math.max(0, G.shake - dt * 2.8);
   const s = G.shake * G.shake * 0.03;
   yaw += (Math.random() - 0.5) * s; pitch += (Math.random() - 0.5) * s;
   if (thirdPerson()) {
-    // Over the right (or left) shoulder, looking past you at the tree.
+    // Over the right (or left) shoulder, close enough to see the edge meet the wood, looking at
+    // where it does; pulled back while a tree comes down.
     const side = settings.view === 'left' ? -1 : 1;
     G.tpSide = (G.tpSide ?? side) + (side - (G.tpSide ?? side)) * (1 - Math.exp(-dt * 6));
     G.tpYaw = G.tpYaw ?? player.yaw;
     G.tpYaw += wrapAng(player.yaw - G.tpYaw) * (1 - Math.exp(-dt * 5));
-    const tf = _v.set(-Math.sin(G.tpYaw), 0, -Math.cos(G.tpYaw)), tr = _w.set(-tf.z, 0, tf.x);
-    _eye.copy(player.pos).addScaledVector(tf, -2.3).addScaledVector(tr, 0.7 * G.tpSide).setY(2.05);
-    _tmp.copy(player.pos).addScaledVector(tf, 0.9).setY(1.05).lerp(G.lookPt, G.watch ? 0.85 : 0.3);
+    G.tpBack = (G.tpBack ?? 0) + ((G.watch ? 1 : 0) - (G.tpBack ?? 0)) * (1 - Math.exp(-dt * 2));
+    const tf = _v.set(-Math.sin(G.tpYaw), 0, -Math.cos(G.tpYaw)), tr = _w.set(-tf.z, 0, tf.x), wb = G.tpBack;
+    // Far enough out to the side that your body is not between the camera and the cut.
+    _eye.copy(player.pos).addScaledVector(tf, -1.85 - 0.8 * wb).addScaledVector(tr, (1.15 - 0.2 * wb) * G.tpSide).setY(1.75 + 0.5 * wb - player.dip * 0.5);
+    _tmp.copy(player.pos).addScaledVector(tf, 1.0).addScaledVector(tr, 0.12 * G.tpSide).setY(1.15).lerp(G.lookPt, G.watch ? 0.85 : 0.15);
     const ex = _tmp.x - _eye.x, ey = _tmp.y - _eye.y, ez = _tmp.z - _eye.z;
     yaw = Math.atan2(-ex, -ez) + (Math.random() - 0.5) * s; pitch = Math.atan2(ey, Math.hypot(ex, ez)) + (Math.random() - 0.5) * s; roll = 0;
   } else if (player.dead) {
@@ -628,7 +653,9 @@ function updateCamera(dt) {
 }
 
 // Third person: pose Timberline's faller on the axe (or the simple lumberjack if it hasn't loaded).
-const _c = V(), _sh = V(), _pole = V(), _torsoTP = {};
+const _c = V(), _sh = V(), _pole = V(), _feet = [V(), V()], _poles = [V(), V()], _torsoTP = {};
+// [side, forward, right] from where you stand; the hips sit about 15 cm behind that point.
+const FEET = [['R', -0.19, 0.2], ['L', 0.08, -0.19]];
 function poseBody(dt) {
   const third = thirdPerson();
   const fig = body.fig;
@@ -643,15 +670,26 @@ function poseBody(dt) {
   root.position.copy(player.pos).add(player.sway).setY(0);
   root.rotation.set(0, Math.atan2(-B.F.z, B.F.x), 0);
   fig.rest();
-  if (moving > 0.2 && axe.mode !== 'stuck') { fig.speed = player.vel.length(); fig.walk(dt); }
-  else fig.chopStance(1.4, -clamp(sw.phiA || 0, -2.2, 2.2) * 0.56 - player.twist, 0.14 + Math.max(0, -(sw.thA || 0)) * 0.25);
-  // Put the faller's shoulders where the swing's shoulders are.
+  // Weight goes over the foot on the axe's side: back onto it in the wind-up, across in the swing.
+  const walking = moving > 0.2 && axe.mode !== 'stuck';
+  G.weight = (G.weight || 0) + ((walking || axe.mode === 'free' ? 0 : clamp((sw.phiA || 0) / 1.8, -1, 1) * 0.075) - (G.weight || 0)) * (1 - Math.exp(-dt * 7));
+  if (walking) { fig.speed = player.vel.length(); fig.walk(dt); }
+  else fig.chopStance(1.4 - player.dip, -clamp(sw.phiA || 0, -2.2, 2.2) * 0.56 - player.twist, 0.14 + Math.max(0, -(sw.thA || 0)) * 0.25 + player.dip * 1.6, G.weight);
+  // Put the faller's shoulders where the swing's shoulders are, give or take the weight shift, so
+  // the feet stay where they are planted.
   root.updateMatrixWorld(true);
-  _sh.copy(player.pos).addScaledVector(B.U, 1.4).addScaledVector(B.F, -0.07).add(player.sway).sub(fig.shoulders());
+  _sh.copy(player.pos).addScaledVector(B.U, 1.4 - player.dip).addScaledVector(B.F, -0.07).addScaledVector(B.R, walking ? 0 : G.weight * 0.65).add(player.sway).sub(fig.shoulders());
   root.position.x += _sh.x; root.position.z += _sh.z;
   if (player.dead) { G.deadFall = Math.min(1, (G.deadFall || 0) + dt * 2.2); root.rotateZ(-G.deadFall * 1.5); root.position.y += 0.12 * G.deadFall; }
   else G.deadFall = 0;
   root.updateMatrixWorld(true);
+  if (!walking && !player.dead) {
+    // Feet planted where you stand, right foot back and left foot forward, whatever the hips do.
+    fig.plantFeet(FEET.map(([s, fx, fz], i) => {
+      const at = _feet[i].copy(player.pos).addScaledVector(B.F, fx).addScaledVector(B.R, fz).setY(fig.ankleY);
+      return [s, at, _poles[i].copy(at).addScaledVector(B.F, 0.8).addScaledVector(B.R, fz * 0.6).setY(0.6)];
+    }));
+  }
   if (axe.mode === 'free' || player.dead) fig.armsFree(0);
   else {
     fig.j.chest.getWorldPosition(_c); fig.torso(_torsoTP);
@@ -680,8 +718,8 @@ function updateArms() {
   const c = _torsoFP.c.copy(player.pos).addScaledVector(B.U, 1.25).add(player.sway);
   const across = (H, s) => clamp(-_d.subVectors(H, c).dot(_tR) * s / 0.35 + 0.25, 0, 1);
   const aL = across(_hb, -1), aR = across(_ht, 1);
-  _sL.copy(player.pos).addScaledVector(B.U, 1.4 - 0.012 * aL).addScaledVector(_tR, -0.19 + 0.035 * aL).addScaledVector(_tF, -0.07 + 0.075 * aL).add(player.sway);
-  _sR.copy(player.pos).addScaledVector(B.U, 1.4 - 0.012 * aR).addScaledVector(_tR, 0.19 - 0.035 * aR).addScaledVector(_tF, -0.07 + 0.075 * aR).add(player.sway);
+  _sL.copy(player.pos).addScaledVector(B.U, 1.4 - player.dip - 0.012 * aL).addScaledVector(_tR, -0.19 + 0.035 * aL).addScaledVector(_tF, -0.07 + 0.075 * aL).add(player.sway);
+  _sR.copy(player.pos).addScaledVector(B.U, 1.4 - player.dip - 0.012 * aR).addScaledVector(_tR, 0.19 - 0.035 * aR).addScaledVector(_tF, -0.07 + 0.075 * aR).add(player.sway);
   _torsoFP.f.copy(_tF); _torsoFP.r.copy(_tR);
   _pL.copy(_tR).multiplyScalar(-0.7).addScaledVector(B.U, -0.7).addScaledVector(_tF, -0.2);
   _pR.copy(_tR).multiplyScalar(0.7).addScaledVector(B.U, -0.7).addScaledVector(_tF, -0.2);
@@ -715,12 +753,12 @@ function drawCut() {
   c.beginPath(); c.moveTo(ax + an.fx * hw * 1.4, az + an.fz * hw * 1.4); c.lineTo(ax + px * hw, az + pzz * hw); c.lineTo(ax - px * hw, az - pzz * hw); c.closePath(); c.fill();
   c.restore();
   // You, always at the bottom looking up at it.
-  const d = Math.hypot(player.pos.x - t.x, player.pos.z - t.z);
-  const ideal = d > 0.95 && d < 1.45;
+  const g = gapTo(t), d = Math.hypot(player.pos.x - t.x, player.pos.z - t.z);
+  const ideal = g >= CHOP.lo && g <= CHOP.hi;
   c.fillStyle = ideal ? '#3f8a45' : '#8a7550';
   c.beginPath(); c.moveTo(W / 2, H - 30); c.lineTo(W / 2 - 7, H - 18); c.lineTo(W / 2 + 7, H - 18); c.closePath(); c.fill();
   c.font = '600 12px system-ui, sans-serif'; c.textAlign = 'center'; c.fillStyle = ideal ? '#2f6e35' : '#4f4a3c';
-  c.fillText(d < 0.95 ? `${d.toFixed(1)} m · too close` : d > 1.45 ? (d > 3 ? `${d.toFixed(1)} m` : `${d.toFixed(1)} m · step in`) : `${d.toFixed(1)} m · in reach`, W / 2, H - 4);
+  c.fillText(g < CHOP.lo ? `${d.toFixed(1)} m · too close` : g > CHOP.hi ? (d > 3 ? `${d.toFixed(1)} m` : `${d.toFixed(1)} m · step in`) : `${d.toFixed(1)} m · in reach`, W / 2, H - 4);
 }
 
 function updateHud(dt) {
@@ -786,7 +824,7 @@ requestAnimationFrame(frame);
 // Test hooks (local only).
 if (/localhost|127\.0\.0\.1/.test(location.hostname)) {
   window.__fs = {
-    G, axe, player, cursor, input, keys, tgt, pz, arms, newClearing, renderer, scene, camera, sfx, setMode,
+    G, axe, player, cursor, input, keys, tgt, pz, arms, body, newClearing, renderer, scene, camera, sfx, setMode,
     setCursor(x, y) { limitSwing(x, y, 1, cursor); },
     freeze(v = true) { frozen = v; },
     // Run the simulation forward without rendering: n frames of dt each.

@@ -26,6 +26,7 @@ export class Faller {
     const len = (a, b) => (a && b ? a.getWorldPosition(new THREE.Vector3()).distanceTo(b.getWorldPosition(new THREE.Vector3())) : 0.45);
     model.updateMatrixWorld(true);
     this.thighLen = len(this.j.thR, this.j.shR); this.shinLen = len(this.j.shR, this.j.ftR);
+    this.ankleY = this.j.ftR ? this.j.ftR.getWorldPosition(new THREE.Vector3()).y : 0.08;
     this.walkPhase = 0; this.t = 0;
     this.last = new THREE.Vector3(); this.speed = 0;
     model.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
@@ -35,6 +36,7 @@ export class Faller {
   rest() {
     for (const k in this.j) this.j[k]?.quaternion.identity();
     this.j.pelvis.position.y = this.pelvisY;
+    this.pelvisZ = this.pelvisZ ?? this.j.pelvis.position.z; this.j.pelvis.position.z = this.pelvisZ;
     this.uaRest = this.uaRest || { R: this.j.uaR.position.clone(), L: this.j.uaL.position.clone() };
     this.j.uaR.position.copy(this.uaRest.R); this.j.uaL.position.copy(this.uaRest.L);
   }
@@ -61,8 +63,9 @@ export class Faller {
   }
 
   // Chopping stance: feet a shoulder-width apart, knees bent just enough to bring the shoulders to height
-  // shoulderH, the trunk turned (twist, + = toward the left) and bent forward (bend, radians).
-  chopStance(shoulderH, twist, bend) {
+  // shoulderH, the trunk turned (twist, + = toward the left) and bent forward (bend, radians), the hips
+  // carried shift metres toward the right foot (- = left) with the feet staying planted.
+  chopStance(shoulderH, twist, bend, shift = 0) {
     const j = this.j, T = this.thighLen, S = this.shinLen, rest = this.pelvisY + 0.475;
     const torsoDrop = 0.475 * (1 - Math.cos(bend + 0.1));
     const legDrop = (c) => (T + S) - (T * Math.cos(c * 0.95) + S * Math.cos(c * 0.95 - c * 1.25));
@@ -74,6 +77,12 @@ export class Faller {
     j.thL.rotation.set(0.13, 0, hip + 0.22); j.shL.rotation.set(0, 0, -knee); j.ftL.rotation.set(-0.1, 0, knee - hip - 0.22);
     j.pelvis.rotation.set(0, twist * 0.35, 0);
     j.spine.rotation.set(0, twist * 0.4, -bend); j.chest.rotation.set(0, twist * 0.35, -0.1);
+    // Weight over one foot: the hips slide across, the thighs tilt back under them so the feet stay
+    // put, and the trunk leans back a little to keep the head over the stance.
+    const lean = shift / 0.79;
+    j.pelvis.position.z = this.pelvisZ + shift;
+    j.thR.rotation.x += lean; j.thL.rotation.x += lean; j.ftR.rotation.x -= lean; j.ftL.rotation.x -= lean;
+    j.spine.rotation.x -= lean * 0.6;
   }
   shoulders() { return this.j.uaR.getWorldPosition(new THREE.Vector3()).add(this.j.uaL.getWorldPosition(new THREE.Vector3())).multiplyScalar(0.5); }
 
@@ -124,6 +133,49 @@ export class Faller {
     _q2.setFromUnitVectors(G1.sub(Ew).normalize(), tgt.sub(Ew).normalize());
     fa.quaternion.copy(fq).invert().multiply(_q2).multiply(fq);
     fa.updateMatrixWorld(true);
+  }
+
+  // Both feet onto planted points ([side, target, pole] each), first lowering the hips if a leg
+  // would have to stretch past straight to get there.
+  plantFeet(feet) {
+    const reach = (this.thighLen + this.shinLen) * 0.985;
+    let drop = 0;
+    this.root.updateMatrixWorld(true);
+    for (const [side, target] of feet) {
+      const H = this.j['th' + side].getWorldPosition(_v), d = H.distanceTo(target);
+      if (d > reach) drop = Math.max(drop, (d - reach) * d / Math.max(0.2, H.y - target.y));
+    }
+    if (drop > 0) { this.j.pelvis.position.y -= drop; this.root.updateMatrixWorld(true); }
+    for (const [side, target, pole] of feet) this.plant(side, target, pole);
+  }
+
+  // Two-bone IK for a leg: the ankle onto a planted world point, the knee toward a pole point, and
+  // the foot flat on the ground the way it sits standing. Keeps the feet still while the hips turn,
+  // shift and drop over them.
+  plant(side, target, pole) {
+    const j = this.j, th = j['th' + side], sh = j['sh' + side], ft = j['ft' + side];
+    th.quaternion.identity(); sh.quaternion.identity(); ft.quaternion.identity();
+    th.updateMatrixWorld(true);
+    const H = th.getWorldPosition(new THREE.Vector3()), K0 = sh.getWorldPosition(new THREE.Vector3()), A0 = ft.getWorldPosition(new THREE.Vector3());
+    const L1 = H.distanceTo(K0), L2 = K0.distanceTo(A0);
+    const toT = _v.subVectors(target, H); let d = toT.length();
+    d = THREE.MathUtils.clamp(d, Math.abs(L1 - L2) + 1e-3, (L1 + L2) * 0.999);
+    const dir = toT.normalize().clone();
+    const a = (L1 * L1 - L2 * L2 + d * d) / (2 * d), h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
+    const n = _w.subVectors(pole, H); n.addScaledVector(dir, -n.dot(dir));
+    if (n.lengthSq() < 1e-8) n.set(1, 0, 0);
+    n.normalize();
+    const K = H.clone().addScaledVector(dir, a).addScaledVector(n, h);
+    const pq = th.parent.getWorldQuaternion(new THREE.Quaternion());
+    _q.setFromUnitVectors(K0.sub(H).normalize(), K.clone().sub(H).normalize());
+    th.quaternion.copy(pq).invert().multiply(_q).multiply(pq);
+    th.updateMatrixWorld(true);
+    const A1 = ft.getWorldPosition(new THREE.Vector3()), Kw = sh.getWorldPosition(new THREE.Vector3());
+    const sq = sh.parent.getWorldQuaternion(new THREE.Quaternion());
+    _q2.setFromUnitVectors(A1.sub(Kw).normalize(), H.clone().addScaledVector(dir, d).sub(Kw).normalize());
+    sh.quaternion.copy(sq).invert().multiply(_q2).multiply(sq);
+    sh.updateMatrixWorld(true);
+    ft.quaternion.copy(ft.parent.getWorldQuaternion(new THREE.Quaternion()).invert()).multiply(this.root.quaternion);
   }
 
   // turn the head toward a world point (yaw and pitch, limited)

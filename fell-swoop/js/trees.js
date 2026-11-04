@@ -4,7 +4,9 @@
 import * as THREE from 'three';
 import { mergeGeoms, paint, frondGeometry } from './world.js';
 
-export const CUT_LO = 0.25, CUT_HI = 1.65, SLICE_H = 0.02;
+// High enough for an overhead: straight down, the edge only goes into the trunk while it is still
+// travelling forward, near the top of the arc, so overheads land at head height.
+export const CUT_LO = 0.25, CUT_HI = 2.2, SLICE_H = 0.02;
 export const NS = Math.round((CUT_HI - CUT_LO) / SLICE_H);
 export const GRID = 40;
 const COLS = 60;
