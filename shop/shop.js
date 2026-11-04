@@ -2,7 +2,7 @@
 // Prices and variants come from catalog.js; checkout happens on Stripe via /api/shop-checkout,
 // and paid orders are sent to Printful by /api/shop-webhook.
 
-import { DESIGNS, GARMENTS, SIZES, SHIPPING, MAX_QTY, unitPrice, shippingFor, money } from "./catalog.js";
+import { DESIGNS, KINDS, GARMENTS, SIZES, SHIPPING, MAX_QTY, unitPrice, shippingFor, money } from "./catalog.js";
 import { productCanvas } from "./garment.js";
 import { TryOn } from "./tryon.js";
 
@@ -40,26 +40,31 @@ let shopOpen = null;   // null = still asking, true/false once /api/shop-checkou
 
 // ------------------------------------------------------------------ grid
 function renderGrid() {
-  const grid = $("#grid");
-  grid.replaceChildren();
-  for (const d of DESIGNS) {
-    const cv = h("canvas", { width: 500, height: 600, className: "mock", role: "img", ariaLabel: `${d.title} tee` });
-    const card = h("article", { className: "item" }, [
-      h("button", { className: "item-open", type: "button", ariaLabel: `${d.title}: choose a size and color` }, [cv]),
-      h("div", { className: "item-text" }, [
-        h("h2", { textContent: d.title }),
-        h("p", { className: "item-blurb", textContent: d.blurb }),
-        h("p", { className: "item-price", textContent: `Tee ${money(GARMENTS.tee.price)} · Hoodie ${money(GARMENTS.hoodie.price)}` }),
-      ]),
-      h("div", { className: "item-actions" }, [
-        h("button", { className: "btn", type: "button", textContent: "Choose", onclick: () => openProduct(d.id) }),
-        h("button", { className: "btn ghost", type: "button", textContent: "Try it on", onclick: () => { selectDesign(d.id); openTryOn(); } }),
-      ]),
-    ]);
-    card.querySelector(".item-open").onclick = () => openProduct(d.id);
-    grid.append(card);
-    designImage(d.id).then((img) => productCanvas(cv, "tee", GARMENTS.tee.colors[firstColor("tee")].hex, img));
+  const wrap = $("#grid");
+  wrap.replaceChildren();
+  for (const [kind, label] of Object.entries(KINDS)) {
+    const grid = h("div", { className: "grid" });
+    wrap.append(h("section", { ariaLabel: label }, [h("h2", { className: "section-title", textContent: label }), grid]));
+    for (const d of DESIGNS.filter((x) => x.kind === kind)) grid.append(card(d));
   }
+}
+
+function card(d) {
+  const cv = h("canvas", { width: 500, height: 600, className: "mock", role: "img", ariaLabel: `${d.title} tee` });
+  const el = h("article", { className: "item" }, [
+    h("button", { className: "item-open", type: "button", ariaLabel: `${d.title}: choose a size and color`, onclick: () => openProduct(d.id) }, [cv]),
+    h("div", { className: "item-text" }, [
+      h("h3", { textContent: d.title }),
+      h("p", { className: "item-blurb", textContent: d.blurb }),
+      h("p", { className: "item-price", textContent: `Tee ${money(GARMENTS.tee.price)} · Hoodie ${money(GARMENTS.hoodie.price)}` }),
+    ]),
+    h("div", { className: "item-actions" }, [
+      h("button", { className: "btn", type: "button", textContent: "Choose", onclick: () => openProduct(d.id) }),
+      h("button", { className: "btn ghost", type: "button", textContent: "Try it on", onclick: () => { selectDesign(d.id); openTryOn(); } }),
+    ]),
+  ]);
+  designImage(d.id).then((img) => productCanvas(cv, "tee", GARMENTS.tee.colors[firstColor("tee")].hex, img));
+  return el;
 }
 
 function selectDesign(id) {
@@ -138,7 +143,8 @@ async function renderTryControls() {
   const box = $("#tryon-pick");
   const rerender = () => renderTryControls();
   const designs = h("select", { ariaLabel: "Design", onchange: () => { pick.design = designs.value; rerender(); } },
-    DESIGNS.map((d) => h("option", { value: d.id, textContent: d.title, selected: d.id === pick.design })));
+    Object.entries(KINDS).map(([kind, label]) => h("optgroup", { label }, DESIGNS.filter((d) => d.kind === kind).map((d) =>
+      h("option", { value: d.id, textContent: d.title, selected: d.id === pick.design })))));
   box.replaceChildren(designs, garmentPicker(rerender), colorPicker(rerender));
   tryon.set(pick.garment, hexOf(pick), await designImage(pick.design));
 }

@@ -6,12 +6,33 @@
 // Variant ids are Printful catalog variants (GET https://api.printful.com/products/71 and /146, no token needed).
 // Prices are in cents.
 
+// kind sorts the page into sections: game art, screenshots in a desktop window, prop sheets of 3D models.
+export const KINDS = { art: "Game art", shot: "Screenshots", props: "Prop sheets" };
+
 export const DESIGNS = [
-  { id: "slopware", title: "Vibe Coded Slopware", game: null, blurb: "The house logo. Made with vibes, shipped with bugs." },
-  { id: "boss-hours", title: "Boss Hours", game: null, blurb: "The raid boss, facing you. You are the encounter." },
-  { id: "pit-crew", title: "Pit Crew '26", game: "/pit-crew/", blurb: "The Brightwater car and the crew's motto." },
-  { id: "space-bear", title: "Orbital", game: "/pour-decisions/", blurb: "The bear astronaut regular from Pour Decisions. Gravity is a lot tonight." },
-  { id: "mycelium", title: "MYCELIUM.EXE", game: "/mycelium/", blurb: "A real screenshot of Mycelium in a little desktop window." },
+  { id: "slopware", kind: "art", title: "Vibe Coded Slopware", game: null, blurb: "The house logo. Made with vibes, shipped with bugs." },
+  { id: "boss-hours", kind: "art", title: "Boss Hours", game: null, blurb: "The raid boss, facing you. You are the encounter." },
+  { id: "pit-crew", kind: "art", title: "Pit Crew '26", game: "/pit-crew/", blurb: "The Brightwater car and the crew's motto." },
+  { id: "space-bear", kind: "art", title: "Orbital", game: "/pour-decisions/", blurb: "The bear astronaut regular from Pour Decisions. Gravity is a lot tonight." },
+  { id: "mycelium", kind: "shot", title: "MYCELIUM.EXE", game: "/mycelium/", blurb: "A real screenshot of Mycelium. I am the fungus." },
+  { id: "par-for-the-curse", kind: "shot", title: "PAR4THECURSE.EXE", game: "/par-for-the-curse/", blurb: "A stubby golfer lining up a shot on Mount Bogey. Fore!!!" },
+  { id: "bear-run", kind: "shot", title: "BEARRUN.EXE", game: "/bear-run/", blurb: "Skiing downhill with something on your tail." },
+  { id: "craps", kind: "shot", title: "CRAPS.EXE", game: "/craps/", blurb: "The 3D craps table, mid-roll. Seven out." },
+  { id: "peel-out", kind: "shot", title: "PEELOUT.EXE", game: "/peel-out/", blurb: "The pizza kitchen. Pies stay on the peel. Mostly." },
+  { id: "roughing-it", kind: "shot", title: "ROUGHINGIT.EXE", game: "/roughing-it/", blurb: "Pixel-art steamboat from the Mark Twain trail game. Go west." },
+  { id: "quarterly-rollout", kind: "shot", title: "QUARTERLY.EXE", game: "/quarterly-rollout/", blurb: "A floor of the office-chair action game. Swivel hard." },
+  { id: "bonsai", kind: "shot", title: "BONSAI.EXE", game: "/bonsai/", blurb: "The desk bonsai. Water me." },
+  { id: "matrix-rain", kind: "shot", title: "RAIN.SCR", game: "/matrix/", blurb: "The screensaver for every monitor. Wake up." },
+  { id: "fell-swoop", kind: "shot", title: "FELLSWOOP.EXE", game: "/fell-swoop/", blurb: "First-person tree chopping in a dark forest. Timber!" },
+  { id: "strange-weather", kind: "shot", title: "WEATHER.EXE", game: "/strange-weather/", blurb: "The Strange Weather title screen. Look up." },
+  { id: "projection-mayhem", kind: "shot", title: "PROJECTION.EXE", game: "/projection-mayhem/", blurb: "Now showing at the Paper Street Picture House." },
+  { id: "madame-haiku", kind: "shot", title: "MADAMEHAIKU.EXE", game: "/psychic/", blurb: "The 16-bit fortune teller. Ask the cards." },
+  { id: "safe-water", kind: "shot", title: "SAFEWATER.EXE", game: "/safe-water/", blurb: "The study at Quarry Farm, where the puzzle adventure starts." },
+  { id: "mount-bogey", kind: "props", title: "Mount Bogey", game: "/par-for-the-curse/", blurb: "Goose, windmill, golf cart, cannon, trophy and blimp: the hazards of Par for the Curse." },
+  { id: "binding-order", kind: "props", title: "Binding Order", game: "/binding-order/", blurb: "A padlock, a deadbolt, a hook and a tension wrench, drawn as a blueprint." },
+  { id: "picture-house", kind: "props", title: "Paper Street", game: "/projection-mayhem/", blurb: "The 35mm projector, popcorn, film cans and soda from Projection Mayhem." },
+  { id: "timberline", kind: "props", title: "Timberline", game: "/timberline/", blurb: "Harvester, chainsaw, axe and wedge from the tree felling sim." },
+  { id: "rack-and-ruin", kind: "props", title: "Rack & Ruin", game: "/demolition/", blurb: "A rack, a GPU server, a UPS and a CRAC unit, waiting to be demolished." },
 ];
 
 export const SIZES = ["S", "M", "L", "XL", "2XL", "3XL"];
