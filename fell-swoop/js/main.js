@@ -1,7 +1,7 @@
 // Fell Swoop: chop down trees with your hands on a heavy, physical axe.
 import * as THREE from 'three';
 import { buildWorld, makeRng, barkTexture, plaidTexture, softDotTexture } from './world.js';
-import { Tree, barkMaterial, sliceH, GRID, CUT_HI } from './trees.js';
+import { Tree, barkMaterial, crushable, sliceH, GRID, CUT_HI } from './trees.js';
 import { Axe, REACH } from './axe.js';
 import { Arms } from './arms.js';
 import { Sfx } from './audio.js';
@@ -31,10 +31,14 @@ const bark = barkTexture(makeRng(11));
 const mats = {
   bark: barkMaterial(bark.map, bark.bump),
   cap: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }),
-  crown: new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.92 }),
-  fronds: world.frondMat,
+  crown: crushable(new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.92 }), true),
+  fronds: crushable(world.frondMat),
 };
 const axe = new Axe(scene);
+// A ring on the ground round the tree you are locked onto.
+const targetRing = new THREE.Mesh(new THREE.RingGeometry(1, 1.13, 56).rotateX(-Math.PI / 2),
+  new THREE.MeshBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.55, depthWrite: false }));
+targetRing.renderOrder = 2; scene.add(targetRing);
 const plaid = plaidTexture();
 const arms = new Arms(scene, plaid);
 
@@ -97,6 +101,38 @@ function nearestTree(from = player.pos) {
   return best;
 }
 const yawTo = t => Math.atan2(-(t.x - player.pos.x), -(t.z - player.pos.z));
+// Targeting: G.target is the tree you are locked onto, or null when you are turning freely (Q/E).
+// Bearing is + to your left.
+const bearing = t => wrapAng(yawTo(t) - player.yaw);
+const standingNear = () => G.trees.filter(t => t.state === 'standing' && Math.hypot(t.x - player.pos.x, t.z - player.pos.z) < 28);
+// The tree you are most looking at, near ones first.
+function treeAhead() {
+  let best = null, bs = 1e9;
+  for (const t of standingNear()) { const s = Math.abs(bearing(t)) + 0.04 * Math.hypot(t.x - player.pos.x, t.z - player.pos.z); if (s < bs) { bs = s; best = t; } }
+  return best;
+}
+// Tab: lock onto the tree ahead, then step to the next one round to the right (Shift: left).
+function cycleTarget(dir) {
+  const list = standingNear(); if (!list.length) return;
+  let next;
+  if (!G.target || G.target.state !== 'standing') next = treeAhead();
+  else {
+    const b0 = bearing(G.target), ahead = t => (dir > 0 ? b0 - bearing(t) : bearing(t) - b0);
+    const others = list.filter(t => t !== G.target).sort((a, b) => ((ahead(a) + 2 * Math.PI) % (2 * Math.PI)) - ((ahead(b) + 2 * Math.PI) % (2 * Math.PI)));
+    next = others[0] || G.target;
+  }
+  setTarget(next);
+}
+function setTarget(t) {
+  G.target = t; G.targetT = 0; player.gapPrev = t ? gapTo(t) : 9;
+}
+// The tree the cut readout and warnings are about: the one you are locked onto, or, turning
+// freely, the one right in front of you.
+function hudTree() {
+  if (G.target) return G.target;
+  const t = treeAhead();
+  return t && Math.abs(bearing(t)) < 0.7 && gapTo(t) < 2.5 ? t : null;
+}
 // From your feet to the bark at chest height. Every kind of swing lands between lo and hi
 // (tools/swingbot.js measures it); plant is where walking in stops you.
 const CHOP = { lo: 0.82, hi: 1.13, plant: 0.97 };
@@ -124,7 +160,7 @@ function newClearing(seed) {
   player.gapPrev = 0; player.plantT = 0;
   player.vel.set(0, 0, 0); player.sway.set(0, 0, 0); player.swayV.set(0, 0, 0); player.twist = player.twistV = 0;
   player.stamina = 1; player.stumble = 0; player.dead = false; player.deadT = 0; player.dip = 0;
-  G.target = first; player.yaw = yawTo(first); basis(player.yaw); G.tpYaw = null;
+  setTarget(first); player.yaw = yawTo(first); basis(player.yaw); G.tpYaw = null;
   G.lookPt.set(first.x, 0.95, first.z);
   cursor.x = cursor.sx = cursor.px = 0.45; cursor.y = cursor.sy = cursor.py = 0.12; cursor.bit.set(-1, 0);
   sw.init = false; sw.dphi = sw.dth = 0; sw.phiU = null;
@@ -143,6 +179,7 @@ addEventListener('keydown', e => {
   if (e.code === 'BracketLeft') nudgeSens(1 / 1.15);
   if (e.code === 'BracketRight') nudgeSens(1.15);
   if (e.code === 'Escape' && input.soft && G.mode === 'play') setMode('paused');
+  if (e.code === 'Tab') { e.preventDefault(); if (G.mode === 'play' && !player.dead) cycleTarget(e.shiftKey ? -1 : 1); }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
@@ -358,6 +395,9 @@ function updateDrive() {
 
 function movePlayer(h) {
   if (player.dead || G.mode !== 'play') { player.vel.multiplyScalar(1 - Math.min(1, h * 8)); return; }
+  // Q/E turn you, which lets go of the tree you were locked onto: walk and face anywhere.
+  const turnKey = (keys.KeyQ ? 1 : 0) - (keys.KeyE ? 1 : 0);
+  if (turnKey && G.target) { setTarget(null); if (cooled('free', 1.5)) popup('free to turn', 'meh', 'Tab locks onto a tree'); }
   const t = G.target;
   let f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
   // Walking up to a tree you plant your feet at chopping distance; keep holding W to go closer.
@@ -402,7 +442,7 @@ function movePlayer(h) {
   if (t) {
     const turn = (axe.mode === 'stuck' ? 0.6 : 3.2) * h;
     player.yaw += clamp(wrapAng(yawTo(t) - player.yaw), -turn, turn);
-  }
+  } else player.yaw += turnKey * (axe.mode === 'stuck' ? 0.6 : 2.2) * h;
 }
 
 function physicsStep(h) {
@@ -543,8 +583,18 @@ function handleTreeEvents(list) {
       for (let s = 2; s < t.L; s += 1.6) {
         _v.copy(t.pivot).addScaledVector(_d, s); _v.y = 0.1;
         fx.puff(_v, 1, 1.1, 0xcab89a, 1.4, 0.5, 2.2);
-        if (s > t.crownBase - t.breakH) fx.needles(_v, B.U, 3, 2.5);
+        // Where the crown hits, branches break off and needles go everywhere.
+        if (s > t.crownBase - t.breakH) {
+          fx.needles(_v, B.U, 6, 3);
+          t.crownPoint(s, _w); fx.branches(_w, B.U, 2 + Math.floor(Math.random() * 3), 3.2);
+          fx.puff(_w, 1, 0.8, 0x56653f, 0.9, 0.4, 1.6);
+        }
       }
+    }
+    if (e.type === 'snap') {
+      sfx.snap(dist, e.big);
+      fx.branches(e.point, B.U, e.big ? 3 : 1, e.big ? 2.6 : 1.8, e.big ? 1.4 : 1);
+      fx.needles(e.point, B.U, e.big ? 6 : 3, 1.6);
     }
     if (e.type === 'bounce') sfx.thud();
     if (e.type === 'down') {
@@ -589,7 +639,7 @@ function dangerCheck() {
     const along = rx * t.fallDir.x + rz * t.fallDir.z, perp = Math.abs(rx * t.fallDir.z - rz * t.fallDir.x);
     if (along > -0.6 && along < t.L + 1.5 && perp < t.radiusAtS(Math.max(0, along)) + 0.8) { msg = 'MOVE! It’s coming down on you'; cls = 'hot'; }
   }
-  const tr = G.target;
+  const tr = hudTree();
   if (!msg && tr && tr.analysis.ratio > 0.55) {
     _v.set(player.pos.x - tr.x, 0, player.pos.z - tr.z).normalize();
     if (_v.x * tr.analysis.fx + _v.z * tr.analysis.fz > 0.64) msg = 'Careful: it will fall toward you';
@@ -697,6 +747,7 @@ function poseBody(dt) {
     fig.reach('L', axe.renderPoint(axe.gripRel, _hb), _pole.copy(_c).addScaledVector(B.R, -0.6).addScaledVector(B.F, -0.2).setY(_c.y - 0.6), _torsoTP);
   }
   if (G.target) fig.look(_tmp.set(G.target.x, 1.0, G.target.z));
+  else fig.look(_tmp.copy(player.pos).addScaledVector(B.F, 3).setY(1.0));
   fig.tick(dt);
 }
 
@@ -729,9 +780,13 @@ function updateArms() {
 const cutCanvas = $('cut'), cutCtx = cutCanvas.getContext('2d');
 let hudT = 0;
 function drawCut() {
-  const t = G.target, c = cutCtx, W = cutCanvas.width, H = cutCanvas.height;
+  const t = hudTree(), c = cutCtx, W = cutCanvas.width, H = cutCanvas.height;
   c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H);
-  if (!t) return;
+  if (!t) {
+    c.font = '600 13px system-ui, sans-serif'; c.textAlign = 'center'; c.fillStyle = '#4f4a3c';
+    c.fillText(standingNear().length ? 'Tab: lock onto a tree' : '', W / 2, H / 2);
+    return;
+  }
   const an = t.analysis, k = an.cutFrac > 0.01 ? an.cutK : t.lastCutK, rk = t.radiusAt(sliceH(k));
   const s = (W * 0.36) / rk, NN = GRID * GRID;
   c.save(); c.translate(W / 2, H * 0.45);
@@ -776,9 +831,9 @@ function updateHud(dt) {
   $('stuck').style.opacity = axe.mode === 'stuck' ? 1 : 0;
   if (axe.mode === 'stuck') $('stuckT').textContent = input.lmb ? 'STUCK: pull it back out' : 'STUCK: hold the mouse button and pull back';
   $('stuck').firstElementChild.style.width = `${Math.round(Math.min(1, strain) * 100)}%`;
-  const tr = G.target;
+  const tr = hudTree(), left = G.trees.some(t => t.state === 'standing');
   $('strain').firstElementChild.style.width = tr ? `${Math.round(Math.min(1, tr.analysis.ratio) * 100)}%` : '0%';
-  $('strainLbl').textContent = tr ? (tr.analysis.ratio > 0.85 ? 'about to go' : tr.analysis.cutFrac > 0.01 ? `${Math.round(tr.analysis.cutFrac * 100)}% cut` : 'untouched') : 'all down';
+  $('strainLbl').textContent = tr ? (tr.analysis.ratio > 0.85 ? 'about to go' : tr.analysis.cutFrac > 0.01 ? `${Math.round(tr.analysis.cutFrac * 100)}% cut` : 'untouched') : left ? 'no tree' : 'all down';
   drawCut();
   dangerCheck();
 }
@@ -796,7 +851,16 @@ function update(dt) {
   for (const t of G.trees) t.updateFall(dt, treeEvents);
   handleTreeEvents(treeEvents);
   if (!player.dead) for (const t of G.trees) if (t.hitsPlayer(player.pos)) die();
-  if (!G.target || G.target.state !== 'standing') G.target = nearestTree();
+  // Your tree is down: lock onto the one you are most facing. Turning freely, you stay free.
+  if (G.target && G.target.state !== 'standing') setTarget(treeAhead());
+  // The ring flashes bright when you switch trees, then settles.
+  const tg = G.target; G.targetT = (G.targetT || 0) + dt;
+  targetRing.visible = !!tg && G.mode === 'play' && !player.dead;
+  if (tg) {
+    const pulse = Math.exp(-G.targetT * 3);
+    targetRing.position.set(tg.x, 0.03, tg.z); targetRing.scale.setScalar(tg.radiusAt(0.1) + 0.2 + 0.25 * pulse);
+    targetRing.material.opacity = 0.32 + 0.5 * pulse;
+  }
   if (G.timing && !player.dead && G.mode === 'play' && G.felled < G.trees.length) G.t += dt;
   fx.update(dt);
   axe.sync();

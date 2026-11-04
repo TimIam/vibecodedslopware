@@ -223,6 +223,14 @@ export class Sfx {
     if (!this.ctx) return;
     for (let i = 0; i < 5; i++) this.burst({ type: 'highpass', f: 1500 + Math.random() * 1500, peak: 0.25 + Math.random() * 0.3, dec: 0.02 + Math.random() * 0.04, delay: i * 0.05 + Math.random() * 0.04 });
   }
+  // A branch breaking under the log: a sharp crack, and a duller one for a thick limb.
+  snap(dist, big = false) {
+    if (!this.ctx) return;
+    const k = Math.max(0.15, Math.min(1, 10 / (dist + 4))) * (big ? 1 : 0.6);
+    this.burst({ type: 'highpass', f: 1800 + Math.random() * 2200, peak: 0.3 * k, dec: 0.02 + Math.random() * 0.02 });
+    this.burst({ type: 'bandpass', f: 500 + Math.random() * 500, q: 1.2, peak: (big ? 0.45 : 0.2) * k, dec: big ? 0.09 : 0.05, delay: 0.005 });
+    if (big) this.burst({ type: 'highpass', f: 2500, peak: 0.18 * k, dec: 0.02, delay: 0.04 + Math.random() * 0.05 });
+  }
   crash(dist) {
     if (!this.ctx) return;
     const k = Math.max(0.25, Math.min(1, 12 / (dist + 4)));

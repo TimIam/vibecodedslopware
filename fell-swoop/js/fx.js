@@ -26,7 +26,7 @@ export class Fx {
   }
 
   // n chips from point p, thrown out along dir.
-  chips_(p, dir, n, speed, palette, size = 1) {
+  chips_(p, dir, n, speed, palette, size = 1, stick = false) {
     for (let k = 0; k < n; k++) {
       const i = this.next; this.next = (this.next + 1) % this.N;
       const sp = speed * (0.4 + Math.random() * 0.9);
@@ -35,7 +35,8 @@ export class Fx {
       this.rot.set([Math.random() * 6, Math.random() * 6, Math.random() * 6], i * 3);
       this.spin.set([(Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30], i * 3);
       const big = Math.random() < 0.25 ? 1.8 : 1;
-      this.size.set([(0.018 + Math.random() * 0.03) * big * size, (0.004 + Math.random() * 0.004) * size, (0.012 + Math.random() * 0.016) * big * size], i * 3);
+      if (stick) { const th = 0.01 + Math.random() * 0.016; this.size.set([(0.14 + Math.random() * 0.4) * size, th, th * 1.2], i * 3); }
+      else this.size.set([(0.018 + Math.random() * 0.03) * big * size, (0.004 + Math.random() * 0.004) * size, (0.012 + Math.random() * 0.016) * big * size], i * 3);
       this.life[i] = 40 + Math.random() * 20; this.rest[i] = 0;
       this.chips.setColorAt(i, _c.set(palette[Math.floor(Math.random() * palette.length)]).offsetHSL(0, 0, (Math.random() - 0.5) * 0.08));
     }
@@ -44,6 +45,8 @@ export class Fx {
   woodChips(p, dir, n, speed) { this.chips_(p, dir, n, speed, [0xe9cc94, 0xdcb879, 0xf0d9a8, 0xe2c084, 0x5a4030]); }
   barkBits(p, dir, n, speed) { this.chips_(p, dir, n, speed, [0x4a3427, 0x5d4535, 0x3b2a20], 0.8); }
   needles(p, dir, n, speed) { this.chips_(p, dir, n, speed, [0x2f4a22, 0x3b5a2a, 0x24391b, 0x51683a], 0.7); }
+  // Snapped-off branch ends and twigs, some still green.
+  branches(p, dir, n, speed, size = 1) { this.chips_(p, dir, n, speed, [0x4a3427, 0x5d4535, 0x6b5240, 0x3b2a20, 0x2f4a22], size, true); }
 
   puff(p, n, size, color = 0xd8c9a8, spread = 0.6, rise = 0.6, life = 1.4) {
     for (let k = 0; k < n; k++) {
