@@ -242,7 +242,11 @@ function start() {
 }
 // requestPointerLock returns a promise in newer browsers and rejects if the user backs out.
 function lockPointer() { try { const p = canvas.requestPointerLock?.(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
-function setMode(m) { S.mode = m; S.modeT = 0; }
+function setMode(m) {
+  S.mode = m; S.modeT = 0;
+  if (m !== 'cannon' && S.cannon) { S.cannon = null; }
+  if (m !== 'cannon') $('cannonUI').hidden = true;
+}
 
 /* ---------------- input ---------------- */
 addEventListener('resize', resize);
@@ -251,6 +255,7 @@ canvas.addEventListener('mousedown', e => {
   if (S.mode === 'title' || S.mode === 'loading') return;
   if (document.pointerLockElement !== canvas) lockPointer();
   if (e.button === 2) S.aimHeld = true;
+  if (e.button === 0 && S.mode === 'cannon') fireCannon();
 });
 addEventListener('mouseup', e => { if (e.button === 2) S.aimHeld = false; });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -281,7 +286,7 @@ addEventListener('keydown', e => {
   if (k === 't') { startEmote('tantrum', 2.2); quip('tantrum', {}, false); sendEv({ k: 'emote', e: 'tantrum' }); addRage(-30); }
   if (k === 'g') { startEmote('dance', 2.4); sendEv({ k: 'emote', e: 'dance' }); }
   if (k === 'r') takeDrop();
-  if (k === ' ') { if (S.mode === 'flight' && S.restT > 0) S.restT = 99; e.preventDefault(); }
+  if (k === ' ') { if (S.mode === 'flight' && S.restT > 0) S.restT = 99; if (S.mode === 'cannon') fireCannon(); e.preventDefault(); }
   const shouts = { z: 'FORE!', x: 'Nice shot!', c: 'ARGH!', j: 'Hold my juice box.' };
   if (k === 'v') toggleView();
   if (shouts[k]) shout(shouts[k], true);
@@ -334,7 +339,7 @@ function launch(r) {
   if (!S.tipDone) { S.tipDone = true; try { localStorage.setItem('pftc-tip', '1'); } catch (e) {} $('tip').classList.remove('show'); }
   const f = fDir(), w = wDir();
   ball.v.set(0, 0, 0).addScaledVector(f, r.v.x).addScaledVector(UP, r.v.y).addScaledVector(w, r.v.z);
-  ball.spin = r.spin; ball.bite = r.bite; ball.frozen = false;
+  ball.spin = r.spin; ball.bite = r.bite; ball.plug = false; ball.frozen = false;
   ball.p.y += 0.005;
   S.shotFrom.copy(ball.p); S.shotHole = S.hole; S.shotY = ball.p.y;
   S.strokes++; S.holeStrokes++;
@@ -528,6 +533,7 @@ function step(dt) {
     }
   }
   if (S.mode === 'flight') flight(dt);
+  if (S.mode === 'cannon') cannonTick(S.realDt || dt);
   if (S.mode === 'address' && !ball.frozen) {
     // On movers the golfer rides along; if the ball gets knocked (bonk), go back to watching it.
     if (ball.v.distanceTo(ball.gVel) > 0.6 || !ball.grounded && ball.airT > 0.15) { setMode('flight'); S.flightT = 0; S.restT = 0; S.shotFrom.copy(ball.p); S.shotY = ball.p.y; S.shotHole = S.hole; }
@@ -563,7 +569,8 @@ function flight(dt) {
     const z = course.zoneAt(ball.p);
     if (z && z.type === 'sand') { fx.sand(ball.p, 1.2); A.play('sand', 0.9); }
     else if (sp > 4) fx.dust(ball.p, 8, 0.6);
-    if (ball.bite) { const vn = ball.v.dot(ball.gN); _a.copy(ball.v).addScaledVector(ball.gN, -vn).multiplyScalar(0.45); ball.v.copy(_a).addScaledVector(ball.gN, vn); }
+    if (ball.bite || ball.plug) { const vn = ball.v.dot(ball.gN); _a.copy(ball.v).addScaledVector(ball.gN, -vn).multiplyScalar(ball.plug ? 0.12 : 0.45); ball.v.copy(_a).addScaledVector(ball.gN, ball.plug ? Math.min(vn, 1.2) : vn); }
+    if (ball.plug) { ball.plug = false; fx.dust(ball.p, 16, 1); A.play('thud', 1); shake(0.25); }
   }
   if (!ball.grounded && ball.airT > 0.5) S.firstLand = true;
   // Water.
@@ -599,37 +606,68 @@ function flight(dt) {
   for (const sn of course.sensors) {
     if (sn.kind !== 'cannon') continue;
     const dx = ball.p.x - sn.p.x, dz = ball.p.z - sn.p.z;
-    if (Math.hypot(dx, dz) < sn.r && Math.abs(ball.p.y - sn.p.y) < 0.6 && sp < 16) return cannon(sn);
+    if (Math.hypot(dx, dz) < sn.r && Math.abs(ball.p.y - sn.p.y) < 0.9 && sp < 22) return cannon(sn);
   }
   // Rest.
   const rel = _a.subVectors(ball.v, ball.gVel).length();
   if (ball.grounded && rel < 0.1) S.restT += dt; else if (S.restT < 50) S.restT = 0;
   if (S.restT > 0.9 || S.flightT > 40 || ball.p.y < SEA_Y - 20) { S.slowmo = null; S.slowHold = 0; trail.clear(); ballRested(); }
 }
+// The cannon: the ball drops in, the barrel swings side to side, and you fire when it passes through
+// the red. In the red it locks onto the pin; outside it the lob goes off-line by however far you missed.
+// The lob is steep (about 58°) with its speed solved for the pin's distance, so it drops almost straight
+// down and plugs instead of running away.
+const CANNON = { elev: 1.02, amp: 0.55, speed: 2.3, sweet: 0.06, auto: 6.5 };
 function cannon(sn) {
   setMode('cannon'); ball.frozen = true; ball.v.set(0, 0, 0);
-  const H = course.holes[7];
+  ballMesh.visible = false; trail.clear();
   A.play('fuse', 1); quip('cannon');
-  const tgt = H.cup.clone().add(V((Math.random() - 0.5) * 4, 0, (Math.random() - 0.5) * 4));
-  ballMesh.visible = false;
-  const start = performance.now();
-  // Aim the barrel at the target as the fuse burns.
-  const aimTick = () => {
-    const k = Math.min(1, (performance.now() - start) / 1200);
-    sn.barrel.rotation.x = lerp(-0.6, -0.95, k) + Math.sin(k * 40) * 0.02 * (1 - k);
-    if (k < 1) requestAnimationFrame(aimTick);
-  };
-  aimTick();
-  setTimeout(() => {
-    const M = sn.mouth();
-    const T = 2.4;
-    ball.p.copy(M);
-    ball.v.set((tgt.x - M.x) / T, (tgt.y + BALL_R - M.y) / T + 0.5 * GRAV * T, (tgt.z - M.z) / T);
-    ball.spin = 0; ball.bite = false; ball.frozen = false; ballMesh.visible = true;
-    fx.smoke(M, ball.v.clone().normalize()); A.play('cannon', 1); shake(0.6);
-    setMode('flight'); S.flightT = 0; S.restT = 0; S.firstLand = true; S.cupCheck = true;
-    sendEv({ k: 'cannon' });
-  }, 1300);
+  const H = course.holes[7], piv = sn.pivot;
+  const tl = sn.frame.local(H.cup, V());
+  const yaw0 = Math.atan2(tl.x - piv.position.x, tl.z - piv.position.z);
+  S.cannon = { sn, t: 0, yaw0, off: 0, phase: Math.random() * Math.PI * 2 };
+  sn.barrel.rotation.x = -CANNON.elev;
+  $('cannonUI').hidden = false;
+  sendEv({ k: 'cannonIn' });
+}
+// Launch velocity from the barrel's current direction, sized to carry the pin's distance.
+function cannonShot(sn, out) {
+  sn.pivot.updateWorldMatrix(true, true);
+  const M = sn.mouth(), dir = V(0, 0, 1).transformDirection(sn.barrel.matrixWorld);
+  const cup = course.holes[7].cup;
+  const d = Math.hypot(cup.x - M.x, cup.z - M.z), dz = cup.y + BALL_R - M.y;
+  const th = Math.asin(clamp(dir.y, -0.99, 0.99)), den = 2 * Math.cos(th) ** 2 * (d * Math.tan(th) - dz);
+  const speed = den > 0 ? Math.sqrt(GRAV * d * d / den) : 24;
+  out.copy(dir).multiplyScalar(speed);
+  return M;
+}
+function cannonTick(dt) {
+  const C = S.cannon; if (!C) return;
+  C.t += dt;
+  C.off = CANNON.amp * Math.sin(C.t * CANNON.speed + C.phase);
+  C.sn.pivot.rotation.y = C.yaw0 + C.off;
+  C.sn.barrel.rotation.x = -CANNON.elev + Math.sin(C.t * 17) * 0.006;
+  const sweet = Math.abs(C.off) < CANNON.sweet;
+  $('cneedle').style.left = (50 + C.off / CANNON.amp * 45) + '%';
+  $('cannonUI').classList.toggle('hot', sweet);
+  if (Math.random() < dt * 14) fx.emit(C.sn.mouth().add(V(0, -0.2, 0)), { n: 1, speed: 0.3, lift: 0.8, colors: ['#ffd23f', '#ff8c42'], size: 0.06, life: 0.35, grav: -1 });
+  if (C.t > CANNON.auto) fireCannon(true);
+}
+function fireCannon(auto) {
+  const C = S.cannon; if (!C || C.t < 0.35) return;
+  S.cannon = null; $('cannonUI').hidden = true;
+  const perfect = Math.abs(C.off) < CANNON.sweet;
+  if (perfect) C.sn.pivot.rotation.y = C.yaw0;   // in the red: dead on line
+  const v = V(), M = cannonShot(C.sn, v);
+  if (!perfect) v.multiplyScalar(1 + (Math.random() - 0.5) * 0.08);
+  ball.p.copy(M); ball.v.copy(v);
+  ball.spin = 0; ball.bite = false; ball.plug = true; ball.frozen = false; ballMesh.visible = true;
+  fx.smoke(M, v.clone().normalize()); A.play('cannon', 1); shake(0.6);
+  pop(perfect ? 'BULLSEYE!' : auto ? 'TOO SLOW!' : Math.abs(C.off) < CANNON.sweet * 3 ? 'CLOSE!' : 'WIDE!', perfect ? 'great' : 'bad');
+  if (perfect) { fx.sparks(M, 30); A.play('fanfare'); }
+  setMode('flight'); S.flightT = 0; S.restT = 0; S.firstLand = true; S.cupCheck = true;
+  S.shotFrom.copy(course.sensors.find(s => s.kind === 'cannon').p).add(V(0, BALL_R, 0));
+  sendEv({ k: 'cannon' });
 }
 
 /* ---------------- posing ---------------- */
@@ -713,6 +751,14 @@ function updateCamera(dt) {
     wantLook = g.clone().addScaledVector(f, narrow ? 0 : 0.85).add(V(0, narrow ? -0.35 : 0, 0));
     wantPos = g.clone().addScaledVector(w, 2.6 * Math.cos(a)).addScaledVector(f, -2.6 * Math.sin(a) + (narrow ? 0 : 0.85)).add(V(0, 0.35, 0));
     k = 2;
+  } else if (S.mode === 'cannon' && S.cannon) {
+    const sn = S.cannon.sn, P = sn.pivot.getWorldPosition(V()), cup = course.holes[7].cup;
+    const fwd = _a.subVectors(cup, P).setY(0).normalize();
+    // Far enough back and up to see the whole lob and where it comes down.
+    wantPos = P.clone().addScaledVector(fwd, -15).add(V(0, 8, 0));
+    wantLook = P.clone().lerp(cup, 0.55).add(V(0, 7, 0));
+    pivot = P.clone().add(V(0, 1.5, 0));
+    k = 3;
   } else if (S.mode === 'flight' || S.mode === 'cannon' || S.mode === 'respawn') {
     const b = ball.p;
     const vh = _a.set(ball.v.x, 0, ball.v.z);
@@ -820,6 +866,68 @@ function keepClear(pivot, pos, dt) {
   pos.copy(camSmooth);
 }
 
+/* ---------------- predicted arcs ---------------- */
+// For a full, perfectly struck shot with the current club (and the current wind), or for the cannon
+// while you time it: dots along the flight and a ring where it comes down.
+const PERFECT_HEAD = [0, 20, 20.5, 21];   // head speed of a full swing, m/s, by club (putter excluded)
+let arcDots, arcRing, arcKey = '', arcShown = false;
+const arcPts = [];
+function predictArc(p0, v0) {
+  arcPts.length = 0;
+  const p = p0.clone(), v = v0.clone(), wind = V(), h = 1 / 40;
+  for (let i = 0; i < 400; i++) {
+    course.windAt(p, wind); v.addScaledVector(wind, h); v.y -= GRAV * h;
+    p.addScaledVector(v, h);
+    if (i % 3 === 0) arcPts.push(p.clone());
+    if (p.y < SEA_Y) return null;
+    if (v.y < 0) {
+      const g = world.groundAt(p.x, p.y + 1.2, p.z, 2.4);
+      if (g && p.y - BALL_R <= g.y) { p.y = g.y; return p; }
+    }
+  }
+  return null;
+}
+function updateArc() {
+  if (!arcDots) {
+    arcDots = new THREE.Group();
+    for (let i = 0; i < 60; i++) { const d = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthWrite: false })); d.renderOrder = 3; arcDots.add(d); }
+    arcRing = new THREE.Mesh(new THREE.RingGeometry(0.75, 1.1, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }));
+    arcRing.renderOrder = 3;
+    scene.add(arcDots, arcRing);
+  }
+  let p0 = null, v0 = null, color = 0xfff3a0;
+  if (S.mode === 'address' && !S.emote && swing.ci > 0) {
+    const C = CLUBS[swing.ci], sp = PERFECT_HEAD[swing.ci] * C.smash, la = C.loft * 1.02 * Math.PI / 180, f = fDir();
+    v0 = V(f.x * Math.cos(la) * sp, Math.sin(la) * sp, f.z * Math.cos(la) * sp);
+    p0 = ball.p.clone();
+  } else if (S.mode === 'cannon' && S.cannon) {
+    v0 = V(); p0 = cannonShot(S.cannon.sn, v0);
+    color = Math.abs(S.cannon.off) < CANNON.sweet ? 0xffd23f : 0xff7a5c;
+  }
+  arcShown = !!p0;
+  arcDots.visible = arcRing.visible = arcShown;
+  if (!arcShown) return;
+  const key = p0.toArray().map(n => n.toFixed(2)).join() + v0.toArray().map(n => n.toFixed(2)).join() + (course.windFor(S.hole, _c) ? _c.x.toFixed(2) + _c.z.toFixed(2) : '');
+  if (key !== arcKey) {
+    arcKey = key;
+    const land = predictArc(p0, v0);
+    arcRing.visible = !!land;
+    if (land) arcRing.position.copy(land).add(V(0, 0.04, 0));
+    arcDots.userData.n = arcPts.length;
+  }
+  const n = arcDots.userData.n || 0, crawl = S.t * 2 % 1;
+  arcDots.children.forEach((d, i) => {
+    const k = i + crawl, j = Math.floor(k * n / arcDots.children.length);
+    d.visible = i < 60 && j < n;
+    if (!d.visible) return;
+    d.position.copy(arcPts[j]);
+    d.material.color.setHex(color);
+    d.material.opacity = 0.9 - (i / 60) * 0.4;
+  });
+  arcRing.material.color.setHex(color === 0xfff3a0 ? 0xffd23f : color);
+  arcRing.scale.setScalar(1 + Math.sin(S.t * 5) * 0.12);
+}
+
 /* ---------------- render ---------------- */
 function render(dt) {
   ballMesh.position.copy(ball.p);
@@ -832,6 +940,7 @@ function render(dt) {
     ballShadow.scale.setScalar(0.07 + hgt * 0.015); ballShadow.material.opacity = clamp(0.35 - hgt * 0.01, 0.08, 0.35);
   } else ballShadow.visible = false;
   // Aim dots.
+  updateArc();
   aimDots.visible = S.mode === 'address' && !S.emote;
   if (aimDots.visible) {
     const f = fDir();
@@ -841,7 +950,7 @@ function render(dt) {
     aimDots.children.forEach((d, i) => {
       const dist = i < 8 ? 0.45 + (i + crawl) * 0.5 : 4.45 + (i - 8 + crawl) * 1.0;
       const x = ball.p.x + f.x * dist, z = ball.p.z + f.z * dist;
-      const g = gone ? null : world.groundAt(x, base + 4, z, 10);
+      const g = gone || (arcShown && i >= 6) ? null : world.groundAt(x, base + 4, z, 10);
       if (!g || g.y < base - 3) gone = true;
       d.visible = !gone;
       if (!gone) d.position.set(x, g.y + 0.05, z);
@@ -1065,6 +1174,7 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     put: (x, y, z) => { ball.p.set(x, y, z); ball.v.set(0, 0, 0); setMode('flight'); S.flightT = 0; S.restT = 0; },
     aimAt: (x, z) => { aimAt(V(x, 0, z)); golferOrigin(S.golferG); },
     setClub,
+    fire: () => fireCannon(), get cannon() { return S.cannon; },
     // Deterministic swing at 60 fps: back for `back` frames, pause, then through; runs until the ball rests.
     swingTest: (power = 1, back = 24, down = 10, club) => {
       if (club != null) setClub(club);

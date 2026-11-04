@@ -643,7 +643,7 @@ export class Course {
     this.sign(H, 18.5, 3.5, 0, ['MIND THE', 'GAPS.'], -0.3);
   }
   hole7(H) {
-    this.holeInfo(H, 'Fire in the Hole', 3, 'Roll into the ring. Light the fuse. Pray.');
+    this.holeInfo(H, 'Fire in the Hole', 3, 'Roll into the ring, then fire when the cannon swings through the red.');
     this.block(H, 9, 40, -7, 7, 0);
     this.block(H, 63, 71, -7, 7, 7, 7, { rockDepth: 10 });
     const cx = 35, cz = 4.2;
@@ -652,16 +652,17 @@ export class Course {
     const barrel = make('cannon_barrel', { outline: 0.03 });
     const bp = new THREE.Group(); bp.position.set(cx + piv[2], piv[1], cz - piv[0]); bp.rotation.y = Math.PI / 2; bp.add(barrel); H.group.add(bp);
     barrel.rotation.x = -0.6;
+    this.cannonParts = { base, bp, barrel };
     this.world.add(new Collider('cyl', { pos: H.frame.w(cx, 0.6, cz), r: 0.9, hh: 0.6, surf: 'metal', hole: 7 }));
     // The catch ring in front of the cannon.
     const rx = cx - 3, rz = cz;
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.15, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff5a36, transparent: true, opacity: 0.85, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+    const ring = new THREE.Mesh(new THREE.RingGeometry(1.15, 1.6, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff5a36, transparent: true, opacity: 0.85, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
     ring.position.set(rx, 0.02, rz); H.group.add(ring);
     const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.7, 3).rotateZ(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff5a36 }));
     arrow.position.set(rx, 0.6, rz); H.group.add(arrow);
     this.animators.push(t => { ring.material.opacity = 0.55 + Math.sin(t * 6) * 0.3; arrow.position.y = 0.7 + Math.sin(t * 4) * 0.15; arrow.rotation.y = t * 2; });
-    this.sensors.push({ kind: 'cannon', hole: 7, p: H.frame.w(rx, 0, rz), r: 1.15, barrel, mouth: () => { barrel.updateWorldMatrix(true, false); const m = pm('cannon_barrel').muzzle || [0, 0, 1.4]; return new THREE.Vector3(m[0], m[1], m[2] + 0.3).applyMatrix4(barrel.matrixWorld); } });
-    this.sign(H, 31, 6.4, 0, ['CANNON →', 'roll in gently'], -0.5);
+    this.sensors.push({ kind: 'cannon', hole: 7, p: H.frame.w(rx, 0, rz), r: 1.6, barrel, pivot: bp, frame: H.frame, mouth: () => { barrel.updateWorldMatrix(true, false); const m = pm('cannon_barrel').muzzle || [0, 0, 1.4]; return new THREE.Vector3(m[0], m[1], m[2] + 0.3).applyMatrix4(barrel.matrixWorld); } });
+    this.sign(H, 30.5, 6.6, 0, ['CANNON →', 'roll in, then time it'], -0.5);
     this.prop(H, 'tree_round', 13, 5.6, { trunk: 0.35 }); this.prop(H, 'tree_round', 16, -5.8, { trunk: 0.35 });
     this.prop(H, 'rock_b', 38, -6, { scale: 0.8 }); this.prop(H, 'flowers', 66, 5.8, {});
   }

@@ -49,6 +49,15 @@ h1,h2,h3,.lil{font-family:"Lilita One",Nunito,sans-serif;font-weight:400;letter-
 #clubs kbd{font:900 10px Nunito;color:#6a5f70}
 #shot{left:50%;bottom:96px;transform:translateX(-50%) translateY(10px);padding:6px 14px;opacity:0;transition:.25s;white-space:nowrap;font-weight:800}
 #shot.show{opacity:1;transform:translateX(-50%)}
+#cannonUI{left:50%;bottom:104px;transform:translateX(-50%);padding:9px 16px 10px;text-align:center;width:min(380px,86vw)}
+#cannonUI[hidden]{display:none}
+#cannonUI b{display:block;font-family:"Lilita One";font-weight:400;font-size:20px}
+#cannonUI small{display:block;margin-top:6px;font-weight:800;font-size:12px;color:#6a5f70}
+.ctrack{position:relative;height:22px;margin-top:6px;border:3px solid var(--ink);border-radius:12px;background:linear-gradient(90deg,#d8eefc,#fff 50%,#d8eefc);overflow:hidden}
+.ctrack .sweet{position:absolute;left:45.1%;width:9.8%;top:0;bottom:0;background:#ff3d3d}
+#cneedle{position:absolute;top:-2px;bottom:-2px;width:6px;margin-left:-3px;background:var(--ink);border-radius:3px;left:50%}
+#cannonUI.hot{animation:wob .12s infinite alternate}
+#cannonUI.hot b{color:var(--red)}
 #tip{right:16px;bottom:66px;transform:translateY(10px);opacity:0;transition:.3s}
 #tip.show{opacity:1;transform:none;animation:nudge 1.6s ease-in-out infinite}
 #tip .tipcard{padding:9px 14px;max-width:min(330px,40vw);text-align:left;font-weight:800;font-size:14px}
@@ -204,6 +213,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 <div class="hud" id="pops"></div>
 <div class="hud" id="holeCard"><span class="num" id="hcNum">Hole 1</span><h2 id="hcName">Warm-Up Wobble</h2><div class="par" id="hcPar">Par 3</div><p id="hcBlurb"></p></div>
 <div class="hud chunk" id="shot"></div>
+<div class="hud chunk" id="cannonUI" hidden><b>🎯 Time the cannon!</b><div class="ctrack"><i class="sweet"></i><i id="cneedle"></i></div><small>Click or <kbd>Space</kbd> to fire when the needle is in the red</small></div>
 <div class="hud" id="tip"><div class="tipcard chunk"><b>Your mouse is your hands.</b><span id="tipText"></span></div></div>
 <div class="hud" id="clubs">
   <div><b>Putter</b><kbd>1</kbd></div><div><b>Wedge</b><kbd>2</kbd></div><div><b>Iron</b><kbd>3</kbd></div><div><b>Driver</b><kbd>4</kbd></div>
