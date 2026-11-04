@@ -111,6 +111,7 @@ body.playing.soft #game{cursor:crosshair}
 <div id="hint" class="hud pill">
   <kbd>mouse</kbd> hands · hold <kbd>LMB</kbd> to swing hard<br>
   <kbd>W</kbd><kbd>S</kbd> step in/out · <kbd>A</kbd><kbd>D</kbd> circle · <kbd>Shift</kbd> run<br>
+  <kbd>Tab</kbd> next tree · <kbd>Q</kbd><kbd>E</kbd> turn freely · <kbd>X</kbd> swap hands<br>
   <kbd>T</kbd> view · <kbd>M</kbd> mute · <kbd>Esc</kbd> settings, new clearing
 </div>
 
@@ -121,8 +122,11 @@ body.playing.soft #game{cursor:crosshair}
     <div class="keys">
       <span class="k"><kbd>mouse</kbd></span><span>move your hands; the axe follows, a beat behind</span>
       <span class="k"><kbd>hold LMB</kbd></span><span>tense your arms: swing hard, yank it out (uses stamina)</span>
-      <span class="k"><kbd>W</kbd> <kbd>S</kbd></span><span>step in · back off</span>
+      <span class="k"><kbd>W</kbd> <kbd>S</kbd></span><span>step in (you stop at chopping distance) · back off</span>
       <span class="k"><kbd>A</kbd> <kbd>D</kbd></span><span>walk around the tree · <kbd>Shift</kbd> run</span>
+      <span class="k"><kbd>Tab</kbd></span><span>lock onto the tree ahead, then the next one round (<kbd>Shift</kbd> back)</span>
+      <span class="k"><kbd>Q</kbd> <kbd>E</kbd></span><span>turn freely: lets go of the tree so you can face and walk anywhere</span>
+      <span class="k"><kbd>X</kbd></span><span>swap which hand is on top: you wind up and swing hardest from that side</span>
       <span class="k"><kbd>T</kbd></span><span>view: first person, over the right shoulder, over the left</span>
     </div>
     <p class="tip">Wind up wide, then hold the button and swing <b>through</b> the trunk, edge first. When it bites, pull it back out.
@@ -132,6 +136,7 @@ body.playing.soft #game{cursor:crosshair}
       <label><span>Music</span><input type="range" id="setMusic" min="0" max="100" step="5"><b id="setMusicV"></b></label>
       <label><span>Sound effects</span><input type="range" id="setSfx" min="0" max="100" step="5"><b id="setSfxV"></b></label>
       <div class="view"><span>View</span><button type="button" data-view="first">First person</button><button type="button" data-view="third">Right shoulder</button><button type="button" data-view="left">Left shoulder</button></div>
+      <div class="view"><span>Grip</span><button type="button" data-grip="R">Right hand on top</button><button type="button" data-grip="L">Left hand on top</button></div>
       <div class="view"><span>Screen</span><button type="button" data-full="1">Full screen</button><button type="button" data-full="0">Window</button></div>
     </div>
     <button class="go" id="start">Start chopping</button>

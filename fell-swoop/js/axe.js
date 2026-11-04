@@ -274,7 +274,8 @@ export class Axe {
     const rho = Math.hypot(p.x - tree.x, p.z - tree.z), deep = rho < 0.75 * tree.radiusAt(p.y);
     const align = _vh.dot(b), into = deep ? 1 : -b.dot(n), flat = Math.abs(_vh.dot(zf)), speedIn = Math.max(0, vp.dot(b));
     const E = 0.5 * (this.effMass(p, b) + 0.5 * tgt.strength) * speedIn * speedIn;
-    const q = smooth(0.42, 0.88, align) * smooth(0.0, 0.4, into);
+    // A shallow entry (straight down an upright trunk) still bites, just not as deep.
+    const q = smooth(0.42, 0.88, align) * smooth(-0.05, 0.32, into);
     const depth = Math.min(0.06, K_PEN * E * q);
     const info = { type: 'glance', energy: E, speed, speedIn, depth: 0, quality: q, align, tree, point: p.clone(), normal: n.clone() };
     if (q < 0.22) { info.type = flat > 0.55 ? 'flat' : 'glance'; this.emit(info); return false; }

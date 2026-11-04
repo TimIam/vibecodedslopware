@@ -4,7 +4,9 @@
 import * as THREE from 'three';
 import { mergeGeoms, paint, frondGeometry } from './world.js';
 
-export const CUT_LO = 0.25, CUT_HI = 1.65, SLICE_H = 0.02;
+// High enough for an overhead: straight down, the edge only goes into the trunk while it is still
+// travelling forward, near the top of the arc, so overheads land at head height.
+export const CUT_LO = 0.25, CUT_HI = 2.2, SLICE_H = 0.02;
 export const NS = Math.round((CUT_HI - CUT_LO) / SLICE_H);
 export const GRID = 40;
 const COLS = 60;
@@ -26,6 +28,46 @@ export function barkMaterial(map, bump) {
         diffuseColor.rgb = mix(diffuseColor.rgb, uFresh * (0.72 + 0.7 * fl), smoothstep(0.15, 0.85, vCut));`);
   };
   return m;
+}
+
+// Foliage that ends up under the ground (a crown lying on it) is crushed into a mat on the
+// surface and pushed out sideways from the stem it grew on, instead of poking through. Standing
+// crowns never reach the ground, so the same materials serve every tree.
+const CRUSH = /* glsl */`
+  float crushTilt = clamp( 1.0 - normalize( mat3( modelMatrix )[ 1 ] ).y, 0.0, 1.0 );
+  vec4 mvPosition = vec4( transformed, 1.0 );
+  #ifdef CRUSH_CORE
+    // The solid core under the needles folds in with its branches once the tree is down.
+    mvPosition.xz *= 1.0 - 0.6 * crushTilt;
+  #endif
+  #ifdef USE_BATCHING
+    mvPosition = batchingMatrix * mvPosition;
+  #endif
+  #ifdef USE_INSTANCING
+    mvPosition = instanceMatrix * mvPosition;
+  #endif
+  vec4 crushW = modelMatrix * mvPosition;
+  // Tipped over, branches no longer stand out from the stem: they sag under their own weight,
+  // more the further out they reach.
+  crushW.y -= crushTilt * 0.14 * pow( length( position.xz ), 1.5 );
+  float crushPen = 0.05 - crushW.y;
+  if ( crushPen > 0.0 ) {
+    vec3 crushRad = mat3( modelMatrix ) * vec3( position.x, 0.0, position.z );
+    float crushL = length( crushRad.xz );
+    if ( crushL > 1e-4 ) crushW.xz += crushRad.xz / crushL * crushPen * 0.65;
+    float crushN = fract( sin( dot( position.xz, vec2( 12.9898, 78.233 ) ) + position.y * 7.31 ) * 43758.5453 );
+    crushW.y = 0.02 + 0.06 * crushN * exp( -crushPen * 3.0 );
+  }
+  mvPosition = viewMatrix * crushW;
+  gl_Position = projectionMatrix * mvPosition;
+`;
+export function crushable(mat, core = false) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => {
+    if (prev) prev.call(mat, sh, r);
+    sh.vertexShader = sh.vertexShader.replace('#include <project_vertex>', (core ? '#define CRUSH_CORE\n' : '') + CRUSH);
+  };
+  return mat;
 }
 
 export class Tree {
@@ -352,20 +394,54 @@ export class Tree {
     this.omega = 0.05;
     this.hold = 0.35 + an.a * 1.6;
     this.L = this.height - h;
+    this.thetaGround = this.groundAngle(1);
+    this.groundHit = false; this.settle = 0; this.snapIn = 0;
+    this.fallT = 0;
+  }
+
+  // How far over the log goes before something stops it: the stem on the ground, or the
+  // branches under it, holding it up by give x their reach (less as they break).
+  groundAngle(give) {
+    const h = this.breakH;
     let tg = Math.acos(Math.max(-1, -h / this.L));
     for (const t of this.tiers) {
-      const A = t.yb - h, B = t.R; if (A <= 0) continue;
+      const A = t.yb - h, B = t.R * give; if (A <= 0) continue;
       tg = Math.min(tg, Math.acos(Math.max(-1, Math.min(1, -h / Math.hypot(A, B)))) - Math.atan2(B, A));
     }
-    this.thetaGround = tg + 0.06;
-    this.groundHit = false;
-    this.fallT = 0;
+    return tg + 0.06;
+  }
+
+  // After it lands the branches underneath break and fold flat over a second or so, and the log
+  // settles down onto them; the crown shader squashes whatever ends up under the ground.
+  updateSettle(dt, events) {
+    if (!this.groundHit || this.settle >= 1) return;
+    this.settle = Math.min(1, this.settle + dt / 1.1);
+    const e = 1 - (1 - this.settle) ** 3;
+    this.thetaGround = this.groundAngle(1 - 0.58 * e);
+    if (this.state === 'down') this.theta = this.thetaGround;
+    // Branches snapping as it goes, quicker at first.
+    this.snapIn -= dt;
+    if (this.snapIn <= 0 && this.settle < 0.95) {
+      this.snapIn = 0.05 + Math.random() * 0.12 + this.settle * 0.2;
+      const s0 = Math.max(0.5, this.crownBase - this.breakH), s = s0 + Math.random() * (this.L * 0.92 - s0);
+      events.push({ type: 'snap', tree: this, point: this.crownPoint(s, new THREE.Vector3()), big: Math.random() < 0.3 });
+    }
+  }
+
+  // A point in the crown at s along the log, out to one side and down near the ground.
+  crownPoint(s, out) {
+    const d = this.axisDir(_d), side = (Math.random() - 0.5) * 2 * this.radiusAtS(s) * 0.75;
+    out.copy(this.pivot).addScaledVector(d, s);
+    out.x += this.fallAxis.x * side; out.z += this.fallAxis.z * side; out.y = 0.12 + Math.random() * 0.4;
+    return out;
   }
 
   axisDir(out) { return out.set(0, Math.cos(this.theta), 0).addScaledVector(this.fallDir, Math.sin(this.theta)); }
 
   updateFall(dt, events) {
+    if (this.state === 'down') { if (this.settle < 1) { this.updateSettle(dt, events); this.log.quaternion.setFromAxisAngle(this.fallAxis, this.theta); } return; }
     if (this.state !== 'falling') return;
+    this.updateSettle(dt, events);
     this.fallT += dt;
     if (this.hold > 0) {
       this.hold -= dt;
