@@ -7,7 +7,7 @@ import { G, film, REEL_SECS, MOTOR_CUE, CHANGE_CUE, CUE_SHOW } from './state.js'
 export const B = {};             // per screen id
 let F = null;                    // frames.js (art)
 export function setFrames(mod) { F = mod; }
-export const hooks = { onShowStart: null, onShowEnd: null, onFlub: null, onBreak: null, openRepair: null, toast: null };
+export const hooks = { onAction: null, onCue: null, onShowStart: null, onShowEnd: null, onFlub: null, onBreak: null, openRepair: null, toast: null };
 
 const LEADER = MOTOR_CUE - CHANGE_CUE;  // seconds of leader between the start mark and first picture
 const CW = 512, CH = 290;
@@ -124,6 +124,7 @@ function startShow(k, who = 'you') {
   else if (s.tier === 'platter') { b.P.A.motor = true; sh.reelT = 0; rollBreak(k); }
   else { b.P.A.motor = true; sh.preroll = G.flags.omni ? 6 : 0; }
   hooks.onShowStart?.(k, sh, who);
+  if (who === 'you') hooks.onAction?.('start');
 }
 
 function rollBreak(k) {
@@ -171,6 +172,7 @@ export function projectorAction(k, id, who = 'you') {
     return { label: `Digital: ${f.title} — nothing to do (that’s the problem)`, act: null };
   }
   if (!f) return { label: 'Load a print (from the bench shelf) first', act: null };
+  const dirtyStart = sh && !sh.started && G.t >= sh.startAt - 3 && s.trash > 0 ? { label: `Screen ${k} is a mess: sweep up ${s.trash} piece${s.trash > 1 ? 's' : ''} of trash first`, act: null } : null;
   if (sh?.broken && (sh.active === id || P.platter)) {
     if (sh.broken.staffT !== undefined) return { label: 'The projectionist is splicing the break…', act: null };
     return { label: 'FILM BREAK — splice it back together', hold: 0.3, act: () => repairBreak(k, who) };
@@ -178,18 +180,18 @@ export function projectorAction(k, id, who = 'you') {
   if (P.platter) {
     if (sh && sh.started) return { label: `Running ${f.title} off the platter`, act: null };
     if (!P.threaded) return { label: `Lace up the platter: ${f.title}`, hold: 1.8, act: () => { P.threaded = true; } };
-    if (sh && !sh.started && G.t >= sh.startAt - 3) return { label: 'START THE SHOW', hold: 0, act: () => startShow(k, who) };
+    if (sh && !sh.started && G.t >= sh.startAt - 3) return dirtyStart || { label: 'START THE SHOW', hold: 0, act: () => startShow(k, who) };
     return { label: 'Laced and ready', act: null };
   }
   // reel-to-reel
-  if (P.played) return { label: `Rewind reel ${P.reel}`, hold: 1.1, act: () => { P.played = false; P.reel = null; P.threaded = false; refreshReelVisuals(k); } };
+  if (P.played) return { label: `Rewind reel ${P.reel}`, hold: 1.1, act: () => { P.played = false; P.reel = null; P.threaded = false; refreshReelVisuals(k); if (who === 'you') hooks.onAction?.('rewind'); } };
   if (P.reel === null) {
     const m = P.next;
     if (m > f.reels) return { label: 'No more reels for this machine tonight', act: null };
-    return { label: `Thread reel ${m} of ${f.reels}`, hold: 1.3, act: () => { P.reel = m; P.threaded = true; P.motor = false; refreshReelVisuals(k); } };
+    return { label: `Thread reel ${m} of ${f.reels}`, hold: 1.3, act: () => { P.reel = m; P.threaded = true; P.motor = false; refreshReelVisuals(k); if (who === 'you') hooks.onAction?.('thread' + id); } };
   }
   if (sh && !sh.started) {
-    if (id === 'A' && P.reel === 1 && G.t >= sh.startAt - 3) return { label: 'START THE SHOW (motor + douser)', hold: 0, act: () => startShow(k, who) };
+    if (id === 'A' && P.reel === 1 && G.t >= sh.startAt - 3) return dirtyStart || { label: 'START THE SHOW (motor + douser)', hold: 0, act: () => startShow(k, who) };
     return { label: `Reel ${P.reel} threaded`, act: null };
   }
   if (sh && sh.started && sh.active !== id && P.reel === sh.reel + 1) {
@@ -259,7 +261,7 @@ export function updateBooth(dt, t) {
     if (sh && !sh.ended) {
       if (!sh.started) {
         const pr = G.prints[sh.film];
-        if (s.tier === 'digital' && pr?.state === 'ingested' && G.t >= sh.startAt) startShow(+k, 'auto');
+        if (s.tier === 'digital' && pr?.state === 'ingested' && G.t >= sh.startAt && !s.trash) startShow(+k, 'auto');
       } else if (sh.preroll > 0) {
         sh.preroll -= dt;
       } else if (sh.broken) {
@@ -409,6 +411,7 @@ function paintScreen(k, t) {
         const left = REEL_SECS - sh.reelT;
         if ((left <= MOTOR_CUE && left > MOTOR_CUE - CUE_SHOW) || (left <= CHANGE_CUE && left > CHANGE_CUE - CUE_SHOW)) {
           try { F.paintCue(g, CW, CH); } catch { cueFallback(g); }
+          if (!sh.cueVisible) hooks.onCue?.(k);
           sh.cueVisible = true;
         } else sh.cueVisible = false;
       }
@@ -429,8 +432,8 @@ export function status(k) {
   const b = B[k], s = scr(k), sh = b.show;
   if (!s.open) return null;
   const f = film(s.film);
-  if (!sh) return { k, text: f ? 'idle' : 'no print', urgent: false };
-  if (!sh.started) return { k, text: G.t < sh.startAt ? `starts in ${Math.ceil(sh.startAt - G.t)}s` : `LATE ${Math.ceil(G.t - sh.startAt)}s`, urgent: G.t >= sh.startAt - 5 };
+  if (!sh) return { k, text: (s.trash ? `🧹 ${s.trash} to sweep · ` : '') + (f ? 'idle' : 'no print'), urgent: false };
+  if (!sh.started) return { k, text: (s.trash ? `🧹 ${s.trash} · ` : '') + (G.t < sh.startAt ? `starts in ${Math.ceil(sh.startAt - G.t)}s` : `LATE ${Math.ceil(G.t - sh.startAt)}s`), urgent: G.t >= sh.startAt - 5 || (s.trash > 0 && G.t >= sh.startAt - 30) };
   if (sh.broken) return { k, text: 'FILM BREAK', urgent: true };
   if (s.tier === 'reel') {
     const left = REEL_SECS - sh.reelT;

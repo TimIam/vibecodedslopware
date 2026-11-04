@@ -1,10 +1,12 @@
 // The theatre sim: days, showtimes, customers and their queues, staff, stock and deliveries, money, story.
 import * as THREE from 'three';
-import { W, L, P, clone, setAudUnlocked, nearestNode } from './world.js';
+import { W, L, P, clone, setAudUnlocked, nearestNode, applyLabel, cartonLabel, candyLabel, printLabel, floorAt, supportAt, moveCircle, addCollider } from './world.js';
 import { makePerson, placePerson, walkTo, walkPoints, updatePerson, say } from './people.js';
 import { G, film, runtime, showDemand, SEATS, CASE_CAP, POP_CAP, SODA_CAP, UNIT_COST, REF_PRICE, ROLES, rentPerDay, saveGame, rollCatalog, money, CANDY, SUPPLY, STAFF_NAMES, REEL_SECS } from './state.js';
 import * as booth from './booth.js';
 
+export const BAG_CAP = 24;
+const CANDY_COL = ['#b01818', '#1a56b0', '#c8900f', '#18802f', '#701c80', '#e0661a'];
 export const S = {
   customers: [], boxQ: [], conQ: [], staff: [], trash: [], backObjs: [], hits: [], marla: null, chesler: null,
   ui: null,          // set by main: { toast, openPOS, dialog, summary, chooseFilm, choosePoster, openSplice, hint }
@@ -60,7 +62,7 @@ export function initSim() {
         if (c && c.kind === 'candy') return `That slot is for ${CANDY[i].name}`;
         return `${CANDY[i].name}: ${n}/${CASE_CAP}${n === 0 ? ' — SOLD OUT' : ''}`;
       },
-      act: () => { const c = G.carry; if (c && c.kind === 'candy' && c.i === i) { const m = Math.min(CASE_CAP - G.stock.candy[i], c.n); G.stock.candy[i] += m; c.n -= m; refreshCandy(); if (c.n <= 0) dropCarry(true); S.ui.sfx('stock'); } },
+      act: () => { const c = G.carry; if (c && c.kind === 'candy' && c.i === i) { const m = Math.min(CASE_CAP - G.stock.candy[i], c.n); G.stock.candy[i] += m; c.n -= m; refreshCandy(); S.ui.tutDone('restock'); if (c.n <= 0) dropCarry(true); S.ui.sfx('stock'); } },
     });
     slot.items = [];
   });
@@ -118,6 +120,8 @@ export function initSim() {
   }
   for (const it of G.back) spawnBack(it);
   if (G.carry) attachCarry();
+  for (const s of G.screens) { const n = s.trash || 0; s.trash = 0; if (s.open) for (let i = 0; i < n; i++) spawnTrash(s.id); }
+  for (const b of P.bins) addHit(b.x, 0.5, b.z, 0.62, 1.0, 0.62, { label: () => (G.bag ? `Empty the trash bag (${G.bag})` : null), act: () => emptyBag() });
   refreshCandy();
   refreshShelf();
   for (const st of G.staff) spawnStaff(st);
@@ -127,6 +131,8 @@ export function initSim() {
   booth.hooks.onBreak = k => { S.ui.toast(`FILM BREAK on screen ${k}! Get to the booth.`, 'bad'); S.ui.sfx('break'); audienceReact(k, '😠', 'Boooo!'); };
   booth.hooks.openRepair = (k, f, done) => S.ui.openSplice(f.id, 'repair', done);
   booth.hooks.toast = m => S.ui.toast(m);
+  booth.hooks.onAction = key => S.ui.tutDone(key);
+  booth.hooks.onCue = k => S.ui.UI.onCue?.(k);
   if (G.flags.omniPending && !G.flags.omni) spawnChesler();
 }
 
@@ -143,7 +149,7 @@ export function refreshShelf() {
   while (shelfObjs.length) W.scene.remove(shelfObjs.pop());
   const built = Object.entries(G.prints).filter(([, p]) => p.state === 'built');
   built.slice(0, P.shelfSpots.length).forEach(([id], i) => {
-    const o = clone('filmcans');
+    const o = applyLabel(clone('filmcans'), printLabel(film(id).title, 'MADE UP \u00b7 READY'));
     o.position.copy(P.shelfSpots[i]); o.rotation.y = i * 0.7;
     W.scene.add(o); shelfObjs.push(o);
   });
@@ -156,10 +162,10 @@ function refreshCandy() {
     while (slot.items.length > want) W.scene.remove(slot.items.pop());
     while (slot.items.length < want) {
       const j = slot.items.length;
-      const o = clone('candy_' + i);
+      const o = applyLabel(clone('candy_' + i), candyLabel(i, CANDY[i].name, CANDY[i].icon, CANDY_COL[i]));
       const row = j % 2, col = Math.floor(j / 2);
       o.position.set(slot.x - 0.27 + col * 0.11, row ? 0.47 : 0.74, slot.z + (row ? 0.05 : -0.05));
-      o.rotation.y = Math.PI + (j % 3 - 1) * 0.08;
+      o.rotation.y = (j % 3 - 1) * 0.08;
       W.scene.add(o); slot.items.push(o);
     }
   });
@@ -169,38 +175,112 @@ function refreshCandy() {
 // ------------------------------------------------------------------ backstock (cartons on the pallet)
 const backName = it => it.kind === 'candy' ? `Candy carton: ${CANDY[it.i].name} (${it.n})` : it.kind === 'kernels' ? `Popcorn kernels (${it.n})` : it.kind === 'syrup' ? `Soda syrup (${it.n})` : it.kind === 'print' ? `35mm print case: ${film(it.film).title}` : `DCP drive: ${film(it.film).title}`;
 function backModel(it) { return it.kind === 'print' ? 'filmcase' : it.kind === 'drive' ? 'hdd' : 'carton'; }
+export function dressItem(o, it) {
+  if (it.kind === 'candy') applyLabel(o, cartonLabel(CANDY[it.i].name, `${it.n} BOXES \u00b7 KEEP COOL`, CANDY_COL[it.i], CANDY[it.i].icon));
+  else if (it.kind === 'kernels') applyLabel(o, cartonLabel('Popcorn kernels', `${it.n} PORTIONS \u00b7 BUTTER NOT INCL.`, '#d08a08', '\ud83c\udf7f'));
+  else if (it.kind === 'syrup') applyLabel(o, cartonLabel('Cola syrup', `BAG-IN-BOX \u00b7 ${it.n} PORTIONS`, '#9a1410', '\ud83e\udd64'));
+  else if (it.kind === 'print') applyLabel(o, printLabel(film(it.film).title, `35MM \u00b7 ${film(it.film).reels} REELS`));
+  else if (it.kind === 'drive') applyLabel(o, printLabel(film(it.film).title, 'DCP \u00b7 ENCRYPTED'));
+  return o;
+}
+// an invisible, slightly fatter box so small things are easy to look at
+export function addHitBox(o, pad = 0.06) {
+  o.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(o), s = new THREE.Vector3(), c = new THREE.Vector3();
+  b.getSize(s); b.getCenter(c);
+  const h = new THREE.Mesh(new THREE.BoxGeometry(s.x + pad, s.y + pad, s.z + pad), HIT_MAT);
+  h.position.copy(c);
+  W.scene.add(h); o.attach(h);
+  return o;
+}
 function spawnBack(it) {
-  const idx = G.back.indexOf(it);
-  const o = clone(backModel(it));
-  const slot = idx % 6, lvl = Math.floor(idx / 6);
-  const x = L.pallet.x - 0.35 + (slot % 3) * 0.36, z = L.pallet.z - 0.22 + Math.floor(slot / 3) * 0.44;
-  o.position.set(x, 0.15 + lvl * 0.4, z);
-  o.rotation.y = (slot * 0.37) % 0.4 - 0.2;
-  if (it.kind === 'candy') o.traverse(c => { if (c.isMesh && c.material.name === 'tape') { c.material = c.material.clone(); c.material.color.copy(candyColor(it.i)); } });
+  const o = dressItem(clone(backModel(it)), it);
+  if (it.pos) { o.position.set(it.pos[0], it.pos[1], it.pos[2]); o.rotation.y = it.pos[3]; }
+  else {
+    const idx = G.back.filter(b => !b.pos).indexOf(it);
+    const slot = idx % 6, lvl = Math.floor(idx / 6);
+    const x = L.pallet.x - 0.35 + (slot % 3) * 0.36, z = L.pallet.z - 0.22 + Math.floor(slot / 3) * 0.44;
+    o.position.set(x, 0.15 + lvl * 0.4, z);
+    o.rotation.y = (slot * 0.37) % 0.4 - 0.2;
+  }
   W.scene.add(o);
+  addHitBox(o);
   const def = tagObject(o, { label: () => G.carry ? 'Hands full (G to drop)' : `Pick up ${backName(it)}`, act: () => pickUp(it) });
   it._obj = o; it._def = def;
 }
-function candyColor(i) { return new THREE.Color([0xb01818, 0x1a56b0, 0xd8a018, 0x18802f, 0x701c80, 0xe0661a][i]); }
 function despawnBack(it) { if (it._obj) { W.scene.remove(it._obj); const i = W.interact.indexOf(it._def); if (i >= 0) W.interact.splice(i, 1); it._obj = null; } }
 function relayoutBack() { for (const it of G.back) despawnBack(it); for (const it of G.back) spawnBack(it); }
 function pickUp(it) {
   if (G.carry) return;
   despawnBack(it);
   G.back.splice(G.back.indexOf(it), 1);
+  const wasPallet = !it.pos;
+  delete it.pos;
   G.carry = it;
-  relayoutBack();
+  if (wasPallet) relayoutBack();
   attachCarry();
   S.ui.sfx('pickup');
 }
-export function attachCarry() { S.ui.setCarry(G.carry ? clone(backModel(G.carry)) : null, G.carry ? backName(G.carry) : ''); }
+export function attachCarry() { S.ui.setCarry(G.carry ? dressItem(clone(backModel(G.carry)), G.carry) : null, G.carry ? backName(G.carry) : ''); }
 export function dropCarry(consumed = false) {
   if (!G.carry) return;
-  if (!consumed) { G.back.push(G.carry); spawnBack(G.carry); }
+  if (!consumed) { if (S.throwFrom) { const [pos, dir] = S.throwFrom(); throwCarry(pos, dir); return; } G.back.push(G.carry); spawnBack(G.carry); }
   G.carry = null;
   attachCarry();
 }
 export function carryLabel() { return G.carry ? backName(G.carry) : ''; }
+
+// G throws whatever you're holding: it arcs out in front of you, bounces, and stays where it lands.
+const flying = [];
+export function throwCarry(pos, dir) {
+  if (!G.carry) return;
+  const it = G.carry; G.carry = null; attachCarry();
+  const o = dressItem(clone(backModel(it)), it);
+  o.position.copy(pos);
+  W.scene.add(o);
+  const flat = dir.clone().setY(0).normalize();
+  flying.push({ it, o, v: flat.multiplyScalar(3.4).add(new THREE.Vector3(0, 1.5 + dir.y * 3, 0)),
+    spin: new THREE.Vector3((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 7), t: 0, bounces: 0 });
+  S.ui.sfx('whoosh');
+}
+function updateFlying(dt) {
+  for (let i = flying.length - 1; i >= 0; i--) {
+    const f = flying[i], p = f.o.position;
+    f.t += dt;
+    if (f.resting) {
+      f.o.rotation.x *= 0.7; f.o.rotation.z *= 0.7;
+      if (Math.abs(f.o.rotation.x) + Math.abs(f.o.rotation.z) < 0.01) settleFlying(f, i);
+      continue;
+    }
+    f.v.y -= 9.8 * dt;
+    const tx = p.x + f.v.x * dt, tz = p.z + f.v.z * dt;
+    const [nx, nz] = moveCircle(p.x, p.z, f.v.x * dt, f.v.z * dt, 0.18, p.y - 0.4, 0.75);
+    if (Math.abs(nx - tx) > 1e-3) f.v.x *= -0.35;
+    if (Math.abs(nz - tz) > 1e-3) f.v.z *= -0.35;
+    p.x = nx; p.z = nz; p.y += f.v.y * dt;
+    f.o.rotation.x += f.spin.x * dt; f.o.rotation.y += f.spin.y * dt; f.o.rotation.z += f.spin.z * dt;
+    const fy = supportAt(p.x, p.z, p.y + 0.25);
+    if (p.y <= fy) {
+      p.y = fy;
+      if (Math.abs(f.v.y) > 1.3 && f.bounces < 3) { f.bounces++; f.v.y = -f.v.y * 0.3; f.v.x *= 0.5; f.v.z *= 0.5; f.spin.multiplyScalar(0.45); S.ui.sfx('thud'); }
+      else {
+        // land: snap the tumble flat (to the nearest quarter turn so it sits on a face)
+        f.resting = true; f.v.set(0, 0, 0);
+        f.o.rotation.x = Math.atan2(Math.sin(f.o.rotation.x), Math.cos(f.o.rotation.x)) * 0.3;
+        f.o.rotation.z = Math.atan2(Math.sin(f.o.rotation.z), Math.cos(f.o.rotation.z)) * 0.3;
+        S.ui.sfx('thud');
+      }
+    } else if (f.t > 6) settleFlying(f, i);
+  }
+}
+function settleFlying(f, i) {
+  W.scene.remove(f.o);
+  flying.splice(i, 1);
+  const p = f.o.position;
+  f.it.pos = [p.x, supportAt(p.x, p.z, p.y + 0.25), p.z, f.o.rotation.y];
+  G.back.push(f.it);
+  spawnBack(f.it);
+}
 
 // print made up on the bench (called by the splice minigame wrapper)
 export function finishBuildUp(filmId, res) {
@@ -271,7 +351,7 @@ function updateStaff(dt) {
       G.stock.candy.forEach((n, i) => { if (n <= CASE_CAP / 3) need.push(it => it.kind === 'candy' && it.i === i); });
       if (G.stock.popcorn < POP_CAP * 0.3) need.push(it => it.kind === 'kernels');
       if (G.stock.soda < SODA_CAP * 0.3) need.push(it => it.kind === 'syrup');
-      const it = need.map(fn => G.back.find(fn)).find(Boolean);
+      const it = need.map(fn => G.back.find(b => !b.pos && fn(b))).find(Boolean);
       if (!it) { s.timer = 2; continue; }
       s.task = 'carry';
       staffGo(s, 'pallet', () => {
@@ -290,14 +370,22 @@ function updateStaff(dt) {
         });
       });
     } else if (s.role === 'usher') {
-      if (s.task) continue;
-      const dirty = G.screens.find(sc => sc.open && sc.trash > 0 && !booth.B[sc.id].show?.started && !S.customers.some(c => c.k === sc.id && c.state === 'seated'));
-      if (!dirty || s.timer > 0) continue;
-      s.task = 'clean';
-      staffGo(s, 'audin_' + dirty.id, () => {
-        s.timer = 2.5 + dirty.trash * 0.5;
-        say(s.p, '🧹', s.timer);
-        later((s.timer * 1000) / 1000, () => { clearTrash(dirty.id); s.task = null; staffGo(s, 'lobby_back'); });
+      if (s.task || s.timer > 0) continue;
+      const t = S.trash.find(t => !t.claimed && !booth.B[t.k].show?.started);
+      if (!t) { if (s.node !== 'lobby_back') { s.task = 'home'; staffGo(s, 'lobby_back', () => { s.task = null; }); } else s.timer = 1; continue; }
+      t.claimed = s; s.task = 'clean';
+      staffGo(s, t.rowNode, () => {
+        walkPoints(s.p, [[t.o.position.x, t.laneZ]]);
+        s.p.onArrive = () => {
+          s.p.onArrive = null; s.p.faceTarget = Math.PI;
+          say(s.p, '\u{1f9f9}', 0.9);
+          later(0.9, () => {
+            removeTrash(t);
+            const n = W.nav[t.rowNode];
+            walkPoints(s.p, [[n.x, n.z]]);
+            s.p.onArrive = () => { s.p.onArrive = null; s.node = t.rowNode; s.task = null; };
+          });
+        };
       });
     } else if (s.role === 'projectionist') {
       if (s.task) continue;
@@ -357,10 +445,11 @@ export function openDay() {
     if (!s.open || !s.film || !printReady(s)) continue;
     const f = film(s.film);
     let t = 55 + order * 28;
-    for (let i = 0; i < showsPerDay; i++) { s.shows.push({ t, state: 'pending', spawned: 0, demand: 0 }); t += runtime(f) + 50; }
+    for (let i = 0; i < showsPerDay; i++) { s.shows.push({ t, state: 'pending', spawned: 0, demand: 0 }); t += runtime(f) + 70; }
     order++;
   }
   S.ui.toast(`Day ${G.day}: doors open.`, 'good');
+  S.ui.tutDone('open');
   S.ui.sfx('bell');
   if (S.chesler) { W.scene.remove(S.chesler.root); S.chesler = null; }
 }
@@ -377,6 +466,7 @@ function updateSchedule(dt) {
         sh.bs = booth.queueShow(s.id, s.shows.indexOf(sh), sh.t);
         sh.audience = [];
       }
+      if (sh.state === 'queued' && !sh.warned && G.t >= sh.t - 12 && s.tier !== 'digital' && !G.staff.some(x => x.role === 'projectionist')) { sh.warned = true; S.ui.toast(`Screen ${s.id} starts in 10 seconds.`, s.trash ? 'bad' : 'info'); S.ui.sfx('bell'); }
       if (sh.state === 'queued') {
         while (sh.spawnTimes.length && G.t >= sh.spawnTimes[0]) { sh.spawnTimes.shift(); spawnCustomer(s.id, sh); }
         const bs = sh.bs;
@@ -556,6 +646,15 @@ function autoConcession(c) {
 }
 
 function goToAud(c) {
+  const scr = G.screens.find(s => s.id === c.k);
+  if (scr.trash > 0) {
+    c.state = 'hallwait'; if (c.hallSince == null) c.hallSince = G.t;
+    const n = W.nav['hall_' + c.k];
+    walkTo(c.p, nearestNode(c.p.x, c.p.z, false), 'hall_' + c.k, [n.x - 1.0 - Math.random() * 2.4, -0.7 - Math.random() * 1.6]);
+    c.p.onArrive = () => { c.p.onArrive = null; c.p.faceTarget = Math.PI; if (Math.random() < 0.5) say(c.p, ['\u{1f922} It\u2019s filthy in there', '\u23f3 Still cleaning?', '\u{1f37f}\u{1f5d1}\u{fe0f}?'][Math.floor(Math.random() * 3)], 2.5); };
+    return;
+  }
+  if (c.hallSince != null) { c.sat -= Math.min(0.3, (G.t - c.hallSince) / 120); c.hallSince = null; }
   c.state = 'toAud';
   const from = nearestNode(c.p.x, c.p.z, false);
   const a = L.auds.find(a => a.id === c.k), A = L.aud;
@@ -605,12 +704,12 @@ function audienceReact(k, emoji, text) {
 // ------------------------------------------------------------------ show hooks
 function onShowStart(k, sh, who) {
   const s = G.screens.find(s => s.id === k);
-  W.lights['house_' + k].intensity = 0.3;
+  W.lights['house_' + k].intensity = 0.6;
   S.today.shows++;
   if (who === 'you' && G.flags.tut < 5) G.flags.tut = 5;
 }
 function onFlub(k, kind, sev) {
-  if (kind === 'clean') { S.today.clean++; S.ui.toast('Clean changeover. Nobody in the audience has any idea.', 'good'); S.ui.sfx('clack'); return; }
+  if (kind === 'clean') { S.today.clean++; S.ui.tutDone('change'); S.ui.toast('Clean changeover. Nobody in the audience has any idea.', 'good'); S.ui.sfx('clack'); return; }
   S.today.flubs++;
   const msg = { cut: 'Changed over early: lopped off the end of the reel.', leader: 'Too early on the motor: the countdown leader hit the screen!', jump: 'Motor started late: the picture jumped ahead.', runout: 'RUNOUT! The reel ended on a white screen.', break: 'The film snapped in the gate.' }[kind];
   if (msg) S.ui.toast(msg, 'bad');
@@ -620,7 +719,7 @@ function onShowEnd(k, score, sh) {
   const s = G.screens.find(s => s.id === k);
   const schedule = s.shows?.find(x => x.bs === sh);
   if (schedule) schedule.state = 'done';
-  W.lights['house_' + k].intensity = 3;
+  W.lights['house_' + k].intensity = 30;
   const f = film(sh.film);
   const pr = G.prints[sh.film];
   const dirt = Math.min(0.25, s.trash * 0.03);
@@ -640,7 +739,7 @@ function onShowEnd(k, score, sh) {
     else if (avg < 0.4) audienceReact(k, '👎', 'Meh.');
   }
   // trash left behind
-  const n = Math.round(aud.length * 0.22 * (G.flags.omni ? 1.4 : 1));
+  const n = aud.length ? Math.max(3, Math.round(aud.length * 0.45 * (G.flags.omni ? 1.3 : 1))) : 0;
   for (let i = 0; i < n; i++) spawnTrash(k);
   // cult following from single frames
   if (pr?.mischief?.length) {
@@ -653,20 +752,32 @@ function onShowEnd(k, score, sh) {
 }
 
 // ------------------------------------------------------------------ trash
+const TRASH = ['trash_cup', 'trash_bucket', 'trash_wrapper', 'trash_spill', 'trash_cup', 'trash_wrapper'];
 function spawnTrash(k) {
   const a = L.auds.find(a => a.id === k), A = L.aud;
-  const row = Math.floor(Math.random() * A.rows.length);
-  const x = a.cx + A.seatX0 + Math.random() * (A.seats - 1) * A.seatDX;
-  const o = clone('trash');
-  o.position.set(x, 0, A.rows[row] - 0.35); o.rotation.y = Math.random() * 6;
+  const row = Math.floor(Math.random() * A.rows.length), zr = A.rows[row];
+  const seat = Math.floor(Math.random() * A.seats);
+  const x = a.cx + A.seatX0 + seat * A.seatDX + (Math.random() - 0.5) * 0.3;
+  const kind = TRASH[Math.floor(Math.random() * TRASH.length)];
+  const o = clone(kind);
+  const onSeat = kind !== 'trash_spill' && Math.random() < 0.3;
+  o.position.set(x, onSeat ? 0.5 : 0, onSeat ? zr - 0.02 : zr + 0.5 + (Math.random() - 0.5) * 0.12);
+  o.rotation.y = Math.random() * 6.28;
   W.scene.add(o);
+  addHitBox(o, 0.18);
   const s = G.screens.find(s => s.id === k);
   s.trash++;
-  const t = { k, o };
-  t.def = tagObject(o, { label: () => 'Sweep up the mess', hold: () => 0.5, act: () => { removeTrash(t); } });
+  const t = { k, o, laneZ: zr + 0.62, rowNode: `row_${k}_${A.rows.length - 1 - row}` };
+  t.def = tagObject(o, {
+    label: () => G.carry ? 'Hands full: throw it down first (G)' : (G.bag || 0) >= BAG_CAP ? 'Trash bag full: empty it in a bin' : `Pick up the trash (bag ${G.bag || 0}/${BAG_CAP})`,
+    hold: () => (G.carry || (G.bag || 0) >= BAG_CAP ? 0 : 0.3),
+    act: () => { if (G.carry || (G.bag || 0) >= BAG_CAP || !S.trash.includes(t)) return; G.bag = (G.bag || 0) + 1; removeTrash(t); S.ui.sfx('sweep'); S.ui.tutDone('clean'); },
+  });
   S.trash.push(t);
 }
+export function emptyBag() { if (!G.bag) return; G.bag = 0; S.ui.sfx('bin'); S.ui.toast('Bag emptied.'); S.ui.tutDone('bin'); }
 function removeTrash(t) {
+  if (!S.trash.includes(t)) return;
   W.scene.remove(t.o);
   const i = W.interact.indexOf(t.def); if (i >= 0) W.interact.splice(i, 1);
   S.trash.splice(S.trash.indexOf(t), 1);
@@ -765,6 +876,8 @@ export function updateSim(dt, t) {
   if (G.phase === 'closed' && (saveAcc += dt) > 15) { saveAcc = 0; saveGame(); }
   if (G.phase === 'open') { G.t += dt; updateSchedule(dt); }
   updateQueues(dt);
+  updateFlying(dt);
+  for (const c of S.customers) if (c.state === 'hallwait' && !c.p.moving && G.screens.find(s => s.id === c.k).trash === 0) goToAud(c);
   updateStaff(dt);
   for (const c of S.customers) updatePerson(c.p, dt, t);
   for (const s of S.staff) updatePerson(s.p, dt, t);

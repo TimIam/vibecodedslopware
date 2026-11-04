@@ -127,6 +127,71 @@ function decoText(g, text, x, y, size, fill, { font = 'Georgia, serif', weight =
 }
 export { decoText };
 
+// ------------------------------------------------------------------ item labels
+// Library props carry quads with the material 'label'; each item gets its own painted canvas (cached by key).
+const labelCache = new Map();
+export function labelTexture(key, w, h, draw) {
+  let m = labelCache.get(key);
+  if (m) return m;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.flipY = false; tex.anisotropy = 4;
+  m = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.65 });
+  labelCache.set(key, m);
+  return m;
+}
+export function applyLabel(obj, mat) {
+  obj.traverse(c => {
+    if (!c.isMesh) return;
+    if (Array.isArray(c.material)) c.material = c.material.map(m => (m.name === 'label' ? mat : m));
+    else if (c.material.name === 'label' || c.userData.label) { c.material = mat; c.userData.label = true; }
+  });
+  return obj;
+}
+function wrapText(g, text, x, y, maxW, lh) {
+  const words = text.split(' '); let line = '', yy = y;
+  for (const w of words) { const t = line ? line + ' ' + w : w; if (g.measureText(t).width > maxW && line) { g.fillText(line, x, yy); line = w; yy += lh; } else line = t; }
+  if (line) g.fillText(line, x, yy);
+}
+// Printed shipping label for a carton: a coloured band, the product, the count, and "this side up" arrows.
+export function cartonLabel(title, sub, color, icon) {
+  return labelTexture(`carton:${title}:${sub}`, 340, 200, (g, w, h) => {
+    g.fillStyle = '#efe6d2'; g.fillRect(0, 0, w, h);
+    g.fillStyle = color; g.fillRect(0, 0, w, 54);
+    g.fillStyle = '#fff'; g.font = 'bold 30px "Arial Black", Impact, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'middle';
+    g.fillText(icon + ' ' + title.toUpperCase(), 14, 28, w - 28);
+    g.fillStyle = '#2a2018'; g.font = 'bold 22px Arial, sans-serif'; g.fillText(sub, 14, 82, w - 28);
+    g.font = '14px "Courier New", monospace'; g.fillText('PAPER ST PICTURE HOUSE · CONCESSIONS', 14, 112);
+    for (let i = 0; i < 26; i++) g.fillRect(14 + i * 7, 132, i % 3 ? 2 : 4, 44);
+    g.strokeStyle = '#2a2018'; g.lineWidth = 4;
+    for (const x of [262, 300]) { g.beginPath(); g.moveTo(x, 176); g.lineTo(x, 132); g.moveTo(x - 10, 144); g.lineTo(x, 132); g.lineTo(x + 10, 144); g.stroke(); }
+  });
+}
+// Front of a candy box: bold brand panel in the box colour.
+export function candyLabel(i, name, icon, color) {
+  return labelTexture(`candy:${i}`, 200, 256, (g, w, h) => {
+    const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, color); gr.addColorStop(1, '#00000060');
+    g.fillStyle = color; g.fillRect(0, 0, w, h); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(255,255,255,.18)'; for (let k = -2; k < 8; k++) { g.beginPath(); g.moveTo(k * 40, 0); g.lineTo(k * 40 + 20, 0); g.lineTo(k * 40 - 80, h); g.lineTo(k * 40 - 100, h); g.fill(); }
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = '86px "Segoe UI Emoji", "Apple Color Emoji", sans-serif'; g.fillText(icon, w / 2, h * 0.36);
+    g.fillStyle = '#fff8e6'; g.strokeStyle = 'rgba(0,0,0,.55)'; g.lineWidth = 6; g.font = 'bold 34px "Arial Black", Impact, sans-serif';
+    const words = name.toUpperCase().split(' ');
+    words.forEach((wd, j) => { const y = h * 0.66 + j * 38 - (words.length - 1) * 19; g.strokeText(wd, w / 2, y, w - 16); g.fillText(wd, w / 2, y, w - 16); });
+    g.fillStyle = '#fff8e6'; g.font = 'bold 14px Arial'; g.fillText('THEATRE BOX', w / 2, h - 16);
+  });
+}
+export function printLabel(title, sub) {
+  return labelTexture(`print:${title}:${sub}`, 320, 200, (g, w, h) => {
+    g.fillStyle = '#f2ecdc'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#b8321f'; g.fillRect(0, 0, w, 36);
+    g.fillStyle = '#fff'; g.font = 'bold 20px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(sub, w / 2, 19);
+    g.fillStyle = '#1a1410'; g.font = 'bold 30px Georgia, serif'; wrapText(g, title, w / 2, 82, w - 24, 34);
+    g.font = '13px "Courier New", monospace'; g.fillText('RETURN TO DISTRIBUTOR AFTER RUN', w / 2, h - 18);
+  });
+}
+export function signLabel(key, draw) { return labelTexture(key, 512, 160, draw); }
+
 // ------------------------------------------------------------------ load + build
 export async function buildWorld(scene) {
   W.scene = scene;
@@ -193,7 +258,7 @@ function buildLights(scene) {
   pl(0, 2.6, 16, 0xffd0a0, 10, 14, 'street');
   // every auditorium gets a faint house light and a screen spill light (tinted by the picture)
   for (const a of L.auds) {
-    W.lights['house_' + a.id] = pl(a.cx, 5.5, -9, 0xff9a60, 3, 14);
+    W.lights['house_' + a.id] = pl(a.cx, 4.6, -8.5, 0xffc08a, 30, 18);
     W.lights['spill_' + a.id] = pl(a.cx, 3.2, -14.2, 0xffffff, 0, 16);
   }
   scene.fog = new THREE.Fog(0x05030a, 30, 70);
@@ -215,7 +280,20 @@ function placeProps(scene) {
   P.regCon = put('register', 4.0, cc.h, cc.z0 + 0.3, Math.PI);
   P.popcorn = put('popcorn', 6.6, bk.h, (bk.z0 + bk.z1) / 2);
   P.popcornFill = P.popcorn.getObjectByName('popcorn_fill');
+  applyLabel(P.popcorn, signLabel('popcorn', (g, w, h) => {
+    g.fillStyle = '#b8140f'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#ffd23a'; g.font = 'bold 96px "Arial Black", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.shadowColor = '#ff8a00'; g.shadowBlur = 18; g.fillText('POPCORN', w / 2, h / 2 + 4); g.shadowBlur = 0;
+    g.fillStyle = '#fff'; for (let i = 0; i < 16; i++) { g.beginPath(); g.arc(16 + i * 32, 10, 5, 0, 7); g.arc(16 + i * 32, h - 10, 5, 0, 7); g.fill(); }
+  }));
   P.soda = put('soda', 3.7, bk.h, (bk.z0 + bk.z1) / 2 + 0.05);
+  P.sodaLabel = () => applyLabel(P.soda, signLabel('soda:' + (W.omni ? 1 : 0), (g, w, h) => {
+    g.fillStyle = W.omni ? '#0f2a66' : '#8a0f0c'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#fff'; g.font = 'italic bold 72px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(W.omni ? 'OmniCola®' : 'Paper St. Cola', w / 2, h / 2 - 8);
+    g.font = 'bold 22px Arial'; g.fillText(W.omni ? 'THE ONLY COLA. BY LAW.' : 'ICE COLD · SINCE 1999', w / 2, h - 26);
+  }));
+  P.sodaLabel();
   put('cups', 4.8, bk.h, bk.z0 + 0.35); put('cups', 4.95, bk.h, bk.z0 + 0.3);
   for (let i = 0; i < 5; i++) put('bucket', 5.3 + i * 0.16, bk.h, bk.z0 + 0.3);
   P.computer = put('computer', L.computer.x, 0, L.computer.z, -Math.PI / 2);
@@ -225,6 +303,8 @@ function placeProps(scene) {
   put('palm', -7.3, 0, 11.3); put('palm', 7.3, 0, 11.3); put('palm', 1.95, 0, 0.6);
   put('lobbybench', 7.4, 0, 8.0, -Math.PI / 2);
   put('trashbin', 1.9, 0, 6.6); put('trashbin', -2.4, 0, 1.0);
+  P.bins = [{ x: 1.9, z: 6.6 }, { x: -2.4, z: 1.0 }];
+  for (const a of L.auds) { const x = a.cx + 1.75, z = L.hall.z0 + 0.35; put('trashbin', x, 0, z, 0, 0.85); P.bins.push({ x, z }); }
   // queue stanchions for the box office line
   for (const [x, z] of [[-3.5, 9.6], [-3.5, 10.6], [-2.5, 11.1]]) put('stanchion', x, 0, z);
   // candy display slots inside the glass case (6 kinds)
@@ -290,6 +370,7 @@ function buildColliders() {
   C(L.computer.x - 0.45, L.computer.x + 0.45, L.computer.z - 0.85, L.computer.z + 0.85, 0, 1.2);
   C(L.bench.x - 0.35, L.bench.x + 0.35, L.bench.z - 0.75, L.bench.z + 0.75, BY, BY + 1.3);
   C(L.pallet.x - 0.6, L.pallet.x + 0.6, L.pallet.z - 0.55, L.pallet.z + 0.55, 0, 0.2);
+  for (const [x, z] of [[1.9, 6.6], [-2.4, 1.0], ...L.auds.map(a => [a.cx + 1.75, L.hall.z0 + 0.35])]) C(x - 0.22, x + 0.22, z - 0.22, z + 0.22, 0, 0.9);
   // auditoriums: side walls + front, the stage
   for (const a of L.auds) {
     const x0 = a.cx - A.w / 2, x1 = a.cx + A.w / 2;
@@ -306,6 +387,16 @@ function buildColliders() {
 export function addCollider(x0, x1, z0, z1, y0, y1, tag) { return C(x0, x1, z0, z1, y0, y1, tag); }
 export function removeCollider(b) { const i = W.colliders.indexOf(b); if (i >= 0) W.colliders.splice(i, 1); }
 
+// Highest floor or box top under (x, z) at or below y: where a thrown item comes to rest.
+export function supportAt(x, z, y) {
+  let best = floorAt(x, z, y);
+  for (const b of W.colliders) {
+    if (b.disabled || b.tag === 'soon' || b.tag === 'seats') continue;
+    if (x < b.x0 || x > b.x1 || z < b.z0 || z > b.z1) continue;
+    if (b.y1 <= y + 0.05 && b.y1 > best && b.y1 - b.y0 < 2.2) best = b.y1;
+  }
+  return best;
+}
 export function floorAt(x, z, feet) {
   const st = L.stairs, BY = L.booth.y, hall = L.hall, lob = L.lobby;
   let best = 0;

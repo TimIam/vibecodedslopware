@@ -52,7 +52,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Escape' && UI.modal) { ui.closeModal(); return; }
   if (ui.modalOpen() || cinematic) return;
   if (e.code === 'KeyE' && !e.repeat) useDown();
-  if (e.code === 'KeyG') { if (G.carry) { sim.dropCarry(); sfx('stock'); } }
+  if (e.code === 'KeyG') { if (G.carry) sim.dropCarry(); }
   if (e.code === 'KeyH') { document.exitPointerLock?.(); ui.handbook(); }
   if (e.code === 'KeyM') { setMuted(!muted); ui.toast(muted ? 'Sound off' : 'Sound on'); }
   if (e.code === 'KeyQ') { const k = boothScreen(); if (k && booth.motorKey(k)) sfx('clack'); }
@@ -82,7 +82,15 @@ UI.onModalChange = open => { if (open) { document.exitPointerLock?.(); hold = nu
 const carryHolder = new THREE.Group();
 camera.add(carryHolder);
 carryHolder.position.set(0.32, -0.34, -0.62);
-UI.onCarry = obj => { carryHolder.clear(); if (obj) { obj.scale.setScalar(0.75); obj.rotation.set(0.2, -0.5, 0); carryHolder.add(obj); } };
+UI.onCarry = obj => {
+  carryHolder.clear();
+  if (!obj) return;
+  const size = new THREE.Box3().setFromObject(obj).getSize(new THREE.Vector3());
+  obj.scale.setScalar(0.3 / Math.max(size.x, size.y, size.z));
+  obj.rotation.set(0.25, -0.45, 0);
+  obj.position.set(0.02, -0.08, 0);
+  carryHolder.add(obj);
+};
 const lamp = new THREE.PointLight(0xffe2c0, 0.5, 2.2); camera.add(lamp);
 
 // ------------------------------------------------------------------ interaction
@@ -194,6 +202,7 @@ function updatePlayer(dt) {
     [PL.x, PL.z] = moveCircle(PL.x, PL.z, dx, dz, RADIUS, PL.y);
     PL.bob += dt * (run ? 13 : 9);
   }
+  carryHolder.position.set(0.32 + Math.sin(PL.bob * 0.5) * 0.012, -0.34 + Math.abs(Math.cos(PL.bob * 0.5)) * 0.012, -0.62);
   const fy = floorAt(PL.x, PL.z, PL.y);
   if (fy > PL.y) PL.y += Math.min(fy - PL.y, dt * 6);
   else if (fy < PL.y) { PL.vy -= 20 * dt; PL.y = Math.max(fy, PL.y + PL.vy * dt); }
@@ -202,18 +211,23 @@ function updatePlayer(dt) {
   camera.rotation.set(PL.pitch, PL.yaw, 0, 'YXZ');
 }
 
+const crossEl = document.getElementById('cross'), pauseEl = document.getElementById('pause');
+let wasLocked = false;
+pauseEl.addEventListener('click', () => lock());
+function paused() { return started && !locked && wasLocked && !ui.modalOpen() && !cinematic; }
 let last = performance.now(), simT = 0, raf = 0;
 function frame(now) {
   raf = requestAnimationFrame(frame);
   const rdt = Math.min(0.1, (now - last) / 1000); last = now;
-  if (!frozen) step(rdt);
+  if (locked) wasLocked = true;
+  pauseEl.style.display = paused() ? 'flex' : 'none';
+  if (!frozen && !paused()) step(rdt);
   composer.render();
 }
 function step(rdt) {
   const dt = rdt * SPEED;
   simT += dt;
   if (cinematic) { updateCinematic(rdt); sim.updateSim(0, simT); booth.updateBooth(0, simT); return; }
-  const paused = started && ui.modalOpen() && !UI.splicing ? false : false;
   if (started && !ui.modalOpen()) updatePlayer(rdt);
   else camera.rotation.set(PL.pitch, PL.yaw, 0, 'YXZ');
   // which screens can be seen right now (inside the auditorium, or from the booth)
@@ -234,6 +248,7 @@ function step(rdt) {
       else { hold.t += rdt; if (hold.t >= hold.need) { const d = hold.d; hold = null; d.act?.(); sfx('clack'); } }
     }
     ui.setPrompt(target?.label, target?.hold, hold ? hold.t / hold.need : 0);
+    crossEl.classList.toggle('on', !!target);
   } else ui.setPrompt(null);
   ui.updateHUD(rdt, { pipScreen: bs && !booth.B[bs].show?.ended ? bs : null });
   // audio: clatter from running projectors near the player
@@ -258,6 +273,8 @@ async function boot() {
   const resumed = !qs.has('new') && hasSave() && loadGame();
   if (!resumed) newGame();
   S.ui = ui;
+  S.throwFrom = () => { const dir = new THREE.Vector3(); camera.getWorldDirection(dir); return [camera.position.clone().add(dir.clone().multiplyScalar(0.25)).add(new THREE.Vector3(0, -0.2, 0)), dir]; };
+  ui.UI.onCue = k => { if (boothScreen() === k) sfx('cue'); };
   booth.initBooth();
   sim.initSim();
   sim.settleDeliveries();

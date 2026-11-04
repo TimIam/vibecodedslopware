@@ -64,6 +64,11 @@ export function sfx(name) {
     case 'break': burst(0.25, 900, 0.4); tone(300, 0.4, { type: 'sawtooth', vol: 0.1, slide: -200 }); break;
     case 'clack': burst(0.05, 1500, 0.4); burst(0.05, 900, 0.3, 0.06); break;
     case 'thread': for (let i = 0; i < 4; i++) burst(0.03, 2000, 0.1, i * 0.08); break;
+    case 'whoosh': burst(0.25, 700, 0.12); break;
+    case 'thud': burst(0.08, 180, 0.35); tone(90, 0.12, { vol: 0.15, slide: -30 }); break;
+    case 'sweep': burst(0.18, 2600, 0.12); burst(0.1, 900, 0.12, 0.08); break;
+    case 'bin': burst(0.2, 400, 0.3); burst(0.12, 1200, 0.15, 0.1); break;
+    case 'cue': tone(1900, 0.05, { type: 'triangle', vol: 0.06 }); break;
     case 'boo': tone(180, 0.6, { type: 'sawtooth', vol: 0.06, slide: -60 }); break;
   }
 }

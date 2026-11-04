@@ -212,6 +212,11 @@ mk("led_red", (1.0, 0.1, 0.05), emit=(1.0, 0.1, 0.05), es=4.0)
 mk("sign", (0.9, 0.85, 0.75), rough=0.6)            # JS paints canvases on quads that use this
 mk("poster", (0.9, 0.9, 0.9), rough=0.6)             # JS swaps the map per frame
 mk("cardboard", (0.45, 0.3, 0.15), rough=0.95)
+mk("cardboard_dark", (0.2, 0.12, 0.05), rough=0.95)
+mk("label", (0.9, 0.88, 0.82), rough=0.6)
+mk("case_grey", (0.08, 0.085, 0.09), rough=0.55)
+mk("yellow", (0.75, 0.55, 0.05), rough=0.5)
+mk("soda_spill", (0.15, 0.05, 0.02), rough=0.1, alpha=0.7)
 mk("tape", (0.7, 0.6, 0.4), rough=0.5)
 mk("film", (0.06, 0.04, 0.02), rough=0.35, metal=0.2)
 mk("reel_alu", (0.62, 0.63, 0.66), rough=0.35, metal=0.9)
@@ -654,46 +659,198 @@ def build_tms():
         parts.append(box("t_slot", (0.2, 0.01, 0.04), (0.12, -0.375, 0.25 + i * 0.19), M["black"]))
     return [join(parts, "tms")]
 
+# ---------------------------------------------------------------- nicer props (bevelled, labelled)
+def bev(o, w=0.01, seg=2):
+    """Bevel every sharp edge and keep the flat faces flat-looking (hardened normals)."""
+    m = o.modifiers.new("bev", "BEVEL")
+    m.width = w
+    m.segments = seg
+    m.limit_method = "ANGLE"
+    m.harden_normals = True
+    deselect(); o.select_set(True); bpy.context.view_layer.objects.active = o
+    bpy.ops.object.modifier_apply(modifier=m.name)
+    o.data.shade_smooth()
+    return o
+
+def label(name, w, h, loc, rot=(PI / 2, 0, 0)):
+    """A quad JS paints per item (material 'label'). Default faces -Y (three.js +Z)."""
+    return quad(name, w, h, loc, M["label"], rot)
+
+def striped_cone(name, r1, r2, h, n, m_a, m_b, loc=(0, 0, 0)):
+    bpy.ops.mesh.primitive_cone_add(vertices=n, radius1=r1, radius2=r2, depth=h, location=(loc[0], loc[1], loc[2] + h / 2), end_fill_type="NGON")
+    o = bpy.context.active_object
+    o.name = name
+    o.data.materials.append(m_a)
+    o.data.materials.append(m_b)
+    side = [p for p in o.data.polygons if abs(p.normal.z) < 0.9]
+    side.sort(key=lambda p: math.atan2(p.center.y, p.center.x))
+    for i, p in enumerate(side):
+        p.material_index = i % 2
+    o.data.shade_smooth()
+    return o
+
+def build_carton():
+    parts = [bev(box("carton", (0.5, 0.4, 0.34), (0, 0, 0.17), M["cardboard"]), 0.014, 2),
+             box("seam", (0.49, 0.005, 0.003), (0, 0, 0.3415), M["cardboard_dark"]),
+             box("tape_top", (0.52, 0.075, 0.003), (0, 0, 0.342), M["tape"]),
+             box("tape_end", (0.003, 0.075, 0.09), (0.2515, 0, 0.297), M["tape"]),
+             box("tape_end", (0.003, 0.075, 0.09), (-0.2515, 0, 0.297), M["tape"]),
+             bev(box("handle", (0.006, 0.13, 0.045), (0.25, 0, 0.245), M["black"]), 0.01, 2),
+             bev(box("handle", (0.006, 0.13, 0.045), (-0.25, 0, 0.245), M["black"]), 0.01, 2),
+             label("label", 0.34, 0.2, (0, -0.2012, 0.15)),
+             label("label_side", 0.28, 0.17, (0.2512, 0, 0.13), (PI / 2, 0, PI / 2))]
+    return ground(join(parts, "carton"))
+
+def build_candies():
+    shapes = [(0.12, 0.04, 0.17), (0.16, 0.05, 0.11), (0.09, 0.09, 0.14), (0.18, 0.03, 0.1), (0.11, 0.06, 0.16), (0.14, 0.14, 0.06)]
+    out = []
+    for i, s in enumerate(shapes):
+        body = bev(box("candy", s, (0, 0, s[2] / 2), M[f"candy_{i}"]), min(s) * 0.12, 2)
+        lbl = label("candy_lbl", s[0] * 0.92, s[2] * 0.9, (0, -s[1] / 2 - 0.0015, s[2] / 2))
+        top = label("candy_top", s[0] * 0.8, s[1] * 0.8, (0, 0, s[2] + 0.0015), (0, 0, 0)) if s[1] > 0.08 else None
+        out.append(ground(join([body, lbl] + ([top] if top else []), f"candy_{i}")))
+    return out
+
+def build_filmcase():
+    body = bev(cyl("hexcase", 0.42, 0.5, (0, 0, 0.27), M["case_blue"], n=6, rot=(0, 0, PI / 6)), 0.012, 2)
+    parts = [body,
+             bev(cyl("hexbase", 0.435, 0.04, (0, 0, 0.02), M["steel_dark"], n=6, rot=(0, 0, PI / 6)), 0.008, 2),
+             bev(cyl("hexlid", 0.435, 0.06, (0, 0, 0.55), M["steel"], n=6, rot=(0, 0, PI / 6)), 0.01, 2),
+             bev(cyl("hexrib", 0.43, 0.02, (0, 0, 0.36), M["steel"], n=6, rot=(0, 0, PI / 6)), 0.005, 1),
+             torus("hexhandle", 0.11, 0.015, (0, 0, 0.58), M["black"], rot=(PI / 2, 0, 0), maj=16, mn=6),
+             label("label", 0.32, 0.2, (0, -0.3655, 0.23))]
+    for x in (-0.15, 0.15):
+        parts.append(bev(box("latch", (0.05, 0.03, 0.08), (x, -0.375, 0.52), M["steel"]), 0.006, 2))
+    o = join(parts, "filmcase")
+    # drop the handle's lower half into the lid
+    return ground(o)
+
+def build_hdd():
+    parts = [bev(box("hdd_body", (0.34, 0.24, 0.1), (0, 0, 0.05), M["case_grey"]), 0.018, 3),
+             bev(box("hdd_lid", (0.345, 0.245, 0.035), (0, 0, 0.115), M["case_grey"]), 0.012, 3),
+             box("hdd_seam", (0.346, 0.246, 0.004), (0, 0, 0.098), M["black"]),
+             torus("hdd_handle", 0.06, 0.012, (0, 0, 0.135), M["black"], rot=(PI / 2, 0, 0), maj=14, mn=6),
+             label("label", 0.16, 0.055, (0, -0.1215, 0.052))]
+    for x in (-0.1, 0.1):
+        parts.append(bev(box("hdd_latch", (0.045, 0.02, 0.05), (x, -0.125, 0.1), M["yellow"]), 0.005, 2))
+    return ground(join(parts, "hdd"))
+
+def build_filmcans():
+    parts = []
+    for i in range(3):
+        z = 0.032 + i * 0.066
+        parts.append(bev(cyl("can", 0.39, 0.06, (0, 0, z), M["can_tin"], n=32), 0.006, 2))
+        parts.append(cyl("can_band", 0.393, 0.014, (0, 0, z + 0.016), M["case_blue"] if i != 1 else M["candy_0"], n=32))
+        parts.append(torus("can_rib", 0.28, 0.006, (0, 0, z + 0.03), M["steel"], maj=32, mn=4))
+        parts.append(torus("can_rib", 0.16, 0.006, (0, 0, z + 0.03), M["steel"], maj=24, mn=4))
+    parts.append(label("label", 0.22, 0.05, (0, -0.394, 0.1)))
+    return ground(join(parts, "filmcans"))
+
+def build_register():
+    parts = [bev(box("reg_base", (0.44, 0.42, 0.11), (0, 0, 0.055), M["black"]), 0.01, 2),
+             box("reg_drawer", (0.4, 0.004, 0.06), (0, -0.211, 0.055), M["steel_dark"]),
+             bev(box("reg_body", (0.42, 0.3, 0.13), (0, 0.04, 0.17), M["paint_cream"], rot=(-0.22, 0, 0)), 0.012, 2),
+             bev(box("reg_disp", (0.24, 0.05, 0.11), (0, 0.16, 0.32), M["black"], rot=(-0.15, 0, 0)), 0.01, 2),
+             box("reg_disp_g", (0.2, 0.005, 0.055), (0, 0.133, 0.33), M["crt"], rot=(-0.15, 0, 0)),
+             bev(box("reg_printer", (0.1, 0.12, 0.08), (0.17, 0.12, 0.27), M["paint_cream"]), 0.01, 2),
+             box("reg_paper", (0.06, 0.004, 0.06), (0.17, 0.08, 0.33), M["plastic_white"], rot=(0.3, 0, 0))]
+    for r in range(4):
+        for c in range(5):
+            parts.append(bev(box("key", (0.042, 0.036, 0.016), (-0.1 + c * 0.05, -0.07 + r * 0.045, 0.235 + r * 0.01), M["plastic_white"] if c < 4 else M["candy_0"], rot=(-0.22, 0, 0)), 0.005, 1))
+    return ground(join(parts, "register"))
+
+def build_popcorn_machine():
+    pm = [bev(box("pm_cart", (0.84, 0.6, 0.12), (0, 0, 0.06), M["popcorn_red"]), 0.02, 2),
+          bev(box("pm_base", (0.82, 0.56, 0.3), (0, 0, 0.27), M["popcorn_red"]), 0.02, 2),
+          box("pm_base_trim", (0.83, 0.57, 0.02), (0, 0, 0.41), M["gold"]),
+          label("pm_base_lbl", 0.6, 0.18, (0, -0.2815, 0.26)),
+          box("pm_glass", (0.78, 0.53, 0.62), (0, 0, 0.73), M["glass"]),
+          bev(box("pm_top", (0.86, 0.6, 0.14), (0, 0, 1.11), M["popcorn_red"]), 0.02, 2),
+          box("pm_top_trim", (0.87, 0.61, 0.02), (0, 0, 1.045), M["gold"]),
+          label("pm_sign", 0.62, 0.11, (0, -0.3015, 1.115)),
+          bev(cyl("pm_crown", 0.1, 0.12, (0, 0, 1.24), M["gold"], n=16, r2=0.04), 0.01, 1),
+          bev(cyl("pm_kettle", 0.14, 0.13, (0.08, 0, 0.93), M["steel"], n=20, r2=0.12), 0.01, 2),
+          cyl("pm_kettle_lid", 0.125, 0.02, (0.08, 0, 1.005), M["steel_dark"], n=20),
+          cyl("pm_kettle_arm", 0.012, 0.16, (0.08, 0, 1.04), M["steel_dark"], n=6),
+          sph("pm_lamp", 0.04, (-0.25, 0, 0.98), M["bulb"], seg=8, rings=5)]
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            pm.append(cyl("pm_post", 0.016, 0.62, (sx * 0.4, sy * 0.27, 0.73), M["gold"], n=8))
+    body = join(pm, "popcorn")
+    pc = [bev(box("pc", (0.74, 0.5, 0.26), (0, 0, 0.13), M["popcorn"]), 0.04, 2)]
+    for i in range(46):
+        x = ((i * 37) % 23) / 23 * 0.68 - 0.34
+        y = ((i * 17) % 11) / 11 * 0.44 - 0.22
+        pc.append(sph("pk", 0.028 + (i % 3) * 0.008, (x, y, 0.26 + (i % 4) * 0.012), M["popcorn"], seg=6, rings=4))
+    fill = join(pc, "popcorn_fill")
+    child(fill, body, (0, 0, 0.42))
+    return [body, fill]
+
+def build_soda():
+    sf = [bev(box("sf_body", (0.72, 0.46, 0.62), (0, 0.06, 0.31), M["steel"]), 0.02, 2),
+          bev(box("sf_back", (0.72, 0.06, 0.32), (0, 0.27, 0.78), M["soda_red"]), 0.015, 2),
+          label("sf_logo", 0.66, 0.28, (0, 0.239, 0.78)),
+          bev(box("sf_ice", (0.68, 0.4, 0.04), (0, 0.06, 0.64), M["steel_dark"]), 0.01, 2),
+          bev(box("sf_tray", (0.68, 0.2, 0.03), (0, -0.24, 0.02), M["steel_dark"]), 0.008, 2),
+          box("sf_panel", (0.68, 0.005, 0.22), (0, -0.172, 0.46), M["black"])]
+    for i in range(10):
+        sf.append(box("sf_grille", (0.004, 0.18, 0.004), (-0.3 + i * 0.066, -0.24, 0.037), M["black"]))
+    for i in range(4):
+        x = -0.24 + i * 0.16
+        sf.append(bev(box("sf_valve", (0.1, 0.07, 0.07), (x, -0.2, 0.36), M["plastic_white"]), 0.012, 2))
+        sf.append(cyl("sf_nozzle", 0.014, 0.05, (x, -0.21, 0.3), M["black"], n=8))
+        sf.append(bev(box("sf_lever", (0.03, 0.02, 0.1), (x, -0.25, 0.27), M["black"]), 0.006, 1))
+        sf.append(box("sf_tab", (0.08, 0.004, 0.04), (x, -0.236, 0.39), [M["candy_0"], M["candy_1"], M["candy_2"], M["candy_3"]][i]))
+    return ground(join(sf, "soda"))
+
+def build_cups_and_trash():
+    out = []
+    out.append(ground(join([striped_cone("cups", 0.05, 0.06, 0.35, 12, M["popcorn_red"], M["plastic_white"])], "cups")))
+    b = striped_cone("bucket", 0.065, 0.09, 0.18, 14, M["popcorn_red"], M["plastic_white"])
+    top = [sph("bucket_pop", 0.03, (math.cos(a) * 0.05, math.sin(a) * 0.05, 0.19 + (k % 2) * 0.015), M["popcorn"], seg=6, rings=4) for k, a in enumerate([j * 0.9 for j in range(7)])]
+    top.append(sph("bucket_pop", 0.035, (0, 0, 0.205), M["popcorn"], seg=6, rings=4))
+    out.append(ground(join([b] + top, "bucket")))
+    out.append(ground(join([striped_cone("sodacup", 0.045, 0.056, 0.16, 12, M["soda_red"], M["plastic_white"]),
+                            cyl("lid", 0.058, 0.012, (0, 0, 0.166), M["plastic_white"], n=14),
+                            cyl("straw", 0.005, 0.12, (0.012, 0, 0.22), M["candy_0"], n=6)], "sodacup")))
+    # trash left in the auditoriums: four kinds so a dirty house reads at a glance
+    c = striped_cone("tc", 0.045, 0.056, 0.16, 12, M["soda_red"], M["plastic_white"])
+    c.rotation_euler = (PI / 2, 0, 0.5); c.location = (0, 0, 0.05)
+    out.append(ground(join([c, cyl("tc_lid", 0.058, 0.012, (0.06, -0.06, 0.05), M["plastic_white"], n=14, rot=(PI / 2, 0, 0.5)),
+                            cyl("tc_straw", 0.005, 0.18, (0.1, 0.05, 0.01), M["candy_0"], n=6, rot=(PI / 2, 0, 1.4))], "trash_cup")))
+    bk = striped_cone("tb", 0.065, 0.09, 0.18, 14, M["popcorn_red"], M["plastic_white"])
+    bk.rotation_euler = (PI / 2.1, 0, -0.4); bk.location = (0, 0, 0.07)
+    spill = [sph("tb_pop", 0.026, (0.08 + ((i * 29) % 11) / 11 * 0.3, -0.1 + ((i * 13) % 7) / 7 * 0.25, 0.02), M["popcorn"], seg=6, rings=4) for i in range(16)]
+    out.append(ground(join([bk] + spill, "trash_bucket")))
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1, radius=0.05, location=(0, 0, 0.03))
+    w = bpy.context.active_object
+    w.scale = (1.3, 0.8, 0.5)
+    for v in w.data.vertices:
+        v.co.x += math.sin(v.index * 1.7) * 0.012; v.co.y += math.cos(v.index * 2.3) * 0.012
+    fin(w, "tw", M["candy_1"])
+    w2 = w.copy(); w2.data = w.data.copy(); link(w2); w2.location = (0.13, 0.05, 0.02); w2.scale = (1.0, 0.6, 0.4)
+    w2.data.materials[0] = M["candy_2"]
+    out.append(ground(join([w, w2], "trash_wrapper")))
+    sp = [sph("ts_pop", 0.025 + (i % 3) * 0.006, (((i * 29) % 13) / 13 * 0.5 - 0.25, ((i * 17) % 9) / 9 * 0.36 - 0.18, 0.018), M["popcorn"], seg=6, rings=4) for i in range(26)]
+    sp.append(cyl("ts_puddle", 0.14, 0.004, (0.1, -0.06, 0.002), M["soda_spill"], n=16))
+    out.append(ground(join(sp, "trash_spill")))
+    return out
+
 def build_small_props():
     out = []
     # loose film reel, standing up on its flanges
     r = reel_mesh("reel", 0.36, fill=0.85)
     out.append(ground(r))
-    # film can stack (3 cans) and the hex shipping case
-    cans = [cyl("can", 0.39, 0.06, (0, 0, 0.03 + i * 0.065), M["can_tin"], n=24) for i in range(3)]
-    cans += [cyl("can_band", 0.395, 0.012, (0, 0, 0.055 + i * 0.065), M["case_blue"], n=24) for i in range(3)]
-    out.append(ground(join(cans, "filmcans")))
-    hexc = [cyl("hexcase", 0.42, 0.55, (0, 0, 0.275), M["case_blue"], n=6),
-            cyl("hexlid", 0.43, 0.05, (0, 0, 0.56), M["steel"], n=6),
-            box("hexhandle", (0.3, 0.04, 0.04), (0, 0, 0.62), M["black"]),
-            box("hexlabel", (0.3, 0.005, 0.16), (0, -0.365, 0.32), M["plastic_white"])]
-    out.append(ground(join(hexc, "filmcase")))
-    hdd = [box("hdd_case", (0.32, 0.22, 0.12), (0, 0, 0.06), M["black"]),
-           box("hdd_handle", (0.2, 0.03, 0.03), (0, 0, 0.135), M["steel"]),
-           box("hdd_label", (0.14, 0.005, 0.06), (0, -0.112, 0.06), M["plastic_white"])]
-    out.append(ground(join(hdd, "hdd")))
-    # carton (delivery box)
-    cart = [box("carton", (0.5, 0.4, 0.34), (0, 0, 0.17), M["cardboard"]),
-            box("carton_tape", (0.52, 0.08, 0.005), (0, 0, 0.342), M["tape"]),
-            box("carton_tape2", (0.08, 0.41, 0.3), (0, 0, 0.17), M["tape"])]
-    out.append(ground(join(cart, "carton")))
+    out.append(build_filmcans())
+    out.append(build_filmcase())
+    out.append(build_hdd())
+    out.append(build_carton())
     # poster tube
     out.append(ground(join([cyl("tube", 0.05, 0.8, (0, 0, 0), M["cardboard"], n=10, rot=(0, PI / 2, 0)),
                             cyl("tube_cap", 0.055, 0.04, (0.4, 0, 0), M["plastic_white"], n=10, rot=(0, PI / 2, 0)),
                             cyl("tube_cap", 0.055, 0.04, (-0.4, 0, 0), M["plastic_white"], n=10, rot=(0, PI / 2, 0))], "postertube")))
-    # candy boxes (6 kinds, each a different shape so the case reads well)
-    shapes = [(0.12, 0.04, 0.17), (0.16, 0.05, 0.11), (0.09, 0.09, 0.14), (0.18, 0.03, 0.1), (0.11, 0.06, 0.16), (0.14, 0.14, 0.06)]
-    for i, s in enumerate(shapes):
-        c = [box("candy", s, (0, 0, s[2] / 2), M[f"candy_{i}"]),
-             box("candy_lbl", (s[0] * 0.7, 0.003, s[2] * 0.35), (0, -s[1] / 2 - 0.002, s[2] * 0.55), M["plastic_white"])]
-        out.append(ground(join(c, f"candy_{i}")))
-    # register
-    reg = [box("reg_base", (0.42, 0.4, 0.1), (0, 0, 0.05), M["black"]),
-           box("reg_body", (0.4, 0.3, 0.14), (0, 0.04, 0.17), M["paint_cream"], rot=(-0.25, 0, 0)),
-           box("reg_keys", (0.3, 0.16, 0.01), (0, -0.04, 0.245), M["black"], rot=(-0.25, 0, 0)),
-           box("reg_disp", (0.22, 0.04, 0.1), (0, 0.15, 0.32), M["black"]),
-           box("reg_disp_g", (0.18, 0.005, 0.05), (0, 0.128, 0.33), M["crt"])]
-    out.append(ground(join(reg, "register")))
+    out += build_candies()
+    out.append(build_register())
     # computer (CRT + keyboard) on a desk
     desk = [box("desk_top", (1.6, 0.8, 0.05), (0, 0, 0.75), M["wood"]),
             box("desk_side", (0.05, 0.75, 0.72), (-0.77, 0, 0.37), M["wood"]),
@@ -707,38 +864,8 @@ def build_small_props():
             cyl("mug", 0.04, 0.1, (-0.5, -0.1, 0.83), M["popcorn_red"], n=10),
             box("papers", (0.25, 0.3, 0.02), (-0.45, 0.15, 0.785), M["plastic_white"])]
     out.append(ground(join(desk, "computer")))
-    # popcorn machine
-    pm = [box("pm_cart", (0.8, 0.55, 0.1), (0, 0, 0.05), M["popcorn_red"]),
-          box("pm_base", (0.8, 0.55, 0.32), (0, 0, 0.26), M["popcorn_red"]),
-          box("pm_glass", (0.78, 0.53, 0.62), (0, 0, 0.73), M["glass"]),
-          box("pm_top", (0.84, 0.59, 0.16), (0, 0, 1.12), M["popcorn_red"]),
-          box("pm_sign", (0.6, 0.01, 0.1), (0, -0.3, 1.12), M["bulb"]),
-          cyl("pm_kettle", 0.13, 0.12, (0, 0, 0.92), M["steel"], n=12),
-          box("pm_frame", (0.82, 0.04, 0.04), (0, -0.27, 1.04), M["gold"])]
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            pm.append(box("pm_post", (0.03, 0.03, 0.62), (sx * 0.4, sy * 0.27, 0.73), M["gold"]))
-    body = join(pm, "popcorn")
-    fill = join([box("pc", (0.74, 0.5, 0.3), (0, 0, 0.15), M["popcorn"])] +
-                [sph("pk", 0.05, (((i * 37) % 13) / 13 * 0.6 - 0.3, ((i * 17) % 7) / 7 * 0.36 - 0.18, 0.3), M["popcorn"], seg=6, rings=4) for i in range(14)],
-                "popcorn_fill")
-    child(fill, body, (0, 0, 0.42))
-    out += [body, fill]
-    # soda fountain
-    sf = [box("sf_body", (0.7, 0.45, 0.65), (0, 0.05, 0.33), M["steel"]),
-          box("sf_panel", (0.66, 0.01, 0.3), (0, -0.18, 0.5), M["soda_red"]),
-          box("sf_tray", (0.66, 0.2, 0.03), (0, -0.25, 0.02), M["steel_dark"])]
-    for i in range(3):
-        sf.append(cyl("sf_nozzle", 0.025, 0.06, (-0.2 + i * 0.2, -0.22, 0.28), M["black"], n=8))
-        sf.append(box("sf_lever", (0.04, 0.03, 0.08), (-0.2 + i * 0.2, -0.2, 0.2), M["plastic_white"]))
-    out.append(ground(join(sf, "soda")))
-    # cup stacks
-    out.append(ground(join([cyl("cups", 0.05, 0.35, (0, 0, 0.175), M["popcorn_red"], n=10, r2=0.06)], "cups")))
-    out.append(ground(join([cyl("bucket", 0.07, 0.18, (0, 0, 0.09), M["popcorn_red"], n=12, r2=0.09),
-                            sph("bucket_top", 0.085, (0, 0, 0.19), M["popcorn"], scale=(1, 1, 0.5), seg=8, rings=5)], "bucket")))
-    out.append(ground(join([cyl("sodacup", 0.045, 0.16, (0, 0, 0.08), M["soda_red"], n=10, r2=0.055),
-                            cyl("lid", 0.057, 0.01, (0, 0, 0.165), M["plastic_white"], n=10),
-                            cyl("straw", 0.006, 0.12, (0.01, 0, 0.22), M["plastic_white"], n=6)], "sodacup")))
+    out += build_popcorn_machine()
+    out.append(build_soda())
     # splicing / rewind bench
     sb = [box("sb_top", (1.4, 0.6, 0.05), (0, 0, 0.9), M["wood_light"]),
           box("sb_leg", (0.05, 0.05, 0.88), (-0.65, -0.25, 0.44), M["steel_dark"]),
@@ -775,10 +902,7 @@ def build_small_props():
     # trash bin + spilled popcorn trash
     out.append(ground(join([cyl("bin", 0.22, 0.85, (0, 0, 0.425), M["wainscot"], n=14),
                             cyl("bin_top", 0.24, 0.06, (0, 0, 0.86), M["brass"], n=14)], "trashbin")))
-    tr = [cyl("spill_cup", 0.045, 0.15, (0.1, 0.05, 0.075), M["popcorn_red"], n=8, r2=0.055, rot=(PI / 2.2, 0, 0.6))]
-    for i in range(9):
-        tr.append(sph("spill", 0.025, (((i * 29) % 11) / 11 * 0.4 - 0.2, ((i * 13) % 7) / 7 * 0.3 - 0.15, 0.02), M["popcorn"], seg=5, rings=3))
-    out.append(ground(join(tr, "trash")))
+    out += build_cups_and_trash()
     # chandelier
     ch = [cyl("ch_chain", 0.015, 0.8, (0, 0, 1.0), M["gold"], n=6),
           torus("ch_ring", 0.55, 0.03, (0, 0, 0.45), M["gold"]),

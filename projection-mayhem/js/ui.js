@@ -4,7 +4,7 @@ import { FILMS, MISCHIEF_FRAMES } from './films.js';
 import * as sim from './sim.js';
 import { S } from './sim.js';
 import * as booth from './booth.js';
-import { W, L, paintSign, decoText } from './world.js';
+import { W, L, P, paintSign, decoText } from './world.js';
 import { sfx } from './audio.js';
 
 const $ = s => document.querySelector(s);
@@ -16,6 +16,17 @@ function el(tag, cls, html) { const e = document.createElement(tag); if (cls) e.
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 // ------------------------------------------------------------------ modal plumbing
+addEventListener('keydown', e => {
+  if (!UI.modal || UI.splicing) return;
+  const w = UI.modal.wrap;
+  if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+    const btns = [...w.querySelectorAll('button.big.go')].filter(b => !b.disabled && b.offsetParent);
+    if (btns.length) { e.preventDefault(); btns[btns.length - 1].click(); }
+  } else if (/^Digit[1-6]$/.test(e.code)) {
+    const scr = [...w.querySelectorAll('.pick .scr')][+e.code.slice(5) - 1];
+    scr?.click();
+  }
+});
 function openModal(node, { cls = '', onClose } = {}) {
   closeModal(true);
   const wrap = el('div', 'modal ' + cls);
@@ -37,11 +48,44 @@ export function modalOpen() { return !!UI.modal || !!UI.splicing; }
 
 // ------------------------------------------------------------------ toasts + hints
 export function toast(msg, kind = 'info') {
+  const lastT = $('#toasts').lastElementChild;
+  if (lastT && lastT.dataset.msg === msg && !lastT.classList.contains('out')) { lastT.dataset.n = (+lastT.dataset.n || 1) + 1; lastT.innerHTML = esc(msg) + ` <i>×${lastT.dataset.n}</i>`; return; }
   const t = el('div', 'toast ' + kind, esc(msg));
+  t.dataset.msg = msg;
   $('#toasts').appendChild(t);
   setTimeout(() => t.classList.add('out'), 3800);
   setTimeout(() => t.remove(), 4400);
   while ($('#toasts').children.length > 4) $('#toasts').firstChild.remove();
+}
+
+// ------------------------------------------------------------------ first nights: a checklist of the job
+const JOBS = [
+  ['threadA', 'Thread reel 1 on projector A (booth, up the stairs)'],
+  ['threadB', 'Thread reel 2 on projector B'],
+  ['restock', 'Restock the sold-out candy from the stockroom'],
+  ['open', 'Open the front doors'],
+  ['ticket', 'Sell tickets at the box office'],
+  ['snack', 'Serve someone at concessions'],
+  ['start', 'Start the show at showtime'],
+  ['change', 'Change over on the cigarette burns'],
+  ['rewind', 'Rewind a played reel'],
+  ['clean', 'Sweep up the theatre when the film lets out'],
+  ['bin', 'Empty your trash bag in a bin'],
+];
+export function tutDone(key) {
+  G.flags.jobs = G.flags.jobs || {};
+  if (G.flags.jobs[key]) return;
+  G.flags.jobs[key] = true;
+  renderJobs(true);
+}
+function renderJobs(flash) {
+  const el2 = $('#jobs');
+  const jobs = G.flags.jobs || {};
+  const done = JOBS.filter(([k]) => jobs[k]).length;
+  if (done === JOBS.length || G.day > 3 || G.flags.omni) { el2.style.display = 'none'; return; }
+  el2.style.display = '';
+  el2.innerHTML = `<b>Tonight’s jobs <span>${done}/${JOBS.length}</span></b>` + JOBS.map(([k, t]) => `<div class="${jobs[k] ? 'ok' : ''}">${jobs[k] ? '☑' : '☐'} ${esc(t)}</div>`).join('');
+  if (flash) { el2.classList.remove('flash'); void el2.offsetWidth; el2.classList.add('flash'); sfx('tick'); }
 }
 
 let hintAcc = 0;
@@ -65,6 +109,10 @@ export function updateHUD(dt, ctx) {
     c.className = 'chip' + (st?.urgent ? ' urgent' : '') + (st?.cue ? ' cue' : '');
     c.innerHTML = `<b>${s.id}</b><span>${esc(f ? f.title : '—')}</span><i>${esc(st?.text || '')}</i>`;
   });
+  const bag = G.bag || 0;
+  $('#bag').style.display = bag ? '' : 'none';
+  $('#bag').innerHTML = `🗑️ Trash bag <b>${bag}/${sim.BAG_CAP}</b>${bag >= sim.BAG_CAP ? ' — FULL' : ''}`;
+  if (!UI.jobsDrawn) { UI.jobsDrawn = true; renderJobs(); }
   hintAcc -= dt;
   if (hintAcc <= 0) { hintAcc = 0.25; $('#coach').textContent = hint(ctx); $('#coach').style.opacity = $('#coach').textContent ? 1 : 0; }
   // PiP: the screen you're nearest to while in the booth
@@ -105,6 +153,12 @@ function hint(ctx) {
       return `Screen ${s.id}: motor running. Second burn → CHANGEOVER (E on projector ${incId}, or Space).`;
     }
   }
+  const usher = G.staff.some(s => s.role === 'usher');
+  if ((G.bag || 0) >= sim.BAG_CAP) return 'Your trash bag is full. Empty it in a bin (one beside every auditorium door, two in the lobby).';
+  if (!usher) for (const s of G.screens.filter(s => s.open && s.trash > 0)) {
+    const sh = booth.B[s.id].show, out = S.customers.some(c => c.k === s.id && c.state === 'seated');
+    if (!sh?.started && !out) return `Screen ${s.id} let out. Sweep up the ${s.trash} piece${s.trash > 1 ? 's' : ''} of trash (hold E) before the next show can start.`;
+  }
   for (const s of G.screens.filter(s => s.open)) {
     const b = booth.B[s.id], sh = b.show;
     if (sh && !sh.started && G.t >= sh.startAt - 3 && s.tier !== 'digital' && !proj) {
@@ -125,7 +179,7 @@ function hint(ctx) {
   }
   if (G.carry) {
     const c = G.carry;
-    if (c.kind === 'print') return 'Take the print case up the stairs to the splicing bench (right side of the booth balcony).';
+    if (c.kind === 'print') return 'Take the print case up the stairs to the splicing bench (right side of the booth balcony). G throws it down.';
     if (c.kind === 'drive') return 'Ingest happens on the projector once the film is booked to a digital screen. Drop it (G) for now.';
     if (c.kind === 'candy') return `Put the ${CANDY[c.i].name} in the glass case at the concession counter.`;
     if (c.kind === 'kernels') return 'Pour the kernels into the popcorn machine behind the counter.';
@@ -179,14 +233,14 @@ function payBlock(total, done, opts = {}) {
   const given = [5, 10, 20, 50, 100].find(v => v >= total + (Math.random() < 0.5 ? 1 : 0)) || 100;
   const owed = given - total;
   let gave = 0;
-  box.innerHTML = `<div class="paymsg">They hand you <b>${money(given)}</b> for <b>${money(total)}</b>. Count out the change.</div><div class="till"></div><div class="changeline">Change given: <b class="cg">$0</b></div>`;
+  box.innerHTML = `<div class="paymsg">They hand you <b>${money(given)}</b> for <b>${money(total)}</b>. Count out <b>${money(owed)}</b> in change.</div><div class="till"></div><div class="changeline">Change given: <b class="cg">$0</b> of ${money(owed)}</div>`;
   const till = box.querySelector('.till');
   for (const v of BILLS) { const b = el('button', 'bill', `$${v}`); b.onclick = () => { gave += v; sfx('tick'); upd(); }; till.appendChild(b); }
   const undo = el('button', 'bill undo', 'clear'); undo.onclick = () => { gave = 0; upd(); }; till.appendChild(undo);
-  const go = el('button', 'big go', owed === 0 ? 'Exact. Close the drawer' : 'Hand over the change');
+  const go = el('button', owed === 0 ? 'big go' : 'big', owed === 0 ? 'Exact. Close the drawer' : 'Hand over the change');
   go.onclick = () => done(gave - owed);
   box.appendChild(go);
-  function upd() { box.querySelector('.cg').textContent = money(gave); }
+  function upd() { const cg = box.querySelector('.cg'); cg.textContent = money(gave); cg.style.color = gave === owed ? '#7fb87a' : gave > owed ? '#ff9a7a' : ''; go.classList.toggle('go', gave === owed); }
   return box;
 }
 
@@ -229,6 +283,7 @@ function boxPOS(c) {
   refuse.onclick = () => { closeModal(); sim.sellTicket(c, { refused: true }); };
   print.onclick = () => {
     if (!screen) return;
+    tutDone('ticket');
     act.remove(); pick.style.pointerEvents = 'none'; qrow.style.pointerEvents = 'none';
     sfx('print');
     payArea.appendChild(payBlock(qty * G.prices.ticket, err => { closeModal(); sim.sellTicket(c, { screen, qty, changeErr: err }); }));
@@ -277,6 +332,7 @@ function conPOS(c) {
   }
   function upd() { tot.querySelector('.t').textContent = money(total()); }
   ring.onclick = () => {
+    tutDone('snack');
     act.remove(); grid.style.pointerEvents = 'none';
     payArea.appendChild(payBlock(total(), err => { closeModal(); sim.sellConcession(c, sel, { changeErr: err, upsell }); }));
   };
@@ -517,7 +573,8 @@ export async function intro() {
     ['Tyler', 'Night projectionist. Paper Street Picture House. One screen, two old 35mm projectors, a candy case and a lot of opinions.'],
     ['Tyler', 'The owner left. Gave me the keys. Said "don’t burn it down." So now I run the place.'],
     ['The rules of the booth', '<ol><li>You do not talk about the booth.</li><li>You <b>do not</b> talk about the booth.</li><li>When the first cigarette burn flashes in the corner, start the other projector.</li><li>When the second one flashes, change over.</li><li>Rewind every reel. Every one.</li><li>One feature at a time.</li><li>No shirts, no shoes: still sell them a ticket.</li><li>If this is your first night at the booth, you have to change over.</li></ol>'],
-    ['Tyler', 'WASD walks, the mouse looks, <kbd>E</kbd> uses things, <kbd>G</kbd> drops what you’re carrying, <kbd>H</kbd> opens the projectionist’s handbook. The booth is up the stairs on the left.'],
+    ['Tyler', 'And when a film lets out, the house is a disaster. Cups, buckets, wrappers. Nobody gets in for the next show until it’s swept. Trash goes in a bin; there’s one by every auditorium door.'],
+    ['Tyler', 'WASD walks, the mouse looks, <kbd>E</kbd> uses things, <kbd>G</kbd> throws down what you’re carrying, <kbd>H</kbd> opens the projectionist’s handbook. The booth is up the stairs on the left.'],
   ]);
 }
 export async function actTwo() {
@@ -597,6 +654,7 @@ export function handbook() {
   <h3>Threading</h3><p>Feed reel → upper sprocket → upper loop → the gate (aperture and pressure plate) → intermittent sprocket → lower loop → sound head → lower sprocket → take-up reel. Lose a loop and the picture jumps.</p>
   <h3>Changeovers</h3><p>Two projectors, alternating reels. Near the end of each reel, two <b>cue marks</b> (the "cigarette burns") flash in the upper-right corner of the picture. The first, the <b>motor cue</b>, means start the motor on the incoming projector: its leader has to run down to the first frame. The second, the <b>changeover cue</b>, means switch: the douser closes on one machine and opens on the other. Too early on the motor and the countdown hits the screen. Too late on the changeover and the audience gets a white screen.</p>
   <p>Here: <kbd>E</kbd> on a projector does whatever it needs next. In the booth, <kbd>Q</kbd> starts the incoming motor and <kbd>Space</kbd> changes over on the nearest screen. Rewind every played reel before you thread the next one.</p>
+  <h3>Between shows</h3><p>When the lights come up the house is a mess. Hold <kbd>E</kbd> on each piece of trash to bag it (24 to a bag) and empty the bag in a bin. The next audience waits in the hall until the auditorium is clean, and the show can’t start until it is. An usher does this for you.</p>
   <h3>Platters and digital</h3><p>A <b>platter</b> holds the whole feature built up into one enormous horizontal reel, so one projector runs the show with no changeovers. <b>Digital</b> features arrive as a DCP on a hard drive, get ingested into the server, and only play inside the window of their key (KDM). The booth goes quiet.</p>`;
   node.appendChild(closeBtn());
   openModal(node);
@@ -647,6 +705,8 @@ export function paintPosters() {
 export function paintSigns() {
   const omni = G.flags.omni;
   const titles = G.screens.filter(s => s.open && s.film).map(s => film(s.film).title.toUpperCase());
+  if (W.omni !== !!G.flags.omni) { W.omni = !!G.flags.omni; P.sodaLabel?.(); }
+  renderJobs();
   paintSign('marquee_panel', 1024, 114, (g, w, h) => {
     g.fillStyle = '#f5ecd6'; g.fillRect(0, 0, w, h);
     g.fillStyle = '#1a1410';

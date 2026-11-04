@@ -14,7 +14,17 @@ html,body{margin:0;height:100%;overflow:hidden;background:#07040a;color:var(--in
 #game{position:fixed;left:0;top:52px;width:100vw;height:calc(100vh - 52px);height:calc(100dvh - 52px);display:block;outline:none}
 .hud{position:fixed;pointer-events:none;z-index:5}
 body:not(.started) .hud{display:none}
-#cross{left:50%;top:calc(50% + 26px);width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:rgba(255,240,210,.85);box-shadow:0 0 4px #000}
+#cross{left:50%;top:calc(50% + 26px);width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:rgba(255,240,210,.85);box-shadow:0 0 4px #000;transition:all .12s}
+#cross.on{width:14px;height:14px;margin:-7px 0 0 -7px;background:transparent;border:2px solid #ffcf6a;box-shadow:0 0 6px rgba(255,180,60,.8)}
+#jobs{top:122px;left:12px;width:290px;padding:9px 12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;font-size:12.5px;line-height:1.55}
+#jobs b{display:flex;justify-content:space-between;font:700 13px Georgia,serif;color:var(--gold);margin-bottom:3px}
+#jobs b span{color:var(--dim);font:600 11px "Segoe UI",sans-serif}
+#jobs div{color:#e8dcc0}#jobs div.ok{color:#7fb87a;text-decoration:line-through;text-decoration-color:rgba(127,184,122,.6)}
+#jobs.flash{animation:jobflash .6s}@keyframes jobflash{30%{border-color:#7fb87a;box-shadow:0 0 0 3px rgba(127,184,122,.35)}}
+#bag{right:14px;bottom:62px;padding:5px 11px;background:var(--panel);border:1px solid var(--line);border-radius:999px;font-size:12.5px}
+#bag b{color:#fff3d6}
+#pause{position:fixed;inset:52px 0 0;z-index:25;display:none;align-items:center;justify-content:center;flex-direction:column;gap:8px;background:rgba(5,2,0,.55);cursor:pointer;font:700 34px Georgia,serif;color:var(--gold)}
+#pause small{font:14px "Segoe UI",sans-serif;color:var(--dim)}
 #top{top:62px;left:12px;display:flex;gap:16px;align-items:center;padding:8px 14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;font-variant-numeric:tabular-nums;box-shadow:0 6px 20px rgba(0,0,0,.4)}
 #top div{display:grid;line-height:1.1}
 #top b{font-size:17px;color:#fff3d6}
@@ -140,7 +150,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 #cine.on{opacity:1}
 #cine div{font:italic 26px Georgia,serif;color:#fff3d6;text-shadow:0 2px 10px #000}
 body.locked #keys{opacity:.75}
-@media (max-width:900px){#coach{max-width:calc(100vw - 30px);bottom:110px}#chips{display:none}}
+@media (max-height:760px){#jobs{font-size:11.5px;line-height:1.4}}
+@media (max-width:900px){#jobs{display:none!important}#coach{max-width:calc(100vw - 30px);bottom:110px}#chips{display:none}}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"}}</script>
 </head>
@@ -161,10 +172,13 @@ body.locked #keys{opacity:.75}
 <div class="hud" id="coach"></div>
 <div class="hud" id="prompt"><span></span><div class="bar"><i></i></div></div>
 <div class="hud" id="carry"></div>
-<div class="hud" id="keys"><kbd>WASD</kbd> walk <kbd>Shift</kbd> run <kbd>E</kbd>/click use <kbd>G</kbd> drop <kbd>H</kbd> handbook <kbd>M</kbd> sound<br>In the booth: <kbd>Q</kbd> start motor <kbd>Space</kbd> changeover</div>
+<div class="hud" id="bag" style="display:none"></div>
+<div class="hud" id="jobs" style="display:none"></div>
+<div class="hud" id="keys"><kbd>WASD</kbd> walk <kbd>Shift</kbd> run <kbd>E</kbd>/click use <kbd>G</kbd> throw <kbd>H</kbd> handbook <kbd>M</kbd> sound<br>In the booth: <kbd>Q</kbd> start motor <kbd>Space</kbd> changeover</div>
 <div id="toasts"></div>
 <div id="modals"></div>
 <div id="spliceRoot"></div>
+<div id="pause">Paused<small>Click to get back to work</small></div>
 <div id="cine"><div>2:04 a.m. Project Mayhem.</div></div>
 <div id="loading">Threading the projector&hellip;</div>
 <div id="title">
