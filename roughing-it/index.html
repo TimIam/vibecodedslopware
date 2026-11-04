@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1b130d">
 <title>Roughing It</title>
 <meta name="description" content="A trail game after Mark Twain's Roughing It: ride the Overland stage to Nevada in 1861, catch silver fever, and talk your way onto a newspaper.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤠</text></svg>">
@@ -92,6 +93,94 @@ table.mkt button{padding:2px 8px;min-height:30px;font-size:15px}
   .side{order:2}
   #journal{max-height:160px}
 }
+/* phone layout (narrow screens, and phones held sideways): sticky status bar, full-width scene,
+   slide-up sheets behind a bottom dock. Desktop never sees any of this. */
+.fabs,#sheetShade,.sheetClose{display:none}
+@media (max-width:700px), (max-height:500px) and (pointer:coarse){
+  html{-webkit-text-size-adjust:100%}
+  body{font-size:18px;-webkit-tap-highlight-color:transparent}
+  button{touch-action:manipulation}
+  .wrap{display:flex;flex-direction:column;max-width:none;padding:0 0 calc(76px + env(safe-area-inset-bottom));gap:0}
+  .side{display:contents}
+  #titleCard{display:none}
+  /* status bar */
+  #stats{order:-1;position:sticky;top:52px;z-index:30;border:0;border-bottom:2px solid #5a3f25;border-radius:0;
+    padding:7px max(14px,env(safe-area-inset-right)) 9px max(14px,env(safe-area-inset-left));
+    display:grid;grid-template-columns:auto auto 1fr 1fr;grid-template-areas:"when when when when" "money miles hp sp" "rd rd tr tr";gap:5px 14px;
+    background:linear-gradient(#2e2015,#241810);box-shadow:0 6px 16px rgba(0,0,0,.45)}
+  #stats>.kv:first-child{grid-area:when;font-size:16px;color:#d8c49c;border-bottom:1px solid #4a3520;padding-bottom:4px}
+  #stats>.kv:first-child b{color:#f3d38c}
+  .st-money{grid-area:money}#milesRow{grid-area:miles}.st-hp{grid-area:hp}.st-sp{grid-area:sp}.st-rd{grid-area:rd}.st-tr{grid-area:tr}
+  #paperStats{display:contents}
+  #stats .st-money,#stats #milesRow{flex-direction:column;justify-content:flex-end;line-height:1}
+  #stats .st-money span,#stats #milesRow span,#stats .stat label{font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:#a8916b}
+  #stats .st-money b,#stats #milesRow b{font-size:21px;margin-top:2px}
+  #stats .stat{display:grid;grid-template-columns:1fr auto;grid-template-areas:"l v" "t t";gap:2px 4px;align-items:end;line-height:1}
+  #stats .stat label{grid-area:l}#stats .stat .v{grid-area:v;font-size:17px;color:#efe3c4}#stats .stat .track{grid-area:t;height:7px;border-radius:4px;overflow:hidden;border-color:#4a3520}
+  #stats .fill{border-radius:4px}
+  /* scene and story */
+  .main{gap:0}
+  #scene{border:0;border-bottom:3px solid #5a3f25;box-shadow:none}
+  .page{scroll-margin-top:150px;border:0;padding:16px max(16px,env(safe-area-inset-right)) 22px max(16px,env(safe-area-inset-left));min-height:0;box-shadow:inset 0 0 50px rgba(120,80,30,.18)}
+  .page h2{font-size:24px;line-height:1.15}
+  .page .where{font-size:16px;line-height:1.35}
+  .page p{line-height:1.5}
+  .choices{gap:10px;margin-top:16px}
+  .btn{min-height:50px;padding:10px 16px;border-radius:6px;box-shadow:0 2px 0 #5a3f25}
+  .btn.big{font-size:21px}
+  .btn:active:not(:disabled){background:#ead9b0;transform:translateY(2px);box-shadow:none}
+  .items{grid-template-columns:1fr}
+  .item{border-radius:6px}
+  .lead{border-radius:6px}
+  .grid{max-width:none}
+  /* sheets */
+  .sheet{display:none}
+  body[data-sheet] #sheetShade{display:block;position:fixed;inset:0;background:rgba(10,6,3,.62);z-index:55;animation:fade .2s}
+  body[data-sheet=map] #mapCard,body[data-sheet=bag] #bagCard,body[data-sheet=journal] #journalCard,body[data-sheet=tools] #toolsCard{
+    display:block;position:fixed;left:0;right:0;bottom:0;z-index:60;max-height:80vh;overflow:auto;border:0;border-top:2px solid #c9a040;border-radius:18px 18px 0 0;
+    padding:26px max(18px,env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));
+    background:#2a1d12;color:#efe3c4;box-shadow:0 -12px 40px rgba(0,0,0,.6);animation:sheetUp .24s cubic-bezier(.2,.8,.3,1)}
+  .sheet::before{content:"";position:absolute;top:9px;left:50%;width:42px;height:5px;margin-left:-21px;border-radius:3px;background:#5a3f25}
+  .sheet h3{font-size:17px;margin-bottom:12px}
+  .sheetClose{display:block;position:absolute;top:10px;right:10px;width:44px;height:44px;border:0;border-radius:50%;background:#3a2818;color:#d8c49c;font-size:20px}
+  #map{border-radius:6px}
+  #journal{max-height:none;font-size:17px;line-height:1.4;gap:8px}
+  #journal div{padding-bottom:6px;border-bottom:1px solid #3a2818}
+  #bag{font-size:20px;line-height:1.5}
+  #mapLabel{font-size:19px;margin-top:8px}
+  #toolsCard .btn{background:#3a2818;color:#efe3c4;border-color:#7a6448;font-family:VT323,monospace;display:block;width:100%;font-size:21px;min-height:52px;margin-top:10px;text-align:center;border-radius:8px}
+  /* the dock */
+  body[data-sheet] .fabs{display:none}
+  .fabs{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:50;gap:8px;align-items:stretch;justify-content:center;
+    padding:8px max(12px,env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
+    background:rgba(27,19,13,.97);border-top:1px solid #5a3f25;box-shadow:0 -6px 18px rgba(0,0,0,.5)}
+  .fab{position:relative;flex:1;max-width:84px;height:56px;border-radius:10px;border:1px solid #5a3f25;background:#2a1d12;color:#efe3c4;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0}
+  .fab b{font-size:21px;line-height:1;font-weight:normal}
+  .fab span{font:15px VT323,monospace;letter-spacing:.5px;color:#d8c49c;line-height:1}
+  .fab:active{background:#3a2818;transform:translateY(1px)}
+  .fab.mapfab{flex:0 0 112px;max-width:none;overflow:hidden;border-color:#c9a040}
+  .fab.mapfab canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated}
+  .fab.mapfab span{position:absolute;left:0;right:0;bottom:0;padding:2px 0;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#fff}
+  .fab .dot{position:absolute;top:6px;right:calc(50% - 20px);width:10px;height:10px;border-radius:50%;background:#e2564a;box-shadow:0 0 0 2px #2a1d12;display:none}
+  .fab.new .dot{display:block}
+}
+/* phones held sideways: a one-line status bar, the dock as a rail on the right, and a picture that fits */
+@media (max-height:500px) and (pointer:coarse) and (orientation:landscape){
+  .wrap{padding:0 calc(104px + env(safe-area-inset-right)) 24px 0}
+  #stats{position:static;grid-template-columns:auto auto auto 1fr 1fr;grid-template-areas:"when money miles hp sp" "when money miles rd tr";align-items:end;gap:4px 16px;padding-top:6px;padding-bottom:7px}
+  #stats>.kv:first-child{flex-direction:column;align-items:flex-start;border:0;padding:0;gap:2px}
+  #scene{width:min(100%,calc((100vh - 140px) * 2));margin:0 auto;border-left:3px solid #5a3f25;border-right:3px solid #5a3f25}
+  .main{background:#140d08}
+  .fabs{left:auto;right:0;top:52px;bottom:0;width:calc(96px + env(safe-area-inset-right));flex-direction:column;justify-content:flex-start;align-items:stretch;
+    padding:8px calc(8px + env(safe-area-inset-right)) 8px 8px;border-top:0;border-left:1px solid #5a3f25}
+  .fab{flex:0 0 46px;max-width:none;height:auto}
+  .fab.mapfab{flex:0 0 60px}
+  body[data-sheet=map] #mapCard,body[data-sheet=bag] #bagCard,body[data-sheet=journal] #journalCard,body[data-sheet=tools] #toolsCard{left:auto;width:min(420px,70vw);top:52px;border-radius:16px 0 0 0;max-height:none}
+}
+@media (hover:none){.btn:hover:not(:disabled){transform:none;background:#f8efd8}}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
 </style>
 </head>
 <body>
@@ -107,24 +196,24 @@ table.mkt button{padding:2px 8px;min-height:30px;font-size:15px}
     <section class="page" id="page" aria-live="polite"></section>
   </div>
   <aside class="side">
-    <div class="card">
+    <div class="card" id="titleCard">
       <h1>Roughing It <small>after Mark Twain, 1872</small></h1>
     </div>
     <div class="card" id="stats">
       <div class="kv"><span id="when">July 26, 1861</span><b id="phase">St. Joseph</b></div>
-      <div class="kv"><span>money</span><b id="money">$0</b></div>
+      <div class="kv st-money"><span>money</span><b id="money">$0</b></div>
       <div class="kv" id="milesRow"><span>to Carson</span><b id="miles">1,700 mi</b></div>
-      <div class="stat"><label>health</label><div class="track"><i class="fill" id="hpBar"></i></div><span class="v" id="hp">0</span></div>
-      <div class="stat"><label>spirits</label><div class="track"><i class="fill sp" id="spBar"></i></div><span class="v" id="sp">0</span></div>
+      <div class="stat st-hp"><label>health</label><div class="track"><i class="fill" id="hpBar"></i></div><span class="v" id="hp">0</span></div>
+      <div class="stat st-sp"><label>spirits</label><div class="track"><i class="fill sp" id="spBar"></i></div><span class="v" id="sp">0</span></div>
       <div id="paperStats" hidden>
-        <div class="stat"><label>readers</label><div class="track"><i class="fill rd" id="rdBar"></i></div><span class="v" id="rd">0</span></div>
-        <div class="stat"><label>trouble</label><div class="track"><i class="fill tr" id="trBar"></i></div><span class="v" id="tr">0</span></div>
+        <div class="stat st-rd"><label>readers</label><div class="track"><i class="fill rd" id="rdBar"></i></div><span class="v" id="rd">0</span></div>
+        <div class="stat st-tr"><label>trouble</label><div class="track"><i class="fill tr" id="trBar"></i></div><span class="v" id="tr">0</span></div>
       </div>
     </div>
-    <div class="card"><h3>The journey</h3><canvas id="map" width="256" height="128" aria-hidden="true"></canvas><div id="mapLabel"></div></div>
-    <div class="card"><h3>Baggage</h3><ul id="bag"></ul></div>
-    <div class="card"><h3>Journal</h3><div id="journal"></div></div>
-    <div class="tools"><button class="btn" id="mute">♪ sound on</button><button class="btn" id="restart">↺ start over</button></div>
+    <div class="card sheet" id="mapCard"><h3>The journey</h3><canvas id="map" width="256" height="128" aria-hidden="true"></canvas><div id="mapLabel"></div></div>
+    <div class="card sheet" id="bagCard"><h3>Baggage</h3><ul id="bag"></ul></div>
+    <div class="card sheet" id="journalCard"><h3>Journal</h3><div id="journal"></div></div>
+    <div class="tools sheet" id="toolsCard"><button class="btn" id="mute">♪ sound on</button><button class="btn" id="restart">↺ start over</button></div>
   </aside>
 </div>
 <script src="./leads.js"></script>
@@ -132,5 +221,13 @@ table.mkt button{padding:2px 8px;min-height:30px;font-size:15px}
 <script src="./game.js"></script>
 <script src="./part2.js"></script>
 <script src="./minimap.js"></script>
+<div id="sheetShade"></div>
+<nav class="fabs" aria-label="Game panels">
+  <button class="fab mapfab" data-sheet="map" aria-label="Open the journey map"><canvas id="mapThumb" width="128" height="64"></canvas><span>Map</span></button>
+  <button class="fab" data-sheet="bag" aria-label="Open your baggage"><b>🎒</b><span>Baggage</span></button>
+  <button class="fab" data-sheet="journal" aria-label="Open the journal"><b>📜</b><span>Journal</span><i class="dot"></i></button>
+  <button class="fab" data-sheet="tools" aria-label="Sound and start over"><b>⚙</b><span>Options</span></button>
+</nav>
+<script src="./mobile.js"></script>
 </body>
 </html>
