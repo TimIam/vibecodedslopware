@@ -44,9 +44,30 @@ const arms = new Arms(scene, plaid);
 
 // Settings, remembered per browser.
 const SETTINGS_KEY = 'fellswoop.settings.v1';
-const settings = { sens: 1, music: 0.5, sfx: 1, view: 'first', full: true };
+const settings = { sens: 1, music: 0.5, sfx: 1, view: 'first', full: true, grip: 'R' };
 try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch { /* private mode */ }
 const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* ignore */ } };
+
+// The grip: which hand is on top of the handle, up by the head ('R' is the usual right-handed
+// hold, left hand on the knob). The top hand's side is your strong side: you wind up further over
+// that shoulder and swing hardest coming across from it; the backhand is lighter. X swaps, sliding
+// the hands past each other on the handle, and for that moment one hand is off and the axe is weak.
+if (settings.grip !== 'L') settings.grip = 'R';
+const hand = () => (settings.grip === 'R' ? 1 : -1);
+const grip = { u: { R: settings.grip === 'R' ? 1 : 0, L: settings.grip === 'R' ? 0 : 1 }, t: 0 };
+const REGRIP = 0.35;  // seconds the hands take to change over
+function swapGrip() {
+  if (grip.t > 0 || player.dead) return;
+  settings.grip = settings.grip === 'R' ? 'L' : 'R'; saveSettings(); syncSettingsUi();
+  grip.t = REGRIP; sfx.yank();
+  popup(settings.grip === 'R' ? 'right hand on top' : 'left hand on top', 'meh', settings.grip === 'R' ? 'wind up over your right shoulder' : 'wind up over your left shoulder');
+}
+function updateGrip(dt) {
+  if (grip.t > 0) grip.t = Math.max(0, grip.t - dt);
+  const k = 1 - grip.t / REGRIP, top = settings.grip, s = k * k * (3 - 2 * k);
+  // Each hand slides along the handle from where it was to where it is going (0 knob, 1 top).
+  grip.u[top] = s; grip.u[top === 'R' ? 'L' : 'R'] = 1 - s;
+}
 
 // The third-person body: Timberline's faller if it loads, a simple lumberjack until then.
 const body = { fig: null, simple: new Lumberjack(scene, plaid) };
@@ -162,7 +183,7 @@ function newClearing(seed) {
   player.stamina = 1; player.stumble = 0; player.dead = false; player.deadT = 0; player.dip = 0;
   setTarget(first); player.yaw = yawTo(first); basis(player.yaw); G.tpYaw = null;
   G.lookPt.set(first.x, 0.95, first.z);
-  cursor.x = cursor.sx = cursor.px = 0.45; cursor.y = cursor.sy = cursor.py = 0.12; cursor.bit.set(-1, 0);
+  cursor.x = cursor.sx = cursor.px = 0.45 * hand(); cursor.y = cursor.sy = cursor.py = 0.12; cursor.bit.set(-1, 0);
   sw.init = false; sw.dphi = sw.dth = 0; sw.phiU = null;
   chest.copy(player.pos).addScaledVector(B.U, 1.32).addScaledVector(B.F, 0.06);
   computeTarget(1 / 600);
@@ -179,6 +200,7 @@ addEventListener('keydown', e => {
   if (e.code === 'BracketLeft') nudgeSens(1 / 1.15);
   if (e.code === 'BracketRight') nudgeSens(1.15);
   if (e.code === 'Escape' && input.soft && G.mode === 'play') setMode('paused');
+  if (e.code === 'KeyX' && G.mode === 'play') swapGrip();
   if (e.code === 'Tab') { e.preventDefault(); if (G.mode === 'play' && !player.dead) cycleTarget(e.shiftKey ? -1 : 1); }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
 });
@@ -214,9 +236,10 @@ addEventListener('mousemove', e => {
 // How far a person can take an axe, in swing-space units (x round the body, y up and down):
 // well back over either shoulder or high overhead, but not fully both at once, and never round
 // behind the back. A rounded box (superellipse); slack > 1 is the give in the joints.
-const LIMIT = { xR: 1.5, xL: 1.33, yU: 1.11, yD: 0.72, p: 3.2 };
+// The wind-up goes further over the top hand's shoulder than over the other one.
+const LIMIT = { xTop: 1.5, xOff: 1.33, yU: 1.11, yD: 0.72, p: 3.2 };
 function limitSwing(x, y, slack, out) {
-  const nx = x / ((x > 0 ? LIMIT.xR : LIMIT.xL) * slack), ny = y / ((y > 0 ? LIMIT.yU : LIMIT.yD) * slack);
+  const nx = x / ((x * hand() > 0 ? LIMIT.xTop : LIMIT.xOff) * slack), ny = y / ((y > 0 ? LIMIT.yU : LIMIT.yD) * slack);
   const n = Math.pow(Math.abs(nx) ** LIMIT.p + Math.abs(ny) ** LIMIT.p, 1 / LIMIT.p);
   if (n > 1) { x /= n; y /= n; }
   out.x = x; out.y = y;
@@ -239,11 +262,13 @@ function syncSettingsUi() {
   $('setSfx').value = Math.round(settings.sfx * 100); $('setSfxV').textContent = `${Math.round(settings.sfx * 100)}%`;
   for (const b of document.querySelectorAll('[data-view]')) b.classList.toggle('on', b.dataset.view === settings.view);
   for (const b of document.querySelectorAll('[data-full]')) b.classList.toggle('on', (b.dataset.full === '1') === settings.full);
+  for (const b of document.querySelectorAll('[data-grip]')) b.classList.toggle('on', b.dataset.grip === settings.grip);
 }
 $('setSens').oninput = e => setSens(e.target.value / 100);
 $('setMusic').oninput = e => { settings.music = e.target.value / 100; sfx.setMusicVolume(settings.music); saveSettings(); syncSettingsUi(); };
 $('setSfx').oninput = e => { settings.sfx = e.target.value / 100; sfx.setSfxVolume(settings.sfx); saveSettings(); syncSettingsUi(); };
 for (const b of document.querySelectorAll('[data-view]')) b.onclick = () => setView(b.dataset.view);
+for (const b of document.querySelectorAll('[data-grip]')) b.onclick = () => { if (b.dataset.grip !== settings.grip) swapGrip(); syncSettingsUi(); };
 for (const b of document.querySelectorAll('[data-full]')) b.onclick = () => {
   settings.full = b.dataset.full === '1'; saveSettings(); syncSettingsUi();
   if (!settings.full && document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -386,7 +411,10 @@ function jointLimit() {
 function updateDrive() {
   const tense = input.lmb && G.mode === 'play' && !player.dead;
   const st = 0.42 + 0.58 * smooth(0, 0.4, player.stamina);
-  const k = (tense ? 1 : 0.36) * st * (player.stumble > 0 ? 0.35 : 1) * pickupK;
+  // Changing hands, one hand is off the handle (two hands hold about 1.4x what one does); and a
+  // backhand, swinging toward the top hand's side, has less behind it than a forehand.
+  const regrip = grip.t > 0 ? 1 / 1.4 : 1, back = 1 - 0.15 * smooth(1, 4, (sw.dphi || 0) * hand());
+  const k = (tense ? 1 : 0.36) * st * (player.stumble > 0 ? 0.35 : 1) * pickupK * regrip * back;
   tgt.wn = tense ? 15 : 8; tgt.zeta = tense ? 0.7 : 0.62;
   tgt.aMax = 95 * k + 5; tgt.alphaMax = 170 * k + 6; tgt.rollMax = 80 * k + 8;
   tgt.grav = tense ? 1 : 0.92; tgt.strength = k;
@@ -704,8 +732,12 @@ function updateCamera(dt) {
 
 // Third person: pose Timberline's faller on the axe (or the simple lumberjack if it hasn't loaded).
 const _c = V(), _sh = V(), _pole = V(), _feet = [V(), V()], _poles = [V(), V()], _torsoTP = {};
-// [side, forward, right] from where you stand; the hips sit about 15 cm behind that point.
-const FEET = [['R', -0.19, 0.2], ['L', 0.08, -0.19]];
+// [side, forward, right] from where you stand; the hips sit about 15 cm behind that point. The
+// foot on the top hand's side goes back, the other one forward.
+const feet = () => { const h = hand(); return [[settings.grip, -0.19, 0.2 * h], [settings.grip === 'R' ? 'L' : 'R', 0.08, -0.19 * h]]; };
+// Where one hand holds the handle, sliding between the knob and the top as you change grip.
+const _rel = V();
+const handPoint = (side, out) => axe.renderPoint(_rel.lerpVectors(axe.gripRel, axe.topRel, grip.u[side]), out);
 function poseBody(dt) {
   const third = thirdPerson();
   const fig = body.fig;
@@ -734,8 +766,8 @@ function poseBody(dt) {
   else G.deadFall = 0;
   root.updateMatrixWorld(true);
   if (!walking && !player.dead) {
-    // Feet planted where you stand, right foot back and left foot forward, whatever the hips do.
-    fig.plantFeet(FEET.map(([s, fx, fz], i) => {
+    // Feet planted where you stand, whatever the hips do.
+    fig.plantFeet(feet().map(([s, fx, fz], i) => {
       const at = _feet[i].copy(player.pos).addScaledVector(B.F, fx).addScaledVector(B.R, fz).setY(fig.ankleY);
       return [s, at, _poles[i].copy(at).addScaledVector(B.F, 0.8).addScaledVector(B.R, fz * 0.6).setY(0.6)];
     }));
@@ -743,8 +775,8 @@ function poseBody(dt) {
   if (axe.mode === 'free' || player.dead) fig.armsFree(0);
   else {
     fig.j.chest.getWorldPosition(_c); fig.torso(_torsoTP);
-    fig.reach('R', axe.renderPoint(axe.topRel, _ht), _pole.copy(_c).addScaledVector(B.R, 0.7).addScaledVector(B.F, -0.2).setY(_c.y - 0.45), _torsoTP);
-    fig.reach('L', axe.renderPoint(axe.gripRel, _hb), _pole.copy(_c).addScaledVector(B.R, -0.6).addScaledVector(B.F, -0.2).setY(_c.y - 0.6), _torsoTP);
+    fig.reach('R', handPoint('R', _ht), _pole.copy(_c).addScaledVector(B.R, 0.7).addScaledVector(B.F, -0.2).setY(_c.y - 0.45), _torsoTP);
+    fig.reach('L', handPoint('L', _hb), _pole.copy(_c).addScaledVector(B.R, -0.6).addScaledVector(B.F, -0.2).setY(_c.y - 0.6), _torsoTP);
   }
   if (G.target) fig.look(_tmp.set(G.target.x, 1.0, G.target.z));
   else fig.look(_tmp.copy(player.pos).addScaledVector(B.F, 3).setY(1.0));
@@ -758,13 +790,13 @@ const _torsoFP = { c: V(), f: V(), r: V(), u: new THREE.Vector3(0, 1, 0), fx: -0
 function updateArms() {
   basis(player.yaw);
   // The shoulders turn with the swing: back on the side you wind up to, round on the follow-through.
-  const ta = G.shoulderTurn = (G.shoulderTurn || 0) + (clamp((sw.phiA || 0) * 0.5, -1.0, 0.9) - (G.shoulderTurn || 0)) * 0.25;
+  const ta = G.shoulderTurn = (G.shoulderTurn || 0) + (clamp((sw.phiA || 0) * 0.5 * hand(), -1.0, 0.9) * hand() - (G.shoulderTurn || 0)) * 0.25;
   _tR.copy(B.R).multiplyScalar(Math.cos(ta)).addScaledVector(B.F, -Math.sin(ta));
   _tF.copy(B.F).multiplyScalar(Math.cos(ta)).addScaledVector(B.R, Math.sin(ta));
   if (axe.mode === 'free') {
     _hb.copy(chest).addScaledVector(B.F, 0.32).addScaledVector(B.U, -0.42).addScaledVector(B.R, -0.16);
     _ht.copy(chest).addScaledVector(B.F, 0.32).addScaledVector(B.U, -0.42).addScaledVector(B.R, 0.16);
-  } else { axe.renderPoint(axe.gripRel, _hb); axe.renderPoint(axe.topRel, _ht); }
+  } else { handPoint('L', _hb); handPoint('R', _ht); }
   // A hand reaching across the chest brings its shoulder forward and in.
   const c = _torsoFP.c.copy(player.pos).addScaledVector(B.U, 1.25).add(player.sway);
   const across = (H, s) => clamp(-_d.subVectors(H, c).dot(_tR) * s / 0.35 + 0.25, 0, 1);
@@ -845,6 +877,7 @@ function update(dt) {
   const sub = Math.max(1, Math.ceil(dt * 600)), h = dt / sub;
   env.trees = G.trees.filter(t => Math.abs(t.x - player.pos.x) < 30 && Math.abs(t.z - player.pos.z) < 30);
   for (let i = 0; i < sub; i++) physicsStep(h);
+  updateGrip(dt);
   updateBody(dt);
   handleAxeEvents();
   treeEvents.length = 0;
@@ -888,7 +921,7 @@ requestAnimationFrame(frame);
 // Test hooks (local only).
 if (/localhost|127\.0\.0\.1/.test(location.hostname)) {
   window.__fs = {
-    G, axe, player, cursor, input, keys, tgt, pz, arms, body, newClearing, renderer, scene, camera, sfx, setMode,
+    G, axe, player, cursor, input, keys, tgt, pz, arms, body, grip, settings, newClearing, renderer, scene, camera, sfx, setMode,
     setCursor(x, y) { limitSwing(x, y, 1, cursor); },
     freeze(v = true) { frozen = v; },
     // Run the simulation forward without rendering: n frames of dt each.
