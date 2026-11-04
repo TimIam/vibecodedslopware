@@ -145,6 +145,7 @@ export class Course {
   constructor(scene, world) {
     this.scene = scene; this.world = world;
     this.root = new THREE.Group(); scene.add(this.root);
+    this.camBlockers = [this.root];   // what the camera may not pass through
     this.holes = []; this.zones = []; this.animators = []; this.winds = []; this.sensors = [];
     this.fx = { sound: () => {}, event: () => {} };
     this.t = 0;
@@ -216,6 +217,8 @@ export class Course {
     const y = o.y ?? this.groundY(H, x, z);
     if (y === null) return null;
     const p = make(name, { outline: o.outline ?? 0.035 });
+    // Small or spindly props don't shove the camera around.
+    if (/flowers|tee_marker|lamp|windsock|bush|rock_b/.test(name)) p.traverse(m => { m.raycast = () => {}; });
     p.position.set(x, y, z);
     p.rotation.y = o.rot ?? Math.random() * Math.PI * 2;
     const s = o.scale ?? (0.85 + Math.random() * 0.3); p.scale.setScalar(s);
@@ -285,7 +288,7 @@ export class Course {
       const edge = new THREE.Mesh(new THREE.BoxGeometry(size[0] + 0.04, 0.18, size[2] + 0.04), toon(0xffffff, { params: { map: hazardTex } }));
       edge.position.y = size[1] / 2 - 0.35; mesh.add(edge);
     }
-    this.scene.add(mesh);
+    this.scene.add(mesh); this.camBlockers.push(mesh);
     this.animators.push(() => { mesh.position.copy(col.pos); mesh.quaternion.copy(col.quat); });
     return { col, mesh };
   }
@@ -410,6 +413,7 @@ export class Course {
     const face = new THREE.MeshToonMaterial({ map: tex, gradientMap });
     let found = false;
     board.traverse(o => { if (o.isMesh && !o.userData.isOutline && /face/i.test(o.material.name || '')) { o.material = face; found = true; } });
+    post.traverse(m => { m.raycast = () => {}; });
     if (!found) board.traverse(o => { if (o.isMesh && !o.userData.isOutline) o.material = face; });
     return post;
   }
@@ -666,7 +670,7 @@ export class Course {
       for (let z = -3 + (row % 2) * 1.2; z <= 3; z += 2.4) {
         const y = (x - 24) / 26 * 7;
         const peg = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.7, 12), toon(row % 2 ? 0xff5d73 : 0x36c5f0));
-        peg.position.set(x, y + 0.3, z); peg.castShadow = true; addOutline(peg, 0.02); H.group.add(peg);
+        peg.position.set(x, y + 0.3, z); peg.castShadow = true; peg.raycast = () => {}; addOutline(peg, 0.02); H.group.add(peg);
         this.world.add(new Collider('cyl', { pos: H.frame.w(x, y + 0.3, z), r: 0.19, hh: 0.4, surf: 'rubber', tag: 'peg', hole: 9 }));
       }
     }
@@ -703,7 +707,7 @@ export class Course {
   decorate() {
     const sp = make('spire', { outline: 0.15 });
     sp.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = true; } });
-    this.scene.add(sp);
+    this.scene.add(sp); this.camBlockers.push(sp);
   }
 
   // Which hole is the ball playing? Strips and green pads belong to their hole; on a tee pad the

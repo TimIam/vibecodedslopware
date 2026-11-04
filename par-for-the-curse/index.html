@@ -101,6 +101,11 @@ h1,h2,h3,.lil{font-family:"Lilita One",Nunito,sans-serif;font-weight:400;letter-
 #holeCard .par{margin-top:8px;font-family:"Lilita One";font-size:22px;color:var(--sun);-webkit-text-stroke:1.5px var(--ink);text-shadow:0 3px 0 var(--ink)}
 #holeCard p{margin:6px 0 0;font-weight:900;color:#fff;text-shadow:0 2px 0 var(--ink),0 0 8px rgba(0,0,0,.4);font-size:17px}
 
+/* flag marker */
+#flagMark{position:absolute;transform:translate(-50%,-100%);display:flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;background:rgba(255,248,234,.92);border:3px solid var(--ink);box-shadow:0 3px 0 var(--ink);font-weight:900;font-size:14px;white-space:nowrap;z-index:4}
+#flagMark[hidden]{display:none}
+#flagMark i{display:none;font-style:normal;color:var(--red);font-size:16px}
+#flagMark.off i{display:inline-block}
 /* name tags */
 #tags{position:fixed;inset:52px 0 0;pointer-events:none;z-index:4;overflow:hidden}
 .tag{position:absolute;transform:translate(-50%,-100%);padding:2px 9px;border-radius:9px;background:rgba(43,34,51,.78);color:#fff;font-weight:900;font-size:12px;white-space:nowrap}
@@ -174,7 +179,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 <script src="/site-nav.js"></script>
 
 <canvas id="game" tabindex="0" aria-label="Par for the Curse game view"></canvas>
-<div id="tags"></div>
+<div id="tags"><div id="flagMark" hidden><i id="flagArrow">➜</i><span>⛳ <b id="flagDist"></b></span></div></div>
 
 <div class="hud chunk" id="score">
   <div class="hole"><small>Hole</small><span id="hHole">1</span></div>

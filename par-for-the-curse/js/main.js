@@ -151,7 +151,7 @@ async function boot() {
   scene.add(ballShadow);
   trail = new Trail(scene, '#ffffff');
   aimDots = new THREE.Group();
-  for (let i = 0; i < 9; i++) { const d = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 - i * 0.08 })); aimDots.add(d); }
+  for (let i = 0; i < 26; i++) { const d = new THREE.Mesh(new THREE.SphereGeometry(i < 8 ? 0.04 : 0.06 + i * 0.004, 8, 6), new THREE.MeshBasicMaterial({ color: i % 2 ? 0xfff3a0 : 0xffffff, transparent: true, opacity: Math.max(0.15, 0.9 - i * 0.03), depthWrite: false })); d.renderOrder = 3; aimDots.add(d); }
   scene.add(aimDots);
   // Start position: saved progress, or the first tee.
   const sv = loadSave();
@@ -458,7 +458,7 @@ function step(dt) {
   // Aim.
   const aimKeys = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0);
   if (S.mode === 'address' && !S.emote) {
-    if (aimKeys) { S.aim += aimKeys * dt * (keys.has('shift') ? 0.35 : 1.1); golferOrigin(S.golferG); }
+    if (aimKeys) { S.aim += aimKeys * dt * (keys.has('shift') ? 0.35 : 1.1); golferOrigin(S.golferG); S.aimViewT = 0.9; }
     if (S.aimHeld || keys.has('shift')) { S.aim -= mouseDX * 0.0035; golferOrigin(S.golferG); mouseDX = mouseDY = 0; }
   }
   // Swing simulation (also runs during flight for the follow-through).
@@ -662,8 +662,10 @@ function poseMe(dt) {
 const cam = { pos: V(130, 60, 130), look: V(0, 20, 0), fov: 55 };
 function updateCamera(dt) {
   const f = fDir(), w = wDir();
-  let wantPos, wantLook, k = 4;
-  const viewHeld = S.aimHeld || keys.has('shift') || keys.has('f');
+  let wantPos, wantLook, k = 4, pivot = null;
+  S.aimViewT = Math.max(0, (S.aimViewT || 0) - dt);
+  const aimView = S.aimHeld || keys.has('shift') || S.aimViewT > 0;
+  const viewHeld = aimView || keys.has('f');
   const fp = S.fpCam = S.fpv && !viewHeld && !S.intro && !S.emote && (S.mode === 'address' || S.mode === 'flight' || S.mode === 'cannon');
   camera.layers[fp ? 'disable' : 'enable'](1);
   const fov = fp ? 80 : 55;
@@ -710,9 +712,11 @@ function updateCamera(dt) {
     wantLook = S.golferG.clone().add(V(0, 0.6, 0));
     wantPos = wantLook.clone().add(V(Math.cos(a) * 5, 2, Math.sin(a) * 5));
     k = 1.5;
-  } else if (S.aimHeld || keys.has('shift')) {
-    wantPos = ball.p.clone().addScaledVector(f, -3.4).addScaledVector(w, -0.3).add(V(0, 1.3, 0));
-    wantLook = ball.p.clone().addScaledVector(f, 16).add(V(0, 0.5, 0));
+  } else if (aimView && S.mode === 'address') {
+    // Down the line: behind the ball, looking where it will go.
+    wantPos = ball.p.clone().addScaledVector(f, -3.6).addScaledVector(w, -0.35).add(V(0, 1.5, 0));
+    wantLook = ball.p.clone().addScaledVector(f, 18).add(V(0, 0.4, 0));
+    pivot = ball.p.clone().add(V(0, 0.6, 0));
     k = 6;
   } else if (keys.has('f')) {
     const tgt = courseTarget();
@@ -722,10 +726,13 @@ function updateCamera(dt) {
     k = 3;
   } else {
     // The swing camera: in front of the golfer, across the ball, swung back from the target.
-    const L = S.golferG.clone().addScaledVector(w, 0.5).addScaledVector(f, 0.9).add(V(0, 0.6, 0));
-    const ang = 0.7, dist = swing.ci === 0 ? 3.1 : 3.9;
-    wantPos = L.clone().addScaledVector(w, Math.cos(ang) * dist).addScaledVector(f, -Math.sin(ang) * dist).add(V(0, swing.ci === 0 ? 1.4 : 1.45, 0));
-    wantLook = L;
+    // Across the ball from the golfer and well back from the target, so the golfer fills the left of
+    // the screen and the line of the shot runs off into the distance on the right.
+    const L = S.golferG.clone().addScaledVector(w, 0.55).addScaledVector(f, 0.6).add(V(0, 0.55, 0));
+    const ang = 1.0, dist = swing.ci === 0 ? 3.4 : 4.1;
+    wantPos = L.clone().addScaledVector(w, Math.cos(ang) * dist).addScaledVector(f, -Math.sin(ang) * dist).add(V(0, swing.ci === 0 ? 1.5 : 1.7, 0));
+    wantLook = L.clone().addScaledVector(f, 2.2).add(V(0, -0.15, 0));
+    pivot = S.golferG.clone().addScaledVector(w, 0.4).add(V(0, 0.8, 0));
     k = S.modeT < 1 ? 3 : 6;
     if (S.intro) {
       // Fly in from above the flag to the golfer when a hole starts.
@@ -743,11 +750,43 @@ function updateCamera(dt) {
   cam.pos.lerp(wantPos, a); cam.look.lerp(wantLook, a);
   if (window.__freeCam) { cam.pos.fromArray(window.__freeCam[0]); cam.look.fromArray(window.__freeCam[1]); }
   camera.position.copy(cam.pos);
+  if (!window.__freeCam && !S.intro && S.mode !== 'respawn') {
+    if (!pivot) pivot = S.mode === 'flight' || S.mode === 'cannon' ? ball.p.clone().add(V(0, 0.3, 0)) : cam.look.clone();
+    keepClear(pivot, camera.position, dt);
+  } else camHas = false;
   if (shakeAmt > 0.001) { camera.position.add(V((Math.random() - 0.5) * shakeAmt, (Math.random() - 0.5) * shakeAmt, (Math.random() - 0.5) * shakeAmt)); shakeAmt *= Math.exp(-dt * 6); }
   camera.lookAt(cam.look);
   // Shadows follow the action.
   const focus = S.mode === 'flight' ? ball.p : S.golferG;
   sun.target.position.copy(focus); sun.position.copy(focus).addScaledVector(SUN_DIR, 70);
+}
+
+// Keep the camera out of the scenery. If something is between it and what it is watching, try lifting it
+// up and over, then swinging it round to either side; only pull it in close if every option is blocked.
+// Moving in is immediate whenever the current spot is blocked; easing back out is gentle.
+const camRay = new THREE.Raycaster(); let camDist = null; const camSmooth = V(); let camHas = false;
+function clearance(pivot, p) {
+  const dir = _c.subVectors(p, pivot); const full = dir.length();
+  if (full < 0.4) return { p: p.clone(), score: 1 };
+  dir.divideScalar(full);
+  camRay.set(pivot, dir); camRay.near = 0.05; camRay.far = full + 0.5;
+  const hit = camRay.intersectObjects(course.camBlockers, true)[0];
+  const d = hit ? Math.max(0.45, hit.distance - 0.45) : full;
+  return { p: pivot.clone().addScaledVector(dir, d), score: hit ? d / full : 1 };
+}
+function keepClear(pivot, pos, dt) {
+  let best = null;
+  const off = V().subVectors(pos, pivot);
+  for (const [lift, yaw] of [[0, 0], [1.6, 0], [3.4, 0], [0.8, 0.8], [0.8, -0.8], [1.5, 1.6], [1.5, -1.6], [6, 0]]) {
+    const c = clearance(pivot, _d.copy(off).applyAxisAngle(UP, yaw).add(pivot).add(V(0, lift, 0)));
+    if (!best || c.score > best.score + 0.08) best = c;
+    if (c.score > 0.92) break;
+  }
+  if (!camHas) { camSmooth.copy(best.p); camHas = true; }
+  else camSmooth.lerp(best.p, 1 - Math.exp(-dt * 7));
+  // Never sit inside something while easing: if the smoothed spot is blocked, jump to the clear one.
+  if (clearance(pivot, camSmooth).score < 0.98) camSmooth.copy(best.p);
+  pos.copy(camSmooth);
 }
 
 /* ---------------- render ---------------- */
@@ -765,7 +804,17 @@ function render(dt) {
   aimDots.visible = S.mode === 'address' && !S.emote;
   if (aimDots.visible) {
     const f = fDir();
-    aimDots.children.forEach((d, i) => { d.position.copy(ball.p).addScaledVector(f, 0.5 + i * 0.55 + (S.t * 0.6 % 0.55)).add(V(0, -BALL_R + 0.03, 0)); });
+    // Dots run 20-odd metres down the aim line, hugging the ground, and stop where it falls away.
+    const base = ball.p.y - BALL_R, crawl = S.t * 1.2 % 1;
+    let gone = false;
+    aimDots.children.forEach((d, i) => {
+      const dist = i < 8 ? 0.45 + (i + crawl) * 0.5 : 4.45 + (i - 8 + crawl) * 1.0;
+      const x = ball.p.x + f.x * dist, z = ball.p.z + f.z * dist;
+      const g = gone ? null : world.groundAt(x, base + 4, z, 10);
+      if (!g || g.y < base - 3) gone = true;
+      d.visible = !gone;
+      if (!gone) d.position.set(x, g.y + 0.05, z);
+    });
   }
   trail.update(camera);
   renderer.render(scene, camera);
@@ -784,7 +833,25 @@ function updateHud() {
   renderBoard();
 }
 const climbMarks = [];
+// A pill over the flag with the distance (and climb) to it; pinned to the screen edge when off view.
+function flagMarker() {
+  const el = $('flagMark'), H = course.holes[S.hole];
+  const show = (S.mode === 'address' || S.mode === 'flight') && H && H.cup && !S.intro;
+  el.hidden = !show; if (!show) return;
+  const p = H.cup.clone().add(V(0, 2.5, 0)).project(camera);
+  const behind = p.z > 1;
+  let x = (p.x + 1) / 2, y = (1 - p.y) / 2;
+  if (behind) { x = 1 - x; y = 0.9; }
+  const off = behind || x < 0.04 || x > 0.96 || y < 0.12 || y > 0.9;
+  const cx = clamp(x, 0.04, 0.96), cy = clamp(y, 0.12, 0.9);
+  el.style.left = (cx * 100) + '%'; el.style.top = (cy * 100) + '%';
+  el.classList.toggle('off', off);
+  $('flagArrow').style.transform = 'rotate(' + Math.atan2(y - 0.5, x - 0.5) + 'rad)';
+  const d = Math.hypot(H.cup.x - ball.p.x, H.cup.z - ball.p.z), dy = H.cup.y - (ball.p.y - BALL_R);
+  $('flagDist').textContent = Math.round(d) + ' m' + (Math.abs(dy) > 1.5 ? (dy > 0 ? '  ↑' : '  ↓') + Math.round(Math.abs(dy)) : '');
+}
 function updateHudLive() {
+  flagMarker();
   $('tip').classList.toggle('show', !S.tipDone && S.mode === 'address' && !S.intro && S.modeT > 0.5);
   $('rageFill').style.width = S.rage + '%';
   $('rage').classList.toggle('hot', S.rage > 70);
