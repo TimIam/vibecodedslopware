@@ -308,6 +308,11 @@ export class Course {
     this.buildPads();
     const builders = [this.hole1, this.hole2, this.hole3, this.hole4, this.hole5, this.hole6, this.hole7, this.hole8, this.hole9];
     builders.forEach((b, k) => b.call(this, H[k]));
+    // Where the auto-aim points from each part of a hole (hole-local x, z): along the line you would
+    // actually play, not straight at a flag round the corner.
+    const aims = { 1: [[60, 0]], 2: [[34, 0], [50, 0], [64, 0]], 3: [[63, 0]], 4: [[40, 0], [62, 0]], 5: [[40, 0], [53, 0], [66, 0]],
+      6: [[29, 0], [41, 0], [52, 0], [66, 0]], 7: [[32, 4.2], [67, 0]], 8: [[30, 0], [41, 0], [53.5, 0], [66, 0]], 9: [[37, 0], [60, 0]] };
+    for (const [i, pts] of Object.entries(aims)) this.holes[i].aims = pts;
     this.decorate();
   }
   holeInfo(H, name, par, blurb) { Object.assign(H, { name, par, blurb }); this.holes[H.i] = H; }
@@ -421,13 +426,19 @@ export class Course {
     const pole = this.prop(H, 'windsock', x, z, { rot: 0, scale: 1 });
     if (!pole) return;
     const sock = make('windsock_sock', { outline: 0.015 });
+    sock.traverse(o => { if (o.isMesh && !o.userData.isOutline) { o.material = o.material.clone(); o.material.side = THREE.DoubleSide; } });
     const at = pm('windsock').attach || [0, 2.85, 0];
     sock.position.set(at[0], at[1], at[2]); pole.add(sock);
     this.wave(sock, 0.6);
-    this.animators.push(() => {
-      const f = w.local(); // lateral wind in hole-local z
-      sock.rotation.y = f >= 0 ? -Math.PI / 2 : Math.PI / 2;
-      sock.rotation.z = -0.9 + Math.min(1, Math.abs(f) / 6) * 0.85;
+    let fs = w.local(), yaw = fs >= 0 ? -Math.PI / 2 : Math.PI / 2;
+    this.animators.push((t, dt) => {
+      // The wind here is sideways across the hole (hole-local z). The sock swings round to point
+      // downwind, hangs limp in a lull and stands straight out in a strong gust.
+      fs += (w.local() - fs) * Math.min(1, (dt || 0.016) * 3);
+      const want = fs >= 0 ? -Math.PI / 2 : Math.PI / 2;
+      yaw += (want - yaw) * Math.min(1, (dt || 0.016) * 2.5);
+      sock.rotation.y = yaw;
+      sock.rotation.z = -1.35 + Math.min(1, Math.abs(fs) / 3.5) * 1.3 + Math.sin(t * 9) * 0.03 * Math.min(1, Math.abs(fs) / 2);
     });
   }
 
@@ -602,26 +613,34 @@ export class Course {
     this.prop(H, 'tree_palm', 64, 5.5, { trunk: 0.3 }); this.prop(H, 'tree_palm', 66, -5.5, { trunk: 0.3 });
   }
   hole6(H) {
-    this.holeInfo(H, 'Walk the Plank', 4, 'Two planks, one gusty wind, no railings.');
+    this.holeInfo(H, 'Walk the Plank', 4, 'Two planks, a gusty wind, and railings with gaps in.');
+    const W1 = 2.6, W2 = 2.2;   // plank half-widths
     this.block(H, 9, 20, -6, 6, 0);
-    this.block(H, 20, 38.2, -1.2, 1.2, 0, 3, { surf: 'wood', thick: 0.4, noRock: true, outline: true, radius: 0.08 });
-    this.block(H, 38, 44, -3, 3, 3, 3, { rockDepth: 6 });
-    this.block(H, 43.8, 60, -1, 1, 3, 7, { surf: 'wood', thick: 0.4, noRock: true, radius: 0.08 });
+    this.block(H, 20, 37.2, -W1, W1, 0, 3, { surf: 'wood', thick: 0.4, noRock: true, outline: true, radius: 0.08 });
+    this.block(H, 37, 45, -4, 4, 3, 3, { rockDepth: 6 });
+    this.block(H, 44.8, 60, -W2, W2, 3, 7, { surf: 'wood', thick: 0.4, noRock: true, radius: 0.08 });
     this.block(H, 60, 71, -6, 6, 7);
-    const gust = { t: 0, local: () => 5.5 * Math.sin(this.t * 0.75) + 2.2 * Math.sin(this.t * 2.1 + 1) };
-    this.winds.push({ frame: H.frame, x0: 19, x1: 61, z0: -6, z1: 6, y0: -1, y1: 12, f: () => gust.local() });
-    this.windsock(H, 17, -5.2, gust); this.windsock(H, 41, 2.4, gust); this.windsock(H, 63, 5.2, gust);
-    // Rope posts along the planks (decoration only: the wind does not care).
+    // Low kick-rails stop a rolling ball going over the side, but each plank has a gap. Mind the gap.
+    const y1 = x => (x - 20) / 17.2 * 3, y2 = x => 3 + (x - 44.8) / 15.2 * 4;
+    for (const s of [-1, 1]) {
+      for (const [a, b] of s < 0 ? [[20.4, 27.5], [30, 36.8]] : [[20.4, 31], [33.5, 36.8]]) this.wall(H, a, s * (W1 - 0.08), b, s * (W1 - 0.08), y1(a), { y1: y1(b), h: 0.22, t: 0.16, wood: true });
+      for (const [a, b] of s < 0 ? [[45.2, 51], [53.5, 59.6]] : [[45.2, 55], [57, 59.6]]) this.wall(H, a, s * (W2 - 0.08), b, s * (W2 - 0.08), y2(a), { y1: y2(b), h: 0.22, t: 0.16, wood: true });
+    }
+    // Wind holds steady through a swing and the ball's flight; it is re-rolled between shots.
+    const gust = { v: 1.5, range: [0.3, 1.7], local() { return this.v; } };
+    this.winds.push({ hole: 6, gust, frame: H.frame, x0: 19, x1: 61, z0: -6, z1: 6, y0: -1, y1: 12, f: () => gust.local() });
+    this.windsock(H, 17, -5.2, gust); this.windsock(H, 41, 3.2, gust); this.windsock(H, 63, 5.2, gust);
+    // Rope posts along the planks.
     for (let x = 22; x < 60; x += 4) {
-      if (x > 37 && x < 45) continue;
-      const y = x < 38 ? (x - 20) / 18 * 3 : 3 + (x - 44) / 16 * 4;
+      if (x > 36 && x < 46) continue;
+      const y = x < 38 ? y1(x) : y2(x);
       for (const s of [-1, 1]) {
-        const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.6, 6), toon(0x8b5a2b)); p.position.set(x, y + 0.3, s * (x < 38 ? 1.15 : 0.95)); H.group.add(p);
+        const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.6, 6), toon(0x8b5a2b)); p.position.set(x, y + 0.3, s * ((x < 38 ? W1 : W2) - 0.05)); p.raycast = () => {}; H.group.add(p);
       }
     }
     this.prop(H, 'tree_pine', 11, 4.5, { trunk: 0.35 }); this.prop(H, 'rock_a', 13, -4.8, { scale: 0.6 });
     this.prop(H, 'flowers', 40, -2.2, {}); this.prop(H, 'tree_round', 68, -4.5, { trunk: 0.35 });
-    this.sign(H, 18.5, 3.5, 0, ['NO RAILINGS.', 'NO REFUNDS.'], -0.3);
+    this.sign(H, 18.5, 3.5, 0, ['MIND THE', 'GAPS.'], -0.3);
   }
   hole7(H) {
     this.holeInfo(H, 'Fire in the Hole', 3, 'Roll into the ring. Light the fuse. Pray.');
@@ -676,8 +695,8 @@ export class Course {
     }
     this.hits.set('peg', (c, vn, p) => this.fx.sound('peg', Math.min(1, vn / 8), p));
     this.zone(H, 'sand', 58, 3.8, 1.6); this.zone(H, 'sand', 58, -3.8, 1.6); this.zone(H, 'water', 66, 0, 1.3, { rz: 2.2 });
-    const gust = { local: () => 4 * Math.sin(this.t * 0.9 + 2) };
-    this.winds.push({ frame: H.frame, x0: 50, x1: 90, z0: -10, z1: 10, y0: 6, y1: 20, f: () => gust.local() });
+    const gust = { v: -2, range: [0.8, 4], local() { return this.v; } };
+    this.winds.push({ hole: 9, gust, frame: H.frame, x0: 50, x1: 90, z0: -10, z1: 10, y0: 6, y1: 20, f: () => gust.local() });
     this.windsock(H, 52, 5.4, gust);
     // The summit green: a turntable with the cup near its rim.
     const F = H.frame, cx = SIDE, cz = 0, R = 7.4, top = RISE + 0.035, SP = 0.32;
@@ -712,6 +731,13 @@ export class Course {
 
   // Which hole is the ball playing? Strips and green pads belong to their hole; on a tee pad the
   // ball near the green belongs to the previous hole. The current hole wins ties.
+  // Auto-aim target for a ball on hole i: the next waypoint at least 6 m ahead, else the cup.
+  aimFor(i, p) {
+    const H = this.holes[i]; if (!H) return null;
+    const l = H.frame.local(p, _a);
+    for (const [x, z] of H.aims || []) if (x > l.x + 6) return H.frame.w(x, 0, z);
+    return H.cup;
+  }
   holeAt(p, current) {
     const found = [];
     for (let i = 1; i <= NHOLES; i++) {
@@ -725,6 +751,16 @@ export class Course {
     }
     if (found.includes(current)) return current;
     return found.length ? Math.min(...found) : null;
+  }
+  // New wind for every shot: a random strength in the hole's range, blowing either way.
+  rerollWind() {
+    for (const w of this.winds) { const [a, b] = w.gust.range; w.gust.v = (Math.random() < 0.5 ? -1 : 1) * (a + Math.random() * (b - a)); }
+  }
+  windFor(hole, out) {
+    const w = this.winds.find(z => z.hole === hole);
+    if (!w) return null;
+    out.copy(w.frame.in).multiplyScalar(w.f());
+    return w;
   }
   windAt(p, out) {
     out.set(0, 0, 0);

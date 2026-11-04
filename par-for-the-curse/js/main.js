@@ -176,9 +176,10 @@ function placeOnTee(h) {
   // Spread golfers across the tee box so friends on the same hole do not stand inside each other.
   const F = H.frame; ball.p.addScaledVector(F.in, (Math.random() - 0.5) * 2.6).addScaledVector(F.f, (Math.random() - 0.5) * 1.2);
   S.hole = h; S.holeStrokes = 0;
+  course.rerollWind();
   aimAt(courseTarget());
 }
-function courseTarget() { const H = course.holes[S.hole]; return H ? H.cup : ball.p.clone().add(V(0, 0, 10)); }
+function courseTarget() { return course.aimFor(S.hole, ball.p) || ball.p.clone().add(V(0, 0, 10)); }
 function aimAt(p) { S.aim = Math.atan2(p.x - ball.p.x, p.z - ball.p.z); }
 const fDir = (yaw = S.aim) => V(Math.sin(yaw), 0, Math.cos(yaw));
 const wDir = (yaw = S.aim) => { const f = fDir(yaw); return V(-f.z, 0, f.x); };
@@ -372,6 +373,7 @@ function ballRested() {
   const z = course.zoneAt(ball.p);
   if (z && z.type === 'sand' && Math.random() < 0.6) quip('sand');
   aimAt(courseTarget());
+  course.rerollWind();
   settleGolfer();
   setMode('address');
   if (S.pendingClub != null) { setClub(S.pendingClub); S.pendingClub = null; }
@@ -393,7 +395,7 @@ function penalty(kind) {
   sendEv({ k: kind });
   setTimeout(() => {
     ball.p.copy(S.shotFrom); ball.v.set(0, 0, 0); ball.frozen = false;
-    S.hole = S.shotHole;
+    S.hole = S.shotHole; course.rerollWind();
     aimAt(courseTarget()); settleGolfer(); setMode('address'); updateHud(); save();
     pop('+1 penalty', 'bad');
   }, 1800);
@@ -513,6 +515,18 @@ function step(dt) {
     if (z && z.type === 'water') b.inWater = true;
   });
   A.wind(wind.length() / 5);
+  const wzone = course.windFor(S.hole, _b);
+  if (wzone && S.mode !== 'title') {
+    const sp = _b.length(), dir = _b.clone().normalize();
+    const n = Math.floor(dt * (10 + sp * 14) + Math.random());
+    for (let i = 0; i < n; i++) {
+      const lx = THREE.MathUtils.lerp(wzone.x0, wzone.x1, Math.random()), lz = (Math.random() - 0.5) * 14;
+      const p = wzone.frame.w(lx, 0, lz); p.y = ball.p.y + Math.random() * 3 - 0.5;
+      if (p.distanceTo(ball.p) > 28) continue;
+      p.addScaledVector(dir, -4);
+      fx.emit(p, { n: 1, speed: 0.2, dir, dirSpeed: 3 + sp * 2.2, colors: ['#ffffff', '#eef8ff'], size: 0.06, life: 1.6, grav: 0, drag: 0, radius: 0.1 });
+    }
+  }
   if (S.mode === 'flight') flight(dt);
   if (S.mode === 'address' && !ball.frozen) {
     // On movers the golfer rides along; if the ball gets knocked (bonk), go back to watching it.
@@ -881,8 +895,16 @@ function updateHudLive() {
     p.dot.style.bottom = pct(y) + '%'; p.dot.style.background = p.presence?.lk?.shirt || '#999';
     p.dot.title = p.presence?.nm || 'Golfer';
   }
-  const wind = course.windAt(ball.p.clone().add(V(0, 0.5, 0)), V());
-  $('wind').textContent = wind.length() > 0.5 ? `💨 gusts ${wind.length().toFixed(1)}` : '';
+  // Wind widget: an arrow showing which way it blows relative to the view, and how hard.
+  const wz = course.windFor(S.hole, _c);
+  $('windbox').hidden = !wz || S.mode === 'title';
+  if (wz) {
+    const e = camera.matrixWorld.elements, right = V(e[0], 0, e[2]).normalize(), fwd = V(-e[8], 0, -e[10]).normalize();
+    const sp = _c.length();
+    $('windArrow').style.transform = 'rotate(' + Math.atan2(-_c.dot(fwd), _c.dot(right)) + 'rad) scale(' + (0.7 + Math.min(1, sp / 2.5) * 0.6) + ')';
+    $('windTxt').textContent = sp < 0.4 ? 'calm' : sp.toFixed(1) + ' m/s';
+    $('windbox').classList.toggle('strong', sp > 1.3);
+  }
 }
 
 /* ---------------- multiplayer ---------------- */

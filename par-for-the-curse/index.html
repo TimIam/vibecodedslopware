@@ -66,7 +66,13 @@ h1,h2,h3,.lil{font-family:"Lilita One",Nunito,sans-serif;font-weight:400;letter-
 #rageFill{display:block;height:100%;width:0;background:linear-gradient(90deg,#ffd23f,#ff8c42,#ff3d3d);transition:width .2s}
 #rage.hot{animation:wob .25s infinite alternate}
 @keyframes wob{to{transform:rotate(1.5deg) scale(1.03)}}
-#wind{right:16px;top:134px;font-weight:900;color:#fff;text-shadow:0 2px 0 var(--ink),0 0 6px rgba(0,0,0,.4)}
+#windbox{right:14px;top:134px;display:flex;align-items:center;gap:8px;padding:5px 12px 6px;font-weight:900}
+#windbox[hidden]{display:none}
+#windbox .lbl{font-family:"Lilita One";font-weight:400;font-size:15px}
+#windbox i{display:inline-block;font-style:normal;font-size:22px;line-height:1;color:#1f7ae0;transition:transform .25s}
+#windbox.strong i{color:var(--red)}
+#windbox b{font-size:13px;min-width:54px}
+#toasts{top:180px!important}
 #view{right:16px;bottom:40px;font-weight:900;font-size:13px;color:#fff;text-shadow:0 2px 0 var(--ink)}
 #mute{right:16px;bottom:16px;font-weight:900;color:#fff;text-shadow:0 2px 0 var(--ink)}
 #netStatus{right:66px;bottom:16px;font-weight:900;font-size:12px;color:#fff;text-shadow:0 2px 0 var(--ink)}
@@ -192,7 +198,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 </div>
 <div class="hud" id="climb"><span class="cap">🏆</span><div id="climbTrack"><i id="meDot"></i></div></div>
 <div class="hud chunk" id="rage"><div class="lbl">Rage <small>T to let it out</small></div><div class="bar"><i id="rageFill"></i></div></div>
-<div class="hud" id="wind"></div>
+<div class="hud chunk" id="windbox" hidden><span class="lbl">Wind</span><i id="windArrow">➜</i><b id="windTxt"></b></div>
 <div class="hud" id="toasts"></div>
 <div class="hud chunk" id="quip"></div>
 <div class="hud" id="pops"></div>
