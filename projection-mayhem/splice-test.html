@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projection Mayhem: splice bench test (dev)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0e0a08; color: #e8dcc4; font: 14px/1.4 system-ui, sans-serif; }
+  .panel { padding: 18px 22px; max-width: 760px; }
+  h1 { font: 600 20px Georgia, serif; margin: 0 0 12px; color: #ffcf7a; }
+  label { display: inline-block; margin: 0 14px 10px 0; }
+  select, input { background: #1d1612; color: #f2e3c6; border: 1px solid #5a4028; border-radius: 5px; padding: 4px 6px; }
+  button { background: linear-gradient(#f4b85a, #d88f30); border: 0; border-radius: 7px; padding: 8px 16px; font-weight: 700; cursor: pointer; }
+  pre { background: #18110c; border: 1px solid #3a2a1c; border-radius: 8px; padding: 10px; white-space: pre-wrap; font-size: 12px; }
+  #root { position: fixed; inset: 0; pointer-events: none; }
+  #root > * { pointer-events: auto; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <h1>Splicing bench test</h1>
+  <label>Film <select id="film"></select></label>
+  <label>Mode <select id="mode"><option value="buildup">build-up</option><option value="repair">repair</option></select></label>
+  <label>Reel (repair) <input id="reel" type="number" min="1" max="6" value="2" style="width:56px"></label>
+  <label><input type="checkbox" id="mischief" checked> allow mischief</label>
+  <div><button id="go">Open the bench</button></div>
+  <h3>Last result</h3>
+  <pre id="out">(none yet)</pre>
+</div>
+<div id="root"></div>
+<script type="module">
+import { FILMS, FILM_BY_ID } from './js/films.js';
+import { openSplice } from './js/splice.js';
+
+const sel = document.getElementById('film');
+for (const f of FILMS) { const o = document.createElement('option'); o.value = f.id; o.textContent = `${f.title} (${f.reels} reels, ${f.shots} shots)`; sel.appendChild(o); }
+const qs = new URLSearchParams(location.search);
+if (qs.get('film')) sel.value = qs.get('film');
+if (qs.get('mode')) document.getElementById('mode').value = qs.get('mode');
+if (qs.get('reel')) document.getElementById('reel').value = qs.get('reel');
+if (qs.get('mischief') === '0') document.getElementById('mischief').checked = false;
+
+window.__results = [];
+function open() {
+  const film = FILM_BY_ID[sel.value];
+  window.__bench = openSplice(document.getElementById('root'), {
+    film, mode: document.getElementById('mode').value, reel: +document.getElementById('reel').value,
+    allowMischief: document.getElementById('mischief').checked,
+    onDone(r) { window.__results.push(r); document.getElementById('out').textContent = JSON.stringify(r, null, 2); console.log('splice result', JSON.stringify(r)); },
+  });
+}
+document.getElementById('go').addEventListener('click', open);
+if (qs.get('open')) open();
+</script>
+</body>
+</html>

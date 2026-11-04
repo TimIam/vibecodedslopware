@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projection Mayhem: frames gallery (dev)</title>
+<style>
+  body { margin: 0; background: #141110; color: #e8dcc4; font: 13px/1.4 system-ui, sans-serif; padding: 16px; }
+  h1 { font: 600 20px Georgia, serif; margin: 0 0 4px; }
+  h2 { font: 600 15px Georgia, serif; margin: 22px 0 8px; color: #f0b860; border-bottom: 1px solid #3a302a; padding-bottom: 4px; }
+  .row { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 14px; }
+  .film { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #2a2420; }
+  .meta { width: 150px; flex: none; }
+  .meta b { display: block; font: 600 14px Georgia, serif; color: #fff; }
+  .meta i { color: #a89880; font-size: 11px; }
+  canvas { display: block; background: #000; border-radius: 2px; }
+  figure { margin: 0; }
+  figcaption { font-size: 10px; color: #8a7a68; margin-top: 2px; }
+  #timing { color: #8a7a68; }
+  .ctrl { margin: 6px 0 12px; }
+  .ctrl label { margin-right: 12px; }
+</style>
+</head>
+<body>
+<h1>Frames gallery</h1>
+<div id="timing"></div>
+<div class="ctrl">
+  <label>Filter <input id="q" placeholder="film id or title"></label>
+  <label><input type="checkbox" id="drift"> show t=0 / t=0.5 pairs</label>
+</div>
+<div id="top"><h2>Leaders, cue mark, mischief</h2>
+<div class="row" id="leaders"></div>
+<div class="row" id="mischief"></div></div>
+<h2>Films</h2>
+<div id="films"></div>
+<script type="module">
+import { FILMS, MISCHIEF_FRAMES } from './js/films.js';
+import { paintShot, paintLeader, paintCue, paintMischief, paintPoster } from './js/frames.js';
+
+const SW = 220, SH = Math.round(220 * 290 / 400);
+function cv(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function fig(canvas, cap) { const f = document.createElement('figure'); f.appendChild(canvas); const fc = document.createElement('figcaption'); fc.textContent = cap; f.appendChild(fc); return f; }
+
+const L = document.getElementById('leaders');
+const leaders = [['start', 0], ['countdown', 8], ['countdown', 6.6], ['countdown', 4.3], ['countdown', 3], ['countdown', 2], ['black', 0], ['head', 2], ['tail', 1]];
+for (const [k, n] of leaders) { const c = cv(160, 116); paintLeader(c.getContext('2d'), k, n, 160, 116); L.appendChild(fig(c, `${k} ${n || ''}`)); }
+{ const c = cv(160, 116); paintShot(c.getContext('2d'), 'paws', 0, 160, 116, 0); paintCue(c.getContext('2d'), 160, 116); L.appendChild(fig(c, 'cue on paws#0')); }
+{ const c = cv(160, 116); paintShot(c.getContext('2d'), 'citizen-cane', 0, 160, 116, 0); paintCue(c.getContext('2d'), 160, 116); L.appendChild(fig(c, 'cue on dark frame')); }
+const MI = document.getElementById('mischief');
+for (const m of MISCHIEF_FRAMES) { const c = cv(SW, SH); paintMischief(c.getContext('2d'), m.id, SW, SH); MI.appendChild(fig(c, m.id)); }
+
+const qs = new URLSearchParams(location.search);
+function renderFilms() {
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const drift = document.getElementById('drift').checked;
+  const F = document.getElementById('films'); F.innerHTML = '';
+  const t0 = performance.now(); let n = 0;
+  const from = +(qs.get('from') || 0), count = +(qs.get('count') || 999);
+  for (const film of FILMS.slice(from, from + count)) {
+    if (q && !film.id.includes(q) && !film.title.toLowerCase().includes(q)) continue;
+    const row = document.createElement('div'); row.className = 'film';
+    const meta = document.createElement('div'); meta.className = 'meta';
+    meta.innerHTML = `<b>${film.title}</b><i>${film.spoof} · ${film.genre} · ${film.kind}</i><br><i>${film.shots} shots · ${film.reels} reels</i>`;
+    row.appendChild(meta);
+    const p = cv(120, 180); paintPoster(p.getContext('2d'), film, 120, 180); row.appendChild(fig(p, 'poster'));
+    for (let s = 0; s < film.shots; s++) {
+      const c = cv(SW, SH); paintShot(c.getContext('2d'), film.id, s, SW, SH, 0); row.appendChild(fig(c, `shot ${s}`)); n++;
+      if (drift) { const c2 = cv(SW, SH); paintShot(c2.getContext('2d'), film.id, s, SW, SH, 0.5); row.appendChild(fig(c2, `shot ${s} t=.5`)); }
+    }
+    F.appendChild(row);
+  }
+  const big = cv(512, 372); const tb = performance.now(); for (let i = 0; i < 10; i++) paintShot(big.getContext('2d'), FILMS[i % FILMS.length].id, i % 3, 512, 372, i / 10); const te = performance.now();
+  document.getElementById('timing').textContent = `${n} shots + posters in ${(performance.now() - t0).toFixed(0)} ms · 512×372 paintShot avg ${((te - tb) / 10).toFixed(1)} ms`;
+  window.__framesReady = true;
+}
+document.getElementById('q').addEventListener('input', renderFilms);
+document.getElementById('drift').addEventListener('change', renderFilms);
+if (qs.get('q')) document.getElementById('q').value = qs.get('q');
+if (qs.get('drift')) document.getElementById('drift').checked = true;
+if (qs.get('films')) document.getElementById('top').style.display = 'none';
+renderFilms();
+</script>
+</body>
+</html>
