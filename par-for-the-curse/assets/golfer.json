@@ -1,0 +1,323 @@
+{
+ "units": "meters; positions are [x, y, z] in three.js axes (+Y up, character faces +Z, +X is the character's left)",
+ "neck": [
+  0.0,
+  0.27,
+  0.0
+ ],
+ "shoulder_l": [
+  0.175,
+  0.24,
+  0.0
+ ],
+ "shoulder_r": [
+  -0.175,
+  0.24,
+  0.0
+ ],
+ "hip_l": [
+  0.075,
+  -0.06,
+  0.0
+ ],
+ "hip_r": [
+  -0.075,
+  -0.06,
+  0.0
+ ],
+ "eyes": [
+  0.0,
+  0.18,
+  0.1694
+ ],
+ "lengths": {
+  "upper_arm": 0.16,
+  "forearm": 0.14,
+  "hand": 0.095,
+  "thigh": 0.13,
+  "shin": 0.12
+ },
+ "ankle_height": 0.06,
+ "waist_height_standing": 0.37,
+ "height": 1.02,
+ "head_radius": [
+  0.2,
+  0.18,
+  0.185
+ ],
+ "notes": {
+  "neck": "head origin relative to the torso origin (waist). eyes/stache/hat_* use the head transform; 'eyes' is the eyes object's origin relative to the head origin.",
+  "segments": "upper_arm, forearm, hand_*, thigh, shin hang along -Y from their origin; the child joint sits at (0, -length, 0).",
+  "hips": "hips and torso origins are both the waist; hip_l/hip_r are relative to the hips origin, shoulders/neck to the torso origin.",
+  "shoes": "origin at the ankle, sole bottom at y = -ankle_height, toe toward +Z",
+  "hands": "hand_l is on the +X side: palm faces -X, thumb toward +Z; hand_r is its mirror"
+ },
+ "materials": [
+  "belt",
+  "blush",
+  "buckle",
+  "button",
+  "eye",
+  "eyewhite",
+  "gem",
+  "glove",
+  "gold",
+  "hair",
+  "hat",
+  "hat2",
+  "horn",
+  "metal",
+  "mouth",
+  "pants",
+  "shirt",
+  "shirt2",
+  "shoe",
+  "shoe2",
+  "skin",
+  "sock",
+  "sole",
+  "tongue"
+ ],
+ "bounds": {
+  "head": {
+   "min": [
+    -0.221,
+    -0.005,
+    -0.191
+   ],
+   "max": [
+    0.221,
+    0.38,
+    0.241
+   ]
+  },
+  "eyes": {
+   "min": [
+    -0.101,
+    -0.05,
+    -0.022
+   ],
+   "max": [
+    0.101,
+    0.05,
+    0.026
+   ]
+  },
+  "stache": {
+   "min": [
+    -0.117,
+    0.057,
+    0.14
+   ],
+   "max": [
+    0.117,
+    0.157,
+    0.206
+   ]
+  },
+  "hat_cap": {
+   "min": [
+    -0.205,
+    0.21,
+    -0.204
+   ],
+   "max": [
+    0.205,
+    0.379,
+    0.328
+   ]
+  },
+  "hat_bucket": {
+   "min": [
+    -0.314,
+    0.158,
+    -0.299
+   ],
+   "max": [
+    0.314,
+    0.41,
+    0.283
+   ]
+  },
+  "hat_beanie": {
+   "min": [
+    -0.232,
+    0.198,
+    -0.233
+   ],
+   "max": [
+    0.232,
+    0.495,
+    0.2
+   ]
+  },
+  "hat_viking": {
+   "min": [
+    -0.377,
+    0.189,
+    -0.246
+   ],
+   "max": [
+    0.377,
+    0.531,
+    0.219
+   ]
+  },
+  "hat_tophat": {
+   "min": [
+    -0.25,
+    0.19,
+    -0.263
+   ],
+   "max": [
+    0.293,
+    0.555,
+    0.234
+   ]
+  },
+  "hat_crown": {
+   "min": [
+    -0.18,
+    0.255,
+    -0.187
+   ],
+   "max": [
+    0.134,
+    0.478,
+    0.122
+   ]
+  },
+  "hat_visor": {
+   "min": [
+    -0.213,
+    0.2,
+    -0.211
+   ],
+   "max": [
+    0.213,
+    0.306,
+    0.329
+   ]
+  },
+  "torso": {
+   "min": [
+    -0.168,
+    -0.02,
+    -0.143
+   ],
+   "max": [
+    0.168,
+    0.302,
+    0.151
+   ]
+  },
+  "hips": {
+   "min": [
+    -0.168,
+    -0.13,
+    -0.144
+   ],
+   "max": [
+    0.168,
+    0.02,
+    0.161
+   ]
+  },
+  "upper_arm": {
+   "min": [
+    -0.069,
+    -0.203,
+    -0.069
+   ],
+   "max": [
+    0.069,
+    0.06,
+    0.069
+   ]
+  },
+  "forearm": {
+   "min": [
+    -0.043,
+    -0.177,
+    -0.043
+   ],
+   "max": [
+    0.043,
+    0.043,
+    0.043
+   ]
+  },
+  "hand_l": {
+   "min": [
+    -0.053,
+    -0.102,
+    -0.053
+   ],
+   "max": [
+    0.053,
+    0.01,
+    0.076
+   ]
+  },
+  "hand_r": {
+   "min": [
+    -0.053,
+    -0.102,
+    -0.053
+   ],
+   "max": [
+    0.053,
+    0.01,
+    0.076
+   ]
+  },
+  "thigh": {
+   "min": [
+    -0.071,
+    -0.176,
+    -0.071
+   ],
+   "max": [
+    0.071,
+    0.047,
+    0.071
+   ]
+  },
+  "shin": {
+   "min": [
+    -0.055,
+    -0.16,
+    -0.055
+   ],
+   "max": [
+    0.055,
+    0.045,
+    0.055
+   ]
+  },
+  "shoe_l": {
+   "min": [
+    -0.054,
+    -0.073,
+    -0.058
+   ],
+   "max": [
+    0.054,
+    0.017,
+    0.133
+   ]
+  },
+  "shoe_r": {
+   "min": [
+    -0.054,
+    -0.073,
+    -0.058
+   ],
+   "max": [
+    0.054,
+    0.017,
+    0.133
+   ]
+  }
+ }
+}

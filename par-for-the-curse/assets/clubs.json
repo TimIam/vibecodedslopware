@@ -1,0 +1,169 @@
+{
+ "units": "meters, three.js axes. Origin = butt end of the grip; shaft runs along -Y; striking face normal ~ +Z tilted up by the loft; toe toward +X.",
+ "clubs": {
+  "club_driver": {
+   "length": 0.8,
+   "loft_deg": 12.0,
+   "head_center": [
+    0.072,
+    -0.756,
+    -0.0379
+   ],
+   "head_size": [
+    0.156,
+    0.088,
+    0.116
+   ],
+   "face_center": [
+    0.072,
+    -0.755,
+    0.015
+   ],
+   "face_normal": [
+    0.0,
+    0.2079,
+    0.9781
+   ],
+   "hosel_top": [
+    0.0,
+    -0.668,
+    0.0
+   ],
+   "bounds": {
+    "min": [
+     -0.022,
+     -0.8,
+     -0.096
+    ],
+    "max": [
+     0.15,
+     0.002,
+     0.022
+    ]
+   }
+  },
+  "club_iron": {
+   "length": 0.72,
+   "loft_deg": 26.0,
+   "head_center": [
+    0.0728,
+    -0.6795,
+    -0.0129
+   ],
+   "head_size": [
+    0.12,
+    0.081,
+    0.057
+   ],
+   "face_center": [
+    0.0754,
+    -0.6724,
+    0.0052
+   ],
+   "face_normal": [
+    0.0,
+    0.4384,
+    0.8988
+   ],
+   "hosel_top": [
+    0.0,
+    -0.5942,
+    0.0
+   ],
+   "bounds": {
+    "min": [
+     -0.022,
+     -0.72,
+     -0.041
+    ],
+    "max": [
+     0.133,
+     0.002,
+     0.022
+    ]
+   }
+  },
+  "club_wedge": {
+   "length": 0.68,
+   "loft_deg": 50.0,
+   "head_center": [
+    0.0754,
+    -0.6409,
+    -0.0233
+   ],
+   "head_size": [
+    0.125,
+    0.078,
+    0.082
+   ],
+   "face_center": [
+    0.078,
+    -0.6261,
+    -0.0092
+   ],
+   "face_normal": [
+    0.0,
+    0.766,
+    0.6428
+   ],
+   "hosel_top": [
+    0.0,
+    -0.5572,
+    0.0
+   ],
+   "bounds": {
+    "min": [
+     -0.022,
+     -0.68,
+     -0.064
+    ],
+    "max": [
+     0.138,
+     0.002,
+     0.022
+    ]
+   }
+  },
+  "club_putter": {
+   "length": 0.6,
+   "loft_deg": 3.0,
+   "head_center": [
+    0.0754,
+    -0.5743,
+    0.0005
+   ],
+   "head_size": [
+    0.162,
+    0.051,
+    0.049
+   ],
+   "face_center": [
+    0.0754,
+    -0.5749,
+    0.0215
+   ],
+   "face_normal": [
+    0.0,
+    0.0523,
+    0.9986
+   ],
+   "hosel_top": [
+    0.0,
+    -0.4633,
+    0.0
+   ],
+   "bounds": {
+    "min": [
+     -0.022,
+     -0.6,
+     -0.024
+    ],
+    "max": [
+     0.157,
+     0.002,
+     0.025
+    ]
+   }
+  }
+ }
+}

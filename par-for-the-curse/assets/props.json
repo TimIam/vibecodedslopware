@@ -1,0 +1,829 @@
+{
+ "units": "meters, three.js axes (+Y up, +Z forward). Origins at ground contact (bottom centre) unless noted.",
+ "objects": {
+  "tree_round": {
+   "bounds": {
+    "min": [
+     -1.908,
+     -0.057,
+     -1.902
+    ],
+    "max": [
+     1.941,
+     5.13,
+     1.855
+    ]
+   },
+   "materials": [
+    "trunk",
+    "leaves",
+    "leaves2"
+   ],
+   "tris": 4686
+  },
+  "tree_pine": {
+   "bounds": {
+    "min": [
+     -2.024,
+     0.0,
+     -2.109
+    ],
+    "max": [
+     2.146,
+     6.0,
+     2.101
+    ]
+   },
+   "materials": [
+    "trunk",
+    "pine"
+   ],
+   "tris": 1840
+  },
+  "tree_palm": {
+   "bounds": {
+    "min": [
+     -1.442,
+     -0.05,
+     -2.75
+    ],
+    "max": [
+     3.732,
+     5.77,
+     2.745
+    ]
+   },
+   "materials": [
+    "palm_trunk2",
+    "palm_trunk",
+    "coconut",
+    "palm_leaf"
+   ],
+   "tris": 1896
+  },
+  "bush": {
+   "bounds": {
+    "min": [
+     -0.826,
+     0.0,
+     -0.722
+    ],
+    "max": [
+     0.805,
+     1.0,
+     0.747
+    ]
+   },
+   "materials": [
+    "leaves",
+    "leaves2",
+    "flower_a",
+    "flower_center"
+   ],
+   "tris": 6576
+  },
+  "flowers": {
+   "bounds": {
+    "min": [
+     -0.147,
+     -0.002,
+     -0.135
+    ],
+    "max": [
+     0.129,
+     0.287,
+     0.14
+    ]
+   },
+   "materials": [
+    "stem",
+    "flower_a",
+    "flower_center",
+    "flower_b",
+    "flower_c"
+   ],
+   "tris": 4944
+  },
+  "rock_a": {
+   "bounds": {
+    "min": [
+     -0.904,
+     0.0,
+     -0.633
+    ],
+    "max": [
+     0.844,
+     1.067,
+     0.658
+    ]
+   },
+   "materials": [
+    "rock",
+    "moss"
+   ],
+   "tris": 80
+  },
+  "rock_b": {
+   "bounds": {
+    "min": [
+     -0.642,
+     0.0,
+     -0.503
+    ],
+    "max": [
+     0.57,
+     1.788,
+     0.51
+    ]
+   },
+   "materials": [
+    "rock",
+    "moss"
+   ],
+   "tris": 80
+  },
+  "rock_c": {
+   "bounds": {
+    "min": [
+     -1.098,
+     0.0,
+     -0.593
+    ],
+    "max": [
+     1.002,
+     0.97,
+     0.673
+    ]
+   },
+   "materials": [
+    "rock",
+    "moss"
+   ],
+   "tris": 240
+  },
+  "cloud_a": {
+   "bounds": {
+    "min": [
+     -5.331,
+     -2.45,
+     -2.591
+    ],
+    "max": [
+     5.331,
+     2.45,
+     2.591
+    ]
+   },
+   "materials": [
+    "cloud"
+   ],
+   "tris": 4368
+  },
+  "cloud_b": {
+   "bounds": {
+    "min": [
+     -4.823,
+     -2.075,
+     -2.186
+    ],
+    "max": [
+     4.823,
+     2.075,
+     2.186
+    ]
+   },
+   "materials": [
+    "cloud"
+   ],
+   "tris": 3744
+  },
+  "flagpole": {
+   "bounds": {
+    "min": [
+     -0.05,
+     -0.05,
+     -0.05
+    ],
+    "max": [
+     0.05,
+     2.22,
+     0.05
+    ]
+   },
+   "materials": [
+    "pole_white",
+    "pole_red",
+    "pole_top"
+   ],
+   "tris": 1632,
+   "flag_attach": [
+    0.032,
+    2.12,
+    0.0
+   ],
+   "radius": 0.032,
+   "height": 2.22
+  },
+  "flag_cloth": {
+   "bounds": {
+    "min": [
+     0.0,
+     -0.5,
+     -0.0
+    ],
+    "max": [
+     0.8,
+     0.0,
+     -0.0
+    ]
+   },
+   "materials": [
+    "flag"
+   ],
+   "tris": 320,
+   "size": [
+    0.8,
+    0.5
+   ],
+   "segments": [
+    16,
+    10
+   ],
+   "note": "origin = top attachment point (pole side); cloth spans x 0..0.8, y -0.5..0; uv.x = distance from pole / 0.8"
+  },
+  "cup_rim": {
+   "bounds": {
+    "min": [
+     -0.276,
+     -0.14,
+     -0.276
+    ],
+    "max": [
+     0.276,
+     0.0,
+     0.276
+    ]
+   },
+   "materials": [
+    "cup"
+   ],
+   "tris": 576,
+   "inner_radius": 0.25,
+   "outer_radius": 0.276,
+   "depth": 0.14
+  },
+  "tee_marker": {
+   "bounds": {
+    "min": [
+     -0.13,
+     0.0,
+     -0.13
+    ],
+    "max": [
+     0.13,
+     0.35,
+     0.13
+    ]
+   },
+   "materials": [
+    "tee_stub",
+    "tee_marker"
+   ],
+   "tris": 1020
+  },
+  "mushroom": {
+   "bounds": {
+    "min": [
+     -1.5,
+     0.0,
+     -1.5
+    ],
+    "max": [
+     1.5,
+     1.236,
+     1.527
+    ]
+   },
+   "materials": [
+    "mushroom_gills",
+    "mushroom_cap",
+    "mushroom_stem",
+    "mushroom_spot",
+    "mushroom_eye"
+   ],
+   "tris": 6240,
+   "cap_radius": 1.5,
+   "cap_top": 1.2,
+   "cap_rim_height": 0.452,
+   "stem_radius": 0.5
+  },
+  "bumper": {
+   "bounds": {
+    "min": [
+     -0.8,
+     0.0,
+     -0.8
+    ],
+    "max": [
+     0.8,
+     0.7,
+     0.8
+    ]
+   },
+   "materials": [
+    "bumper_base",
+    "bumper",
+    "bumper_top"
+   ],
+   "tris": 1720,
+   "radius": 0.8,
+   "height": 0.7
+  },
+  "windmill_base": {
+   "bounds": {
+    "min": [
+     -2.014,
+     -0.02,
+     -2.094
+    ],
+    "max": [
+     2.014,
+     8.34,
+     2.094
+    ]
+   },
+   "materials": [
+    "windmill_stone",
+    "windmill_wall",
+    "windmill_tunnel",
+    "windmill_trim",
+    "window",
+    "windmill_roof",
+    "windmill_wood"
+   ],
+   "tris": 2816,
+   "hub": [
+    0.0,
+    6.5,
+    2.2
+   ],
+   "tunnel": {
+    "width": 1.6,
+    "height": 1.2,
+    "axis": "Z",
+    "shape": "arch: straight walls to 0.4 m then a 0.8 m-radius half circle"
+   },
+   "base_width_flat_to_flat": 4.03,
+   "base_width_corner_to_corner": 4.36
+  },
+  "windmill_blades": {
+   "bounds": {
+    "min": [
+     -4.699,
+     -4.699,
+     -0.18
+    ],
+    "max": [
+     4.699,
+     4.699,
+     0.62
+    ]
+   },
+   "materials": [
+    "windmill_trim",
+    "windmill_roof",
+    "windmill_wood",
+    "sail"
+   ],
+   "tris": 3340,
+   "radius": 5.45,
+   "spin_axis": "Z",
+   "note": "origin = hub centre; place at windmill_base.hub"
+  },
+  "goose": {
+   "bounds": {
+    "min": [
+     -0.176,
+     0.0,
+     -0.408
+    ],
+    "max": [
+     0.176,
+     0.808,
+     0.346
+    ]
+   },
+   "materials": [
+    "goose",
+    "goose_wing",
+    "goose_beak",
+    "goose_eye"
+   ],
+   "tris": 3732
+  },
+  "cannon_base": {
+   "bounds": {
+    "min": [
+     -0.93,
+     -0.02,
+     -1.55
+    ],
+    "max": [
+     0.93,
+     1.14,
+     0.67
+    ]
+   },
+   "materials": [
+    "cannon_wood",
+    "iron"
+   ],
+   "tris": 3468,
+   "barrel_pivot": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "note": "place cannon_barrel at barrel_pivot; it pitches about X"
+  },
+  "cannon_barrel": {
+   "bounds": {
+    "min": [
+     -0.6,
+     -0.4,
+     -1.02
+    ],
+    "max": [
+     0.6,
+     0.4,
+     1.38
+    ]
+   },
+   "materials": [
+    "iron",
+    "bore"
+   ],
+   "tris": 1656,
+   "length": 2.4,
+   "mouth_radius": 0.355,
+   "bore_radius": 0.19,
+   "muzzle": [
+    0.0,
+    0.0,
+    1.38
+   ],
+   "breech": [
+    0.0,
+    0.0,
+    -1.02
+   ]
+  },
+  "golf_cart": {
+   "bounds": {
+    "min": [
+     -0.68,
+     -0.005,
+     -1.368
+    ],
+    "max": [
+     0.68,
+     2.04,
+     1.24
+    ]
+   },
+   "materials": [
+    "cart_body",
+    "cart_trim",
+    "cart_frame",
+    "cart_seat",
+    "cart_light",
+    "golf_bag",
+    "cart_roof",
+    "hub",
+    "tire"
+   ],
+   "tris": 5232
+  },
+  "sign_post": {
+   "bounds": {
+    "min": [
+     -0.88,
+     0.0,
+     -0.135
+    ],
+    "max": [
+     0.88,
+     2.1,
+     -0.005
+    ]
+   },
+   "materials": [
+    "sign_post"
+   ],
+   "tris": 356,
+   "board_center": [
+    0.0,
+    1.5,
+    0.01
+   ],
+   "board_size": [
+    1.6,
+    0.9,
+    0.05
+   ],
+   "posts_x": [
+    -0.72,
+    0.72
+   ]
+  },
+  "sign_board": {
+   "bounds": {
+    "min": [
+     -0.8,
+     -0.45,
+     -0.025
+    ],
+    "max": [
+     0.8,
+     0.45,
+     0.025
+    ]
+   },
+   "materials": [
+    "sign_board",
+    "sign_face"
+   ],
+   "tris": 108,
+   "size": [
+    1.6,
+    0.9,
+    0.05
+   ],
+   "front": "+Z",
+   "uv": "front face (material sign_face) spans uv 0..1 (u along +X, v up)",
+   "place_at": [
+    0.0,
+    1.5,
+    0.01
+   ]
+  },
+  "trophy": {
+   "bounds": {
+    "min": [
+     -0.71,
+     0.0,
+     -0.5
+    ],
+    "max": [
+     0.71,
+     1.72,
+     0.5
+    ]
+   },
+   "materials": [
+    "trophy_base",
+    "gold",
+    "trophy_ball"
+   ],
+   "tris": 3604
+  },
+  "balloon": {
+   "bounds": {
+    "min": [
+     -3.3,
+     0.0,
+     -3.3
+    ],
+    "max": [
+     3.3,
+     9.12,
+     3.3
+    ]
+   },
+   "materials": [
+    "balloon_a",
+    "balloon_b",
+    "balloon_c",
+    "basket_rim",
+    "basket",
+    "burner",
+    "rope"
+   ],
+   "tris": 1184,
+   "envelope_center": [
+    0.0,
+    6.6,
+    0.0
+   ],
+   "basket_top": [
+    0.0,
+    0.96,
+    0.0
+   ]
+  },
+  "blimp": {
+   "bounds": {
+    "min": [
+     -2.996,
+     0.0,
+     -7.0
+    ],
+    "max": [
+     2.996,
+     6.156,
+     7.0
+    ]
+   },
+   "materials": [
+    "blimp",
+    "blimp_stripe",
+    "blimp_fin",
+    "blimp_gondola",
+    "window"
+   ],
+   "tris": 1656,
+   "note": "origin at the bottom of the gondola (ground-contact rule); nose toward +Z",
+   "envelope_center": [
+    0.0,
+    3.16,
+    0.0
+   ]
+  },
+  "island": {
+   "bounds": {
+    "min": [
+     -20.38,
+     -3.5,
+     -21.144
+    ],
+    "max": [
+     21.508,
+     10.87,
+     20.594
+    ]
+   },
+   "materials": [
+    "sand",
+    "grass",
+    "palm_trunk2",
+    "palm_trunk",
+    "coconut",
+    "palm_leaf",
+    "rock"
+   ],
+   "tris": 7400,
+   "note": "origin at sea level; beach dips to y = -3.5 under the water"
+  },
+  "fence": {
+   "bounds": {
+    "min": [
+     -1.0,
+     0.0,
+     -0.055
+    ],
+    "max": [
+     1.0,
+     0.63,
+     0.1
+    ]
+   },
+   "materials": [
+    "fence"
+   ],
+   "tris": 448
+  },
+  "windsock": {
+   "bounds": {
+    "min": [
+     -0.13,
+     0.0,
+     -0.13
+    ],
+    "max": [
+     0.13,
+     3.06,
+     0.13
+    ]
+   },
+   "materials": [
+    "pole",
+    "pole_red"
+   ],
+   "tris": 376,
+   "attach": [
+    0.0,
+    2.85,
+    0.0
+   ]
+  },
+  "windsock_sock": {
+   "bounds": {
+    "min": [
+     -0.02,
+     -0.256,
+     -0.256
+    ],
+    "max": [
+     1.8,
+     0.256,
+     0.256
+    ]
+   },
+   "materials": [
+    "pole",
+    "sock_red",
+    "sock_white"
+   ],
+   "tris": 800,
+   "note": "origin on the pole axis; spins about Y; sock spans x 0.3..1.8, uv.x = distance along the sock",
+   "segments": [
+    12,
+    16
+   ]
+  },
+  "lamp": {
+   "bounds": {
+    "min": [
+     -0.24,
+     0.0,
+     -0.27
+    ],
+    "max": [
+     0.24,
+     2.655,
+     0.27
+    ]
+   },
+   "materials": [
+    "lamp_post",
+    "lamp_glow"
+   ],
+   "tris": 580,
+   "light": [
+    0.0,
+    2.2,
+    0.0
+   ]
+  },
+  "under_rock": {
+   "bounds": {
+    "min": [
+     -0.565,
+     -1.0,
+     -0.569
+    ],
+    "max": [
+     0.564,
+     0.0,
+     0.568
+    ]
+   },
+   "materials": [
+    "under_rock",
+    "root"
+   ],
+   "tris": 1082,
+   "note": "top face is the unit square x,z in -0.5..0.5 at y = 0; tapers to a point near y = -1; scale per platform"
+  },
+  "spire": {
+   "bounds": {
+    "min": [
+     -20.085,
+     -45.3,
+     -20.132
+    ],
+    "max": [
+     20.315,
+     85.0,
+     20.792
+    ]
+   },
+   "materials": [
+    "spire_rock"
+   ],
+   "tris": 6840,
+   "max_radius": 21.332,
+   "base_y": -45.3,
+   "peak_y": 85.0,
+   "sea_level_y": -40.0,
+   "strata_ledges_y": [
+    -38.08,
+    -33.08,
+    -25.08,
+    -18.58,
+    -12.08,
+    -5.58,
+    -0.58,
+    10.42,
+    15.42,
+    26.42,
+    35.92,
+    40.92,
+    45.92,
+    50.92,
+    57.42,
+    63.92
+   ]
+  }
+ }
+}
