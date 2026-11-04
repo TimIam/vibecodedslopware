@@ -82,6 +82,42 @@ export function whoosh(speed) {
   whooshGain.gain.setTargetAtTime(muted ? 0 : v * v * 0.55, ctx.currentTime, 0.02);
   whooshGain.bp.frequency.setTargetAtTime(500 + v * 1600, ctx.currentTime, 0.03);
 }
+// Slow motion: a deep "time bends" whoosh going in, a low drone with a heartbeat while it lasts,
+// music and wind ducked, then a rising whoosh back to normal speed.
+let slowNodes = null, slowBeat = 0;
+export function slowmo(on) {
+  if (!ctx || (on && muted)) return;
+  const t = ctx.currentTime;
+  if (on) {
+    burst(0.7, 0.45, 2400, 'bandpass', t, 0.9, 180);
+    tone('sine', 520, 70, 0.75, 0.32, t, sfx, 0.02);
+    tone('triangle', 260, 45, 0.9, 0.14, t + 0.05, sfx, 0.03);
+    if (!slowNodes) {
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16, t + 0.4);
+      const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(); o1.type = 'sine'; o2.type = 'sine';
+      o1.frequency.value = 55; o2.frequency.value = 55.7;
+      const n = noise(true), lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 260;
+      const ng = ctx.createGain(); ng.gain.value = 0.35;
+      o1.connect(g); o2.connect(g); n.connect(lp); lp.connect(ng); ng.connect(g); g.connect(sfx);
+      o1.start(); o2.start(); n.start();
+      slowNodes = { g, stop: [o1, o2, n] };
+      const beat = () => { const tt = ctx.currentTime; tone('sine', 70, 40, 0.14, 0.4, tt); tone('sine', 66, 38, 0.16, 0.3, tt + 0.22); };
+      beat(); slowBeat = setInterval(beat, 900);
+    }
+    if (music) music.gain.setTargetAtTime(musicOn ? 0.03 : 0, t, 0.15);
+    if (windGain) windGain.gain.setTargetAtTime(0.01, t, 0.15);
+  } else {
+    burst(0.45, 0.3, 200, 'bandpass', t, 0.9, 2600);
+    tone('sine', 90, 480, 0.35, 0.18, t, sfx, 0.02);
+    if (slowNodes) {
+      const { g, stop } = slowNodes; slowNodes = null;
+      g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      stop.forEach(o => o.stop(t + 0.35));
+    }
+    clearInterval(slowBeat);
+    if (music) music.gain.setTargetAtTime(musicOn ? 0.16 : 0, t, 0.3);
+  }
+}
 export function wind(strength) {
   if (!ctx || !windGain) return;
   windGain.gain.setTargetAtTime(muted ? 0 : 0.035 + Math.min(1, strength) * 0.12, ctx.currentTime, 0.4);

@@ -448,6 +448,7 @@ const tmpBallLocal = V();
 function frame(now) {
   requestAnimationFrame(frame);
   let dt = Math.min(0.05, (now - last) / 1000); last = now;
+  S.realDt = dt;
   if (S.slowmo) dt *= S.slowmo;
   step(dt);
   render(dt);
@@ -455,6 +456,8 @@ function frame(now) {
 function step(dt) {
   S.t += dt; S.modeT += dt;
   const t = S.t;
+  if (S.mode !== 'flight') { S.slowmo = null; S.slowHold = 0; }
+  if (!!S.slowmo !== !!S.wasSlow) { S.wasSlow = !!S.slowmo; A.slowmo(S.wasSlow); }
   // Aim.
   const aimKeys = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0);
   if (S.mode === 'address' && !S.emote) {
@@ -531,7 +534,7 @@ function step(dt) {
   fx.update(dt); confetti.update(dt, t);
   updateOthers(dt);
   netTick(dt);
-  updateCamera(dt);
+  updateCamera(S.realDt || dt);
   updateHudLive();
 }
 
@@ -555,16 +558,16 @@ function flight(dt) {
   if (ball.p.y < SEA_Y + 0.3) { fx.bigSplash(V(ball.p.x, SEA_Y, ball.p.z)); A.play('splash', 1); return penalty('sea'); }
   // Falling far: whistle.
   if (!S.fallingWhistle && !ball.grounded && ball.p.y < S.shotY - 5 && ball.v.y < -8) { S.fallingWhistle = true; A.play('whistle', 1); }
-  // Slow motion near the cup.
-  S.slowmo = null;
+  // Slow motion near the cup, held a moment so it doesn't flicker (and lingers through a lip-out).
+  let near = null;
   for (let h = 1; h <= NHOLES; h++) {
     const H = course.holes[h]; if (!H || !H.cup) continue;
     const dx = ball.p.x - H.cup.x, dz = ball.p.z - H.cup.z, d = Math.hypot(dx, dz);
     if (Math.abs(ball.p.y - BALL_R - H.cup.y) > 0.25) continue;
     const rel = _a.subVectors(ball.v, ball.gVel); const rs = Math.hypot(rel.x, rel.z);
-    if (d < 1.4 && rs > 0.3 && rs < 5) S.slowmo = 0.45;
+    if (d < 1.4 && rs > 0.3 && rs < 5) near = H;
     if (d < CUP_R) {
-      if (rs < 4.2 && ball.grounded) { ball.p.set(H.cup.x, H.cup.y - 0.06, H.cup.z); ball.v.set(0, 0, 0); S.slowmo = null; return holed(h); }
+      if (rs < 4.2 && ball.grounded) { ball.p.set(H.cup.x, H.cup.y - 0.06, H.cup.z); ball.v.set(0, 0, 0); S.slowmo = null; S.slowHold = 0; return holed(h); }
       if (S.cupCheck && d < CUP_R * 0.75) {
         S.cupCheck = false;
         // Lip out: kick it up and sideways.
@@ -575,6 +578,9 @@ function flight(dt) {
       }
     } else if (d > CUP_R * 1.5 && d < 3) S.cupCheck = true;
   }
+  if (near) { S.slowHold = 0.35; S.slowCup = near.cup; }
+  S.slowHold = Math.max(0, (S.slowHold || 0) - S.realDt);
+  S.slowmo = S.slowHold > 0 ? 0.4 : null;
   // Cannon.
   for (const sn of course.sensors) {
     if (sn.kind !== 'cannon') continue;
@@ -584,7 +590,7 @@ function flight(dt) {
   // Rest.
   const rel = _a.subVectors(ball.v, ball.gVel).length();
   if (ball.grounded && rel < 0.1) S.restT += dt; else if (S.restT < 50) S.restT = 0;
-  if (S.restT > 0.9 || S.flightT > 40 || ball.p.y < SEA_Y - 20) { S.slowmo = null; trail.clear(); ballRested(); }
+  if (S.restT > 0.9 || S.flightT > 40 || ball.p.y < SEA_Y - 20) { S.slowmo = null; S.slowHold = 0; trail.clear(); ballRested(); }
 }
 function cannon(sn) {
   setMode('cannon'); ball.frozen = true; ball.v.set(0, 0, 0);
@@ -668,8 +674,9 @@ function updateCamera(dt) {
   const viewHeld = aimView || keys.has('f');
   const fp = S.fpCam = S.fpv && !viewHeld && !S.intro && !S.emote && (S.mode === 'address' || S.mode === 'flight' || S.mode === 'cannon');
   camera.layers[fp ? 'disable' : 'enable'](1);
-  const fov = fp ? 80 : 55;
-  if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = lerp(camera.fov, fov, 1 - Math.exp(-dt * 8)); camera.updateProjectionMatrix(); }
+  const slow = S.mode === 'flight' && S.slowmo && S.slowCup;
+  const fov = slow ? (fp ? 26 : 30) : (fp ? 80 : 55);
+  if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = lerp(camera.fov, fov, 1 - Math.exp(-dt * (slow ? 6 : 4))); camera.updateProjectionMatrix(); }
   if (fp) {
     // First person: from the golfer's eyes, watching the ball (and the hands and club below them).
     const eye = me.p.eyes.getWorldPosition(V()).addScaledVector(w, -0.05).add(V(0, 0.14, 0));
@@ -702,6 +709,16 @@ function updateCamera(dt) {
     wantLook = b.clone().addScaledVector(fd, 2);
     if (S.mode === 'respawn') { wantPos = cam.pos.clone(); }
     k = S.flightT < 0.4 ? 2.5 : 3.5;
+    if (slow) {
+      // Slow motion: drop low beyond the cup and look back at the ball rolling in, lens zoomed in.
+      const c = S.slowCup, toCup = _b.subVectors(c, b).setY(0);
+      if (toCup.lengthSq() < 1e-4) toCup.copy(fd); toCup.normalize();
+      const side = V(-toCup.z, 0, toCup.x);
+      wantPos = c.clone().addScaledVector(toCup, 2.6).addScaledVector(side, 1.2).add(V(0, 0.75, 0));
+      wantLook = b.clone().lerp(c, 0.5).add(V(0, 0.04, 0));
+      pivot = wantLook.clone();
+      k = 5;
+    }
   } else if (S.mode === 'cup') {
     const H = course.holes[S.sinkHole];
     wantLook = H.cup.clone().add(V(0, 0.3, 0));
@@ -1020,7 +1037,7 @@ function renderBoard() {
 if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
   window.__g = {
     S, ball, camera, get info() { return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries }; }, get swing() { return swing; }, get course() { return course; }, get world() { return world; }, get me() { return me; },
-    start, step: n => { for (let i = 0; i < n; i++) step(1 / 60); render(1 / 60); },
+    start, step: n => { for (let i = 0; i < n; i++) { S.realDt = 1 / 60; step(S.slowmo ? S.slowmo / 60 : 1 / 60); } render(1 / 60); },
     input: (dx, dy) => { mouseDX += dx; mouseDY += dy; },
     teleport: h => { placeOnTee(h); settleGolfer(true); setMode('address'); updateHud(); },
     put: (x, y, z) => { ball.p.set(x, y, z); ball.v.set(0, 0, 0); setMode('flight'); S.flightT = 0; S.restT = 0; },
