@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Safe Water</title>
+<meta name="description" content="A first-person puzzle adventure in the country of Mark Twain: his octagonal study on the night of the comet, a steamboat crossing at night, McDougal's Cave by candlelight, and an eclipse in Camelot.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☄️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gochi+Hand&family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+:root{--ink:#2a2118;--paper:#efe4c8;--gold:#d8b46a}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#07080b;color:#eadfc6;font:15px/1.45 "IM Fell English",Georgia,serif;user-select:none;-webkit-user-select:none}
+#view{position:fixed;left:0;top:52px;width:100vw;height:calc(100vh - 52px);height:calc(100dvh - 52px);display:block;outline:none;touch-action:none}
+#vignette{position:fixed;inset:52px 0 0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(0,0,0,.55) 100%);z-index:2}
+#fade{position:fixed;inset:52px 0 0;background:#000;opacity:0;pointer-events:none;transition:opacity .6s;z-index:20}
+#fade.on{opacity:1}
+#fade.white{background:#fff8ea}
+
+/* Myst-style cursors */
+body.c-default #view{cursor:default}
+body.c-none #view{cursor:none}
+body.c-hand #view{cursor:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M12 3c1.3 0 2.2 1 2.2 2.3V14h.6V9.6c0-1.2 1-2 2.1-2s2.1.8 2.1 2V14h.6v-3c0-1.2 1-2 2.1-2s2 .8 2 2v3.6h.5V13c0-1.1.9-1.9 1.9-1.9s1.9.8 1.9 1.9v7.3c0 5.1-3.6 9-8.9 9h-1.6c-3.1 0-5.1-1.3-6.8-3.8l-4.1-6c-.7-1-.4-2.2.5-2.8.9-.6 2.1-.4 2.8.5l1.9 2.6V5.3C9.8 4 10.7 3 12 3z' fill='%23f6efdc' stroke='%23231a10' stroke-width='1.4'/></svg>") 11 3,pointer}
+body.c-fwd #view{cursor:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M16 3l9 11h-5.5v14h-7V14H7z' fill='%23f6efdc' stroke='%23231a10' stroke-width='1.5' stroke-linejoin='round'/></svg>") 16 3,n-resize}
+body.c-back #view{cursor:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M16 29l9-11h-5.5V4h-7v14H7z' fill='%23f6efdc' stroke='%23231a10' stroke-width='1.5' stroke-linejoin='round'/></svg>") 16 29,s-resize}
+body.c-left #view{cursor:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M3 16l11-9v5.5c8 0 14 3 15 12-3-4-8-5.5-15-5.5V25z' fill='%23f6efdc' stroke='%23231a10' stroke-width='1.5' stroke-linejoin='round'/></svg>") 3 16,w-resize}
+body.c-right #view{cursor:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><path d='M29 16l-11-9v5.5c-8 0-14 3-15 12 3-4 8-5.5 15-5.5V25z' fill='%23f6efdc' stroke='%23231a10' stroke-width='1.5' stroke-linejoin='round'/></svg>") 29 16,e-resize}
+body.c-grab #view{cursor:grab}
+
+#sub{position:fixed;left:50%;bottom:7%;transform:translateX(-50%);max-width:min(760px,90vw);text-align:center;font-size:clamp(16px,2.1vw,21px);color:#f7eedb;text-shadow:0 1px 2px #000,0 0 18px rgba(0,0,0,.9);opacity:0;transition:opacity .5s;pointer-events:none;z-index:8;font-style:italic}
+#sub.on{opacity:1}
+#label{position:fixed;transform:translateX(-50%);z-index:9;pointer-events:none;font:italic 14px "IM Fell English",serif;color:#f6ecd4;text-shadow:0 1px 2px #000,0 0 10px #000;white-space:nowrap;opacity:0;transition:opacity .2s}
+#label.on{opacity:1}
+
+#hud{position:fixed;top:62px;right:12px;z-index:9;display:flex;gap:10px;align-items:center}
+#pages{display:flex;gap:5px}
+#pages i{display:block;width:16px;height:21px;border-radius:2px;border:1px solid rgba(240,225,190,.35);background:rgba(240,225,190,.06);transition:.4s}
+#pages i.have{background:#efe4c8;border-color:#efe4c8;box-shadow:0 0 10px rgba(255,230,170,.6)}
+#menuBtn{appearance:none;border:1px solid rgba(240,225,190,.35);background:rgba(10,8,6,.45);color:#eadfc6;border-radius:8px;font:16px/1 "IM Fell English",serif;padding:7px 11px;cursor:pointer}
+#menuBtn:hover{border-color:var(--gold);color:#fff}
+
+.overlay{position:fixed;inset:52px 0 0;z-index:30;display:grid;place-items:center}
+.overlay[hidden]{display:none}
+
+#doc{background:rgba(5,4,3,.55);cursor:pointer;padding:16px}
+.sheet{width:min(560px,94vw);max-height:calc(100dvh - 90px);overflow:auto;padding:30px 36px 22px;color:var(--ink);background:var(--paper);box-shadow:0 18px 60px rgba(0,0,0,.6),inset 0 0 60px rgba(120,90,40,.25);border-radius:3px;font-size:17px;line-height:1.55;animation:lift .35s ease-out}
+@keyframes lift{from{transform:translateY(16px) rotate(-.6deg);opacity:0}to{transform:none;opacity:1}}
+.dtitle{font:13px/1.2 "IM Fell English SC",serif;letter-spacing:.08em;color:#7a6446;text-align:center;margin-bottom:14px}
+.dbody p{margin:0 0 .8em}
+.dclose{margin-top:14px;text-align:center;font:12px "IM Fell English",serif;color:#8c7a5c;font-style:italic}
+.dnote{margin-top:10px;text-align:center;font:italic 15px "IM Fell English",serif;color:#6d4a1f;border-top:1px solid rgba(110,80,40,.25);padding-top:10px}
+.sign{text-align:right;font-style:italic}
+.salut{font-style:italic}
+.caps{font-family:"IM Fell English SC",serif;letter-spacing:.06em;text-align:center}
+.sheet.letter .dbody{font-style:italic}
+.sheet.card{width:min(420px,92vw);text-align:center;background:#e9dcbc}
+.sheet.notebook{background:repeating-linear-gradient(#f2ead2 0 27px,#c9d3dc 27px 28px);background-position:0 8px;line-height:28px;font-size:16.5px}
+.sheet.notebook .dbody p{margin:0 0 28px}
+.sheet.slate{background:#2c3330;color:#eef0e8;box-shadow:0 18px 60px rgba(0,0,0,.6),inset 0 0 40px rgba(0,0,0,.5);border:10px solid #6b4a2a;font-family:"Gochi Hand",cursive;font-size:21px}
+.sheet.slate .dtitle,.sheet.slate .dclose{color:#b9c0b2;font-family:"IM Fell English SC",serif}
+.leads{margin:0 auto;border-collapse:collapse}.leads td{padding:2px 14px}.leads td:last-child{text-align:right;opacity:.85}
+.chalk{text-align:center;margin-top:12px!important}
+.sheet.page{background:#f4ecd6;font-size:17.5px;border-left:3px double rgba(160,60,40,.35)}
+.sheet.page .dtitle{color:#8a2e1c}
+.sheet.scrawl{background:repeating-linear-gradient(90deg,#d9c79c 0 18px,#cdb98d 18px 36px);font-family:"Gochi Hand",cursive;font-size:20px;line-height:1.45;transform:rotate(-.4deg)}
+.sheet.placard{background:#e3d2a6;font-size:18px;text-align:center}
+.sheet.placard .big{font-size:30px;margin-bottom:.3em}
+.sheet.placard .small{font-size:13px;font-style:italic}
+.sheet.scroll{background:linear-gradient(#d8c290,#ecdcb2 8%,#ecdcb2 92%,#d8c290);font-style:italic;text-align:center;font-size:18px}
+.sheet.news{background:#e8e2d0;font-size:15.5px;column-gap:20px}
+.sheet.news .dtitle{font-family:"UnifrakturMaguntia",serif;font-size:27px;letter-spacing:0;color:#1e1a14;border-bottom:3px double #1e1a14;padding-bottom:8px;line-height:1.1}
+.sheet.news h3{margin:0;text-align:center;font:30px/1.05 "IM Fell English SC",serif;letter-spacing:.04em}
+.sheet.news .dek{text-align:center;font-style:italic;border-bottom:1px solid #1e1a14;padding-bottom:6px}
+
+#stereo{z-index:25;background:#000;pointer-events:none;overflow:hidden}
+#stereo .pair{position:absolute;inset:0;display:flex;justify-content:center;align-items:center;gap:0}
+#stereo img{width:44vw;max-width:640px;aspect-ratio:1.4;object-fit:cover;border-radius:40% 40% 4px 4px / 22% 22% 4px 4px;box-shadow:0 0 0 6px #2b2116,0 0 60px rgba(0,0,0,.8);filter:blur(1px)}
+#stereo.go img:first-child{animation:mergeL 1.5s cubic-bezier(.6,0,.3,1) forwards}
+#stereo.go img:last-child{animation:mergeR 1.5s cubic-bezier(.6,0,.3,1) forwards}
+@keyframes mergeL{0%{transform:translateX(-4%) scale(.7);opacity:0}30%{opacity:1}100%{transform:translateX(50%) scale(2.6);filter:blur(0);border-radius:0}}
+@keyframes mergeR{0%{transform:translateX(4%) scale(.7);opacity:0}30%{opacity:.6}100%{transform:translateX(-50%) scale(2.6);opacity:.5;filter:blur(0);border-radius:0}}
+#stereo.out{transition:opacity .9s;opacity:0}
+
+#title{z-index:40;background:radial-gradient(ellipse at 50% 40%,rgba(10,10,20,.25),rgba(3,3,6,.85));text-align:center}
+#title .inner{max-width:620px;padding:20px}
+#title h1{margin:0;font:clamp(46px,8vw,86px)/1 "IM Fell English SC",serif;letter-spacing:.06em;color:#f3e6c4;text-shadow:0 0 30px rgba(255,220,150,.25)}
+#title .sub{margin:10px 0 0;font-style:italic;font-size:clamp(16px,2.2vw,20px);color:#cdbf9f}
+#title .how{margin:22px auto 0;font-size:15px;color:#b6a888;max-width:470px}
+.btn{appearance:none;margin:24px 6px 0;border:1px solid var(--gold);background:rgba(216,180,106,.12);color:#f6ead0;font:20px/1 "IM Fell English SC",serif;letter-spacing:.06em;padding:12px 30px;border-radius:999px;cursor:pointer;transition:.2s}
+.btn:hover{background:rgba(216,180,106,.3)}
+.btn.small{font-size:15px;padding:9px 20px;border-color:rgba(216,180,106,.5)}
+#tLoad{margin-top:26px;font-style:italic;color:#9d917a}
+
+#menu{z-index:35;background:rgba(4,3,2,.7)}
+#menu .box{width:min(440px,92vw);max-height:calc(100dvh - 90px);overflow:auto;background:#1b1612;border:1px solid #5d4b33;border-radius:12px;padding:22px 24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.7)}
+#menu h2{margin:0 0 10px;font:26px "IM Fell English SC",serif;color:#f1e2bf}
+#menu .row{display:flex;flex-wrap:wrap;justify-content:center;gap:4px}
+#menu .row .btn{margin:6px 2px}
+#journal{margin-top:14px;text-align:left;border-top:1px solid #3e3223;padding-top:10px}
+#journal button{display:block;width:100%;text-align:left;appearance:none;background:none;border:0;border-bottom:1px dotted #3e3223;color:#dccfb2;font:16px "IM Fell English",serif;padding:7px 4px;cursor:pointer}
+#journal button:hover{color:#fff;background:rgba(216,180,106,.08)}
+#journal .empty{color:#8b7e66;font-style:italic;text-align:center}
+#menu .keys{font-size:14px;color:#a99b80;margin-top:12px;line-height:1.6}
+
+#ending{z-index:45;background:rgba(255,250,238,0);transition:background 3s;color:#2a2118;text-align:center}
+#ending.on{background:rgba(255,248,232,.97)}
+#ending .inner{max-width:600px;padding:24px;opacity:0;transition:opacity 2s 2.2s}
+#ending.on .inner{opacity:1}
+#ending h2{font:clamp(34px,6vw,54px)/1.05 "IM Fell English SC",serif;margin:0 0 16px;letter-spacing:.05em}
+#ending p{font-size:18px;margin:0 0 12px}
+#ending .fact{font-style:italic;color:#6a5a40;font-size:16px}
+#ending .btn{color:#2a2118;border-color:#8a6b34}
+kbd{display:inline-block;padding:0 6px;border:1px solid #6a5a40;border-bottom-width:2px;border-radius:5px;font:12px/1.6 ui-monospace,Consolas,monospace;color:#e8dcc0}
+@media (max-width:600px){.sheet{padding:22px 20px 16px;font-size:16px}}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"}}</script>
+</head>
+<body class="c-default">
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<canvas id="view" tabindex="0" aria-label="Safe Water game view"></canvas>
+<div id="vignette"></div>
+<div id="sub" aria-live="polite"></div>
+<div id="label"></div>
+<div id="fade"></div>
+
+<div id="hud">
+  <div id="pages" title="Pages of the last chapter"><i id="pg-river"></i><i id="pg-cave"></i><i id="pg-court"></i></div>
+  <button id="menuBtn" title="Menu (Esc)">☰</button>
+</div>
+
+<div id="doc" class="overlay" hidden><div class="sheet"></div></div>
+<div id="stereo" class="overlay" hidden><div class="pair"><img alt=""><img alt=""></div></div>
+
+<div id="menu" class="overlay" hidden><div class="box">
+  <h2>Safe Water</h2>
+  <div class="row">
+    <button class="btn small" id="mResume">Resume</button>
+    <button class="btn small" id="mSound">Sound: on</button>
+    <button class="btn small" id="mVoice">Leadsman voice: on</button>
+    <button class="btn small" id="mRestart">Start over</button>
+  </div>
+  <div class="keys">Click ahead to walk · click the screen's edges to turn · bottom edge steps back from a close look<br><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows do the same · <kbd>Esc</kbd> this menu</div>
+  <div id="journal"></div>
+</div></div>
+
+<div id="title" class="overlay"><div class="inner">
+  <h1>Safe Water</h1>
+  <p class="sub">A puzzle in the country of Mark Twain</p>
+  <p class="how">Elmira, New York. A summer night, and a comet coming up over the hill. Somebody has left the lamp lit in the study.</p>
+  <div id="tLoad">Setting the scene…</div>
+  <button class="btn" id="tBegin" hidden>Begin</button>
+  <button class="btn small" id="tNew" hidden>Start over</button>
+</div></div>
+
+<div id="ending" class="overlay" hidden><div class="inner">
+  <h2>Mark Twain</h2>
+  <p>The chapter is done. The lamp is out. The cat has the desk to herself.</p>
+  <p class="fact">Samuel Langhorne Clemens was born in 1835, two weeks after Halley's Comet passed the sun. He died on the 21st of April, 1910, the day after it came round again.</p>
+  <p class="fact">He wrote much of Tom Sawyer and Huckleberry Finn in an eight-sided study on the hill at Quarry Farm.</p>
+  <button class="btn" id="eStay">Keep wandering</button>
+</div></div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
