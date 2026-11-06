@@ -64,6 +64,16 @@ export function createAudio() {
     wind_roar: () => tone('sawtooth', 70, 110, 0.35, 0.06, { attack: 0.25 }),
     roar: () => { tone('sawtooth', 200, 58, 1.0, 0.22, { vib: 14 }); tone('square', 98, 40, 0.95, 0.1, { vib: 6 }); noise(0.9, 0.22, { type: 'lowpass', f0: 1400, f1: 260 }); },
     shake: () => { for (let i = 0; i < 3; i++) noise(0.08, 0.16, { f0: 1700, f1: 600, q: 2, delay: i * 0.08 }); },
+    wind_tail: () => noise(0.25, 0.06, { f0: 300, f1: 900, q: 3 }),
+    tail: () => { noise(0.22, 0.32, { f0: 1600, f1: 300, q: 1.2 }); tone('sine', 140, 50, 0.2, 0.25); },
+    wind_charge: () => { tone('sawtooth', 60, 50, 0.3, 0.08); noise(0.3, 0.1, { type: 'lowpass', f0: 400, f1: 200 }); },
+    charge: () => { for (let i = 0; i < 4; i++) tone('sine', 90, 40, 0.12, 0.35, { delay: i * 0.09 }); noise(0.4, 0.25, { type: 'lowpass', f0: 900, f1: 150 }); },
+    buy: () => notes([660, 990, 1320], 'square', 0.06, 0.08, 0.05),
+    summon: () => { tone('sawtooth', 110, 220, 0.35, 0.1, { vib: 20 }); noise(0.3, 0.15, { type: 'lowpass', f0: 600, f1: 200 }); },
+    bite: () => { const now = ac.currentTime; if (now - lastKill < 0.05) return; lastKill = now; noise(0.06, 0.12, { f0: 2500, f1: 1200, q: 3 }); },
+    spit: () => tone('triangle', 500, 180, 0.15, 0.06),
+    thud: () => { tone('sine', 80, 35, 0.3, 0.4); noise(0.25, 0.2, { type: 'lowpass', f0: 500, f1: 80 }); },
+    adddie: () => tone('square', 300, 90, 0.3, 0.07, { vib: 30 }),
     kill: () => {
       const now = ac.currentTime;
       if (now - lastKill < 0.04) return;

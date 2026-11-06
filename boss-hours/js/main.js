@@ -1,6 +1,6 @@
 // The page: input, the fixed-step loop, scaling the 320×180 buffer to the window, overlays, saving the best score.
 
-import { createGame, step, W, H } from './world.js';
+import { createGame, step, buy, offer, SHOP, W, H } from './world.js';
 import { createRenderer } from './render.js';
 import { createAudio } from './audio.js';
 
@@ -11,7 +11,7 @@ const audio = createAudio();
 const $ = id => document.getElementById(id);
 
 let g = createGame();
-let mode = 'title';   // title | play | paused | over
+let mode = 'title';   // title | play | shop | paused | over
 const DT = 1 / 60;
 let acc = 0, last = performance.now();
 let frozen = false;   // tests only: stop the clock so a screenshot shows exactly the stepped state
@@ -30,13 +30,21 @@ showBest();
 const keys = new Set();
 const mouse = { x: W / 2 + 40, y: H / 2, l: false };
 const press = {};
-const KEYMAP = { KeyQ: 'breath', KeyE: 'roar', Space: 'shake', KeyF: 'stomp', KeyJ: 'swipe', KeyK: 'stomp' };
+const KEYMAP = { KeyQ: 'breath', KeyE: 'roar', Space: 'shake', KeyF: 'stomp', KeyJ: 'swipe', KeyK: 'stomp', KeyR: 'tail', ShiftLeft: 'charge', ShiftRight: 'charge' };
+const SHOP_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'];
 
 addEventListener('keydown', e => {
   if (e.target.closest?.('a, button')) return;
   if (mode === 'title' && (e.code === 'Enter' || e.code === 'Space')) { e.preventDefault(); start(); return; }
   if (mode === 'over' && (e.code === 'KeyR' || e.code === 'Enter')) { e.preventDefault(); start(); return; }
   if (e.code === 'KeyM') { audio.toggleMute(); return; }
+  if (mode === 'shop') {
+    if (e.code === 'KeyB' || e.code === 'Escape') { e.preventDefault(); closeShop(); return; }
+    const i = SHOP_KEYS.indexOf(e.key);
+    if (i >= 0 && SHOP[i]) { e.preventDefault(); purchase(SHOP[i].id); }
+    return;
+  }
+  if (e.code === 'KeyB' && mode === 'play') { e.preventDefault(); openShop(); return; }
   if (e.code === 'Escape' || e.code === 'KeyP') { if (mode === 'play') pause(); else if (mode === 'paused') resume(); return; }
   if (mode === 'paused' && e.code === 'Space') { e.preventDefault(); resume(); return; }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
@@ -86,10 +94,29 @@ function start() {
   canvas.focus();
 }
 function pause() { mode = 'paused'; $('paused').hidden = false; }
+
+// ---------------------------------------------------------------------------------------------- the hoard (shop)
+
+function openShop() { mode = 'shop'; keys.clear(); mouse.l = false; drawShop(); $('shop').hidden = false; }
+function closeShop() { mode = 'play'; $('shop').hidden = true; last = performance.now(); canvas.focus(); }
+function purchase(id) { if (buy(g, id)) { drain(); drawShop(); } }
+function drawShop() {
+  $('shopLoot').textContent = fmt(g.loot);
+  $('shopList').innerHTML = SHOP.map((it, i) => {
+    const o = offer(g, it);
+    const lvl = it.kind === 'up' ? ` <i>${g.up[it.id]}/${it.cost.length}</i>` : it.kind === 'add' ? ` <i>${g.adds.filter(a => a.kind === it.id).length} out</i>` : '';
+    const price = o.cost == null ? o.why : fmt(o.cost);
+    return `<button type="button" class="item ${it.kind}" data-id="${it.id}" ${o.ok ? '' : 'aria-disabled="true"'}>
+      <kbd>${SHOP_KEYS[i]}</kbd><b>${it.name}${lvl}</b><span class="cost">${price}</span>
+      <small>${it.desc}${it.key ? ` Key: ${it.key}.` : ''}</small>${o.ok || o.cost == null ? '' : `<em>${o.why}</em>`}</button>`;
+  }).join('');
+}
+$('shopList').addEventListener('click', e => { const b = e.target.closest('.item'); if (b) purchase(b.dataset.id); });
+$('shopClose').addEventListener('click', closeShop);
 function resume() { mode = 'play'; $('paused').hidden = true; last = performance.now(); canvas.focus(); }
 
 const LINES = {
-  raid: ['by a 25-man raid.', 'They are arguing about who gets your fur.'],
+  raid: ['by a raid.', 'They are arguing about who gets your fur.'],
   dungeon: ['by five people who met an hour ago.', 'One of them was AFK for most of it.'],
   rider: ['by a quiet man on a horse.', 'The horse did not help.'],
 };
@@ -111,6 +138,9 @@ function gameOver() {
     ['Raids wiped', g.wipes.raid],
     ['5-mans wiped', g.wipes.dungeon],
     ['Horse guys', g.wipes.rider],
+    ['Loot earned', fmt(g.lootEarned)],
+    ['Loot spent', fmt(g.lootSpent)],
+    ['Adds summoned', g.summoned],
   ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   showBest();
   $('over').hidden = false;

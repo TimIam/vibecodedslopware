@@ -40,6 +40,28 @@ dl{display:grid;grid-template-columns:1fr auto;gap:4px 18px;margin:16px auto 0;w
 dt{color:#aeac9b}
 dd{margin:0;text-align:right;color:#f4ecd2}
 dd em{font-style:normal;color:#ffd75a;font-size:11px;margin-left:6px}
+.shop{width:min(760px,96vw);text-align:left}
+.shop h2{text-align:center}
+.loot{text-align:center;margin-top:6px}
+.loot b{color:#ffd75a;font-size:18px}
+.loot span{display:block;font-size:11px;color:#7f7f74}
+#shopList{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-top:12px}
+.item{margin:0;display:grid;grid-template-columns:auto 1fr auto;gap:2px 8px;align-items:center;padding:8px 10px 8px;background:#2a2016;color:#f4ecd2;font:12px/1.35 "Silkscreen",monospace;text-transform:none;letter-spacing:0;text-align:left;box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c}
+.item:hover{background:#3a2c1e}
+.item[aria-disabled="true"]{opacity:.55;cursor:default}
+.item[aria-disabled="true"]:active{transform:none}
+.item kbd{min-width:18px;padding:1px 4px 0}
+.item b{font-size:13px}
+.item b i{font-style:normal;color:#aeac9b;font-size:11px;margin-left:4px}
+.item .cost{color:#ffd75a;font-weight:700}
+.item small{grid-column:1/-1;color:#d2cfbd;font-size:11px}
+.item em{grid-column:1/-1;font-style:normal;color:#e2483a;font-size:11px}
+.item.add{box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c,inset 3px 0 0 #835233}
+.item.ability{box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c,inset 3px 0 0 #c0392b}
+.item.up{box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c,inset 3px 0 0 #6ff3e8}
+.item.once{box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c,inset 3px 0 0 #58b84a}
+#shopClose{display:block;margin:14px auto 0}
+#shopClose small{font-size:11px;opacity:.8}
 .touch-only{display:none}
 @media (hover:none) and (pointer:coarse){.touch-only{display:block}}
 </style>
@@ -61,8 +83,9 @@ dd em{font-style:normal;color:#ffd75a;font-size:11px;margin-left:6px}
     <ul class="how">
       <li><b>Walk the path</b> between the rocks for points. Touch each rock in turn to build <b>Aimlessness</b>, which multiplies everything.</li>
       <li>Step off the path and Aimlessness fades. Go past your leash and you <b>evade</b>: you heal, but the multiplier resets.</li>
-      <li><b>5-mans</b> wander in (one is always AFK). <b>25-man raids</b> count down, then dodge your telegraphs because they read the guide.</li>
+      <li><b>5-mans</b> wander in (one is always AFK). <b>Raids</b> count down, then dodge your telegraphs because they read the guide. They start at 25 heroes and keep getting bigger, and more often.</li>
       <li>A <b>quiet man on a horse</b> will try to climb your fur and stab the glowing spot on your back. Shake him off, then step on him.</li>
+      <li>Points from kills and rock touches are also <b>loot</b>. Press <b>B</b> to spend it: <b>adds</b> that fight for you, two new abilities, thicker fur and sharper claws.</li>
     </ul>
     <div class="keys">
       <span class="k"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>lumber about</span>
@@ -72,11 +95,22 @@ dd em{font-style:normal;color:#ffd75a;font-size:11px;margin-left:6px}
       <span class="k"><kbd>Q</kbd></span><span>fire breath (leaves fire)</span>
       <span class="k"><kbd>E</kbd></span><span>roar (everyone runs)</span>
       <span class="k"><kbd>Space</kbd></span><span>shake your fur</span>
+      <span class="k"><kbd>R</kbd> <kbd>Shift</kbd></span><span>tail sweep, charge (once bought)</span>
+      <span class="k"><kbd>B</kbd></span><span>the hoard (shop)</span>
       <span class="k"><kbd>P</kbd> <kbd>M</kbd></span><span>pause, mute</span>
     </div>
     <button id="go" type="button">Clock in</button>
     <div id="best"></div>
     <p class="note touch-only">Needs a keyboard and mouse.</p>
+  </div>
+</div>
+
+<div id="shop" class="overlay" hidden>
+  <div class="card shop">
+    <h2 style="color:#ffd75a">The Hoard</h2>
+    <p class="loot">Loot: <b id="shopLoot">0</b> <span>from kills, wipes and touching rocks. The fight waits while you shop.</span></p>
+    <div id="shopList"></div>
+    <button id="shopClose" type="button">Back to pacing <small>(B)</small></button>
   </div>
 </div>
 

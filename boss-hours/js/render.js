@@ -1,10 +1,10 @@
 // Draws a game state into a 320×180 buffer. Everything lands on whole pixels.
 
 import { PAL, drawText, textWidth, ICONS, makeBossSprites, BOSS_DIRS, BOSS_SIZE, tinted, hash, newCanvas } from './art.js';
-import { W, H, A, B, LEASH, ABIL, ORDER, CLASS, angDiff, segDist, segNearest } from './world.js';
+import { W, H, A, B, LEASH, ORDER, CLASS, ADDS, SHOP, angDiff, segDist, segNearest, zoneFace, offer } from './world.js';
 
 const TAU = Math.PI * 2;
-const KEYS = { swipe: 'LMB', stomp: 'RMB', breath: 'Q', roar: 'E', shake: 'SPC' };
+const KEYS = { swipe: 'LMB', stomp: 'RMB', breath: 'Q', roar: 'E', shake: 'SPC', tail: 'R', charge: 'SHF' };
 
 function vnoise(x, y) {
   const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
@@ -54,6 +54,7 @@ export function createRenderer() {
       } else list.push({ y: u.y, f: () => drawUnit(ctx, u, g) });
     }
     for (const p of g.parts) if (p.horse) list.push({ y: p.y, f: () => drawHorse(ctx, p.x, p.y, p.face, p.walk, false, g.t) });
+    for (const a of g.adds) list.push({ y: a.y, f: () => drawAdd(ctx, a, g) });
     list.push({ y: g.boss.y + 2, f: () => drawBoss(ctx, g) });
     list.sort((a, b) => a.y - b.y);
     for (const d of list) d.f();
@@ -85,7 +86,8 @@ export function createRenderer() {
     const mouth = act && (act.kind === 'breath' || act.kind === 'roar') ? 1 : 0;
     let frame = b.moving ? Math.floor(b.walk / 2.2) % 4 : 0;
     let lift = 0, jx = 0;
-    if (act?.kind === 'stomp' && !act.fired) lift = -Math.round(act.t / ABIL.stomp.wind * 3);
+    if (act?.kind === 'stomp' && !act.fired) lift = -Math.round(act.t / g.abil.stomp.wind * 3);
+    if (act?.kind === 'charge' && !act.fired) jx = -Math.round(Math.cos(b.face) * 2);
     if (act?.kind === 'shake') { jx = (Math.floor(act.t * 30) % 2) ? 1 : -1; frame = Math.floor(act.t * 20) % 4; }
     const x = Math.round(b.x) - BOSS_SIZE / 2 + jx, y = Math.round(b.y) - BOSS_SIZE / 2;
     ctx.globalAlpha = 0.4;
@@ -277,8 +279,9 @@ function drawFires(ctx, g) {
 function drawTelegraph(ctx, g) {
   const b = g.boss, a = b.act;
   if (!a || b.dead) return;
-  const k = a.kind, d = ABIL[k];
+  const k = a.kind, d = g.abil[k];
   if (k === 'shake') return;
+  if (k === 'charge') { if (!a.fired) drawLane(ctx, g, d, a.t / d.wind); return; }
   if (k === 'roar') {
     if (a.fired) return;
     const rr = 6 + a.t / d.wind * 8;
@@ -290,7 +293,7 @@ function drawTelegraph(ctx, g) {
   const R = d.range, x0 = Math.max(0, Math.floor(b.x - R)), x1 = Math.min(W - 1, Math.ceil(b.x + R));
   const y0 = Math.max(0, Math.floor(b.y - R)), y1 = Math.min(H - 1, Math.ceil(b.y + R));
   const blink = Math.floor(g.t * (prog > 0.6 ? 24 : 10)) & 1;
-  const half = d.arc / 2;
+  const half = d.arc / 2, face = zoneFace(g, k);
   const channel = a.fired;
   ctx.fillStyle = PAL.tele;
   for (let py = y0; py <= y1; py++) for (let px = x0; px <= x1; px++) {
@@ -298,7 +301,7 @@ function drawTelegraph(ctx, g) {
     if (dist > R || dist < 8) continue;
     let edge = dist > R - 1;
     if (k !== 'stomp') {
-      const ad = Math.abs(angDiff(Math.atan2(dy, dx), b.face));
+      const ad = Math.abs(angDiff(Math.atan2(dy, dx), face));
       if (ad > half) continue;
       if ((half - ad) * dist < 1) edge = true;
     }
@@ -309,6 +312,22 @@ function drawTelegraph(ctx, g) {
     if (!al) continue;
     ctx.globalAlpha = al;
     ctx.fillRect(px, py, 1, 1);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawLane(ctx, g, d, prog) {
+  const b = g.boss, c = Math.cos(b.face), s = Math.sin(b.face), R = d.range + 4;
+  const blink = Math.floor(g.t * (prog > 0.6 ? 24 : 10)) & 1;
+  ctx.fillStyle = PAL.tele;
+  for (let py = Math.floor(b.y - R); py <= Math.ceil(b.y + R); py++) for (let qx = Math.floor(b.x - R); qx <= Math.ceil(b.x + R); qx++) {
+    const dx = qx + 0.5 - b.x, dy = py + 0.5 - b.y, lx = dx * c + dy * s, ly = -dx * s + dy * c;
+    if (lx < 8 || lx > d.range || Math.abs(ly) > d.width) continue;
+    const edge = lx > d.range - 1 || Math.abs(ly) > d.width - 1;
+    const al = edge ? 0.85 : lx < 8 + (d.range - 8) * prog ? (((qx + py + blink) & 1) ? 0.42 : 0.16) : (((qx + py) & 1) ? 0.12 : 0);
+    if (!al) continue;
+    ctx.globalAlpha = al;
+    ctx.fillRect(qx, py, 1, 1);
   }
   ctx.globalAlpha = 1;
 }
@@ -338,9 +357,9 @@ function drawSlash(ctx, r) {
   ctx.fillStyle = k < 0.5 ? '#ffffff' : PAL.cream;
   ctx.globalAlpha = 1 - k;
   for (let j = 0; j < 3; j++) {
-    const rad = 17 + j * 4;
+    const rad = (r.big ? 16 : 17) + j * (r.big ? 5 : 4), sweep = r.big ? 2.2 : 1.9;
     for (let i = 0; i <= 18; i++) {
-      const a = r.face - 0.95 + i / 18 * 1.9 + j * 0.08;
+      const a = r.face - sweep / 2 + i / 18 * sweep + j * 0.08;
       if (i / 18 > k * 1.6 + 0.2) break;
       ctx.fillRect(Math.round(r.x + Math.cos(a) * rad), Math.round(r.y + Math.sin(a) * rad), 1, 1);
     }
@@ -462,6 +481,47 @@ function drawClimber(ctx, u, g) {
   ctx.fillStyle = PAL.gold; ctx.fillRect(gx, gy, Math.max(0, Math.round(w * u.grip / 100)), 1);
 }
 
+// the boss's adds, all drawn from little pixel maps facing right (flipped when they face left)
+const ADD_ART = {
+  gnasher: [['.h..h.', 'kFFFFk', 'kfFFek', 'kfffFk', '.k..k.'], ['.h..h.', 'kFFFFk', 'kfFFek', 'kfffFk', '..kk..']],
+  spitter: [['..kkk..', '.kRRRk.', 'kRrRRek', 'kRrRRmk', 'kRRrRRk', '.kkkkk.'], ['..kkk..', '.kRRRk.', 'kRrRRek', 'kRrRMMM', 'kRRrRRk', '.kkkkk.']],
+};
+const ADD_COL = { k: PAL.ink, F: PAL.fur3, f: PAL.fur2, e: PAL.eye, h: PAL.horn, R: '#b8452a', r: '#7e2a18', m: '#3a120a', M: PAL.fire3 };
+
+function drawAdd(ctx, a, g) {
+  const x = Math.round(a.x), y = Math.round(a.y), flip = a.fx < 0, flash = a.hit > 0;
+  ctx.fillStyle = 'rgba(8,10,6,.4)'; ctx.fillRect(x - Math.ceil(a.r), y + 1, Math.ceil(a.r) * 2 + 1, 1);
+  if (a.kind === 'lump') drawLump(ctx, a, x, y, flip, flash, g);
+  else {
+    const frames = ADD_ART[a.kind];
+    const map = a.kind === 'spitter' ? frames[a.swing > 0 ? 1 : 0] : frames[a.moving ? Math.floor(a.walk) % 2 : 0];
+    const w = map[0].length, h = map.length, ox = x - Math.floor(w / 2), oy = y - h + 1 - (a.kind === 'gnasher' && a.swing > 0 ? 1 : 0);
+    map.forEach((row, ry) => { for (let rx = 0; rx < w; rx++) { const ch = row[flip ? w - 1 - rx : rx]; if (ch !== '.') px(ctx, ox + rx, oy + ry, flash ? '#ffffff' : ADD_COL[ch]); } });
+  }
+  if (a.hp < a.maxhp) {
+    const bw = a.kind === 'lump' ? 11 : 5, bx = x - Math.floor(bw / 2), by = y - (a.kind === 'lump' ? 13 : 7);
+    ctx.fillStyle = PAL.ink; ctx.fillRect(bx, by, bw, 1);
+    ctx.fillStyle = PAL.gold; ctx.fillRect(bx, by, Math.max(1, Math.round(bw * a.hp / a.maxhp)), 1);
+  }
+}
+
+// a big mossy mound of fur with two small eyes
+function drawLump(ctx, a, x, y, flip, flash, g) {
+  const bob = a.moving ? Math.floor(a.walk / 2) % 2 : 0, squash = a.swing > 0 ? 1 : 0;
+  const rx = 6.5 + squash, ry = 5 - squash, cy = y - 4 + bob + squash;
+  const inside = (qx, qy) => ((qx + 0.5 - x) / rx) ** 2 + ((qy + 0.5 - cy) / ry) ** 2 < 1;
+  for (let qy = Math.floor(cy - ry) - 1; qy <= cy + ry + 1; qy++) for (let qx = x - 8; qx <= x + 8; qx++) {
+    if (!inside(qx, qy)) continue;
+    const edge = !inside(qx - 1, qy) || !inside(qx + 1, qy) || !inside(qx, qy - 1) || !inside(qx, qy + 1);
+    const l = (-(qx - x) * 0.5 - (qy - cy) * 0.9) / ry + (hash(qx * 3, qy * 7) - 0.5) * 0.6;
+    px(ctx, qx, qy, flash ? '#ffffff' : edge ? PAL.ink : l > 0.6 ? PAL.moss : l > 0 ? PAL.fur2 : l > -0.6 ? PAL.fur1 : PAL.fur0);
+  }
+  if (flash) return;
+  const ex = flip ? -1 : 1;
+  px(ctx, x + ex * 3, cy, PAL.eye); px(ctx, x + ex * 5, cy, PAL.eye);
+  px(ctx, x + ex * 2, cy - 4, PAL.horn); px(ctx, x + ex * 5, cy - 3, PAL.horn);
+}
+
 function drawCorpse(ctx, c) {
   const a = c.t > 30 ? (40 - c.t) / 10 : 1;
   ctx.globalAlpha = Math.max(0, a) * 0.85;
@@ -534,6 +594,9 @@ function drawHud(ctx, g, view) {
   const mc = g.mult >= 4 ? PAL.gold : g.mult >= 2 ? PAL.yellow : PAL.cream;
   drawText(ctx, `AIMLESS X${g.mult.toFixed(2)}`, 4, 15, mc);
   drawText(ctx, `LAPS ${g.laps}  KILLS ${g.kills}`, 4, 22, PAL.rock3);
+  const afford = !b.dead && SHOP.some(it => offer(g, it).ok);
+  drawText(ctx, `LOOT ${fmt(g.loot)}`, 4, 30, PAL.gold);
+  drawText(ctx, '[B] SHOP', 8 + (('LOOT ' + fmt(g.loot)).length) * 4, 30, afford ? PAL.cream : PAL.rock2, { alpha: afford && Math.floor(g.t * 2) % 2 ? 1 : 0.7 });
 
   // the target frame, as the adventurers see it
   drawText(ctx, b.name, W - 4, 3, PAL.cream, { align: 'right' });
@@ -561,9 +624,17 @@ function drawHud(ctx, g, view) {
   // abilities
   const n = ORDER.length, bs = 14, gap = 3, x0 = Math.round(W / 2 - (n * bs + (n - 1) * gap) / 2), y0 = 160;
   ORDER.forEach((k, i) => {
-    const x = x0 + i * (bs + gap), cd = b.cd[k], max = ABIL[k].cd, ready = cd <= 0 && !b.dead;
+    const x = x0 + i * (bs + gap), cd = b.cd[k], max = g.abil[k].cd, ready = cd <= 0 && !b.dead;
     const active = b.act?.kind === k;
     ctx.fillStyle = PAL.ink; ctx.globalAlpha = 0.8; ctx.fillRect(x, y0, bs, bs); ctx.globalAlpha = 1;
+    if (k in g.owned && !g.owned[k]) {
+      // not bought yet: a padlock
+      ctx.fillStyle = PAL.rock1;
+      ctx.fillRect(x, y0, bs, 1); ctx.fillRect(x, y0 + bs - 1, bs, 1); ctx.fillRect(x, y0, 1, bs); ctx.fillRect(x + bs - 1, y0, 1, bs);
+      ICONS.lock.forEach((row, r) => { for (let c = 0; c < 8; c++) if (row[c] === '#') ctx.fillRect(x + 3 + c, y0 + 3 + r, 1, 1); });
+      drawText(ctx, KEYS[k], x + bs / 2 + 1, y0 + bs + 1, PAL.rock1, { align: 'center', shadow: false });
+      return;
+    }
     ctx.fillStyle = active ? PAL.gold : ready ? PAL.rock3 : PAL.rock1;
     ctx.fillRect(x, y0, bs, 1); ctx.fillRect(x, y0 + bs - 1, bs, 1); ctx.fillRect(x, y0, 1, bs); ctx.fillRect(x + bs - 1, y0, 1, bs);
     ctx.fillStyle = ready ? (active ? PAL.gold : PAL.cream) : PAL.rock2;

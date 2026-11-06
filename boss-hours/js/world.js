@@ -17,8 +17,32 @@ export const ABIL = {
   breath: { cd: 9,    wind: 0.45, dur: 1.7,  move: 0.3,  range: 74, arc: 0.8, dmg: 40, dps: 95 },
   roar:   { cd: 16,   wind: 0.35, dur: 0.45, move: 0,    range: 92, fear: 3.2 },
   shake:  { cd: 0.32, wind: 0,    dur: 0.3,  move: 0,    range: 16, kb: 12 },
+  tail:   { cd: 3.2,  wind: 0.3,  dur: 0.16, move: 0.4,  range: 28, arc: 2.3, dmg: 120, kb: 26, back: true },
+  charge: { cd: 7,    wind: 0.32, dur: 0.38, move: 0,    range: 46, width: 11, dmg: 100, kb: 34, speed: 120 },
 };
-export const ORDER = ['swipe', 'stomp', 'breath', 'roar', 'shake'];
+export const ORDER = ['swipe', 'stomp', 'breath', 'roar', 'shake', 'tail', 'charge'];
+const LOCKED = ['tail', 'charge'];   // bought from the hoard
+
+// the hoard: what loot buys. Loot is the points from kills, wipes and touching the rocks (not from walking).
+export const SHOP = [
+  { id: 'gnasher', kind: 'add', name: 'Gnasher', cost: 1500, desc: 'A small furry add. Runs down heroes and bites ankles.' },
+  { id: 'spitter', kind: 'add', name: 'Spitter', cost: 2500, desc: 'Squats beside the path and spits fire at anyone in range.' },
+  { id: 'lump', kind: 'add', name: 'Big Lump', cost: 5000, max: 2, desc: 'Slow, huge and rude. Heroes near it have to hit it instead of you.' },
+  { id: 'snack', kind: 'once', name: 'Snack', cost: 2000, desc: 'Eat something off the ground. Heals 35% of your health.' },
+  { id: 'tail', kind: 'ability', name: 'Tail Sweep', key: 'R', cost: 6000, desc: 'New ability: sweep your tail through everyone standing behind you.' },
+  { id: 'charge', kind: 'ability', name: 'Charge', key: 'SHIFT', cost: 9000, desc: 'New ability: lower your horns and trample a line of heroes.' },
+  { id: 'fur', kind: 'up', name: 'Thicker Fur', cost: [3000, 7000, 14000, 25000], desc: '+25% max health.' },
+  { id: 'claws', kind: 'up', name: 'Sharper Claws', cost: [2500, 6000, 12000, 22000], desc: 'Swipe, stomp, tail and charge hit 30% harder.' },
+  { id: 'lungs', kind: 'up', name: 'Bigger Lungs', cost: [3500, 9000], desc: 'Breath reaches 15% farther and comes back 20% sooner.' },
+  { id: 'feet', kind: 'up', name: 'Comfy Feet', cost: [2500, 8000], desc: 'Walk 15% faster. More path, more points.' },
+  { id: 'itchy', kind: 'up', name: 'Itchy Skin', cost: [2500, 7000], desc: 'Shakes throw climbers harder, and they lose grip on their own.' },
+];
+export const ADDS = {
+  gnasher: { name: 'GNASHER', hp: 160, r: 2.5, spd: 36, dmg: 26, rate: 0.8, reach: 4, sense: 80 },
+  spitter: { name: 'SPITTER', hp: 120, r: 3, spd: 0, dmg: 34, rate: 1.5, reach: 66, sense: 66 },
+  lump:    { name: 'BIG LUMP', hp: 1100, r: 6, spd: 14, dmg: 45, rate: 1.6, reach: 10, sense: 30 },
+};
+export const MAX_ADDS = 6;
 
 export const CLASS = {
   warrior:   { role: 'tank',   col: 'steel',  hp: 460, spd: 25, dmg: 14, rate: 1.2 },
@@ -92,15 +116,18 @@ export function createGame(seed = (Math.random() * 2 ** 32) >>> 0) {
     seed, rng, t: 0,
     boss: {
       x: A.x + 26, y: A.y, face: 0, r: BOSS_R, hp: BOSS_HP, maxhp: BOSS_HP, act: null, queue: null,
-      cd: { swipe: 0, stomp: 0, breath: 0, roar: 0, shake: 0 }, walk: 0, moving: false, evade: null, taunt: null,
+      cd: { swipe: 0, stomp: 0, breath: 0, roar: 0, shake: 0, tail: 0, charge: 0 }, walk: 0, moving: false, evade: null, taunt: null,
       flash: 0, dead: false, deadT: 0, calmT: 99, name: BOSS_NAMES[Math.floor(rng() * BOSS_NAMES.length)],
     },
-    units: [], parties: [], corpses: [], ghosts: [], fires: [], bolts: [], parts: [], texts: [], barks: [], rings: [],
+    units: [], parties: [], corpses: [], ghosts: [], fires: [], bolts: [], parts: [], texts: [], barks: [], rings: [], adds: [],
+    abil: JSON.parse(JSON.stringify(ABIL)), speed: 1,   // this run's abilities, as upgraded
+    owned: { tail: false, charge: false }, up: { fur: 0, claws: 0, lungs: 0, feet: 0, itchy: 0 },
+    loot: 0, lootEarned: 0, lootSpent: 0, summoned: 0,
     steps: [],                // footprints the renderer stamps into the worn path
     score: 0, mult: 1, laps: 0, kills: 0, wipes: { raid: 0, dungeon: 0, rider: 0 }, escaped: 0, patrolDist: 0,
     lastMark: null, onPatrol: false, offLane: 0,
     banner: null, thought: null, thoughtT: 4,
-    dir: { next: 9, n: 0, lastRaid: -999 },
+    dir: { next: 9, n: 0, lastRaid: -999, raids: 0 },
     blame: { raid: 0, dungeon: 0, rider: 0 }, // recent damage by party type, for the game over line
     events: [], shake: 0, over: false, nextId: 1,
   };
@@ -116,10 +143,12 @@ export function step(g, inp, dt) {
   director(g, dt);
   for (const p of g.parties) updateParty(g, p, dt);
   for (const u of g.units) if (!u.dead) updateUnit(g, u, dt);
+  for (const a of g.adds) if (!a.dead) updateAdd(g, a, dt);
   separate(g);
   updateBolts(g, dt);
   updateFx(g, dt);
   g.units = g.units.filter(u => !u.dead && !u.gone);
+  g.adds = g.adds.filter(a => !a.dead);
   g.parties = g.parties.filter(p => !p.done);
   for (const k in g.blame) g.blame[k] *= Math.exp(-dt / 8);
   if (g.boss.dead) { g.boss.deadT += dt; if (g.boss.deadT > 4 && !g.over) { g.over = true; g.events.push('over'); } }
@@ -164,7 +193,7 @@ function updateBoss(g, inp, dt) {
   let mx = inp.ax || 0, my = inp.ay || 0;
   const ml = Math.hypot(mx, my);
   if (ml > 1) { mx /= ml; my /= ml; }
-  const sp = BOSS_SPEED * (b.act ? ABIL[b.act.kind].move : 1);
+  const sp = BOSS_SPEED * g.speed * (b.act ? g.abil[b.act.kind].move : 1);
   const ox = b.x, oy = b.y;
   b.x = clamp(b.x + mx * sp * dt, ARENA.x0 + b.r, ARENA.x1 - b.r);
   b.y = clamp(b.y + my * sp * dt, ARENA.y0 + b.r, ARENA.y1 - b.r);
@@ -197,6 +226,7 @@ function updateBoss(g, inp, dt) {
         g.laps++;
         const pts = Math.round(100 * g.mult);
         g.score += pts;
+        earn(g, pts);
         g.mult = Math.min(MULT_MAX, g.mult + MULT_STEP);
         text(g, R.x, R.y - 14, `+${pts}`, 'gold');
         text(g, R.x, R.y - 20, `AIMLESS X${g.mult.toFixed(2)}`, 'cream', 1.6);
@@ -238,7 +268,8 @@ function startEvade(g) {
 function tryCast(g, k) {
   const b = g.boss;
   if (b.act || b.evade || b.dead || b.cd[k] > 0) return false;
-  const d = ABIL[k];
+  if (LOCKED.includes(k) && !g.owned[k]) return false;
+  const d = g.abil[k];
   b.act = { kind: k, t: 0, fired: false, tick: 0, fireT: 0 };
   b.cd[k] = d.cd;
   g.events.push('wind_' + k);
@@ -253,15 +284,18 @@ function tryCast(g, k) {
     const u = alive(p)[Math.floor(g.rng() * 3)];
     if (u && k === 'stomp') bark(g, u, pick(g, BARK.stomp));
     if (u && k === 'breath') bark(g, u, pick(g, BARK.frontal));
+    if (u && k === 'tail') bark(g, u, 'TAIL!');
+    if (u && k === 'charge') bark(g, u, 'CHARGE! MOVE!');
   }
   if (d.wind === 0) advanceAct(g, 0);
   return true;
 }
 
 function advanceAct(g, dt) {
-  const b = g.boss, a = b.act, d = ABIL[a.kind];
+  const b = g.boss, a = b.act, d = g.abil[a.kind];
   a.t += dt;
   if (!a.fired && a.t >= d.wind) { a.fired = true; fire(g, a.kind); }
+  if (a.kind === 'charge' && a.fired) chargeStep(g, a, d, dt);
   if (a.kind === 'breath' && a.fired) {
     a.tick -= dt;
     if (a.tick <= 0) {
@@ -285,9 +319,10 @@ function advanceAct(g, dt) {
 }
 
 function fire(g, k) {
-  const b = g.boss, d = ABIL[k];
+  const b = g.boss, d = g.abil[k];
   g.events.push(k);
-  if (k === 'swipe' || k === 'stomp') {
+  if (k === 'charge') { b.act.hitIds = new Set(); g.shake = Math.max(g.shake, 0.12); return; }
+  if (k === 'swipe' || k === 'stomp' || k === 'tail') {
     for (const u of g.units) {
       if (!hittable(u) || !inZone(g, k, u.x, u.y, 1)) continue;
       hurt(g, u, d.dmg);
@@ -299,7 +334,7 @@ function fire(g, k) {
       for (let i = 0; i < 28; i++) { const a = g.rng() * TAU, s = 30 + g.rng() * 50; part(g, b.x + Math.cos(a) * 10, b.y + Math.sin(a) * 10, Math.cos(a) * s, Math.sin(a) * s, 0.5, 'dust'); }
     } else {
       g.shake = Math.max(g.shake, 0.08);
-      g.rings.push({ x: b.x, y: b.y, face: b.face, t: 0, col: 'slash' });
+      g.rings.push({ x: b.x, y: b.y, face: zoneFace(g, k), t: 0, col: 'slash', big: k === 'tail' });
     }
   } else if (k === 'breath') {
     for (const u of g.units) if (hittable(u) && inZone(g, 'breath', u.x, u.y, 1)) hurt(g, u, d.dmg);
@@ -323,13 +358,46 @@ function fire(g, k) {
   }
 }
 
+export const zoneFace = (g, k) => g.boss.face + (g.abil[k].back ? Math.PI : 0);
+
 export function inZone(g, k, x, y, pad = 0) {
-  const b = g.boss, d = ABIL[k];
+  const b = g.boss, d = g.abil[k];
   const dx = x - b.x, dy = y - b.y, dist = Math.hypot(dx, dy);
+  if (k === 'charge') {
+    // a lane straight ahead, as long as the lunge
+    const c = Math.cos(b.face), s = Math.sin(b.face), lx = dx * c + dy * s, ly = -dx * s + dy * c;
+    return lx > -4 && lx < d.range + pad && Math.abs(ly) < d.width + pad;
+  }
   if (dist > d.range + pad) return false;
   if (k === 'stomp' || k === 'roar' || k === 'shake') return true;
   if (dist < 6) return true;
-  return Math.abs(angDiff(Math.atan2(dy, dx), b.face)) < d.arc / 2 + pad / dist;
+  return Math.abs(angDiff(Math.atan2(dy, dx), zoneFace(g, k))) < d.arc / 2 + pad / dist;
+}
+
+// the lunge: you move fast along your heading and bowl over whoever you touch
+function chargeStep(g, a, d, dt) {
+  const b = g.boss;
+  if (a.t > d.wind + d.dur) return;
+  const ox = b.x, oy = b.y;
+  b.x = clamp(b.x + Math.cos(b.face) * d.speed * dt, ARENA.x0 + b.r, ARENA.x1 - b.r);
+  b.y = clamp(b.y + Math.sin(b.face) * d.speed * dt, ARENA.y0 + b.r, ARENA.y1 - b.r);
+  for (const R of [A, B]) {
+    const dx = b.x - R.x, dy = b.y - R.y, dd = Math.hypot(dx, dy), min = b.r + ROCK_R;
+    if (dd < min && dd > 0.001) { b.x = R.x + dx / dd * min; b.y = R.y + dy / dd * min; }
+  }
+  const moved = Math.hypot(b.x - ox, b.y - oy);
+  b.walk += moved * 0.3; b.moving = true;
+  if (segDist(b.x, b.y) < LANE) { g.score += moved * g.mult; g.patrolDist += moved; }
+  if (g.rng() < 0.6) part(g, b.x - Math.cos(b.face) * 10, b.y - Math.sin(b.face) * 10, (g.rng() - 0.5) * 30, (g.rng() - 0.5) * 30, 0.4, 'dust');
+  for (const u of g.units) {
+    if (!hittable(u) || a.hitIds.has(u.id) || Math.hypot(u.x - b.x, u.y - b.y) > b.r + 5) continue;
+    a.hitIds.add(u.id);
+    hurt(g, u, d.dmg);
+    // thrown to the side of the lane
+    const side = (-(u.x - b.x) * Math.sin(b.face) + (u.y - b.y) * Math.cos(b.face)) >= 0 ? 1 : -1;
+    u.kx += (-Math.sin(b.face) * side * 0.8 + Math.cos(b.face) * 0.6) * d.kb * 5;
+    u.ky += (Math.cos(b.face) * side * 0.8 + Math.sin(b.face) * 0.6) * d.kb * 5;
+  }
 }
 
 // which telegraph the adventurers are currently trying to get out of
@@ -337,7 +405,7 @@ export function telegraph(g) {
   const a = g.boss.act;
   if (!a) return null;
   if (a.kind === 'breath') return 'breath';
-  if ((a.kind === 'swipe' || a.kind === 'stomp') && !a.fired) return a.kind;
+  if ((a.kind === 'swipe' || a.kind === 'stomp' || a.kind === 'tail' || a.kind === 'charge') && !a.fired) return a.kind;
   return null;
 }
 
@@ -374,14 +442,16 @@ function edgeSpot(g, avoid) {
 function director(g, dt) {
   const d = g.dir;
   if (g.boss.dead || g.t < d.next) return;
-  if (g.units.length > 46 || g.boss.evade) { d.next = g.t + 4; return; }
+  if (g.units.length > 140 || g.boss.evade) { d.next = g.t + 4; return; }
   const riders = g.parties.filter(p => p.type === 'rider').length;
-  const raidUp = g.parties.some(p => p.type === 'raid');
+  const raidsUp = g.parties.filter(p => p.type === 'raid').length;
+  const maxRaids = Math.min(3, 1 + Math.floor(g.t / 300));       // a second raid can show up after 5 minutes, a third after 10
+  const raidGap = Math.max(40, 100 - d.raids * 10);
   const script = ['dungeon', 'rider', 'dungeon', 'raid'];
   let type = script[d.n];
   if (!type) {
     const r = g.rng();
-    if (!raidUp && g.t - d.lastRaid > 100 && r < 0.45) type = 'raid';
+    if (raidsUp < maxRaids && g.t - d.lastRaid > raidGap && r < 0.45 + d.raids * 0.04) type = 'raid';
     else if (riders < (d.n > 10 ? 2 : 1) && r < 0.7) type = 'rider';
     else type = 'dungeon';
   }
@@ -396,7 +466,7 @@ function director(g, dt) {
 function newParty(g, type) {
   // every party is a little better geared than the last
   const power = type === 'rider' ? 1 : 1 + g.dir.n * (type === 'raid' ? 0.07 : 0.06);
-  const p = { id: g.nextId++, type, power, units: [], skill: SKILL[type], engaged: false, done: false, fleeing: false, t: 0, brez: type === 'raid' ? 1 : 0, deadList: [], barkT: 3 };
+  const p = { id: g.nextId++, type, power, units: [], skill: SKILL[type], engaged: false, done: false, fleeing: false, t: 0, brez: 0, deadList: [], barkT: 3 };
   g.parties.push(p);
   return p;
 }
@@ -437,27 +507,38 @@ function spawnDungeon(g, quiet) {
 function spawnRaid(g) {
   const p = newParty(g, 'raid');
   const e = edgeSpot(g, true);
-  // staging spot just inside the edge they came from
-  const sx = clamp(e.x + e.nx * 40, 40, W - 40), sy = clamp(e.y + e.ny * 40, 48, H - 62);
+  const size = Math.min(60, 25 + 5 * g.dir.raids);
+  g.dir.raids++;
+  const cols = size <= 25 ? 5 : Math.ceil(Math.sqrt(size * 1.4)), sp = size <= 25 ? 6 : 5;
+  const half = (cols - 1) / 2 * sp, depth = (Math.ceil(size / cols) - 1) * sp * 0.8;
+  // staging spot just inside the edge they came from, with the whole block clear of the HUD
+  let sx = clamp(e.x + e.nx * 40, 40, W - 40), sy = clamp(e.y + e.ny * 40, 48, H - 62);
+  if (e.nx) sy = clamp(sy, 38 + half, H - 44 - half);
+  else { sx = clamp(sx, 12 + half, W - 12 - half); sy = e.ny > 0 ? Math.max(sy, 38 + depth) : Math.min(sy, H - 30 - depth); }
   p.stage = { x: sx, y: sy };
   const base = Math.atan2(sy - g.boss.y, sx - g.boss.x);
-  const comp = ['warrior', 'warrior', 'priest', 'priest', 'druid', 'priest', 'druid'];
+  p.brez = size >= 50 ? 2 : 1;
+  const tanks = 2 + Math.floor((size - 25) / 15), healers = Math.round(size * 0.2), dps = size - tanks - healers;
   const melee = ['rogue', 'berserker', 'paladin'], ranged = ['mage', 'warlock', 'hunter'];
-  for (let i = 0; i < 9; i++) comp.push(melee[i % 3]);
-  for (let i = 0; i < 9; i++) comp.push(ranged[i % 3]);
+  const comp = [];
+  for (let i = 0; i < tanks; i++) comp.push('warrior');
+  for (let i = 0; i < healers; i++) comp.push(i % 2 ? 'druid' : 'priest');
+  for (let i = 0; i < dps; i++) comp.push(i % 2 ? ranged[(i >> 1) % 3] : melee[(i >> 1) % 3]);
+  const nMelee = comp.filter(c => CLASS[c].role === 'melee').length;
   const px = -e.ny, py = e.nx;   // along the edge
-  let tank = 0;
+  let tank = 0, mi = 0;
   comp.forEach((cls, i) => {
-    const row = Math.floor(i / 5), col = i % 5;
-    const ox = (col - 2) * 6, oy = row * 6;
+    const row = Math.floor(i / cols), col = i % cols;
+    const ox = (col - (cols - 1) / 2) * sp, oy = row * sp;
     const u = mkUnit(g, p, cls, e.x + px * ox - e.nx * oy, e.y + py * ox - e.ny * oy);
     u.stage = { x: sx + px * ox - e.nx * oy * 0.8, y: sy + py * ox - e.ny * oy * 0.8 };
     if (u.role === 'tank') u.slot = tank++;
-    u.slotA = u.role === 'melee' ? ((i % 9) / 8 - 0.5) * 2 : base + (g.rng() - 0.5) * 2.6;
+    u.slotA = u.role === 'melee' ? ((mi++) / Math.max(1, nMelee - 1) - 0.5) * 2.2 : base + (g.rng() - 0.5) * 2.6;
     u.slotD = u.role === 'healer' ? 54 + g.rng() * 10 : u.role === 'ranged' ? 44 + g.rng() * 16 : g.rng() * 4;
   });
   p.leader = p.units[0];
-  banner(g, 'A 25-MAN RAID HAS ENTERED', 'THEY HAVE WATCHED A GUIDE.');
+  const sub = size <= 25 ? 'THEY HAVE WATCHED A GUIDE.' : size <= 35 ? 'THEY BROUGHT FRIENDS.' : size <= 45 ? 'THIS IS A GUILD EVENT.' : 'THE WHOLE SERVER IS HERE.';
+  banner(g, `A ${size}-MAN RAID HAS ENTERED`, sub);
   g.events.push('raidhorn');
 }
 
@@ -538,7 +619,7 @@ function updateParty(g, p, dt) {
 
   // morale
   if (p.engaged && !p.fleeing) {
-    const flee = p.type === 'raid' ? live.length <= 3 : (live.length === 1 && live[0].role === 'healer' && p.units.length > 2);
+    const flee = p.type === 'raid' ? live.length <= Math.max(3, Math.round(p.units.length * 0.12)) : (live.length === 1 && live[0].role === 'healer' && p.units.length > 2);
     if (flee && g.rng() < 0.55) {
       p.fleeing = true;
       bark(g, live[0], p.type === 'raid' ? pick(g, BARK.flee) : 'NOPE');
@@ -564,6 +645,7 @@ function finishParty(g, p) {
   }
   const pts = Math.round(WIPE[p.type] * g.mult);
   g.score += pts;
+  earn(g, pts);
   g.wipes[p.type]++;
   banner(g, p.type === 'raid' ? 'RAID WIPED' : 'PARTY WIPED', `+${pts}` + (p.type === 'raid' ? '  SEE YOU NEXT RESET' : ''));
   g.events.push('wipe');
@@ -605,13 +687,15 @@ function knock(u, b, kb) {
 }
 
 function escapeDir(g, k, u) {
-  const b = g.boss, d = ABIL[k];
+  const b = g.boss, d = g.abil[k];
   const dx = u.x - b.x, dy = u.y - b.y, dist = Math.hypot(dx, dy) || 1;
   if (k === 'stomp') return { x: dx / dist, y: dy / dist };
-  const ad = angDiff(Math.atan2(dy, dx), b.face);
+  if (k === 'charge') { const s = (-dx * Math.sin(b.face) + dy * Math.cos(b.face)) >= 0 ? 1 : -1; return { x: -Math.sin(b.face) * s, y: Math.cos(b.face) * s }; }
+  const f = zoneFace(g, k);
+  const ad = angDiff(Math.atan2(dy, dx), f);
   const radial = d.range + 4 - dist;
   const lateral = dist * (d.arc / 2 + 0.2 - Math.abs(ad));
-  if (lateral < radial) { const s = ad >= 0 ? 1 : -1; return { x: -Math.sin(b.face) * s, y: Math.cos(b.face) * s }; }
+  if (lateral < radial) { const s = ad >= 0 ? 1 : -1; return { x: -Math.sin(f) * s, y: Math.cos(f) * s }; }
   return { x: dx / dist, y: dy / dist };
 }
 
@@ -623,7 +707,7 @@ function fireAt(g, x, y) {
 function fightSpot(g, u) {
   const b = g.boss;
   let a, d;
-  if (u.role === 'tank') { a = b.face + (u.slot ? 0.95 : 0); d = b.r + 5; }
+  if (u.role === 'tank') { a = b.face + [0, 0.95, -0.95, 0.5, -0.5][u.slot % 5]; d = b.r + 5; }
   else if (u.role === 'melee' || u.role === 'pet') { a = b.face + Math.PI + u.slotA; d = b.r + 4 + u.slotD; }
   else { a = u.slotA; d = u.slotD; }
   return { x: clamp(b.x + Math.cos(a) * d, ARENA.x0, ARENA.x1), y: clamp(b.y + Math.sin(a) * d, ARENA.y0, ARENA.y1) };
@@ -697,6 +781,12 @@ function updateUnit(g, u, dt) {
       if (u.x < -10 || u.x > W + 10 || u.y < -10 || u.y > H + 10) { u.gone = true; g.escaped++; }
       return;
   }
+
+  // one of the boss's adds is in the way: deal with it first
+  u.foeT = (u.foeT || 0) - dt;
+  if (u.foeT <= 0) { u.foeT = 0.4 + g.rng() * 0.4; u.foe = pickFoe(g, u); }
+  if (u.foe?.dead) u.foe = null;
+  if (u.foe) { fightAdd(g, u, u.foe, dt); return; }
 
   // fight
   const s = fightSpot(g, u);
@@ -825,7 +915,7 @@ function updateRider(g, u, dt) {
           g.events.push('stab');
         }
       }
-      u.grip = Math.min(100, u.grip + 14 * dt);
+      u.grip = clamp(u.grip + (14 - 8 * g.up.itchy) * dt, 0, 100);
       const c = Math.cos(b.face), s = Math.sin(b.face);
       u.x = b.x + u.lx * c - u.ly * s; u.y = b.y + u.lx * s + u.ly * c;
       u.walk += dt * 6;
@@ -868,7 +958,7 @@ function updateRider(g, u, dt) {
 
 function shakeRider(g, u) {
   const b = g.boss;
-  u.grip -= 30 + g.rng() * 18;
+  u.grip -= 30 + g.rng() * 18 + g.up.itchy * 15;
   if (u.grip > 0) {
     // he slides back down the fur, away from the weak spot
     const dx = u.lx - SIGIL.x, dy = u.ly - SIGIL.y, d = Math.hypot(dx, dy) || 1;
@@ -904,6 +994,7 @@ function kill(g, u) {
   const base = u.role === 'pet' ? PTS.pet : PTS[p.type];
   const pts = Math.round(base * g.mult);
   g.score += pts;
+  earn(g, pts);
   g.kills++;
   text(g, u.x, u.y - 6, `+${pts}`, u.role === 'rider' ? 'gold' : 'cream', u.role === 'rider' ? 1.6 : 0.9);
   g.events.push(u.role === 'rider' ? 'riderdie' : 'kill');
@@ -928,13 +1019,18 @@ function updateBolts(g, dt) {
   const b = g.boss;
   for (const o of g.bolts) {
     o.t += dt;
-    const dx = b.x - o.x, dy = b.y - o.y, d = Math.hypot(dx, dy);
-    const sp = o.kind === 'arrow' ? 150 : 100;
-    o.vx = dx / d * sp; o.vy = dy / d * sp;
+    const tgt = o.ally ? o.tgt : o.foe || b;
+    if (o.ally ? !hittable(tgt) : o.foe?.dead) { o.done = true; continue; }
+    const dx = tgt.x - o.x, dy = tgt.y - o.y, d = Math.hypot(dx, dy);
+    const sp = o.kind === 'arrow' ? 150 : o.kind === 'fireball' ? 90 : 100;
+    o.vx = dx / (d || 1) * sp; o.vy = dy / (d || 1) * sp;
     o.x += o.vx * dt; o.y += o.vy * dt;
-    if (d < b.r - 1 || o.t > 2) {
+    const hitR = o.ally ? 2 : o.foe ? o.foe.r : b.r - 1;
+    if (d < hitR || o.t > 2) {
       o.done = true;
-      if (!b.dead) {
+      if (o.ally) { hurt(g, tgt, o.dmg); for (let i = 0; i < 4; i++) part(g, o.x, o.y, (g.rng() - 0.5) * 30, (g.rng() - 0.5) * 30, 0.3, 'flame'); }
+      else if (o.foe) hurtAdd(g, o.foe, o.dmg);
+      else if (!b.dead) {
         hurtBoss(g, o.dmg, o.u);
         for (let i = 0; i < 3; i++) part(g, o.x, o.y, (g.rng() - 0.5) * 30, (g.rng() - 0.5) * 30, 0.25, o.kind);
       }
@@ -972,10 +1068,176 @@ function separate(g) {
       const dx = c.x - a.x, dy = c.y - a.y, d2 = dx * dx + dy * dy;
       if (d2 < 9 && d2 > 0.0001) { const d = Math.sqrt(d2), push = (3 - d) * 0.5; a.x -= dx / d * push; a.y -= dy / d * push; c.x += dx / d * push; c.y += dy / d * push; }
     }
-    // nobody stands inside the boss
+    // nobody stands inside the boss, or inside an add
     const b = g.boss, dx = a.x - b.x, dy = a.y - b.y, d = Math.hypot(dx, dy), min = b.r + 2;
     if (d < min && d > 0.001 && !b.dead) { a.x = b.x + dx / d * min; a.y = b.y + dy / d * min; }
+    for (const m of g.adds) {
+      const ex = a.x - m.x, ey = a.y - m.y, e = Math.hypot(ex, ey), em = m.r + 2;
+      if (e < em && e > 0.001) { a.x = m.x + ex / e * em; a.y = m.y + ey / e * em; }
+    }
   }
+  const b = g.boss;
+  for (const m of g.adds) {
+    const dx = m.x - b.x, dy = m.y - b.y, d = Math.hypot(dx, dy), min = b.r + m.r;
+    if (d < min && d > 0.001) { m.x = b.x + dx / d * min; m.y = b.y + dy / d * min; }
+  }
+}
+
+// ---------------------------------------------------------------------------------------------- adds and the hoard
+
+function earn(g, n) { g.loot += n; g.lootEarned += n; }
+
+function pickFoe(g, u) {
+  if (u.role === 'healer') return null;
+  let best = null, bd = Infinity;
+  for (const a of g.adds) {
+    if (a.dead) continue;
+    const d = Math.hypot(u.x - a.x, u.y - a.y);
+    let reach;
+    if (a.kind === 'lump') reach = u.role === 'ranged' ? 58 : 34;            // the lump makes everyone near it angry
+    else if (u.role === 'ranged') reach = u.id % 3 === 0 ? 72 : 0;           // a third of the casters peel off to shoot adds
+    else reach = u.role === 'tank' ? 8 : 12;                                 // melee swat whatever is biting them
+    if (d < reach && d < bd) { best = a; bd = d; }
+  }
+  return best;
+}
+
+function fightAdd(g, u, a, dt) {
+  const c = CLASS[u.cls], d = Math.hypot(u.x - a.x, u.y - a.y) || 1;
+  if (u.role === 'ranged') {
+    if (d > 70) { moveTo(u, a.x, a.y, u.spd, dt); u.cast = 0; }
+    else {
+      u.moving = false;
+      u.cast += dt;
+      if (u.cast >= c.rate) { u.cast = 0; g.bolts.push({ x: u.x, y: u.y - 3, dmg: c.dmg * u.party.power, kind: c.bolt, u, foe: a, t: 0 }); }
+    }
+  } else {
+    const ring = a.r + 3;
+    moveTo(u, a.x + (u.x - a.x) / d * ring, a.y + (u.y - a.y) / d * ring, u.spd, dt);
+    if (d < a.r + 6) {
+      u.atk -= dt;
+      if (u.atk <= 0) { u.atk = c.rate * (0.85 + g.rng() * 0.3); u.swing = 0.15; hurtAdd(g, a, c.dmg * u.party.power * 1.5); }
+    }
+  }
+  if (Math.abs(a.x - u.x) > 0.5) u.fx = a.x > u.x ? 1 : -1;
+  clampArena(u);
+  u.swing = Math.max(0, (u.swing || 0) - dt);
+}
+
+function hurtAdd(g, a, amt) {
+  if (a.dead) return;
+  a.hp -= amt;
+  a.hit = 0.1;
+  if (a.hp > 0) return;
+  a.dead = true;
+  text(g, a.x, a.y - 8, ADDS[a.kind].name + ' DOWN', 'pink', 1.3);
+  for (let i = 0; i < 10; i++) { const k = g.rng() * TAU, s = 15 + g.rng() * 30; part(g, a.x, a.y - 1, Math.cos(k) * s, Math.sin(k) * s, 0.45, 'fur'); }
+  g.events.push('adddie');
+}
+
+function spawnAdd(g, kind) {
+  const b = g.boss, D = ADDS[kind];
+  let x, y;
+  if (kind === 'spitter') {
+    // squats just off the path, somewhere near you
+    const p = segNearest(b.x, b.y), side = g.rng() < 0.5 ? -1 : 1;
+    x = clamp(p.x + (g.rng() - 0.5) * 40, A.x + 6, B.x - 6); y = p.y + side * (LANE + 5 + g.rng() * 6);
+  } else {
+    const k = b.face + Math.PI + (g.rng() - 0.5) * 1.5;
+    x = b.x + Math.cos(k) * (b.r + D.r + 3); y = b.y + Math.sin(k) * (b.r + D.r + 3);
+  }
+  const a = { id: g.nextId++, kind, x: clamp(x, ARENA.x0, ARENA.x1), y: clamp(y, ARENA.y0, ARENA.y1), hp: D.hp, maxhp: D.hp, r: D.r,
+    atk: 0.5, walk: 0, moving: false, fx: 1, hit: 0, t: 0, swing: 0, slot: g.rng() * TAU };
+  g.adds.push(a);
+  g.summoned++;
+  text(g, a.x, a.y - 9, D.name + '!', 'gold', 1.4);
+  for (let i = 0; i < 12; i++) { const k = g.rng() * TAU, s = 20 + g.rng() * 25; part(g, a.x, a.y, Math.cos(k) * s, Math.sin(k) * s, 0.5, 'dust'); }
+  g.events.push('summon');
+}
+
+function updateAdd(g, a, dt) {
+  const b = g.boss, D = ADDS[a.kind];
+  a.t += dt; a.hit = Math.max(0, a.hit - dt); a.atk -= dt; a.swing = Math.max(0, a.swing - dt);
+  if (b.dead) { a.moving = false; return; }
+  let tgt = null, td = Infinity;
+  for (const u of g.units) {
+    if (!hittable(u)) continue;
+    const d = Math.hypot(u.x - a.x, u.y - a.y);
+    if (d < D.sense && d < td) { tgt = u; td = d; }
+  }
+  if (a.kind === 'spitter') {
+    a.moving = false;
+    if (tgt) {
+      a.fx = tgt.x > a.x ? 1 : -1;
+      if (a.atk <= 0) { a.atk = D.rate; a.swing = 0.25; g.bolts.push({ x: a.x, y: a.y - 3, dmg: D.dmg, kind: 'fireball', ally: true, tgt, t: 0 }); g.events.push('spit'); }
+    }
+    return;
+  }
+  // a gnasher never strays too far from you
+  if (a.kind === 'gnasher' && Math.hypot(a.x - b.x, a.y - b.y) > 95) tgt = null;
+  if (tgt) {
+    const reach = a.r + D.reach;
+    if (td > reach - 1) moveTo(a, tgt.x, tgt.y, D.spd, dt); else a.moving = false;
+    if (td < reach + 1 && a.atk <= 0) {
+      a.atk = D.rate * (0.85 + g.rng() * 0.3);
+      a.swing = 0.2;
+      if (a.kind === 'lump') {
+        for (const u of g.units) if (hittable(u) && Math.hypot(u.x - a.x, u.y - a.y) < a.r + 8) { hurt(g, u, D.dmg); knock(u, a, 14); }
+        g.rings.push({ x: a.x, y: a.y, r: 3, max: a.r + 8, t: 0, col: 'dust' });
+        g.events.push('thud');
+      } else { hurt(g, tgt, D.dmg); g.events.push('bite'); }
+    }
+  } else {
+    // heel: trail along beside the boss
+    const k = b.face + Math.PI + Math.sin(a.slot) * 1.3, dist = b.r + a.r + (a.kind === 'lump' ? 9 : 6);
+    if (moveTo(a, b.x + Math.cos(k) * dist, b.y + Math.sin(k) * dist, D.spd * (a.kind === 'lump' ? 1.5 : 1.1), dt)) a.moving = false;
+  }
+  clampArena(a);
+}
+
+export function price(g, item) {
+  if (item.kind === 'up') { const l = g.up[item.id]; return l < item.cost.length ? item.cost[l] : null; }
+  if (item.kind === 'ability') return g.owned[item.id] ? null : item.cost;
+  // each add of a kind already on the field makes the next one dearer
+  if (item.kind === 'add') return Math.round(item.cost * (1 + 0.35 * g.adds.filter(a => a.kind === item.id).length) / 50) * 50;
+  return item.cost;
+}
+
+// can this be bought right now? { ok, cost, why }
+export function offer(g, item) {
+  const cost = price(g, item);
+  if (cost == null) return { ok: false, cost, why: item.kind === 'up' ? 'MAXED' : 'OWNED' };
+  if (g.boss.dead) return { ok: false, cost, why: 'DEAD' };
+  if (item.kind === 'add') {
+    if (g.adds.length >= MAX_ADDS) return { ok: false, cost, why: `${MAX_ADDS} ADDS MAX` };
+    if (item.max && g.adds.filter(a => a.kind === item.id).length >= item.max) return { ok: false, cost, why: `${item.max} MAX` };
+  }
+  if (item.id === 'snack' && g.boss.hp >= g.boss.maxhp) return { ok: false, cost, why: 'NOT HUNGRY' };
+  if (g.loot < cost) return { ok: false, cost, why: 'NEED ' + (cost - Math.floor(g.loot)) };
+  return { ok: true, cost };
+}
+
+export function buy(g, id) {
+  const item = SHOP.find(s => s.id === id), o = item && offer(g, item);
+  if (!o?.ok) return false;
+  g.loot -= o.cost; g.lootSpent += o.cost;
+  const b = g.boss;
+  if (item.kind === 'add') spawnAdd(g, id);
+  else if (id === 'snack') { b.hp = Math.min(b.maxhp, b.hp + b.maxhp * 0.35); text(g, b.x, b.y - 20, '*CRUNCH*', 'gold', 1.4); }
+  else if (item.kind === 'ability') { g.owned[id] = true; text(g, b.x, b.y - 20, item.name.toUpperCase() + '!', 'gold', 1.6); }
+  else { g.up[id]++; applyUps(g); text(g, b.x, b.y - 20, item.name.toUpperCase(), 'gold', 1.4); }
+  g.events.push('buy');
+  return true;
+}
+
+function applyUps(g) {
+  const b = g.boss, u = g.up, old = b.maxhp;
+  b.maxhp = BOSS_HP * (1 + 0.25 * u.fur);
+  b.hp += b.maxhp - old;
+  for (const k of ['swipe', 'stomp', 'tail', 'charge']) g.abil[k].dmg = ABIL[k].dmg * (1 + 0.3 * u.claws);
+  g.abil.breath.range = ABIL.breath.range * (1 + 0.15 * u.lungs);
+  g.abil.breath.cd = ABIL.breath.cd * (1 - 0.2 * u.lungs);
+  g.speed = 1 + 0.15 * u.feet;
 }
 
 function part(g, x, y, vx, vy, life, kind) { if (g.parts.length < 400) g.parts.push({ x, y, vx, vy, t: 0, life, kind }); }
