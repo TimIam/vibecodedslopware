@@ -80,8 +80,10 @@ export function text(g, str, x, y, color = '#fff', opts = {}) {
   if (opts.align === 'center') x -= Math.floor(measure(str, s) / 2);
   else if (opts.align === 'right') x -= measure(str, s);
   x = Math.round(x); y = Math.round(y);
-  if (opts.shadow) text(g, str, x + s, y + s, opts.shadow, { scale: s });
-  if (opts.outline) for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,1],[-1,1],[1,-1]]) text(g, str, x + dx * s, y + dy * s, opts.outline, { scale: s });
+  if (opts.shadow) text(g, str, x + s, y + s, opts.shadow, { scale: s, inner: true });
+  if (opts.outline) for (const [dx, dy] of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,1],[-1,1],[1,-1]]) text(g, str, x + dx * s, y + dy * s, opts.outline, { scale: s, inner: true });
+  // dev: layout checks read every visible run of text from here
+  if (globalThis.__textLog && !opts.inner && str.trim()) globalThis.__textLog.push({ str, x, y, w: measure(str, s), h: 7 * s, a: g.globalAlpha });
   const src = tint(color);
   let cx = x;
   for (const ch of str) {

@@ -91,13 +91,13 @@ export const TRACKS = [
 export const POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
 
 export const MOD_INFO = {
-  tightLane: ['TIGHT PIT LANE', 'More traffic passing your box. Release on green only.', 'TIGHT LANE'],
-  rain: ['RAIN EXPECTED', 'Box for WETS when it turns. Slicks in the wet lose seconds a lap.', 'RAIN'],
-  slick: ['SLIPPERY GUNS', 'The wheel-on timing ring is less forgiving.', 'SLIPPERY'],
-  sand: ['SAND', 'Blow the sand out of the sidepods (mash X) every stop.', 'SAND'],
-  heat: ['HEAT', 'Narrow fuel band. Overfill and it catches fire (mash X).', 'HEAT'],
-  cold: ['COLD', 'Pull the tyre blanket at peak heat, and the nuts are frozen tight.', 'COLD'],
-  walls: ['WALLS', 'Front wing damage is likely. Nose swap: type the arrows.', 'WALLS'],
-  night: ['NIGHT RACE', 'Floodlit pit lane.', 'NIGHT'],
-  doubleStack: ['DOUBLE STACK', 'Both cars are called in on the same lap. Car two waits behind car one.', 'DOUBLE STACK'],
+  tightLane: ['TIGHT PIT LANE', 'Busy lane. Release on green only.', 'TIGHT LANE'],
+  rain: ['RAIN EXPECTED', 'Box for WETS when the rain comes.', 'RAIN'],
+  slick: ['SLIPPERY GUNS', 'Less forgiving timing ring on the guns.', 'SLIPPERY'],
+  sand: ['SAND', 'Mash X to blow out the sidepods.', 'SAND'],
+  heat: ['HEAT', 'Narrow fuel band. Overfill means fire.', 'HEAT'],
+  cold: ['COLD', 'Frozen nuts. Pull blankets at the peak.', 'COLD'],
+  walls: ['WALLS', 'Wing damage likely. Learn the arrows.', 'WALLS'],
+  night: ['NIGHT RACE', 'Racing under the floodlights.', 'NIGHT'],
+  doubleStack: ['DOUBLE STACK', 'Both cars pit on the same lap.', 'DOUBLE STACK'],
 };

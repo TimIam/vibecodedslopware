@@ -1,6 +1,11 @@
 // Crew banter: who says what, and a director that slots it between the action.
 // Lines are [speaker, text]; a conversation is a list of lines. {d} = driver first name, {n} = car number,
 // {p} = position, {t} = stop time, {r} = rival team, {x} = track name.
+// The bulk of the lines live in lines/*.js and are merged in below.
+import * as INTRO from './lines/intro.js';
+import { IDLE as MORE_IDLE } from './lines/idle.js';
+import { TRACK_IDLE as MORE_TRACK } from './lines/tracks.js';
+import * as EV from './lines/events.js';
 
 const IDLE = [
   [['toby', 'Mags, how many wheel nuts have you done in your career?'], ['mags', 'All of them, Toby.']],
@@ -164,7 +169,19 @@ const BOSS = {
   bad: ['I have seen faster stops at a petrol station.', 'The board will hear of this. The board is my cat, but still.', 'Next race, I want fewer fires and more points.'],
 };
 
-export const LINES = { IDLE, TRACK_IDLE, START, BOXCALL, REACT, EVENTS, FINISH, BOSS };
+const merge = (base, more) => { for (const k in more) base[k] = (base[k] || []).concat(more[k]); return base; };
+export const LINES = {
+  IDLE: IDLE.concat(MORE_IDLE),
+  TRACK_IDLE: merge(TRACK_IDLE, MORE_TRACK),
+  START: START.concat(INTRO.START),
+  TRACK_START: INTRO.TRACK_START,
+  BRIEF: INTRO.BRIEF,
+  BOXCALL: BOXCALL.concat(EV.BOXCALL),
+  REACT: merge(REACT, EV.REACT),
+  EVENTS: merge(EVENTS, EV.EVENTS),
+  FINISH: merge(FINISH, INTRO.FINISH),
+  BOSS: merge(BOSS, INTRO.BOSS),
+};
 
 export class Director {
   constructor(people, rnd) {
@@ -172,7 +189,7 @@ export class Director {
     this.r = rnd;
     this.queue = [];
     this.cur = null;
-    this.idleT = 9;
+    this.idleT = 4;
     this.used = new Set();
   }
 
@@ -197,7 +214,7 @@ export class Director {
       if (this.queue.length > 3) return;
       this.queue.push(...lines.map(l => ({ ...l, prio })));
     }
-    this.idleT = 10 + this.r() * 8;
+    this.idleT = 3 + this.r() * 4;
   }
 
   sayFrom(list, vars, prio) { this.say(this.pick(list), vars, prio); }

@@ -148,6 +148,7 @@ export class Race {
         c.state = 'in'; c.stateT = 0; c.box = false; c.inFrom = c.dist;
         this.emit('pitEntry', c);
       }
+      else if (c.box && bf < PIT_IN && fr >= PIT_IN && c.player) { c.box = false; this.emit('late', c); }
     } else if (c.state === 'in') {
       const p = Math.min(1, c.stateT / IN_T);
       c.dist = c.inFrom + (Math.ceil(c.inFrom) - c.inFrom) * p;
@@ -236,8 +237,8 @@ export class Race {
     return Math.max(0, Math.min(12, this.laps - Math.ceil(c.dist) + 0.3));
   }
 
-  service(c, { compound, fuel, repaired, cold, bonus, penalty }) {
-    c.compound = compound; c.wear = 0; c.puncture = false;
+  service(c, { compound, tyres = true, fuel, repaired, cold, bonus, penalty }) {
+    if (tyres) { c.compound = compound; c.wear = 0; c.puncture = false; }
     c.fuel = Math.max(c.fuel, 0) + fuel;
     c.outOfFuel = c.fuel <= 0.05;
     if (repaired) c.damage = 0;

@@ -69,8 +69,8 @@ function keyName(e) {
   if (e.code === 'Enter' || e.code === 'NumpadEnter') return 'enter';
   if (e.code === 'Escape') return 'esc';
   if (e.code === 'KeyM') return 'm';
-  if (/^Digit[1-4]$/.test(e.code)) return e.code.slice(5);
-  if (/^Numpad[1-4]$/.test(e.code)) return e.code.slice(6);
+  if (/^Digit[0-4]$/.test(e.code)) return e.code.slice(5);
+  if (/^Numpad[0-4]$/.test(e.code)) return e.code.slice(6);
   return null;
 }
 
@@ -311,7 +311,7 @@ const howScene = {
     const tips = [
       'Between stops, the race runs on its own. Dev calls the cars in when the plan says so.',
       'Press 1 or 2 (or tap BOX) to bring Nico (car 7) or Sanna (car 11) in early, or to wave off a call.',
-      'When a car turns into the pit lane, pick its tyres with 1-4. Dev\'s pick is highlighted. Wets for rain.',
+      'When a car turns into the pit lane, pick its tyres with 1-4, or 0 to leave them on. Dev\'s pick is underlined in green.',
       'Everything overlaps: fuel while you gun the wheels. Faster stops gain places. Mistakes cost seconds.',
       'Touch screens: tap the key bubbles. Hold the S bubble to fuel.',
     ];
@@ -372,7 +372,11 @@ const calendarScene = {
 
 // ===== briefing
 const briefingScene = {
-  enter() { this.tr = TRACKS[save.round]; this.map = bakeMap(this.tr, 150, 110); this.t = 0; },
+  enter() {
+    this.tr = TRACKS[save.round]; this.map = bakeMap(this.tr, 150, 110); this.t = 0;
+    const pool = (LINES.BRIEF || {})[this.tr.id] || [['mags', 'Gloves on. Same as always.']];
+    this.quote = pool[Math.floor(Math.random() * pool.length)];
+  },
   update(dt) { this.t += dt; },
   draw() {
     const tr = this.tr;
@@ -392,20 +396,25 @@ const briefingScene = {
       const [a, b] = MOD_INFO[m];
       rect(g, 20, y + 1, 4, 4, '#ff8a1e');
       text(g, a, 30, y, '#ffffff');
-      for (const l of wrap(b, 222)) { text(g, l, 112, y, '#9aa8c8'); y += 9; }
+      for (const l of wrap(b, 220)) { text(g, l, 112, y, '#9aa8c8'); y += 9; }
       y += 2;
     }
-    y += 4;
+    // rival par and best stop sit below the map so they get the full width
+    y = Math.max(y + 4, 148);
     text(g, `RIVAL CREWS AVERAGE ${(tr.par * TV).toFixed(2)}s HERE. BEAT THAT AND YOU GAIN PLACES.`, 20, y, '#7cff8a');
-    if (save.best[tr.id]) text(g, `YOUR BEST STOP HERE: ${save.best[tr.id].toFixed(2)}s`, 20, y + 11, '#ffd23a');
-    // crew line
-    const quote = { porto: 'Easy one to start. Do not get cocky.', kessel: 'Wets on the trolley before it rains, not after.', qasr: 'Blow those sidepods out or the engine cooks.', givre: 'Watch the blanket heat. Pull them at the peak.', neon: 'We will be changing noses all night. Learn the arrows.', isla: 'Both cars, same lap. Car two waits. Reset fast.' }[tr.id];
-    panel(g, 20, 184, 472, 44);
-    g.drawImage(portrait(PEOPLE.mags, Math.floor(this.t * 8) % 2 && this.t < 1.6 ? 1 : 0), 26, 190);
-    text(g, 'MAGS', 64, 192, '#ffd23a');
-    text(g, quote, 64, 204, '#e8e6dc');
-    button(W / 2 - 70, 240, 140, 22, 'LIGHTS OUT', () => go(raceScene(tr, save.round)), { hot: true, color: '#d42a24' });
-    button(20, 240, 80, 22, 'BACK', () => go(calendarScene), { color: '#5c6a8a' });
+    y += 11;
+    if (save.best[tr.id]) { text(g, `YOUR BEST STOP HERE: ${save.best[tr.id].toFixed(2)}s`, 20, y, '#ffd23a'); y += 11; }
+    // crew line, never over the text above
+    const [who, line] = this.quote, person = PEOPLE[who] || PEOPLE.mags;
+    const ql = wrap(line, 420);
+    const py = Math.max(184, y + 4), ph = Math.max(44, 22 + ql.length * 10);
+    panel(g, 20, py, 472, ph);
+    g.drawImage(portrait(person, Math.floor(this.t * 8) % 2 && this.t < 1.6 ? 1 : 0), 26, py + 6);
+    text(g, person.name, 64, py + 8, '#ffd23a');
+    ql.forEach((l, i) => text(g, l, 64, py + 20 + i * 10, '#e8e6dc'));
+    const by = Math.max(240, py + ph + 8);
+    button(W / 2 - 70, by, 140, 22, 'LIGHTS OUT', () => go(raceScene(tr, save.round)), { hot: true, color: '#d42a24' });
+    button(20, by, 80, 22, 'BACK', () => go(calendarScene), { color: '#5c6a8a' });
   },
   key(k) { if (k === 'enter' || k === 'space') go(raceScene(this.tr, save.round)); if (k === 'esc') go(calendarScene); },
 };
@@ -435,10 +444,11 @@ function raceScene(track, round, { practice = false } = {}) {
   function toast(msg, color = '#ffd23a') { S.toast = { msg, color, t: 0 }; }
 
   function startStop(c) {
-    const pick = S.picker && S.picker.car === c ? S.picker.choice : race.recommend(c);
+    let pick = S.picker && S.picker.car === c ? S.picker.choice : race.recommend(c);
     if (S.picker && S.picker.car === c) S.picker = null;
+    if (pick === 'none' && c.puncture) pick = race.recommend(c);
     S.stop = new PitStop({
-      car: c, track, compound: pick, fuelNow: Math.max(0, c.fuel), fuelNeed: race.fuelNeed(c), rng: r,
+      car: c, track, compound: pick === 'none' ? c.compound : pick, keepTyres: pick === 'none', fuelNow: Math.max(0, c.fuel), fuelNeed: race.fuelNeed(c), rng: r,
       sfx: (n, p) => A.sfx(n, p), hints: track.hints || round === 0,
       external: () => laneCars().filter(o => o.moving).map(o => o.x),
     });
@@ -449,7 +459,7 @@ function raceScene(track, round, { practice = false } = {}) {
     const c = st.car;
     const res = st.result();
     race.service(c, {
-      compound: res.compound, fuel: Math.max(0, res.fuel - Math.max(0, c.fuel)), repaired: res.repaired,
+      compound: res.compound, tyres: res.tyres, fuel: Math.max(0, res.fuel - Math.max(0, c.fuel)), repaired: res.repaired,
       cold: res.cold, bonus: res.bonus, penalty: res.penalty,
     });
     race.release(c);
@@ -497,7 +507,7 @@ function raceScene(track, round, { practice = false } = {}) {
     for (const e of race.events) {
       const c = e.car;
       switch (e.type) {
-        case 'start': dir.sayFrom(LINES.START, {}, 1); break;
+        case 'start': { const own = LINES.TRACK_START[track.id] || []; dir.sayFrom(r() < 0.4 && own.length ? own : LINES.START, { x: track.name }, 1); break; }
         case 'boxCall': dir.sayFrom(LINES.BOXCALL, vars(c), 2); A.sfx('radio'); toast(`BOX BOX: CAR ${c.num}`, '#ff8a1e'); break;
         case 'pitEntry':
           if (c.player) { S.picker = { car: c, choice: race.recommend(c), rec: race.recommend(c), t: 0 }; A.sfx('radio'); }
@@ -513,6 +523,7 @@ function raceScene(track, round, { practice = false } = {}) {
         case 'lose': if (r() < 0.3) dir.sayFrom(LINES.EVENTS.lose, vars(c), 1); break;
         case 'rivalPit': if (r() < 0.25) dir.sayFrom(LINES.EVENTS.rivalPit, { r: c.team.short }, 1); break;
         case 'lastLap': dir.sayFrom(LINES.EVENTS.lastLap, {}, 2); toast('FINAL LAP', '#ffffff'); break;
+        case 'late': dir.sayFrom(LINES.EVENTS.late, vars(c), 2); toast(`CAR ${c.num}: TOO LATE TO STOP`, '#9ad8ff'); break;
         case 'chequered': toast('CHEQUERED FLAG', '#ffffff'); A.sfx('cheer'); break;
         case 'over': break;
       }
@@ -536,9 +547,10 @@ function raceScene(track, round, { practice = false } = {}) {
 
   function pickerKey(k) {
     if (!S.picker) return false;
-    const i = ['1', '2', '3', '4'].indexOf(k);
+    const i = PICK_KEYS.indexOf(k);
     if (i < 0) return false;
-    S.picker.choice = COMPOUND_ORDER[i];
+    if (!pickable(S.picker, PICKS[i])) { A.sfx('buzz'); return true; }
+    S.picker.choice = PICKS[i];
     A.sfx('select');
     return true;
   }
@@ -588,14 +600,13 @@ function raceScene(track, round, { practice = false } = {}) {
       if (c.player) rect(g, x0, y - 1, w, 8, '#0b3a44');
       rect(g, x0 + 1, y, 2, 6, c.team.c1);
       text(g, String(k + 1), x0 + 15, y, '#9aa8c8', { align: 'right' });
-      text(g, c.code, x0 + 19, y, c.player ? '#ffffff' : '#c8ccd4');
+      text(g, c.code, x0 + 19, y, c.penalty ? '#ff6a5a' : c.player ? '#ffffff' : '#c8ccd4');
       let right;
       if (c.state === 'in' || c.state === 'box' || c.state === 'wait' || c.state === 'out') right = ['PIT', '#ff8a1e'];
       else if (c.finish != null) right = ['FIN', '#7cff8a'];
       else if (k === 0) right = ['LEAD', '#ffd23a'];
       else right = ['+' + (race.gapToLeader(c) * TV).toFixed(1), '#9aa8c8'];
       text(g, right[0], x0 + w - 3, y, right[1], { align: 'right' });
-      if (c.penalty) text(g, '+5', x0 + 46, y, '#ff6a5a');
       tyreIcon(g, x0 + 42, y + 3, c.compound, 1.5);
     });
     g.globalAlpha = 1;
@@ -693,26 +704,31 @@ function raceScene(track, round, { practice = false } = {}) {
       rect(g, x + 128, yy, 5, 5, '#05060a'); rect(g, x + 129, yy + 1, 3, 3, ok ? '#7cff8a' : '#3a3e48');
       text(g, lab, x + 137, yy - 1, ok ? '#7cff8a' : '#9aa8c8');
     });
-    text(g, COMPOUNDS[st.compound].name, x + 92, y + 6, COMPOUNDS[st.compound].color, { align: 'center' });
+    if (st.keepTyres) text(g, 'NO TYRES', x + 92, y + 6, '#9aa8c8', { align: 'center' });
+    else text(g, COMPOUNDS[st.compound].name, x + 92, y + 6, COMPOUNDS[st.compound].color, { align: 'center' });
   }
 
   function drawPicker() {
     const p = S.picker;
-    const x = 156, y = 176, w = 200, h = 38;
+    // over the garage normally; up over the straight when a stop is already on (double stack)
+    const x = 126, y = S.stop ? 14 : 168, w = 260, h = 46;
     panel(g, x, y, w, h, { fill: '#10141f', edge: '#ff8a1e', hi: '#ffd08a', lo: '#3a1e08' });
-    text(g, `CAR ${p.car.num} IN THE PIT LANE. TYRES?`, x + 6, y + 5, '#ffd23a');
-    text(g, `DEV: ${COMPOUNDS[p.rec].name}`, x + w - 6, y + 5, '#7cff8a', { align: 'right' });
-    COMPOUND_ORDER.forEach((k, i) => {
-      const bx = x + 6 + i * 47, by = y + 16;
-      const on = p.choice === k;
-      rect(g, bx, by, 44, 17, '#05060a');
-      rect(g, bx + 1, by + 1, 42, 15, on ? '#2a3a5a' : '#161a26');
-      if (on) { rect(g, bx + 1, by + 1, 42, 1, '#ffd23a'); rect(g, bx + 1, by + 15, 42, 1, '#ffd23a'); }
-      tyreIcon(g, bx + 8, by + 8, k, 3);
-      text(g, `${i + 1}`, bx + 38, by + 5, '#6a7898', { align: 'right' });
-      text(g, { soft: 'SOFT', medium: 'MED', hard: 'HARD', wet: 'WET' }[k], bx + 14, by + 5, on ? '#ffffff' : '#9aa8c8');
-      if (p.rec === k) rect(g, bx + 1, by + 15, 42, 1, '#7cff8a');
-      ui.push({ x: bx, y: by, w: 44, h: 17, fn: () => { p.choice = k; } });
+    text(g, `CAR ${p.car.num} IN THE PIT LANE. TYRES?`, x + 6, y + 6, '#ffd23a');
+    text(g, `DEV: ${COMPOUNDS[p.rec].name}`, x + w - 6, y + 6, '#7cff8a', { align: 'right' });
+    PICKS.forEach((k, i) => {
+      const bx = x + 6 + i * 50, by = y + 16;
+      const on = p.choice === k, off = !pickable(p, k);
+      rect(g, bx, by, 48, 26, '#05060a');
+      rect(g, bx + 1, by + 1, 46, 24, off ? '#14161c' : on ? '#2a3a5a' : '#161a26');
+      if (on) { rect(g, bx + 1, by + 1, 46, 1, '#ffd23a'); rect(g, bx + 1, by + 24, 46, 1, '#ffd23a'); }
+      if (p.rec === k) rect(g, bx + 1, by + 24, 46, 1, '#7cff8a');
+      keycap(bx + 3, by + 3, PICK_KEYS[i], off);
+      if (k === 'none') {
+        ellipse(g, bx + 37, by + 8, 5, 5, '#0a0a10'); ellipse(g, bx + 37, by + 8, 4, 4, '#5a5e68'); ellipse(g, bx + 37, by + 8, 2.5, 2.5, '#1a1a1f');
+        for (let d = -4; d <= 4; d++) rect(g, bx + 37 + d, by + 8 - d, 1, 1, '#ff5a4a');
+      } else tyreIcon(g, bx + 37, by + 8, k, 4);
+      text(g, PICK_NAME[k], bx + 24, by + 16, off ? '#4a4e58' : on ? '#ffffff' : '#9aa8c8', { align: 'center' });
+      if (!off) ui.push({ x: bx, y: by, w: 48, h: 26, fn: () => { p.choice = k; } });
     });
   }
 
@@ -776,11 +792,11 @@ function raceScene(track, round, { practice = false } = {}) {
       if (S.stop) stopHud(S.stop);
       else dialogue(150, Y.panel, 212, 72, dir.cur, T);
       if (S.picker) drawPicker();
-      if (!S.go || race.time < 1) drawLights();
+      if (!S.go) drawLights();
       if (S.toast) {
         const a = S.toast.t < 1.8 ? 1 : 1 - (S.toast.t - 1.8) / 0.4;
         g.globalAlpha = Math.max(0, a);
-        text(g, S.toast.msg, W / 2, 54, S.toast.color, { align: 'center', scale: 2, outline: '#05060a' });
+        text(g, S.toast.msg, W / 2, S.picker && S.stop ? 64 : 32, S.toast.color, { align: 'center', scale: 2, outline: '#05060a' });
         g.globalAlpha = 1;
       }
       if (S.stop && S.stop.repair && S.stop.repair.st === 'combo' && touchMode) dpad();
@@ -829,6 +845,20 @@ function raceScene(track, round, { practice = false } = {}) {
   return obj;
 }
 
+// Tyre picker options: the four compounds, or leave the tyres on (fuel and fixes only).
+const PICKS = [...COMPOUND_ORDER, 'none'];
+const PICK_KEYS = ['1', '2', '3', '4', '0'];
+const PICK_NAME = { soft: 'SOFT', medium: 'MED', hard: 'HARD', wet: 'WET', none: 'NONE' };
+const pickable = (p, k) => !(k === 'none' && p.car.puncture);
+
+// A small key cap like the in-stop prompts, 11x12.
+function keycap(x, y, ch, off = false) {
+  rect(g, x - 1, y - 1, 13, 14, '#05060a');
+  rect(g, x, y, 11, 11, off ? '#5a5e68' : '#ffffff');
+  rect(g, x, y + 9, 11, 2, off ? '#3a3e48' : '#9aa0aa');
+  text(g, ch, x + 6, y + 2, '#0a0a10', { align: 'center' });
+}
+
 // On-screen arrows for the nose combo on touch screens.
 const DPAD = { up: [460, 150], down: [460, 192], left: [439, 171], right: [481, 171] };
 function dpad() {
@@ -851,7 +881,7 @@ function resultsScene(track, race, log, pts, round) {
   const bossTier = bestPos <= 3 ? 'great' : pts[0] + pts[1] >= 10 ? 'good' : 'bad';
   const r = rng(Date.now() & 0xffff);
   const quote = LINES.BOSS[bossTier][Math.floor(r() * LINES.BOSS[bossTier].length)];
-  const fin = LINES.FINISH[tier][0];
+  const fin = LINES.FINISH[tier][Math.floor(r() * LINES.FINISH[tier].length)];
   const lead = race.result[0];
   let t = 0;
   return {
@@ -878,15 +908,16 @@ function resultsScene(track, race, log, pts, round) {
       panel(g, 262, 18, 242, 168);
       text(g, 'YOUR STOPS', 383, 25, '#ffd23a', { align: 'center' });
       if (!log.length) text(g, 'No stops made. Bold.', 383, 50, '#9aa8c8', { align: 'center' });
-      log.slice(0, 9).forEach((l, i) => {
-        const y = 38 + i * 15;
+      log.slice(0, 7).forEach((l, i) => {
+        const y = 38 + i * 18;
         text(g, `CAR ${l.num}`, 272, y, '#ff8a1e');
         text(g, `L${l.lap}`, 310, y, '#6a7898');
         tyreIcon(g, 334, y + 3, l.compound, 3);
         text(g, l.tv.toFixed(2) + 's', 380, y, '#ffffff', { align: 'right' });
         const gc = { lightning: '#7cff8a', great: '#7cff8a', ok: '#ffe27a', slow: '#ff6a5a', unsafe: '#ff4a3a' }[l.grade];
         text(g, l.grade.toUpperCase(), 388, y, gc);
-        if (l.notes.length) text(g, l.notes[0], 498, y, '#6a7898', { align: 'right' });
+        // mistakes go on their own line under the stop
+        if (l.notes.length) text(g, l.notes.join(', ').slice(0, 44), 310, y + 8, '#6a7898');
       });
       text(g, `PAR ${(track.par * TV).toFixed(2)}s`, 383, 172, '#6a7898', { align: 'center' });
       // boss
@@ -894,8 +925,12 @@ function resultsScene(track, race, log, pts, round) {
       g.drawImage(portrait(PEOPLE.boss, t < 2 && Math.floor(t * 9) % 2 ? 1 : 0), 14, 198);
       text(g, 'HARGREAVES', 52, 199, '#ffd23a');
       text(g, `TEAM: +${pts[0] + pts[1]} PTS`, 496, 199, '#7cff8a', { align: 'right' });
-      wrap(quote, 440).forEach((l, i) => text(g, l, 52, 212 + i * 10, '#e8e6dc'));
-      text(g, fin[0][1].replace('{d}', bestPos === ours[0].final ? 'Nico' : 'Sanna').replace('{p}', bestPos).replace('{x}', track.gp), 52, 236, '#9ad8ff');
+      const ql = wrap(quote, 440).slice(0, 2);
+      ql.forEach((l, i) => text(g, l, 52, 212 + i * 10, '#e8e6dc'));
+      const [who, said] = fin[0];
+      const name = (PEOPLE[who === '{drv}' ? (bestPos === ours[0].final ? 'nico' : 'sanna') : who] || PEOPLE.dev).name;
+      const line = name + ': ' + said.replace(/{d}/g, bestPos === ours[0].final ? 'Nico' : 'Sanna').replace(/{p}/g, bestPos).replace(/{x}/g, track.gp).replace(/{n}/g, bestPos === ours[0].final ? 7 : 11);
+      wrap(line, 440).slice(0, 4 - ql.length).forEach((l, i) => text(g, l, 52, 214 + ql.length * 10 + i * 10, '#9ad8ff'));
       button(W / 2 - 60, 260, 120, 20, round === null ? 'BACK' : 'CONTINUE', () => go(save.round >= TRACKS.length ? seasonScene : calendarScene), { hot: true });
     },
     key(k) { if (k === 'enter' || k === 'space') go(save.round >= TRACKS.length ? seasonScene : calendarScene); },

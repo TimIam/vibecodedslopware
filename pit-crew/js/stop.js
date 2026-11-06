@@ -24,12 +24,13 @@ const s = p => p <= 1 ? p * (1.5 - 0.5 * p) : 1 + (1 - Math.exp(-(p - 1) * 2.2))
 const smooth = t => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
 
 export class PitStop {
-  constructor({ car, track, compound, fuelNow, fuelNeed, rng, sfx = () => {}, hints = false, external = () => [] }) {
+  constructor({ car, track, compound, fuelNow, fuelNeed, rng, sfx = () => {}, hints = false, external = () => [], keepTyres = false }) {
     this.car = car;
     this.team = TEAMS[0];
     this.track = track;
     this.mods = new Set(track.mods);
-    this.compound = compound;
+    this.keepTyres = keepTyres;
+    this.compound = keepTyres ? car.compound : compound;
     this.oldCompound = car.compound;
     this.worn = car.wear > 0.55 || car.puncture;
     this.r = rng;
@@ -47,10 +48,12 @@ export class PitStop {
     this.slick = this.mods.has('slick') || (this.mods.has('rain') && compound === 'wet') ? 0.7 : 1;
     const cold = this.mods.has('cold');
     this.jacks = { a: { st: 'wait', t: 0 }, d: { st: 'wait', t: 0 } };
-    this.wheels = WHEELS.map(w => ({ ...w, end: w.id[0] === 'R' ? 'a' : 'd', st: 'wait', mash: 0, need: cold ? 8 : 5, t: 0, misses: 0, perfect: false, warm: null, lock: 0, spin: 0 }));
+    this.wheels = WHEELS.map(w => ({ ...w, end: w.id[0] === 'R' ? 'a' : 'd', st: keepTyres ? 'done' : 'wait', mash: 0, need: cold ? 8 : 5, t: 0, misses: 0, perfect: false, warm: null, lock: 0, spin: 0 }));
     const band = this.mods.has('heat') ? 0.75 : 1.2;
     this.fuel = { st: 'wait', level: Math.max(0, fuelNow), lo: fuelNeed, hi: fuelNeed + band, max: 12, rate: 2.6, spilled: false, t: 0, need: fuelNeed > fuelNow + 0.05 };
     if (!this.fuel.need) this.fuel.st = 'skip';
+    // Leaving the tyres on: no wheel work, and the car only goes up at the front for a new nose.
+    if (keepTyres) { this.jacks.a.st = 'down'; if (!car.damage) this.jacks.d.st = 'down'; }
     this.repair = car.damage ? { st: 'wait', seq: Array.from({ length: this.mods.has('walls') ? 5 : 4 }, () => ARROWS[Math.floor(rng() * 4)]), idx: 0, lock: 0, t: 0, shake: 0 } : null;
     this.intake = this.mods.has('sand') ? { st: 'wait', n: 0, need: 10 } : null;
     this.fire = null;
@@ -76,6 +79,9 @@ export class PitStop {
 
   pop(txt, x, y, color = '#fff') {
     if (this.pops.some(p => p.txt === txt && p.t < 0.6)) return;
+    // stack above any popup still on screen in the same spot
+    const w = measure(txt);
+    for (let k = 0; k < 6 && this.pops.some(p => p.t < 1 && Math.abs(p.x - x) < (w + measure(p.txt)) / 2 + 2 && Math.abs(p.y - p.t * 7 - y) < 9); k++) y -= 9;
     this.pops.push({ txt, x, y, color, t: 0 });
   }
   grade(err, perfect, good) {
@@ -122,7 +128,7 @@ export class PitStop {
     const g = this.grade(err, 0.05, 0.13);
     this.catchGrade = g;
     this.stopCar(p);
-    this.pop(g === 'perfect' ? 'PERFECT STOP' : g === 'good' ? 'GOOD STOP' : p < 1 ? 'SHORT!' : 'OVERSHOT!', BOX_X, Y.box - 56, g === 'miss' ? '#ff6a5a' : g === 'perfect' ? '#7cff8a' : '#ffe27a');
+    this.pop(g === 'perfect' ? 'PERFECT STOP' : g === 'good' ? 'GOOD STOP' : p < 1 ? 'SHORT!' : 'OVERSHOT!', BOX_X - 112, Y.box - 4, g === 'miss' ? '#ff6a5a' : g === 'perfect' ? '#7cff8a' : '#ffe27a');
     this.sfx(g === 'miss' ? 'miss' : g);
   }
 
@@ -163,7 +169,7 @@ export class PitStop {
     if (w.st === 'warm') {
       const heat = this.heat(w);
       w.warm = heat > 0.8;
-      this.pop(w.warm ? 'WARM' : 'COLD', ...this.wheelPos(w, 0, w.id[1] === 'L' ? -18 : 18), w.warm ? '#ffb05a' : '#8ac8ff');
+      this.pop(w.warm ? 'WARM' : 'COLD', ...this.wheelPos(w), w.warm ? '#ffb05a' : '#8ac8ff');
       this.sfx(w.warm ? 'good' : 'miss');
       if (!w.warm) this.misses++;
       w.st = 'on'; w.t = 0;
@@ -172,7 +178,7 @@ export class PitStop {
     if (w.st === 'on') {
       const err = (w.t / ON_D - 1) * ON_D;
       const g = this.grade(err, 0.05 * this.slick, 0.12 * this.slick);
-      const [px, py] = this.wheelPos(w, 0, w.id[1] === 'L' ? -18 : 18);
+      const [px, py] = this.wheelPos(w);
       if (g === 'miss') {
         w.misses++; w.t = 0; w.lock = 0.22;
         this.pop('CROSS-THREAD', px, py, '#ff6a5a');
@@ -200,9 +206,9 @@ export class PitStop {
     const f = this.fuel;
     f.st = 'idle';
     this.sfx('fuel', 0);
-    const [x, y] = this.fuelPos();
-    if (f.level < f.lo - 0.05) this.pop('SHORT', x, y - 22, '#ffb070');
-    else if (f.level <= f.hi) { this.pop('FUEL OK', x, y - 22, '#7cff8a'); this.sfx('good'); }
+    const x = BOX_X + 62, y = Y.box + 57;
+    if (f.level < f.lo - 0.05) this.pop('SHORT', x, y, '#ffb070');
+    else if (f.level <= f.hi) { this.pop('FUEL OK', x, y, '#7cff8a'); this.sfx('good'); }
   }
 
   douse() {
@@ -218,7 +224,7 @@ export class PitStop {
     it.n++;
     this.sfx('blow');
     for (let i = 0; i < 5; i++) this.fx.push({ x: this.carX + 2 + (this.r() - 0.5) * 30, y: this.carY - 8, vx: (this.r() - 0.5) * 120, vy: -20 - this.r() * 50, life: 0.5, c: '#e8c080', sz: 1 });
-    if (it.n >= it.need) { it.st = 'done'; this.pop('INTAKES CLEAR', this.carX, this.carY - 46, '#7cff8a'); this.sfx('good'); }
+    if (it.n >= it.need) { it.st = 'done'; this.pop('INTAKES CLEAR', this.carX, this.carY - 32, '#7cff8a'); this.sfx('good'); }
   }
 
   driverTap() {
@@ -226,7 +232,7 @@ export class PitStop {
     if (d.st !== 'show') return;
     d.st = 'done';
     this.bonus = true;
-    this.pop(d.kind === 'DRINK' ? 'HYDRATED' : d.kind === 'VISOR' ? 'CLEAN VISOR' : 'BUMP!', this.carX + 2, this.carY - 26, '#7cff8a');
+    this.pop(d.kind === 'DRINK' ? 'HYDRATED' : d.kind === 'VISOR' ? 'CLEAN VISOR' : 'BUMP!', this.carX + 2, this.carY + 2, '#7cff8a');
     this.sfx('good');
   }
 
@@ -311,7 +317,7 @@ export class PitStop {
       this.placeCar(s(p));
       if (p > 1.4) {
         this.catchGrade = 'miss'; this.misses++;
-        this.pop('OVERSHOT!', BOX_X, Y.box - 56, '#ff6a5a');
+        this.pop('OVERSHOT!', BOX_X - 112, Y.box - 4, '#ff6a5a');
         this.sfx('miss');
         this.stopCar(p);
       }
@@ -353,8 +359,8 @@ export class PitStop {
       w.t += dt;
       if (w.lock > 0) w.lock -= dt;
       if (w.st === 'swap' && w.t > 0.32) { w.st = this.mods.has('cold') ? 'warm' : 'on'; w.t = 0; }
-      if (w.st === 'warm' && w.t > 2.4) { w.warm = false; this.misses++; w.st = 'on'; w.t = 0; this.pop('COLD', ...this.wheelPos(w, 0, w.id[1] === 'L' ? -18 : 18), '#8ac8ff'); }
-      if (w.st === 'on' && w.t > ON_D + 0.12 * this.slick + 0.05) { w.t = 0; w.misses++; this.misses++; this.sfx('miss'); this.pop('MISSED', ...this.wheelPos(w, 0, w.id[1] === 'L' ? -18 : 18), '#ff6a5a'); }
+      if (w.st === 'warm' && w.t > 2.4) { w.warm = false; this.misses++; w.st = 'on'; w.t = 0; this.pop('COLD', ...this.wheelPos(w), '#8ac8ff'); }
+      if (w.st === 'on' && w.t > ON_D + 0.12 * this.slick + 0.05) { w.t = 0; w.misses++; this.misses++; this.sfx('miss'); this.pop('MISSED', ...this.wheelPos(w), '#ff6a5a'); }
     }
 
     const f = this.fuel;
@@ -363,7 +369,7 @@ export class PitStop {
     if (f.st === 'fill') {
       f.level = Math.min(f.max, f.level + f.rate * dt);
       if (f.level > f.hi) {
-        if (!f.spilled) { f.spilled = true; this.notes.push('fuel spill'); this.pop('SPILL!', ...this.fuelPos(), '#ffb070'); this.sfx('miss'); this.misses++; if (!this.mods.has('heat')) this.extraTime = 0.6; }
+        if (!f.spilled) { f.spilled = true; this.notes.push('fuel spill'); this.pop('SPILL!', BOX_X + 62, Y.box + 48, '#ffb070'); this.sfx('miss'); this.misses++; if (!this.mods.has('heat')) this.extraTime = 0.6; }
         if (Math.random() < 0.6) this.fx.push({ x: this.fuelPos()[0] + (Math.random() - 0.5) * 6, y: this.fuelPos()[1] - 8, vx: (Math.random() - 0.5) * 30, vy: 10 + Math.random() * 20, life: 0.5, c: '#d8c040', sz: 1 });
         if (this.mods.has('heat') && !this.fire && f.level > f.hi + 0.12) {
           this.fire = { st: 'on', n: 0, need: 8, t: 0 };
@@ -427,6 +433,7 @@ export class PitStop {
       unsafe: this.release.unsafe,
       penalty: this.penalty,
       compound: this.compound,
+      tyres: !this.keepTyres,
       notes: this.notes,
     };
   }
@@ -459,7 +466,7 @@ export class PitStop {
       const a = p.t < 0.8 ? 1 : 1 - (p.t - 0.8) / 0.3;
       if (a <= 0) continue;
       g.globalAlpha = a;
-      text(g, p.txt, p.x, p.y - p.t * 14, p.color, { align: 'center', outline: '#0a0a10' });
+      text(g, p.txt, p.x, p.y - p.t * 7, p.color, { align: 'center', outline: '#0a0a10' });
       g.globalAlpha = 1;
     }
     g.restore();
@@ -479,7 +486,7 @@ export class PitStop {
     for (const w of this.wheels) {
       const on = w.st === 'wait' || w.st === 'off' || w.st === 'done' || w.st === 'on';
       const comp = w.st === 'wait' || w.st === 'off' ? this.oldCompound : this.compound;
-      const worn = (w.st === 'wait' || w.st === 'off') && this.worn;
+      const worn = (w.st === 'wait' || w.st === 'off' || this.keepTyres) && this.worn;
       let wx = x0 + w.x - 1, wy = y0 + w.y - 1 - (w.end === 'a' ? this.lift[0] : this.lift[1]);
       const out = w.id[1] === 'L' ? -1 : 1;
       if (w.st === 'swap') {
@@ -664,7 +671,7 @@ export class PitStop {
       rect(g, xOf(f.lo), gy - 2, 1, 9, '#ffffff');
       if (f.st !== 'idle' || f.level < f.lo - 0.05) {
         this.bubble(g, fx, fy, 's', { held: f.st === 'fill', T, urgent: f.st === 'fill' && f.level >= f.lo });
-        if (this.hints) text(g, f.st === 'fill' ? 'LET GO IN GREEN' : 'HOLD', fx, gy + 8, '#ffffff', { align: 'center', outline: '#0a0a10' });
+        if (this.hints) text(g, f.st === 'fill' ? 'LET GO' : 'HOLD', fx, gy + 8, '#ffffff', { align: 'center', outline: '#0a0a10' });
       } else { rect(g, fx - 3, fy - 3, 7, 7, '#05060a'); rect(g, fx - 2, fy - 2, 5, 5, f.level <= f.hi ? '#7cff8a' : '#ffb05a'); }
     }
     // intake / fire on X
