@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Boss Hours 2: The Sequel</title>
+<meta name="description" content="The first sequel ever released before its predecessor was finished. You are the raid boss again: pace between two rocks, eat the raids, and level up with cards that keep making you bigger, shinier and sloppier.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐾</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#141a12;color:#f4ecd2;font:14px/1.45 "Silkscreen",ui-monospace,Consolas,monospace;user-select:none;-webkit-user-select:none}
+main{position:fixed;inset:52px 0 0;display:grid;place-items:center}
+#game{display:block;image-rendering:pixelated;image-rendering:crisp-edges;outline:none;cursor:none;background:#141a12}
+.overlay{position:fixed;inset:52px 0 0;display:grid;place-items:center;z-index:10;background:rgba(10,12,8,.55)}
+.overlay[hidden]{display:none}
+.card{position:relative;width:min(680px,94vw);max-height:calc(100dvh - 72px);overflow:auto;padding:18px 24px 18px;background:#1c1610;border:4px solid #14100c;box-shadow:0 0 0 4px #633b25,0 0 0 8px #14100c,0 18px 50px rgba(0,0,0,.6);text-align:center}
+h1{margin:0;font-size:40px;line-height:1;letter-spacing:1px;color:#ffd75a;text-shadow:4px 4px 0 #14100c}
+h1 .two{display:inline-block;color:#e2483a;font-size:52px;transform:rotate(-6deg) translateY(4px);margin-left:6px}
+h1 small{display:block;font-size:15px;letter-spacing:4px;color:#f4ecd2;text-shadow:2px 2px 0 #14100c;margin-top:6px;font-weight:700}
+.tagline{margin:10px auto 0;max-width:470px;font-size:12px;color:#ffd75a}
+h2{margin:0;font-size:24px;color:#e2483a;text-shadow:3px 3px 0 #14100c}
+p{margin:12px 0 0;color:#d2cfbd}
+.badges{position:absolute;inset:0;pointer-events:none}
+.badge{position:absolute;padding:5px 8px 3px;font:700 11px/1.1 "Silkscreen",monospace;color:#14100c;box-shadow:0 0 0 2px #14100c,3px 3px 0 2px #14100c;text-transform:uppercase}
+.b1{top:16px;left:-6px;background:#ffd75a;transform:rotate(-9deg)}
+.b2{top:18px;right:-10px;background:#ee8fbf;transform:rotate(8deg)}
+.b3{top:62px;left:18px;background:#7cff8a;transform:rotate(-5deg);font-size:10px}
+@media (max-width:560px){.badge{position:static;display:inline-block;margin:0 4px 8px;transform:none}.badges{position:static}}
+.quotes{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin:12px 0 0;text-align:left}
+.quotes figure{margin:0;padding:6px 8px;background:#2a2016;box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c;font-size:10px;line-height:1.3;color:#f4ecd2}
+.quotes figcaption{margin-top:3px;font-size:9.5px;color:#aeac9b}
+.quotes .stars{color:#ffd75a;letter-spacing:1px}
+.how{text-align:left;margin:12px 0 0;padding:0;list-style:none;display:grid;gap:4px;font-size:11.5px;line-height:1.35;color:#d2cfbd}
+.how li{padding-left:18px;position:relative}
+.how li::before{content:"";position:absolute;left:2px;top:6px;width:7px;height:7px;background:#ffd75a;box-shadow:2px 2px 0 #14100c}
+.how b{color:#f4ecd2;font-weight:700}
+details.patch{margin:12px 0 0;text-align:left;font-size:11.5px;background:#14100c;padding:6px 10px;box-shadow:inset 0 0 0 2px #2f302c}
+details.patch summary{cursor:pointer;color:#7cff8a;list-style:none}
+details.patch summary::-webkit-details-marker{display:none}
+details.patch summary::before{content:"+ "}
+details.patch[open] summary::before{content:"- "}
+details.patch ul{margin:6px 0 2px;padding-left:16px;color:#aeac9b;display:grid;gap:3px}
+.keys{display:grid;grid-template-columns:auto auto auto auto auto auto;gap:5px 9px;margin:12px auto 0;width:max-content;max-width:100%;text-align:left;font-size:11.5px;align-items:center}
+@media (max-width:700px){.keys{grid-template-columns:auto auto auto auto}}@media (max-width:560px){.keys{grid-template-columns:auto 1fr}}
+.keys .k{justify-self:end;white-space:nowrap}.keys kbd{min-width:18px;padding:1px 4px 0;font-size:10px}
+kbd{display:inline-block;min-width:22px;padding:2px 6px 1px;background:#2f302c;border:2px solid #14100c;border-bottom-width:4px;color:#f4ecd2;font:inherit;font-size:11px;text-align:center}
+button{appearance:none;margin-top:14px;border:0;padding:12px 26px 10px;background:#c0392b;color:#fff;font:700 18px/1 "Silkscreen",monospace;cursor:pointer;box-shadow:0 4px 0 #6e1d14,0 0 0 3px #14100c;text-transform:uppercase;letter-spacing:1px}
+button:hover{background:#d8473a}
+button:active{transform:translateY(3px);box-shadow:0 1px 0 #6e1d14,0 0 0 3px #14100c}
+button:focus-visible{outline:3px solid #ffd75a;outline-offset:4px}
+#best{margin-top:10px;font-size:12px;color:#ffd75a;min-height:1em}
+.note{font-size:11px;color:#7f7f74;margin-top:12px}
+dl{display:grid;grid-template-columns:1fr auto;gap:4px 18px;margin:16px auto 0;width:min(340px,100%);text-align:left;font-size:13px}
+dt{color:#aeac9b}
+dd{margin:0;text-align:right;color:#f4ecd2}
+dd em{font-style:normal;color:#ffd75a;font-size:11px;margin-left:6px}
+#review{margin:14px auto 0;max-width:420px;padding:8px 10px;background:#2a2016;box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c;font-size:12px;color:#f4ecd2}
+#review b{color:#ffd75a;margin-right:6px}
+#review span{display:block;font-size:10px;color:#aeac9b;margin-top:2px}
+.ico{width:16px;height:16px;fill:currentColor;shape-rendering:crispEdges}
+.touch-only{display:none}
+@media (hover:none) and (pointer:coarse){.touch-only{display:block}}
+
+/* ---- the level-up cards */
+#cards{background:rgba(10,12,8,.72)}
+.deck{width:min(900px,97vw);max-height:calc(100dvh - 64px);overflow:auto;padding:14px 16px 16px;text-align:center}
+.deck h2{color:#ffd75a;font-size:30px;text-shadow:3px 3px 0 #14100c}
+.deck .sub{margin:4px 0 0;font-size:11.5px;color:#aeac9b}
+.deck .sub b{color:#f4ecd2}
+.deckbody{display:grid;grid-template-columns:150px 1fr;gap:14px;align-items:start;margin-top:12px}
+@media (max-width:720px){.deckbody{grid-template-columns:1fr}.pv{display:none}}
+.pv{display:grid;justify-items:center;gap:4px}
+#cardPreview{width:128px;height:128px;image-rendering:pixelated;background:#2c3e23;box-shadow:0 0 0 2px #14100c,inset 0 0 0 2px #364b2a}
+#previewCap{font-size:10px;color:#7f7f74;max-width:150px}
+#previewCap.on{color:#ffd75a}
+#cardRow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media (max-width:560px){#cardRow{grid-template-columns:1fr}}
+#cardRow[hidden],#slotPick[hidden]{display:none}
+.lvcard{--c:#aeac9b;--c2:#55564f;position:relative;margin:0;padding:24px 12px 30px;display:grid;justify-items:center;align-content:start;gap:6px;min-height:250px;text-align:center;text-transform:none;letter-spacing:0;font:400 12px/1.35 "Silkscreen",monospace;color:#f4ecd2;background:linear-gradient(#2a2016,#1c1610);box-shadow:0 0 0 3px var(--c),0 0 0 6px #14100c,0 6px 0 6px #14100c;transition:transform .12s}
+.lvcard:hover,.lvcard:focus-visible{transform:translateY(-6px) rotate(-1deg);background:linear-gradient(#352818,#1c1610)}
+.lvcard:active{transform:translateY(-2px);box-shadow:0 0 0 3px var(--c),0 0 0 6px #14100c}
+.lvcard:focus-visible{outline:3px solid #f4ecd2;outline-offset:8px}
+.lvcard.r1{--c:#58b84a;--c2:#2c5a24}
+.lvcard.r2{--c:#5b8cff;--c2:#26407a}
+.lvcard.r3{--c:#ffd75a;--c2:#a8642a;background:linear-gradient(160deg,#3a2810,#1c1610 55%,#3a2810)}
+.lvcard.r3::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,transparent 30%,rgba(255,240,160,.22) 45%,transparent 60%);background-size:250% 100%;animation:shine 2.2s linear infinite}
+@keyframes shine{from{background-position:120% 0}to{background-position:-120% 0}}
+.lvcard.deal{animation:deal .38s cubic-bezier(.2,1.4,.4,1) both;animation-delay:calc(var(--i) * .12s)}
+@keyframes deal{from{transform:translateY(60px) rotate(8deg) scale(.6);opacity:0}to{transform:none;opacity:1}}
+.lvcard .rar{position:absolute;top:0;left:0;right:0;padding:4px 0 2px;background:var(--c);color:#14100c;font-weight:700;font-size:11px;letter-spacing:2px;text-transform:uppercase}
+.lvcard .art{display:grid;place-items:center;width:52px;height:52px;margin-top:6px;background:var(--c2);box-shadow:0 0 0 2px #14100c,inset 0 0 0 2px var(--c);color:#f4ecd2}
+.lvcard .art .ico{width:32px;height:32px}
+.lvcard .tag{font-size:10px;color:var(--c);text-transform:uppercase;letter-spacing:1px}
+.lvcard .ttl{font-size:14px;line-height:1.15;color:#fff}
+.lvcard .txt{color:#d2cfbd;font-size:11.5px}
+.lvcard .flv{color:#7f7f74;font-size:10.5px;font-style:normal}
+.lvcard .evo{padding:2px 6px 1px;background:#ffd75a;color:#14100c;font-size:9.5px;font-weight:700;text-transform:uppercase;transform:rotate(-4deg);box-shadow:0 0 0 2px #14100c}
+.lvcard .slotnote{font-size:10px;color:#aeac9b}
+.lvcard .slotnote.warn{color:#ee8fbf}
+.lvcard .slotnote kbd,.slotbtn kbd{font-size:9.5px;min-width:18px;padding:1px 4px 0}
+.lvcard .num{position:absolute;bottom:6px;right:6px;opacity:.7}
+#slotPick{text-align:center}
+#slotPickTitle{margin:0 0 4px;color:#f4ecd2}
+#slotPickTitle b{color:#ffd75a}
+#slotButtons{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}
+@media (max-width:560px){#slotButtons{grid-template-columns:1fr 1fr}}
+.slotbtn{position:relative;margin:0;padding:10px 6px 12px;display:grid;justify-items:center;gap:5px;font:400 11px/1.2 "Silkscreen",monospace;text-transform:none;letter-spacing:0;background:#2a2016;color:#f4ecd2;box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c}
+.slotbtn:hover,.slotbtn:focus-visible{background:#6e1d14}
+.slotbtn .ico{width:24px;height:24px}
+.slotbtn small{font-size:9.5px;color:#ee8fbf}
+.slotbtn .num{position:absolute;top:4px;right:4px;opacity:.6}
+#slotBack{font-size:13px;padding:9px 16px 7px;background:#2f302c;box-shadow:0 4px 0 #14100c,0 0 0 3px #14100c}
+.hint{font-size:11px;color:#7f7f74;margin:10px 0 0}
+</style>
+<script type="module" src="./js/main.js"></script>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<main><canvas id="game" tabindex="0" aria-label="Boss Hours 2 game view"></canvas></main>
+
+<div id="title" class="overlay">
+  <div class="card">
+    <div class="badges" aria-hidden="true"><span class="badge b1">Early Access</span><span class="badge b2">Now 40% sloppier</span><span class="badge b3">Sequelier!</span></div>
+    <h1>Boss Hours<span class="two">2</span><small>The Sequel</small></h1>
+    <p class="tagline">The first sequel ever released before its predecessor was finished.</p>
+    <div class="quotes">
+      <figure><span class="stars">★★★★☆</span> “It is, technically, a sequel.”<figcaption>Sequel Quarterly</figcaption></figure>
+      <figure><span class="stars">★★★★★</span> “Sequelier!”<figcaption>Rock &amp; Other Rock Weekly</figcaption></figure>
+      <figure><span class="stars">★★☆☆☆</span> “I played it before the first one came out. That should not be possible.”<figcaption>A Guy On A Forum</figcaption></figure>
+    </div>
+    <ul class="how">
+      <li>You are the boss. Again. <b>Walk the path</b> between the rocks; touching each rock in turn builds <b>Aimlessness</b>, which multiplies everything.</li>
+      <li>Points are XP now. <b>Level up</b> and pick <b>one of three cards</b>: new abilities, upgrades, health, faster legs. <b>Common</b>, <b>Good</b>, <b>Great</b>, <b>Legendary</b>. Every pick shows up <b>on the boss</b>.</li>
+      <li><b>5-mans</b> wander in; <b>10 laps</b> brings a 25-man raid, <b>20</b> the 40-man, which ends the map. Raid wipes pay a bonus card. The <b>quiet man on a horse</b> is back: shake him off.</li>
+    </ul>
+    <details class="patch">
+      <summary>Day One Patch notes (v2.0.1)</summary>
+      <ul>
+        <li>Removed the store. Cards are free. Everything in this game is free, forever, which is the joke.</li>
+        <li>Added cards. Some of them are Legendary, statistically.</li>
+        <li>The boss now changes shape as it levels up. This is called "content".</li>
+        <li>Rocks are 40% rockier. The other rock is unchanged.</li>
+        <li>Fixed 5-man tanks falling out of the world. They did that in the first game too.</li>
+        <li>Fear and stuns have diminishing returns now. The raid asked nicely.</li>
+        <li>Heroes have learned new words, mostly about the sequel.</li>
+        <li>Known issue: the quiet man on the horse.</li>
+      </ul>
+    </details>
+    <div class="keys">
+      <span class="k"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>lumber about</span>
+      <span class="k"><kbd>mouse</kbd></span><span>face somewhere</span>
+      <span class="k"><kbd>LMB</kbd></span><span>swipe (hold it)</span>
+      <span class="k"><kbd>RMB</kbd></span><span>stomp</span>
+      <span class="k"><kbd>Q</kbd></span><span>fire breath</span>
+      <span class="k"><kbd>E</kbd></span><span>roar</span>
+      <span class="k"><kbd>R</kbd></span><span>5th slot</span>
+      <span class="k"><kbd>Space</kbd></span><span>shake your fur</span>
+      <span class="k"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></span><span>pick a card</span>
+      <span class="k"><kbd>P</kbd> <kbd>M</kbd></span><span>pause, mute</span>
+    </div>
+    <button id="go" type="button">Clock in (again)</button>
+    <div id="best"></div>
+    <p class="note touch-only">Needs a keyboard and mouse.</p>
+  </div>
+</div>
+
+<div id="cards" class="overlay" hidden>
+  <div class="card deck" role="dialog" aria-labelledby="cardsTitle">
+    <h2 id="cardsTitle">Level up!</h2>
+    <p class="sub"><b id="cardsLevel">Level 2</b> · <span id="cardsQuip"></span></p>
+    <div class="deckbody">
+      <div class="pv"><canvas id="cardPreview" width="128" height="128" aria-label="Your boss, turning slowly"></canvas><span id="previewCap">Current model</span></div>
+      <div>
+        <div id="cardRow"></div>
+        <div id="slotPick" hidden>
+          <p id="slotPickTitle"></p>
+          <p class="hint" style="margin-top:0">All five slots are full. Pick one to replace; its upgrades are kept if it comes back.</p>
+          <div id="slotButtons"></div>
+          <button id="slotBack" type="button">Back to the cards</button>
+        </div>
+        <p class="hint" id="cardHint">The fight is paused. Hover a card to preview the new model. Keys <kbd>1</kbd>–<kbd>3</kbd> pick.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="paused" class="overlay" hidden>
+  <div class="card">
+    <h2 style="color:#ffd75a">On break</h2>
+    <p>The adventurers are also on break. They are reading the patch notes.</p>
+    <button id="resume" type="button">Back to pacing</button>
+  </div>
+</div>
+
+<div id="over" class="overlay" hidden>
+  <div class="card">
+    <h2>You have been defeated (again)</h2>
+    <p id="overBy"></p>
+    <p id="overSub" style="color:#aeac9b;margin-top:4px"></p>
+    <dl id="stats"></dl>
+    <div id="review"></div>
+    <button id="again" type="button">Respawn</button>
+    <p class="note">Season 2 has been cancelled. Press R to uncancel it.</p>
+  </div>
+</div>
+</body>
+</html>
