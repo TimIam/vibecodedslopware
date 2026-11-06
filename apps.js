@@ -890,6 +890,21 @@ window.SLOPWARE = {
      "tokens": 193839
     }
    ]
+  },
+  "boss-hours": {
+   "visits": 4,
+   "prompts": 3,
+   "tokens": 704067,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-06T12:23:42-07:00",
+     "note": "a reverse boss fight in top-down pixel art",
+     "prompts": 3,
+     "tokens": 704067
+    }
+   ]
   }
  }
 };
