@@ -769,8 +769,8 @@ window.SLOPWARE = {
   },
   "pit-crew": {
    "visits": 19,
-   "prompts": 2,
-   "tokens": 504425,
+   "prompts": 4,
+   "tokens": 1431732,
    "sharedWith": null,
    "versions": [
     {
@@ -778,7 +778,14 @@ window.SLOPWARE = {
      "date": "2026-11-04T09:38:02-07:00",
      "note": "a reverse racing game where you are the pit crew",
      "prompts": 2,
-     "tokens": 504425
+     "tokens": 490634
+    },
+    {
+     "n": 2,
+     "date": "2026-11-06T12:36:12-07:00",
+     "note": "clean text, a no-tyres option, and far more crew banter",
+     "prompts": 2,
+     "tokens": 941098
     }
    ]
   },
@@ -894,7 +901,7 @@ window.SLOPWARE = {
   "boss-hours": {
    "visits": 4,
    "prompts": 3,
-   "tokens": 704067,
+   "tokens": 718948,
    "sharedWith": null,
    "versions": [
     {
@@ -902,7 +909,7 @@ window.SLOPWARE = {
      "date": "2026-11-06T12:23:42-07:00",
      "note": "a reverse boss fight in top-down pixel art",
      "prompts": 3,
-     "tokens": 704067
+     "tokens": 718948
     }
    ]
   }
