@@ -1,5 +1,5 @@
 // Pixel art made in code: sprites are rasterised once into small canvases with hard edges.
-import { COMPOUNDS } from './data.js';
+import { COMPOUNDS, TEAMS } from './data.js';
 
 export const W = 512, H = 288;
 
@@ -217,8 +217,12 @@ export function crew(g, x, y, dir, team, { reach = 0.4, tool = null, bob = 0, lo
 
 // ---------------------------------------------------------------- portraits 32x32
 const portCache = new Map();
+// Cached sprites bake in team colours, so a livery change starts them over.
+export function clearCaches() { carCache.clear(); noseCache.clear(); portCache.clear(); }
+
 export function portrait(p, mouth = 0, blink = false) {
-  const key = p.name + mouth + (blink ? 'b' : '');
+  const key = p.name + p.bg + mouth + (blink ? 'b' : '');
+  const tm = TEAMS[0];
   if (portCache.has(key)) return portCache.get(key);
   const [c, g] = canvas(32, 32);
   // panel
@@ -226,14 +230,14 @@ export function portrait(p, mouth = 0, blink = false) {
   for (let y = 0; y < 32; y += 2) ditherRect(g, 0, y, 32, 1, shade(p.bg, 0.12), 0.25);
   const skin = p.skin, sd = shade(skin, -0.22), sl = shade(skin, 0.15);
   if (p.helmet) {
-    const tc = '#16b3a3', t2 = '#ff8a1e';
+    const tc = tm.c1, t2 = tm.c2, hl = tm.helmet;
     // shoulders / suit
     rect(g, 4, 26, 24, 6, tc); rect(g, 4, 26, 24, 1, shade(tc, 0.3)); rect(g, 14, 26, 4, 6, t2);
     // helmet shell
-    ellipse(g, 16, 15, 12, 12.5, '#ffd23a');
-    ellipse(g, 16, 13, 10, 9, shade('#ffd23a', 0.25));
+    ellipse(g, 16, 15, 12, 12.5, hl);
+    ellipse(g, 16, 13, 10, 9, shade(hl, 0.25));
     rect(g, 4, 18, 24, 3, t2);
-    rect(g, 5, 21, 22, 4, '#ffd23a');
+    rect(g, 5, 21, 22, 4, hl);
     // open visor shows eyes and skin
     rect(g, 7, 11, 18, 8, '#0b0b10');
     rect(g, 8, 12, 16, 6, skin);
@@ -257,12 +261,12 @@ export function portrait(p, mouth = 0, blink = false) {
     return c;
   }
   // body
-  const shirt = p.suit ? '#24242c' : p.fireproof ? '#d8d8d8' : '#16b3a3';
+  const shirt = p.suit ? '#24242c' : p.fireproof ? '#d8d8d8' : tm.c1;
   rect(g, 3, 25, 26, 7, shirt);
   rect(g, 3, 25, 26, 1, shade(shirt, 0.25));
   if (p.suit) { rect(g, 13, 25, 6, 7, '#e8e8e8'); rect(g, 15, 26, 2, 6, '#b02020'); }
-  else if (p.fireproof) { rect(g, 3, 28, 26, 2, '#ff8a1e'); }
-  else { rect(g, 3, 28, 26, 1, '#ff8a1e'); rect(g, 14, 25, 4, 3, sd); }
+  else if (p.fireproof) { rect(g, 3, 28, 26, 2, tm.c2); }
+  else { rect(g, 3, 28, 26, 1, tm.c2); rect(g, 14, 25, 4, 3, sd); }
   // neck
   rect(g, 13, 21, 6, 5, sd);
   // head
@@ -299,7 +303,7 @@ export function portrait(p, mouth = 0, blink = false) {
   // headset
   if (p.headset) {
     rect(g, 7, 4, 18, 1, '#222'); rect(g, 6, 5, 1, 7, '#222'); rect(g, 25, 5, 1, 7, '#222');
-    rect(g, 5, 11, 4, 6, '#16b3a3'); rect(g, 23, 11, 4, 6, '#16b3a3'); rect(g, 5, 11, 4, 1, '#6ae0d4'); rect(g, 23, 11, 4, 1, '#6ae0d4');
+    rect(g, 5, 11, 4, 6, tm.c1); rect(g, 23, 11, 4, 6, tm.c1); rect(g, 5, 11, 4, 1, shade(tm.c1, 0.45)); rect(g, 23, 11, 4, 1, shade(tm.c1, 0.45));
     if (p.mic) { rect(g, 8, 17, 1, 3, '#222'); rect(g, 9, 20, 4, 1, '#222'); rect(g, 12, 19, 2, 2, '#444'); }
   }
   outlineInner(c);

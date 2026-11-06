@@ -5,13 +5,17 @@ import { TEAMS, DRIVERS, TRACKS, COMPOUNDS, COMPOUND_ORDER, PEOPLE, POINTS, MOD_
 import { Race, rng, IN_T, OUT_T } from './race.js';
 import { PitStop, KEYMAP } from './stop.js';
 import { bake, bakeMap, Y, BOX_X, theme, straightCar } from './scene.js';
-import { Director, LINES } from './banter.js';
+import { Director, LINES, rename } from './banter.js';
+import * as C from './custom.js';
 import * as A from './audio.js';
 
+// The game draws at 512x288 into an offscreen canvas; present() scales it to fill the window.
 const cv = document.getElementById('game');
-const g = cv.getContext('2d');
-g.imageSmoothingEnabled = false;
+const out = cv.getContext('2d');
+const [src, g] = mkCanvas(W, H);
+const [mid, mg] = mkCanvas(W, H);
 const DEV = /^(localhost|127\.|\[::1\])/.test(location.hostname);
+C.apply();
 const SAVE_KEY = 'pitcrew26.v1';
 
 // ------------------------------------------------------------ save
@@ -26,15 +30,41 @@ syncMute();
 muteBtn.addEventListener('click', () => { A.init(); A.setMuted(!A.isMuted()); save.muted = A.isMuted(); persist(); syncMute(); cv.focus(); });
 
 // ------------------------------------------------------------ layout
+// Fill the space under the site bar (or the whole screen in full screen) at 16:9.
+const wrapEl = document.getElementById('wrap');
 function fit() {
-  const ww = innerWidth, wh = innerHeight - 52;
-  let s = Math.min(ww / W, wh / H);
-  if (s >= 2) s = Math.floor(s);
-  cv.style.width = Math.floor(W * s) + 'px';
-  cv.style.height = Math.floor(H * s) + 'px';
+  const r = wrapEl.getBoundingClientRect();
+  const s = Math.min(r.width / W, r.height / H);
+  const cw = Math.max(1, Math.floor(W * s)), ch = Math.max(1, Math.floor(H * s));
+  cv.style.width = cw + 'px';
+  cv.style.height = ch + 'px';
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(cw * dpr);
+  cv.height = Math.round(ch * dpr);
+  // Blow the pixels up by a whole number first, then let the browser smooth the last
+  // fraction: every game pixel stays square and the same size, with soft-free edges.
+  const k = Math.max(1, Math.ceil(cv.width / W));
+  if (mid.width !== W * k) { mid.width = W * k; mid.height = H * k; }
+  mg.imageSmoothingEnabled = false;
+}
+function present() {
+  mg.drawImage(src, 0, 0, mid.width, mid.height);
+  out.imageSmoothingEnabled = mid.width !== cv.width;
+  out.imageSmoothingQuality = 'high';
+  out.drawImage(mid, 0, 0, cv.width, cv.height);
 }
 addEventListener('resize', fit);
+new ResizeObserver(fit).observe(wrapEl);
 fit();
+
+// Full screen hides the site bar; the button lives in the bar, F toggles too.
+const fsBtn = document.getElementById('fs');
+function toggleFull() {
+  if (document.fullscreenElement) document.exitFullscreen?.();
+  else document.documentElement.requestFullscreen?.().catch(() => {});
+}
+fsBtn.addEventListener('click', () => { toggleFull(); cv.focus(); });
+document.addEventListener('fullscreenchange', () => { document.body.classList.toggle('full', !!document.fullscreenElement); fit(); });
 
 // ------------------------------------------------------------ input
 const ui = [];           // clickable rects registered each frame
@@ -47,9 +77,20 @@ function toLocal(e) {
   return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H };
 }
 
+// Hidden text box for typing names: keeps the canvas UI, and brings up phone keyboards.
+const typer = document.getElementById('typer');
+typer.addEventListener('input', () => scene.typed && scene.typed());
+typer.addEventListener('blur', () => scene.typeEnd && scene.typeEnd(true));
+
 addEventListener('keydown', e => {
   if (e.target.closest && e.target.closest('.site-topbar')) return;
+  if (document.activeElement === typer) {
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); scene.typeEnd && scene.typeEnd(true); }
+    if (e.key === 'Escape') { e.preventDefault(); scene.typeEnd && scene.typeEnd(false); }
+    return;
+  }
   A.init();
+  if (e.code === 'KeyF' && !e.repeat) { toggleFull(); return; }
   const k = KEYMAP[e.code] || keyName(e);
   if (!k) return;
   if (['space', 'up', 'down', 'left', 'right'].includes(k) || e.code === 'Tab') e.preventDefault();
@@ -214,6 +255,7 @@ const titleScene = (() => {
     save.round > 0 && save.round < TRACKS.length ? ['CONTINUE SEASON', () => go(calendarScene)] : null,
     ['NEW SEASON', () => { const m = save.muted, best = save.best, pb = save.practiceBest; save = freshSave(); save.muted = m; save.best = best; save.practiceBest = pb; persist(); go(calendarScene); }],
     ['PIT PRACTICE', () => go(practiceScene)],
+    ['TEAM SETUP', () => go(setupScene)],
     ['HOW TO PLAY', () => go(howScene)],
   ].filter(Boolean);
   return {
@@ -310,7 +352,7 @@ const howScene = {
     rows.forEach(([k, d], i) => { text(g, k, 222, 44 + i * 13, '#ffd23a'); text(g, d, 272, 44 + i * 13, '#e8e6dc'); });
     const tips = [
       'Between stops, the race runs on its own. Dev calls the cars in when the plan says so.',
-      'Press 1 or 2 (or tap BOX) to bring Nico (car 7) or Sanna (car 11) in early, or to wave off a call.',
+      `Press 1 or 2 (or tap BOX) to bring ${DRIVERS[0].name.split(' ')[0]} (car 7) or ${DRIVERS[1].name.split(' ')[0]} (car 11) in early, or to wave off a call.`,
       'When a car turns into the pit lane, pick its tyres with 1-4, or 0 to leave them on. Dev\'s pick is underlined in green.',
       'Everything overlaps: fuel while you gun the wheels. Faster stops gain places. Mistakes cost seconds.',
       'Touch screens: tap the key bubbles. Hold the S bubble to fuel.',
@@ -333,7 +375,7 @@ const calendarScene = {
     rect(g, 0, 0, W, H, '#0a0c14');
     for (let y = 12; y < H; y += 4) rect(g, 0, y, W, 1, '#0d1018');
     topBar("PIT CREW '26", 'SEASON CALENDAR', 'ENTER: NEXT RACE  ESC: TITLE');
-    text(g, 'BRIGHTWATER RACING', 16, 22, '#16b3a3', { scale: 2 });
+    text(g, TEAMS[0].name.toUpperCase(), 16, 22, TEAMS[0].c1, { scale: 2, shadow: '#05060a' });
     TRACKS.forEach((tr, i) => {
       const y = 46 + i * 30;
       const done = save.results[i];
@@ -363,6 +405,7 @@ const calendarScene = {
     if (save.round < TRACKS.length) button(324, 230, 176, 22, `GO TO ROUND ${save.round + 1}`, () => go(briefingScene), { hot: true });
     else button(324, 230, 176, 22, 'SEASON REVIEW', () => go(seasonScene), { hot: true });
     button(12, 230, 100, 22, 'TITLE', () => go(titleScene), { color: '#5c6a8a' });
+    button(118, 230, 110, 22, 'TEAM SETUP', () => go(setupScene), { color: '#5c6a8a' });
   },
   key(k) {
     if (k === 'enter' || k === 'space') go(save.round < TRACKS.length ? briefingScene : seasonScene);
@@ -405,7 +448,7 @@ const briefingScene = {
     y += 11;
     if (save.best[tr.id]) { text(g, `YOUR BEST STOP HERE: ${save.best[tr.id].toFixed(2)}s`, 20, y, '#ffd23a'); y += 11; }
     // crew line, never over the text above
-    const [who, line] = this.quote, person = PEOPLE[who] || PEOPLE.mags;
+    const [who, raw] = this.quote, person = PEOPLE[who] || PEOPLE.mags, line = rename(raw);
     const ql = wrap(line, 420);
     const py = Math.max(184, y + 4), ph = Math.max(44, 22 + ql.length * 10);
     panel(g, 20, py, 472, ph);
@@ -507,7 +550,7 @@ function raceScene(track, round, { practice = false } = {}) {
     for (const e of race.events) {
       const c = e.car;
       switch (e.type) {
-        case 'start': { const own = LINES.TRACK_START[track.id] || []; dir.sayFrom(r() < 0.4 && own.length ? own : LINES.START, { x: track.name }, 1); break; }
+        case 'start': { const own = LINES.TRACK_START[track.id] || []; dir.sayFrom(own.length ? own : LINES.START, { x: track.name }, 2); break; }
         case 'boxCall': dir.sayFrom(LINES.BOXCALL, vars(c), 2); A.sfx('radio'); toast(`BOX BOX: CAR ${c.num}`, '#ff8a1e'); break;
         case 'pitEntry':
           if (c.player) { S.picker = { car: c, choice: race.recommend(c), rec: race.recommend(c), t: 0 }; A.sfx('radio'); }
@@ -880,7 +923,7 @@ function resultsScene(track, race, log, pts, round) {
   const tier = bestPos === 1 ? 'win' : bestPos <= 3 ? 'podium' : bestPos <= 10 && pts[0] + pts[1] >= 8 ? 'points' : 'none';
   const bossTier = bestPos <= 3 ? 'great' : pts[0] + pts[1] >= 10 ? 'good' : 'bad';
   const r = rng(Date.now() & 0xffff);
-  const quote = LINES.BOSS[bossTier][Math.floor(r() * LINES.BOSS[bossTier].length)];
+  const quote = rename(LINES.BOSS[bossTier][Math.floor(r() * LINES.BOSS[bossTier].length)]);
   const fin = LINES.FINISH[tier][Math.floor(r() * LINES.FINISH[tier].length)];
   const lead = race.result[0];
   let t = 0;
@@ -923,19 +966,146 @@ function resultsScene(track, race, log, pts, round) {
       // boss
       panel(g, 8, 190, 496, 60);
       g.drawImage(portrait(PEOPLE.boss, t < 2 && Math.floor(t * 9) % 2 ? 1 : 0), 14, 198);
-      text(g, 'HARGREAVES', 52, 199, '#ffd23a');
+      text(g, PEOPLE.boss.name, 52, 199, '#ffd23a');
       text(g, `TEAM: +${pts[0] + pts[1]} PTS`, 496, 199, '#7cff8a', { align: 'right' });
       const ql = wrap(quote, 440).slice(0, 2);
       ql.forEach((l, i) => text(g, l, 52, 212 + i * 10, '#e8e6dc'));
-      const [who, said] = fin[0];
+      const [who, rawSaid] = fin[0], said = rename(rawSaid);
       const name = (PEOPLE[who === '{drv}' ? (bestPos === ours[0].final ? 'nico' : 'sanna') : who] || PEOPLE.dev).name;
-      const line = name + ': ' + said.replace(/{d}/g, bestPos === ours[0].final ? 'Nico' : 'Sanna').replace(/{p}/g, bestPos).replace(/{x}/g, track.gp).replace(/{n}/g, bestPos === ours[0].final ? 7 : 11);
+      const line = name + ': ' + said.replace(/{d}/g, (bestPos === ours[0].final ? DRIVERS[0] : DRIVERS[1]).name.split(' ')[0]).replace(/{p}/g, bestPos).replace(/{x}/g, track.gp).replace(/{n}/g, bestPos === ours[0].final ? 7 : 11);
       wrap(line, 440).slice(0, 4 - ql.length).forEach((l, i) => text(g, l, 52, 214 + ql.length * 10 + i * 10, '#9ad8ff'));
       button(W / 2 - 60, 260, 120, 20, round === null ? 'BACK' : 'CONTINUE', () => go(save.round >= TRACKS.length ? seasonScene : calendarScene), { hot: true });
     },
     key(k) { if (k === 'enter' || k === 'space') go(save.round >= TRACKS.length ? seasonScene : calendarScene); },
   };
 }
+
+// ===== team setup: names and livery
+const setupScene = (() => {
+  let sel = 0, editing = null, before = '', t = 0;
+  const NF = C.FIELDS.length;
+  const ROWS = ['scheme', 'c1', 'c2', 'helmet'];
+  const N = NF + ROWS.length + 2; // + reset, done
+  const changed = () => { C.apply(); C.persist(); bgCache.clear(); };
+  function startEdit(i) {
+    sel = i; editing = C.FIELDS[i][1]; before = C.get(editing);
+    typer.value = before;
+    // after the click has finished, or the canvas takes focus straight back
+    setTimeout(() => { typer.focus(); try { typer.setSelectionRange(0, before.length); } catch (e) {} }, 0);
+    A.sfx('select');
+  }
+  const done = () => go(titleScene);
+  function cycle(row, d) {
+    if (row === 'scheme') {
+      const i = C.SCHEMES.findIndex(s => s.c1 === C.team.c1 && s.c2 === C.team.c2 && s.helmet === C.team.helmet);
+      const s = C.SCHEMES[(i + d + C.SCHEMES.length) % C.SCHEMES.length];
+      C.team.c1 = s.c1; C.team.c2 = s.c2; C.team.helmet = s.helmet;
+    } else {
+      const i = C.PALETTE.indexOf(C.team[row]);
+      C.team[row] = C.PALETTE[(i + d + C.PALETTE.length) % C.PALETTE.length];
+    }
+    changed(); A.sfx('move');
+  }
+  return {
+    enter() { sel = 0; editing = null; t = 0; },
+    update(dt) { t += dt; },
+    typed() {
+      if (!editing) return;
+      const v = typer.value.replace(/[^ -~]/g, '').slice(0, 16);
+      if (v !== typer.value) typer.value = v;
+      C.set(editing, v || C.defaultOf(editing));
+      changed();
+    },
+    typeEnd(keep) {
+      if (!editing) return;
+      if (!keep) C.set(editing, before);
+      else C.set(editing, typer.value.trim().replace(/\s+/g, ' ') || C.defaultOf(editing));
+      changed();
+      editing = null;
+      typer.blur(); cv.focus();
+    },
+    draw() {
+      rect(g, 0, 0, W, H, '#0a0c14');
+      for (let y = 12; y < H; y += 4) rect(g, 0, y, W, 1, '#0d1018');
+      topBar('TEAM SETUP', 'NAMES AND LIVERY', 'ESC: DONE');
+      // names
+      panel(g, 6, 16, 252, 200);
+      C.FIELDS.forEach(([label, key], i) => {
+        const y = 22 + i * 16, on = sel === i, ed = editing === key;
+        text(g, label, 14, y + 3, on ? '#ffd23a' : '#8a96b0');
+        rect(g, 108, y, 144, 13, '#05060a');
+        rect(g, 109, y + 1, 142, 11, ed ? '#22304a' : on ? '#1a2234' : '#121624');
+        if (on) rect(g, 109, y + 1, 142, 1, ed ? '#7cff8a' : '#ffd23a');
+        const v = C.get(key);
+        let shown = v;
+        while (measure(shown) > 134) shown = shown.slice(0, -1);
+        text(g, shown, 113, y + 3, ed ? '#ffffff' : '#e8e6dc');
+        if (ed && (t * 2 % 1) < 0.6) rect(g, 113 + measure(shown) + 1, y + 2, 1, 9, '#7cff8a');
+        ui.push({ x: 108, y, w: 144, h: 13, fn: () => startEdit(i) });
+      });
+      text(g, editing ? 'TYPE, THEN ENTER. ESC UNDOES.' : 'CLICK A NAME, OR PRESS ENTER, TO TYPE', 132, 205, '#6a7898', { align: 'center' });
+      // livery
+      panel(g, 262, 16, 244, 200);
+      const rowY = { scheme: 24, c1: 64, c2: 92, helmet: 120 };
+      const label = { scheme: 'SCHEMES', c1: 'LIVERY', c2: 'ACCENT', helmet: 'HELMET' };
+      ROWS.forEach((row, ri) => {
+        const y = rowY[row], on = sel === NF + ri;
+        text(g, label[row], 270, y, on ? '#ffd23a' : '#8a96b0');
+        if (on) text(g, '← →', 498, y, '#ffd23a', { align: 'right' });
+        if (row === 'scheme') {
+          C.SCHEMES.forEach((sc, k) => {
+            const x = 270 + (k % 4) * 58, yy = y + 10 + Math.floor(k / 4) * 14;
+            const cur = sc.c1 === C.team.c1 && sc.c2 === C.team.c2 && sc.helmet === C.team.helmet;
+            rect(g, x - 1, yy - 1, 56, 13, cur ? '#ffd23a' : '#05060a');
+            rect(g, x, yy, 54, 11, sc.c1);
+            rect(g, x, yy + 8, 54, 3, sc.c2);
+            rect(g, x + 46, yy + 2, 5, 5, sc.helmet);
+            ui.push({ x: x - 1, y: yy - 1, w: 56, h: 13, fn: () => { C.team.c1 = sc.c1; C.team.c2 = sc.c2; C.team.helmet = sc.helmet; sel = NF; changed(); } });
+          });
+        } else {
+          C.PALETTE.forEach((col, k) => {
+            const x = 270 + k * 14, yy = y + 10;
+            const cur = C.team[row] === col;
+            rect(g, x - 1, yy - 1, 14, 14, cur ? '#ffffff' : '#05060a');
+            rect(g, x, yy, 12, 12, col);
+            if (cur) rect(g, x + 4, yy + 4, 4, 4, shade(col, col === '#f4f4f0' ? -0.6 : 0.6));
+            ui.push({ x: x - 1, y: yy - 1, w: 14, h: 14, fn: () => { C.team[row] = col; sel = NF + ri; changed(); } });
+          });
+        }
+      });
+      // preview: car on the lane, crew, the faces, the garage banner
+      const tm = TEAMS[0];
+      rect(g, 266, 146, 236, 66, '#5a5f6a');
+      for (let x = 266; x < 400; x += 16) rect(g, x, 186, 9, 1, '#f0f0f0');
+      const cx = 330, cy = 164;
+      for (const w of WHEELS) g.drawImage(wheelSprite('soft'), cx - 39 + w.x, cy - 16 + w.y);
+      g.drawImage(carSprite(tm), cx - 39, cy - 16);
+      crew(g, cx - 18, cy + 34, 0, tm, { tool: 'gun', reach: 0.6 + Math.sin(t * 30) * 0.2 });
+      crew(g, cx + 22, cy + 34, 0, tm, { tool: 'tyre', reach: 0.3, toolColor: '#e8342c' });
+      g.drawImage(portrait(PEOPLE.nico), 400, 149);
+      g.drawImage(portrait(PEOPLE.sanna), 434, 149);
+      g.drawImage(portrait(PEOPLE.mags), 468, 149);
+      rect(g, 400, 186, 100, 22, tm.c1); rect(g, 400, 186, 100, 2, tm.c2);
+      text(g, tm.short, 450, 194, tm.c1 === '#14161c' || tm.c1 === '#3a3e48' || tm.c1 === '#8e44ad' ? '#ffffff' : '#0a0a10', { align: 'center' });
+      // buttons
+      button(6, 236, 140, 22, 'RESET TO DEFAULTS', () => { C.reset(); bgCache.clear(); }, { hot: sel === N - 2, color: '#5c6a8a' });
+      button(366, 236, 140, 22, 'DONE', done, { hot: sel === N - 1 });
+      text(g, 'Saved in this browser. Your team carries into every season.', W / 2, 268, '#6a7898', { align: 'center' });
+    },
+    key(k) {
+      if (k === 'esc') return done();
+      if (k === 'up') { sel = (sel + N - 1) % N; A.sfx('move'); }
+      if (k === 'down') { sel = (sel + 1) % N; A.sfx('move'); }
+      if ((k === 'left' || k === 'right') && sel >= NF && sel < NF + ROWS.length) cycle(ROWS[sel - NF], k === 'left' ? -1 : 1);
+      if (k === 'enter' || k === 'space') {
+        if (sel < NF) startEdit(sel);
+        else if (sel === N - 2) { C.reset(); bgCache.clear(); A.sfx('select'); }
+        else if (sel === N - 1) done();
+        else cycle(ROWS[sel - NF], 1);
+      }
+    },
+  };
+})();
 
 // ===== season end
 const seasonScene = {
@@ -952,7 +1122,7 @@ const seasonScene = {
       rect(g, tx - 4, ty + 12, 8, 10, '#d8a020'); rect(g, tx - 12, ty + 22, 24, 6, '#a87818');
       rect(g, tx - 24, ty - 6, 6, 12, '#d8a020'); rect(g, tx + 18, ty - 6, 6, 12, '#d8a020');
       for (let i = 0; i < 20; i++) { const a = this.t * 0.6 + i; rect(g, tx + Math.cos(a * 1.7) * 120, 40 + ((this.t * 40 + i * 23) % 200), 2, 2, ['#ff8a1e', '#16b3a3', '#ffffff', '#ffd23a'][i % 4]); }
-    } else text(g, `BRIGHTWATER FINISH P${this.pos} IN THE CONSTRUCTORS`, W / 2, 30, '#ffffff', { align: 'center', scale: 2 });
+    } else text(g, `${TEAMS[0].short} FINISH P${this.pos} IN THE CONSTRUCTORS`, W / 2, 30, '#ffffff', { align: 'center', scale: 2 });
     panel(g, W / 2 - 120, 108, 240, 112);
     standings().forEach((s, k) => {
       const y = 118 + k * 18;
@@ -960,7 +1130,7 @@ const seasonScene = {
       text(g, `${k + 1}  ${s.t.name}`, W / 2 - 98, y + 3, s.i === 0 ? '#ffffff' : '#9aa8c8');
       text(g, String(s.pts), W / 2 + 108, y + 3, '#ffd23a', { align: 'right' });
     });
-    const q = this.champ ? 'Mags: "Brake dust. It is just brake dust, Toby."' : 'Mags: "Next year. Gloves on, same as always."';
+    const q = rename(this.champ ? 'Mags: "Brake dust. It is just brake dust, Toby."' : 'Mags: "Next year. Gloves on, same as always."');
     text(g, q, W / 2, 230, '#9ad8ff', { align: 'center' });
     button(W / 2 - 70, 250, 140, 20, 'NEW SEASON', () => { const m = save.muted, b = save.best, p = save.practiceBest; save = freshSave(); save.muted = m; save.best = b; save.practiceBest = p; persist(); go(calendarScene); }, { hot: true });
   },
@@ -1064,6 +1234,7 @@ function frame(now) {
   ui.length = 0;
   g.setTransform(1, 0, 0, 1, 0, 0);
   scene.draw();
+  present();
   requestAnimationFrame(frame);
 }
 
@@ -1071,9 +1242,9 @@ if (DEV) {
   window.__pc = {
     speed: 1, bot: false,
     get scene() { return scene; },
-    go: name => go({ title: titleScene, calendar: calendarScene, briefing: briefingScene, practice: practiceScene, how: howScene, season: seasonScene }[name]),
+    go: name => go({ setup: setupScene, title: titleScene, calendar: calendarScene, briefing: briefingScene, practice: practiceScene, how: howScene, season: seasonScene }[name]),
     race: i => go(raceScene(TRACKS[i], i)),
-    step(n = 1) { for (let i = 0; i < n; i++) { scene.update(STEP); T += STEP; } ui.length = 0; scene.draw(); },
+    step(n = 1) { for (let i = 0; i < n; i++) { scene.update(STEP); T += STEP; } ui.length = 0; scene.draw(); present(); },
     key: k => scene.key && scene.key(k),
     keyUp: k => scene.keyUp && scene.keyUp(k),
     save: () => save,

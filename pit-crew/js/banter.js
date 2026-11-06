@@ -183,6 +183,24 @@ export const LINES = {
   BOSS: merge(BOSS, INTRO.BOSS),
 };
 
+// Player-chosen names: every line is written with the defaults and swapped on the way out.
+let renames = [];
+export function setNames(pairs) {
+  renames = [];
+  for (const [from, to] of pairs) {
+    if (!to || from === to) continue;
+    renames.push([new RegExp(`\\b${from}\\b`, 'g'), to]);
+    renames.push([new RegExp(`\\b${from.toUpperCase()}\\b`, 'g'), to.toUpperCase()]);
+  }
+}
+export function rename(text) {
+  // Park each new name behind a marker so one swap can't be swapped again
+  // (say the mechanic is renamed "Nico").
+  const hold = [];
+  for (const [re, to] of renames) text = text.replace(re, () => { hold.push(to); return `\u0001${hold.length - 1}\u0002`; });
+  return text.replace(/\u0001(\d+)\u0002/g, (_, i) => hold[+i]);
+}
+
 export class Director {
   constructor(people, rnd) {
     this.people = people;
@@ -206,7 +224,7 @@ export class Director {
     if (!conv) return;
     const lines = conv.map(([who, txt]) => {
       const w = who === '{drv}' ? vars.drv || 'nico' : who;
-      return { who: w, text: txt.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '') };
+      return { who: w, text: rename(txt).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '') };
     });
     if (prio >= 3) { this.queue = []; this.cur = null; }
     if (prio >= 2) this.queue.unshift(...lines.map(l => ({ ...l, prio })));

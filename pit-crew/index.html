@@ -11,17 +11,24 @@
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:#07080c;color:#e8e6dc;font:14px/1.4 "Segoe UI",system-ui,sans-serif;-webkit-user-select:none;user-select:none;overscroll-behavior:none;-webkit-touch-callout:none}
 #wrap{position:fixed;left:0;right:0;top:52px;bottom:0;display:grid;place-items:center}
-#game{display:block;image-rendering:pixelated;image-rendering:crisp-edges;outline:none;touch-action:none;background:#000;box-shadow:0 0 0 1px #1d2130,0 10px 40px #000}
+body.full #wrap{top:0}
+body.full .site-topbar{display:none}
+body.full{padding-top:0}
+#game{display:block;outline:none;touch-action:none;background:#000;box-shadow:0 0 0 1px #1d2130,0 10px 40px #000}
 .site-topbar .mute{margin-left:auto;margin-right:8px;padding:0 10px;border:1px solid #8c9b80;border-radius:999px}
+.site-topbar .fs{margin-right:8px;padding:0 10px;border:1px solid #8c9b80;border-radius:999px}
+@media(max-width:600px){.site-topbar .fs{display:none}}
 </style>
 </head>
 <body>
 <nav class="site-topbar" aria-label="Site">
   <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
   <button class="mute" id="mute" type="button" aria-label="Toggle sound">♪ Sound on</button>
+  <button class="fs" id="fs" type="button" aria-label="Full screen">⛶ Full screen</button>
   <a class="site-coffee" style="margin-left:0" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
 </nav>
 <script src="/site-nav.js"></script>
+<input id="typer" type="text" maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false" aria-label="Name" style="position:fixed;left:0;top:60px;width:1px;height:1px;opacity:0;font-size:16px;border:0;padding:0">
 <div id="wrap"><canvas id="game" width="512" height="288" tabindex="0" aria-label="Pit Crew '26"></canvas></div>
 <script type="module" src="js/main.js"></script>
 </body>
