@@ -931,6 +931,26 @@ window.SLOPWARE = {
      "note": "maps, a store between them, new abilities and customizable bosses",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 4,
+     "date": "2026-11-06T14:47:28-07:00",
+     "note": "fix vanishing 5-man tanks, the horse guy roared off the map, and stuck maps",
+     "prompts": 0,
+     "tokens": 0
+    }
+   ]
+  },
+  "boss-hours-2": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-06T14:47:28-07:00",
+     "note": "The Sequel, a roguelike reverse boss fight"
     }
    ]
   }
