@@ -769,8 +769,8 @@ window.SLOPWARE = {
   },
   "pit-crew": {
    "visits": 19,
-   "prompts": 4,
-   "tokens": 1431732,
+   "prompts": 5,
+   "tokens": 1677214,
    "sharedWith": null,
    "versions": [
     {
@@ -786,6 +786,13 @@ window.SLOPWARE = {
      "note": "clean text, a no-tyres option, and far more crew banter",
      "prompts": 2,
      "tokens": 941098
+    },
+    {
+     "n": 3,
+     "date": "2026-11-06T12:44:28-07:00",
+     "note": "team setup, fill-the-window scaling, per-track lights out",
+     "prompts": 1,
+     "tokens": 245482
     }
    ]
   },

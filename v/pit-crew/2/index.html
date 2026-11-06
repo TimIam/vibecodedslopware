@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pit Crew '26</title>
+<meta name="description" content="A reverse racing game: you are the pit crew, not the driver. Catch the car, jack it, gun four wheels, fuel it, fix the wing and release it into traffic, in rapid-fire quicktime events across a six-race season.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔧</text></svg>">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#07080c;color:#e8e6dc;font:14px/1.4 "Segoe UI",system-ui,sans-serif;-webkit-user-select:none;user-select:none;overscroll-behavior:none;-webkit-touch-callout:none}
+#wrap{position:fixed;left:0;right:0;top:52px;bottom:0;display:grid;place-items:center}
+#game{display:block;image-rendering:pixelated;image-rendering:crisp-edges;outline:none;touch-action:none;background:#000;box-shadow:0 0 0 1px #1d2130,0 10px 40px #000}
+.site-topbar .mute{margin-left:auto;margin-right:8px;padding:0 10px;border:1px solid #8c9b80;border-radius:999px}
+</style>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <button class="mute" id="mute" type="button" aria-label="Toggle sound">♪ Sound on</button>
+  <a class="site-coffee" style="margin-left:0" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<div id="wrap"><canvas id="game" width="512" height="288" tabindex="0" aria-label="Pit Crew '26"></canvas></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
