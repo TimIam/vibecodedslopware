@@ -510,7 +510,7 @@ function fire(g, k) {
       if (Math.hypot(u.x - b.x, u.y - b.y) > d.range) continue;
       u.fear = d.fear * (0.8 + g.rng() * 0.4);
       u.cast = 0;
-      if (u.role === 'rider' && u.mounted) u.state = 'orbit', u.orbitT = 1 + d.fear;
+      if (u.role === 'rider' && u.mounted) { u.state = 'orbit'; u.orbitT = 1 + d.fear; u.orbitA = Math.atan2(u.y - b.y, u.x - b.x); u.orbitDir ||= 1; }
     }
     for (const p of g.parties) if (p.type === 'raid' && p.engaged) { const u = alive(p)[1]; if (u) bark(g, u, pick(g, BARK.roar)); }
   } else if (k === 'shake') {
@@ -811,14 +811,17 @@ function updateParty(g, p, dt) {
     }
   }
 
-  // morale
-  if (p.engaged && !p.fleeing) {
-    const flee = p.type === 'raid' ? live.length <= Math.max(3, Math.round(p.units.length * 0.12)) : (live.length === 1 && live[0].role === 'healer' && p.units.length > 2);
-    if (flee && g.rng() < 0.55) {
+  // morale: a raid with only a few left, or with nobody left to stand in front, may give up. A raid that decided
+  // to stay thinks again every 12 s, so a handful of casters can never hold a map open forever.
+  p.fleeT = (p.fleeT || 0) - dt;
+  if (p.engaged && p.fleeing !== true && p.fleeT <= 0) {
+    const noFront = p.type === 'raid' && live.length <= p.units.length * 0.35 && !live.some(u => u.role === 'tank' || u.role === 'melee');
+    const few = p.type === 'raid' ? live.length <= Math.max(3, Math.round(p.units.length * 0.12)) : (live.length === 1 && live[0].role === 'healer' && p.units.length > 2);
+    if ((few || noFront) && (noFront || g.rng() < 0.55)) {
       p.fleeing = true;
-      bark(g, live[0], p.type === 'raid' ? pick(g, BARK.flee) : 'NOPE');
+      bark(g, live[0], noFront ? 'NO TANK. WIPE IT' : p.type === 'raid' ? pick(g, BARK.flee) : 'NOPE');
       for (const u of live) { u.state = 'flee'; u.exit = nearestExit(u); }
-    } else if (flee) p.fleeing = 'no';
+    } else if (few) { p.fleeing = 'no'; p.fleeT = 12; }
   }
 }
 
@@ -924,7 +927,7 @@ export function onIce(g, x, y) {
 function fightSpot(g, u) {
   const b = g.boss;
   let a, d;
-  if (u.role === 'tank') { a = b.face + [0, 0.95, -0.95, 0.5, -0.5][u.slot % 5]; d = b.r + 5; }
+  if (u.role === 'tank') { a = b.face + [0, 0.95, -0.95, 0.5, -0.5][(u.slot || 0) % 5]; d = b.r + 5; }
   else if (u.role === 'melee' || u.role === 'pet') { a = b.face + Math.PI + u.slotA; d = b.r + 4 + u.slotD; }
   else { a = u.slotA; d = u.slotD; }
   return { x: clamp(b.x + Math.cos(a) * d, ARENA.x0, ARENA.x1), y: clamp(b.y + Math.sin(a) * d, ARENA.y0, ARENA.y1) };
