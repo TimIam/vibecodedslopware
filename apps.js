@@ -770,7 +770,7 @@ window.SLOPWARE = {
   "pit-crew": {
    "visits": 19,
    "prompts": 5,
-   "tokens": 1677214,
+   "tokens": 1683807,
    "sharedWith": null,
    "versions": [
     {
@@ -792,7 +792,7 @@ window.SLOPWARE = {
      "date": "2026-11-06T12:44:28-07:00",
      "note": "team setup, fill-the-window scaling, per-track lights out",
      "prompts": 1,
-     "tokens": 245482
+     "tokens": 252075
     }
    ]
   },
@@ -907,7 +907,7 @@ window.SLOPWARE = {
   },
   "boss-hours": {
    "visits": 4,
-   "prompts": 3,
+   "prompts": 4,
    "tokens": 718948,
    "sharedWith": null,
    "versions": [
@@ -916,7 +916,14 @@ window.SLOPWARE = {
      "date": "2026-11-06T12:23:42-07:00",
      "note": "a reverse boss fight in top-down pixel art",
      "prompts": 3,
-     "tokens": 718948
+     "tokens": 702700
+    },
+    {
+     "n": 2,
+     "date": "2026-11-06T13:15:21-07:00",
+     "note": "spend loot on adds and abilities; raids grow and multiply",
+     "prompts": 1,
+     "tokens": 16248
     }
    ]
   }
