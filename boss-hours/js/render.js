@@ -1,10 +1,9 @@
 // Draws a game state into a 320×180 buffer. Everything lands on whole pixels.
 
 import { PAL, drawText, textWidth, ICONS, makeBossSprites, BOSS_DIRS, BOSS_SIZE, tinted, hash, newCanvas } from './art.js';
-import { W, H, A, B, LEASH, ORDER, CLASS, ADDS, SHOP, angDiff, segDist, segNearest, zoneFace, offer } from './world.js';
+import { W, H, LEASH, CLASS, ADDS, SLOT_KEYS, RAID_LAPS, FINAL_LAPS, angDiff, pathDist, pathNearest, zoneFace, beamEnd, destRock } from './world.js';
 
 const TAU = Math.PI * 2;
-const KEYS = { swipe: 'LMB', stomp: 'RMB', breath: 'Q', roar: 'E', shake: 'SPC', tail: 'R', charge: 'SHF' };
 
 function vnoise(x, y) {
   const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
@@ -14,14 +13,29 @@ function vnoise(x, y) {
   return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
 }
 
+// each map's ground, path, trees and flowers
+const THEME_PAL = {
+  clearing: { grass: [PAL.grass0, PAL.grass1, PAL.grass2, PAL.grass3], tuft: [PAL.tuft, PAL.tuftHi], canopy: [PAL.canopy0, PAL.canopy1, PAL.canopy2, PAL.canopy3],
+    dirt: [PAL.dirt0, PAL.dirt1, PAL.dirt2, PAL.dirt3], flowers: [PAL.cream, PAL.yellow, PAL.pink, PAL.frost] },
+  autumn: { grass: ['#3a2a16', '#4a3519', '#5c4220', '#6e5126'], tuft: ['#8a5a22', '#b06f26'], canopy: ['#1c0e08', '#4a1a0e', '#7a2c12', '#b0501c'],
+    dirt: ['#33251a', '#4a3825', '#5e4830', '#72583a'], flowers: [PAL.gold, PAL.red, PAL.orange] },
+  ash: { grass: ['#24221e', '#2c2a25', '#35322c', '#3f3b34'], tuft: ['#4a463e', '#5a554b'], canopy: ['#0b0a09', '#161412', '#211e1b', '#2e2a25'],
+    dirt: ['#1a1714', '#26221e', '#322d27', '#3e3830'], flowers: ['#ff6a2a', '#ffb02e', '#c0392b'] },
+  snow: { grass: ['#aab8c3', '#bccad4', '#cfdbe3', '#e2eaf0'], tuft: ['#93a5b3', '#a3b4c1'], canopy: ['#0b1812', '#13261d', '#1d382a', '#dfe8ee'],
+    dirt: ['#6e6459', '#83786b', '#968a7c', '#a99d8e'], flowers: ['#ffffff', '#9fd8ff'] },
+};
+
+const lookKey = l => `${l.head}${l.neck}${l.back}${l.tail}${l.limbs}`;
+
 export function createRenderer() {
   const buf = newCanvas(W, H), ctx = buf.getContext('2d');
-  const boss = makeBossSprites();
-  const bg = makeBackground(), fg = makeForeground(), shadow = makeShadow();
+  const shadow = makeShadow();
   const trail = newCanvas(W, H), tctx = trail.getContext('2d');
-  let fps = 0;
+  let boss = null, bg = null, fg = null, bgFor = null;
 
   function render(g, view = {}) {
+    if (!boss || boss.key !== lookKey(g.look)) boss = makeBossSprites(g.look);
+    if (bgFor !== g.map) { bg = makeBackground(g.map); fg = makeForeground(g.map.theme.id); bgFor = g.map; tctx.clearRect(0, 0, W, H); }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
     const s = g.shake > 0 ? Math.ceil(g.shake * 4) : 0;
@@ -40,12 +54,14 @@ export function createRenderer() {
     ctx.drawImage(trail, 0, 0);
 
     drawLeash(ctx, g);
+    for (const i of g.ice) drawIce(ctx, i, g);
     drawFires(ctx, g);
     drawTelegraph(ctx, g);
     for (const c of g.corpses) drawCorpse(ctx, c);
     for (const r of g.rings) if (r.col !== 'slash') drawRing(ctx, r);
+    if (!g.clear) drawMarker(ctx, g, false);
 
-    // y-sorted: adventurers, loose horses, the boss
+    // y-sorted: adventurers, loose horses, adds, the boss
     const list = [];
     for (const u of g.units) {
       if (u.role === 'rider') {
@@ -59,7 +75,9 @@ export function createRenderer() {
     list.sort((a, b) => a.y - b.y);
     for (const d of list) d.f();
     for (const u of g.units) if (u.role === 'rider' && u.state === 'climb') drawClimber(ctx, u, g);
+    if (!g.clear) drawMarker(ctx, g, true);
 
+    drawBeam(ctx, g);
     for (const o of g.bolts) drawBolt(ctx, o);
     for (const r of g.rings) if (r.col === 'slash') drawSlash(ctx, r);
     for (const p of g.parts) if (!p.horse) drawPart(ctx, p);
@@ -83,21 +101,30 @@ export function createRenderer() {
     const a = ((b.face % TAU) + TAU) % TAU;
     const dir = Math.round(a / TAU * BOSS_DIRS) % BOSS_DIRS;
     const act = b.act;
-    const mouth = act && (act.kind === 'breath' || act.kind === 'roar') ? 1 : 0;
+    const mouth = act && (act.kind === 'breath' || act.kind === 'roar' || act.kind === 'beam' || act.kind === 'summon') ? 1 : 0;
     let frame = b.moving ? Math.floor(b.walk / 2.2) % 4 : 0;
     let lift = 0, jx = 0;
     if (act?.kind === 'stomp' && !act.fired) lift = -Math.round(act.t / g.abil.stomp.wind * 3);
     if (act?.kind === 'charge' && !act.fired) jx = -Math.round(Math.cos(b.face) * 2);
     if (act?.kind === 'shake') { jx = (Math.floor(act.t * 30) % 2) ? 1 : -1; frame = Math.floor(act.t * 20) % 4; }
+    if (act?.kind === 'beam' && !act.fired) jx = (Math.floor(act.t * 24) % 2) ? 1 : 0;
     const x = Math.round(b.x) - BOSS_SIZE / 2 + jx, y = Math.round(b.y) - BOSS_SIZE / 2;
     ctx.globalAlpha = 0.4;
     ctx.drawImage(shadow, Math.round(b.x) - 14, Math.round(b.y) - 9);
     ctx.globalAlpha = 1;
-    const spr = boss[dir][mouth * 4 + frame];
+    // zoomies leave afterimages
+    if (b.haste > 0 && b.moving) {
+      const back = boss.get(dir, frame);
+      ctx.globalAlpha = 0.18; ctx.drawImage(tinted(back, PAL.gold), x - Math.round(Math.cos(b.face) * 6), y - Math.round(Math.sin(b.face) * 6));
+      ctx.globalAlpha = 1;
+    }
+    const spr = boss.get(dir, mouth * 4 + frame);
     if (b.evade) ctx.globalAlpha = (Math.floor(g.t * 12) % 2) ? 0.55 : 0.85;
     ctx.drawImage(spr, x, y + lift);
     if (b.dead) { ctx.globalAlpha = Math.min(0.6, b.deadT * 0.4); ctx.drawImage(tinted(spr, PAL.rock0), x, y); }
     else if (b.flash > 0) { ctx.globalAlpha = 0.55; ctx.drawImage(tinted(spr, '#ffffff'), x, y + lift); }
+    else if (act?.kind === 'beam') { ctx.globalAlpha = act.fired ? 0.35 : Math.min(0.6, act.t / g.abil.beam.wind * 0.6) * (0.6 + 0.4 * Math.sin(g.t * 40)); ctx.drawImage(tinted(spr, PAL.beam), x, y + lift); }
+    else if (act?.kind === 'summon') { ctx.globalAlpha = 0.3; ctx.drawImage(tinted(spr, PAL.shadow), x, y + lift); }
     ctx.globalAlpha = 1;
     // a taunt is a tether to the tank who did it
     if (b.taunt && !b.dead) {
@@ -121,46 +148,53 @@ export function createRenderer() {
 
   function reset() { tctx.clearRect(0, 0, W, H); }
 
-  return { buf, render, reset, get fps() { return fps; } };
+  return { buf, render, reset };
+}
+
+// a still of the boss for the store: one look, one heading, drawn at 1 px per pixel
+const previews = new Map();
+export function bossPreview(look, dir, frame = 0) {
+  const k = lookKey(look);
+  if (!previews.has(k)) previews.set(k, makeBossSprites(look));
+  return previews.get(k).get(dir, frame);
 }
 
 // ------------------------------------------------------------------------------------------------ the ground
 
-function makeBackground() {
+function makeBackground(m) {
+  const T = THEME_PAL[m.theme.id];
   const c = newCanvas(W, H), x = c.getContext('2d');
-  const grass = [PAL.grass0, PAL.grass1, PAL.grass2, PAL.grass3];
+  const so = m.seed % 1000;
   for (let py = 0; py < H; py++) for (let px = 0; px < W; px++) {
-    const n = vnoise(px / 22, py / 22) * 0.55 + vnoise(px / 7 + 40, py / 7) * 0.3 + hash(px, py) * 0.2;
+    const n = vnoise(px / 22 + so, py / 22) * 0.55 + vnoise(px / 7 + 40 + so, py / 7) * 0.3 + hash(px + so, py) * 0.2;
     const lvl = Math.max(0, Math.min(3, Math.floor(n * 3.4 - 0.35 + ((px + py) & 1) * 0.3)));
-    x.fillStyle = grass[lvl];
+    x.fillStyle = T.grass[lvl];
     x.fillRect(px, py, 1, 1);
   }
   // the path, worn by a thousand years of pacing
-  for (let py = 70; py < 130; py++) for (let px = A.x - 20; px < B.x + 20; px++) {
-    const p = segNearest(px + 0.5, py + 0.5);
-    const off = Math.sin(p.t * Math.PI * 4 + 0.6) * 1.8;
-    const d = Math.hypot(px + 0.5 - p.x, py + 0.5 - (p.y + off));
-    const w = 5.2 + vnoise(px / 6, 3.3) * 2.6;
+  for (let py = 0; py < H; py++) for (let px = 0; px < W; px++) {
+    const d = m.df[py * W + px];
+    const w = 5.2 + vnoise(px / 6 + so, py / 6) * 2.6;
     if (d > w + 1.5) continue;
     const n = vnoise(px / 3, py / 3) + hash(px * 3, py) * 0.4;
-    if (d > w) { if (hash(px, py * 7) < 0.45) { x.fillStyle = PAL.dirt0; x.fillRect(px, py, 1, 1); } continue; }
-    x.fillStyle = d > w - 1.3 ? PAL.dirt0 : n > 1.05 ? PAL.dirt3 : n > 0.7 ? PAL.dirt2 : PAL.dirt1;
+    if (d > w) { if (hash(px, py * 7) < 0.45) { x.fillStyle = T.dirt[0]; x.fillRect(px, py, 1, 1); } continue; }
+    x.fillStyle = d > w - 1.3 ? T.dirt[0] : n > 1.05 ? T.dirt[3] : n > 0.7 ? T.dirt[2] : T.dirt[1];
     x.fillRect(px, py, 1, 1);
   }
   // tufts, pebbles, flowers
-  let seed = 7;
+  let seed = 7 + m.n * 101;
   const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 700; i++) {
     const px = Math.floor(r() * W), py = Math.floor(r() * H);
-    if (segDist(px, py) < 9) continue;
-    x.fillStyle = r() < 0.5 ? PAL.tuft : PAL.tuftHi;
+    if (m.df[py * W + px] < 9) continue;
+    x.fillStyle = r() < 0.5 ? T.tuft[0] : T.tuft[1];
     x.fillRect(px, py, 1, 1);
-    x.fillStyle = PAL.tuft; x.fillRect(px + (r() < 0.5 ? -1 : 1), py + 1, 1, 1);
+    x.fillStyle = T.tuft[0]; x.fillRect(px + (r() < 0.5 ? -1 : 1), py + 1, 1, 1);
   }
   for (let i = 0; i < 60; i++) {
     const px = Math.floor(r() * W), py = Math.floor(r() * H);
-    if (segDist(px, py) < 9) continue;
-    x.fillStyle = [PAL.cream, PAL.yellow, PAL.pink, PAL.frost][Math.floor(r() * 4)];
+    if (m.df[py * W + px] < 9) continue;
+    x.fillStyle = T.flowers[Math.floor(r() * T.flowers.length)];
     x.fillRect(px, py, 1, 1);
   }
   for (let i = 0; i < 40; i++) {
@@ -168,8 +202,9 @@ function makeBackground() {
     x.fillStyle = PAL.rock1; x.fillRect(px, py, 1, 1);
     x.fillStyle = PAL.rock0; x.fillRect(px + 1, py + 1, 1, 1);
   }
-  drawRock(x, A.x, A.y, 6.2, 1, 3);
-  drawRock(x, B.x, B.y, 5.6, 2, 7);
+  const { A, B } = m;
+  drawRock(x, Math.round(A.x), Math.round(A.y), 6.2, 1, 3);
+  drawRock(x, Math.round(B.x), Math.round(B.y), 5.6, 2, 7);
   drawText(x, 'ROCK', A.x, A.y + 10, PAL.rock3, { align: 'center', alpha: 0.75 });
   drawText(x, 'OTHER ROCK', B.x, B.y + 10, PAL.rock3, { align: 'center', alpha: 0.75 });
   return c;
@@ -192,10 +227,11 @@ function drawRock(x, cx, cy, R, kind, sd) {
 }
 
 // a ring of tree canopies round the clearing, drawn over everything that walks under them
-function makeForeground() {
+function makeForeground(theme) {
+  const T = THEME_PAL[theme];
   const c = newCanvas(W, H), x = c.getContext('2d');
   const trees = [];
-  let seed = 31;
+  let seed = 31 + theme.length * 7;
   const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let px = -6; px < W + 10; px += 11 + r() * 7) { trees.push([px, -4 + r() * 6, 8 + r() * 6]); trees.push([px + 5, H + 3 - r() * 6, 8 + r() * 6]); }
   for (let py = 10; py < H; py += 12 + r() * 7) { trees.push([-5 + r() * 5, py, 8 + r() * 5]); trees.push([W + 5 - r() * 5, py + 6, 8 + r() * 5]); }
@@ -218,7 +254,7 @@ function makeForeground() {
     const t = trees[owner[i]];
     const edge = !on(px - 1, py) || !on(px + 1, py) || !on(px, py - 1) || !on(px, py + 1);
     const l = (-(px - t[0]) * 0.55 - (py - t[1]) * 0.8) / t[2] + (hash(px * 3 + 1, py * 5) - 0.5) * 0.5;
-    x.fillStyle = edge ? PAL.ink : l > 0.55 ? PAL.canopy3 : l > 0 ? PAL.canopy2 : l > -0.5 ? PAL.canopy1 : PAL.canopy0;
+    x.fillStyle = edge ? PAL.ink : l > 0.55 ? T.canopy[3] : l > 0 ? T.canopy[2] : l > -0.5 ? T.canopy[1] : T.canopy[0];
     x.fillRect(px, py, 1, 1);
   }
   return c;
@@ -236,25 +272,144 @@ function makeShadow() {
 
 // ------------------------------------------------------------------------------------------------ world bits
 
+// dotted leash line, only near the boss and only once it is getting close to it
 function drawLeash(ctx, g) {
-  const b = g.boss;
-  const near = segDist(b.x, b.y);
+  const b = g.boss, m = g.map;
+  const near = pathDist(m, b.x, b.y);
   const a = Math.max(0, Math.min(1, (near - (LEASH - 28)) / 22));
   if (a <= 0 || b.dead) return;
   ctx.fillStyle = PAL.cream;
   ctx.globalAlpha = a * 0.5;
-  for (let i = 0; i < 260; i++) {
-    const t = i / 260;
-    let px, py;
-    // stadium outline: two straight sides, two half circles
-    const len = B.x - A.x, arc = Math.PI * LEASH, per = 2 * len + 2 * arc, s = t * per;
-    if (s < len) { px = A.x + s; py = A.y - LEASH; }
-    else if (s < len + arc) { const k = (s - len) / LEASH - Math.PI / 2; px = B.x + Math.cos(k) * LEASH; py = B.y + Math.sin(k) * LEASH; }
-    else if (s < 2 * len + arc) { px = B.x - (s - len - arc); py = A.y + LEASH; }
-    else { const k = (s - 2 * len - arc) / LEASH + Math.PI / 2; px = A.x + Math.cos(k) * LEASH; py = A.y + Math.sin(k) * LEASH; }
-    if (Math.hypot(px - b.x, py - b.y) < 60 && (i + Math.floor(g.t * 6)) % 3 === 0) ctx.fillRect(Math.round(px), Math.round(py), 1, 1);
+  const t = Math.floor(g.t * 6);
+  for (let py = Math.max(0, Math.floor(b.y - 60)); py < Math.min(H, b.y + 60); py++) for (let px = Math.max(0, Math.floor(b.x - 60)); px < Math.min(W, b.x + 60); px++) {
+    const d = m.df[py * W + px];
+    if (Math.abs(d - LEASH) < 0.55 && (px + py + t) % 3 === 0 && Math.hypot(px - b.x, py - b.y) < 60) ctx.fillRect(px, py, 1, 1);
   }
   ctx.globalAlpha = 1;
+}
+
+function drawIce(ctx, i, g) {
+  const fade = i.t < 0.2 ? i.t / 0.2 : i.t > i.life - 1.2 ? Math.max(0, (i.life - i.t) / 1.2) : 1;
+  const R = Math.ceil(i.r), fr = Math.floor(g.t * 4);
+  for (let py = -R; py <= R; py++) for (let px = -R; px <= R; px++) {
+    const d = Math.hypot(px, py) / i.r;
+    if (d > 1) continue;
+    const wx = Math.round(i.x) + px, wy = Math.round(i.y) + py;
+    const h = hash(wx * 3 + i.seed, wy * 5);
+    if (d > 0.85 && h < (d - 0.85) * 5) continue;
+    const crack = Math.abs(Math.sin((Math.atan2(py, px) * 5 + i.seed) )) < 0.08 && d > 0.2;
+    ctx.globalAlpha = fade * (crack ? 0.7 : 0.45);
+    ctx.fillStyle = crack ? '#ffffff' : h > 0.82 ? PAL.ice1 : (px + py) & 1 ? PAL.ice0 : PAL.ice2;
+    ctx.fillRect(wx, wy, 1, 1);
+    if (h > 0.996 && (fr + wx) % 3 === 0) { ctx.globalAlpha = fade; ctx.fillStyle = '#ffffff'; ctx.fillRect(wx, wy, 1, 1); }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// the lightning beam: a white core, a cyan sheath and forks of lightning crawling along it
+function drawBeam(ctx, g) {
+  const b = g.boss, a = b.act;
+  if (!a || a.kind !== 'beam' || !a.fired || b.dead) return;
+  const e = beamEnd(g), c = Math.cos(b.face), s = Math.sin(b.face), w = g.abil.beam.width;
+  const fr = Math.floor(g.t * 30);
+  const fade = Math.min(1, (g.abil.beam.wind + g.abil.beam.dur - a.t) / 0.25);
+  for (let l = 10; l < e.len; l += 0.7) {
+    const bx = b.x + c * l, by = b.y + s * l;
+    const wob = Math.sin(l * 0.3 + fr) * 0.6;
+    for (let k = -w; k <= w; k += 0.7) {
+      const px = Math.round(bx - s * (k + wob)), py = Math.round(by + c * (k + wob));
+      const ak = Math.abs(k);
+      ctx.globalAlpha = fade * (ak < 1.2 ? 1 : ak < w * 0.6 ? 0.8 : 0.35);
+      ctx.fillStyle = ak < 1.2 ? '#ffffff' : ak < w * 0.6 ? PAL.beam : PAL.blue;
+      ctx.fillRect(px, py, 1, 1);
+    }
+  }
+  // forks
+  ctx.fillStyle = PAL.spark;
+  for (let f = 0; f < 4; f++) {
+    let l = (hash(fr, f) * 0.9 + 0.05) * e.len, k = 0;
+    const side = hash(fr, f + 9) < 0.5 ? -1 : 1;
+    for (let i = 0; i < 10; i++) {
+      l += 1.5; k += side * (0.5 + hash(fr + i, f) * 1.5);
+      ctx.globalAlpha = fade * 0.8;
+      ctx.fillRect(Math.round(b.x + c * l - s * k), Math.round(b.y + s * l + c * k), 1, 1);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// what marks the rock you are walking to, in the style you picked at the store
+function drawMarker(ctx, g, over) {
+  const R = destRock(g), style = g.look.marker || 0, t = g.t;
+  const x = Math.round(R.x), y = Math.round(R.y);
+  if (style === 0) {
+    if (!over) return;
+    // twinkling four-point sparkles circling the rock
+    for (let i = 0; i < 6; i++) {
+      const a = t * 0.8 + i * TAU / 6, rr = 9 + Math.sin(t * 2 + i) * 2;
+      const sx = Math.round(x + Math.cos(a) * rr), sy = Math.round(y - 3 + Math.sin(a) * rr * 0.6);
+      const tw = (Math.sin(t * 6 + i * 1.7) + 1) / 2;
+      ctx.globalAlpha = 0.4 + tw * 0.6;
+      px(ctx, sx, sy, tw > 0.7 ? '#ffffff' : PAL.gold);
+      if (tw > 0.45) { ctx.fillStyle = PAL.gold; ctx.fillRect(sx - 1, sy, 1, 1); ctx.fillRect(sx + 1, sy, 1, 1); ctx.fillRect(sx, sy - 1, 1, 1); ctx.fillRect(sx, sy + 1, 1, 1); }
+      if (tw > 0.85) { ctx.globalAlpha = 0.5; ctx.fillRect(sx - 2, sy, 1, 1); ctx.fillRect(sx + 2, sy, 1, 1); ctx.fillRect(sx, sy - 2, 1, 1); ctx.fillRect(sx, sy + 2, 1, 1); }
+    }
+    ctx.globalAlpha = 0.35 + 0.25 * Math.sin(t * 3);
+    ring(ctx, x, y, 7, PAL.gold, ctx.globalAlpha);
+    ctx.globalAlpha = 1;
+  } else if (style === 1) {
+    // a small black hole over the rock, eating the light around it
+    const cy = y - 13;
+    if (!over) { ctx.globalAlpha = 0.3; ctx.fillStyle = PAL.ink; for (let py = -9; py <= 9; py++) for (let qx = -11; qx <= 11; qx++) if ((qx / 11) ** 2 + (py / 9) ** 2 < 1 && (qx + py) & 1) ctx.fillRect(x + qx, cy + py, 1, 1); ctx.globalAlpha = 1; return; }
+    for (let i = 0; i < 28; i++) {
+      const a = t * (2.4 - (i % 3) * 0.4) + i * 0.7, rr = 5.5 + (i % 3) * 1.4;
+      const sx = Math.round(x + Math.cos(a) * rr), sy = Math.round(cy + Math.sin(a) * rr * 0.45);
+      px(ctx, sx, sy, i % 4 === 0 ? '#ffffff' : i % 2 ? PAL.orange : PAL.purple);
+    }
+    ctx.fillStyle = '#000000';
+    for (let py = -3; py <= 3; py++) for (let qx = -3; qx <= 3; qx++) if (qx * qx + py * py <= 10) ctx.fillRect(x + qx, cy + py, 1, 1);
+    ctx.globalAlpha = 0.6; ring(ctx, x, cy, 4, PAL.purple, 0.6); ctx.globalAlpha = 1;
+  } else if (style === 2) {
+    if (!over) return;
+    // a sat-nav arrow bobbing over the rock, with the distance left along the path
+    const by = y - 16 + Math.round(Math.sin(t * 4) * 1.5);
+    const arrow = ['#######', '.#####.', '..###..', '...#...'];
+    arrow.forEach((row, ry) => { for (let rx = 0; rx < 7; rx++) if (row[rx] === '#') { px(ctx, x - 3 + rx, by + ry, ry === 0 || rx === 0 || rx === 6 ? '#ffffff' : '#3a7bff'); } });
+    ctx.fillStyle = PAL.ink; ctx.fillRect(x - 4, by - 1, 9, 1);
+    const b = g.boss, here = pathNearest(g.map, b.x, b.y), left = Math.max(0, Math.round(R === g.map.B ? g.map.len - here.s : here.s));
+    drawText(ctx, left < 20 ? 'ARRIVE' : `${left} M`, x, by - 8, '#9fc4ff', { align: 'center' });
+  } else if (style === 3) {
+    if (!over) return;
+    // a poor soul tied to a wooden cross above the rock
+    const top = y - 22, sway = Math.round(Math.sin(t * 1.5) * 0.6);
+    ctx.fillStyle = PAL.ink; ctx.fillRect(x - 1, top - 1, 3, 17); ctx.fillRect(x - 5, top + 2, 11, 3);
+    ctx.fillStyle = PAL.horse; ctx.fillRect(x, top, 1, 15); ctx.fillRect(x - 4, top + 3, 9, 1);
+    px(ctx, x + sway, top + 1, PAL.skin);                                // head, lolling
+    ctx.fillStyle = PAL.white; ctx.fillRect(x - 1, top + 3, 3, 4);       // rags
+    px(ctx, x - 3, top + 3, PAL.skin); px(ctx, x + 3, top + 3, PAL.skin); // hands
+    px(ctx, x, top + 8, PAL.skin);
+    if (Math.floor(t / 4) % 3 === 0 && (t % 4) < 1.6) drawText(ctx, 'HELP', x + 8, top - 2, PAL.cream, { alpha: 0.85 });
+  } else if (style === 4) {
+    // a disco ball on a string, throwing coloured light around the rock
+    const by = y - 18;
+    if (!over) {
+      const cols = [PAL.pink, PAL.blue, PAL.gold, PAL.green, PAL.purple];
+      for (let i = 0; i < 14; i++) {
+        const a = t * 1.3 + i * 2.1, rr = 6 + (i * 7 % 13);
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = cols[i % cols.length];
+        ctx.fillRect(Math.round(x + Math.cos(a) * rr), Math.round(y + Math.sin(a) * rr * 0.6), 2, 1);
+      }
+      ctx.globalAlpha = 1;
+      return;
+    }
+    ctx.fillStyle = PAL.rock2; ctx.fillRect(x, by - 8, 1, 6);
+    for (let py = -2; py <= 2; py++) for (let qx = -2; qx <= 2; qx++) {
+      if (qx * qx + py * py > 5) continue;
+      const lit = (qx + py + Math.floor(t * 8)) % 3 === 0;
+      px(ctx, x + qx, by + py, lit ? '#ffffff' : (qx + py) & 1 ? PAL.rock3 : PAL.rock2);
+    }
+  }
 }
 
 function drawFires(ctx, g) {
@@ -281,7 +436,9 @@ function drawTelegraph(ctx, g) {
   if (!a || b.dead) return;
   const k = a.kind, d = g.abil[k];
   if (k === 'shake') return;
-  if (k === 'charge') { if (!a.fired) drawLane(ctx, g, d, a.t / d.wind); return; }
+  if (k === 'charge') { if (!a.fired) drawLane(ctx, g, d.range, d.width, a.t / d.wind); return; }
+  if (k === 'beam') { if (!a.fired) drawLane(ctx, g, beamEnd(g).len, d.width, a.t / d.wind); return; }
+  if (k === 'summon' || k === 'ice' || k === 'haste') return;
   if (k === 'roar') {
     if (a.fired) return;
     const rr = 6 + a.t / d.wind * 8;
@@ -316,13 +473,14 @@ function drawTelegraph(ctx, g) {
   ctx.globalAlpha = 1;
 }
 
-function drawLane(ctx, g, d, prog) {
+function drawLane(ctx, g, range, width, prog) {
+  const d = { range, width };
   const b = g.boss, c = Math.cos(b.face), s = Math.sin(b.face), R = d.range + 4;
   const blink = Math.floor(g.t * (prog > 0.6 ? 24 : 10)) & 1;
   ctx.fillStyle = PAL.tele;
   for (let py = Math.floor(b.y - R); py <= Math.ceil(b.y + R); py++) for (let qx = Math.floor(b.x - R); qx <= Math.ceil(b.x + R); qx++) {
     const dx = qx + 0.5 - b.x, dy = py + 0.5 - b.y, lx = dx * c + dy * s, ly = -dx * s + dy * c;
-    if (lx < 8 || lx > d.range || Math.abs(ly) > d.width) continue;
+    if (qx < 0 || py < 0 || qx >= W || py >= H || lx < 8 || lx > d.range || Math.abs(ly) > d.width) continue;
     const edge = lx > d.range - 1 || Math.abs(ly) > d.width - 1;
     const al = edge ? 0.85 : lx < 8 + (d.range - 8) * prog ? (((qx + py + blink) & 1) ? 0.42 : 0.16) : (((qx + py) & 1) ? 0.12 : 0);
     if (!al) continue;
@@ -349,6 +507,7 @@ function drawRing(ctx, r) {
   const k = r.t / 0.45;
   const rr = r.r + (r.max - r.r) * (1 - (1 - k) * (1 - k));
   if (r.col === 'dust') { ring(ctx, r.x, r.y, rr, PAL.dust, (1 - k) * 0.9); ring(ctx, r.x, r.y, rr * 0.8, PAL.dirt3, (1 - k) * 0.5); }
+  else if (r.col === 'ice') { ring(ctx, r.x, r.y, rr, '#ffffff', (1 - k) * 0.9); ring(ctx, r.x, r.y, rr * 0.85, PAL.ice0, (1 - k) * 0.6); }
   else { ring(ctx, r.x, r.y, rr, PAL.cream, (1 - k) * 0.8); ring(ctx, r.x, r.y, rr * 0.7, PAL.cream, (1 - k) * 0.45); }
 }
 
@@ -485,41 +644,26 @@ function drawClimber(ctx, u, g) {
 const ADD_ART = {
   gnasher: [['.h..h.', 'kFFFFk', 'kfFFek', 'kfffFk', '.k..k.'], ['.h..h.', 'kFFFFk', 'kfFFek', 'kfffFk', '..kk..']],
   spitter: [['..kkk..', '.kRRRk.', 'kRrRRek', 'kRrRRmk', 'kRRrRRk', '.kkkkk.'], ['..kkk..', '.kRRRk.', 'kRrRRek', 'kRrRMMM', 'kRRrRRk', '.kkkkk.']],
+  necro: [['..kkk..s', '.kPPPk.s', '.kPgPk.s', 'kPPPPPks', 'kPpPPPks', 'kPPPPPk.', '.kk.kk..'], ['..kkk..G', '.kPPPk.s', '.kPgPk.s', 'kPPPPPks', 'kPpPPPks', 'kPPPPPk.', '.kk.kk..']],
+  skeleton: [['.b.', 'bbb', '.b.', 'b.b'], ['.b.', 'bbb', '.b.', '.b.']],
 };
-const ADD_COL = { k: PAL.ink, F: PAL.fur3, f: PAL.fur2, e: PAL.eye, h: PAL.horn, R: '#b8452a', r: '#7e2a18', m: '#3a120a', M: PAL.fire3 };
+const ADD_COL = { k: PAL.ink, F: PAL.fur3, f: PAL.fur2, e: PAL.eye, h: PAL.horn, R: '#b8452a', r: '#7e2a18', m: '#3a120a', M: PAL.fire3,
+  P: '#4a2a5e', p: '#2e1a3c', g: PAL.heal, s: PAL.brown, G: PAL.heal, b: PAL.bone };
 
 function drawAdd(ctx, a, g) {
   const x = Math.round(a.x), y = Math.round(a.y), flip = a.fx < 0, flash = a.hit > 0;
   ctx.fillStyle = 'rgba(8,10,6,.4)'; ctx.fillRect(x - Math.ceil(a.r), y + 1, Math.ceil(a.r) * 2 + 1, 1);
-  if (a.kind === 'lump') drawLump(ctx, a, x, y, flip, flash, g);
-  else {
+  {
     const frames = ADD_ART[a.kind];
-    const map = a.kind === 'spitter' ? frames[a.swing > 0 ? 1 : 0] : frames[a.moving ? Math.floor(a.walk) % 2 : 0];
+    const map = a.kind === 'spitter' || a.kind === 'necro' ? frames[a.swing > 0 ? 1 : 0] : frames[a.moving ? Math.floor(a.walk) % 2 : 0];
     const w = map[0].length, h = map.length, ox = x - Math.floor(w / 2), oy = y - h + 1 - (a.kind === 'gnasher' && a.swing > 0 ? 1 : 0);
     map.forEach((row, ry) => { for (let rx = 0; rx < w; rx++) { const ch = row[flip ? w - 1 - rx : rx]; if (ch !== '.') px(ctx, ox + rx, oy + ry, flash ? '#ffffff' : ADD_COL[ch]); } });
   }
   if (a.hp < a.maxhp) {
-    const bw = a.kind === 'lump' ? 11 : 5, bx = x - Math.floor(bw / 2), by = y - (a.kind === 'lump' ? 13 : 7);
+    const bw = 5, bx = x - 2, by = y - (a.kind === 'necro' ? 9 : 7);
     ctx.fillStyle = PAL.ink; ctx.fillRect(bx, by, bw, 1);
     ctx.fillStyle = PAL.gold; ctx.fillRect(bx, by, Math.max(1, Math.round(bw * a.hp / a.maxhp)), 1);
   }
-}
-
-// a big mossy mound of fur with two small eyes
-function drawLump(ctx, a, x, y, flip, flash, g) {
-  const bob = a.moving ? Math.floor(a.walk / 2) % 2 : 0, squash = a.swing > 0 ? 1 : 0;
-  const rx = 6.5 + squash, ry = 5 - squash, cy = y - 4 + bob + squash;
-  const inside = (qx, qy) => ((qx + 0.5 - x) / rx) ** 2 + ((qy + 0.5 - cy) / ry) ** 2 < 1;
-  for (let qy = Math.floor(cy - ry) - 1; qy <= cy + ry + 1; qy++) for (let qx = x - 8; qx <= x + 8; qx++) {
-    if (!inside(qx, qy)) continue;
-    const edge = !inside(qx - 1, qy) || !inside(qx + 1, qy) || !inside(qx, qy - 1) || !inside(qx, qy + 1);
-    const l = (-(qx - x) * 0.5 - (qy - cy) * 0.9) / ry + (hash(qx * 3, qy * 7) - 0.5) * 0.6;
-    px(ctx, qx, qy, flash ? '#ffffff' : edge ? PAL.ink : l > 0.6 ? PAL.moss : l > 0 ? PAL.fur2 : l > -0.6 ? PAL.fur1 : PAL.fur0);
-  }
-  if (flash) return;
-  const ex = flip ? -1 : 1;
-  px(ctx, x + ex * 3, cy, PAL.eye); px(ctx, x + ex * 5, cy, PAL.eye);
-  px(ctx, x + ex * 2, cy - 4, PAL.horn); px(ctx, x + ex * 5, cy - 3, PAL.horn);
 }
 
 function drawCorpse(ctx, c) {
@@ -590,13 +734,17 @@ function fmt(n) { return Math.floor(n).toString().replace(/\B(?=(\d{3})+(?!\d))/
 
 function drawHud(ctx, g, view) {
   const b = g.boss;
+  // a faint backing so the HUD reads on pale maps too
+  ctx.fillStyle = PAL.ink; ctx.globalAlpha = 0.28;
+  ctx.fillRect(0, 0, 136, 36); ctx.fillRect(W - Math.max(108, textWidth(b.name) + 8), 0, Math.max(108, textWidth(b.name) + 8), 24);
+  ctx.globalAlpha = 1;
   drawText(ctx, fmt(g.score), 4, 3, PAL.cream, { scale: 2 });
   const mc = g.mult >= 4 ? PAL.gold : g.mult >= 2 ? PAL.yellow : PAL.cream;
   drawText(ctx, `AIMLESS X${g.mult.toFixed(2)}`, 4, 15, mc);
-  drawText(ctx, `LAPS ${g.laps}  KILLS ${g.kills}`, 4, 22, PAL.rock3);
-  const afford = !b.dead && SHOP.some(it => offer(g, it).ok);
-  drawText(ctx, `LOOT ${fmt(g.loot)}`, 4, 30, PAL.gold);
-  drawText(ctx, '[B] SHOP', 8 + (('LOOT ' + fmt(g.loot)).length) * 4, 30, afford ? PAL.cream : PAL.rock2, { alpha: afford && Math.floor(g.t * 2) % 2 ? 1 : 0.7 });
+  // where this map is up to: laps to the 25-man, laps to the 40-man, then the 40-man itself
+  const goal = g.clear ? 'MAP CLEARED' : g.dir.final ? 'BEAT THE 40-MAN' : g.lapsMap < RAID_LAPS ? `LAP ${g.lapsMap}/${RAID_LAPS} TO THE RAID` : `LAP ${g.lapsMap}/${FINAL_LAPS} TO THE BIG ONE`;
+  drawText(ctx, `MAP ${g.map.n}  ${goal}`, 4, 22, g.dir.final ? PAL.red : PAL.rock3);
+  drawText(ctx, `HOARD ${fmt(g.points)}`, 4, 29, PAL.gold, { alpha: 0.85 });
 
   // the target frame, as the adventurers see it
   drawText(ctx, b.name, W - 4, 3, PAL.cream, { align: 'right' });
@@ -621,20 +769,20 @@ function drawHud(ctx, g, view) {
   drawText(ctx, `${m}:${String(s).padStart(2, '0')}`, W - 4, 170, PAL.rock3, { align: 'right' });
   if (view.muted) drawText(ctx, 'MUTED', W - 4, 163, PAL.rock2, { align: 'right' });
 
-  // abilities
-  const n = ORDER.length, bs = 14, gap = 3, x0 = Math.round(W / 2 - (n * bs + (n - 1) * gap) / 2), y0 = 160;
-  ORDER.forEach((k, i) => {
-    const x = x0 + i * (bs + gap), cd = b.cd[k], max = g.abil[k].cd, ready = cd <= 0 && !b.dead;
-    const active = b.act?.kind === k;
+  // the five ability slots, then shake, which is always on Space
+  const n = 6, bs = 14, gap = 3, x0 = Math.round(W / 2 - (n * bs + (n - 1) * gap) / 2), y0 = 160;
+  [...g.slots, 'shake'].forEach((k, i) => {
+    const x = x0 + i * (bs + gap), key = i < 5 ? SLOT_KEYS[i] : 'SPC';
     ctx.fillStyle = PAL.ink; ctx.globalAlpha = 0.8; ctx.fillRect(x, y0, bs, bs); ctx.globalAlpha = 1;
-    if (k in g.owned && !g.owned[k]) {
-      // not bought yet: a padlock
+    if (!k) {
       ctx.fillStyle = PAL.rock1;
       ctx.fillRect(x, y0, bs, 1); ctx.fillRect(x, y0 + bs - 1, bs, 1); ctx.fillRect(x, y0, 1, bs); ctx.fillRect(x + bs - 1, y0, 1, bs);
-      ICONS.lock.forEach((row, r) => { for (let c = 0; c < 8; c++) if (row[c] === '#') ctx.fillRect(x + 3 + c, y0 + 3 + r, 1, 1); });
-      drawText(ctx, KEYS[k], x + bs / 2 + 1, y0 + bs + 1, PAL.rock1, { align: 'center', shadow: false });
+      ICONS.empty.forEach((row, r) => { for (let c = 0; c < 8; c++) if (row[c] === '#') ctx.fillRect(x + 3 + c, y0 + 3 + r, 1, 1); });
+      drawText(ctx, key, x + bs / 2 + 1, y0 + bs + 1, PAL.rock1, { align: 'center', shadow: false });
       return;
     }
+    const cd = b.cd[k], max = g.abil[k].cd, ready = cd <= 0 && !b.dead;
+    const active = b.act?.kind === k;
     ctx.fillStyle = active ? PAL.gold : ready ? PAL.rock3 : PAL.rock1;
     ctx.fillRect(x, y0, bs, 1); ctx.fillRect(x, y0 + bs - 1, bs, 1); ctx.fillRect(x, y0, 1, bs); ctx.fillRect(x + bs - 1, y0, 1, bs);
     ctx.fillStyle = ready ? (active ? PAL.gold : PAL.cream) : PAL.rock2;
@@ -644,8 +792,9 @@ function drawHud(ctx, g, view) {
       ctx.fillStyle = PAL.ink; ctx.globalAlpha = 0.6; ctx.fillRect(x + 1, y0 + 1, bs - 2, h); ctx.globalAlpha = 1;
       if (cd > 1) drawText(ctx, String(Math.ceil(cd)), x + bs / 2 + 1, y0 + 5, PAL.cream, { align: 'center' });
     }
-    drawText(ctx, KEYS[k], x + bs / 2 + 1, y0 + bs + 1, PAL.rock3, { align: 'center', shadow: false });
+    drawText(ctx, key, x + bs / 2 + 1, y0 + bs + 1, PAL.rock3, { align: 'center', shadow: false });
   });
+  if (b.haste > 0) drawText(ctx, 'ZOOMIES', x0 - 4, 163, PAL.gold, { align: 'right' });
 
   const climber = g.units.find(u => u.role === 'rider' && u.state === 'climb');
   if (climber && !b.dead) drawText(ctx, 'HE IS IN YOUR FUR! SHAKE! [SPACE]', W / 2, 151, PAL.gold, { align: 'center', alpha: blink ? 1 : 0.55 });

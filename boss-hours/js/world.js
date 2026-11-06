@@ -1,8 +1,7 @@
-// Boss Hours: the whole simulation (the boss, the patrol, the parties, the director). No DOM, so it runs headless.
+// Boss Hours: the whole simulation (the boss, the patrol path, the parties, the director, the store). No DOM, so it runs headless.
 // One unit is one pixel: the arena is the 320×180 screen.
 
 export const W = 320, H = 180;
-export const A = { x: 92, y: 98 }, B = { x: 228, y: 98 };   // the rock, and the other rock
 export const LANE = 11;        // half-width of the patrol path
 export const LEASH = 60;       // farther than this from the path and you evade
 export const ROCK_R = 4;       // the rocks are solid
@@ -10,7 +9,10 @@ export const TOUCH = 17;       // close enough to a rock to count as touching it
 export const ARENA = { x0: 5, y0: 16, x1: W - 5, y1: H - 20 };
 export const BOSS_HP = 4000, BOSS_SPEED = 23, BOSS_R = 10;
 export const MULT_STEP = 0.25, MULT_MAX = 5;
+export const RAID_LAPS = 10, FINAL_LAPS = 20;   // a 25-man comes at lap 10, the 40-man at lap 20
+export const SLOT_KEYS = ['LMB', 'RMB', 'Q', 'E', 'R'];
 
+// base numbers; g.abil holds this run's copy with upgrades applied
 export const ABIL = {
   swipe:  { cd: 0.7,  wind: 0.22, dur: 0.14, move: 0.55, range: 28, arc: 2.0, dmg: 110, kb: 16 },
   stomp:  { cd: 4.5,  wind: 0.85, dur: 0.2,  move: 0,    range: 37, dmg: 190, kb: 30 },
@@ -18,31 +20,48 @@ export const ABIL = {
   roar:   { cd: 16,   wind: 0.35, dur: 0.45, move: 0,    range: 92, fear: 3.2 },
   shake:  { cd: 0.32, wind: 0,    dur: 0.3,  move: 0,    range: 16, kb: 12 },
   tail:   { cd: 3.2,  wind: 0.3,  dur: 0.16, move: 0.4,  range: 28, arc: 2.3, dmg: 120, kb: 26, back: true },
-  charge: { cd: 7,    wind: 0.32, dur: 0.38, move: 0,    range: 46, width: 11, dmg: 100, kb: 34, speed: 120 },
+  summon: { cd: 18,   wind: 0.5,  dur: 0.3,  move: 0 },
+  beam:   { cd: 14,   wind: 0.9,  dur: 1.4,  move: 0,    range: 170, width: 5, dps: 260 },
+  ice:    { cd: 12,   wind: 0.3,  dur: 0.2,  move: 0.3,  range: 42, life: 7 },
+  charge: { cd: 8,    wind: 0.35, dur: 4,    move: 0,    range: 52, width: 11, dmg: 100, kb: 20, speed: 150, stun: 1.6 },
+  haste:  { cd: 15,   wind: 0,    dur: 0.1,  move: 1,    time: 4, boost: 0.8 },
 };
-export const ORDER = ['swipe', 'stomp', 'breath', 'roar', 'shake', 'tail', 'charge'];
-const LOCKED = ['tail', 'charge'];   // bought from the hoard
 
-// the hoard: what loot buys. Loot is the points from kills, wipes and touching the rocks (not from walking).
-export const SHOP = [
-  { id: 'gnasher', kind: 'add', name: 'Gnasher', cost: 1500, desc: 'A small furry add. Runs down heroes and bites ankles.' },
-  { id: 'spitter', kind: 'add', name: 'Spitter', cost: 2500, desc: 'Squats beside the path and spits fire at anyone in range.' },
-  { id: 'lump', kind: 'add', name: 'Big Lump', cost: 5000, max: 2, desc: 'Slow, huge and rude. Heroes near it have to hit it instead of you.' },
-  { id: 'snack', kind: 'once', name: 'Snack', cost: 2000, desc: 'Eat something off the ground. Heals 35% of your health.' },
-  { id: 'tail', kind: 'ability', name: 'Tail Sweep', key: 'R', cost: 6000, desc: 'New ability: sweep your tail through everyone standing behind you.' },
-  { id: 'charge', kind: 'ability', name: 'Charge', key: 'SHIFT', cost: 9000, desc: 'New ability: lower your horns and trample a line of heroes.' },
-  { id: 'fur', kind: 'up', name: 'Thicker Fur', cost: [3000, 7000, 14000, 25000], desc: '+25% max health.' },
-  { id: 'claws', kind: 'up', name: 'Sharper Claws', cost: [2500, 6000, 12000, 22000], desc: 'Swipe, stomp, tail and charge hit 30% harder.' },
-  { id: 'lungs', kind: 'up', name: 'Bigger Lungs', cost: [3500, 9000], desc: 'Breath reaches 15% farther and comes back 20% sooner.' },
-  { id: 'feet', kind: 'up', name: 'Comfy Feet', cost: [2500, 8000], desc: 'Walk 15% faster. More path, more points.' },
-  { id: 'itchy', kind: 'up', name: 'Itchy Skin', cost: [2500, 7000], desc: 'Shakes throw climbers harder, and they lose grip on their own.' },
+// the store's catalogue. Four abilities come free; the rest are bought with points between maps.
+export const ABILITIES = [
+  { id: 'swipe', name: 'Swipe', start: true, desc: 'Claw a wide arc in front of you. Hold the button to keep swiping.', up: '+30% damage, longer reach' },
+  { id: 'stomp', name: 'Stomp', start: true, desc: 'Slam the ground and hit everyone around you.', up: '+30% damage, 12% wider' },
+  { id: 'breath', name: 'Fire Breath', start: true, desc: 'A cone of fire that leaves the ground burning.', up: '+30% damage, 15% farther' },
+  { id: 'roar', name: 'Roar', start: true, desc: 'Everyone nearby runs away screaming.', up: '15% farther, fear lasts longer' },
+  { id: 'summon', name: 'Call Adds', cost: 12000, desc: 'Summon two Gnashers: melee adds that run down heroes and bite.',
+    ups: ['Casters instead: two Spitters that spit fire from beside the path', 'A Necromancer instead, who raises dead heroes as skeletons'], upCost: [15000, 30000] },
+  { id: 'beam', name: 'Lightning Beam', cost: 20000, desc: 'Charge up, then fire a huge beam of lightning across the map. Steer it with the mouse.', up: '+35% damage, 20% longer' },
+  { id: 'ice', name: 'Ice Floor', cost: 10000, desc: 'Coat the ground around you in ice. Heroes on it slow to a shuffle.', up: '25% wider, lasts 2 s longer' },
+  { id: 'charge', name: 'Stun Charge', cost: 12000, desc: 'Lunge forward, stunning everyone you hit, then back up to where you started.', up: '+30% damage, 20% farther, longer stun' },
+  { id: 'haste', name: 'Zoomies', cost: 8000, desc: 'Run 80% faster for a few seconds. More path, more points.', up: 'Lasts 1.5 s longer, 20% faster' },
+  { id: 'tail', name: 'Tail Sweep', cost: 9000, desc: 'Sweep your tail through everyone standing behind you.', up: '+30% damage, longer reach' },
+  { id: 'fur', name: 'Thicker Fur', passive: true, cost: 6000, desc: 'Not an ability. +25% max health, permanently.', up: '+25% max health' },
 ];
-export const ADDS = {
-  gnasher: { name: 'GNASHER', hp: 160, r: 2.5, spd: 36, dmg: 26, rate: 0.8, reach: 4, sense: 80 },
-  spitter: { name: 'SPITTER', hp: 120, r: 3, spd: 0, dmg: 34, rate: 1.5, reach: 66, sense: 66 },
-  lump:    { name: 'BIG LUMP', hp: 1100, r: 6, spd: 14, dmg: 45, rate: 1.6, reach: 10, sense: 30 },
+const UP_COST = [6000, 14000, 28000];
+
+// how the boss looks, part by part, and what marks the rock you are walking to. Option 0 is free.
+export const LOOKS = {
+  head: ['Bull horns', 'Ram curls', 'Antlers', 'Cyclops', 'Croc snout'],
+  neck: ['Bare', 'Lion mane', 'Spiked collar', 'Long neck', 'Frill'],
+  back: ['Shag', 'Dorsal plates', 'Shell', 'Mushrooms', 'Bat wings'],
+  tail: ['Tuft', 'Club', 'Stinger', 'Whip', 'Fox brush'],
+  limbs: ['Claws', 'Hooves', 'Talons', 'Tentacles', 'Six legs'],
+  marker: ['Sparkles', 'Black hole', 'TomTom arrow', 'Victim on a cross', 'Disco ball'],
 };
-export const MAX_ADDS = 6;
+export const LOOK_COST = [0, 2500, 3500, 5000, 7000];
+
+export const ADDS = {
+  gnasher:  { name: 'GNASHER', hp: 160, r: 2.5, spd: 36, dmg: 26, rate: 0.8, reach: 4, sense: 80 },
+  spitter:  { name: 'SPITTER', hp: 140, r: 3, spd: 0, dmg: 34, rate: 1.5, reach: 70, sense: 70 },
+  necro:    { name: 'NECROMANCER', hp: 220, r: 3, spd: 26, dmg: 22, rate: 2.0, reach: 70, sense: 70 },
+  skeleton: { name: 'SKELETON', hp: 80, r: 2, spd: 30, dmg: 14, rate: 0.9, reach: 4, sense: 70 },
+};
+const MAX_ADDS = 8, MAX_SKELETONS = 10;
 
 export const CLASS = {
   warrior:   { role: 'tank',   col: 'steel',  hp: 460, spd: 25, dmg: 14, rate: 1.2 },
@@ -51,8 +70,8 @@ export const CLASS = {
   rogue:     { role: 'melee',  col: 'yellow', hp: 85,  spd: 28, dmg: 7,  rate: 0.9 },
   berserker: { role: 'melee',  col: 'red',    hp: 95,  spd: 27, dmg: 8,  rate: 1.1 },
   paladin:   { role: 'melee',  col: 'pink',   hp: 120, spd: 25, dmg: 7,  rate: 1.1 },
-  mage:      { role: 'ranged', col: 'blue',   hp: 70,  spd: 26, dmg: 13,  rate: 1.8, bolt: 'frost' },
-  warlock:   { role: 'ranged', col: 'purple', hp: 75,  spd: 25, dmg: 12,  rate: 1.6, bolt: 'shadow' },
+  mage:      { role: 'ranged', col: 'blue',   hp: 70,  spd: 26, dmg: 13, rate: 1.8, bolt: 'frost' },
+  warlock:   { role: 'ranged', col: 'purple', hp: 75,  spd: 25, dmg: 12, rate: 1.6, bolt: 'shadow' },
   hunter:    { role: 'ranged', col: 'green',  hp: 80,  spd: 27, dmg: 9,  rate: 1.3, bolt: 'arrow' },
   pet:       { role: 'pet',    col: 'brown',  hp: 40,  spd: 40, dmg: 2,  rate: 0.9 },
   rider:     { role: 'rider',  col: 'tan',    hp: 100, spd: 30, dmg: 100, rate: 1.1 },
@@ -64,29 +83,47 @@ const SKILL = {
   rider:   { react: 0.22, dodge: 0.85, fire: 0 },
 };
 const PTS = { raid: 30, dungeon: 60, pet: 10, rider: 1500 };
-const WIPE = { raid: 3000, dungeon: 400 };
+const WIPE = { raid: 3000, dungeon: 400, final: 8000 };
 const ENGAGE_R = 80;
 const SIGIL = { x: -4, y: 0 };   // the weak spot on the boss's back, in boss-local pixels (x points at the head)
 const HORSE_SPD = 64;
 
+export const THEMES = [
+  { id: 'clearing', name: 'THE CLEARING' }, { id: 'autumn', name: 'THE AUTUMN WOOD' },
+  { id: 'ash', name: 'THE ASHLANDS' }, { id: 'snow', name: 'THE SNOWFIELD' },
+];
+
 export const BOSS_NAMES = ['GORMUND THE UNBOTHERED', 'OLD BRISTLES', 'GRUBB, WARDEN OF TWO ROCKS', 'HAROLD',
   'MORVAK THE AMBLING', 'THE PACING ONE', 'BIG LOUIS', 'UNGOR, WHO WALKS'];
 
+// what the heroes say. Bubbles are 3×5 font, so keep each line short.
 const BARK = {
-  raidIdle: ['HEALERS READY?', 'BUFFS PLS', 'DONT PULL', 'WHO HAS FOOD', 'ONE SEC DOG', 'READY CHECK', 'AFK 1 MIN', 'IS IT TANK SWAP?'],
-  raidFight: ['DPS!!', 'HEAL TANK', 'PUMP', 'NICE', 'KEEP DPS', 'STAY BEHIND', 'LUST?', 'WE GOT THIS', 'DONT PANIC', 'MELEE BEHIND'],
+  raidIdle: ['HEALERS READY?', 'BUFFS PLS', 'DONT PULL', 'WHO HAS FOOD', 'ONE SEC DOG', 'READY CHECK', 'AFK 1 MIN', 'IS IT TANK SWAP?',
+    'INV PLS', 'SUMMON PLS', 'LOOT RULES?', 'DKP OR ROLLS', 'LINK THE GUIDE', 'MOM SAYS DINNER', 'IS THIS TRASH?', 'WHO PULLS', 'DISCORD UP?',
+    'PUSH TO TALK PLS', 'WHOS BREATHING', 'MUTE YOUR MIC', 'RES THE HUNTER', 'GEAR CHECK', 'IM ONLY 2K GS', 'FLASKS ON'],
+  raidFight: ['DPS!!', 'HEAL TANK', 'PUMP', 'NICE', 'KEEP DPS', 'STAY BEHIND', 'LUST?', 'WE GOT THIS', 'DONT PANIC', 'MELEE BEHIND',
+    'POP CDS', 'PARSE CHECK', 'IM OOM', 'HEALZ', 'TANK DIED???', 'WHO IS ON ADDS', 'STOP TAKING AGGRO', 'SEND IT', 'BOP IT',
+    'HUNTER WHY', 'TOP METER LOL', 'SOAK IT', 'CLIP THAT', 'FOCUS', 'HOLD THREAT', 'ROTATION', 'GREED ROLL'],
   stomp: ['SPREAD!', 'MOVE OUT', 'OUT OUT OUT', 'STOMP!'],
   frontal: ['FRONTAL!', 'DODGE', 'BREATH!', 'SIDESTEP'],
+  beam: ['BEAM!!', 'LOS IT!', 'GET BEHIND', 'WHAT IS THAT', 'GODZILLA??'],
   roar: ['FEAR!', 'AAAA', 'NOT AGAIN', 'TREMOR?'],
-  fire: ['ITS WARM', 'LOL', 'IM FINE', 'OOPS'],
-  died: ['REZ PLS', 'LAG', 'WTF', 'RIP', 'I WAS MOVING', 'REZ?', 'TANK??'],
-  pull: ['WHO PULLED', 'WTF', 'GO GO GO', 'PULLED!', 'OK WE GO'],
-  evade: ['EVADE BUG?', 'IT RESET LOL', 'KITE IT BACK', 'LEASHED', 'REALLY?'],
-  flee: ['WIPE IT!', 'RUN!', 'RUN OUT', 'RELEASE?'],
-  dance: ['GG', 'EZ', 'LOOT!', 'NEED', '/DANCE', 'GZ', 'FUR IS MINE', 'ROLL NEED'],
-  dungeonIdle: ['GOGO', 'PULL?', 'MANA', 'K', 'WAIT', 'ONE MORE', 'LOL'],
-  dungeonFight: ['TANK??', 'HEAL PLS', 'LOL', 'OMG', 'SRY', 'AGGRO', 'OOM', 'NICE'],
-  pet: ['PET!!!', 'HUNTER WTF', 'PET PULLED', 'SORRY PET'],
+  fire: ['ITS WARM', 'LOL', 'IM FINE', 'OOPS', 'THIS IS FINE'],
+  ice: ['ICE!', 'CANT MOVE', 'SLIPPY', 'MY KNEES', 'SNARED'],
+  adds: ['ADDS!', 'SWITCH TO ADDS', 'KILL THE ADDS', 'ADDS ADDS ADDS', 'WHO IS ON ADDS', 'AOE THEM', 'IGNORE ADDS', 'PET TANK ADDS'],
+  execute: ['EXECUTE PHASE', 'ALMOST DEAD', 'DONT DIE NOW', 'BURN IT', 'POP EVERYTHING', 'LAST PHASE?', 'IT HAS 10%'],
+  died: ['REZ PLS', 'LAG', 'WTF', 'RIP', 'I WAS MOVING', 'REZ?', 'TANK??', 'MY CAT', 'HEALS??', 'UNLUCKY', 'BUGGED',
+    'I WAS AFK', 'NO HEALS', 'GG', 'SPIRIT REZ?', 'CORPSE RUN', 'NERF IT', 'MY PING'],
+  pull: ['WHO PULLED', 'WTF', 'GO GO GO', 'PULLED!', 'OK WE GO', 'LEEROY?', 'SOMEONE PULLED', 'BRUH'],
+  evade: ['EVADE BUG?', 'IT RESET LOL', 'KITE IT BACK', 'LEASHED', 'REALLY?', 'EXPLOIT??', 'REPORTED'],
+  flee: ['WIPE IT!', 'RUN!', 'RUN OUT', 'RELEASE?', 'ABANDON', 'SAVE REPAIRS'],
+  dance: ['GG', 'EZ', 'LOOT!', 'NEED', '/DANCE', 'GZ', 'FUR IS MINE', 'ROLL NEED', 'FIRST TRY', 'SCREENSHOT', 'GIT GUD'],
+  dungeonIdle: ['GOGO', 'PULL?', 'MANA', 'K', 'WAIT', 'ONE MORE', 'LOL', 'LFG', 'NEED TANK', 'SPEEDRUN?', 'SKIP TRASH?',
+    'FIRST TIME BTW', 'SWEATY', 'WHO IS LEADER', 'R U A BOT', 'GG EZ', 'KEYS?', 'NEW HERE'],
+  dungeonFight: ['TANK??', 'HEAL PLS', 'LOL', 'OMG', 'SRY', 'AGGRO', 'OOM', 'NICE', 'HEALER WHY', 'KICK HUNTER', 'GIT GUD',
+    'RIP BOZO', 'NERF THIS', 'PATCH WHEN', 'ITS BUGGED', 'L', 'RATIO', 'SKILL ISSUE', 'TOUCH GRASS', 'COPE', 'MAIN CHARACTER'],
+  pet: ['PET!!!', 'HUNTER WTF', 'PET PULLED', 'SORRY PET', 'TURN PET OFF', 'GROWL OFF PLS'],
+  logoff: ['BRB', 'GTG', 'LOGGING', 'NOPE', 'CYA', 'BEDTIME', 'WORK TMRW', 'DC'],
   thoughts: ['HM.', '*SNIFF*', 'NICE ROCK', 'OTHER ROCK', 'PATROL...', 'WHERE WAS I', '*YAWN*', 'THIS WAY', 'NO, THIS WAY', 'GOOD PATH', '...'],
 };
 
@@ -94,12 +131,6 @@ const TAU = Math.PI * 2;
 export const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 export const angDiff = (a, b) => { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; };
 const turnToward = (a, target, max) => a + clamp(angDiff(target, a), -max, max);
-export function segNearest(x, y) {
-  const dx = B.x - A.x, dy = B.y - A.y;
-  const t = clamp(((x - A.x) * dx + (y - A.y) * dy) / (dx * dx + dy * dy), 0, 1);
-  return { x: A.x + dx * t, y: A.y + dy * t, t };
-}
-export const segDist = (x, y) => { const p = segNearest(x, y); return Math.hypot(x - p.x, y - p.y); };
 function mulberry32(a) {
   return function () {
     a |= 0; a = a + 0x6D2B79F5 | 0;
@@ -110,33 +141,121 @@ function mulberry32(a) {
 }
 const pick = (g, arr) => arr[Math.floor(g.rng() * arr.length)];
 
-export function createGame(seed = (Math.random() * 2 ** 32) >>> 0) {
+// ---------------------------------------------------------------------------------------------- maps
+
+// Map 1 is the short straight path. Every map after it puts the rocks somewhere new and joins them with a longer,
+// wigglier path. The path is a polyline sampled every ~2 px, plus a distance field so anything can ask "how far
+// am I from the path" in one lookup.
+export function makeMap(n, rng) {
+  let A, B, ctrl;
+  if (n === 1) {
+    A = { x: 92, y: 98 }; B = { x: 228, y: 98 };
+    ctrl = [A, B];
+  } else {
+    A = { x: 38 + rng() * 22, y: 48 + rng() * 90 };
+    B = { x: W - 38 - rng() * 22, y: 48 + rng() * 90 };
+    if (rng() < 0.5) [A, B] = [B, A];
+    const k = Math.min(7, n + 1), amp = Math.min(54, 18 + n * 9);
+    ctrl = [A];
+    for (let i = 1; i <= k; i++) {
+      const t = i / (k + 1);
+      const x = A.x + (B.x - A.x) * t + (rng() - 0.5) * 16;
+      const y = 98 + (i % 2 ? -1 : 1) * (amp * (0.6 + rng() * 0.4)) + (rng() - 0.5) * 12;
+      ctrl.push({ x, y: clamp(y, x < 110 ? 44 : 36, 144) });
+    }
+    ctrl.push(B);
+  }
+  // Catmull-Rom through the control points
+  const pts = [];
+  const P = i => ctrl[clamp(i, 0, ctrl.length - 1)];
+  for (let i = 0; i < ctrl.length - 1; i++) {
+    const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
+    const steps = Math.max(2, Math.ceil(Math.hypot(p2.x - p1.x, p2.y - p1.y) / 2));
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps, t2 = t * t, t3 = t2 * t;
+      const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+      pts.push({ x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y) });
+    }
+  }
+  pts.push({ x: B.x, y: B.y });
+  let len = 0;
+  pts.forEach((p, i) => { if (i) len += Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y); p.s = len; });
+  const df = new Float32Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let m = Infinity;
+    for (let i = 0; i < pts.length; i += 2) { const dx = x + 0.5 - pts[i].x, dy = y + 0.5 - pts[i].y, d = dx * dx + dy * dy; if (d < m) m = d; }
+    df[y * W + x] = Math.sqrt(m);
+  }
+  return { n, theme: THEMES[(n - 1) % THEMES.length], A, B, pts, len, df, seed: Math.floor(rng() * 1e9) };
+}
+
+export function pathDist(m, x, y) { return m.df[clamp(Math.round(y - 0.5), 0, H - 1) * W + clamp(Math.round(x - 0.5), 0, W - 1)]; }
+export function pathNearest(m, x, y) {
+  let best = m.pts[0], bd = Infinity;
+  for (const p of m.pts) { const d = (p.x - x) ** 2 + (p.y - y) ** 2; if (d < bd) { bd = d; best = p; } }
+  return best;
+}
+function pathAt(m, s) {
+  const p = m.pts.find(q => q.s >= s) || m.pts[m.pts.length - 1];
+  const i = m.pts.indexOf(p), q = m.pts[Math.min(m.pts.length - 1, i + 1)];
+  return { x: p.x, y: p.y, face: Math.atan2(q.y - p.y, q.x - p.x) };
+}
+export const destRock = g => g.lastMark === 'A' ? g.map.B : g.map.A;
+
+// ---------------------------------------------------------------------------------------------- a new run
+
+export function createGame(seed = (Math.random() * 2 ** 32) >>> 0, look) {
   const rng = mulberry32(seed);
-  return {
-    seed, rng, t: 0,
+  const g = {
+    seed, rng, t: 0, map: makeMap(1, rng),
     boss: {
-      x: A.x + 26, y: A.y, face: 0, r: BOSS_R, hp: BOSS_HP, maxhp: BOSS_HP, act: null, queue: null,
-      cd: { swipe: 0, stomp: 0, breath: 0, roar: 0, shake: 0, tail: 0, charge: 0 }, walk: 0, moving: false, evade: null, taunt: null,
-      flash: 0, dead: false, deadT: 0, calmT: 99, name: BOSS_NAMES[Math.floor(rng() * BOSS_NAMES.length)],
+      x: 0, y: 0, face: 0, r: BOSS_R, hp: BOSS_HP, maxhp: BOSS_HP, act: null, queue: null,
+      cd: Object.fromEntries(Object.keys(ABIL).map(k => [k, 0])), walk: 0, moving: false, evade: null, taunt: null,
+      flash: 0, dead: false, deadT: 0, calmT: 99, haste: 0, name: BOSS_NAMES[Math.floor(rng() * BOSS_NAMES.length)],
     },
-    units: [], parties: [], corpses: [], ghosts: [], fires: [], bolts: [], parts: [], texts: [], barks: [], rings: [], adds: [],
-    abil: JSON.parse(JSON.stringify(ABIL)), speed: 1,   // this run's abilities, as upgraded
-    owned: { tail: false, charge: false }, up: { fur: 0, claws: 0, lungs: 0, feet: 0, itchy: 0 },
-    loot: 0, lootEarned: 0, lootSpent: 0, summoned: 0,
+    units: [], parties: [], corpses: [], ghosts: [], fires: [], ice: [], bolts: [], parts: [], texts: [], barks: [], rings: [], adds: [],
     steps: [],                // footprints the renderer stamps into the worn path
-    score: 0, mult: 1, laps: 0, kills: 0, wipes: { raid: 0, dungeon: 0, rider: 0 }, escaped: 0, patrolDist: 0,
-    lastMark: null, onPatrol: false, offLane: 0,
-    banner: null, thought: null, thoughtT: 4,
-    dir: { next: 9, n: 0, lastRaid: -999, raids: 0 },
+    abil: null, owned: new Set(ABILITIES.filter(a => a.start).map(a => a.id)), lvl: {},
+    slots: ['swipe', 'stomp', 'breath', 'roar', null],
+    look: { head: 0, neck: 0, back: 0, tail: 0, limbs: 0, marker: 0, ...look },
+    score: 0, points: 0, spent: 0, mult: 1, laps: 0, lapsMap: 0, legDist: 0, kills: 0, summoned: 0, maps: 0,
+    wipes: { raid: 0, dungeon: 0, rider: 0, final: 0 }, escaped: 0, patrolDist: 0,
+    lastMark: 'A', onPatrol: false, offLane: 0, shortcutT: 0,
+    banner: null, thought: null, thoughtT: 4, clear: null, store: false,
+    dir: { next: 8, n: 0, lastRaid: -999, raids: 0, final: false },
     blame: { raid: 0, dungeon: 0, rider: 0 }, // recent damage by party type, for the game over line
     events: [], shake: 0, over: false, nextId: 1,
   };
+  applyLevels(g);
+  placeBoss(g);
+  return g;
+}
+
+function placeBoss(g) {
+  const p = pathAt(g.map, Math.min(26, g.map.len * 0.15));
+  Object.assign(g.boss, { x: p.x, y: p.y, face: p.face });
+}
+
+// called when the store closes: a new map, a longer path, a fresh boss (same upgrades)
+export function nextMap(g) {
+  const n = g.map.n + 1;
+  g.map = makeMap(n, g.rng);
+  for (const k of ['units', 'parties', 'corpses', 'ghosts', 'fires', 'ice', 'bolts', 'parts', 'texts', 'barks', 'rings', 'adds', 'steps']) g[k] = [];
+  const b = g.boss;
+  Object.assign(b, { act: null, queue: null, evade: null, taunt: null, haste: 0, flash: 0, hp: b.maxhp, calmT: 99 });
+  for (const k in b.cd) b.cd[k] = 0;
+  placeBoss(g);
+  Object.assign(g, { lastMark: 'A', legDist: 0, lapsMap: 0, clear: null, store: false, offLane: 0 });
+  g.dir = { next: g.t + 8, n: 0, lastRaid: g.t, raids: 0, final: false };
+  banner(g, `MAP ${n}: ${g.map.theme.name}`, 'A LONGER WAY BETWEEN THE ROCKS.', 4);
+  g.events.push('newmap');
 }
 
 // ---------------------------------------------------------------------------------------------- the step
 
-// input: { mx, my (aim, arena px), ax, ay (move, -1..1), press: {swipe,…} (edges), hold: {swipe} }
+// input: { mx, my (aim, arena px), ax, ay (move, -1..1), press: {slot0..slot4, shake} (edges), hold: {slot0} }
 export function step(g, inp, dt) {
+  if (g.store) return;
   g.t += dt;
   g.shake = Math.max(0, g.shake - dt);
   updateBoss(g, inp, dt);
@@ -152,15 +271,25 @@ export function step(g, inp, dt) {
   g.parties = g.parties.filter(p => !p.done);
   for (const k in g.blame) g.blame[k] *= Math.exp(-dt / 8);
   if (g.boss.dead) { g.boss.deadT += dt; if (g.boss.deadT > 4 && !g.over) { g.over = true; g.events.push('over'); } }
+  if (g.clear && !g.boss.dead) {
+    g.clear.t += dt;
+    if (g.clear.t > 4.5 && !g.units.some(u => !u.gone && u.x > -8 && u.x < W + 8 && u.y > -8 && u.y < H + 8) || g.clear.t > 9) {
+      g.store = true; g.maps++;
+      g.events.push('store');
+    }
+  }
 }
+
+function addScore(g, n) { g.score += n; g.points += n; }
 
 // ---------------------------------------------------------------------------------------------- boss
 
 function updateBoss(g, inp, dt) {
-  const b = g.boss;
+  const b = g.boss, m = g.map;
   if (b.dead) return;
   for (const k in b.cd) b.cd[k] = Math.max(0, b.cd[k] - dt);
   b.flash = Math.max(0, b.flash - dt);
+  b.haste = Math.max(0, b.haste - dt);
   b.calmT += dt;
 
   if (b.evade) {
@@ -180,27 +309,29 @@ function updateBoss(g, inp, dt) {
     b.taunt.t -= dt;
     if (u.dead || b.taunt.t <= 0) b.taunt = null; else { tx = u.x; ty = u.y; }
   }
-  const channeling = b.act?.kind === 'breath' && b.act.fired;
-  const turn = channeling ? 1.5 : b.taunt ? 7 : 5.5;
-  if (Math.hypot(tx - b.x, ty - b.y) > 2) b.face = turnToward(b.face, Math.atan2(ty - b.y, tx - b.x), turn * dt);
+  const channel = b.act?.fired && (b.act.kind === 'breath' || b.act.kind === 'beam');
+  const locked = b.act?.kind === 'charge' && b.act.fired;
+  const turn = channel ? (b.act.kind === 'beam' ? 1.2 : 1.5) : b.taunt ? 7 : 5.5;
+  if (!locked && Math.hypot(tx - b.x, ty - b.y) > 2) b.face = turnToward(b.face, Math.atan2(ty - b.y, tx - b.x), turn * dt);
 
-  // abilities: a press during another action is queued briefly
-  for (const k of ORDER) if (inp.press?.[k]) { if (!tryCast(g, k)) b.queue = { k, t: 0.3 }; }
-  if (inp.hold?.swipe && !b.act) tryCast(g, 'swipe');
+  // abilities: the five slots, plus shake on its own key. A press during another action is queued briefly.
+  for (let i = 0; i < 5; i++) {
+    const k = g.slots[i];
+    if (k && inp.press?.['slot' + i] && !tryCast(g, k)) b.queue = { k, t: 0.3 };
+  }
+  if (inp.press?.shake && !tryCast(g, 'shake')) b.queue = { k: 'shake', t: 0.3 };
+  if (inp.hold?.slot0 && g.slots[0] && !b.act) tryCast(g, g.slots[0]);
   if (b.queue) { b.queue.t -= dt; if (b.queue.t <= 0 || tryCast(g, b.queue.k)) b.queue = null; }
 
   // movement
   let mx = inp.ax || 0, my = inp.ay || 0;
   const ml = Math.hypot(mx, my);
   if (ml > 1) { mx /= ml; my /= ml; }
-  const sp = BOSS_SPEED * g.speed * (b.act ? g.abil[b.act.kind].move : 1);
+  const sp = BOSS_SPEED * (b.haste > 0 ? 1 + g.abil.haste.boost : 1) * (b.act ? g.abil[b.act.kind].move : 1);
   const ox = b.x, oy = b.y;
-  b.x = clamp(b.x + mx * sp * dt, ARENA.x0 + b.r, ARENA.x1 - b.r);
-  b.y = clamp(b.y + my * sp * dt, ARENA.y0 + b.r, ARENA.y1 - b.r);
-  for (const R of [A, B]) {   // rocks are solid
-    const dx = b.x - R.x, dy = b.y - R.y, d = Math.hypot(dx, dy), min = b.r + ROCK_R;
-    if (d < min && d > 0.001) { b.x = R.x + dx / d * min; b.y = R.y + dy / d * min; }
-  }
+  moveBoss(g, b.x + mx * sp * dt, b.y + my * sp * dt);
+  if (b.haste > 0 && (mx || my) && g.rng() < 0.5) part(g, b.x - mx * 10, b.y - my * 10 + 3, -mx * 20, -my * 20, 0.3, 'dust');
+  if (b.act) advanceAct(g, dt);
   const moved = Math.hypot(b.x - ox, b.y - oy);
   b.moving = moved > 0.01;
   if (b.moving) {
@@ -210,34 +341,37 @@ function updateBoss(g, inp, dt) {
   }
 
   // patrol scoring
-  const sd = segDist(b.x, b.y);
+  const sd = pathDist(m, b.x, b.y);
   g.onPatrol = sd < LANE;
   if (g.onPatrol) {
-    g.score += moved * g.mult;
+    addScore(g, moved * g.mult);
     g.patrolDist += moved;
+    g.legDist += moved;
     g.offLane = 0;
   } else {
     g.offLane += dt;
     if (g.offLane > 3) g.mult = Math.max(1, g.mult - 0.12 * dt);
   }
-  for (const [name, R] of [['A', A], ['B', B]]) {
-    if (g.lastMark !== name && Math.hypot(b.x - R.x, b.y - R.y) < TOUCH) {
-      if (g.lastMark) {
-        g.laps++;
-        const pts = Math.round(100 * g.mult);
-        g.score += pts;
-        earn(g, pts);
-        g.mult = Math.min(MULT_MAX, g.mult + MULT_STEP);
-        text(g, R.x, R.y - 14, `+${pts}`, 'gold');
-        text(g, R.x, R.y - 20, `AIMLESS X${g.mult.toFixed(2)}`, 'cream', 1.6);
-        g.events.push('lap');
-      }
-      g.lastMark = name;
+  g.shortcutT = Math.max(0, g.shortcutT - dt);
+  const R = destRock(g);
+  if (Math.hypot(b.x - R.x, b.y - R.y) < TOUCH) {
+    // a lap only counts if you actually walked most of the path to get here
+    if (g.legDist >= m.len * 0.6) {
+      g.laps++; g.lapsMap++;
+      const pts = Math.round(100 * g.mult);
+      addScore(g, pts);
+      g.mult = Math.min(MULT_MAX, g.mult + MULT_STEP);
+      text(g, R.x, R.y - 14, `+${pts}`, 'gold');
+      text(g, R.x, R.y - 20, `AIMLESS X${g.mult.toFixed(2)}`, 'cream', 1.6);
+      g.events.push('lap');
+      g.lastMark = R === m.A ? 'A' : 'B';
+      g.legDist = 0;
+    } else if (g.shortcutT <= 0) {
+      text(g, R.x, R.y - 14, 'SHORTCUT. DOES NOT COUNT', 'pink', 1.6);
+      g.shortcutT = 3;
     }
   }
-  if (sd > LEASH) startEvade(g);
-
-  if (b.act) advanceAct(g, dt);
+  if (sd > LEASH && !locked) startEvade(g);
 
   // out of combat you lick your wounds
   const fighting = g.parties.some(p => p.engaged);
@@ -252,9 +386,20 @@ function updateBoss(g, inp, dt) {
   }
 }
 
+// moves the boss to (x, y), kept inside the arena and out of the rocks
+function moveBoss(g, x, y) {
+  const b = g.boss;
+  b.x = clamp(x, ARENA.x0 + b.r, ARENA.x1 - b.r);
+  b.y = clamp(y, ARENA.y0 + b.r, ARENA.y1 - b.r);
+  for (const R of [g.map.A, g.map.B]) {
+    const dx = b.x - R.x, dy = b.y - R.y, d = Math.hypot(dx, dy), min = b.r + ROCK_R;
+    if (d < min && d > 0.001) { b.x = R.x + dx / d * min; b.y = R.y + dy / d * min; }
+  }
+}
+
 function startEvade(g) {
   const b = g.boss;
-  const p = segNearest(b.x, b.y);
+  const p = pathNearest(g.map, b.x, b.y);
   b.evade = { x: p.x, y: p.y };
   b.act = null; b.taunt = null; b.queue = null;
   const lost = g.mult > 1;
@@ -267,8 +412,8 @@ function startEvade(g) {
 
 function tryCast(g, k) {
   const b = g.boss;
-  if (b.act || b.evade || b.dead || b.cd[k] > 0) return false;
-  if (LOCKED.includes(k) && !g.owned[k]) return false;
+  if (b.act || b.evade || b.dead || b.cd[k] > 0 || g.clear) return false;
+  if (k !== 'shake' && !g.owned.has(k)) return false;
   const d = g.abil[k];
   b.act = { kind: k, t: 0, fired: false, tick: 0, fireT: 0 };
   b.cd[k] = d.cd;
@@ -282,10 +427,13 @@ function tryCast(g, k) {
   for (const p of g.parties) {
     if (p.type !== 'raid' || !p.engaged || g.rng() > 0.7) continue;
     const u = alive(p)[Math.floor(g.rng() * 3)];
-    if (u && k === 'stomp') bark(g, u, pick(g, BARK.stomp));
-    if (u && k === 'breath') bark(g, u, pick(g, BARK.frontal));
-    if (u && k === 'tail') bark(g, u, 'TAIL!');
-    if (u && k === 'charge') bark(g, u, 'CHARGE! MOVE!');
+    if (!u) continue;
+    if (k === 'stomp') bark(g, u, pick(g, BARK.stomp));
+    if (k === 'breath') bark(g, u, pick(g, BARK.frontal));
+    if (k === 'beam') bark(g, u, pick(g, BARK.beam));
+    if (k === 'tail') bark(g, u, 'TAIL!');
+    if (k === 'charge') bark(g, u, 'CHARGE! MOVE!');
+    if (k === 'summon') bark(g, u, pick(g, BARK.adds));
   }
   if (d.wind === 0) advanceAct(g, 0);
   return true;
@@ -295,13 +443,16 @@ function advanceAct(g, dt) {
   const b = g.boss, a = b.act, d = g.abil[a.kind];
   a.t += dt;
   if (!a.fired && a.t >= d.wind) { a.fired = true; fire(g, a.kind); }
-  if (a.kind === 'charge' && a.fired) chargeStep(g, a, d, dt);
-  if (a.kind === 'breath' && a.fired) {
+  if (!b.act) return;
+  if (a.kind === 'charge' && a.fired) { chargeStep(g, a, d, dt); return; }
+  if ((a.kind === 'breath' || a.kind === 'beam') && a.fired) {
     a.tick -= dt;
     if (a.tick <= 0) {
       a.tick += 0.1;
-      for (const u of g.units) if (hittable(u) && inZone(g, 'breath', u.x, u.y, 1)) hurt(g, u, d.dps * 0.1);
+      for (const u of g.units) if (hittable(u) && inZone(g, a.kind, u.x, u.y, 1)) hurt(g, u, d.dps * 0.1);
     }
+  }
+  if (a.kind === 'breath' && a.fired) {
     a.fireT -= dt;
     if (a.fireT <= 0 && g.fires.length < 40) {
       a.fireT += 0.11;
@@ -315,13 +466,26 @@ function advanceAct(g, dt) {
         0.25 + g.rng() * 0.45, g.rng() < 0.5 ? 'flame' : 'ember');
     }
   }
+  if (a.kind === 'beam') {
+    g.shake = Math.max(g.shake, a.fired ? 0.12 : 0.03);
+    if (!a.fired && g.rng() < 0.6) { const k = g.rng() * TAU; part(g, b.x + Math.cos(k) * 11, b.y + Math.sin(k) * 11, -Math.cos(k) * 15, -Math.sin(k) * 15, 0.3, 'spark'); }
+    if (a.fired) { const e = beamEnd(g); for (let i = 0; i < 2; i++) part(g, e.x, e.y, (g.rng() - 0.5) * 80, (g.rng() - 0.5) * 80, 0.3, 'spark'); }
+  }
   if (a.t >= d.wind + d.dur) b.act = null;
+}
+
+// where the beam stops: its full length, or the edge of the world
+export function beamEnd(g) {
+  const b = g.boss, d = g.abil.beam, c = Math.cos(b.face), s = Math.sin(b.face);
+  let len = d.range;
+  if (c > 0.001) len = Math.min(len, (W + 4 - b.x) / c); else if (c < -0.001) len = Math.min(len, (-4 - b.x) / c);
+  if (s > 0.001) len = Math.min(len, (H + 4 - b.y) / s); else if (s < -0.001) len = Math.min(len, (-4 - b.y) / s);
+  return { x: b.x + c * len, y: b.y + s * len, len };
 }
 
 function fire(g, k) {
   const b = g.boss, d = g.abil[k];
   g.events.push(k);
-  if (k === 'charge') { b.act.hitIds = new Set(); g.shake = Math.max(g.shake, 0.12); return; }
   if (k === 'swipe' || k === 'stomp' || k === 'tail') {
     for (const u of g.units) {
       if (!hittable(u) || !inZone(g, k, u.x, u.y, 1)) continue;
@@ -355,7 +519,61 @@ function fire(g, k) {
       if (u.role === 'rider' && u.state === 'climb') { shakeRider(g, u); continue; }
       if (hittable(u) && Math.hypot(u.x - b.x, u.y - b.y) < b.r + d.range - 8) knock(u, b, d.kb);
     }
+  } else if (k === 'charge') {
+    b.act.start = { x: b.x, y: b.y }; b.act.out = 0; b.act.back = false; b.act.hitIds = new Set();
+    g.shake = Math.max(g.shake, 0.12);
+  } else if (k === 'summon') {
+    summon(g);
+  } else if (k === 'ice') {
+    g.ice.push({ x: b.x, y: b.y, r: d.range, t: 0, life: d.life, seed: Math.floor(g.rng() * 1e6) });
+    if (g.ice.length > 3) g.ice.shift();
+    g.rings.push({ x: b.x, y: b.y, r: 6, max: d.range, t: 0, col: 'ice' });
+    for (let i = 0; i < 30; i++) { const a = g.rng() * TAU, s = 20 + g.rng() * 60; part(g, b.x + Math.cos(a) * 8, b.y + Math.sin(a) * 8, Math.cos(a) * s, Math.sin(a) * s, 0.6, 'frost'); }
+    for (const p of g.parties) if (p.engaged && p.type !== 'rider' && g.rng() < 0.6) { const u = alive(p)[2]; if (u) bark(g, u, pick(g, BARK.ice)); }
+  } else if (k === 'haste') {
+    b.haste = d.time;
+    text(g, b.x, b.y - 20, 'ZOOMIES', 'gold', 1.2);
+  } else if (k === 'beam') {
+    g.shake = 0.3;
   }
+}
+
+// the stun charge: out along your heading, bowling over and stunning whoever you touch, then back to where you started
+function chargeStep(g, a, d, dt) {
+  const b = g.boss;
+  if (!a.back) {
+    const ox = b.x, oy = b.y;
+    moveBoss(g, b.x + Math.cos(b.face) * d.speed * dt, b.y + Math.sin(b.face) * d.speed * dt);
+    const moved = Math.hypot(b.x - ox, b.y - oy);
+    a.out += moved;
+    if (a.out >= d.range || moved < d.speed * dt * 0.3) { a.back = true; a.pause = 0.15; }
+    if (g.rng() < 0.7) part(g, b.x - Math.cos(b.face) * 10, b.y - Math.sin(b.face) * 10, (g.rng() - 0.5) * 30, (g.rng() - 0.5) * 30, 0.4, 'dust');
+    for (const u of g.units) {
+      if (!hittable(u) || a.hitIds.has(u.id) || Math.hypot(u.x - b.x, u.y - b.y) > b.r + 5) continue;
+      a.hitIds.add(u.id);
+      hurt(g, u, d.dmg);
+      if (u.dead) continue;
+      stun(g, u, d.stun);
+      const side = (-(u.x - b.x) * Math.sin(b.face) + (u.y - b.y) * Math.cos(b.face)) >= 0 ? 1 : -1;
+      u.kx += -Math.sin(b.face) * side * d.kb * 5; u.ky += Math.cos(b.face) * side * d.kb * 5;
+    }
+    return;
+  }
+  if (a.pause > 0) { a.pause -= dt; return; }
+  const dx = a.start.x - b.x, dy = a.start.y - b.y, dist = Math.hypot(dx, dy);
+  const s = Math.min(dist, d.speed * 0.8 * dt);
+  if (dist > 0.5) moveBoss(g, b.x + dx / dist * s, b.y + dy / dist * s);
+  if (dist <= 0.5 || s < 0.01) b.act = null;
+}
+
+function stun(g, u, t) {
+  if (u.role === 'rider') {
+    if (u.mounted) { u.mounted = false; u.horse.tx = clamp(u.x + (g.rng() - 0.5) * 60, 20, W - 20); u.horse.ty = clamp(u.y + (g.rng() - 0.5) * 40, 26, H - 30); }
+    u.state = 'stun'; u.stunT = t + 0.8;
+    return;
+  }
+  u.stun = t;
+  u.cast = 0;
 }
 
 export const zoneFace = (g, k) => g.boss.face + (g.abil[k].back ? Math.PI : 0);
@@ -363,10 +581,11 @@ export const zoneFace = (g, k) => g.boss.face + (g.abil[k].back ? Math.PI : 0);
 export function inZone(g, k, x, y, pad = 0) {
   const b = g.boss, d = g.abil[k];
   const dx = x - b.x, dy = y - b.y, dist = Math.hypot(dx, dy);
-  if (k === 'charge') {
-    // a lane straight ahead, as long as the lunge
+  if (k === 'charge' || k === 'beam') {
+    // a lane straight ahead
     const c = Math.cos(b.face), s = Math.sin(b.face), lx = dx * c + dy * s, ly = -dx * s + dy * c;
-    return lx > -4 && lx < d.range + pad && Math.abs(ly) < d.width + pad;
+    const len = k === 'beam' ? beamEnd(g).len : d.range;
+    return lx > (k === 'beam' ? 6 : -4) && lx < len + pad && Math.abs(ly) < d.width + pad;
   }
   if (dist > d.range + pad) return false;
   if (k === 'stomp' || k === 'roar' || k === 'shake') return true;
@@ -374,37 +593,11 @@ export function inZone(g, k, x, y, pad = 0) {
   return Math.abs(angDiff(Math.atan2(dy, dx), zoneFace(g, k))) < d.arc / 2 + pad / dist;
 }
 
-// the lunge: you move fast along your heading and bowl over whoever you touch
-function chargeStep(g, a, d, dt) {
-  const b = g.boss;
-  if (a.t > d.wind + d.dur) return;
-  const ox = b.x, oy = b.y;
-  b.x = clamp(b.x + Math.cos(b.face) * d.speed * dt, ARENA.x0 + b.r, ARENA.x1 - b.r);
-  b.y = clamp(b.y + Math.sin(b.face) * d.speed * dt, ARENA.y0 + b.r, ARENA.y1 - b.r);
-  for (const R of [A, B]) {
-    const dx = b.x - R.x, dy = b.y - R.y, dd = Math.hypot(dx, dy), min = b.r + ROCK_R;
-    if (dd < min && dd > 0.001) { b.x = R.x + dx / dd * min; b.y = R.y + dy / dd * min; }
-  }
-  const moved = Math.hypot(b.x - ox, b.y - oy);
-  b.walk += moved * 0.3; b.moving = true;
-  if (segDist(b.x, b.y) < LANE) { g.score += moved * g.mult; g.patrolDist += moved; }
-  if (g.rng() < 0.6) part(g, b.x - Math.cos(b.face) * 10, b.y - Math.sin(b.face) * 10, (g.rng() - 0.5) * 30, (g.rng() - 0.5) * 30, 0.4, 'dust');
-  for (const u of g.units) {
-    if (!hittable(u) || a.hitIds.has(u.id) || Math.hypot(u.x - b.x, u.y - b.y) > b.r + 5) continue;
-    a.hitIds.add(u.id);
-    hurt(g, u, d.dmg);
-    // thrown to the side of the lane
-    const side = (-(u.x - b.x) * Math.sin(b.face) + (u.y - b.y) * Math.cos(b.face)) >= 0 ? 1 : -1;
-    u.kx += (-Math.sin(b.face) * side * 0.8 + Math.cos(b.face) * 0.6) * d.kb * 5;
-    u.ky += (Math.cos(b.face) * side * 0.8 + Math.sin(b.face) * 0.6) * d.kb * 5;
-  }
-}
-
 // which telegraph the adventurers are currently trying to get out of
 export function telegraph(g) {
   const a = g.boss.act;
   if (!a) return null;
-  if (a.kind === 'breath') return 'breath';
+  if (a.kind === 'breath' || a.kind === 'beam') return a.kind;
   if ((a.kind === 'swipe' || a.kind === 'stomp' || a.kind === 'tail' || a.kind === 'charge') && !a.fired) return a.kind;
   return null;
 }
@@ -439,33 +632,31 @@ function edgeSpot(g, avoid) {
   }
 }
 
-function director(g, dt) {
+// 5-mans and horse guys all map long; a 25-man raid from lap 10; the 40-man at lap 20, and after that nothing else
+function director(g) {
   const d = g.dir;
-  if (g.boss.dead || g.t < d.next) return;
-  if (g.units.length > 140 || g.boss.evade) { d.next = g.t + 4; return; }
-  const riders = g.parties.filter(p => p.type === 'rider').length;
-  const raidsUp = g.parties.filter(p => p.type === 'raid').length;
-  const maxRaids = Math.min(3, 1 + Math.floor(g.t / 300));       // a second raid can show up after 5 minutes, a third after 10
-  const raidGap = Math.max(40, 100 - d.raids * 10);
-  const script = ['dungeon', 'rider', 'dungeon', 'raid'];
-  let type = script[d.n];
-  if (!type) {
-    const r = g.rng();
-    if (raidsUp < maxRaids && g.t - d.lastRaid > raidGap && r < 0.45 + d.raids * 0.04) type = 'raid';
-    else if (riders < (d.n > 10 ? 2 : 1) && r < 0.7) type = 'rider';
-    else type = 'dungeon';
+  if (g.boss.dead || d.final || g.clear) return;
+  if (g.lapsMap >= FINAL_LAPS) {
+    d.final = true;
+    spawnRaid(g, 40, true);
+    return;
   }
-  if (type === 'raid') { spawnRaid(g); d.lastRaid = g.t; }
-  else if (type === 'rider') spawnRider(g);
-  else { spawnDungeon(g); if (d.n > 8 && g.rng() < 0.3) spawnDungeon(g, true); }
+  const raidUp = g.parties.some(p => p.type === 'raid');
+  if (g.lapsMap >= RAID_LAPS && !raidUp && g.t - d.lastRaid > (d.raids ? 80 : 0)) { spawnRaid(g, 25); d.lastRaid = g.t; return; }
+  if (g.t < d.next) return;
+  if (g.units.length > 60 || g.boss.evade) { d.next = g.t + 4; return; }
+  const riders = g.parties.filter(p => p.type === 'rider').length;
+  let type = ['dungeon', 'rider', 'dungeon'][d.n];
+  if (!type) type = riders < (g.map.n > 2 ? 2 : 1) && g.rng() < 0.3 ? 'rider' : 'dungeon';
+  if (type === 'rider') spawnRider(g);
+  else { spawnDungeon(g); if (d.n > 6 && g.rng() < 0.3) spawnDungeon(g, true); }
   d.n++;
-  const gap = [30, 28, 30, 0][d.n - 1] ?? Math.max(15, 32 - d.n * 1.1) + g.rng() * 9;
-  d.next = g.t + (type === 'raid' ? gap + 22 : gap);
+  d.next = g.t + Math.max(14, 30 - d.n * 1.2 - g.map.n * 2) + g.rng() * 8;
 }
 
 function newParty(g, type) {
-  // every party is a little better geared than the last
-  const power = type === 'rider' ? 1 : 1 + g.dir.n * (type === 'raid' ? 0.07 : 0.06);
+  // every party is a little better geared than the last, and every map is harder than the one before
+  const power = type === 'rider' ? 1 : 1 + (g.map.n - 1) * 0.35 + (type === 'raid' ? g.dir.raids * 0.05 : g.dir.n * 0.05);
   const p = { id: g.nextId++, type, power, units: [], skill: SKILL[type], engaged: false, done: false, fleeing: false, t: 0, brez: 0, deadList: [], barkT: 3 };
   g.parties.push(p);
   return p;
@@ -476,7 +667,7 @@ function mkUnit(g, p, cls, x, y) {
   const u = {
     id: g.nextId++, party: p, cls, role: c.role, x, y, hp: c.hp * p.power, maxhp: c.hp * p.power, spd: c.spd, atk: g.rng() * c.rate, cast: 0,
     state: 'travel', kx: 0, ky: 0, hit: 0, dead: false, gone: false, moving: false, fx: 1, walk: g.rng() * 10,
-    slotA: 0, slotD: 0, fear: 0, react: Infinity, willDodge: false, inFire: false, fireOk: false, tauntCd: 4 + g.rng() * 6,
+    slotA: 0, slotD: 0, fear: 0, stun: 0, slow: 1, react: Infinity, willDodge: false, inFire: false, fireOk: false, tauntCd: 4 + g.rng() * 6,
   };
   g.units.push(u); p.units.push(u);
   return u;
@@ -504,11 +695,12 @@ function spawnDungeon(g, quiet) {
   g.events.push('horn');
 }
 
-function spawnRaid(g) {
+function spawnRaid(g, size, final) {
   const p = newParty(g, 'raid');
-  const e = edgeSpot(g, true);
-  const size = Math.min(60, 25 + 5 * g.dir.raids);
+  p.final = !!final;
+  p.brez = final ? 2 : 1;
   g.dir.raids++;
+  const e = edgeSpot(g, true);
   const cols = size <= 25 ? 5 : Math.ceil(Math.sqrt(size * 1.4)), sp = size <= 25 ? 6 : 5;
   const half = (cols - 1) / 2 * sp, depth = (Math.ceil(size / cols) - 1) * sp * 0.8;
   // staging spot just inside the edge they came from, with the whole block clear of the HUD
@@ -517,7 +709,6 @@ function spawnRaid(g) {
   else { sx = clamp(sx, 12 + half, W - 12 - half); sy = e.ny > 0 ? Math.max(sy, 38 + depth) : Math.min(sy, H - 30 - depth); }
   p.stage = { x: sx, y: sy };
   const base = Math.atan2(sy - g.boss.y, sx - g.boss.x);
-  p.brez = size >= 50 ? 2 : 1;
   const tanks = 2 + Math.floor((size - 25) / 15), healers = Math.round(size * 0.2), dps = size - tanks - healers;
   const melee = ['rogue', 'berserker', 'paladin'], ranged = ['mage', 'warlock', 'hunter'];
   const comp = [];
@@ -537,8 +728,8 @@ function spawnRaid(g) {
     u.slotD = u.role === 'healer' ? 54 + g.rng() * 10 : u.role === 'ranged' ? 44 + g.rng() * 16 : g.rng() * 4;
   });
   p.leader = p.units[0];
-  const sub = size <= 25 ? 'THEY HAVE WATCHED A GUIDE.' : size <= 35 ? 'THEY BROUGHT FRIENDS.' : size <= 45 ? 'THIS IS A GUILD EVENT.' : 'THE WHOLE SERVER IS HERE.';
-  banner(g, `A ${size}-MAN RAID HAS ENTERED`, sub);
+  if (final) banner(g, 'A 40-MAN RAID HAS ENTERED', 'THE BIG ONE. NOTHING ELSE IS COMING.', 4);
+  else banner(g, 'A 25-MAN RAID HAS ENTERED', 'THEY HAVE WATCHED A GUIDE.');
   g.events.push('raidhorn');
 }
 
@@ -574,7 +765,7 @@ function updateParty(g, p, dt) {
   if (p.type === 'rider') return;
   const b = g.boss;
 
-  if (!p.engaged) {
+  if (!p.engaged && !g.clear) {
     // anyone wandering too close, or a pet with ideas, starts the fight
     const near = live.find(u => u.state !== 'afk' && Math.hypot(u.x - b.x, u.y - b.y) < (p.type === 'raid' ? 52 : ENGAGE_R));
     if (near) engage(g, p, near.role === 'pet' ? 'pet' : p.type === 'raid' ? 'early' : 'near');
@@ -590,12 +781,15 @@ function updateParty(g, p, dt) {
     }
   }
 
+  // chatter: whatever fits the moment, else the usual
   p.barkT -= dt;
   if (p.barkT <= 0) {
     p.barkT = (p.type === 'raid' ? 2.6 : 4) + g.rng() * 3;
     const u = pick(g, live);
-    if (u.role !== 'pet') {
-      const list = p.type === 'raid' ? (p.engaged ? BARK.raidFight : BARK.raidIdle) : (p.engaged ? BARK.dungeonFight : BARK.dungeonIdle);
+    if (u.role !== 'pet' && !g.clear) {
+      let list = p.type === 'raid' ? (p.engaged ? BARK.raidFight : BARK.raidIdle) : (p.engaged ? BARK.dungeonFight : BARK.dungeonIdle);
+      if (p.engaged && g.adds.length && g.rng() < 0.3) list = BARK.adds;
+      if (p.engaged && b.hp < b.maxhp * 0.3 && g.rng() < 0.4) list = BARK.execute;
       bark(g, u, pick(g, list));
     }
   }
@@ -603,12 +797,12 @@ function updateParty(g, p, dt) {
   // the battle res
   if (p.brez > 0 && p.engaged && !p.fleeing && p.deadList.length) {
     const healer = live.find(u => u.role === 'healer');
-    const c = p.deadList.find(c => g.t - c.t > 4);
+    const c = p.deadList.find(c => g.t - c.t > 4 && g.corpses.some(k => k.u === c.u));
     if (healer && c && g.rng() < 0.3 * dt) {
       p.brez--;
       p.deadList.splice(p.deadList.indexOf(c), 1);
       const u = c.u;
-      u.dead = false; u.hp = u.maxhp * 0.5; u.state = 'fight'; u.x = c.x; u.y = c.y; u.fear = 0;
+      u.dead = false; u.hp = u.maxhp * 0.5; u.state = 'fight'; u.x = c.x; u.y = c.y; u.fear = 0; u.stun = 0;
       g.units.push(u);
       g.corpses = g.corpses.filter(k => k.u !== u);
       bark(g, healer, 'BREZ!');
@@ -631,7 +825,8 @@ function updateParty(g, p, dt) {
 function finishParty(g, p) {
   p.done = true;
   const esc = p.units.filter(u => u.gone).length;
-  if (esc && g.boss.dead) return;
+  if (p.final && !g.boss.dead) { mapCleared(g, esc); return; }
+  if (esc && (g.boss.dead || g.clear)) return;
   if (p.type === 'rider') {
     if (esc) return;
     g.wipes.rider++;
@@ -644,11 +839,27 @@ function finishParty(g, p) {
     return;
   }
   const pts = Math.round(WIPE[p.type] * g.mult);
-  g.score += pts;
-  earn(g, pts);
+  addScore(g, pts);
   g.wipes[p.type]++;
   banner(g, p.type === 'raid' ? 'RAID WIPED' : 'PARTY WIPED', `+${pts}` + (p.type === 'raid' ? '  SEE YOU NEXT RESET' : ''));
   g.events.push('wipe');
+}
+
+// the 40-man is done: everyone else logs off, and the store opens once the field is empty
+function mapCleared(g, esc) {
+  if (g.clear) return;
+  g.clear = { t: 0 };
+  const pts = esc ? 0 : Math.round(WIPE.final * g.mult);
+  if (pts) { addScore(g, pts); g.wipes.final++; }
+  banner(g, 'MAP CLEARED', pts ? `+${pts}. THE HOARD OPENS IN A MOMENT.` : 'SOME GOT AWAY. THE HOARD OPENS IN A MOMENT.', 5);
+  g.events.push('clear');
+  g.boss.act = null; g.boss.taunt = null;
+  for (const u of g.units) {
+    if (u.dead || u.gone) continue;
+    if (u.role === 'rider') { u.state = 'leave'; u.mounted = true; u.exit = nearestExit(u); continue; }
+    u.state = 'flee'; u.exit = nearestExit(u); u.fear = 0; u.stun = 0;
+    if (g.rng() < 0.15) bark(g, u, pick(g, BARK.logoff));
+  }
 }
 
 function nearestExit(u) {
@@ -659,6 +870,7 @@ function nearestExit(u) {
 // ---------------------------------------------------------------------------------------------- units
 
 function moveTo(u, tx, ty, spd, dt) {
+  spd *= u.slow ?? 1;
   const dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy);
   if (d < 0.6) { u.moving = false; return true; }
   const s = Math.min(d, spd * dt);
@@ -669,6 +881,7 @@ function moveTo(u, tx, ty, spd, dt) {
   return d < 2;
 }
 function moveDir(u, dx, dy, spd, dt) {
+  spd *= u.slow ?? 1;
   const d = Math.hypot(dx, dy) || 1;
   u.x += dx / d * spd * dt; u.y += dy / d * spd * dt;
   u.moving = true;
@@ -690,7 +903,7 @@ function escapeDir(g, k, u) {
   const b = g.boss, d = g.abil[k];
   const dx = u.x - b.x, dy = u.y - b.y, dist = Math.hypot(dx, dy) || 1;
   if (k === 'stomp') return { x: dx / dist, y: dy / dist };
-  if (k === 'charge') { const s = (-dx * Math.sin(b.face) + dy * Math.cos(b.face)) >= 0 ? 1 : -1; return { x: -Math.sin(b.face) * s, y: Math.cos(b.face) * s }; }
+  if (k === 'charge' || k === 'beam') { const s = (-dx * Math.sin(b.face) + dy * Math.cos(b.face)) >= 0 ? 1 : -1; return { x: -Math.sin(b.face) * s, y: Math.cos(b.face) * s }; }
   const f = zoneFace(g, k);
   const ad = angDiff(Math.atan2(dy, dx), f);
   const radial = d.range + 4 - dist;
@@ -702,6 +915,10 @@ function escapeDir(g, k, u) {
 function fireAt(g, x, y) {
   for (const f of g.fires) if (f.t < f.life - 0.4 && Math.hypot(x - f.x, y - f.y) < f.r) return f;
   return null;
+}
+export function onIce(g, x, y) {
+  for (const i of g.ice) if (i.t < i.life - 0.5 && Math.hypot(x - i.x, y - i.y) < i.r) return true;
+  return false;
 }
 
 function fightSpot(g, u) {
@@ -718,6 +935,7 @@ function updateUnit(g, u, dt) {
   u.hit = Math.max(0, u.hit - dt);
   u.x += u.kx * dt; u.y += u.ky * dt;
   const k = Math.exp(-9 * dt); u.kx *= k; u.ky *= k;
+  u.slow = onIce(g, u.x, u.y) ? 0.4 : 1;
   if (u.role === 'rider') { updateRider(g, u, dt); return; }
   if (b.dead) { u.moving = false; u.dance = (u.dance || g.rng() * 3) + dt; return; }
 
@@ -733,6 +951,12 @@ function updateUnit(g, u, dt) {
     if (u.dead) return;
   } else u.inFire = false;
 
+  if (u.stun > 0) { u.stun -= dt; u.moving = false; u.cast = 0; return; }
+  if (u.state === 'flee') {
+    moveTo(u, u.exit.x, u.exit.y, u.spd * 0.95, dt);
+    if (u.x < -10 || u.x > W + 10 || u.y < -10 || u.y > H + 10) { u.gone = true; if (!g.clear) g.escaped++; }
+    return;
+  }
   if (u.fear > 0) {
     u.fear -= dt; u.cast = 0;
     moveDir(u, u.x - b.x + Math.sin(g.t * 3 + u.id) * 20, u.y - b.y + Math.cos(g.t * 3 + u.id) * 20, u.spd * 1.1, dt);
@@ -744,7 +968,7 @@ function updateUnit(g, u, dt) {
   const tele = telegraph(g);
   if (tele && u.state !== 'afk') {
     const inside = inZone(g, tele, u.x, u.y, 4);
-    if (tele === 'breath' && inside && !u.inCone) u.react = Math.max(u.react, g.t + p.skill.react * (0.4 + g.rng() * 0.5));
+    if ((tele === 'breath' || tele === 'beam') && inside && !u.inCone) u.react = Math.max(u.react, g.t + p.skill.react * (0.4 + g.rng() * 0.5));
     u.inCone = inside;
     if (inside && u.willDodge && g.t >= u.react) {
       const e = escapeDir(g, tele, u);
@@ -775,10 +999,6 @@ function updateUnit(g, u, dt) {
       return;
     case 'stage':
       u.moving = false;
-      return;
-    case 'flee':
-      moveTo(u, u.exit.x, u.exit.y, u.spd * 0.95, dt);
-      if (u.x < -10 || u.x > W + 10 || u.y < -10 || u.y > H + 10) { u.gone = true; g.escaped++; }
       return;
   }
 
@@ -812,7 +1032,7 @@ function updateUnit(g, u, dt) {
     }
     if (u.role === 'tank') {
       u.tauntCd -= dt;
-      if (u.tauntCd <= 0 && dist < 34 && !b.taunt && !b.evade) {
+      if (u.tauntCd <= 0 && dist < 34 && !b.taunt && !b.evade && !(b.act?.kind === 'charge')) {
         u.tauntCd = 9 + g.rng() * 6;
         b.taunt = { u, t: 1.2 };
         g.events.push('taunt');
@@ -847,8 +1067,8 @@ function updateUnit(g, u, dt) {
 // ---------------------------------------------------------------------------------------------- the horse guy
 
 function updateRider(g, u, dt) {
-  const b = g.boss, sk = u.party.skill, h = u.horse;
-  if (b.dead && u.state !== 'leave') { u.state = 'leave'; u.exit = nearestExit(u); if (u.mounted === false && u.state !== 'climb') u.mounted = true; }
+  const b = g.boss, h = u.horse;
+  if (b.dead && u.state !== 'leave') { u.state = 'leave'; u.exit = nearestExit(u); u.mounted = true; }
   const ride = (tx, ty, spd) => {
     const ox = u.x, oy = u.y;
     moveTo(u, tx, ty, spd, dt);
@@ -875,7 +1095,7 @@ function updateRider(g, u, dt) {
       break;
     }
     case 'orbit': {
-      if (dodge(0)) break;
+      if (dodge()) break;
       if (u.fear > 0) { u.fear -= dt; ride(u.x + (u.x - b.x), u.y + (u.y - b.y), HORSE_SPD); clampArena(u); break; }
       u.orbitA += u.orbitDir * 1.3 * dt;
       ride(clamp(b.x + Math.cos(u.orbitA) * 44, ARENA.x0, ARENA.x1), clamp(b.y + Math.sin(u.orbitA) * 44, ARENA.y0, ARENA.y1), HORSE_SPD);
@@ -884,7 +1104,7 @@ function updateRider(g, u, dt) {
       break;
     }
     case 'charge': {
-      if (dodge(0)) break;
+      if (dodge()) break;
       const tx = b.x - Math.cos(b.face) * (b.r + 1), ty = b.y - Math.sin(b.face) * (b.r + 1);
       ride(tx, ty, HORSE_SPD * 1.15);
       if (Math.hypot(u.x - b.x, u.y - b.y) < b.r + 4 && !b.evade) {
@@ -915,7 +1135,7 @@ function updateRider(g, u, dt) {
           g.events.push('stab');
         }
       }
-      u.grip = clamp(u.grip + (14 - 8 * g.up.itchy) * dt, 0, 100);
+      u.grip = Math.min(100, u.grip + 14 * dt);
       const c = Math.cos(b.face), s = Math.sin(b.face);
       u.x = b.x + u.lx * c - u.ly * s; u.y = b.y + u.lx * s + u.ly * c;
       u.walk += dt * 6;
@@ -944,6 +1164,7 @@ function updateRider(g, u, dt) {
       break;
     }
     case 'leave':
+      h.x = u.x; h.y = u.y;
       ride(u.exit.x, u.exit.y, HORSE_SPD);
       if (u.x < -10 || u.x > W + 10 || u.y < -10 || u.y > H + 10) u.gone = true;
       break;
@@ -958,7 +1179,7 @@ function updateRider(g, u, dt) {
 
 function shakeRider(g, u) {
   const b = g.boss;
-  u.grip -= 30 + g.rng() * 18 + g.up.itchy * 15;
+  u.grip -= 30 + g.rng() * 18;
   if (u.grip > 0) {
     // he slides back down the fur, away from the weak spot
     const dx = u.lx - SIGIL.x, dy = u.ly - SIGIL.y, d = Math.hypot(dx, dy) || 1;
@@ -993,8 +1214,7 @@ function kill(g, u) {
   const p = u.party;
   const base = u.role === 'pet' ? PTS.pet : PTS[p.type];
   const pts = Math.round(base * g.mult);
-  g.score += pts;
-  earn(g, pts);
+  addScore(g, pts);
   g.kills++;
   text(g, u.x, u.y - 6, `+${pts}`, u.role === 'rider' ? 'gold' : 'cream', u.role === 'rider' ? 1.6 : 0.9);
   g.events.push(u.role === 'rider' ? 'riderdie' : 'kill');
@@ -1028,7 +1248,7 @@ function updateBolts(g, dt) {
     const hitR = o.ally ? 2 : o.foe ? o.foe.r : b.r - 1;
     if (d < hitR || o.t > 2) {
       o.done = true;
-      if (o.ally) { hurt(g, tgt, o.dmg); for (let i = 0; i < 4; i++) part(g, o.x, o.y, (g.rng() - 0.5) * 30, (g.rng() - 0.5) * 30, 0.3, 'flame'); }
+      if (o.ally) { hurt(g, tgt, o.dmg); for (let i = 0; i < 4; i++) part(g, o.x, o.y, (g.rng() - 0.5) * 30, (g.rng() - 0.5) * 30, 0.3, o.kind === 'fireball' ? 'flame' : 'shadow'); }
       else if (o.foe) hurtAdd(g, o.foe, o.dmg);
       else if (!b.dead) {
         hurtBoss(g, o.dmg, o.u);
@@ -1044,6 +1264,8 @@ function updateFx(g, dt) {
   g.parts = g.parts.filter(p => p.t < p.life);
   for (const f of g.fires) f.t += dt;
   g.fires = g.fires.filter(f => f.t < f.life);
+  for (const i of g.ice) i.t += dt;
+  g.ice = g.ice.filter(i => i.t < i.life);
   for (const c of g.corpses) c.t += dt;
   g.corpses = g.corpses.filter(c => c.t < 40);
   for (const o of g.ghosts) { o.t += dt; o.y -= 7 * dt; o.x += o.vx * dt; }
@@ -1083,9 +1305,7 @@ function separate(g) {
   }
 }
 
-// ---------------------------------------------------------------------------------------------- adds and the hoard
-
-function earn(g, n) { g.loot += n; g.lootEarned += n; }
+// ---------------------------------------------------------------------------------------------- adds
 
 function pickFoe(g, u) {
   if (u.role === 'healer') return null;
@@ -1093,10 +1313,8 @@ function pickFoe(g, u) {
   for (const a of g.adds) {
     if (a.dead) continue;
     const d = Math.hypot(u.x - a.x, u.y - a.y);
-    let reach;
-    if (a.kind === 'lump') reach = u.role === 'ranged' ? 58 : 34;            // the lump makes everyone near it angry
-    else if (u.role === 'ranged') reach = u.id % 3 === 0 ? 72 : 0;           // a third of the casters peel off to shoot adds
-    else reach = u.role === 'tank' ? 8 : 12;                                 // melee swat whatever is biting them
+    const reach = u.role === 'ranged' ? (u.id % 3 === 0 ? 72 : 0)   // a third of the casters peel off to shoot adds
+      : u.role === 'tank' ? 8 : 12;                                // melee swat whatever is biting them
     if (d < reach && d < bd) { best = a; bd = d; }
   }
   return best;
@@ -1131,28 +1349,43 @@ function hurtAdd(g, a, amt) {
   if (a.hp > 0) return;
   a.dead = true;
   text(g, a.x, a.y - 8, ADDS[a.kind].name + ' DOWN', 'pink', 1.3);
-  for (let i = 0; i < 10; i++) { const k = g.rng() * TAU, s = 15 + g.rng() * 30; part(g, a.x, a.y - 1, Math.cos(k) * s, Math.sin(k) * s, 0.45, 'fur'); }
+  for (let i = 0; i < 10; i++) { const k = g.rng() * TAU, s = 15 + g.rng() * 30; part(g, a.x, a.y - 1, Math.cos(k) * s, Math.sin(k) * s, 0.45, a.kind === 'skeleton' ? 'bone' : 'fur'); }
   g.events.push('adddie');
 }
 
-function spawnAdd(g, kind) {
+// what Call Adds brings depends on its level: melee, then casters, then a necromancer
+function summon(g) {
+  const lvl = g.lvl.summon || 0;
+  const kinds = lvl === 0 ? ['gnasher', 'gnasher'] : lvl === 1 ? ['spitter', 'spitter'] : ['necro'];
+  for (const k of kinds) {
+    if (g.adds.filter(a => a.kind !== 'skeleton').length >= MAX_ADDS) break;
+    spawnAdd(g, k);
+  }
+  if (lvl === 2) for (let i = 0; i < 2; i++) spawnAdd(g, 'skeleton', g.boss.x + (g.rng() - 0.5) * 30, g.boss.y + (g.rng() - 0.5) * 30);
+  g.shake = Math.max(g.shake, 0.2);
+}
+
+function spawnAdd(g, kind, x, y) {
   const b = g.boss, D = ADDS[kind];
-  let x, y;
-  if (kind === 'spitter') {
-    // squats just off the path, somewhere near you
-    const p = segNearest(b.x, b.y), side = g.rng() < 0.5 ? -1 : 1;
-    x = clamp(p.x + (g.rng() - 0.5) * 40, A.x + 6, B.x - 6); y = p.y + side * (LANE + 5 + g.rng() * 6);
-  } else {
-    const k = b.face + Math.PI + (g.rng() - 0.5) * 1.5;
-    x = b.x + Math.cos(k) * (b.r + D.r + 3); y = b.y + Math.sin(k) * (b.r + D.r + 3);
+  if (x == null) {
+    if (kind === 'spitter') {
+      // squats just off the path, somewhere near you
+      const p = pathNearest(g.map, b.x + (g.rng() - 0.5) * 50, b.y + (g.rng() - 0.5) * 50), side = g.rng() < 0.5 ? -1 : 1;
+      const q = pathNearest(g.map, p.x + 3, p.y), ang = Math.atan2(q.y - p.y, q.x - p.x) + Math.PI / 2;
+      x = p.x + Math.cos(ang) * side * (LANE + 5); y = p.y + Math.sin(ang) * side * (LANE + 5);
+    } else {
+      const k = b.face + Math.PI + (g.rng() - 0.5) * 1.5;
+      x = b.x + Math.cos(k) * (b.r + D.r + 3); y = b.y + Math.sin(k) * (b.r + D.r + 3);
+    }
   }
   const a = { id: g.nextId++, kind, x: clamp(x, ARENA.x0, ARENA.x1), y: clamp(y, ARENA.y0, ARENA.y1), hp: D.hp, maxhp: D.hp, r: D.r,
-    atk: 0.5, walk: 0, moving: false, fx: 1, hit: 0, t: 0, swing: 0, slot: g.rng() * TAU };
+    atk: 0.5, walk: 0, moving: false, fx: 1, hit: 0, t: 0, swing: 0, slot: g.rng() * TAU, raise: 2 };
   g.adds.push(a);
   g.summoned++;
-  text(g, a.x, a.y - 9, D.name + '!', 'gold', 1.4);
-  for (let i = 0; i < 12; i++) { const k = g.rng() * TAU, s = 20 + g.rng() * 25; part(g, a.x, a.y, Math.cos(k) * s, Math.sin(k) * s, 0.5, 'dust'); }
-  g.events.push('summon');
+  text(g, a.x, a.y - 9, kind === 'skeleton' ? 'RISE' : D.name + '!', kind === 'skeleton' ? 'heal' : 'gold', 1.4);
+  for (let i = 0; i < 12; i++) { const k = g.rng() * TAU, s = 20 + g.rng() * 25; part(g, a.x, a.y, Math.cos(k) * s, Math.sin(k) * s, 0.5, kind === 'skeleton' || kind === 'necro' ? 'heal' : 'dust'); }
+  g.events.push(kind === 'skeleton' ? 'rise' : 'summon');
+  return a;
 }
 
 function updateAdd(g, a, dt) {
@@ -1161,83 +1394,124 @@ function updateAdd(g, a, dt) {
   if (b.dead) { a.moving = false; return; }
   let tgt = null, td = Infinity;
   for (const u of g.units) {
-    if (!hittable(u)) continue;
+    if (!hittable(u) || u.state === 'flee') continue;
     const d = Math.hypot(u.x - a.x, u.y - a.y);
     if (d < D.sense && d < td) { tgt = u; td = d; }
   }
-  if (a.kind === 'spitter') {
-    a.moving = false;
+  if (a.kind === 'necro') {
+    // raises the nearest fallen hero as a skeleton, now and then
+    a.raise -= dt;
+    if (a.raise <= 0 && g.adds.filter(m => m.kind === 'skeleton').length < MAX_SKELETONS) {
+      const c = g.corpses.filter(c => c.cls !== 'pet' && Math.hypot(c.x - a.x, c.y - a.y) < 90).sort((p, q) => Math.hypot(p.x - a.x, p.y - a.y) - Math.hypot(q.x - a.x, q.y - a.y))[0];
+      if (c) {
+        g.corpses.splice(g.corpses.indexOf(c), 1);
+        const dl = c.u.party.deadList.findIndex(e => e.u === c.u);
+        if (dl >= 0) c.u.party.deadList.splice(dl, 1);
+        spawnAdd(g, 'skeleton', c.x, c.y);
+        a.swing = 0.4;
+        a.raise = 3.2;
+      } else a.raise = 0.5;
+    }
+  }
+  if (a.kind === 'spitter' || a.kind === 'necro') {
     if (tgt) {
       a.fx = tgt.x > a.x ? 1 : -1;
-      if (a.atk <= 0) { a.atk = D.rate; a.swing = 0.25; g.bolts.push({ x: a.x, y: a.y - 3, dmg: D.dmg, kind: 'fireball', ally: true, tgt, t: 0 }); g.events.push('spit'); }
+      if (a.atk <= 0) {
+        a.atk = D.rate; a.swing = Math.max(a.swing, 0.25);
+        g.bolts.push({ x: a.x, y: a.y - 3, dmg: D.dmg, kind: a.kind === 'spitter' ? 'fireball' : 'shadow', ally: true, tgt, t: 0 });
+        g.events.push('spit');
+      }
     }
+    if (a.kind === 'spitter') { a.moving = false; return; }
+    // the necromancer keeps to your side
+    const k = b.face + Math.PI * 0.75 * (Math.sin(a.slot) > 0 ? 1 : -1), dist = b.r + 12;
+    if (moveTo(a, b.x + Math.cos(k) * dist, b.y + Math.sin(k) * dist, D.spd, dt)) a.moving = false;
+    clampArena(a);
     return;
   }
-  // a gnasher never strays too far from you
-  if (a.kind === 'gnasher' && Math.hypot(a.x - b.x, a.y - b.y) > 95) tgt = null;
+  // gnashers and skeletons never stray too far from you
+  if (Math.hypot(a.x - b.x, a.y - b.y) > 95) tgt = null;
   if (tgt) {
     const reach = a.r + D.reach;
     if (td > reach - 1) moveTo(a, tgt.x, tgt.y, D.spd, dt); else a.moving = false;
     if (td < reach + 1 && a.atk <= 0) {
       a.atk = D.rate * (0.85 + g.rng() * 0.3);
       a.swing = 0.2;
-      if (a.kind === 'lump') {
-        for (const u of g.units) if (hittable(u) && Math.hypot(u.x - a.x, u.y - a.y) < a.r + 8) { hurt(g, u, D.dmg); knock(u, a, 14); }
-        g.rings.push({ x: a.x, y: a.y, r: 3, max: a.r + 8, t: 0, col: 'dust' });
-        g.events.push('thud');
-      } else { hurt(g, tgt, D.dmg); g.events.push('bite'); }
+      hurt(g, tgt, D.dmg);
+      g.events.push('bite');
     }
   } else {
     // heel: trail along beside the boss
-    const k = b.face + Math.PI + Math.sin(a.slot) * 1.3, dist = b.r + a.r + (a.kind === 'lump' ? 9 : 6);
-    if (moveTo(a, b.x + Math.cos(k) * dist, b.y + Math.sin(k) * dist, D.spd * (a.kind === 'lump' ? 1.5 : 1.1), dt)) a.moving = false;
+    const k = b.face + Math.PI + Math.sin(a.slot) * 1.3, dist = b.r + a.r + 6;
+    if (moveTo(a, b.x + Math.cos(k) * dist, b.y + Math.sin(k) * dist, D.spd * 1.1, dt)) a.moving = false;
   }
   clampArena(a);
 }
 
-export function price(g, item) {
-  if (item.kind === 'up') { const l = g.up[item.id]; return l < item.cost.length ? item.cost[l] : null; }
-  if (item.kind === 'ability') return g.owned[item.id] ? null : item.cost;
-  // each add of a kind already on the field makes the next one dearer
-  if (item.kind === 'add') return Math.round(item.cost * (1 + 0.35 * g.adds.filter(a => a.kind === item.id).length) / 50) * 50;
-  return item.cost;
+// ---------------------------------------------------------------------------------------------- the store
+
+export const maxLevel = id => id === 'summon' ? 2 : 3;
+
+// this run's ability numbers, with every upgrade applied
+function applyLevels(g) {
+  const L = k => g.lvl[k] || 0, a = JSON.parse(JSON.stringify(ABIL));
+  a.swipe.dmg *= 1 + 0.3 * L('swipe'); a.swipe.range += 3 * L('swipe');
+  a.stomp.dmg *= 1 + 0.3 * L('stomp'); a.stomp.range *= 1 + 0.12 * L('stomp');
+  a.breath.dps *= 1 + 0.3 * L('breath'); a.breath.dmg *= 1 + 0.3 * L('breath'); a.breath.range *= 1 + 0.15 * L('breath');
+  a.roar.range *= 1 + 0.15 * L('roar'); a.roar.fear += 0.6 * L('roar');
+  a.tail.dmg *= 1 + 0.3 * L('tail'); a.tail.range += 3 * L('tail');
+  a.beam.dps *= 1 + 0.35 * L('beam'); a.beam.range *= 1 + 0.2 * L('beam');
+  a.ice.range *= 1 + 0.25 * L('ice'); a.ice.life += 2 * L('ice');
+  a.charge.dmg *= 1 + 0.3 * L('charge'); a.charge.range *= 1 + 0.2 * L('charge'); a.charge.stun += 0.5 * L('charge');
+  a.haste.time += 1.5 * L('haste'); a.haste.boost += 0.2 * L('haste');
+  g.abil = a;
+  const b = g.boss, old = b.maxhp;
+  b.maxhp = BOSS_HP * (1 + 0.25 * L('fur'));
+  b.hp = Math.max(1, b.hp + b.maxhp - old);
 }
 
-// can this be bought right now? { ok, cost, why }
-export function offer(g, item) {
-  const cost = price(g, item);
-  if (cost == null) return { ok: false, cost, why: item.kind === 'up' ? 'MAXED' : 'OWNED' };
-  if (g.boss.dead) return { ok: false, cost, why: 'DEAD' };
-  if (item.kind === 'add') {
-    if (g.adds.length >= MAX_ADDS) return { ok: false, cost, why: `${MAX_ADDS} ADDS MAX` };
-    if (item.max && g.adds.filter(a => a.kind === item.id).length >= item.max) return { ok: false, cost, why: `${item.max} MAX` };
+// what the store shows for one catalogue entry
+export function abilityOffer(g, id) {
+  const it = ABILITIES.find(a => a.id === id), lvl = g.lvl[id] || 0, max = maxLevel(id);
+  if (it.passive) {
+    const cost = lvl < max ? [it.cost, ...UP_COST.slice(1)][lvl] : null;
+    return { it, owned: lvl > 0, lvl, max, buyCost: null, upCost: cost, upText: it.up };
   }
-  if (item.id === 'snack' && g.boss.hp >= g.boss.maxhp) return { ok: false, cost, why: 'NOT HUNGRY' };
-  if (g.loot < cost) return { ok: false, cost, why: 'NEED ' + (cost - Math.floor(g.loot)) };
-  return { ok: true, cost };
+  const owned = g.owned.has(id);
+  const upCost = owned && lvl < max ? (it.upCost || UP_COST)[lvl] : null;
+  const upText = it.ups ? it.ups[lvl] : it.up;
+  return { it, owned, lvl, max, buyCost: owned ? null : it.cost, upCost, upText };
 }
 
-export function buy(g, id) {
-  const item = SHOP.find(s => s.id === id), o = item && offer(g, item);
-  if (!o?.ok) return false;
-  g.loot -= o.cost; g.lootSpent += o.cost;
-  const b = g.boss;
-  if (item.kind === 'add') spawnAdd(g, id);
-  else if (id === 'snack') { b.hp = Math.min(b.maxhp, b.hp + b.maxhp * 0.35); text(g, b.x, b.y - 20, '*CRUNCH*', 'gold', 1.4); }
-  else if (item.kind === 'ability') { g.owned[id] = true; text(g, b.x, b.y - 20, item.name.toUpperCase() + '!', 'gold', 1.6); }
-  else { g.up[id]++; applyUps(g); text(g, b.x, b.y - 20, item.name.toUpperCase(), 'gold', 1.4); }
-  g.events.push('buy');
+export function spend(g, n) {
+  if (g.points < n) return false;
+  g.points -= n; g.spent += n;
   return true;
 }
 
-function applyUps(g) {
-  const b = g.boss, u = g.up, old = b.maxhp;
-  b.maxhp = BOSS_HP * (1 + 0.25 * u.fur);
-  b.hp += b.maxhp - old;
-  for (const k of ['swipe', 'stomp', 'tail', 'charge']) g.abil[k].dmg = ABIL[k].dmg * (1 + 0.3 * u.claws);
-  g.abil.breath.range = ABIL.breath.range * (1 + 0.15 * u.lungs);
-  g.abil.breath.cd = ABIL.breath.cd * (1 - 0.2 * u.lungs);
-  g.speed = 1 + 0.15 * u.feet;
+export function buyAbility(g, id) {
+  const o = abilityOffer(g, id);
+  if (o.buyCost == null || !spend(g, o.buyCost)) return false;
+  g.owned.add(id);
+  const free = g.slots.indexOf(null);
+  if (free >= 0) g.slots[free] = id;
+  return true;
+}
+
+export function upgradeAbility(g, id) {
+  const o = abilityOffer(g, id);
+  if (o.upCost == null || !spend(g, o.upCost)) return false;
+  g.lvl[id] = (g.lvl[id] || 0) + 1;
+  applyLevels(g);
+  return true;
+}
+
+// puts an owned ability in slot i; if it was already in another slot, the two swap
+export function setSlot(g, i, id) {
+  if (id && !g.owned.has(id)) return;
+  const j = id ? g.slots.indexOf(id) : -1;
+  if (j >= 0) g.slots[j] = g.slots[i];
+  g.slots[i] = id || null;
 }
 
 function part(g, x, y, vx, vy, life, kind) { if (g.parts.length < 400) g.parts.push({ x, y, vx, vy, t: 0, life, kind }); }

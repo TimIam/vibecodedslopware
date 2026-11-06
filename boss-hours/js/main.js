@@ -1,7 +1,9 @@
-// The page: input, the fixed-step loop, scaling the 320×180 buffer to the window, overlays, saving the best score.
+// The page: input, the fixed-step loop, scaling the 320×180 buffer to the window, the between-maps store,
+// overlays, saving the best score and the looks you have bought.
 
-import { createGame, step, buy, offer, SHOP, W, H } from './world.js';
-import { createRenderer } from './render.js';
+import { createGame, step, nextMap, W, H, ABILITIES, LOOKS, LOOK_COST, SLOT_KEYS, abilityOffer, buyAbility, upgradeAbility, setSlot, spend } from './world.js';
+import { createRenderer, bossPreview } from './render.js';
+import { BOSS_SIZE, ICONS } from './art.js';
 import { createAudio } from './audio.js';
 
 const canvas = document.getElementById('game');
@@ -9,42 +11,42 @@ const out = canvas.getContext('2d');
 const R = createRenderer();
 const audio = createAudio();
 const $ = id => document.getElementById(id);
+const fmt = n => Math.floor(n).toLocaleString('en-US');
 
-let g = createGame();
-let mode = 'title';   // title | play | shop | paused | over
-const DT = 1 / 60;
-let acc = 0, last = performance.now();
-let frozen = false;   // tests only: stop the clock so a screenshot shows exactly the stepped state
+// ---------------------------------------------------------------------------------------------- saved things
 
-// ---------------------------------------------------------------------------------------------- best score
+// looks are kept between runs once bought; abilities are not
+const LOOKS_KEY = 'bosshours.looks.v1';
+let looks = { owned: {}, wear: {} };
+try { looks = { owned: {}, wear: {}, ...JSON.parse(localStorage.getItem(LOOKS_KEY) || '{}') }; } catch {}
+for (const part in LOOKS) { looks.owned[part] = [...new Set([0, ...(looks.owned[part] || [])])]; looks.wear[part] ??= 0; }
+const saveLooks = () => { try { localStorage.setItem(LOOKS_KEY, JSON.stringify(looks)); } catch {} };
 
 const BEST_KEY = 'bosshours.best.v1';
 let best = 0;
 try { best = Number(JSON.parse(localStorage.getItem(BEST_KEY) || '{}').score) || 0; } catch {}
-const fmt = n => Math.floor(n).toLocaleString('en-US');
 function showBest() { $('best').textContent = best ? `Best shift: ${fmt(best)} points` : ''; }
 showBest();
+
+let g = createGame(undefined, looks.wear);
+let mode = 'title';   // title | play | store | paused | over
+const DT = 1 / 60;
+let acc = 0, last = performance.now();
+let frozen = false;   // tests only: stop the clock so a screenshot shows exactly the stepped state
 
 // ---------------------------------------------------------------------------------------------- input
 
 const keys = new Set();
 const mouse = { x: W / 2 + 40, y: H / 2, l: false };
 const press = {};
-const KEYMAP = { KeyQ: 'breath', KeyE: 'roar', Space: 'shake', KeyF: 'stomp', KeyJ: 'swipe', KeyK: 'stomp', KeyR: 'tail', ShiftLeft: 'charge', ShiftRight: 'charge' };
-const SHOP_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'];
+const KEYMAP = { KeyJ: 'slot0', KeyK: 'slot1', KeyF: 'slot1', KeyQ: 'slot2', KeyE: 'slot3', KeyR: 'slot4', Space: 'shake' };
 
 addEventListener('keydown', e => {
-  if (e.target.closest?.('a, button')) return;
+  if (e.target.closest?.('a, button, select')) return;
   if (mode === 'title' && (e.code === 'Enter' || e.code === 'Space')) { e.preventDefault(); start(); return; }
   if (mode === 'over' && (e.code === 'KeyR' || e.code === 'Enter')) { e.preventDefault(); start(); return; }
   if (e.code === 'KeyM') { audio.toggleMute(); return; }
-  if (mode === 'shop') {
-    if (e.code === 'KeyB' || e.code === 'Escape') { e.preventDefault(); closeShop(); return; }
-    const i = SHOP_KEYS.indexOf(e.key);
-    if (i >= 0 && SHOP[i]) { e.preventDefault(); purchase(SHOP[i].id); }
-    return;
-  }
-  if (e.code === 'KeyB' && mode === 'play') { e.preventDefault(); openShop(); return; }
+  if (mode === 'store') return;
   if (e.code === 'Escape' || e.code === 'KeyP') { if (mode === 'play') pause(); else if (mode === 'paused') resume(); return; }
   if (mode === 'paused' && e.code === 'Space') { e.preventDefault(); resume(); return; }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
@@ -65,8 +67,8 @@ canvas.addEventListener('pointerdown', e => {
   toBuffer(e);
   canvas.focus();
   if (mode !== 'play') return;
-  if (e.button === 0) { press.swipe = true; mouse.l = true; }
-  if (e.button === 2) press.stomp = true;
+  if (e.button === 0) { press.slot0 = true; mouse.l = true; }
+  if (e.button === 2) press.slot1 = true;
 });
 addEventListener('pointerup', e => { if (e.button === 0) mouse.l = false; });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -78,7 +80,7 @@ function readInput() {
     ax: (k('KeyD') || k('ArrowRight') ? 1 : 0) - (k('KeyA') || k('ArrowLeft') ? 1 : 0),
     ay: (k('KeyS') || k('ArrowDown') ? 1 : 0) - (k('KeyW') || k('ArrowUp') ? 1 : 0),
     press: { ...press },
-    hold: { swipe: mouse.l || k('KeyJ') },
+    hold: { slot0: mouse.l || k('KeyJ') },
   };
 }
 
@@ -86,33 +88,14 @@ function readInput() {
 
 function start() {
   audio.unlock();
-  g = createGame();
+  g = createGame(undefined, looks.wear);
   R.reset();
   acc = 0;
   mode = 'play';
-  $('title').hidden = true; $('over').hidden = true; $('paused').hidden = true;
+  for (const id of ['title', 'over', 'paused', 'store']) $(id).hidden = true;
   canvas.focus();
 }
 function pause() { mode = 'paused'; $('paused').hidden = false; }
-
-// ---------------------------------------------------------------------------------------------- the hoard (shop)
-
-function openShop() { mode = 'shop'; keys.clear(); mouse.l = false; drawShop(); $('shop').hidden = false; }
-function closeShop() { mode = 'play'; $('shop').hidden = true; last = performance.now(); canvas.focus(); }
-function purchase(id) { if (buy(g, id)) { drain(); drawShop(); } }
-function drawShop() {
-  $('shopLoot').textContent = fmt(g.loot);
-  $('shopList').innerHTML = SHOP.map((it, i) => {
-    const o = offer(g, it);
-    const lvl = it.kind === 'up' ? ` <i>${g.up[it.id]}/${it.cost.length}</i>` : it.kind === 'add' ? ` <i>${g.adds.filter(a => a.kind === it.id).length} out</i>` : '';
-    const price = o.cost == null ? o.why : fmt(o.cost);
-    return `<button type="button" class="item ${it.kind}" data-id="${it.id}" ${o.ok ? '' : 'aria-disabled="true"'}>
-      <kbd>${SHOP_KEYS[i]}</kbd><b>${it.name}${lvl}</b><span class="cost">${price}</span>
-      <small>${it.desc}${it.key ? ` Key: ${it.key}.` : ''}</small>${o.ok || o.cost == null ? '' : `<em>${o.why}</em>`}</button>`;
-  }).join('');
-}
-$('shopList').addEventListener('click', e => { const b = e.target.closest('.item'); if (b) purchase(b.dataset.id); });
-$('shopClose').addEventListener('click', closeShop);
 function resume() { mode = 'play'; $('paused').hidden = true; last = performance.now(); canvas.focus(); }
 
 const LINES = {
@@ -132,14 +115,13 @@ function gameOver() {
   $('stats').innerHTML = [
     ['Score', fmt(g.score) + (newBest ? ' <em>new best</em>' : '')],
     ['Shift length', `${m}:${s}`],
+    ['Maps cleared', g.maps],
     ['Laps between rocks', g.laps],
-    ['Path walked', `${Math.round(g.patrolDist)} px`],
     ['Adventurers eaten', g.kills],
-    ['Raids wiped', g.wipes.raid],
+    ['Raids wiped', g.wipes.raid + g.wipes.final],
     ['5-mans wiped', g.wipes.dungeon],
     ['Horse guys', g.wipes.rider],
-    ['Loot earned', fmt(g.lootEarned)],
-    ['Loot spent', fmt(g.lootSpent)],
+    ['Points spent', fmt(g.spent)],
     ['Adds summoned', g.summoned],
   ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   showBest();
@@ -150,6 +132,106 @@ function gameOver() {
 $('go').addEventListener('click', start);
 $('again').addEventListener('click', start);
 $('resume').addEventListener('click', resume);
+
+// ---------------------------------------------------------------------------------------------- the store, between maps
+
+let tab = 'abil', spin = null;
+const PART_NAMES = { head: 'Head', neck: 'Neck', back: 'Back', tail: 'Tail', limbs: 'Limbs', marker: 'Destination marker' };
+
+function openStore() {
+  mode = 'store';
+  keys.clear(); mouse.l = false;
+  $('storeMap').textContent = g.map.n;
+  drawStore();
+  $('store').hidden = false;
+  let dir = 0;
+  clearInterval(spin);
+  spin = setInterval(() => { dir = (dir + 1) % 32; drawPreview(dir); }, 140);
+}
+function closeStore() {
+  clearInterval(spin);
+  $('store').hidden = true;
+  nextMap(g);
+  R.reset();
+  mode = 'play';
+  last = performance.now();
+  canvas.focus();
+}
+
+function icon(id) {
+  const rows = ICONS[id] || ICONS.empty;
+  return `<svg class="ico" viewBox="0 0 8 8" aria-hidden="true">${rows.map((r, y) => [...r].map((c, x) => c === '#' ? `<rect x="${x}" y="${y}" width="1" height="1"/>` : '').join('')).join('')}</svg>`;
+}
+
+function drawStore() {
+  $('storePts').textContent = fmt(g.points);
+  for (const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected', b.dataset.tab === tab);
+  $('tabAbil').hidden = tab !== 'abil'; $('tabSlots').hidden = tab !== 'slots'; $('tabLooks').hidden = tab !== 'looks';
+  if (tab === 'abil') drawAbilities();
+  if (tab === 'slots') drawSlots();
+  if (tab === 'looks') { drawLooks(); drawPreview(0); }
+}
+
+function drawAbilities() {
+  $('tabAbil').innerHTML = ABILITIES.map(a => {
+    const o = abilityOffer(g, a.id);
+    const pips = `<span class="pips">${Array.from({ length: o.max }, (_, i) => `<i class="${i < o.lvl ? 'on' : ''}"></i>`).join('')}</span>`;
+    let act;
+    if (o.buyCost != null) act = `<button type="button" class="buy" data-buy="${a.id}" ${g.points < o.buyCost ? 'aria-disabled="true"' : ''}>Buy <b>${fmt(o.buyCost)}</b></button>`;
+    else if (o.upCost != null) act = `<button type="button" class="buy" data-up="${a.id}" ${g.points < o.upCost ? 'aria-disabled="true"' : ''}>${a.passive && !o.owned ? 'Buy' : 'Upgrade'} <b>${fmt(o.upCost)}</b><small>${o.upText}</small></button>`;
+    else act = `<span class="maxed">Maxed</span>`;
+    const tag = a.passive ? 'passive' : o.owned ? (g.slots.includes(a.id) ? `on ${SLOT_KEYS[g.slots.indexOf(a.id)]}` : 'owned, not slotted') : 'not owned';
+    return `<div class="item ${o.owned ? 'owned' : ''}">${icon(a.id)}<b class="nm">${a.name}</b>${pips}<span class="tag">${tag}</span>
+      <small class="desc">${a.desc}</small>${act}</div>`;
+  }).join('');
+}
+
+function drawSlots() {
+  const owned = ABILITIES.filter(a => !a.passive && g.owned.has(a.id));
+  $('tabSlots').innerHTML = `<p class="hint">Five slots. Pick what goes where; picking something already in another slot swaps them. Shake your fur stays on <kbd>Space</kbd>.</p>` +
+    g.slots.map((id, i) => `<label class="slot"><kbd>${SLOT_KEYS[i]}</kbd>${icon(id || 'empty')}
+      <select data-slot="${i}"><option value="">(empty)</option>${owned.map(a => `<option value="${a.id}" ${a.id === id ? 'selected' : ''}>${a.name}</option>`).join('')}</select></label>`).join('');
+}
+
+function drawLooks() {
+  $('lookRows').innerHTML = Object.entries(LOOKS).map(([part, names]) => `<div class="part"><h3>${PART_NAMES[part]}</h3><div class="opts">` +
+    names.map((nm, i) => {
+      const have = looks.owned[part].includes(i), wearing = g.look[part] === i;
+      const label = wearing ? 'wearing' : have ? 'owned' : fmt(LOOK_COST[i]);
+      return `<button type="button" class="opt ${wearing ? 'on' : ''}" data-part="${part}" data-i="${i}" ${!have && g.points < LOOK_COST[i] ? 'aria-disabled="true"' : ''}>${nm}<small>${label}</small></button>`;
+    }).join('') + '</div></div>').join('');
+}
+
+function drawPreview(dir) {
+  const cv = $('preview'), c = cv.getContext('2d');
+  c.imageSmoothingEnabled = false;
+  c.clearRect(0, 0, cv.width, cv.height);
+  const s = Math.floor(cv.width / BOSS_SIZE);
+  c.drawImage(bossPreview(g.look, dir, Math.floor(performance.now() / 300) % 4), 0, 0, BOSS_SIZE * s, BOSS_SIZE * s);
+}
+
+$('store').addEventListener('click', e => {
+  const t = e.target.closest('button');
+  if (!t || t.getAttribute('aria-disabled') === 'true') return;
+  if (t.dataset.tab) { tab = t.dataset.tab; drawStore(); return; }
+  if (t.id === 'storeGo') { closeStore(); return; }
+  let ok = false;
+  if (t.dataset.buy) ok = buyAbility(g, t.dataset.buy);
+  else if (t.dataset.up) ok = upgradeAbility(g, t.dataset.up);
+  else if (t.dataset.part) {
+    const part = t.dataset.part, i = +t.dataset.i;
+    if (!looks.owned[part].includes(i)) { if (!spend(g, LOOK_COST[i])) return; looks.owned[part].push(i); }
+    g.look = { ...g.look, [part]: i };
+    looks.wear[part] = i;
+    saveLooks();
+    ok = true;
+  }
+  if (ok) { audio.play('buy'); drawStore(); }
+});
+$('store').addEventListener('change', e => {
+  const s = e.target.closest('select[data-slot]');
+  if (s) { setSlot(g, +s.dataset.slot, s.value || null); drawStore(); }
+});
 
 // ---------------------------------------------------------------------------------------------- loop
 
@@ -170,7 +252,11 @@ addEventListener('resize', fit);
 fit();
 
 function drain() {
-  for (const e of g.events) { if (e === 'over') gameOver(); else audio.play(e); }
+  for (const e of g.events) {
+    if (e === 'over') gameOver();
+    else if (e === 'store') openStore();
+    else audio.play(e);
+  }
   g.events.length = 0;
 }
 
@@ -185,13 +271,13 @@ function frame(now) {
   last = now;
   if (mode === 'play' && !frozen) {
     acc += dt;
-    while (acc >= DT) {
+    while (acc >= DT && mode === 'play') {
       step(g, readInput(), DT);
       for (const k in press) delete press[k];
       acc -= DT;
+      drain();
     }
     audio.setCombat(g.parties.some(p => p.engaged));
-    drain();
   }
   paint();
   requestAnimationFrame(frame);
@@ -218,6 +304,8 @@ if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
     get g() { return g; },
     get mode() { return mode; },
     start,
+    openStore, closeStore,
+    tab(t) { tab = t; drawStore(); },
     freeze(on = true) { frozen = on; },
     // covers the page with a magnified crop of the buffer (w buffer px wide), for close-up screenshots
     zoom(cx, cy, w = 100) {
