@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Boss Hours</title>
+<meta name="description" content="A reverse boss fight in pixel art. You are the boss: pace between a rock and another rock for points, and eat the 5-mans, 25-man raids and the quiet man on a horse who keep interrupting.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐾</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#141a12;color:#f4ecd2;font:14px/1.45 "Silkscreen",ui-monospace,Consolas,monospace;user-select:none;-webkit-user-select:none}
+main{position:fixed;inset:52px 0 0;display:grid;place-items:center}
+#game{display:block;image-rendering:pixelated;image-rendering:crisp-edges;outline:none;cursor:none;background:#141a12}
+.overlay{position:fixed;inset:52px 0 0;display:grid;place-items:center;z-index:10;background:rgba(10,12,8,.55)}
+.overlay[hidden]{display:none}
+.card{width:min(600px,94vw);max-height:calc(100dvh - 72px);overflow:auto;padding:18px 24px 18px;background:#1c1610;border:4px solid #14100c;box-shadow:0 0 0 4px #633b25,0 0 0 8px #14100c,0 18px 50px rgba(0,0,0,.6);text-align:center}
+h1{margin:0;font-size:40px;line-height:1;letter-spacing:1px;color:#ffd75a;text-shadow:4px 4px 0 #14100c,0 0 0 #000}
+h1 small{display:block;font-size:13px;letter-spacing:2px;color:#aeac9b;text-shadow:none;margin-top:8px;font-weight:400}
+h2{margin:0;font-size:24px;color:#e2483a;text-shadow:3px 3px 0 #14100c}
+p{margin:12px 0 0;color:#d2cfbd}
+.how{text-align:left;margin:12px 0 0;padding:0;list-style:none;display:grid;gap:5px;font-size:12px;line-height:1.4;color:#d2cfbd}
+.how li{padding-left:18px;position:relative}
+.how li::before{content:"";position:absolute;left:2px;top:6px;width:7px;height:7px;background:#ffd75a;box-shadow:2px 2px 0 #14100c}
+.how b{color:#f4ecd2;font-weight:700}
+.keys{display:grid;grid-template-columns:auto auto auto auto;gap:6px 10px;margin:14px auto 0;width:max-content;max-width:100%;text-align:left;font-size:11.5px;align-items:center}
+@media (max-width:560px){.keys{grid-template-columns:auto 1fr}}
+.keys .k{justify-self:end;white-space:nowrap}
+kbd{display:inline-block;min-width:22px;padding:2px 6px 1px;background:#2f302c;border:2px solid #14100c;border-bottom-width:4px;color:#f4ecd2;font:inherit;font-size:11px;text-align:center}
+button{appearance:none;margin-top:14px;border:0;padding:12px 26px 10px;background:#c0392b;color:#fff;font:700 18px/1 "Silkscreen",monospace;cursor:pointer;box-shadow:0 4px 0 #6e1d14,0 0 0 3px #14100c;text-transform:uppercase;letter-spacing:1px}
+button:hover{background:#d8473a}
+button:active{transform:translateY(3px);box-shadow:0 1px 0 #6e1d14,0 0 0 3px #14100c}
+button:focus-visible{outline:3px solid #ffd75a;outline-offset:4px}
+#best{margin-top:10px;font-size:12px;color:#ffd75a;min-height:1em}
+.note{font-size:11px;color:#7f7f74;margin-top:12px}
+dl{display:grid;grid-template-columns:1fr auto;gap:4px 18px;margin:16px auto 0;width:min(340px,100%);text-align:left;font-size:13px}
+dt{color:#aeac9b}
+dd{margin:0;text-align:right;color:#f4ecd2}
+dd em{font-style:normal;color:#ffd75a;font-size:11px;margin-left:6px}
+.shop{width:min(760px,96vw);text-align:left}
+.shop h2{text-align:center}
+.loot{text-align:center;margin-top:6px}
+.loot b{color:#ffd75a;font-size:18px}
+.loot span{display:block;font-size:11px;color:#7f7f74}
+#shopList{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-top:12px}
+.item{margin:0;display:grid;grid-template-columns:auto 1fr auto;gap:2px 8px;align-items:center;padding:8px 10px 8px;background:#2a2016;color:#f4ecd2;font:12px/1.35 "Silkscreen",monospace;text-transform:none;letter-spacing:0;text-align:left;box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c}
+.item:hover{background:#3a2c1e}
+.item[aria-disabled="true"]{opacity:.55;cursor:default}
+.item[aria-disabled="true"]:active{transform:none}
+.item kbd{min-width:18px;padding:1px 4px 0}
+.item b{font-size:13px}
+.item b i{font-style:normal;color:#aeac9b;font-size:11px;margin-left:4px}
+.item .cost{color:#ffd75a;font-weight:700}
+.item small{grid-column:1/-1;color:#d2cfbd;font-size:11px}
+.item em{grid-column:1/-1;font-style:normal;color:#e2483a;font-size:11px}
+.item.add{box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c,inset 3px 0 0 #835233}
+.item.ability{box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c,inset 3px 0 0 #c0392b}
+.item.up{box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c,inset 3px 0 0 #6ff3e8}
+.item.once{box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c,inset 3px 0 0 #58b84a}
+#shopClose{display:block;margin:14px auto 0}
+#shopClose small{font-size:11px;opacity:.8}
+.touch-only{display:none}
+@media (hover:none) and (pointer:coarse){.touch-only{display:block}}
+</style>
+<script type="module" src="./js/main.js"></script>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<main><canvas id="game" tabindex="0" aria-label="Boss Hours game view"></canvas></main>
+
+<div id="title" class="overlay">
+  <div class="card">
+    <h1>Boss Hours<small>A reverse boss fight</small></h1>
+    <p>You are the boss. The job is to walk from a rock to another rock, forever. Adventurers keep interrupting.</p>
+    <ul class="how">
+      <li><b>Walk the path</b> between the rocks for points. Touch each rock in turn to build <b>Aimlessness</b>, which multiplies everything.</li>
+      <li>Step off the path and Aimlessness fades. Go past your leash and you <b>evade</b>: you heal, but the multiplier resets.</li>
+      <li><b>5-mans</b> wander in (one is always AFK). <b>Raids</b> count down, then dodge your telegraphs because they read the guide. They start at 25 heroes and keep getting bigger, and more often.</li>
+      <li>A <b>quiet man on a horse</b> will try to climb your fur and stab the glowing spot on your back. Shake him off, then step on him.</li>
+      <li>Points from kills and rock touches are also <b>loot</b>. Press <b>B</b> to spend it: <b>adds</b> that fight for you, two new abilities, thicker fur and sharper claws.</li>
+    </ul>
+    <div class="keys">
+      <span class="k"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>lumber about</span>
+      <span class="k"><kbd>mouse</kbd></span><span>face somewhere</span>
+      <span class="k"><kbd>LMB</kbd></span><span>swipe (hold it)</span>
+      <span class="k"><kbd>RMB</kbd></span><span>stomp</span>
+      <span class="k"><kbd>Q</kbd></span><span>fire breath (leaves fire)</span>
+      <span class="k"><kbd>E</kbd></span><span>roar (everyone runs)</span>
+      <span class="k"><kbd>Space</kbd></span><span>shake your fur</span>
+      <span class="k"><kbd>R</kbd> <kbd>Shift</kbd></span><span>tail sweep, charge (once bought)</span>
+      <span class="k"><kbd>B</kbd></span><span>the hoard (shop)</span>
+      <span class="k"><kbd>P</kbd> <kbd>M</kbd></span><span>pause, mute</span>
+    </div>
+    <button id="go" type="button">Clock in</button>
+    <div id="best"></div>
+    <p class="note touch-only">Needs a keyboard and mouse.</p>
+  </div>
+</div>
+
+<div id="shop" class="overlay" hidden>
+  <div class="card shop">
+    <h2 style="color:#ffd75a">The Hoard</h2>
+    <p class="loot">Loot: <b id="shopLoot">0</b> <span>from kills, wipes and touching rocks. The fight waits while you shop.</span></p>
+    <div id="shopList"></div>
+    <button id="shopClose" type="button">Back to pacing <small>(B)</small></button>
+  </div>
+</div>
+
+<div id="paused" class="overlay" hidden>
+  <div class="card">
+    <h2 style="color:#ffd75a">On break</h2>
+    <p>The adventurers are also on break. Probably.</p>
+    <button id="resume" type="button">Back to pacing</button>
+  </div>
+</div>
+
+<div id="over" class="overlay" hidden>
+  <div class="card">
+    <h2>You have been defeated</h2>
+    <p id="overBy"></p>
+    <p id="overSub" style="color:#aeac9b;margin-top:4px"></p>
+    <dl id="stats"></dl>
+    <button id="again" type="button">Respawn</button>
+    <p class="note">Bosses respawn on reset. Reset is whenever you press R.</p>
+  </div>
+</div>
+</body>
+</html>

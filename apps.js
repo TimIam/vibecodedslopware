@@ -924,6 +924,13 @@ window.SLOPWARE = {
      "note": "spend loot on adds and abilities; raids grow and multiply",
      "prompts": 1,
      "tokens": 16248
+    },
+    {
+     "n": 3,
+     "date": "2026-11-06T14:06:10-07:00",
+     "note": "maps, a store between them, new abilities and customizable bosses",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   }
