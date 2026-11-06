@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Matrix Rain · Vibe Coded Slopware</title>
+<meta name="description" content="The digital rain, on every screen you own. A real screensaver for Windows, a one-click browser version for Mac, Linux and everything else.">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23000'/><text x='50' y='74' text-anchor='middle' font-size='66' font-family='monospace' fill='%2300ff41'>ｱ</text></svg>">
+<style>
+:root{--bg:#050806;--fg:#dfeee3;--dim:#8aa392;--card:rgba(6,16,9,.78);--line:#1d3a26;--accent:#00ff41;--accent-fg:#02210b}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}
+iframe#rain{position:fixed;inset:0;width:100%;height:100%;border:0;pointer-events:none;opacity:.55;z-index:0}
+.veil{position:fixed;inset:0;background:radial-gradient(ellipse at 50% 35%,rgba(5,8,6,.5),rgba(5,8,6,.93) 72%);pointer-events:none;z-index:1}
+main{max-width:760px;margin:0 auto;padding:40px 16px 120px;position:relative;z-index:2}
+.back{color:var(--dim);text-decoration:none;font-size:14px}
+.back:hover{color:var(--accent)}
+h1{font-size:clamp(38px,8vw,64px);line-height:1.02;margin:28px 0 12px;letter-spacing:-1.5px;text-shadow:0 0 34px rgba(0,255,65,.28)}
+.lede{font-size:clamp(18px,2.6vw,21px);margin:0 0 8px;max-width:600px}
+.hint{color:var(--dim);font-style:italic;font-family:Georgia,serif;margin:0 0 32px}
+.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:12px}
+.btn{display:inline-flex;flex-direction:column;padding:13px 20px;border-radius:12px;text-decoration:none;border:1px solid var(--line);color:inherit;background:var(--card);transition:transform .15s,border-color .15s}
+.btn:hover{transform:translateY(-2px);border-color:var(--accent)}
+.btn b{font-size:16.5px}
+.btn small{color:var(--dim);font-size:12.5px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.primary small{color:inherit;opacity:.8}
+.smart{color:var(--dim);font-size:13.5px;max-width:600px;margin:0 0 44px}
+h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:36px 0 12px;font-weight:600}
+ul,ol{margin:0;padding-left:20px}
+li{margin:6px 0}
+li b{font-weight:600}
+a{color:#9dffb3}
+code{font:13px ui-monospace,Consolas,monospace;background:rgba(0,255,65,.08);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:#b6ffc6;word-break:break-all}
+footer{margin-top:56px;color:var(--dim);font-size:13px}
+</style>
+</head>
+<body>
+<iframe id="rain" src="/matrix/rain.html#backdrop" title="" aria-hidden="true" tabindex="-1"></iframe>
+<div class="veil"></div>
+<main>
+  <a class="back" href="/">← vibe coded slopware</a>
+  <h1>Matrix Rain</h1>
+  <p class="lede">The digital rain, on every screen you own. Windows, Mac, Linux: all of them, and all of your monitors at once.</p>
+  <p class="hint">It’s already raining behind this page. The real thing is brighter.</p>
+
+  <div class="cta">
+    <a class="btn primary" href="/matrix/MatrixRain.scr" download>
+      <b>Download for Windows</b><small>MatrixRain.scr · 14 KB · a real screensaver</small>
+    </a>
+    <a class="btn" href="/matrix/rain.html">
+      <b>Rain on every screen now</b><small>in your browser · any OS</small>
+    </a>
+    <a class="btn" href="/matrix/rain.html" download="matrix-rain.html">
+      <b>Download the web version</b><small>one .html file · works offline</small>
+    </a>
+  </div>
+  <p class="smart">The Windows one is unsigned, so your browser may call it “not commonly downloaded” and Windows may say “Windows protected your PC.” Click <b>Keep</b>, then <b>More info</b> → <b>Run anyway</b>. It’s 14 KB of C# built with the compiler that ships inside Windows; the source is in the <code>matrix/src</code> folder of this site.</p>
+
+  <h2>Windows</h2>
+  <ol>
+    <li>Download <b>MatrixRain.scr</b> and put it somewhere it can stay, like your Documents folder.</li>
+    <li>Right-click it and choose <b>Install</b>. Screen Saver Settings opens with Matrix Rain selected; pick a wait time and click OK.</li>
+    <li>It takes over every monitor. Move the mouse or press a key to come back.</li>
+  </ol>
+
+  <h2>Mac</h2>
+  <ul>
+    <li><b>Right now:</b> open <a href="/matrix/rain.html">the web version</a> in Chrome or Edge and click. The browser asks to “manage windows on all your displays”; say yes. Browsers only allow one new window per click, so click once per extra screen, then once on each screen to make it fullscreen. The card tells you what’s next. Safari and Firefox get one screen.</li>
+    <li><b>As a real screensaver:</b> install <a href="https://github.com/liquidx/webviewscreensaver">WebViewScreenSaver</a> (<code>brew install --cask webviewscreensaver --no-quarantine</code>), choose it in System Settings → Screen Saver, and give it this address: <code>https://vibecodedslopware.com/matrix/rain.html#embed</code>. macOS runs it on every display.</li>
+  </ul>
+
+  <h2>Linux, ChromeOS, anything with a browser</h2>
+  <ul>
+    <li>Same web version, same clicks: Chrome or Chromium does every monitor, anything else does one.</li>
+    <li>For a hands-off kiosk, <code>chromium --kiosk "https://vibecodedslopware.com/matrix/rain.html#embed"</code> is just rain, no card to click; start and stop it from whatever idle hook you like.</li>
+  </ul>
+
+  <h2>The details</h2>
+  <ul>
+    <li>Half-width katakana, mirrored like the film, plus digits and a few symbols. Every stream has its own speed, length and depth, and the glyphs shimmer as they fall.</li>
+    <li>The web version is one file with no dependencies. Add <code>#embed</code> to the address for rain with no card.</li>
+    <li>Nothing phones home. Nothing is configurable. It just rains.</li>
+  </ul>
+
+  <footer>Made with questionable judgment and an AI pair programmer. There is no spoon, but there are several monitors.</footer>
+</main>
+</body>
+</html>

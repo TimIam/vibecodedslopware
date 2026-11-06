@@ -35,8 +35,9 @@ Plain static site, no build step. Each project lives in its own folder and gets 
 
 ## Adding a project
 1. Put it in its own folder with an `index.html`.
-2. Add a card to `index.html` linking to it **with a trailing slash** (`/my-thing/`), so relative paths resolve.
+2. Add a card to `index.html` linking to it **with a trailing slash** (`/my-thing/`), so relative paths resolve. The page sorts the cards itself (latest update, first release, popular, A–Z), so where it goes in the file does not matter.
 3. Every standalone HTML page, including full-screen games and demos, uses the fixed `.site-topbar` home/support navigation and loads `/site-nav.css` and `/site-nav.js`. Reuse the verified Buy Me a Coffee destination (`https://buymeacoffee.com/twilliamja0`); keep page-specific controls in the bar. Matrix background/embed surfaces retain their navigation-free rendering.
+4. After committing, run `node tools/versions.mjs` and commit what it writes (`apps.js`, `v/`, `vercel.json`). That gives the card its version number, dates, prompts, tokens and the squares linking to older versions. Every commit that changes just one game is a version; older ones are served from `/v/<slug>/<n>/`, where `v/` holds only the files that differ from today and `vercel.json` sends every other path to the live folder. A new game made in Claude Code needs its session id added to `SESSIONS` in that script for prompts and tokens; visits come from `tools/popularity.json`, refreshed by hand from Vercel Observability.
 
 ## Local dev
 The static pages work from any file server. To run the API too:

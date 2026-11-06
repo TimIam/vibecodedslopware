@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pour Decisions</title>
+<meta name="description" content="Tend bar at The Tipsy Comet on the Lower East Side. Free-pour 125 real cocktails, card every customer, keep the jukebox going, cut off the drunks, and chase tips. One of your regulars is a bear astronaut.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍸</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&family=Fredoka:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+:root{--ink:#1b1414;--mortar:#5e221b;--gold:#f2c230;--cream:#fff6dd;--paper:#fffbea;--good:#3fae5a;--bad:#e0473a;--panel:#2a1a14}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#120a07;color:var(--cream);font:15px/1.3 "Fredoka",system-ui,sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+
+/* The bar is a fixed 1280x760 stage scaled to fit the window, so nothing ever scrolls. */
+#stage{position:fixed;top:52px;left:0;right:0;bottom:0;overflow:hidden}
+#app{position:absolute;left:0;top:0;width:1280px;height:760px;transform-origin:0 0;display:flex;flex-direction:column;user-select:none;-webkit-user-select:none;overflow:hidden;box-shadow:0 0 0 3px var(--ink),0 10px 50px #000}
+#rotateHint{position:absolute;left:0;right:0;bottom:12px;text-align:center;color:#c8b8a0;font-size:14px;display:none}
+
+/* HUD */
+.hud{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;background:linear-gradient(#3a2418,#24150e);border-bottom:3px solid var(--ink)}
+.logo{font:30px/1 "Bangers",Impact,sans-serif;letter-spacing:1.5px;color:var(--gold);-webkit-text-stroke:1.5px var(--ink);text-shadow:3px 3px 0 var(--ink);margin-right:4px}
+.chip{background:var(--panel);border:2px solid var(--ink);border-radius:10px;padding:2px 10px;box-shadow:0 2px 0 var(--ink);white-space:nowrap}
+.chip b{color:var(--gold)}
+.spacer{flex:1}
+.hbtn{background:var(--gold);color:var(--ink);border:2.5px solid var(--ink);border-radius:10px;padding:3px 12px;font-weight:700;box-shadow:0 3px 0 var(--ink)}
+.hbtn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.hbtn.dark{background:#5a3a2a;color:var(--cream)}
+.hbtn.warn{animation:flash 1s steps(2) infinite}
+@keyframes flash{50%{background:var(--bad);color:#fff}}
+
+/* Customer side of the bar */
+.scene{position:relative;height:236px;flex:none;overflow:hidden;border-bottom:4px solid var(--ink);
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='32'%3E%3Cg fill='none' stroke='%235e221b' stroke-width='3'%3E%3Cpath d='M0 1.5H64M0 17.5H64M1.5 0V16M33.5 16V32'/%3E%3C/g%3E%3Cg fill='%23000' opacity='.12'%3E%3Crect x='6' y='5' width='22' height='3'/%3E%3Crect x='40' y='21' width='18' height='3'/%3E%3C/g%3E%3C/svg%3E"),radial-gradient(ellipse at 50% 40%,#b8483a,#7d2c22 75%)}
+.scene::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.35),transparent 30%,transparent 70%,rgba(0,0,0,.35));pointer-events:none}
+.neon{position:absolute;left:16px;top:10px;font:30px/0.95 "Bangers",Impact,sans-serif;letter-spacing:2px;color:#ffe1f4;text-shadow:0 0 6px #ff4fb4,0 0 16px #ff4fb4,0 0 30px #ff2fa0;transform:rotate(-4deg);z-index:1}
+.neon small{display:block;font-size:15px;color:#d4f7ff;text-shadow:0 0 6px #3fd0ff,0 0 14px #3fd0ff}
+.chalk{position:absolute;left:20px;bottom:14px;background:#22302a;border:5px solid #6b4a2a;border-radius:6px;padding:5px 9px;font-size:12.5px;color:#e8f0e8;box-shadow:3px 3px 0 var(--ink);z-index:1;line-height:1.3}
+.chalk b{font-size:14px;color:#fff}
+.queue{position:absolute;left:230px;bottom:0;display:flex;gap:4px;opacity:.55;z-index:1}
+.queue span{width:30px;height:64px;background:#2a0f0a;border-radius:15px 15px 4px 4px;position:relative}
+.queue span::before{content:"";position:absolute;width:24px;height:24px;border-radius:50%;background:#2a0f0a;left:3px;top:-20px}
+#custWrap{position:absolute;left:330px;bottom:-4px;width:190px;height:220px;z-index:2;transition:transform .6s cubic-bezier(.3,1.4,.5,1),opacity .4s}
+#custWrap.out{transform:translateX(-170%);opacity:0}
+#custWrap.leave{transform:translateX(230%);opacity:0}
+#cust{width:100%;height:100%;transform-origin:50% 100%}
+#cust svg{width:100%;height:100%;display:block}
+.sway1{animation:sway 3s ease-in-out infinite}
+.sway2{animation:sway 1.6s ease-in-out infinite}
+@keyframes sway{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(4deg)}}
+.hic{position:absolute;left:58%;top:14%;font:20px "Bangers",sans-serif;color:#fff;-webkit-text-stroke:1px var(--ink);animation:hic 1.8s ease-out infinite;z-index:3;pointer-events:none}
+@keyframes hic{0%{opacity:0;transform:translateY(10px)}20%{opacity:1}100%{opacity:0;transform:translateY(-30px)}}
+.bubble{position:absolute;left:540px;top:14px;width:340px;min-height:64px;background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:18px;padding:9px 13px;font-size:15px;box-shadow:4px 4px 0 rgba(0,0,0,.4);z-index:3}
+.bubble::before{content:"";position:absolute;left:-18px;top:36px;border:10px solid transparent;border-right:16px solid var(--ink)}
+.bubble::after{content:"";position:absolute;left:-11px;top:38px;border:8px solid transparent;border-right:13px solid var(--paper)}
+.bubble .order{font-weight:700;color:#a3162c}
+.bubble.hidden{display:none}
+.choices{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.choices button{text-align:left;background:#fff;border:2px solid var(--ink);border-radius:10px;padding:4px 9px;font-size:13.5px}
+.choices button:hover{background:#ffe9a6}
+.side{position:absolute;right:12px;top:10px;width:350px;display:grid;grid-template-columns:1fr 1fr;gap:7px;z-index:3}
+.clockrow{grid-column:1/-1;display:flex;gap:10px;align-items:center;background:rgba(20,10,8,.78);border:2px solid var(--ink);border-radius:12px;padding:5px 8px}
+#patience{width:58px;height:58px;flex:none}
+.meters{flex:1;display:flex;flex-direction:column;gap:3px;font-size:12px}
+.bar{height:10px;border:2px solid var(--ink);border-radius:6px;background:#3a2a24;overflow:hidden}
+.bar i{display:block;height:100%;width:50%;background:var(--good);transition:width .3s}
+#mName{font-size:15px;font-weight:700}
+.act{background:var(--cream);color:var(--ink);border:3px solid var(--ink);border-radius:12px;padding:6px 8px;font-weight:700;box-shadow:0 3px 0 var(--ink)}
+.act:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.act:disabled{opacity:.45;cursor:default}
+.act.id{background:#9fd8ff}.act.chat{background:#ffd1e8}.act.cut{background:#d4f2c4}.act.refuse{background:#ffb3a8}
+.act.done{background:#c8c8c8}
+
+/* Work strip: the glass you're building */
+.work{height:170px;flex:none;display:grid;grid-template-columns:140px 1fr 380px;gap:10px;padding:9px 10px;background:linear-gradient(#b06a34,#8a4a20 55%,#6a3616);border-bottom:5px solid var(--ink);position:relative}
+.work::before{content:"";position:absolute;left:0;right:0;top:0;height:7px;background:linear-gradient(#e6a868,#b06a34)}
+.station{position:relative;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.2);border:3px solid var(--ink);border-radius:14px}
+#glassView{width:106px;height:150px}
+.station .empty{position:absolute;inset:auto 0 60px;text-align:center;font-size:13px;opacity:.85}
+#pourBottle{position:absolute;left:62px;top:-50px;width:44px;height:99px;transform-origin:30% 85%;transform:rotate(-120deg);display:none;z-index:5;pointer-events:none}
+#pourBottle.on{display:block}
+#pourRead{position:absolute;top:-28px;left:-8px;right:-8px;text-align:center;background:var(--paper);color:var(--ink);border:2.5px solid var(--ink);border-radius:10px;font-weight:700;padding:1px 4px;display:none;z-index:6;white-space:nowrap}
+#pourRead.on{display:block}
+.ticket{background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:8px;padding:6px 12px;box-shadow:3px 3px 0 rgba(0,0,0,.4);display:flex;flex-direction:column;gap:4px;min-width:0}
+.ticket h3{margin:0;font:18px/1.1 "Bangers",sans-serif;letter-spacing:1px}
+.tbody{flex:1;min-height:0;display:grid;grid-template-columns:1.35fr 1fr;gap:14px}
+.tcol{min-height:0;display:flex;flex-direction:column}
+.tcol+.tcol{border-left:2px dashed #c9bfa0;padding-left:12px}
+.thead{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.tool.pin{font-size:12px;padding:1px 8px;background:#ffe9a6}
+.tool.pin:disabled{display:none}
+#recipe,#contents{font-size:12.5px;line-height:1.25;flex:1;min-height:0;overflow:auto}
+#contents .line,#recipe .line{display:flex;justify-content:space-between;gap:6px;border-bottom:1px dashed #c9bfa0;break-inside:avoid}
+#contents .meta,#recipe .meta{color:#6b5a40;font-size:11.5px;margin-top:2px}
+#recipe .ord{font-weight:700;color:#a3162c;font-size:14px}
+#recipe .hint{color:#6b5a40;font-size:12px}
+#recipe .rl.two{columns:2;column-gap:12px}
+#recipe .line i{width:12px;flex:none;font-style:normal;color:#2a8a3e;font-weight:700}
+#recipe .line span{flex:1}
+#recipe .line.ok{color:#2a8a3e}
+#recipe .line.over{color:#c0283a}
+#recipe .meta .ok{color:#2a8a3e;font-weight:700}
+.tools{display:flex;gap:6px;align-items:center}
+.tool{background:#fff;border:2.5px solid var(--ink);border-radius:10px;padding:3px 10px;font-weight:700;box-shadow:0 2px 0 var(--ink)}
+.tool.on{background:var(--gold)}
+.tool:active{transform:translateY(2px);box-shadow:none}
+.tool.serve{background:var(--good);color:#fff;font-size:16px;padding:3px 18px}
+.tool.dump{background:#ffb3a8}
+.shaking{animation:shake .12s linear 6}
+@keyframes shake{0%,100%{transform:translate(0,0) rotate(0)}25%{transform:translate(-4px,-3px) rotate(-5deg)}75%{transform:translate(4px,2px) rotate(5deg)}}
+.rack{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;background:rgba(0,0,0,.22);border:3px solid var(--ink);border-radius:14px;padding:3px 5px}
+.gl{background:none;border:2px solid transparent;border-radius:9px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;font-size:10.5px;line-height:1.05;color:var(--cream)}
+.gl svg{width:34px;height:48px}
+.gl:hover{border-color:var(--gold)}
+.gl.on{background:rgba(242,194,48,.3);border-color:var(--gold)}
+
+/* The stock: bottles on the back bar, the ice well and the garnish tray */
+.stock{flex:1;min-height:0;display:grid;grid-template-columns:1fr 380px;grid-template-rows:minmax(0,1fr);gap:10px;padding:8px 10px 8px;background:#1c120c}
+.shelves{position:relative;display:flex;flex-direction:column;justify-content:space-between;border:5px solid #5a3018;border-radius:6px;padding:0 6px;
+  background:linear-gradient(115deg,transparent 0 30%,rgba(255,255,255,.05) 31% 38%,transparent 39% 62%,rgba(255,255,255,.04) 63% 66%,transparent 67%),linear-gradient(#2d3b42,#1a2328)}
+.row{position:relative;flex:1 1 0;min-height:0;display:flex;align-items:flex-end;justify-content:space-around;padding:0 2px 1px}
+.row::before{content:"";position:absolute;left:-6px;right:-6px;top:0;height:22px;background:linear-gradient(rgba(255,196,110,.28),transparent);pointer-events:none}
+.row::after{content:"";position:absolute;left:-6px;right:-6px;bottom:0;height:22px;background:linear-gradient(#c8844a,#8a4f26);border-top:1px solid #f0b070;border-bottom:2px solid var(--ink);box-shadow:0 3px 4px rgba(0,0,0,.6)}
+.btl{position:relative;background:none;border:0;padding:0;touch-action:none;display:flex;flex-direction:column;align-items:center;z-index:1;width:38px}
+.btl svg{display:block;width:30px;height:66px;transition:transform .1s;filter:drop-shadow(0 2px 0 rgba(0,0,0,.4))}
+.row.mixers .btl svg{width:28px;height:62px}
+.btl .tag{display:flex;align-items:center;justify-content:center;width:38px;height:19px;margin-top:1px;background:#fffbea;color:var(--ink);border:1px solid var(--ink);border-radius:3px;font-size:8.5px;font-weight:700;line-height:1;text-align:center;overflow:hidden;letter-spacing:-.2px}
+.btl .tag.sm{font-size:7.5px}
+.btl.need .tag{background:var(--gold);box-shadow:0 0 0 2px #fff,0 0 8px 3px var(--gold)}
+.btl.need svg{filter:drop-shadow(0 0 5px #ffe066) drop-shadow(0 0 2px #fff)}
+.gar.need,.gl.need{border-color:var(--gold);box-shadow:0 0 8px 2px var(--gold)}
+.tool.need{box-shadow:0 0 0 2px var(--gold),0 0 8px 2px var(--gold)}
+.btl:hover svg{transform:translateY(-5px)}
+.btl.pouring svg{transform:translateY(-8px) rotate(-14deg)}
+.btl::after,.gar::after{content:attr(data-name);position:absolute;left:50%;bottom:calc(100% + 2px);transform:translateX(-50%);background:var(--paper);color:var(--ink);border:2px solid var(--ink);border-radius:8px;padding:1px 7px;font-size:13px;font-weight:700;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;z-index:30}
+.btl:hover::after,.gar:hover::after{opacity:1}
+.well{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr));gap:4px;background:linear-gradient(#d8dde2,#a8b0b8);border:4px solid var(--ink);border-radius:10px;padding:5px}
+.gar{position:relative;min-height:0;background:none;border:2px solid transparent;border-radius:9px;padding:0;color:var(--ink);font-size:10px;font-weight:700;line-height:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.gar svg{flex:1 1 0;min-height:0;width:100%;display:block}
+.gar:hover{border-color:#fff8}
+.gar.on{border-color:var(--gold);background:rgba(242,194,48,.45);box-shadow:inset 0 0 0 2px #fff}
+.gar.ice{grid-column:span 2;grid-row:span 2}
+.gar.wide{grid-column:span 2}
+
+/* Overlays */
+.ov{position:fixed;inset:52px 0 0;background:rgba(10,4,2,.7);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.ov.hidden{display:none}
+.card{background:var(--paper);color:var(--ink);border:4px solid var(--ink);border-radius:18px;box-shadow:6px 6px 0 rgba(0,0,0,.5);padding:18px 22px;max-width:640px;width:100%;max-height:calc(100vh - 90px);overflow:auto}
+.card h2{font:40px/1 "Bangers",sans-serif;letter-spacing:1.5px;margin:0 0 8px;color:#c0283a;-webkit-text-stroke:1px var(--ink)}
+.card h3{font:22px "Bangers",sans-serif;letter-spacing:1px;margin:12px 0 4px}
+.card ul{margin:4px 0;padding-left:20px}
+.card li{margin:3px 0}
+.card .row2{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.big{background:var(--gold);color:var(--ink);border:3px solid var(--ink);border-radius:12px;padding:8px 20px;font-weight:700;font-size:18px;box-shadow:0 4px 0 var(--ink)}
+.big.alt{background:#fff}
+.big.good{background:var(--good);color:#fff}
+.big.bad{background:var(--bad);color:#fff}
+
+/* ID card sits inside the stage, to the right, so the customer's face stays visible */
+#ovId{position:absolute;inset:0;z-index:40;display:flex;flex-direction:column;align-items:flex-end;gap:10px;padding:52px 24px 0 0;background:linear-gradient(90deg,transparent 0 540px,rgba(10,4,2,.78) 600px)}
+#ovId.hidden{display:none}
+.idbtns{display:flex;gap:12px;width:470px;justify-content:center}
+.idcard{width:470px;border-radius:16px;border:3px solid var(--ink);overflow:hidden;box-shadow:6px 6px 0 rgba(0,0,0,.5);background:linear-gradient(135deg,#f5f1e2,#dfe8ef);color:var(--ink);position:relative}
+.idhead{display:flex;justify-content:space-between;align-items:center;padding:5px 12px;color:#fff;font:24px "Bangers",sans-serif;letter-spacing:1px}
+.idhead small{font:600 13px "Fredoka",sans-serif;background:#fff;color:var(--ink);border-radius:6px;padding:2px 6px}
+.idbody{display:grid;grid-template-columns:140px 1fr;gap:12px;padding:10px 12px}
+.idphoto{background:#cfe0ea;border:2px solid var(--ink);border-radius:6px;height:160px;overflow:hidden}
+.idphoto svg{width:100%;height:100%}
+.idf{font-size:14px;line-height:1.45}
+.idf .k{font-size:11px;color:#556;letter-spacing:.5px}
+.idf .v{font-weight:700;font-size:16px}
+.idf .dob{color:#c0283a;font-size:19px}
+.holo{position:absolute;right:16px;bottom:16px;width:56px;height:56px;border-radius:50%;background:conic-gradient(#ff8af0,#8af3ff,#fffb8a,#8affa8,#ff8af0);opacity:.75;mix-blend-mode:multiply;display:flex;align-items:center;justify-content:center;font-size:26px;animation:holo 3s linear infinite}
+@keyframes holo{to{filter:hue-rotate(360deg)}}
+.sig{font:italic 22px "Brush Script MT",cursive;color:#223}
+.tonight{width:470px;text-align:center;color:var(--cream);font-weight:600;background:rgba(10,4,2,.8);border-radius:10px;padding:5px 10px}
+
+/* Recipe book and jukebox */
+.book{display:grid;grid-template-columns:220px 1fr;gap:12px;max-width:760px}
+.book input{width:100%;padding:6px 9px;border:2.5px solid var(--ink);border-radius:9px;font:inherit}
+#bookList{height:360px;overflow:auto;border:2px solid var(--ink);border-radius:9px;background:#fff;margin-top:6px}
+#bookList button{display:block;width:100%;text-align:left;border:0;background:none;padding:3px 9px;font-size:14px}
+#bookList button:hover,#bookList button.on{background:#ffe9a6}
+#bookPage{border:2px solid var(--ink);border-radius:9px;background:#fff;padding:12px;min-height:400px;font-size:15px}
+#bookPage h3{margin-top:0;font-size:30px;color:#a3162c}
+#bookPage table{border-collapse:collapse;width:100%;margin:8px 0}
+#bookPage td{padding:3px 4px;border-bottom:1px dashed #ccc}
+.warnline{background:#ffe1dc;border:2px solid var(--bad);border-radius:9px;padding:5px 9px;font-weight:600;margin-bottom:6px}
+.jukebox{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.jukebox button{border:3px solid var(--ink);border-radius:14px;padding:14px;font:24px "Bangers",sans-serif;letter-spacing:1px;box-shadow:0 4px 0 var(--ink)}
+@media (max-width:700px){.book{grid-template-columns:1fr}#bookList{height:160px}#bookPage{min-height:0}}
+
+#toast{position:fixed;left:50%;top:112px;transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
+.t{background:var(--paper);color:var(--ink);border:3px solid var(--ink);border-radius:12px;padding:6px 14px;font-weight:600;box-shadow:3px 3px 0 rgba(0,0,0,.5);animation:tin .25s ease-out;max-width:560px}
+.t.good{background:#d4f6d0}.t.bad{background:#ffd6cf}.t.money{background:#fff2a8;font-size:19px}
+@keyframes tin{from{transform:translateY(-12px);opacity:0}}
+</style>
+</head>
+<body class="site-pour">
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<div id="stage">
+<div id="app">
+  <div class="hud">
+    <div class="logo">Pour Decisions</div>
+    <div class="chip">Night <b id="hNight">1</b></div>
+    <div class="chip">🕘 <b id="hClock">9:00 PM</b></div>
+    <div class="chip">Tips <b id="hTips">$0.00</b></div>
+    <div class="chip" title="Three strikes and you're fired">Strikes <b id="hStrikes">○○○</b></div>
+    <div class="spacer"></div>
+    <button class="hbtn dark" id="bJuke">🎵 <span id="hMusic">Jukebox: silent</span></button>
+    <button class="hbtn" id="bBook">📖 Recipes</button>
+    <button class="hbtn dark" id="bHelp" title="How to play">?</button>
+    <button class="hbtn dark" id="bMute" title="Sound on/off">🔊</button>
+  </div>
+
+  <div class="scene">
+    <div class="neon">The Tipsy Comet<small>Ludlow St · since 1971</small></div>
+    <div class="chalk"><b id="cDate">Tonight</b><br>Must be 21+ to drink.<br><span id="cBorn">Born on or before …</span></div>
+    <div class="queue" id="queue"></div>
+    <div id="custWrap" class="out"><div id="cust"></div></div>
+    <div class="bubble hidden" id="bubble"></div>
+    <div class="side">
+      <div class="clockrow">
+        <svg id="patience" viewBox="0 0 64 64"></svg>
+        <div class="meters"><div id="mName">—</div><div>Mood</div><div class="bar"><i id="mMood"></i></div></div>
+      </div>
+      <button class="act id" id="bId">🪪 Check ID</button>
+      <button class="act chat" id="bChat">💬 Chat</button>
+      <button class="act cut" id="bCut">💧 Cut Off</button>
+      <button class="act refuse" id="bRefuse">✋ Refuse</button>
+    </div>
+  </div>
+
+  <div class="work">
+    <div class="station" id="station">
+      <div id="pourRead"></div>
+      <svg id="pourBottle" viewBox="0 0 40 90"></svg>
+      <svg id="glassView" viewBox="0 0 120 170"></svg>
+      <div class="empty" id="emptyNote">Grab a glass →</div>
+    </div>
+    <div class="ticket">
+      <div class="tbody">
+        <div class="tcol"><div class="thead"><h3>Order</h3><button class="tool pin" id="bPin">📋 Pin recipe</button></div><div id="recipe"></div></div>
+        <div class="tcol"><h3 id="tGlass">No glass</h3><div id="contents"></div></div>
+      </div>
+      <div class="tools">
+        <button class="tool" data-m="build">Build</button>
+        <button class="tool" data-m="stir">🥄 Stir</button>
+        <button class="tool" data-m="shake">🍸 Shake</button>
+        <button class="tool" data-m="blend">🌀 Blend</button>
+        <span class="spacer"></span>
+        <button class="tool dump" id="bDump">🗑 Dump</button>
+        <button class="tool serve" id="bServe">Serve ➜</button>
+      </div>
+    </div>
+    <div class="rack" id="rack"></div>
+  </div>
+
+  <div class="stock">
+    <div class="shelves">
+      <div class="row" id="row1"></div>
+      <div class="row" id="row2"></div>
+      <div class="row mixers" id="row3"></div>
+    </div>
+    <div class="well" id="well"></div>
+  </div>
+
+  <div id="ovId" class="hidden">
+    <div id="idCard"></div>
+    <div class="idbtns"><button class="big good" id="bIdOk">✓ Looks good</button><button class="big bad" id="bIdNo">✋ Refuse service</button></div>
+    <div class="tonight" id="idTonight"></div>
+  </div>
+</div>
+<div id="rotateHint">Turn your phone sideways for a bigger bar.</div>
+</div>
+
+<div class="ov" id="ovTitle">
+  <div class="card">
+    <h2>Pour Decisions</h2>
+    <p>You just got hired behind the bar at <b>The Tipsy Comet</b>, a dive on Ludlow Street. The regulars are a lot: a chess hustler, a tugboat captain, an 82-year-old martini fiend, and Orbital, a bear who has been to space.</p>
+    <h3>How to tend</h3>
+    <ul>
+      <li><b>Card everyone.</b> Tap <b>Check ID</b> and compare: does the photo look like them? Does the first name match what they told you? Are they 21 by tonight's date? Is the card expired? Real cards have a shiny hologram and no typos. Serve a minor and you're <b>fired</b> on the spot.</li>
+      <li><b>Mix it right.</b> Pick a glass from the rack, scoop ice from the well if it's served on the rocks, then <b>press and hold</b> a bottle to free-pour (about 1 oz a second; a quick tap is ¼ oz). Every bottle has a shelf tag. Choose Build, Stir, Shake or Blend, add the garnish from the tray, and <b>Serve</b>.</li>
+      <li><b>The recipe card.</b> Night 1 is training: the recipe is pinned to the ticket and the bottles, glass and garnish you need light up. From night 2, tap <b>📋 Pin recipe</b> when you need it; it costs a quarter of that drink's tip.</li>
+      <li><b>Keep the jukebox going.</b> Silence sours the room. Everybody has a favorite genre, and they'll hint at it.</li>
+      <li><b>Charm them.</b> Chat once per drink. Some people want you to listen, some want a laugh, some want a compliment.</li>
+      <li><b>Watch the drunks.</b> Rosy cheeks are fine. Swaying, droopy eyes and hiccups mean <b>Cut Off</b>: serve water, no more booze. Over-serving is a strike. Three strikes and you're out.</li>
+    </ul>
+    <div class="row2"><button class="big" id="bStart">Open the bar</button><button class="big alt" id="bPractice">Browse recipes</button></div>
+    <p id="best" style="margin:10px 0 0;color:#6b5a40"></p>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovBook">
+  <div class="card" style="max-width:780px">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2>Recipe Book</h2><button class="big alt" id="bBookClose">Close</button></div>
+    <div class="warnline" id="peekWarn" hidden>A customer is waiting: their recipe is now pinned to your ticket, and this drink's tip drops by a quarter.</div>
+    <div class="book">
+      <div><input id="bookSearch" placeholder="Search 125 drinks…" autocomplete="off"><div id="bookList"></div></div>
+      <div id="bookPage">Pick a drink.</div>
+    </div>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovJuke">
+  <div class="card" style="max-width:460px">
+    <h2>Jukebox</h2>
+    <p>Each pick plays about a minute. Keep it going.</p>
+    <div class="jukebox">
+      <button data-g="jazz" style="background:#f2c230">🎷 Jazz</button>
+      <button data-g="rock" style="background:#e0473a;color:#fff">🎸 Rock</button>
+      <button data-g="disco" style="background:#e85ca8;color:#fff">🪩 Disco</button>
+      <button data-g="synth" style="background:#2f8fd8;color:#fff">🚀 Synthwave</button>
+    </div>
+    <div class="row2"><button class="big alt" id="bJukeClose">Close</button></div>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovEnd"><div class="card" id="endCard"></div></div>
+
+<div id="toast"></div>
+
+<script src="drinks.js"></script>
+<script src="people.js"></script>
+<script src="stock.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

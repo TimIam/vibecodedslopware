@@ -11,12 +11,12 @@
 @media (prefers-color-scheme:dark){:root{--bg:#15171a;--fg:#ece8df;--dim:#9a958a;--card:#1d2024;--line:#2e3238;--accent:#8fc46a}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}
-main{max-width:760px;margin:0 auto;padding:64px 16px 48px}
+main{max-width:940px;margin:0 auto;padding:64px 16px 48px}
 h1{font-size:clamp(34px,7vw,56px);line-height:1.05;margin:0 0 12px;letter-spacing:-1px}
 h1 span{color:var(--accent)}
-.lede{color:var(--dim);font-size:18px;margin:0 0 40px;max-width:560px}
+.lede{color:var(--dim);font-size:18px;margin:0 0 28px;max-width:560px}
 .grid{display:grid;gap:14px}
-a.card{display:grid;grid-template-columns:64px 1fr auto;gap:16px;align-items:center;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:inherit;text-decoration:none;transition:transform .15s,border-color .15s}
+a.card{position:relative;display:grid;grid-template-columns:64px 1fr auto;gap:16px;align-items:center;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:inherit;text-decoration:none;transition:transform .15s,border-color .15s}
 a.card:hover{transform:translateY(-2px);border-color:var(--accent)}
 .icon{font-size:40px;text-align:center}
 .icon img{display:block;width:52px;height:52px;margin:0 auto}
@@ -25,6 +25,20 @@ a.card:hover{transform:translateY(-2px);border-color:var(--accent)}
 .tag{font-size:12px;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:3px 9px;white-space:nowrap}
 .soon{opacity:.55;pointer-events:none}
 footer{margin-top:48px;color:var(--dim);font-size:13px}
+.sortbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 16px;font-size:13px;color:var(--dim)}
+.sortbar button{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer}
+.sortbar button:hover{border-color:var(--accent)}
+.sortbar button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.app{display:grid;grid-template-columns:1fr 154px;gap:12px;align-items:start}
+.vers{display:grid;grid-template-columns:repeat(4,34px);gap:6px;padding-top:4px}
+.vers a{display:grid;place-items:center;width:34px;height:34px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--dim);font-size:11.5px;font-weight:600;text-decoration:none;transition:border-color .15s,color .15s}
+.vers a:hover,.vers a:focus-visible{border-color:var(--accent);color:var(--fg)}
+.card .meta{margin-top:6px;font-size:12.5px;color:var(--dim);opacity:.85}
+.card .ver{position:absolute;right:12px;bottom:7px;font-size:11px;color:var(--dim);opacity:.8}
+.tip{position:fixed;z-index:10;max-width:260px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--fg);font-size:12.5px;line-height:1.45;box-shadow:0 6px 20px rgba(0,0,0,.18);pointer-events:none}
+.tip b{display:block}
+.tip span{display:block;color:var(--dim)}
+@media (max-width:640px){.app{grid-template-columns:1fr;gap:6px}.vers{display:flex;flex-wrap:wrap}.vers:empty{display:none}}
 @media (max-width:520px){a.card{grid-template-columns:48px 1fr}.tag{display:none}.icon{font-size:32px}.icon img{width:44px;height:44px}}
 </style>
 <link rel="stylesheet" href="/site-nav.css">
@@ -38,6 +52,12 @@ footer{margin-top:48px;color:var(--dim);font-size:13px}
 <main>
   <h1>vibe coded <span>slopware</span></h1>
   <p class="lede">Small, weird, lovingly vibe-coded things. No warranty. No roadmap. Some assembly required.</p>
+  <div class="sortbar" role="group" aria-label="Sort">Sort:
+    <button type="button" data-sort="latest">Latest update</button>
+    <button type="button" data-sort="first">First release</button>
+    <button type="button" data-sort="popular">Popular</button>
+    <button type="button" data-sort="az">A–Z</button>
+  </div>
   <div class="grid">
     <a class="card" href="/bonsai/">
       <div class="icon">🌳</div>
@@ -175,7 +195,79 @@ footer{margin-top:48px;color:var(--dim);font-size:13px}
       <span class="tag">soon</span>
     </a>
   </div>
-  <footer>Made with questionable judgment and an AI pair programmer.</footer>
+  <footer>Made with questionable judgment and an AI pair programmer. The small squares are older versions you can still play. Prompts are the messages typed to Claude Code to build each thing; tokens are what went in and out, not counting cached re-reads. Things built in Claude Code on the web left no transcript, so they show dates only. Popular counts visits to each page over 30 days.</footer>
 </main>
+<script src="/apps.js"></script>
+<script>
+(() => {
+  const data = (window.SLOPWARE && window.SLOPWARE.apps) || {};
+  const grid = document.querySelector(".grid");
+  const day = (iso, year) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", ...(year ? { year: "numeric" } : {}) });
+  const when = (iso) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+  const tok = (n) => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : Math.round(n / 1e3) + "k";
+  const plural = (n, w) => n + " " + w + (n === 1 ? "" : "s");
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+  const tip = el("div", "tip"); tip.hidden = true; document.body.append(tip);
+  const showTip = (a, v) => {
+    tip.replaceChildren(el("b", "", "v" + v.n + " · " + when(v.date)), el("span", "", v.n === 1 ? "First release" : v.note));
+    if (v.prompts != null) tip.append(el("span", "", plural(v.prompts, "prompt") + " · " + tok(v.tokens) + " tokens"));
+    tip.hidden = false;
+    const r = a.getBoundingClientRect(), t = tip.getBoundingClientRect();
+    tip.style.left = Math.max(8, Math.min(innerWidth - t.width - 8, r.left + r.width / 2 - t.width / 2)) + "px";
+    tip.style.top = (r.top - t.height - 8 < 8 ? r.bottom + 8 : r.top - t.height - 8) + "px";
+  };
+  const hideTip = () => { tip.hidden = true; };
+  addEventListener("scroll", hideTip, { passive: true });
+
+  const nameOf = (slug) => document.querySelector('a.card[href="/' + slug + '/"] h2')?.textContent || slug;
+  const apps = [...grid.querySelectorAll(":scope > a.card")].map((card) => {
+    const slug = (card.getAttribute("href") || "").replace(/^\/|\/$/g, "");
+    const app = data[slug], wrap = el("div", "app"), vers = el("div", "vers");
+    card.replaceWith(wrap); wrap.append(card, vers);
+    const name = card.querySelector("h2").textContent;
+    if (!app) return { wrap, name, soon: card.classList.contains("soon") };
+    const vs = app.versions, first = vs[0], last = vs[vs.length - 1];
+    const bits = ["First released " + day(first.date, true)];
+    if (app.prompts != null) bits.push(plural(app.prompts, "prompt"), tok(app.tokens) + " tokens");
+    else if (app.sharedWith) bits.push("prompts counted with " + nameOf(app.sharedWith));
+    bits.push(plural(app.visits, "visit"));
+    card.querySelector("h2").parentElement.append(el("p", "meta", bits.join(" · ")));
+    card.append(el("span", "ver", "v" + last.n + " · " + day(last.date)));
+    for (const v of vs.slice(0, -1).reverse()) {
+      const a = el("a", "", "v" + v.n);
+      a.href = "/v/" + slug + "/" + v.n + "/";
+      a.setAttribute("aria-label", "Version " + v.n + " from " + day(v.date, true) + (v.n === 1 ? ", first release" : ": " + v.note));
+      a.addEventListener("mouseenter", () => showTip(a, v));
+      a.addEventListener("focus", () => showTip(a, v));
+      a.addEventListener("mouseleave", hideTip);
+      a.addEventListener("blur", hideTip);
+      vers.append(a);
+    }
+    return { wrap, name, first: first.date, latest: last.date, visits: app.visits };
+  });
+
+  // Cards with no history yet (just added) count as newest; "Next thing" stays last.
+  const time = (iso) => iso ? Date.parse(iso) : Infinity;
+  const keys = {
+    latest: (a, b) => time(b.latest) - time(a.latest),
+    first: (a, b) => time(b.first) - time(a.first),
+    popular: (a, b) => (b.visits || 0) - (a.visits || 0) || a.name.localeCompare(b.name),
+    az: (a, b) => a.name.localeCompare(b.name),
+  };
+  const buttons = document.querySelectorAll(".sortbar button");
+  const sort = (by) => {
+    if (!keys[by]) by = "latest";
+    const sorted = apps.filter((a) => !a.soon).sort(keys[by]).concat(apps.filter((a) => a.soon));
+    grid.append(...sorted.map((a) => a.wrap));
+    buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.sort === by)));
+    try { localStorage.setItem("slopware.sort", by); } catch {}
+  };
+  buttons.forEach((b) => b.addEventListener("click", () => sort(b.dataset.sort)));
+  let saved = null;
+  try { saved = localStorage.getItem("slopware.sort"); } catch {}
+  sort(saved || "latest");
+})();
+</script>
 </body>
 </html>

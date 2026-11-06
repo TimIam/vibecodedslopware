@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Timberline — a tree felling sim</title>
+<meta name="description" content="Size up the tree, cut the notch, set the hinge and walk your escape route. Axe, chainsaws, then a harvester, across five forests with real species, lean, wind and slope.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27><text y=%27.9em%27 font-size=%2790%27>🌲</text></svg>">
+<script>
+  if (!/\/$|\.html$/.test(location.pathname)) location.replace(location.pathname + "/" + location.search + location.hash);
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed 3D view; field-gear HUD pinned to the edges like instruments on a saw-shop wall. */
+:root {
+  color-scheme: dark;
+  --ink: #0d120f;          /* panel ground */
+  --ink-2: #16201a;        /* raised panel */
+  --line: #2c3a30;         /* hairlines */
+  --bone: #ebe5d3;         /* text */
+  --bone-dim: #a8a492;     /* secondary text */
+  --hivis: #ff6b1a;        /* safety orange accent */
+  --ok: #8fd16a;           /* good */
+  --warn: #f2c230;         /* caution */
+  --bad: #ff4433;          /* danger */
+  --sky: #7fb7d9;          /* wind */
+  --f-display: 'Barlow Condensed', 'Arial Narrow', 'Helvetica Neue', sans-serif;
+  --f-body: 'Barlow', 'Segoe UI', system-ui, sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { background: var(--ink); color: var(--bone); font-family: var(--f-body); overflow: hidden; }
+#app { position: fixed; inset: 52px 0 0; }
+#c { width: 100%; height: 100%; display: block; touch-action: none; }
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--hivis); outline-offset: 2px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.lbl { font-family: var(--f-display); font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; font-size: 11px; color: var(--bone-dim); }
+
+/* ---------- HUD ---------- */
+.glass { background: color-mix(in srgb, var(--ink) 84%, transparent); border: 1px solid var(--line); backdrop-filter: blur(6px); }
+#hud { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); display: flex; gap: 10px; align-items: flex-start; pointer-events: none; }
+#jobcard { padding: 10px 14px; min-width: 220px; pointer-events: auto; }
+#jobcard h2 { margin: 0; font-family: var(--f-display); font-weight: 700; font-size: 20px; letter-spacing: 0.02em; line-height: 1.1; }
+#jobcard .sub { color: var(--bone-dim); font-size: 13px; margin-top: 2px; }
+#jobcard .facts { display: grid; grid-template-columns: auto auto; gap: 2px 14px; margin-top: 8px; font-size: 12.5px; }
+#jobcard .facts span:nth-child(odd) { color: var(--bone-dim); }
+#wallet { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); display: flex; gap: 8px; }
+#wallet > div { padding: 8px 12px; min-width: 92px; }
+#wallet .v { font-family: var(--f-mono); font-size: 17px; }
+.bar { height: 4px; background: var(--line); margin-top: 4px; }
+.bar i { display: block; height: 100%; background: var(--ok); }
+#menuBtn { cursor: pointer; display: grid; place-items: center; min-width: 44px !important; font-family: var(--f-display); font-weight: 700; letter-spacing: 0.08em; }
+
+#panel { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(76px + env(safe-area-inset-top, 0px)); width: 330px; max-height: calc(100% - 200px); overflow-y: auto; padding: 14px 16px 16px; }
+#panel h3 { margin: 0 0 2px; font-family: var(--f-display); font-weight: 800; font-size: 26px; letter-spacing: 0.01em; text-transform: uppercase; line-height: 1; }
+#panel .stepno { color: var(--hivis); font-family: var(--f-display); font-weight: 700; letter-spacing: 0.14em; font-size: 12px; }
+#panel p { margin: 8px 0; font-size: 13.5px; line-height: 1.45; color: var(--bone); }
+#panel .note { color: var(--bone-dim); font-size: 12.5px; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+.chip { padding: 6px 10px; border: 1px solid var(--line); background: var(--ink-2); cursor: pointer; font-family: var(--f-display); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; font-size: 13px; }
+.chip[aria-pressed="true"] { border-color: var(--hivis); color: var(--hivis); }
+.chip:disabled { opacity: 0.4; cursor: not-allowed; }
+.slider { margin: 10px 0; }
+.slider .top { display: flex; justify-content: space-between; align-items: baseline; }
+.slider .val { font-family: var(--f-mono); font-size: 13px; }
+input[type=range] { width: 100%; accent-color: var(--hivis); margin: 4px 0 0; }
+.go { width: 100%; padding: 11px; margin-top: 10px; background: var(--hivis); color: #1a0d04; border: 0; cursor: pointer; font-family: var(--f-display); font-weight: 800; font-size: 17px; letter-spacing: 0.1em; text-transform: uppercase; }
+.go.ghost { background: transparent; color: var(--bone); border: 1px solid var(--line); }
+.go:disabled { opacity: 0.4; cursor: not-allowed; }
+.gauge { margin: 10px 0; }
+.gauge .track { position: relative; height: 12px; background: var(--ink-2); border: 1px solid var(--line); }
+.gauge .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--bone-dim); }
+.gauge .tgt { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--hivis); }
+.gauge .zone { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--ok) 30%, transparent); }
+.readout { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0; }
+.readout div { background: var(--ink-2); border: 1px solid var(--line); padding: 6px 8px; }
+.readout .v { font-family: var(--f-mono); font-size: 16px; }
+.state-ok { color: var(--ok); } .state-warn { color: var(--warn); } .state-bad { color: var(--bad); }
+.treelist { display: grid; gap: 6px; margin-top: 8px; }
+.treelist button { text-align: left; padding: 8px 10px; background: var(--ink-2); border: 1px solid var(--line); cursor: pointer; display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.treelist button[aria-current="true"] { border-color: var(--hivis); }
+.treelist button:disabled { opacity: 0.45; cursor: default; }
+
+#plan { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); padding: 8px; }
+#plan canvas { display: block; width: 300px; height: 168px; }
+#plan .lbl { display: flex; justify-content: space-between; margin-bottom: 4px; }
+
+#actionbar { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; align-items: stretch; }
+#hold { min-width: 230px; padding: 14px 22px; background: var(--hivis); color: #1a0d04; border: 0; cursor: pointer; font-family: var(--f-display); font-weight: 800; font-size: 20px; letter-spacing: 0.12em; text-transform: uppercase; user-select: none; -webkit-user-select: none; touch-action: none; }
+#hold.active { background: #ffd0a8; }
+#hold:disabled { background: #6b4a33; color: #2b1a0e; cursor: not-allowed; }
+.side-btn { padding: 0 16px; background: var(--ink-2); border: 1px solid var(--line); cursor: pointer; font-family: var(--f-display); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 15px; }
+.side-btn kbd { font-family: var(--f-mono); font-size: 11px; color: var(--bone-dim); margin-left: 6px; }
+#retreat.urgent { background: var(--bad); border-color: var(--bad); color: white; animation: pulse 0.5s infinite alternate; }
+@keyframes pulse { to { transform: scale(1.06); } }
+#meter { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); width: 300px; height: 16px; border: 1px solid var(--line); background: var(--ink-2); }
+#meter .sweet { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--ok) 45%, transparent); }
+#meter .needle { position: absolute; top: -4px; bottom: -4px; width: 3px; background: var(--bone); }
+
+#banner { position: absolute; left: 50%; top: 22%; transform: translate(-50%, -50%); font-family: var(--f-display); font-weight: 800; font-size: clamp(42px, 9vw, 110px); letter-spacing: 0.06em; color: var(--hivis); text-shadow: 0 4px 30px rgba(0,0,0,0.6); pointer-events: none; text-align: center; line-height: 0.95; }
+#banner small { display: block; font-size: 0.24em; letter-spacing: 0.2em; color: var(--bone); }
+#toasts { position: absolute; left: 50%; transform: translateX(-50%); top: calc(14px + env(safe-area-inset-top, 0px)); display: grid; gap: 6px; justify-items: center; pointer-events: none; width: min(520px, 90vw); }
+.toast { padding: 8px 14px; font-size: 14px; border-left: 3px solid var(--hivis); animation: tin 0.25s ease-out; }
+.toast.bad { border-left-color: var(--bad); } .toast.ok { border-left-color: var(--ok); }
+@keyframes tin { from { opacity: 0; transform: translateY(-6px); } }
+
+/* ---------- Modal (results) ---------- */
+#modal { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(5, 8, 6, 0.55); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+#modal .card { width: min(560px, 100%); max-height: 88%; overflow-y: auto; padding: 22px 24px; }
+#modal h2 { margin: 0; font-family: var(--f-display); font-weight: 800; font-size: 34px; text-transform: uppercase; letter-spacing: 0.02em; line-height: 1; }
+#modal .grade { font-family: var(--f-display); font-weight: 800; font-size: 64px; color: var(--hivis); line-height: 1; float: right; }
+.ledger { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+.ledger td { padding: 5px 0; border-bottom: 1px solid var(--line); }
+.ledger td:last-child { text-align: right; font-family: var(--f-mono); }
+.ledger tr.total td { border-bottom: 0; font-weight: 600; font-size: 16px; padding-top: 10px; }
+.why { margin: 10px 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.why li { padding-left: 12px; border-left: 2px solid var(--line); font-size: 13.5px; line-height: 1.45; }
+.why li.bad { border-left-color: var(--bad); } .why li.ok { border-left-color: var(--ok); } .why li.warn { border-left-color: var(--warn); }
+
+/* ---------- Menu ---------- */
+#menu { position: absolute; inset: 0; overflow-y: auto; background: linear-gradient(90deg, rgba(8,12,9,0.94) 0%, rgba(8,12,9,0.82) 55%, rgba(8,12,9,0.35) 100%); }
+#menu .wrap { max-width: 1060px; padding-block: calc(28px + env(safe-area-inset-top, 0px)) 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wordmark { font-family: var(--f-display); font-weight: 800; font-size: clamp(54px, 10vw, 112px); letter-spacing: 0.03em; line-height: 0.85; text-transform: uppercase; margin: 0; }
+.wordmark span { color: var(--hivis); }
+.tagline { color: var(--bone-dim); font-size: 15px; max-width: 54ch; margin: 10px 0 18px; line-height: 1.5; }
+.stats { display: flex; gap: 22px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.stats .v { font-family: var(--f-mono); font-size: 20px; }
+.tabs { display: flex; gap: 4px; margin: 18px 0 14px; }
+.tabs button { padding: 8px 16px; background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; font-family: var(--f-display); font-weight: 700; font-size: 17px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--bone-dim); }
+.tabs button[aria-selected="true"] { color: var(--bone); border-bottom-color: var(--hivis); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.card { background: var(--ink-2); border: 1px solid var(--line); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.card h4 { margin: 0; font-family: var(--f-display); font-weight: 700; font-size: 22px; letter-spacing: 0.01em; }
+.card .region { color: var(--bone-dim); font-size: 13px; }
+.card p { margin: 4px 0; font-size: 13.5px; line-height: 1.45; flex: 1; }
+.card .specs { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--bone-dim); }
+.card .specs b { color: var(--bone); font-weight: 500; font-family: var(--f-mono); }
+.card .go { margin-top: 6px; }
+.req { font-family: var(--f-display); font-weight: 700; letter-spacing: 0.1em; font-size: 12px; text-transform: uppercase; color: var(--warn); }
+.notes { columns: 2 320px; column-gap: 28px; font-size: 14px; line-height: 1.55; }
+.notes section { break-inside: avoid; margin-bottom: 16px; }
+.notes h5 { margin: 0 0 4px; font-family: var(--f-display); font-weight: 700; font-size: 18px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--hivis); }
+.notes p { margin: 0; color: var(--bone); }
+
+#loading { position: absolute; inset: 0; display: grid; place-items: center; background: var(--ink); z-index: 5; }
+#loading .w { width: min(320px, 80vw); }
+#loading .bar { height: 3px; }
+#loading .bar i { background: var(--hivis); width: 0; transition: width 0.2s; }
+
+@media (max-width: 760px) {
+  #panel { left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto; top: auto; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); max-height: 38%; }
+  #plan { display: none; }
+  #jobcard .facts { display: none; }
+  #jobcard { min-width: 0; }
+  #wallet > div:not(#menuBtn) { min-width: 0; }
+  #hold { min-width: 150px; font-size: 16px; }
+  #meter { width: 220px; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) { #retreat.urgent { animation: none; } .toast { animation: none; } }
+.site-topbar { z-index: 50; }
+</style>
+<link rel="stylesheet" href="/site-nav.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Buy Me a Coffee (opens in a new tab)"><span aria-hidden="true">☕</span> <span class="site-long">Buy Me a </span>Coffee</a>
+</nav>
+<script src="/site-nav.js"></script>
+<div id="app">
+  <canvas id="c"></canvas>
+
+  <div id="hud" hidden>
+    <div id="jobcard" class="glass"></div>
+  </div>
+  <div id="wallet" hidden>
+    <div class="glass"><div class="lbl">Cash</div><div class="v" id="cashV">$0</div></div>
+    <div class="glass"><div class="lbl">Health</div><div class="v" id="hpV">100</div><div class="bar"><i id="hpBar" style="width:100%"></i></div></div>
+    <button class="glass" id="menuBtn" type="button" title="Leave job (back to camp)">Camp</button>
+  </div>
+  <aside id="panel" class="glass" hidden></aside>
+  <div id="plan" class="glass" hidden>
+    <div class="lbl"><span>Stump plan · side profile</span><span id="planNote"></span></div>
+    <canvas id="planC" width="600" height="336"></canvas>
+  </div>
+  <div id="meter" hidden><div class="sweet"></div><div class="needle"></div></div>
+  <div id="actionbar" hidden>
+    <button class="side-btn" id="wedgeBtn" type="button" hidden>Wedge<kbd>E</kbd></button>
+    <button id="hold" type="button">Hold to cut</button>
+    <button class="side-btn" id="retreat" type="button">Retreat<kbd>R</kbd></button>
+  </div>
+  <div id="banner" hidden></div>
+  <div id="toasts"></div>
+  <div id="modal" hidden><div class="card glass" id="modalCard"></div></div>
+
+  <div id="menu" hidden>
+    <div class="wrap">
+      <h1 class="wordmark">Timber<span>line</span></h1>
+      <p class="tagline">Size it up, cut the face, set the hinge, and walk your escape route. Start with an axe on a homestead woodlot and work your way up to old growth and a harvester.</p>
+      <div class="stats" id="stats"></div>
+      <div class="tabs" role="tablist">
+        <button role="tab" id="tab-contracts" aria-selected="true">Contracts</button>
+        <button role="tab" id="tab-gear" aria-selected="false">Gear</button>
+        <button role="tab" id="tab-notes" aria-selected="false">Field notes</button>
+      </div>
+      <div id="tabbody"></div>
+    </div>
+  </div>
+
+  <div id="loading"><div class="w"><div class="lbl" id="loadMsg">Loading the woods…</div><div class="bar"><i id="loadBar"></i></div></div></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/",
+    "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.9.9/build/index.module.js",
+    "three-bvh-csg": "https://cdn.jsdelivr.net/npm/three-bvh-csg@0.0.18/build/index.module.js"
+  }
+}
+</script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Madame Haiku · Vibe Coded Slopware</title>
+<meta name="description" content="Tarot spreads and horoscopes read by a very small language model. The cards are shuffled in your browser. The insight is vibes.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔮</text></svg>">
+<style>
+:root{--bg:#f4f0e6;--fg:#1f1d1a;--dim:#6b665c;--card:#fffdf7;--line:#ddd5c4;--accent:#6a4bb0;--accent-fg:#fff;--gold:#b48a2c;--face:#fbf5e6;--face-ink:#2b2140;--back:#2c1f55;--back2:#4a3690;--cw:clamp(64px,10vw,96px)}
+@media (prefers-color-scheme:dark){:root{--bg:#15171a;--fg:#ece8df;--dim:#9a958a;--card:#1d2024;--line:#2e3238;--accent:#b89cf3;--accent-fg:#15171a;--gold:#d9b75c}}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}
+canvas#stars{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:.55}
+main{max-width:860px;margin:0 auto;padding:40px 16px 100px;position:relative;z-index:1}
+.back{color:var(--dim);text-decoration:none;font-size:14px}
+.back:hover{color:var(--accent)}
+h1{font-size:clamp(38px,8vw,64px);line-height:1.02;margin:28px 0 12px;letter-spacing:-1.5px}
+h1 span{color:var(--accent)}
+.lede{font-size:clamp(18px,2.6vw,21px);margin:0 0 8px;max-width:620px}
+.hint{color:var(--dim);font-style:italic;font-family:Georgia,serif;margin:0 0 28px}
+h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:30px 0 10px;font-weight:600}
+h2 small{text-transform:none;letter-spacing:0;font-weight:400;margin-left:6px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:inherit;font-family:inherit;font-size:14px;cursor:pointer;transition:border-color .15s,transform .15s}
+.chip:hover{border-color:var(--accent);transform:translateY(-1px)}
+.chip[aria-pressed=true],.chip[aria-selected=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.tabs{margin-top:4px}
+.tabs .chip{font-size:16px;padding:10px 18px;font-weight:600}
+.spreads{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.spread{text-align:left;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:inherit;cursor:pointer;font-family:inherit;display:grid;grid-template-columns:1fr auto;gap:2px 10px;transition:border-color .15s,transform .15s}
+.spread:hover{transform:translateY(-1px);border-color:var(--accent)}
+.spread[aria-pressed=true]{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent)}
+.spread b{font-size:15.5px}
+.spread span{font-size:12px;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap;align-self:start}
+.spread small{grid-column:1/-1;color:var(--dim);font-size:13px;line-height:1.35}
+.signs{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px}
+.sign{display:grid;grid-template-columns:auto 1fr;gap:0 10px;align-items:center;text-align:left;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:inherit;cursor:pointer;font-family:inherit;transition:border-color .15s,transform .15s}
+.sign:hover{transform:translateY(-1px);border-color:var(--accent)}
+.sign .sg{grid-row:1/3;font-size:24px;color:var(--accent);line-height:1}
+.sign b{font-size:14px;line-height:1.2}
+.sign small{font-size:11px;color:var(--dim)}
+.sign[aria-pressed=true]{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent)}
+.birth{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:14px;font-size:13.5px;color:var(--dim)}
+.birth label{display:flex;flex-direction:column;gap:4px}
+input,textarea{font-family:inherit;font-size:15px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--fg)}
+input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+textarea{width:100%;resize:vertical;min-height:58px;display:block}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;margin-top:12px}
+.count,.sky{font-size:13px;color:var(--dim)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 20px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:inherit;font-family:inherit;font-size:16px;font-weight:600;cursor:pointer;transition:transform .15s,border-color .15s}
+.btn:hover{transform:translateY(-2px);border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn:disabled{opacity:.6;cursor:wait;transform:none}
+
+/* the table */
+.table{display:flex;flex-wrap:wrap;justify-content:center;align-items:flex-start;gap:18px 14px;padding:28px 8px 10px;margin:22px 0 0;--arc:1}
+.table.grid{display:grid;justify-content:center;gap:20px 34px}
+.slot{width:var(--cw);transform:translateY(calc(var(--lift,0px) * var(--arc))) rotate(calc(var(--tilt,0deg) * var(--arc)))}
+.stack{position:relative;width:100%;aspect-ratio:5/8;perspective:900px}
+.wrap{position:absolute;inset:0;opacity:0;transform:translate(-24px,-150px) rotate(-14deg);transform-style:preserve-3d;transition:transform .55s cubic-bezier(.2,.75,.25,1),opacity .35s}
+.wrap.dealt{opacity:1;transform:none}
+.wrap.crossing.dealt{transform:rotate(90deg)}
+.card{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .7s cubic-bezier(.3,.7,.3,1)}
+.card.flipped{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;border-radius:9px;backface-visibility:hidden;-webkit-backface-visibility:hidden;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.face.back{background:var(--back) repeating-linear-gradient(45deg,transparent 0 5px,rgba(255,255,255,.08) 5px 6px);border:3px solid var(--back2);display:grid;place-items:center;color:var(--gold)}
+.face.back span{width:34px;height:34px;border:1px solid var(--gold);border-radius:50%;display:grid;place-items:center;font-size:18px}
+.face.front{background:var(--face);color:var(--face-ink);border:2px solid #cdbf9a;transform:rotateY(180deg);overflow:hidden}
+.face.front.major{border-color:var(--gold);box-shadow:inset 0 0 0 2px var(--face),inset 0 0 0 3px var(--gold),0 2px 8px rgba(0,0,0,.25)}
+.inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px}
+.card.reversed .inner{transform:rotate(180deg)}
+.c{position:absolute;font:600 10px/1 Georgia,serif}
+.tl{top:5px;left:6px}.br{bottom:5px;right:6px;transform:rotate(180deg)}
+.g{font-size:clamp(22px,4vw,34px);line-height:1}
+.n{font:600 10px/1.15 Georgia,serif;text-align:center;padding:0 7px}
+.pos{font-size:11.5px;line-height:1.25;color:var(--dim);text-align:center;margin-top:7px}
+.pos b{color:var(--accent)}
+.pos i{color:var(--gold);font-style:normal}
+.table.horseshoe{padding-bottom:calc(10px + 64px * var(--arc))} /* room for the lowered end cards */
+@media (max-width:640px){.table.grid{display:flex}.table{--arc:0}.table.grid .slot{grid-area:auto!important}}
+@media (prefers-reduced-motion:reduce){.wrap,.card,.chip,.spread,.sign,.btn{transition:none}}
+
+/* the reading */
+.reading{margin-top:26px;border:1px solid var(--line);border-radius:14px;background:var(--card);padding:18px 20px}
+.status{display:flex;align-items:center;gap:10px;color:var(--dim);font-size:14px}
+.orb{font-size:20px;display:inline-block}
+.busy .orb{animation:pulse 1.5s ease-in-out infinite}
+.error .status{color:#c0392b}
+.body{margin-top:8px;font-size:16.5px;line-height:1.6}
+.body:empty{margin-top:0}
+.body h2,.body h3,.body h4{font-size:17.5px;margin:20px 0 6px;color:var(--accent);letter-spacing:0;text-transform:none;font-weight:700}
+.body h2:first-child,.body h3:first-child,.body p:first-child{margin-top:8px}
+.body p{margin:0 0 12px}
+.body ul{margin:0 0 12px;padding-left:22px}
+.busy .body:not(:empty)::after{content:"▍";color:var(--accent);animation:blink 1s steps(2) infinite}
+.meta{margin-top:12px;font-size:12.5px;color:var(--dim)}
+.meta:empty{display:none}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:.75}50%{transform:scale(1.2);opacity:1}}
+@keyframes blink{to{opacity:0}}
+footer{margin-top:56px;color:var(--dim);font-size:13px;max-width:620px}
+</style>
+</head>
+<body>
+<canvas id="stars" aria-hidden="true"></canvas>
+<main>
+  <a class="back" href="/">← vibe coded slopware</a>
+  <h1>Madame <span>Haiku</span></h1>
+  <p class="lede">Psychic readings by a very small language model.</p>
+  <p class="hint">She shuffles in your browser, reads on the fly, and has fully committed to the bit.</p>
+
+  <div class="chips tabs" role="tablist" aria-label="Kind of reading">
+    <button class="chip" role="tab" id="tab-tarot" aria-controls="panel-tarot" aria-selected="true">🃏 Tarot</button>
+    <button class="chip" role="tab" id="tab-astro" aria-controls="panel-astro" aria-selected="false">✨ Astrology</button>
+  </div>
+
+  <section id="panel-tarot" role="tabpanel" aria-labelledby="tab-tarot">
+    <h2>Pick a spread</h2>
+    <div class="spreads" id="spreads"></div>
+    <h2>Your question <small>optional</small></h2>
+    <textarea id="t-q" maxlength="300" rows="2" placeholder="What's on your mind? Leave it blank for a general reading."></textarea>
+    <div class="row">
+      <button class="btn primary" id="t-go" type="button">Shuffle &amp; draw</button>
+      <span class="count" id="t-count">0 / 300</span>
+    </div>
+    <div class="table" id="table" hidden></div>
+    <div class="reading" id="t-reading" hidden>
+      <div class="status"><span class="orb">🔮</span><span class="msg"></span></div>
+      <div class="body"></div>
+      <div class="meta"></div>
+    </div>
+  </section>
+
+  <section id="panel-astro" role="tabpanel" aria-labelledby="tab-astro" hidden>
+    <h2>Your sign</h2>
+    <div class="signs" id="signs"></div>
+    <div class="birth">
+      <label>Birthday <small>picks your sign</small><input type="date" id="a-date"></label>
+      <label>Time <small>optional</small><input type="time" id="a-time"></label>
+      <label>Place <small>optional</small><input type="text" id="a-place" maxlength="80" placeholder="Denver, CO" autocomplete="off"></label>
+    </div>
+    <h2>Focus</h2>
+    <div class="chips" id="focus"></div>
+    <h2>Your question <small>optional</small></h2>
+    <textarea id="a-q" maxlength="300" rows="2" placeholder="Anything in particular?"></textarea>
+    <div class="row">
+      <button class="btn primary" id="a-go" type="button">Consult the stars</button>
+      <span class="sky" id="sky"></span>
+    </div>
+    <div class="reading" id="a-reading" hidden>
+      <div class="status"><span class="orb">🔮</span><span class="msg"></span></div>
+      <div class="body"></div>
+      <div class="meta"></div>
+    </div>
+  </section>
+
+  <footer>For entertainment. Madame Haiku is a language model; she cannot see the future, or anything else. The cards are shuffled on your device and the reading is written live by the newest Claude Haiku, which is why it occasionally has opinions about your week. Made with questionable judgment and an AI pair programmer.</footer>
+</main>
+
+<script type="module">
+import { DECK, SPREADS, SIGNS, FOCUSES, signFor, moonPhase } from "./deck.js";
+
+const $ = (s, r = document) => r.querySelector(s);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- tabs ---------- */
+const tabs = [...document.querySelectorAll("[role=tab]")];
+function showTab(id) {
+  for (const t of tabs) {
+    const on = t.id === id;
+    t.setAttribute("aria-selected", on);
+    document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+  }
+  history.replaceState(null, "", "#" + id.replace("tab-", ""));
+}
+for (const t of tabs) t.addEventListener("click", () => showTab(t.id));
+if (location.hash === "#astro") showTab("tab-astro");
+
+/* ---------- a very small markdown ---------- */
+function inline(s) {
+  return esc(s)
+    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+    .replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, "$1<i>$2</i>")
+    .replace(/(^|[^\w])_([^_\n]+)_(?!\w)/g, "$1<i>$2</i>");
+}
+function md(src) {
+  const out = []; let para = [], list = null;
+  const flush = () => {
+    if (para.length) { out.push(`<p>${inline(para.join(" "))}</p>`); para = []; }
+    if (list) { out.push(`<ul>${list.map((i) => `<li>${inline(i)}</li>`).join("")}</ul>`); list = null; }
+  };
+  for (const raw of src.split(/\r?\n/)) {
+    const line = raw.trimEnd();
+    const h = line.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { flush(); const lvl = Math.min(h[1].length + 1, 4); out.push(`<h${lvl}>${inline(h[2])}</h${lvl}>`); continue; }
+    const li = line.match(/^\s*[-*•]\s+(.*)$/);
+    if (li) { if (para.length) { out.push(`<p>${inline(para.join(" "))}</p>`); para = []; } (list ??= []).push(li[1]); continue; }
+    if (!line.trim()) { flush(); continue; }
+    if (list) flush();
+    para.push(line.trim());
+  }
+  flush();
+  return out.join("");
+}
+
+/* ---------- reading panel ---------- */
+function panel(root) {
+  const msg = $(".msg", root), body = $(".body", root), meta = $(".meta", root);
+  return {
+    start(text) { root.hidden = false; root.classList.add("busy"); root.classList.remove("error"); msg.textContent = text; body.innerHTML = ""; meta.textContent = ""; },
+    msg(text) { msg.textContent = text; },
+    render(text) { body.innerHTML = md(text); },
+    error(text) { root.hidden = false; root.classList.remove("busy"); root.classList.add("error"); msg.textContent = text; },
+    done(model, secs) {
+      root.classList.remove("busy");
+      msg.textContent = "The reading is complete.";
+      meta.textContent = `Read by ${model || "a small language model"} in ${secs.toFixed(1)}s.`;
+    },
+  };
+}
+
+async function consult(payload, ui) {
+  const t0 = performance.now();
+  let res;
+  try {
+    res = await fetch("/api/reading", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+  } catch {
+    return ui.error("Couldn't reach the beyond. Check your connection and try again.");
+  }
+  if (!res.ok) {
+    let m = `The beyond answered with an error (${res.status}).`;
+    try { m = (await res.json()).error || m; } catch {}
+    return ui.error(m);
+  }
+  ui.msg("Madame Haiku is reading…");
+  const model = res.headers.get("x-model") || "";
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let text = "", raf = 0;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    text += dec.decode(value, { stream: true });
+    if (!raf) raf = requestAnimationFrame(() => { raf = 0; ui.render(text); });
+  }
+  text += dec.decode();
+  cancelAnimationFrame(raf);
+  if (!text.trim()) return ui.error("The spirits had nothing to say. Try again.");
+  ui.render(text);
+  ui.done(model, (performance.now() - t0) / 1000);
+}
+
+/* ---------- tarot ---------- */
+const LAYOUT = {
+  one: {}, three: {}, slop: {},
+  horseshoe: { lift: [64, 34, 12, 0, 12, 34, 64], tilt: [-18, -12, -6, 0, 6, 12, 18] },
+  // Half-row grid so the cross (rows 2-7) sits centered against the four-card staff (rows 1-8).
+  celtic: { cols: 4, areas: [". . . p10", ". p5 . p10", ". p5 . p9", "p4 p1 p6 p9", "p4 p1 p6 p8", ". p3 . p8", ". p3 . p7", ". . . p7"] },
+};
+const spreadsEl = $("#spreads"), table = $("#table"), qT = $("#t-q"), goT = $("#t-go"), countT = $("#t-count");
+const uiT = panel($("#t-reading"));
+let spreadKey = "three", busyT = false;
+
+for (const [key, s] of Object.entries(SPREADS)) {
+  const n = s.positions.length;
+  const b = el("button", "spread", `<b>${esc(s.name)}</b><span>${n} card${n === 1 ? "" : "s"}</span><small>${esc(s.tagline)}</small>`);
+  b.type = "button"; b.dataset.key = key; b.setAttribute("aria-pressed", key === spreadKey);
+  b.addEventListener("click", () => { spreadKey = key; for (const c of spreadsEl.children) c.setAttribute("aria-pressed", c.dataset.key === key); });
+  spreadsEl.append(b);
+}
+qT.addEventListener("input", () => { countT.textContent = `${qT.value.length} / 300`; });
+
+function shuffle(arr) {
+  const a = arr.slice(), r = new Uint32Array(a.length);
+  crypto.getRandomValues(r);
+  for (let i = a.length - 1; i > 0; i--) { const j = r[i] % (i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+function deal(key, cards) {
+  const spread = SPREADS[key], lay = LAYOUT[key];
+  table.hidden = false;
+  table.className = "table " + key + (lay.areas ? " grid" : "");
+  table.innerHTML = "";
+  table.style.gridTemplateAreas = lay.areas ? lay.areas.map((r) => `"${r}"`).join(" ") : "";
+  table.style.gridTemplateColumns = lay.areas ? `repeat(${lay.cols}, var(--cw))` : "";
+  const slots = [];
+  cards.forEach((c, i) => {
+    const n = i + 1;
+    const crossing = key === "celtic" && n === 2;
+    let slot = crossing ? slots[0] : null;
+    if (!slot) {
+      slot = el("div", "slot");
+      slot.style.gridArea = `p${n}`;
+      if (lay.lift) { slot.style.setProperty("--lift", `${lay.lift[i]}px`); slot.style.setProperty("--tilt", `${lay.tilt[i]}deg`); }
+      slot.append(el("div", "stack"));
+      table.append(slot);
+      slots.push(slot);
+    }
+    const wrap = el("div", "wrap" + (crossing ? " crossing" : ""));
+    const card = el("div", "card" + (c.reversed ? " reversed" : ""));
+    card.innerHTML = `<div class="face back"><span>✦</span></div>` +
+      `<div class="face front${c.arcana === "major" ? " major" : ""}"><div class="inner">` +
+      `<span class="c tl">${esc(c.label)}</span><span class="g">${c.glyph}</span><span class="n">${esc(c.name)}</span><span class="c br">${esc(c.label)}</span>` +
+      `</div></div>`;
+    card.title = `${n}. ${spread.positions[i]}: ${c.name}${c.reversed ? " (reversed)" : ""}`;
+    wrap.append(card);
+    $(".stack", slot).append(wrap);
+    slot.append(el("div", "pos", `<b>${n}</b> ${esc(spread.positions[i])}${c.reversed ? " · <i>reversed</i>" : ""}`));
+    const dealAt = reduced ? 0 : 90 * i;
+    const flipAt = reduced ? 0 : 90 * cards.length + 350 + 320 * i;
+    setTimeout(() => wrap.classList.add("dealt"), dealAt + 20);
+    setTimeout(() => card.classList.add("flipped"), flipAt);
+  });
+}
+
+goT.addEventListener("click", async () => {
+  if (busyT) return;
+  busyT = true; goT.disabled = true; goT.textContent = "Shuffling…";
+  const spread = SPREADS[spreadKey];
+  const flips = new Uint8Array(spread.positions.length);
+  crypto.getRandomValues(flips);
+  const cards = shuffle(DECK).slice(0, spread.positions.length).map((c, i) => ({ ...c, reversed: flips[i] < 77 })); // about 30% reversed
+  deal(spreadKey, cards);
+  uiT.start("Madame Haiku is consulting the cards…");
+  await consult({ kind: "tarot", spread: spreadKey, question: qT.value, cards: cards.map((c) => ({ name: c.name, reversed: c.reversed })) }, uiT);
+  busyT = false; goT.disabled = false; goT.textContent = "Shuffle & draw again";
+});
+
+/* ---------- astrology ---------- */
+const signsEl = $("#signs"), focusEl = $("#focus"), dateEl = $("#a-date"), timeEl = $("#a-time"), placeEl = $("#a-place");
+const qA = $("#a-q"), goA = $("#a-go"), skyEl = $("#sky");
+const uiA = panel($("#a-reading"));
+let sign = null, focus = "today", busyA = false;
+
+const localISODate = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+dateEl.max = localISODate();
+
+for (const s of SIGNS) {
+  const b = el("button", "sign", `<span class="sg">${s.glyph}</span><b>${s.name}</b><small>${esc(s.dates)}</small>`);
+  b.type = "button"; b.dataset.name = s.name; b.setAttribute("aria-pressed", "false");
+  b.addEventListener("click", () => pickSign(s.name));
+  signsEl.append(b);
+}
+for (const [key, label] of Object.entries(FOCUSES)) {
+  const b = el("button", "chip", esc(label));
+  b.type = "button"; b.dataset.key = key; b.setAttribute("aria-pressed", key === focus);
+  b.addEventListener("click", () => { focus = key; for (const c of focusEl.children) c.setAttribute("aria-pressed", c.dataset.key === key); });
+  focusEl.append(b);
+}
+function pickSign(name) {
+  sign = name;
+  for (const b of signsEl.children) b.setAttribute("aria-pressed", b.dataset.name === name);
+  updateSky();
+}
+function updateSky() {
+  const mp = moonPhase(new Date());
+  const s = SIGNS.find((x) => x.name === sign);
+  skyEl.textContent = `${s ? `${s.glyph} ${s.name} · ` : ""}${mp.glyph} ${mp.name}, ${mp.illumination}% lit`;
+}
+dateEl.addEventListener("change", () => {
+  const [, m, d] = dateEl.value.split("-").map(Number);
+  if (m && d) pickSign(signFor(m, d).name);
+});
+updateSky();
+
+goA.addEventListener("click", async () => {
+  if (busyA) return;
+  if (!sign) { uiA.error("Pick a sign, or enter your birthday and Madame Haiku will work it out."); return; }
+  busyA = true; goA.disabled = true;
+  uiA.start("Madame Haiku is consulting the sky…");
+  await consult({
+    kind: "astrology", sign, focus, question: qA.value, today: localISODate(),
+    birthDate: dateEl.value, birthTime: timeEl.value, birthPlace: placeEl.value,
+  }, uiA);
+  busyA = false; goA.disabled = false; goA.textContent = "Consult the stars again";
+});
+
+/* ---------- stars ---------- */
+(() => {
+  const cv = $("#stars"), cx = cv.getContext("2d");
+  const dark = matchMedia("(prefers-color-scheme: dark)");
+  let stars = [];
+  function size() {
+    cv.width = Math.floor(innerWidth * devicePixelRatio); cv.height = Math.floor(innerHeight * devicePixelRatio);
+    stars = Array.from({ length: Math.round(innerWidth * innerHeight / 9000) }, () => ({
+      x: Math.random(), y: Math.random(), r: Math.random() * 1.2 + 0.4, p: Math.random() * Math.PI * 2, s: Math.random() * 0.8 + 0.4,
+    }));
+  }
+  function draw(t) {
+    cx.clearRect(0, 0, cv.width, cv.height);
+    cx.fillStyle = dark.matches ? "#e8def8" : "#6a4bb0";
+    for (const s of stars) {
+      cx.globalAlpha = reduced ? 0.45 : 0.2 + 0.5 * (0.5 + 0.5 * Math.sin((t / 1000) * s.s + s.p));
+      cx.beginPath(); cx.arc(s.x * cv.width, s.y * cv.height, s.r * devicePixelRatio, 0, Math.PI * 2); cx.fill();
+    }
+    if (!reduced) requestAnimationFrame(draw);
+  }
+  addEventListener("resize", () => { size(); if (reduced) draw(0); });
+  size(); requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>

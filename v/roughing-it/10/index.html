@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Roughing It</title>
+<meta name="description" content="A trail game after Mark Twain's Roughing It: ride the Overland stage to Nevada in 1861, catch silver fever, and talk your way onto a newspaper.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤠</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rye&family=IM+Fell+English:ital@0;1&family=VT323&display=swap">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+:root{--bg:#1b130d;--paper:#efe3c4;--ink:#2a1d12;--dim:#7a6448;--line:#c9b48a;--red:#9b2d20;--green:#4d6b2f;--gold:#b5832a}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink)}
+body{min-height:100vh;font:19px/1.45 "IM Fell English",Georgia,serif;background:radial-gradient(ellipse at 50% 0,#3a2818,#140d08 75%) fixed}
+button{font:inherit;color:inherit;cursor:pointer}
+.wrap{max-width:1080px;margin:0 auto;padding:16px 12px 40px;display:grid;grid-template-columns:1fr 280px;gap:14px}
+.main{min-width:0;display:flex;flex-direction:column;gap:12px}
+#scene{display:block;width:100%;aspect-ratio:2/1;image-rendering:pixelated;image-rendering:crisp-edges;border:3px solid #5a3f25;background:#9fc7e0;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.page{background:var(--paper);border:1px solid var(--line);padding:18px 22px 20px;box-shadow:0 10px 40px rgba(0,0,0,.45),inset 0 0 60px rgba(120,80,30,.18);min-height:220px}
+.page h2{font-family:Rye,serif;font-weight:normal;margin:0 0 4px;font-size:28px;color:var(--red);letter-spacing:.5px;line-height:1.15}
+.page .where{font-style:italic;color:var(--dim);margin:0 0 10px;font-size:17px}
+.page p{margin:8px 0}
+.page .fx{font-family:VT323,monospace;font-size:20px;color:var(--green)}
+.page .fx.bad{color:var(--red)}
+.page blockquote{margin:10px 0;padding:6px 14px;border-left:3px solid var(--gold);font-style:italic;color:#4a3520}
+.choices{display:flex;flex-direction:column;gap:7px;margin-top:14px}
+.choices.row{flex-direction:row;flex-wrap:wrap}
+.btn{background:#f8efd8;border:2px solid #5a3f25;padding:7px 14px;text-align:left;min-height:42px;transition:background .1s,transform .1s}
+.btn:hover:not(:disabled){background:#fff7e2;transform:translateX(2px)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.big{font-family:Rye,serif;font-size:22px;text-align:center}
+.btn small{color:var(--dim);font-size:15px}
+.btn.on{background:#e3d1a0;border-color:var(--red)}
+.side{display:flex;flex-direction:column;gap:12px}
+.card{background:#2a1d12;border:2px solid #5a3f25;color:#efe3c4;padding:12px 14px;font-family:VT323,monospace;font-size:20px;line-height:1.2}
+.card h1{font-family:Rye,serif;font-weight:normal;font-size:27px;margin:0;color:#f3d38c;line-height:1}
+.card h1 small{display:block;font-family:"IM Fell English",serif;font-style:italic;font-size:15px;color:#bfa77c;margin-top:4px}
+.card h3{margin:0 0 6px;font-size:16px;letter-spacing:2px;color:#bfa77c;text-transform:uppercase;font-weight:normal}
+.stat{display:grid;grid-template-columns:70px 1fr 44px;gap:8px;align-items:center}
+.stat .v{text-align:right}
+.track{height:9px;background:#140d08;border:1px solid #5a3f25;position:relative}
+.fill{position:absolute;inset:0 auto 0 0;background:#8fb35a;transition:width .4s}
+.fill.sp{background:#e2b552}.fill.warn{background:#d98a3a}.fill.bad{background:#c94a35}.fill.tr{background:#c94a35}.fill.rd{background:#9fc7e0}
+.kv{display:flex;justify-content:space-between}
+.kv b{font-weight:normal;color:#f3d38c}
+#map{display:block;width:100%;image-rendering:pixelated;image-rendering:crisp-edges;border:1px solid #5a3f25;background:#2b4a5e}
+#mapLabel{font-size:17px;color:#d8c49c;margin-top:5px}
+#bag{list-style:none;margin:0;padding:0;font-size:18px;color:#d8c49c}
+#bag li::before{content:"· ";color:#7a6448}
+#journal{font-family:"IM Fell English",serif;font-size:15px;line-height:1.3;color:#bfa77c;max-height:260px;overflow:auto;display:flex;flex-direction:column;gap:4px}
+#journal div:first-child{color:#efe3c4}
+.tools{display:flex;gap:6px;flex-wrap:wrap}
+.tools .btn{background:#3a2818;color:#efe3c4;border-color:#7a6448;font-family:VT323,monospace;font-size:18px;padding:3px 10px;min-height:34px}
+.tools .btn:hover{background:#4a3520}
+/* outfit */
+.items{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:10px 0}
+.item{display:flex;gap:8px;align-items:flex-start;background:#f8efd8;border:2px solid #c9b48a;padding:7px 10px;cursor:pointer;text-align:left;font-size:17px;line-height:1.25}
+.item.on{border-color:var(--red);background:#f1dfb2}
+.item b{display:block;font-weight:normal;font-family:Rye,serif;font-size:16px}
+.item small{color:var(--dim);display:block}
+.item .wt{margin-left:auto;font-family:VT323,monospace;font-size:19px;white-space:nowrap}
+.scale{font-family:VT323,monospace;font-size:22px}
+.scale.over{color:var(--red)}
+/* prospecting */
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:12px 0;max-width:420px}
+.cell{aspect-ratio:1;border:2px solid #5a3f25;background:#a8916b;font-size:24px;display:flex;align-items:center;justify-content:center;padding:0}
+.cell.q{background:#cbbd9e}
+.cell.g{background:#a8916b;box-shadow:inset 0 0 0 3px #f3d38c}
+.cell.dug{background:#6b5638;cursor:default}
+.cell.vein{background:#9aa9b8}
+/* market */
+table.mkt{width:100%;border-collapse:collapse;font-size:17px;margin:8px 0}
+table.mkt td,table.mkt th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:left}
+table.mkt th{font-weight:normal;color:var(--dim);font-style:italic}
+table.mkt td.n{font-family:VT323,monospace;font-size:20px;text-align:right}
+table.mkt .up{color:var(--green)}table.mkt .dn{color:var(--red)}
+table.mkt button{padding:2px 8px;min-height:30px;font-size:15px}
+/* newspaper */
+.lead{border:2px solid #c9b48a;background:#f8efd8;padding:8px 10px;margin:6px 0}
+.lead.on{border-color:var(--red);background:#f1dfb2}
+.lead b{font-family:Rye,serif;font-weight:normal}
+.lead .emb{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap}
+.lead .emb .btn{padding:2px 9px;min-height:30px;font-size:15px}
+.headline{font-family:Rye,serif;text-align:center;border-top:3px double var(--ink);border-bottom:3px double var(--ink);padding:6px 0;margin:10px 0;font-size:24px}
+.foot{color:var(--dim);font-size:14px;font-style:italic;margin-top:14px}
+@media (max-width:860px){
+  .wrap{grid-template-columns:1fr}
+  .items{grid-template-columns:1fr}
+  .side{order:2}
+  #journal{max-height:160px}
+}
+</style>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<div class="wrap">
+  <div class="main">
+    <canvas id="scene" width="320" height="160" aria-hidden="true"></canvas>
+    <section class="page" id="page" aria-live="polite"></section>
+  </div>
+  <aside class="side">
+    <div class="card">
+      <h1>Roughing It <small>after Mark Twain, 1872</small></h1>
+    </div>
+    <div class="card" id="stats">
+      <div class="kv"><span id="when">July 26, 1861</span><b id="phase">St. Joseph</b></div>
+      <div class="kv"><span>money</span><b id="money">$0</b></div>
+      <div class="kv" id="milesRow"><span>to Carson</span><b id="miles">1,700 mi</b></div>
+      <div class="stat"><label>health</label><div class="track"><i class="fill" id="hpBar"></i></div><span class="v" id="hp">0</span></div>
+      <div class="stat"><label>spirits</label><div class="track"><i class="fill sp" id="spBar"></i></div><span class="v" id="sp">0</span></div>
+      <div id="paperStats" hidden>
+        <div class="stat"><label>readers</label><div class="track"><i class="fill rd" id="rdBar"></i></div><span class="v" id="rd">0</span></div>
+        <div class="stat"><label>trouble</label><div class="track"><i class="fill tr" id="trBar"></i></div><span class="v" id="tr">0</span></div>
+      </div>
+    </div>
+    <div class="card"><h3>The journey</h3><canvas id="map" width="256" height="128" aria-hidden="true"></canvas><div id="mapLabel"></div></div>
+    <div class="card"><h3>Baggage</h3><ul id="bag"></ul></div>
+    <div class="card"><h3>Journal</h3><div id="journal"></div></div>
+    <div class="tools"><button class="btn" id="mute">♪ sound on</button><button class="btn" id="restart">↺ start over</button></div>
+  </aside>
+</div>
+<script src="./leads.js"></script>
+<script src="./art.js"></script>
+<script src="./game.js"></script>
+<script src="./part2.js"></script>
+<script src="./minimap.js"></script>
+</body>
+</html>

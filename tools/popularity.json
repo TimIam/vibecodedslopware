@@ -1,0 +1,12 @@
+{
+  "note": "Requests for each game's page (/<slug>/) on vibecodedslopware.com, from Vercel Observability (metric vercel.request.count grouped by request_path). Refresh by hand, then run node tools/versions.mjs.",
+  "since": "2026-10-07",
+  "until": "2026-11-06",
+  "visits": {
+    "bear-run": 89, "caseodle": 83, "bonsai": 78, "strange-weather": 74, "bonsai-idle": 73, "psychic": 72,
+    "desktop-bag": 66, "matrix": 62, "roughing-it": 57, "timberline": 49, "shop": 48, "mycelium": 44,
+    "Claude3d": 43, "demolition": 43, "pour-decisions": 43, "quarterly-rollout": 41, "swivel-shift": 38,
+    "fell-swoop": 31, "par-for-the-curse": 31, "datacenter": 25, "pit-crew": 19, "peel-out": 18, "craps": 17,
+    "projection-mayhem": 14, "binding-order": 11, "safe-water": 11, "boss-hours": 4
+  }
+}

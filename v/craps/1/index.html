@@ -1,0 +1,2055 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Craps (DEMO)</title>
+<meta name="description" content="A 3D casino craps table. Bet on the felt, set the dice, then pick them up with a physical hand and flick them at the back wall.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎲</text></svg>">
+<link rel="stylesheet" href="/site-nav.css">
+<style>body{margin:0}img{max-width:100%}</style>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Limelight&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: the 3D throwing table on the left (top on phones), the chalk-lined betting layout beside it. One committed look: a lit casino table at night. */
+:root {
+  --felt: #1b5e37;
+  --felt-deep: #124226;
+  --night: #0b130e;
+  --chalk: #f1e8d2;
+  --chalk-dim: rgba(241, 232, 210, .6);
+  --chalk-line: rgba(241, 232, 210, .42);
+  --brass: #d6ad52;
+  --win: #8be3a8;
+  --lose: #ff9583;
+  --font-display: "Limelight", "Didot", Georgia, serif;
+  --font-body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --font-num: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--night);
+  color: var(--chalk);
+  font-family: var(--font-body);
+  font-size: 15px;
+  overflow: hidden;
+}
+[hidden] { display: none !important; }
+.app {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(360px, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  height: 100%;
+}
+.stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--night); }
+#view { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#view.grabbing { cursor: grabbing; }
+#view.watching { cursor: default; }
+
+/* HUD over the table */
+.hud { position: absolute; inset: 0; pointer-events: none; }
+.phase {
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  left: max(16px, env(safe-area-inset-left, 0px));
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--font-display); font-size: 18px; letter-spacing: .06em;
+}
+.phase small { display: block; font: 500 13px var(--font-body); letter-spacing: 0; color: var(--chalk-dim); }
+.puck {
+  width: 38px; height: 38px; border-radius: 50%; flex: none;
+  display: grid; place-items: center;
+  font: 700 11px/1 var(--font-body); letter-spacing: .08em;
+  background: #141414; color: var(--chalk); border: 2px solid var(--chalk-dim);
+}
+.puck.on { background: var(--chalk); color: #111; border-color: #fff; }
+.history {
+  position: absolute;
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; max-width: 45%;
+}
+.history span {
+  font: 700 12px/1 var(--font-num); min-width: 24px; padding: 5px 4px; text-align: center;
+  border-radius: 4px; background: rgba(10, 23, 29, .7); border: 1px solid var(--chalk-line);
+}
+.history span.seven { color: var(--lose); border-color: var(--lose); }
+.history span.hit { color: var(--win); border-color: var(--win); }
+.result {
+  position: absolute; left: 50%; top: 17%; transform: translateX(-50%);
+  text-align: center; text-shadow: 0 2px 18px rgba(0,0,0,.75);
+  transition: opacity .25s ease, transform .25s ease;
+  width: max-content; max-width: calc(100% - 32px);
+}
+.result.hide { opacity: 0; transform: translate(-50%, -8px); }
+.result .total { font-family: var(--font-display); font-size: clamp(56px, 9vw, 96px); line-height: 1; }
+.result .dice { font: 500 14px var(--font-num); color: var(--chalk-dim); margin-top: 4px; }
+.result .call { font-family: var(--font-display); font-size: clamp(18px, 2.4vw, 26px); color: var(--brass); margin-top: 6px; text-wrap: balance; }
+.shouts {
+  position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); top: calc(66px + env(safe-area-inset-top, 0px));
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-start; max-width: 60%;
+}
+.shout {
+  background: var(--chalk); color: #111; border-radius: 14px 14px 14px 4px; padding: 6px 12px;
+  font-weight: 600; box-shadow: 0 4px 14px rgba(0,0,0,.4);
+  animation: pop .25s ease;
+}
+.shout b { font-weight: 700; color: #6b4b10; }
+@keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: none; opacity: 1; } }
+.hint {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  width: max-content; max-width: calc(100% - 32px);
+  padding: 9px 16px; border-radius: 999px;
+  background: rgba(10, 23, 29, .8); border: 1px solid var(--chalk-line);
+  font-weight: 500; text-align: center;
+  transition: opacity .2s ease;
+}
+.hint.hide { opacity: 0; }
+.toast {
+  position: absolute; left: 50%; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 32px); padding: 8px 14px; border-radius: 6px;
+  background: var(--brass); color: #1b1408; font-weight: 600; text-align: center;
+  transition: opacity .2s ease;
+}
+.toast.hide { opacity: 0; }
+.seats { position: absolute; inset: 0; }
+.seat {
+  position: absolute; transform: translate(-50%, -100%);
+  padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+  background: rgba(11, 19, 14, .78); border: 1px solid var(--chalk-line);
+  font: 600 12px var(--font-body);
+}
+.seat.shooter { border-color: var(--brass); color: var(--brass); }
+.seat small { font: 700 11px var(--font-num); color: var(--chalk-dim); margin-left: 6px; }
+
+/* Betting layout */
+.layout {
+  min-width: 0; overflow-y: auto;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(255,255,255,.06), transparent 60%),
+    var(--felt);
+  border-left: 10px solid #2b1a10;
+  box-shadow: inset 6px 0 18px rgba(0,0,0,.5);
+  padding-block: calc(16px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 12px;
+}
+.panel { background: var(--felt-deep); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.players li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.players img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+.players .who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.players .tag { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--brass); margin-left: 6px; }
+.players .amt { font: 700 13px var(--font-num); font-variant-numeric: tabular-nums; text-align: right; }
+.players .amt small { display: block; font: 500 11px var(--font-body); color: var(--chalk-dim); }
+.shout-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.bank {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+  background: var(--felt-deep); border-radius: 8px; padding: 10px 12px;
+}
+.bank div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.label { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--chalk-dim); }
+.bank strong { font: 700 18px var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#net.up { color: var(--win); }
+#net.down { color: var(--lose); }
+
+.spot {
+  position: relative;
+  appearance: none; font: inherit; color: inherit; text-align: center;
+  background: transparent; border: 2px solid var(--chalk-line); border-radius: 6px;
+  padding: 10px 8px; min-height: 64px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  transition: background .15s ease, border-color .15s ease;
+}
+.spot:hover { background: rgba(255,255,255,.06); border-color: var(--chalk-dim); }
+.spot:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
+.spot.locked { opacity: .45; }
+.spot.flash-win { animation: flashWin .7s ease; }
+.spot.flash-lose { animation: flashLose .7s ease; }
+@keyframes flashWin { 0%, 100% { background: transparent; } 30% { background: rgba(139, 227, 168, .32); } }
+@keyframes flashLose { 0%, 100% { background: transparent; } 30% { background: rgba(255, 149, 131, .28); } }
+.spot .name { font-family: var(--font-display); font-size: 20px; letter-spacing: .04em; line-height: 1.1; }
+.spot .pays { font-size: 12px; color: var(--chalk-dim); }
+.others {
+  position: absolute; top: 4px; left: 4px; display: flex; gap: 2px;
+}
+.others i {
+  width: 12px; height: 12px; border-radius: 50%; border: 2px dashed rgba(255,255,255,.7);
+  box-shadow: 0 1px 3px rgba(0,0,0,.5);
+}
+
+.places { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.places .spot { min-height: 78px; padding: 8px 2px; }
+.places .name { font-size: 26px; }
+.places .spot.is-point { border-color: var(--chalk); }
+.places .spot.is-point::before {
+  content: "ON"; position: absolute; top: -9px; right: -6px;
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--chalk); color: #111; font: 700 9px/1 var(--font-body); letter-spacing: .06em;
+  box-shadow: 0 2px 6px rgba(0,0,0,.4);
+}
+.places-off { font-size: 12px; color: var(--chalk-dim); text-align: center; margin-top: -4px; }
+
+.field .name { font-size: 26px; }
+.field .nums { font: 700 15px var(--font-num); letter-spacing: .14em; color: var(--brass); }
+.props { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.line-bets { display: grid; grid-template-columns: 1fr; gap: 6px; }
+.pass .name { font-size: 30px; }
+.pass { min-height: 72px; border-width: 3px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+.stake {
+  position: absolute; bottom: 4px; right: 4px;
+  min-width: 30px; height: 30px; padding: 0 6px; border-radius: 999px;
+  display: none; align-items: center; justify-content: center;
+  font: 700 11px var(--font-num); color: #111;
+  background: var(--chip, #e8e1cf);
+  border: 3px dashed rgba(255,255,255,.75);
+  box-shadow: 0 2px 5px rgba(0,0,0,.45);
+}
+.stake.show { display: flex; }
+
+.rack { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.chip {
+  --c: #e8e1cf;
+  width: 52px; height: 52px; border-radius: 50%; cursor: pointer;
+  appearance: none; font: 700 14px var(--font-num);
+  background: radial-gradient(circle, var(--c) 0 52%, transparent 53%), repeating-conic-gradient(var(--c) 0 20deg, #f5f1e6 20deg 40deg);
+  color: var(--chip-ink, #111);
+  border: 3px solid rgba(0,0,0,.35);
+  box-shadow: 0 3px 8px rgba(0,0,0,.45);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.chip[aria-pressed="true"] { transform: translateY(-4px); box-shadow: 0 0 0 3px var(--brass), 0 8px 14px rgba(0,0,0,.5); }
+.chip:focus-visible { outline: 3px solid var(--brass); outline-offset: 3px; }
+.btn {
+  appearance: none; font: 600 14px var(--font-body); color: var(--chalk); cursor: pointer;
+  background: var(--felt-deep); border: 1px solid var(--chalk-line); border-radius: 6px; padding: 10px 14px;
+}
+.btn:hover { border-color: var(--chalk); }
+.btn:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
+.btn.primary { background: var(--brass); color: #1b1408; border-color: var(--brass); }
+.btn.sm { padding: 6px 10px; font-size: 13px; }
+.btn:disabled { opacity: .4; cursor: default; }
+.rack .spacer { flex: 1; }
+.btn.big { padding: 14px 16px; font-size: 16px; }
+.steps { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.step {
+  appearance: none; cursor: pointer; text-align: left;
+  font: 600 15px var(--font-body); color: var(--chalk-dim);
+  background: transparent; border: 2px solid var(--chalk-line); border-radius: 8px; padding: 10px 12px;
+  display: flex; gap: 10px; align-items: center;
+}
+.step b {
+  width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  border: 2px solid currentColor; font: 700 13px var(--font-num);
+}
+.step[aria-selected="true"] { color: #111; background: var(--chalk); border-color: var(--chalk); }
+.step:disabled { opacity: .4; cursor: default; }
+.step:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
+.step-body { display: flex; flex-direction: column; gap: 12px; }
+.tip { font-size: 12px; color: var(--chalk-dim); line-height: 1.45; margin: 0; }
+
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.log li { background: var(--felt-deep); border-radius: 6px; padding: 8px 10px; font-size: 13px; line-height: 1.4; }
+.log .head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+.log .head span:last-child { font-family: var(--font-num); white-space: nowrap; }
+.log .w { color: var(--win); }
+.log .l { color: var(--lose); }
+.log .p { color: var(--chalk-dim); }
+.log-title { font-family: var(--font-display); font-size: 16px; letter-spacing: .05em; }
+
+.set-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.set-presets .btn[aria-pressed="true"] { background: var(--chalk); color: #111; border-color: var(--chalk); }
+.set-dice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.setdie { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 10px; align-items: center; }
+.cube { grid-row: span 3; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.pf {
+  width: 46px; height: 46px; border-radius: 7px; padding: 5px;
+  display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  background: radial-gradient(circle at 40% 35%, #e0242c, #8e0d14);
+  box-shadow: inset 0 0 0 2px rgba(40, 0, 0, .5);
+}
+.pf.small { width: 30px; height: 30px; padding: 3px; border-radius: 5px; }
+.pf i { width: 8px; height: 8px; border-radius: 50%; background: #f7f3ea; place-self: center; }
+.pf.small i { width: 5px; height: 5px; }
+.setdie .btn { text-align: left; }
+
+@media (max-width: 900px) {
+  body { overflow: auto; }
+  html, body { height: auto; }
+  .app { grid-template-columns: 1fr; height: auto; }
+  .stage { height: 62vh; height: 62svh; min-height: 380px; }
+  .layout { border-left: 0; border-top: 10px solid #2b1a10; box-shadow: inset 0 6px 18px rgba(0,0,0,.5); overflow: visible; }
+  .places .name { font-size: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spot.flash-win, .spot.flash-lose, .shout { animation: none; }
+  .result, .hint, .toast, .chip { transition: none; }
+}
+</style>
+
+<div class="app">
+  <section class="stage" aria-label="Craps table">
+    <canvas id="view"></canvas>
+    <div class="hud">
+      <div class="seats" id="seats"></div>
+      <div class="phase"><div class="puck" id="puck">OFF</div><div><span id="phaseText">Come-out roll</span><small id="shooterText">You have the dice</small></div></div>
+      <div class="history" id="history" aria-label="Recent rolls"></div>
+      <div class="shouts" id="shouts" aria-live="polite"></div>
+      <div class="result hide" id="result" aria-live="polite">
+        <div class="total" id="rTotal">7</div>
+        <div class="dice" id="rDice">3 + 4</div>
+        <div class="call" id="rCall"></div>
+      </div>
+      <div class="toast hide" id="toast" role="status"></div>
+      <div class="hint" id="hint">Place your bets, then press "Bets are down"</div>
+    </div>
+  </section>
+
+  <section class="layout" aria-label="Betting layout">
+    <div class="panel">
+      <div class="panel-head"><span class="log-title">At the table</span><span class="tip" id="roomStatus">Solo table</span></div>
+      <ul class="players" id="players"></ul>
+      <p class="tip" id="roomTip">Anyone you share this page with who opens it joins this table live. You see their hand, their dice and their chips.</p>
+      <div class="shout-row" id="shoutRow" hidden></div>
+      <button class="btn sm" id="passBtn" hidden>Pass the dice to the next player</button>
+    </div>
+
+    <div class="bank">
+      <div><span class="label">Your bankroll</span><strong id="bank">$1,000</strong></div>
+      <div><span class="label">On the table</span><strong id="onTable">$0</strong></div>
+      <div><span class="label">Last roll</span><strong id="net">—</strong></div>
+    </div>
+
+    <div class="steps" role="tablist" aria-label="Turn steps">
+      <button class="step" id="stepBetsBtn" role="tab" aria-selected="true"><b>1</b> Place bets</button>
+      <button class="step" id="stepShootBtn" role="tab" aria-selected="false"><b>2</b> Set &amp; shoot</button>
+    </div>
+
+    <div class="step-body" id="stepBets" role="tabpanel">
+    <div class="rack" role="group" aria-label="Chip value">
+      <button class="chip" data-chip="1" style="--c:#ece6d6" aria-pressed="false">1</button>
+      <button class="chip" data-chip="5" style="--c:#c8272d;--chip-ink:#fff" aria-pressed="true">5</button>
+      <button class="chip" data-chip="25" style="--c:#1f8a4c;--chip-ink:#fff" aria-pressed="false">25</button>
+      <button class="chip" data-chip="100" style="--c:#1a1a1a;--chip-ink:#fff" aria-pressed="false">100</button>
+      <span class="spacer"></span>
+      <button class="btn" id="clearBtn">Take bets down</button>
+      <button class="btn primary" id="rebuyBtn" hidden>Rebuy $1,000</button>
+    </div>
+    <p class="tip">Pick a chip, then click a bet on the felt or below. Right-click or shift-click takes one off. Bets stay up until they lose or you take them down. A pass line bet is locked in once a point is set.</p>
+
+    <div class="places" id="places">
+      <button class="spot" data-bet="place4"><span class="name">4</span><span class="pays">9:5</span><span class="others"></span><span class="stake"></span></button>
+      <button class="spot" data-bet="place5"><span class="name">5</span><span class="pays">7:5</span><span class="others"></span><span class="stake"></span></button>
+      <button class="spot" data-bet="place6"><span class="name">SIX</span><span class="pays">7:6</span><span class="others"></span><span class="stake"></span></button>
+      <button class="spot" data-bet="place8"><span class="name">8</span><span class="pays">7:6</span><span class="others"></span><span class="stake"></span></button>
+      <button class="spot" data-bet="place9"><span class="name">NINE</span><span class="pays">7:5</span><span class="others"></span><span class="stake"></span></button>
+      <button class="spot" data-bet="place10"><span class="name">10</span><span class="pays">9:5</span><span class="others"></span><span class="stake"></span></button>
+    </div>
+    <div class="places-off" id="placesOff">Place bets are off on the come-out roll</div>
+
+    <button class="spot field" data-bet="field">
+      <span class="name">FIELD</span>
+      <span class="nums">2 · 3 · 4 · 9 · 10 · 11 · 12</span>
+      <span class="pays">2 pays double · 12 pays triple · others even money</span>
+      <span class="others"></span><span class="stake"></span>
+    </button>
+
+    <button class="spot" data-bet="come"><span class="name">COME</span><span class="pays">a new pass line bet on every roll once the point is on</span><span class="others"></span><span class="stake"></span></button>
+    <div class="places-off" id="comeNums"></div>
+
+    <div class="props">
+      <button class="spot" data-bet="any7"><span class="name">ANY SEVEN</span><span class="pays">one roll · 4:1</span><span class="others"></span><span class="stake"></span></button>
+      <button class="spot" data-bet="anycraps"><span class="name">ANY CRAPS</span><span class="pays">2, 3 or 12 · 7:1</span><span class="others"></span><span class="stake"></span></button>
+      <button class="spot" data-bet="hard6"><span class="name">HARD 6</span><span class="pays">3 + 3 · 9:1</span><span class="others"></span><span class="stake"></span></button>
+      <button class="spot" data-bet="hard8"><span class="name">HARD 8</span><span class="pays">4 + 4 · 9:1</span><span class="others"></span><span class="stake"></span></button>
+      <button class="spot" data-bet="hard4"><span class="name">HARD 4</span><span class="pays">2 + 2 · 7:1</span><span class="others"></span><span class="stake"></span></button>
+      <button class="spot" data-bet="hard10"><span class="name">HARD 10</span><span class="pays">5 + 5 · 7:1</span><span class="others"></span><span class="stake"></span></button>
+      <button class="spot" data-bet="yo"><span class="name">YO-ELEVEN</span><span class="pays">one roll · 15:1</span><span class="others"></span><span class="stake"></span></button>
+    </div>
+    <p class="tip">Hardways are off on the come-out roll. They lose on a 7 or when the number rolls the easy way.</p>
+
+    <div class="line-bets">
+      <div class="row2">
+        <button class="spot" data-bet="dontpass"><span class="name">DON'T PASS</span><span class="pays">bar 12 · push</span><span class="others"></span><span class="stake"></span></button>
+        <button class="spot" data-bet="odds"><span class="name">ODDS</span><span class="pays">true odds behind the line · up to 5×</span><span class="others"></span><span class="stake"></span></button>
+      </div>
+      <button class="spot pass" data-bet="pass"><span class="name">PASS LINE</span><span class="pays">7 or 11 wins on the come-out · then make the point</span><span class="others"></span><span class="stake"></span></button>
+    </div>
+
+    <button class="btn primary big" id="betsDoneBtn">Bets are down. Set and shoot</button>
+    <p class="tip" id="waitTip" hidden></p>
+    </div>
+
+    <div class="step-body" id="stepShoot" role="tabpanel" hidden>
+    <div class="panel">
+      <div class="log-title">Set the dice</div>
+      <div class="set-presets" id="setPresets" role="group" aria-label="Dice set">
+        <button class="btn sm" data-set="none" aria-pressed="false">No set</button>
+        <button class="btn sm" data-set="hardway" aria-pressed="false">Hardway</button>
+        <button class="btn sm" data-set="3v" aria-pressed="false">3-V</button>
+        <button class="btn sm" data-set="sevens" aria-pressed="false">All sevens</button>
+        <button class="btn sm" data-set="custom" aria-pressed="false">Custom</button>
+      </div>
+      <p class="tip" id="setDesc"></p>
+      <div class="set-dice" id="setDice"></div>
+      <p class="tip">Set dice come to your hand already arranged. A smooth, straight flick with no shaking throws them with backspin on one axis, so the set really changes what comes up. Shake hard or throw crooked and they tumble.</p>
+    </div>
+    <div class="panel">
+      <div class="log-title">Throw</div>
+      <p class="tip">Grab the dice on the felt, shake if you like, then flick toward the far wall and let go. The space bar throws for you.</p>
+      <div class="rack">
+        <button class="btn primary" id="autoBtn">Throw for me</button>
+        <button class="btn" id="backBetsBtn">Back to bets</button>
+      </div>
+    </div>
+    </div>
+
+    <div class="rack">
+      <button class="btn sm" id="voiceBtn" aria-pressed="true">Stickman voice: on</button>
+      <button class="btn sm" id="soundBtn" aria-pressed="true">Dice sound: on</button>
+    </div>
+
+    <div class="log-title">Stickman's log</div>
+    <ol class="log" id="log">
+      <li><div class="head"><span>New shooter</span><span>$1,000</span></div><div class="p">Put a chip on the pass line, then pick up the dice on the table.</div></li>
+    </ol>
+  </section>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+  "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+/* ================= Player state (yours only) ================= */
+const PLACE_PAY = { 4: 9/5, 5: 7/5, 6: 7/6, 8: 7/6, 9: 7/5, 10: 9/5 };
+const ODDS_PAY = { 4: 2, 5: 3/2, 6: 6/5, 8: 6/5, 9: 3/2, 10: 2 };
+const LABEL = {
+  pass: 'Pass Line', dontpass: "Don't Pass", odds: 'Odds', field: 'Field', any7: 'Any Seven', anycraps: 'Any Craps',
+  place4: 'Place 4', place5: 'Place 5', place6: 'Place 6', place8: 'Place 8', place9: 'Place 9', place10: 'Place 10',
+  come: 'Come', come4: 'Come 4', come5: 'Come 5', come6: 'Come 6', come8: 'Come 8', come9: 'Come 9', come10: 'Come 10',
+  hard4: 'Hard 4', hard6: 'Hard 6', hard8: 'Hard 8', hard10: 'Hard 10', yo: 'Yo-eleven'
+};
+const NUMS = [4, 5, 6, 8, 9, 10];
+const BET_KEYS = Object.keys(LABEL);
+const STORE = 'backwall-craps-v2';
+let S = { bank: 1000, bets: {}, set: null, voice: true, sound: true, solo: null };
+try { const saved = JSON.parse(localStorage.getItem(STORE)); if (saved && typeof saved.bank === 'number') S = { ...S, ...saved }; } catch (e) {}
+const save = () => { try { S.solo = room && room.connected() ? S.solo : { pt: T.pt, hi: T.hi, n: T.n }; localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) {} };
+let chip = 5;
+
+const SETS = {
+  none: { top: [3, 3], front: [2, 2], desc: 'No set. The dice come to your hand however they landed and tumble freely.' },
+  hardway: { top: [3, 3], front: [2, 2], desc: '3-3 on top, 2-2 facing the back wall. Every face on the rolling axis makes a hardway, with the 1 and 6 out on the sides.' },
+  '3v': { top: [3, 3], front: [2, 6], desc: 'Threes on top in a V. The on-axis pairs are 6, 8, 8 and 6, so a seven needs a die to leave its axis. A point-cycle set.' },
+  sevens: { top: [6, 1], front: [5, 2], desc: 'Sevens on all four rolling faces. A come-out set for the front line winner.' }
+};
+if (!S.set || !S.set.top) S.set = { name: 'none', top: [3, 3], front: [2, 2] };
+const setActive = () => S.set.name !== 'none';
+
+/* ================= Table state (shared by everyone at the table) =================
+   e: epoch, sh: shooter's peer label, pt: point, n: roll count, hi: recent rolls,
+   lr: last roll {s: seq, a, b: faces, pb: point before, by: shooter, f: final transforms} */
+let T = { e: 0, sh: 'solo', pt: null, n: 0, hi: [], lr: null };
+if (S.solo) { T.pt = [4, 5, 6, 8, 9, 10].includes(S.solo.pt) ? S.solo.pt : null; T.hi = Array.isArray(S.solo.hi) ? S.solo.hi.slice(0, 14) : []; T.n = +S.solo.n || 0; }
+
+const cents = x => Math.round(x * 100) / 100;
+const fmt = n => '$' + n.toLocaleString('en-US', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
+const onTable = () => Object.values(S.bets).reduce((a, b) => a + (b || 0), 0);
+const $ = id => document.getElementById(id);
+const rand = (a, b) => a + Math.random() * (b - a);
+
+/* ================= Room: live multiplayer ================= */
+let room = null, user = null, myPeer = 'solo';
+const joinedAt = Date.now();
+let lastSeenRoll = null, missingTicks = 0, connectedSince = 0, uiTimer = 0;
+const seenSay = new Map();
+const isLive = () => !!room && room.connected() && myPeer !== 'solo';
+const players = () => {
+  if (!isLive()) return [];
+  return room.peers()
+    .filter(p => p.kind === 'viewer' && p.presence && p.presence.v === 2)
+    .sort((a, b) => (a.presence.j - b.presence.j) || (a.peer < b.peer ? -1 : 1));
+};
+const shooterPeer = () => players().find(p => p.peer === T.sh) || null;
+const isShooter = () => !isLive() || T.sh === myPeer || T.sh === 'solo';
+const diceBusy = () => {
+  if (isShooter()) return dice.state === 'rolling';
+  const sp = shooterPeer(); return !!sp && sp.presence.st === 'rolling';
+};
+
+function sanitizeTable(t) {
+  if (!t || typeof t !== 'object' || typeof t.e !== 'number' || typeof t.sh !== 'string') return null;
+  const okFace = v => Number.isInteger(v) && v >= 1 && v <= 6;
+  const pts = [4, 5, 6, 8, 9, 10];
+  const out = {
+    e: t.e, sh: t.sh.slice(0, 64),
+    pt: pts.includes(t.pt) ? t.pt : null,
+    n: Number.isInteger(t.n) ? t.n : 0,
+    hi: Array.isArray(t.hi) ? t.hi.slice(0, 14).filter(h => h && Number.isInteger(h.t) && h.t >= 2 && h.t <= 12).map(h => ({ t: h.t, k: h.k === 'seven' || h.k === 'hit' ? h.k : '' })) : [],
+    lr: null
+  };
+  const lr = t.lr;
+  if (lr && Number.isInteger(lr.s) && okFace(lr.a) && okFace(lr.b)) {
+    out.lr = {
+      s: lr.s, a: lr.a, b: lr.b, pb: pts.includes(lr.pb) ? lr.pb : null, by: String(lr.by || '').slice(0, 64),
+      f: Array.isArray(lr.f) && lr.f.length === 2 && lr.f.every(x => Array.isArray(x) && x.length === 7 && x.every(Number.isFinite)) ? lr.f : null
+    };
+  }
+  return out;
+}
+function pushTable() {
+  save();
+  if (isLive()) room.presence({ t: T }).catch(() => {});
+}
+function adoptTable() {
+  let best = null;
+  for (const p of players()) {
+    if (p.sameTab) continue;
+    const t = sanitizeTable(p.presence.t);
+    if (!t) continue;
+    const cur = best || T;
+    if (t.e > cur.e || (t.e === cur.e && t.sh > cur.sh)) best = t;
+  }
+  if (!best) return;
+  const prevShooter = T.sh;
+  T = best;
+  if (lastSeenRoll === null) lastSeenRoll = T.lr ? T.lr.s : 0;
+  if (T.lr && T.lr.s > lastSeenRoll) {
+    lastSeenRoll = T.lr.s;
+    if (T.lr.by !== myPeer) applyRemoteRoll(T.lr);
+  }
+  room.presence({ t: T }).catch(() => {});
+  save();
+  if (prevShooter !== T.sh) onShooterChange();
+  render();
+}
+function nextShooter() {
+  const ps = players();
+  if (ps.length < 2) return myPeer;
+  const i = ps.findIndex(p => p.peer === myPeer);
+  return ps[(i + 1) % ps.length].peer;
+}
+function claimDice() {
+  T = { ...T, e: T.e + 1, sh: myPeer };
+  if (lastSeenRoll === null) lastSeenRoll = T.lr ? T.lr.s : 0;
+  pushTable(); onShooterChange(); render();
+}
+function onShooterChange() {
+  step = 'bets';
+  if (isShooter()) {
+    restDice(); dice.state = 'idle';
+    if (isLive() && players().length > 1) { toast('The dice are yours. You are the shooter'); speak('New shooter coming out'); }
+  } else {
+    dice.state = 'remote';
+  }
+  setHint(betHint());
+  renderStep();
+}
+function passDice() {
+  if (!isShooter() || dice.state === 'rolling' || dice.state === 'holding') return;
+  const nxt = nextShooter();
+  if (nxt === myPeer) return toast('Nobody else is at the table yet');
+  T = { ...T, e: T.e + 1, sh: nxt };
+  pushTable(); onShooterChange(); render();
+}
+
+const names = new Map();
+const nameOf = peer => {
+  if (peer === myPeer) return 'You';
+  const p = players().find(x => x.peer === peer);
+  if (!p) return 'The shooter';
+  return (p.by && names.get(p.by)) || (p.guest ? 'Guest' : 'A player');
+};
+let renderPlayersToken = 0;
+async function renderPlayers() {
+  const ps = players();
+  const live = isLive();
+  $('roomStatus').textContent = live ? `Live table · ${ps.length} ${ps.length === 1 ? 'player' : 'players'}` : room ? 'Connecting…' : 'Solo table';
+  $('shoutRow').hidden = !(live && ps.length > 1);
+  $('passBtn').hidden = !(live && ps.length > 1 && isShooter());
+  $('roomTip').hidden = live && ps.length > 1;
+  const ids = ps.map(p => p.by).filter(Boolean);
+  const token = ++renderPlayersToken;
+  let profs = {};
+  if (user && ids.length) { try { profs = await user.profiles(ids); } catch (e) {} }
+  if (token !== renderPlayersToken) return;
+  for (const id of ids) if (profs[id] && profs[id].name) names.set(id, profs[id].name);
+  const list = $('players');
+  list.textContent = '';
+  const rows = ps.length ? ps : [{ peer: myPeer, sameTab: true, by: null, presence: { bank: S.bank, b: S.bets } }];
+  for (const p of rows) {
+    const li = document.createElement('li');
+    const img = document.createElement('img');
+    img.alt = '';
+    img.src = (p.by && profs[p.by] && profs[p.by].avatarUrl) || 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28"><circle cx="14" cy="14" r="14" fill="#d6ad52"/></svg>');
+    const who = document.createElement('div'); who.className = 'who';
+    who.textContent = p.sameTab ? 'You' : ((p.by && profs[p.by] && profs[p.by].name) || (p.guest ? 'Guest' : 'A player'));
+    if (p.peer === T.sh || (!live)) { const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = 'Shooter'; who.append(tag); }
+    const amt = document.createElement('div'); amt.className = 'amt';
+    const bank = Number(p.presence.bank) || 0;
+    const bets = p.presence.b && typeof p.presence.b === 'object' ? Object.values(p.presence.b).reduce((a, v) => a + (Number(v) || 0), 0) : 0;
+    amt.textContent = fmt(cents(bank));
+    const sm = document.createElement('small'); sm.textContent = bets ? `${fmt(cents(bets))} in action` : 'no bets'; amt.append(sm);
+    li.append(img, who, amt);
+    list.append(li);
+  }
+  $('shooterText').textContent = isShooter() ? 'You have the dice' : `${nameOf(T.sh)} has the dice`;
+}
+
+const SHOUTS = ["Let's go, shooter!", 'Same dice, same dice!', 'Hot hand!', 'Yo-leven!', 'Hard eight!', 'Ugh, seven out'];
+SHOUTS.forEach((s, i) => {
+  const b = document.createElement('button'); b.className = 'btn sm'; b.textContent = s;
+  b.addEventListener('click', () => { if (isLive()) room.presence({ say: { i, t: Date.now() } }).catch(() => {}); showShout('You', s); });
+  $('shoutRow').append(b);
+});
+function showShout(who, text) {
+  const el = document.createElement('div'); el.className = 'shout';
+  const b = document.createElement('b'); b.textContent = who + ': ';
+  el.append(b, document.createTextNode(text));
+  const box = $('shouts'); box.prepend(el);
+  while (box.children.length > 3) box.lastChild.remove();
+  setTimeout(() => el.remove(), 4500);
+}
+function handleSays() {
+  for (const p of players()) {
+    if (p.sameTab) continue;
+    const s = p.presence.say;
+    if (!s || !Number.isFinite(s.t)) continue;
+    const prev = seenSay.get(p.peer);
+    seenSay.set(p.peer, s.t);
+    if (prev !== undefined && s.t > prev && SHOUTS[s.i]) showShout(nameOf(p.peer), SHOUTS[s.i]);
+  }
+}
+function publishMe() {
+  if (!isLive()) return;
+  const b = {}; for (const k of BET_KEYS) if (S.bets[k]) b[k] = S.bets[k];
+  room.presence({ bank: S.bank, b }).catch(() => {});
+}
+
+(async () => {
+  if (!window.claude || !window.claude.use) { $('roomTip').textContent = 'This demo is a solo table: you are the only shooter.'; return; }
+  [room, user] = await Promise.all([window.claude.use('room'), window.claude.use('user')]);
+  if (!room) { renderPlayers(); return; }
+  renderPlayers();
+  room.onConnection(c => {
+    if (c) {
+      connectedSince = Date.now();
+      const me = room.peers().find(p => p.sameTab);
+      if (me) myPeer = me.peer;
+      const b = {}; for (const k of BET_KEYS) if (S.bets[k]) b[k] = S.bets[k];
+      room.presence({ v: 2, j: joinedAt, bank: S.bank, b, t: T }).catch(() => {});
+    }
+    renderPlayers(); render();
+  }, () => { room = null; renderPlayers(); render(); });
+  room.onPeers(ch => {
+    if (myPeer === 'solo') { const me = ch.peers.find(p => p.sameTab); if (me) myPeer = me.peer; }
+    adoptTable(); handleSays();
+    if (!uiTimer) uiTimer = setTimeout(() => { uiTimer = 0; renderPlayers(); renderOthers(); }, ch.joined.length || ch.left.length ? 0 : 400);
+    for (const p of ch.joined) if (!p.sameTab && p.presence && p.presence.v === 2) toast('A new player joined the table');
+  });
+  setInterval(() => {
+    if (!isLive()) return;
+    const ps = players();
+    if (!ps.some(p => p.peer === T.sh)) missingTicks++; else missingTicks = 0;
+    const first = ps[0];
+    const settled = Date.now() - connectedSince > 1500;
+    if (first && first.sameTab && settled && (missingTicks >= 3 || (ps.length === 1 && T.sh !== myPeer))) { missingTicks = 0; claimDice(); }
+  }, 1000);
+})();
+
+/* ================= Bets ================= */
+function canAdd(key) {
+  if (step !== 'bets') return 'Go back to step 1 to change your bets';
+  if (key === 'pass' || key === 'dontpass') return T.pt == null ? '' : 'Line bets go down on the come-out roll only';
+  if (key === 'come') return T.pt != null ? '' : 'Come bets open up once a point is set';
+  if (/^come\d/.test(key)) return 'Put chips in the Come box. They travel to the number that rolls';
+  if (key === 'odds') {
+    if (T.pt == null) return 'Odds open up once a point is set';
+    if (!S.bets.pass) return 'Odds sit behind a pass line bet';
+    if ((S.bets.odds || 0) + chip > S.bets.pass * 5) return 'Odds max out at 5× your pass line bet';
+  }
+  return '';
+}
+function placeBet(key) {
+  if (diceBusy()) return toast('No bets while the dice are in the air');
+  const why = canAdd(key);
+  if (why) return toast(why);
+  if (S.bank < chip) return toast('Not enough left in your bankroll for that chip');
+  S.bets[key] = cents((S.bets[key] || 0) + chip);
+  S.bank = cents(S.bank - chip);
+  sfx.chip();
+  render(); save();
+}
+function removeBet(key) {
+  if (diceBusy()) return toast('Wait for the dice to stop');
+  if (step !== 'bets') return toast('Go back to step 1 to change your bets');
+  if (!S.bets[key]) return;
+  if (key === 'pass' && T.pt != null) return toast('A pass line bet stays up until the point is made or sevens out');
+  if (/^come\d/.test(key)) return toast('A come bet on a number stays up until it wins or sevens out');
+  const amt = Math.min(chip, S.bets[key]);
+  S.bets[key] = cents(S.bets[key] - amt);
+  S.bank = cents(S.bank + amt);
+  sfx.chip();
+  render(); save();
+}
+function takeDown() {
+  if (diceBusy()) return toast('Wait for the dice to stop');
+  let back = 0;
+  for (const k of Object.keys(S.bets)) {
+    if ((k === 'pass' && T.pt != null) || /^come\d/.test(k)) continue;
+    back += S.bets[k] || 0; S.bets[k] = 0;
+  }
+  if (!back) return toast(S.bets.pass ? 'Your pass line bet is locked while the point is on' : 'No bets to take down');
+  S.bank = cents(S.bank + back);
+  sfx.chip();
+  toast(`${fmt(cents(back))} back to your bankroll`);
+  render(); save();
+}
+
+function stickCall(d1, d2, t, wasOn, point) {
+  const word = { 4: 'four', 6: 'six', 8: 'eight', 10: 'ten' };
+  if (!wasOn) {
+    if (t === 7) return 'Seven! Front line winner';
+    if (t === 11) return 'Yo-leven! Front line winner';
+    if (t === 2) return 'Snake eyes. Craps, line away';
+    if (t === 3) return 'Ace-deuce. Craps, line away';
+    if (t === 12) return 'Boxcars. Craps, bar the twelve';
+    return `The point is ${t}. Mark it`;
+  }
+  if (t === 7) return 'Seven out. Line away';
+  if (t === point) return `${word[t] ? (d1 === d2 ? 'Hard ' : 'Easy ') + word[t] : t}! Winner, pay the line`;
+  if (word[t]) return (d1 === d2 ? 'Hard ' : 'Easy ') + word[t];
+  return { 2: 'Two, craps', 3: 'Three, craps', 5: 'Five, no field five', 9: 'Nine, center field nine', 11: 'Yo-leven', 12: 'Twelve, craps' }[t];
+}
+
+// Settles YOUR bets against a roll. `pb` is the point before the roll. Returns the new point.
+function resolve(d1, d2, pb) {
+  const t = d1 + d2, B = S.bets, out = [], flashes = {};
+  const wasOn = pb != null;
+  let net = 0, newPoint = pb;
+  const win = (key, amt) => {
+    amt = Math.floor(amt * 100 + 1e-6) / 100;
+    S.bank = cents(S.bank + amt); net += amt;
+    out.push(['w', `${LABEL[key]} wins ${fmt(amt)}`]); flashes[key] = 'win';
+  };
+  const lose = key => {
+    net -= B[key]; out.push(['l', `${LABEL[key]} loses ${fmt(B[key])}`]);
+    B[key] = 0; flashes[key] = 'lose';
+  };
+
+  if (B.field) [2, 3, 4, 9, 10, 11, 12].includes(t) ? win('field', B.field * (t === 2 ? 2 : t === 12 ? 3 : 1)) : lose('field');
+  if (B.any7) t === 7 ? win('any7', B.any7 * 4) : lose('any7');
+  if (B.anycraps) [2, 3, 12].includes(t) ? win('anycraps', B.anycraps * 7) : lose('anycraps');
+  if (B.yo) t === 11 ? win('yo', B.yo * 15) : lose('yo');
+  // Hardways work only while the point is on
+  if (wasOn) for (const n of [4, 6, 8, 10]) {
+    const k = 'hard' + n; if (!B[k]) continue;
+    if (t === n && d1 === d2) win(k, B[k] * (n === 6 || n === 8 ? 9 : 7));
+    else if (t === 7 || t === n) lose(k);
+  }
+  // Come bets already on a number settle first, then a fresh come bet travels
+  for (const n of NUMS) {
+    const k = 'come' + n; if (!B[k]) continue;
+    if (t === n) { win(k, B[k]); S.bank = cents(S.bank + B[k]); out.push(['p', `Come ${n} stake of ${fmt(B[k])} comes back to you`]); B[k] = 0; }
+    else if (t === 7) lose(k);
+  }
+  if (B.come) {
+    if (t === 7 || t === 11) win('come', B.come);
+    else if (t === 2 || t === 3 || t === 12) lose('come');
+    else { const k = 'come' + t; B[k] = cents((B[k] || 0) + B.come); out.push(['p', `Come bet of ${fmt(B.come)} moves to the ${t}`]); B.come = 0; }
+  }
+
+  if (!wasOn) {
+    if (t === 7 || t === 11) { if (B.pass) win('pass', B.pass); if (B.dontpass) lose('dontpass'); }
+    else if (t === 2 || t === 3 || t === 12) {
+      if (B.pass) lose('pass');
+      if (B.dontpass) t === 12 ? out.push(['p', "Don't Pass pushes on the barred 12"]) : win('dontpass', B.dontpass);
+    } else newPoint = t;
+  } else if (t === 7) {
+    if (B.pass) lose('pass');
+    if (B.odds) lose('odds');
+    if (B.dontpass) win('dontpass', B.dontpass);
+    for (const n of [4, 5, 6, 8, 9, 10]) if (B['place' + n]) lose('place' + n);
+    newPoint = null;
+  } else {
+    if (B['place' + t]) win('place' + t, B['place' + t] * PLACE_PAY[t]);
+    if (t === pb) {
+      if (B.pass) win('pass', B.pass);
+      if (B.odds) {
+        win('odds', B.odds * ODDS_PAY[t]);
+        S.bank = cents(S.bank + B.odds); out.push(['p', `Odds stake of ${fmt(B.odds)} comes back to you`]); B.odds = 0;
+      }
+      if (B.dontpass) lose('dontpass');
+      newPoint = null;
+    }
+  }
+  const kind = wasOn && t === 7 ? 'seven' : wasOn && t === pb ? 'hit' : '';
+  return { t, out, net: cents(net), flashes, call: stickCall(d1, d2, t, wasOn, pb), kind, newPoint };
+}
+
+/* ================= UI ================= */
+const spots = [...document.querySelectorAll('[data-bet]')];
+const chipColor = v => v >= 1000 ? '#d6ad52' : v >= 100 ? '#1a1a1a' : v >= 25 ? '#1f8a4c' : v >= 5 ? '#c8272d' : '#ece6d6';
+function render() {
+  $('bank').textContent = fmt(S.bank);
+  $('onTable').textContent = fmt(cents(onTable()));
+  const puck = $('puck');
+  puck.classList.toggle('on', T.pt != null);
+  puck.textContent = T.pt != null ? 'ON' : 'OFF';
+  $('phaseText').textContent = T.pt != null ? `Point is ${T.pt}` : 'Come-out roll';
+  $('placesOff').hidden = T.pt != null;
+  for (const el of spots) {
+    const k = el.dataset.bet, v = S.bets[k] || 0, st = el.querySelector('.stake');
+    st.classList.toggle('show', v > 0);
+    st.textContent = v ? fmt(v).replace('$', '') : '';
+    st.style.setProperty('--chip', chipColor(v));
+    st.style.color = v >= 5 && v < 1000 ? '#fff' : '#111';
+    const locked = (k === 'pass' || k === 'dontpass') ? T.pt != null : k === 'odds' ? (T.pt == null || !S.bets.pass) : false;
+    el.classList.toggle('locked', locked && !v);
+    el.classList.toggle('is-point', k === 'place' + T.pt);
+    el.setAttribute('aria-label', `${LABEL[k]}${v ? ', ' + fmt(v) + ' bet' : ''}`);
+  }
+  $('history').innerHTML = T.hi.map(h => `<span class="${h.kind || h.k || ''}">${h.t}</span>`).join('');
+  const comes = NUMS.filter(n => S.bets['come' + n]).map(n => `${n} (${fmt(S.bets['come' + n])})`);
+  $('comeNums').textContent = comes.length ? `Your come bets on: ${comes.join(', ')}` : T.pt == null ? 'Come bets open once a point is set' : '';
+  $('rebuyBtn').hidden = !(S.bank + onTable() < 1);
+  $('autoBtn').disabled = !isShooter();
+  renderStep();
+  rebuildChips();
+  updatePuck();
+  $('passBtn').hidden = !(isLive() && players().length > 1 && isShooter());
+  $('shooterText').textContent = isShooter() ? 'You have the dice' : `${nameOf(T.sh)} has the dice`;
+  publishMe();
+}
+function renderOthers() {
+  const others = players().filter(p => !p.sameTab);
+  for (const el of spots) {
+    const k = el.dataset.bet, box = el.querySelector('.others');
+    box.textContent = '';
+    let total = 0;
+    for (const p of others) {
+      const v = p.presence.b && Number(p.presence.b[k]);
+      if (v > 0) { total += v; const i = document.createElement('i'); i.style.background = chipColor(v); box.append(i); }
+    }
+    box.title = total ? `Other players: ${fmt(cents(total))}` : '';
+  }
+  rebuildChips();
+}
+function logRoll(d1, d2, r, shooterName) {
+  const li = document.createElement('li');
+  const netTxt = r.out.some(([c]) => c !== 'p') ? (r.net > 0 ? '+' : r.net < 0 ? '−' : '±') + fmt(Math.abs(r.net)) : '';
+  const head = document.createElement('div'); head.className = 'head';
+  const h1 = document.createElement('span'); h1.textContent = `${shooterName ? shooterName + ' · ' : ''}${d1} + ${d2} = ${r.t}`;
+  const h2 = document.createElement('span'); h2.className = r.net > 0 ? 'w' : r.net < 0 ? 'l' : 'p'; h2.textContent = netTxt;
+  head.append(h1, h2); li.append(head);
+  const c = document.createElement('div'); c.className = 'p'; c.textContent = r.call; li.append(c);
+  for (const [cls, txt] of r.out) { const d = document.createElement('div'); d.className = cls; d.textContent = txt; li.append(d); }
+  const log = $('log');
+  log.prepend(li);
+  while (log.children.length > 25) log.lastChild.remove();
+  const net = $('net');
+  net.textContent = netTxt || 'No action';
+  net.className = r.net > 0 ? 'up' : r.net < 0 ? 'down' : '';
+  for (const el of spots) {
+    const f = r.flashes[el.dataset.bet];
+    el.classList.remove('flash-win', 'flash-lose');
+    if (f) { void el.offsetWidth; el.classList.add('flash-' + f); }
+  }
+}
+function showResult(a, b, call, extra = '') {
+  $('rTotal').textContent = a + b;
+  $('rDice').textContent = `${a} + ${b}${extra}`;
+  $('rCall').textContent = call;
+  $('result').classList.remove('hide');
+}
+// Two steps per roll: 1) everyone places bets, 2) the shooter sets the dice and throws
+let step = 'bets';
+function betHint() { return isShooter() ? 'Place your bets, then press "Bets are down"' : `${nameOf(T.sh)} has the dice. Get your bets down`; }
+function setStep(s) {
+  if (s === 'shoot' && !isShooter()) return toast(`${nameOf(T.sh)} is the shooter`);
+  if (s === 'bets' && (dice.state === 'holding' || dice.state === 'rolling')) return;
+  step = s;
+  renderStep();
+  if (s === 'shoot') { previewSet(); setHint('Grab the dice on the felt, then flick them toward the far wall'); }
+  else setHint(betHint());
+}
+function renderStep() {
+  const shooter = isShooter();
+  if (!shooter && step === 'shoot') step = 'bets';
+  $('stepBets').hidden = step !== 'bets';
+  $('stepShoot').hidden = step !== 'shoot';
+  $('stepBetsBtn').setAttribute('aria-selected', String(step === 'bets'));
+  $('stepShootBtn').setAttribute('aria-selected', String(step === 'shoot'));
+  $('stepShootBtn').disabled = !shooter;
+  $('betsDoneBtn').hidden = !shooter;
+  $('waitTip').hidden = shooter;
+  $('waitTip').textContent = `${nameOf(T.sh)} is shooting. You can bet until the dice leave their hand.`;
+}
+$('stepBetsBtn').addEventListener('click', () => setStep('bets'));
+$('stepShootBtn').addEventListener('click', () => setStep('shoot'));
+$('betsDoneBtn').addEventListener('click', () => setStep('shoot'));
+$('backBetsBtn').addEventListener('click', () => setStep('bets'));
+
+let toastTimer;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.remove('hide');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add('hide'), 2800);
+}
+function setHint(msg) { $('hint').textContent = msg; $('hint').classList.toggle('hide', !msg); }
+
+let voice = null;
+function speak(text) {
+  if (!S.voice || !('speechSynthesis' in window) || !sfx.started()) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text.replace(/\./g, ','));
+    if (!voice) voice = speechSynthesis.getVoices().find(v => /en[-_]US/i.test(v.lang) && /male|david|guy|daniel|fred|alex/i.test(v.name)) || speechSynthesis.getVoices().find(v => /^en/i.test(v.lang)) || null;
+    if (voice) u.voice = voice;
+    u.rate = 1.08; u.pitch = 0.85; u.volume = 0.9;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+spots.forEach(el => {
+  el.addEventListener('click', e => e.shiftKey ? removeBet(el.dataset.bet) : placeBet(el.dataset.bet));
+  el.addEventListener('contextmenu', e => { e.preventDefault(); removeBet(el.dataset.bet); });
+});
+document.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => {
+  chip = +b.dataset.chip;
+  document.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', String(c === b)));
+}));
+$('clearBtn').addEventListener('click', takeDown);
+$('autoBtn').addEventListener('click', () => autoThrow());
+$('passBtn').addEventListener('click', passDice);
+$('rebuyBtn').addEventListener('click', () => { S.bank = 1000; S.bets = {}; render(); save(); toast('Fresh $1,000 on the rail'); });
+const syncToggles = () => {
+  $('voiceBtn').textContent = `Stickman voice: ${S.voice ? 'on' : 'off'}`; $('voiceBtn').setAttribute('aria-pressed', String(S.voice));
+  $('soundBtn').textContent = `Dice sound: ${S.sound ? 'on' : 'off'}`; $('soundBtn').setAttribute('aria-pressed', String(S.sound));
+};
+$('voiceBtn').addEventListener('click', () => { S.voice = !S.voice; if (!S.voice && 'speechSynthesis' in window) speechSynthesis.cancel(); syncToggles(); save(); });
+$('soundBtn').addEventListener('click', () => { sfx.ensure(); S.sound = !S.sound; syncToggles(); save(); });
+syncToggles();
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !/INPUT|TEXTAREA|BUTTON/.test(document.activeElement.tagName)) { e.preventDefault(); autoThrow(); }
+});
+
+const pipsHTML = n => PIPS[n].map(([x, y]) => `<i style="grid-column:${x + 1};grid-row:${y + 1}"></i>`).join('');
+function renderSet() {
+  document.querySelectorAll('#setPresets [data-set]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.set === S.set.name)));
+  $('setDesc').textContent = S.set.name === 'custom'
+    ? 'Your own set. Choose the top face and the face pointing at the back wall for each die.'
+    : SETS[S.set.name].desc;
+  $('setDice').hidden = !setActive();
+  $('setDice').innerHTML = [0, 1].map(i => `
+    <div class="setdie">
+      <div class="cube"><div class="pf" title="Top face">${pipsHTML(S.set.top[i])}</div><div class="pf small" title="Face toward the back wall">${pipsHTML(S.set.front[i])}</div></div>
+      <span class="label">${i ? 'Right' : 'Left'} die</span>
+      <button class="btn sm" data-die="${i}" data-part="top">Top: ${S.set.top[i]}</button>
+      <button class="btn sm" data-die="${i}" data-part="front">To back wall: ${S.set.front[i]}</button>
+    </div>`).join('');
+}
+function previewSet() {
+  if (!setActive() || !isShooter() || dice.state === 'rolling' || dice.state === 'holding') return;
+  dice.items.forEach((d, i) => { d.mesh.quaternion.copy(setQuat(S.set.top[i], S.set.front[i])); d.mesh.position.y = 0.5; });
+}
+$('setPresets').addEventListener('click', e => {
+  const b = e.target.closest('[data-set]'); if (!b) return;
+  const name = b.dataset.set;
+  if (name === 'custom') S.set.name = 'custom';
+  else S.set = { name, top: [...SETS[name].top], front: [...SETS[name].front] };
+  renderSet(); previewSet(); save();
+});
+$('setDice').addEventListener('click', e => {
+  const b = e.target.closest('[data-die]'); if (!b) return;
+  const i = +b.dataset.die, s = S.set;
+  const sides = t => [1, 2, 3, 4, 5, 6].filter(v => v !== t && v !== 7 - t);
+  if (b.dataset.part === 'top') {
+    s.top[i] = s.top[i] % 6 + 1;
+    if (!sides(s.top[i]).includes(s.front[i])) s.front[i] = sides(s.top[i])[0];
+  } else {
+    const o = sides(s.top[i]); s.front[i] = o[(o.indexOf(s.front[i]) + 1) % o.length];
+  }
+  s.name = 'custom';
+  renderSet(); previewSet(); save();
+});
+
+/* ================= Sound ================= */
+const sfx = (() => {
+  let ctx = null, noise = null, thud = null;
+  const last = new Map();
+  function ensure() {
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+    try {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      noise = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
+      const d = noise.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 5);
+      thud = ctx.createBuffer(1, ctx.sampleRate * 0.12, ctx.sampleRate);
+      const t = thud.getChannelData(0);
+      for (let i = 0; i < t.length; i++) { const k = i / ctx.sampleRate; t[i] = (Math.sin(2 * Math.PI * 140 * k) * 0.6 + (Math.random() * 2 - 1) * 0.4) * Math.exp(-k * 45); }
+    } catch (e) { ctx = null; }
+  }
+  function play(buf, freq, vol, q = 6, type = 'bandpass') {
+    if (!ctx || !S.sound) return;
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const g = ctx.createGain(); g.gain.value = vol;
+    src.connect(f).connect(g).connect(ctx.destination);
+    src.playbackRate.value = 0.85 + Math.random() * 0.4;
+    src.start();
+  }
+  return {
+    ensure,
+    started: () => !!ctx,
+    hit(id, impact, kind) {
+      const now = performance.now();
+      if (now - (last.get(id) || 0) < 26) return;
+      last.set(id, now);
+      const v = Math.min(0.9, impact / 16);
+      if (kind === 'felt') play(thud, 900, v * 1.2, 0.7, 'lowpass');
+      else if (kind === 'die') play(noise, 4200 + Math.random() * 1500, v, 8);
+      else play(noise, 2400 + Math.random() * 900, v, 5);
+    },
+    rattle(v) { play(noise, 4300 + Math.random() * 1200, 0.07 + v * 0.16, 9); },
+    chip() { play(noise, 5600, 0.22, 4); setTimeout(() => play(noise, 4800, 0.16, 4), 38); }
+  };
+})();
+
+/* ================= 3D table ================= */
+// The tub: long axis is x (the shooter throws toward -x), players' side is +z, dealers' side is -z.
+// Proportions follow a standard 12 ft × 4.5 ft casino table.
+const TW = 15, TD = 5.6, HOLD_Y = 3.2;
+const THROW_DIR = new THREE.Vector3(-1, 0, 0);
+const canvas = $('view');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.95;
+const maxAniso = renderer.capabilities.getMaxAnisotropy();
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#070f13');
+scene.fog = new THREE.Fog('#070f13', 38, 75);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
+const camTarget = new THREE.Vector3(0, 0, -0.6);
+
+scene.add(new THREE.HemisphereLight(0xfff2dc, 0x0a171d, 0.35));
+const sun = new THREE.SpotLight(0xffe7c2, 900, 60, Math.PI / 4.2, 0.55, 1.6);
+sun.position.set(3, 24, 6);
+sun.target.position.set(0, 0, -1);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.bias = -0.0004;
+sun.shadow.radius = 5;
+scene.add(sun, sun.target);
+const fill = new THREE.PointLight(0xffc98a, 40, 40, 1.8);
+fill.position.set(-6, 9, -8);
+scene.add(fill);
+
+function canvasTex(w, h, draw, repeat) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = maxAniso;
+  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...repeat); }
+  return t;
+}
+function noiseFill(g, w, h, amt) {
+  const img = g.getImageData(0, 0, w, h), d = img.data;
+  for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * amt; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+  g.putImageData(img, 0, 0);
+}
+/* ---- The printed layout: a wing at each end (both read upright from the players' side) and the proposition box in the middle ---- */
+function wingZones(s) {
+  const R = (u0, u1, z0, z1) => s > 0 ? [u0, z0, u1, z1] : [-u1, z0, -u0, z1];
+  const A = (u, z) => [s * u, z];
+  const Z = [
+    { k: 'pass', r: R(3.8, 13.6, 2.4, 3.5), a: A(7.6, 2.95) }, { k: 'pass', r: R(12.5, 13.6, -5.3, 2.4) },
+    { k: 'odds', r: R(3.8, 13.6, 3.5, 4.3), a: A(7.6, 3.9) },
+    { k: 'dontpass', r: R(3.8, 12.5, 1.5, 2.4), a: A(9.4, 1.95) }, { k: 'dontpass', r: R(11.6, 12.5, -5.3, 1.5) },
+    { k: 'field', r: R(3.8, 11.6, -0.7, 1.5), a: A(7.7, 1.0) },
+    { k: 'come', r: R(3.8, 11.6, -3.0, -0.7), a: A(9.8, -1.85) }
+  ];
+  NUMS.forEach((n, i) => {
+    const x0 = (s > 0 ? 3.8 : -11.6) + i * 1.3;
+    Z.push({ k: 'place' + n, n, r: [x0, -5.3, x0 + 1.3, -3.0], a: [x0 + 0.65, -3.5], come: [x0 + 0.85, -4.8], puck: [x0 + 0.42, -4.75] });
+  });
+  return Z;
+}
+const LAYOUT = {
+  wings: { 1: wingZones(1), [-1]: wingZones(-1) },
+  center: [
+    { k: 'any7', r: [-3.2, -3.6, 3.2, -2.7], a: [2.5, -3.15] },
+    { k: 'hard6', r: [-3.2, -2.7, 0, -1.5], a: [-0.45, -2.1] }, { k: 'hard10', r: [0, -2.7, 3.2, -1.5], a: [2.75, -2.1] },
+    { k: 'hard8', r: [-3.2, -1.5, 0, -0.3], a: [-0.45, -0.9] }, { k: 'hard4', r: [0, -1.5, 3.2, -0.3], a: [2.75, -0.9] },
+    { k: 'yo', r: [-3.2, -0.3, 3.2, 0.6], a: [2.5, 0.15] },
+    { k: 'anycraps', r: [-3.2, 0.6, 3.2, 1.5], a: [2.5, 1.05] }
+  ],
+  offPuck: s => [s * 12.05, -4.6]
+};
+const MY_WING = 1;
+const inRect = (r, x, z) => x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3];
+function zoneAt(x, z) {
+  for (const c of LAYOUT.center) if (inRect(c.r, x, z)) return c;
+  return LAYOUT.wings[x >= 0 ? 1 : -1].find(c => inRect(c.r, x, z)) || null;
+}
+const isCenterBet = key => LAYOUT.center.some(c => c.k === key);
+function anchorFor(key, wing = MY_WING) {
+  const c = LAYOUT.center.find(z => z.k === key);
+  if (c) return c.a;
+  const W = LAYOUT.wings[wing];
+  const m = /^come(\d+)$/.exec(key);
+  if (m) return W.find(z => z.k === 'place' + m[1]).come;
+  const z = W.find(z => z.k === key && z.a);
+  return z ? z.a : null;
+}
+
+const KPX = 80;
+function feltTexture() {
+  return canvasTex(TW * 2 * KPX, TD * 2 * KPX, (g, w, h) => {
+    g.fillStyle = '#1a6a3a'; g.fillRect(0, 0, w, h);
+    noiseFill(g, w, h, 14);
+    const vg = g.createRadialGradient(w / 2, h / 2, 100, w / 2, h / 2, w * 0.55);
+    vg.addColorStop(0, 'rgba(255,255,255,0.05)'); vg.addColorStop(1, 'rgba(0,0,0,0.3)');
+    g.fillStyle = vg; g.fillRect(0, 0, w, h);
+    const X = x => (x + TW) * KPX, Zp = z => (z + TD) * KPX;
+    const WHITE = 'rgba(250,246,232,0.93)', YEL = '#f3d04e', RED = '#e0403a';
+    const box = (r, lw = 4) => { g.lineWidth = lw; g.strokeStyle = WHITE; g.strokeRect(X(r[0]), Zp(r[1]), (r[2] - r[0]) * KPX, (r[3] - r[1]) * KPX); };
+    const txt = (s, x, z, size, color = WHITE, weight = 700, family = 'Barlow, Arial, sans-serif', rot = 0) => {
+      g.save(); g.translate(X(x), Zp(z)); g.rotate(rot);
+      g.font = `${weight} ${size * KPX}px ${family}`; g.fillStyle = color; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(s, 0, 0); g.restore();
+    };
+    const die = (x, z, s, n) => {
+      g.fillStyle = '#c8202a'; g.strokeStyle = WHITE; g.lineWidth = 2;
+      const px = X(x) - s * KPX / 2, pz = Zp(z) - s * KPX / 2, S = s * KPX;
+      g.beginPath(); g.roundRect(px, pz, S, S, S * 0.18); g.fill(); g.stroke();
+      g.fillStyle = '#fff';
+      for (const [cx, cy] of PIPS[n]) { g.beginPath(); g.arc(px + S * (0.24 + cx * 0.26), pz + S * (0.24 + cy * 0.26), S * 0.09, 0, Math.PI * 2); g.fill(); }
+    };
+    const serif = 'Georgia, "Times New Roman", serif';
+    function wing(s) {
+      const U = u => s * u;
+      for (const z of LAYOUT.wings[s]) { if (z.k === 'odds') { g.setLineDash([16, 12]); box(z.r, 3); g.setLineDash([]); } else box(z.r); }
+      // The pass line's outer corner is rounded on a real layout
+      g.lineWidth = 6; g.strokeStyle = WHITE; g.beginPath();
+      g.arc(X(U(12.7)), Zp(2.6), 0.9 * KPX, s > 0 ? 0 : Math.PI / 2, s > 0 ? Math.PI / 2 : Math.PI); g.stroke();
+      txt('PASS LINE', U(8.0), 2.96, 0.56, WHITE, 700, serif);
+      txt('PASS LINE', U(13.05), -1.6, 0.42, WHITE, 700, serif, s > 0 ? -Math.PI / 2 : Math.PI / 2);
+      txt('ODDS  ·  ODDS  ·  ODDS', U(8.5), 3.9, 0.24, 'rgba(250,246,232,0.45)', 600);
+      txt("DON'T PASS BAR", U(7.4), 1.96, 0.36, WHITE, 700, serif);
+      die(U(10.4) - 0.27, 1.95, 0.42, 6); die(U(10.4) + 0.27, 1.95, 0.42, 6);
+      txt("DON'T PASS", U(12.05), -2.2, 0.3, WHITE, 700, serif, s > 0 ? -Math.PI / 2 : Math.PI / 2);
+      txt('FIELD', U(7.7), 1.12, 0.44, WHITE, 700, serif);
+      const fx0 = s > 0 ? 4.5 : -10.9;
+      [2, 3, 4, 9, 10, 11, 12].forEach((n, i) => {
+        const x = fx0 + i * 1.07;
+        if (n === 2 || n === 12) {
+          g.lineWidth = 3; g.strokeStyle = YEL; g.beginPath(); g.arc(X(x), Zp(0.08), 0.34 * KPX, 0, Math.PI * 2); g.stroke();
+          txt(n === 2 ? 'DOUBLE' : 'TRIPLE', x, 0.6, 0.15, YEL, 700);
+        }
+        txt(String(n), x, 0.1, 0.46, YEL, 700, serif);
+      });
+      txt('COME', U(7.7), -1.85, 1.0, RED, 700, serif);
+      for (const z of LAYOUT.wings[s]) {
+        if (!z.n) continue;
+        const [x0, , x1] = z.r, cx = (x0 + x1) / 2;
+        g.lineWidth = 2; g.strokeStyle = 'rgba(250,246,232,0.35)';
+        g.beginPath(); g.moveTo(X(x0 + 0.1), Zp(-4.3)); g.lineTo(X(x1 - 0.1), Zp(-4.3)); g.stroke();
+        const word = z.n === 6 ? 'SIX' : z.n === 9 ? 'NINE' : String(z.n);
+        txt(word, cx, -3.75, word.length > 2 ? 0.38 : 0.7, z.n === 6 || z.n === 8 ? RED : WHITE, 700, serif);
+        txt(PLACE_PAY[z.n] === 9 / 5 ? '9 TO 5' : PLACE_PAY[z.n] === 7 / 5 ? '7 TO 5' : '7 TO 6', cx, -3.2, 0.15, 'rgba(250,246,232,0.7)', 600);
+      }
+    }
+    wing(1); wing(-1);
+    // Center proposition box, in front of the stickman
+    g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(X(-3.2), Zp(-3.6), 6.4 * KPX, 5.1 * KPX);
+    LAYOUT.center.forEach(c => box(c.r, 3));
+    box([-3.2, -3.6, 3.2, 1.5], 6);
+    txt('SEVEN  ·  4 TO 1', 0, -3.15, 0.36, RED, 700, serif);
+    [['hard6', 3, '9 TO 1'], ['hard10', 5, '7 TO 1'], ['hard8', 4, '9 TO 1'], ['hard4', 2, '7 TO 1']].forEach(([k, d, p]) => {
+      const c = LAYOUT.center.find(z => z.k === k), cx = (c.r[0] + c.r[2]) / 2, cz = (c.r[1] + c.r[3]) / 2;
+      die(cx - 0.85, cz - 0.12, 0.48, d); die(cx - 0.3, cz - 0.12, 0.48, d);
+      txt(p, cx + 0.72, cz - 0.12, 0.22, YEL, 700);
+      txt('HARD ' + d * 2, cx - 0.57, cz + 0.4, 0.16, WHITE, 600);
+    });
+    die(-2.4, 0.15, 0.42, 5); die(-1.92, 0.15, 0.42, 6);
+    txt('YO-ELEVEN  ·  15 TO 1', 0.55, 0.15, 0.28, YEL, 700, serif);
+    txt('ANY CRAPS  ·  7 TO 1', 0, 1.05, 0.34, RED, 700, serif);
+  });
+}
+const feltBump = canvasTex(512, 512, (g, w, h) => { g.fillStyle = '#808080'; g.fillRect(0, 0, w, h); noiseFill(g, w, h, 90); }, [24, 9]);
+feltBump.colorSpace = THREE.NoColorSpace;
+const woodTex = canvasTex(1024, 128, (g, w, h) => {
+  g.fillStyle = '#5a321a'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 90; i++) {
+    g.strokeStyle = `rgba(${Math.random() < 0.5 ? '30,14,6' : '120,70,36'},${rand(0.08, 0.3)})`;
+    g.lineWidth = rand(0.6, 2.4);
+    const y0 = rand(0, h), amp = rand(1, 6), fr = rand(0.002, 0.01), ph = rand(0, 6);
+    g.beginPath();
+    for (let x = 0; x <= w; x += 8) g.lineTo(x, y0 + Math.sin(x * fr + ph) * amp + Math.sin(x * fr * 3.1) * amp * 0.3);
+    g.stroke();
+  }
+}, [3, 1]);
+const carpetTex = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = '#1a0f22'; g.fillRect(0, 0, w, h);
+  const cols = ['#5b1d3a', '#7a5a1c', '#1d3d5b', '#2f1440'];
+  for (let i = 0; i < 26; i++) {
+    g.fillStyle = cols[i % cols.length]; g.globalAlpha = 0.55;
+    g.beginPath(); g.arc(rand(0, w), rand(0, h), rand(8, 34), 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#c9a24a'; g.globalAlpha = 0.35; g.lineWidth = 2; g.stroke();
+  }
+  g.globalAlpha = 1; noiseFill(g, w, h, 30);
+}, [22, 22]);
+
+const PIPS = {
+  1: [[1, 1]], 2: [[0, 0], [2, 2]], 3: [[0, 0], [1, 1], [2, 2]], 4: [[0, 0], [2, 0], [0, 2], [2, 2]],
+  5: [[0, 0], [2, 0], [1, 1], [0, 2], [2, 2]], 6: [[0, 0], [0, 1], [0, 2], [2, 0], [2, 1], [2, 2]]
+};
+function faceTexture(n) {
+  return canvasTex(256, 256, (g, s) => {
+    const bg = g.createRadialGradient(s * .4, s * .35, 10, s / 2, s / 2, s * .8);
+    bg.addColorStop(0, '#d71f28'); bg.addColorStop(1, '#9a0f17');
+    g.fillStyle = bg; g.fillRect(0, 0, s, s);
+    for (const [cx, cy] of PIPS[n]) {
+      const x = s * (0.24 + cx * 0.26), y = s * (0.24 + cy * 0.26);
+      g.fillStyle = 'rgba(70,0,0,0.6)'; g.beginPath(); g.arc(x, y, 24, 0, Math.PI * 2); g.fill();
+      const pg = g.createRadialGradient(x - 5, y - 5, 2, x, y, 21);
+      pg.addColorStop(0, '#ffffff'); pg.addColorStop(1, '#e4ddcf');
+      g.fillStyle = pg; g.beginPath(); g.arc(x, y, 20, 0, Math.PI * 2); g.fill();
+    }
+  });
+}
+
+// Physics world
+const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -42, 0) });
+world.solver.iterations = 14;
+const mDie = new CANNON.Material('die'), mFelt = new CANNON.Material('felt'), mWall = new CANNON.Material('wall');
+world.addContactMaterial(new CANNON.ContactMaterial(mDie, mFelt, { friction: 0.34, restitution: 0.28 }));
+world.addContactMaterial(new CANNON.ContactMaterial(mDie, mWall, { friction: 0.08, restitution: 0.62 }));
+world.addContactMaterial(new CANNON.ContactMaterial(mDie, mDie, { friction: 0.2, restitution: 0.45 }));
+
+const floorBody = new CANNON.Body({ mass: 0, material: mFelt, shape: new CANNON.Plane() });
+floorBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+world.addBody(floorBody);
+function staticBox(hx, hy, hz, x, y, z, rotY = 0) {
+  const b = new CANNON.Body({ mass: 0, material: mWall, shape: new CANNON.Box(new CANNON.Vec3(hx, hy, hz)) });
+  b.position.set(x, y, z);
+  if (rotY) b.quaternion.setFromEuler(0, rotY, 0);
+  world.addBody(b); return b;
+}
+staticBox(1, 12, TD + 2, -TW - 1, 10, 0);
+staticBox(1, 12, TD + 2, TW + 1, 10, 0);
+staticBox(TW + 2, 12, 1, 0, 10, -TD - 1);
+staticBox(TW + 2, 12, 1, 0, 10, TD + 1);
+staticBox(TW + 2, 1, TD + 2, 0, 18, 0);
+
+// Felt, rails, room
+const feltMat = new THREE.MeshPhysicalMaterial({
+  map: feltTexture(), roughness: 1, bumpMap: feltBump, bumpScale: 0.6,
+  sheen: 1, sheenRoughness: 0.75, sheenColor: new THREE.Color('#5fb4c9'), envMapIntensity: 0.35
+});
+const CR = 2.4; // corner radius of the tub
+function roundRect(path, hw, hd, r) {
+  path.moveTo(-hw + r, -hd);
+  path.lineTo(hw - r, -hd); path.absarc(hw - r, -hd + r, r, -Math.PI / 2, 0, false);
+  path.lineTo(hw, hd - r); path.absarc(hw - r, hd - r, r, 0, Math.PI / 2, false);
+  path.lineTo(-hw + r, hd); path.absarc(-hw + r, hd - r, r, Math.PI / 2, Math.PI, false);
+  path.lineTo(-hw, -hd + r); path.absarc(-hw + r, -hd + r, r, Math.PI, Math.PI * 1.5, false);
+  return path;
+}
+const ring = (outer, inner, ro, ri) => { const s = roundRect(new THREE.Shape(), outer[0], outer[1], ro); s.holes.push(roundRect(new THREE.Path(), inner[0], inner[1], ri)); return s; };
+const feltGeo = new THREE.ShapeGeometry(roundRect(new THREE.Shape(), TW, TD, CR), 24);
+{ const p = feltGeo.attributes.position, uv = feltGeo.attributes.uv;
+  for (let i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) + TW) / (2 * TW), (p.getY(i) + TD) / (2 * TD)); }
+feltGeo.rotateX(-Math.PI / 2);
+const felt = new THREE.Mesh(feltGeo, feltMat);
+felt.receiveShadow = true; scene.add(felt);
+document.fonts && Promise.all([document.fonts.load('700 52px Barlow'), document.fonts.load('52px Limelight')]).then(() => { feltMat.map = feltTexture(); feltMat.needsUpdate = true; }).catch(() => {});
+
+const railWood = woodTex.clone(); railWood.repeat.set(0.12, 0.5); railWood.needsUpdate = true;
+const wood = new THREE.MeshPhysicalMaterial({ map: railWood, roughness: 0.36, clearcoat: 0.7, clearcoatRoughness: 0.2 });
+const leather = new THREE.MeshPhysicalMaterial({ color: '#1e1512', roughness: 0.46, clearcoat: 0.35, sheen: 0.4, sheenColor: new THREE.Color('#5a4038') });
+const chrome = new THREE.MeshStandardMaterial({ color: '#d9dde0', metalness: 1, roughness: 0.08 });
+function extrudeUp(shape, depth, mat, y) {
+  const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 2, curveSegments: 28 });
+  g.rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(g, mat); m.position.y = y; m.castShadow = true; m.receiveShadow = true; scene.add(m); return m;
+}
+const RAIL = 1.9;
+extrudeUp(ring([TW + RAIL, TD + RAIL], [TW, TD], CR + RAIL, CR), 1.9, wood, 0);
+// Mirror-chrome band around the inside wall, like a casino tub
+extrudeUp(ring([TW + 0.04, TD + 0.04], [TW - 0.02, TD - 0.02], CR + 0.04, CR - 0.02), 1.05, chrome, 0.45);
+// Padded leather armrest around the outside of the rail
+{
+  const pts = roundRect(new THREE.Shape(), TW + 1.32, TD + 1.32, CR + 1.32).getSpacedPoints(240).map(p => new THREE.Vector3(p.x, 0, -p.y));
+  pts.pop();
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true, 'centripetal'), 480, 0.62, 18, true), leather);
+  tube.position.y = 2.1; tube.scale.y = 0.7; tube.castShadow = true; tube.receiveShadow = true; scene.add(tube);
+}
+extrudeUp(roundRect(new THREE.Shape(), TW + RAIL, TD + RAIL, CR + RAIL), 3, wood, -3.08);
+const carpet = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), new THREE.MeshStandardMaterial({ map: carpetTex, roughness: 1 }));
+carpet.rotation.x = -Math.PI / 2; carpet.position.y = -3.1; carpet.receiveShadow = true; scene.add(carpet);
+
+// Round off the physics corners to match the tub
+for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+  const tx = sx * (TW - CR + CR / Math.SQRT2), tz = sz * (TD - CR + CR / Math.SQRT2);
+  const b = new CANNON.Body({ mass: 0, material: mWall, shape: new CANNON.Box(new CANNON.Vec3(3, 12, 0.6)) });
+  b.position.set(tx + sx * 0.6 / Math.SQRT2, 10, tz + sz * 0.6 / Math.SQRT2);
+  b.quaternion.setFromEuler(0, Math.atan2(sx, sz), 0);
+  world.addBody(b);
+}
+
+// Rubber pyramids on both end walls: they scramble the bounce
+const rubber = new THREE.MeshStandardMaterial({ color: '#1d1d1d', roughness: 0.82 });
+const pyrGeo = new THREE.ConeGeometry(0.42, 0.55, 4, 1);
+pyrGeo.rotateX(Math.PI / 2); pyrGeo.rotateZ(Math.PI / 4);
+for (const end of [-1, 1]) {
+  for (let row = 0; row < 3; row++) {
+    for (let z = -TD + CR + 0.2 + (row % 2) * 0.4; z <= TD - CR - 0.1; z += 0.8) {
+      const m = new THREE.Mesh(pyrGeo, rubber);
+      m.position.set(end * (TW - 0.27), 0.35 + row * 0.58, z); m.rotation.y = end > 0 ? -Math.PI / 2 : Math.PI / 2;
+      m.castShadow = true; scene.add(m);
+    }
+  }
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.8, (TD - CR) * 2), rubber);
+  pad.position.set(end * (TW - 0.02), 0.9, 0); scene.add(pad);
+  for (let z = -TD + CR + 0.3; z <= TD - CR - 0.3; z += 0.88) staticBox(0.31, 0.75, 0.31, end * (TW - 0.05), 0.75, z, Math.PI / 4);
+}
+
+// The boxman's chip bank, set into the dealers' rail
+{
+  const tray = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.25, 1.3), new THREE.MeshStandardMaterial({ color: '#0d0d0d', roughness: 0.6 }));
+  tray.position.set(0, 1.86, -TD - 0.75); scene.add(tray);
+  const cols = ['#161616', '#161616', '#1f8a4c', '#1f8a4c', '#c8272d', '#c8272d', '#c8272d', '#ece6d6', '#ece6d6', '#6d2c91'];
+  cols.forEach((c, i) => {
+    const side = canvasTex(256, 16, (g, w, h) => { g.fillStyle = c; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(255,255,255,0.9)'; for (let k = 0; k < 8; k++) g.fillRect(k * 32 + 8, 0, 10, h); });
+    side.wrapS = side.wrapT = THREE.RepeatWrapping; side.repeat.set(1, 14);
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.31, 1.15, 24), new THREE.MeshStandardMaterial({ map: side, roughness: 0.45 }));
+    tube.rotation.x = Math.PI / 2; tube.position.set(-3.15 + i * 0.7, 2.08, -TD - 0.75); tube.castShadow = true; scene.add(tube);
+  });
+}
+
+/* ---- Chips: 3D stacks on the felt and in the rail ---- */
+const DENOMS = [[500, '#6d2c91', '#f4e8ff'], [100, '#161616', '#f1e8d2'], [25, '#1f8a4c', '#ffffff'], [5, '#c8272d', '#ffffff'], [1, '#ece6d6', '#3a3a3a']];
+const chipGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.08, 32);
+const chipMats = new Map(DENOMS.map(([v, c, ink]) => {
+  const side = canvasTex(256, 16, (g, w, h) => {
+    g.fillStyle = c; g.fillRect(0, 0, w, h);
+    g.fillStyle = ink; for (let i = 0; i < 8; i++) g.fillRect(i * 32 + 8, 0, 12, h);
+  });
+  const top = canvasTex(128, 128, (g, w) => {
+    g.fillStyle = c; g.fillRect(0, 0, w, w);
+    g.strokeStyle = ink; g.lineWidth = 9; g.setLineDash([14, 12]);
+    g.beginPath(); g.arc(64, 64, 55, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+    g.lineWidth = 2; g.beginPath(); g.arc(64, 64, 38, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = ink; g.font = '700 30px Barlow, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(String(v), 64, 66);
+  });
+  const sideM = new THREE.MeshStandardMaterial({ map: side, roughness: 0.45 });
+  const topM = new THREE.MeshStandardMaterial({ map: top, roughness: 0.4 });
+  return [v, [sideM, topM, topM]];
+}));
+const chipPool = new Map(DENOMS.map(([v]) => [v, []]));
+const chipUsed = new Map();
+function takeChip(v) {
+  const pool = chipPool.get(v), n = chipUsed.get(v) || 0;
+  if (!pool[n]) { const m = new THREE.Mesh(chipGeo, chipMats.get(v)); m.castShadow = true; m.receiveShadow = true; scene.add(m); pool.push(m); }
+  chipUsed.set(v, n + 1);
+  const m = pool[n]; m.visible = true; return m;
+}
+function breakDown(amount, cap) {
+  const out = [];
+  let left = Math.floor(amount);
+  for (const [v] of DENOMS) while (left >= v && out.length < cap) { out.push(v); left -= v; }
+  if (!out.length && amount > 0) out.push(1);
+  return out;
+}
+function stackAt(x, z, amount, y0 = 0, seed = 0) {
+  breakDown(amount, 14).forEach((v, i) => {
+    const m = takeChip(v);
+    const j = Math.sin(seed * 12.9 + i * 78.2) * 0.025;
+    m.position.set(x + j, y0 + 0.04 + i * 0.077, z - j);
+    m.rotation.set(0, seed + i * 1.37, 0);
+  });
+}
+function railStacks(x, z, bank, alongZ, seed) {
+  // Players keep their bankroll in the rail, sorted into stacks of 20
+  let left = Math.floor(bank), s = 0;
+  for (const [v] of DENOMS) {
+    while (left >= v && s < 9) {
+      const n = Math.min(20, Math.floor(left / v));
+      left -= n * v;
+      for (let i = 0; i < n; i++) {
+        const m = takeChip(v);
+        m.position.set(alongZ ? x : x + s * 0.68, 1.96 + 0.04 + i * 0.077, alongZ ? z + s * 0.68 : z);
+        m.rotation.set(0, seed + i * 0.9, 0);
+      }
+      s++;
+    }
+  }
+}
+const seatSpots = [];
+// Spots around the rail for other players (you stand on the players' side, right of the stickman).
+// Each player bets on the wing in front of them.
+const SEATS = [
+  { x: -9.5, z: TD + 0.38, wing: -1 }, { x: 6.5, z: -TD - 0.38, wing: 1 }, { x: -10.5, z: -TD - 0.38, wing: -1 },
+  { x: 9.8, z: TD + 0.38, wing: 1 }, { x: -4.6, z: TD + 0.38, wing: -1 }, { x: 11.2, z: -TD - 0.38, wing: 1 }
+];
+function seatPos(k) {
+  const s = SEATS[k % SEATS.length], lap = Math.floor(k / SEATS.length);
+  return { ...s, dx: (lap + 1) * 0.55 * (k % 2 ? 1 : -1), dz: s.z < 0 ? -0.45 : 0.45 };
+}
+function rebuildChips() {
+  for (const pool of chipPool.values()) for (const m of pool) m.visible = false;
+  chipUsed.clear();
+  seatSpots.length = 0;
+  for (const k of BET_KEYS) {
+    const v = S.bets[k]; if (!v) continue;
+    const a = anchorFor(k, MY_WING); if (a) stackAt(a[0], a[1], v, 0, BET_KEYS.indexOf(k));
+  }
+  railStacks(1.4, TD + 0.38, S.bank, false, 1);
+  seatSpots.push({ peer: myPeer, me: true, pos: new THREE.Vector3(1.4, 2.9, TD + 0.38) });
+  players().filter(p => !p.sameTab).forEach((p, k) => {
+    const sp = seatPos(k), b = p.presence.b && typeof p.presence.b === 'object' ? p.presence.b : {};
+    for (const key of BET_KEYS) {
+      const v = Number(b[key]); if (!(v > 0)) continue;
+      const center = isCenterBet(key);
+      const a = anchorFor(key, sp.wing);
+      if (a) stackAt(a[0] + (center ? -0.7 * (k + 1) : sp.dx), a[1] + (center ? 0 : 0), v, 0, k * 7 + 3);
+    }
+    railStacks(sp.x, sp.z, Number(p.presence.bank) || 0, false, k + 2);
+    seatSpots.push({ peer: p.peer, pos: new THREE.Vector3(sp.x, 2.9, sp.z) });
+  });
+  renderSeats();
+}
+function renderSeats() {
+  const box = $('seats');
+  if (!isLive() || players().length < 2) { box.textContent = ''; return; }
+  box.textContent = '';
+  for (const s of seatSpots) {
+    const el = document.createElement('div');
+    el.className = 'seat' + (s.peer === T.sh ? ' shooter' : '');
+    el.textContent = s.me ? 'You' : nameOf(s.peer);
+    s.el = el; box.append(el);
+  }
+}
+function placeSeats() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  for (const s of seatSpots) {
+    if (!s.el) continue;
+    const p = s.pos.clone().project(camera);
+    s.el.style.left = ((p.x + 1) / 2 * w) + 'px';
+    s.el.style.top = ((1 - p.y) / 2 * h) + 'px';
+  }
+}
+
+/* ---- The puck: OFF in the Come box, ON on the point ---- */
+const puckTex = on => canvasTex(128, 128, (g, w) => {
+  g.fillStyle = on ? '#f4f1e8' : '#141414'; g.fillRect(0, 0, w, w);
+  g.strokeStyle = on ? '#141414' : '#f4f1e8'; g.lineWidth = 6; g.beginPath(); g.arc(64, 64, 54, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = on ? '#141414' : '#f4f1e8'; g.font = '700 40px Barlow, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(on ? 'ON' : 'OFF', 64, 66);
+});
+const puckOn = new THREE.MeshStandardMaterial({ map: puckTex(true), roughness: 0.4 });
+const puckOff = new THREE.MeshStandardMaterial({ map: puckTex(false), roughness: 0.4 });
+const puckSide = new THREE.MeshStandardMaterial({ color: '#2a2a2a', roughness: 0.5 });
+const pucks = [0, 1].map(() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.12, 36), [puckSide, puckOff, puckOff]); m.castShadow = true; scene.add(m); return m; });
+function updatePuck() {
+  pucks.forEach((m, i) => {
+    const wing = i ? -1 : 1;
+    const p = T.pt != null ? LAYOUT.wings[wing].find(z => z.k === 'place' + T.pt).puck : LAYOUT.offPuck(wing);
+    m.position.set(p[0], 0.06, p[1]);
+    const mat = T.pt != null ? puckOn : puckOff;
+    m.material = [puckSide, mat, mat];
+  });
+}
+
+// Dice: rounded corners, clear-coated like casino acetate
+const FACE_VALUES = [1, 6, 2, 5, 3, 4]; // +x, -x, +y, -y, +z, -z
+const dieMats = FACE_VALUES.map(v => new THREE.MeshPhysicalMaterial({
+  map: faceTexture(v), roughness: 0.12, clearcoat: 1, clearcoatRoughness: 0.06,
+  transmission: 0.18, thickness: 0.9, ior: 1.49, envMapIntensity: 0.9
+}));
+const dieGeo = new RoundedBoxGeometry(1, 1, 1, 4, 0.09);
+const AXES = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]].map(a => new THREE.Vector3(...a));
+const dice = { state: 'idle', items: [], rollT: 0, still: 0, hitBack: false, counts: true, impacts: 0, impactV: 0, showT: 0 };
+for (let i = 0; i < 2; i++) {
+  const mesh = new THREE.Mesh(dieGeo, dieMats);
+  mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
+  const body = new CANNON.Body({ mass: 0.3, material: mDie, shape: new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5)), linearDamping: 0.08, angularDamping: 0.16 });
+  body.addEventListener('collide', e => {
+    const iv = Math.abs(e.contact.getImpactVelocityAlongNormal());
+    if (iv > 1.2) {
+      const kind = e.body.material === mDie ? 'die' : e.body.material === mWall ? 'wall' : 'felt';
+      sfx.hit(i + kind, iv, kind);
+      dice.impacts++; dice.impactV = iv; dice.impactKind = kind;
+    }
+  });
+  world.addBody(body);
+  const spin = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+  dice.items.push({ mesh, body, spin, from: new THREE.Vector3(), fromQ: new THREE.Quaternion() });
+}
+// The stickman pushes the dice to the shooter, who stands on the players' rail just right of center
+const REST_SPOT = [new THREE.Vector3(3.5, 0.5, 4.95), new THREE.Vector3(4.75, 0.5, 4.95)];
+function restDice() {
+  dice.items.forEach((d, i) => {
+    d.mesh.position.copy(REST_SPOT[i]);
+    if (setActive()) d.mesh.quaternion.copy(setQuat(S.set.top[i], S.set.front[i]));
+    else { const q = () => Math.floor(Math.random() * 4) * Math.PI / 2; d.mesh.rotation.set(q(), q(), 0); }
+  });
+}
+
+function topFace(mesh) {
+  let best = -2, val = 0;
+  AXES.forEach((a, i) => { const y = a.clone().applyQuaternion(mesh.quaternion).y; if (y > best) { best = y; val = FACE_VALUES[i]; } });
+  return { val, flat: best > 0.94 };
+}
+const valAxis = v => AXES[FACE_VALUES.indexOf(v)];
+function setQuat(top, front) {
+  const u = valAxis(top).clone(), f = valAxis(front).clone(), r = new THREE.Vector3().crossVectors(u, f);
+  const U = new THREE.Vector3(0, 1, 0), F = THROW_DIR.clone(), R = new THREE.Vector3().crossVectors(U, F);
+  const L = new THREE.Matrix4().makeBasis(r, u, f), W = new THREE.Matrix4().makeBasis(R, U, F);
+  return new THREE.Quaternion().setFromRotationMatrix(W.multiply(L.transpose()));
+}
+const packT = m => [m.position.x, m.position.y, m.position.z, m.quaternion.x, m.quaternion.y, m.quaternion.z, m.quaternion.w].map(v => Math.round(v * 1000) / 1000);
+restDice();
+
+/* ================= The stickman's stick ================= */
+const stickMat = new THREE.MeshPhysicalMaterial({ color: '#c9a36a', roughness: 0.35, clearcoat: 0.5 });
+// The stickman stands at the middle of the players' side and reaches out with a hooked stick
+const STICKMAN = new THREE.Vector3(0, 3.4, TD + 2.2);
+const stick = new THREE.Group();
+const hookBack = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.5, 0.1), stickMat);
+hookBack.castShadow = true; stick.add(hookBack);
+const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 1, 10), stickMat);
+shaft.castShadow = true;
+stick.visible = false; shaft.visible = false; scene.add(stick, shaft);
+const stickTmp = new THREE.Vector3(), stickUp = new THREE.Vector3(0, 1, 0);
+function placeStick() {
+  const [a, b] = dice.items.map(d => d.mesh.position);
+  const mid = stickTmp.copy(a).add(b).multiplyScalar(0.5);
+  const home = REST_SPOT[0].clone().add(REST_SPOT[1]).multiplyScalar(0.5);
+  const dir = home.sub(mid); dir.y = 0;
+  if (dir.lengthSq() < 1e-4) dir.set(1, 0, 0);
+  dir.normalize();
+  // The hook sits behind the die that is farther from the shooter, pulling both home
+  const far = a.clone().sub(mid).dot(dir) < b.clone().sub(mid).dot(dir) ? a : b;
+  const back = Math.min(a.clone().sub(mid).dot(dir), b.clone().sub(mid).dot(dir));
+  stick.position.copy(mid).addScaledVector(dir, back - 0.62); stick.position.y = 0.3;
+  stick.rotation.y = Math.atan2(dir.x, dir.z);
+  stick.visible = true;
+  const span = STICKMAN.clone().sub(stick.position);
+  shaft.position.copy(stick.position).addScaledVector(span, 0.5);
+  shaft.scale.set(1, span.length(), 1);
+  shaft.quaternion.setFromUnitVectors(stickUp, span.normalize());
+  shaft.visible = true;
+  void far;
+}
+function hideStick() { stick.visible = false; shaft.visible = false; }
+
+/* ================= The shooter's hand ================= */
+const skin = new THREE.MeshPhysicalMaterial({ color: '#c48b69', roughness: 0.55, sheen: 0.6, sheenColor: new THREE.Color('#ffb59a'), sheenRoughness: 0.5 });
+const nailMat = new THREE.MeshPhysicalMaterial({ color: '#e8c2b0', roughness: 0.25, clearcoat: 1 });
+const sleeveMat = new THREE.MeshStandardMaterial({ color: '#1f2a33', roughness: 0.85 });
+const cuffMat = new THREE.MeshStandardMaterial({ color: '#e9e4da', roughness: 0.7 });
+const hand = new THREE.Group(); scene.add(hand);
+function capsule(r, len, mat = skin) {
+  const g = new THREE.CapsuleGeometry(r, len, 6, 14); g.rotateX(Math.PI / 2); g.translate(0, 0, -len / 2);
+  const m = new THREE.Mesh(g, mat); m.castShadow = true; return m;
+}
+const palm = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), skin);
+palm.scale.set(1.12, 0.27, 1.0); palm.position.set(0, -0.74, 0.05); palm.castShadow = true; hand.add(palm);
+const heel = new THREE.Mesh(new THREE.SphereGeometry(0.55, 20, 14), skin);
+heel.scale.set(1.5, 0.5, 0.8); heel.position.set(0.1, -0.7, 0.65); hand.add(heel);
+const fingerJoints = [];
+[[-0.72, 0.34], [-0.25, 0.42], [0.22, 0.4], [0.66, 0.31]].forEach(([x, len]) => {
+  const lens = [len, len * 0.82, len * 0.68];
+  let parent = hand; const joints = [];
+  for (let k = 0; k < 3; k++) {
+    const j = new THREE.Group();
+    if (k === 0) j.position.set(x, -0.66, -0.82); else j.position.set(0, 0, -lens[k - 1]);
+    parent.add(j); j.add(capsule(0.15 - k * 0.013, lens[k]));
+    if (k === 2) {
+      const nail = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), nailMat);
+      nail.scale.set(1, 0.35, 1.2); nail.position.set(0, -0.1, -lens[k] * 0.75); j.add(nail);
+    }
+    joints.push(j); parent = j;
+  }
+  fingerJoints.push(joints);
+});
+const thumb = new THREE.Group(); thumb.rotation.order = 'YXZ';
+thumb.position.set(0.98, -0.68, 0.15); thumb.rotation.y = -1.0; hand.add(thumb);
+thumb.add(capsule(0.17, 0.44));
+const thumbTip = new THREE.Group(); thumbTip.position.set(0, 0, -0.44); thumb.add(thumbTip);
+thumbTip.add(capsule(0.155, 0.34));
+const arm = new THREE.Group(); arm.position.set(0, -0.78, 0.85); arm.rotation.x = 0.3; hand.add(arm);
+const wrist = capsule(0.46, 0.9); wrist.rotation.y = Math.PI; arm.add(wrist);
+const cuffGeo = new THREE.CylinderGeometry(0.58, 0.6, 0.5, 20); cuffGeo.rotateX(Math.PI / 2); cuffGeo.translate(0, 0, 1.4);
+arm.add(new THREE.Mesh(cuffGeo, cuffMat));
+const sleeveGeo = new THREE.CylinderGeometry(0.64, 0.72, 8, 20); sleeveGeo.rotateX(Math.PI / 2); sleeveGeo.translate(0, 0, 5.6);
+const sleeve = new THREE.Mesh(sleeveGeo, sleeveMat); sleeve.castShadow = true; arm.add(sleeve);
+
+const handState = { mode: 'rest', t: 0, grip: 0.2, throwV: new THREE.Vector3() };
+const handVel = new THREE.Vector3();
+// The shooter reaches in from the players' rail, fingers pointing down the table toward the far wall
+const HAND_YAW = 0.95;
+const HAND_SIDE = new THREE.Vector3(Math.cos(HAND_YAW), 0, -Math.sin(HAND_YAW));
+const HAND_FWD = new THREE.Vector3(-Math.sin(HAND_YAW), 0, -Math.cos(HAND_YAW));
+hand.rotation.order = 'YXZ'; hand.rotation.y = HAND_YAW;
+const REST = new THREE.Vector3(6.4, 1.2, TD + 2.6);
+hand.position.copy(REST);
+function poseHand(dt) {
+  let grip = 0.2, pitch = 0.15, roll = 0;
+  if (handState.mode === 'hold') {
+    hand.position.copy(holdCur);
+    grip = 1;
+    pitch = THREE.MathUtils.clamp(handVel.dot(HAND_FWD) * 0.012, -0.45, 0.45);
+    roll = THREE.MathUtils.clamp(-handVel.dot(HAND_SIDE) * 0.01, -0.35, 0.35);
+  } else if (handState.mode === 'release') {
+    handState.t += dt;
+    grip = -0.2; pitch = 0.8;
+    hand.position.addScaledVector(handState.throwV, dt * Math.max(0, 0.45 - handState.t) * 1.5);
+    if (handState.t > 0.6) handState.mode = 'rest';
+  } else {
+    hand.position.lerp(REST, 1 - Math.exp(-dt * 5));
+  }
+  const k = handState.mode === 'release' ? 32 : 14;
+  handState.grip += (grip - handState.grip) * (1 - Math.exp(-dt * k));
+  hand.rotation.x += (pitch - hand.rotation.x) * (1 - Math.exp(-dt * 10));
+  hand.rotation.z += (roll - hand.rotation.z) * (1 - Math.exp(-dt * 10));
+  applyGrip();
+}
+function applyGrip() {
+  const g = handState.grip;
+  fingerJoints.forEach(js => js.forEach((j, n) => { j.rotation.x = 0.12 + g * [0.72, 1.05, 0.85][n]; }));
+  thumb.rotation.x = 0.1 + g * 0.55; thumbTip.rotation.x = g * 0.6;
+}
+
+/* ================= Camera fit ================= */
+function fitCamera() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  // Landscape: stand on the players' side and see the whole tub. Portrait: look down its length from behind the shooter.
+  // Wide view: straight on from the players' side. Squarer view: the three-quarter angle most table photos use,
+  // from the players' side behind the shooter. Tall phone view: down the length of the table.
+  const a = camera.aspect, wide = a >= 1.6, portrait = a < 0.8;
+  camera.fov = portrait ? 55 : 40;
+  camTarget.set(portrait ? -1 : -0.5, 0, portrait ? 0 : -0.3);
+  const dir = (wide ? new THREE.Vector3(0.12, 1, 0.95) : portrait ? new THREE.Vector3(1.0, 1.15, 0.35) : new THREE.Vector3(0.62, 1.0, 0.8)).normalize();
+  const corners = [];
+  for (const x of [-TW - 2, TW + 2]) for (const z of [-TD - 2, TD + 2.3]) for (const y of [0, 2.6]) corners.push(new THREE.Vector3(x, y, z));
+  let dist = 14;
+  for (; dist < 120; dist += 0.5) {
+    camera.position.copy(camTarget).addScaledVector(dir, dist);
+    camera.lookAt(camTarget); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+    if (corners.every(c => { const p = c.clone().project(camera); return Math.abs(p.x) < 0.97 && p.y < 0.84 && p.y > -0.97; })) break;
+  }
+  scene.fog.near = dist * 1.1; scene.fog.far = dist * 2.6;
+  camera.far = dist * 4; camera.updateProjectionMatrix();
+  camLook.copy(camTarget);
+}
+const camLook = new THREE.Vector3();
+new ResizeObserver(fitCamera).observe(canvas);
+fitCamera();
+
+/* ================= Hand: pick up, shake, flick ================= */
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+const holdPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -HOLD_Y);
+const holdTarget = new THREE.Vector3(0, HOLD_Y, 8), holdCur = new THREE.Vector3(0, HOLD_Y, 8);
+let samples = [], handSpeed = 0, lastRattle = 0, activePointer = null;
+
+function pointerToPlane(e) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const p = new THREE.Vector3();
+  if (!ray.ray.intersectPlane(holdPlane, p)) return;
+  samples.push({ x: p.x, z: p.z, t: performance.now() });
+  if (samples.length > 16) samples.shift();
+  holdTarget.set(THREE.MathUtils.clamp(p.x, -4, TW - 1.8), HOLD_Y, THREE.MathUtils.clamp(p.z, -TD + 1.2, TD - 0.9));
+}
+function flickVelocity() {
+  if (samples.length < 2) return new THREE.Vector3();
+  const last = samples[samples.length - 1];
+  let first = last;
+  for (let i = samples.length - 1; i >= 0 && last.t - samples[i].t <= 90; i--) first = samples[i];
+  const dt = (last.t - first.t) / 1000;
+  if (dt < 0.012) return new THREE.Vector3();
+  return new THREE.Vector3((last.x - first.x) / dt, 0, (last.z - first.z) / dt);
+}
+
+const feltPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+function pointerOnFelt(e) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const p = new THREE.Vector3();
+  return ray.ray.intersectPlane(feltPlane, p) ? p : null;
+}
+function nearDice(p) {
+  if (!p) return false;
+  return dice.items.some(d => Math.hypot(d.mesh.position.x - p.x, d.mesh.position.z - p.z) < 1.5);
+}
+let pendingClick = null;
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const p = pointerOnFelt(e), z = p && zoneAt(p.x, p.z);
+  if (z) removeBet(z.k);
+});
+canvas.addEventListener('pointermove', e => {
+  if (dice.state === 'holding' || e.pointerType !== 'mouse') return;
+  const p = pointerOnFelt(e);
+  const grab = isShooter() && step === 'shoot' && nearDice(p) && dice.state !== 'rolling';
+  canvas.style.cursor = grab ? 'grab' : (step === 'bets' && p && zoneAt(p.x, p.z)) ? 'pointer' : 'default';
+});
+canvas.addEventListener('pointerup', e => {
+  const c = pendingClick; pendingClick = null;
+  if (!c || dice.state === 'holding' || Math.hypot(e.clientX - c.x, e.clientY - c.y) > 8) return;
+  const p = pointerOnFelt(e), z = p && zoneAt(p.x, p.z);
+  if (isShooter() && step === 'bets' && nearDice(p)) return toast('Finish your bets first, then press "Bets are down"');
+  if (!z) return;
+  if (step !== 'bets') return toast('Go back to step 1 to change your bets');
+  c.shift ? removeBet(z.k) : placeBet(z.k);
+});
+canvas.addEventListener('pointerdown', e => {
+  sfx.ensure();
+  if (e.button !== 0) return;
+  const fp = pointerOnFelt(e);
+  const canGrab = isShooter() && step === 'shoot' && nearDice(fp);
+  if (!canGrab) { pendingClick = { x: e.clientX, y: e.clientY, shift: e.shiftKey }; return; }
+  if (dice.state === 'rolling' || dice.state === 'holding') return;
+  activePointer = e.pointerId;
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+  canvas.classList.add('grabbing');
+  samples = [];
+  pointerToPlane(e);
+  holdCur.copy(holdTarget);
+  hideStick();
+  dice.state = 'holding';
+  dice.setBroken = false; dice.shake = 0;
+  dice.items.forEach((d, i) => { d.setQ = setQuat(S.set.top[i], S.set.front[i]); });
+  handState.mode = 'hold';
+  $('result').classList.add('hide');
+  setHint(setActive()
+    ? 'Dice are set. Steady hand, then flick straight down the table at the far wall'
+    : 'Shake if you like, then flick down the table toward the far wall and let go');
+});
+canvas.addEventListener('pointermove', e => { if (dice.state === 'holding' && e.pointerId === activePointer) pointerToPlane(e); });
+function endHold(e) {
+  if (dice.state !== 'holding' || e.pointerId !== activePointer) return;
+  pointerToPlane(e);
+  activePointer = null;
+  canvas.classList.remove('grabbing');
+  throwDice(flickVelocity());
+}
+canvas.addEventListener('pointerup', endHold);
+canvas.addEventListener('pointercancel', endHold);
+
+function throwDice(v) {
+  let speed = v.length();
+  if (speed > 40) { v.multiplyScalar(40 / speed); speed = 40; }
+  const fwd = v.dot(THROW_DIR);
+  dice.counts = speed >= 7 && fwd > 4;
+  const controlled = dice.controlled = dice.counts && setActive() && !dice.setBroken;
+  // Set dice get backspin on one axis, across the line of the throw. Throwing well off the
+  // line or overpowering the toss puts wobble on that axis.
+  const line = new THREE.Vector3(v.x, 0, v.z).normalize();
+  const axis = new THREE.Vector3().crossVectors(line, new THREE.Vector3(0, 1, 0));
+  const offLine = Math.abs(line.dot(new THREE.Vector3(THROW_DIR.z, 0, -THROW_DIR.x)));
+  const slop = 0.5 + offLine * 6 + Math.max(0, speed - 30) * 0.15;
+  const spin = rand(9, 13);
+  dice.toss = { lift: 3 + speed * 0.12 };
+  handState.mode = 'release'; handState.t = 0; handState.throwV.set(v.x, 0, v.z);
+  dice.items.forEach(d => {
+    const b = d.body;
+    if (controlled) d.mesh.quaternion.copy(d.setQ);
+    b.position.set(d.mesh.position.x, d.mesh.position.y, d.mesh.position.z);
+    b.quaternion.set(d.mesh.quaternion.x, d.mesh.quaternion.y, d.mesh.quaternion.z, d.mesh.quaternion.w);
+    if (controlled) {
+      b.velocity.set(v.x + rand(-0.15, 0.15), dice.toss.lift + rand(-0.2, 0.2), v.z + rand(-0.15, 0.15));
+      b.angularVelocity.set(axis.x * spin + rand(-slop, slop), rand(-slop, slop) * 0.6, axis.z * spin + rand(-slop, slop));
+      d.axisLocal = axis.clone().applyQuaternion(d.mesh.quaternion.clone().invert());
+    } else if (dice.counts) {
+      b.velocity.set(v.x + rand(-1.2, 1.2), 3 + speed * 0.12 + rand(0, 1.5), v.z + rand(-1.5, 1.5));
+      b.angularVelocity.set(rand(-22, 22), rand(-22, 22), rand(-22, 22));
+    } else {
+      b.velocity.set(v.x * 0.5, 0, v.z * 0.5);
+      b.angularVelocity.set(rand(-4, 4), rand(-4, 4), rand(-4, 4));
+    }
+    b.wakeUp();
+  });
+  dice.state = 'rolling'; dice.rollT = 0; dice.still = 0; dice.hitBack = false;
+  setHint('');
+}
+function autoThrow() {
+  sfx.ensure();
+  if (!isShooter()) return toast(`${nameOf(T.sh)} has the dice`);
+  if (step !== 'shoot') return toast('Finish your bets first, then press "Bets are down"');
+  if (dice.state === 'rolling' || dice.state === 'holding') return;
+  $('result').classList.add('hide');
+  hideStick();
+  holdCur.set(rand(4.2, 5.4), HOLD_Y, rand(3.2, 4.0));
+  hand.position.copy(holdCur);
+  dice.setBroken = false;
+  dice.items.forEach((d, i) => {
+    d.mesh.position.copy(holdCur).addScaledVector(HAND_SIDE, i ? 0.56 : -0.56);
+    d.setQ = setQuat(S.set.top[i], S.set.front[i]);
+  });
+  throwDice(new THREE.Vector3(-rand(24, 30), 0, rand(-2.2, 0.6)));
+}
+
+function finishRoll() {
+  dice.state = 'settled';
+  const [a, b] = dice.items.map(d => topFace(d.mesh));
+  if (!dice.counts) {
+    setHint('Too soft. Pick them up and flick harder toward the back wall');
+    return;
+  }
+  if (!a.flat || !b.flat) {
+    toast('Cocked die. No roll, shoot again');
+    speak('No roll');
+    setHint('Pick up the dice for another throw');
+    return;
+  }
+  const pb = T.pt;
+  const r = resolve(a.val, b.val, pb);
+  let extra = '';
+  if (dice.controlled) {
+    const on = dice.items.filter(d => Math.abs(d.axisLocal.clone().applyQuaternion(d.mesh.quaternion).y) < 0.3).length;
+    r.out.push(['p', on === 2 ? 'Set held: both dice stayed on axis' : on === 1 ? 'One die stayed on axis, one tumbled off' : 'Both dice tumbled off axis']);
+    if (on === 2) extra = ' · on axis';
+  }
+  showResult(a.val, b.val, r.call, extra);
+  speak(r.call);
+  if (!dice.hitBack) toast('Dice missed the back wall. It counts this time, throw a little harder');
+  logRoll(a.val, b.val, r, isLive() && players().length > 1 ? 'You' : '');
+
+  const sevenOut = pb != null && a.val + b.val === 7;
+  T = {
+    e: T.e + 1, sh: T.sh === 'solo' ? myPeer : T.sh, pt: r.newPoint, n: T.n + 1,
+    hi: [{ t: a.val + b.val, k: r.kind }, ...T.hi].slice(0, 14),
+    lr: { s: T.n + 1, a: a.val, b: b.val, pb, by: myPeer, f: dice.items.map(d => packT(d.mesh)) }
+  };
+  lastSeenRoll = T.n;
+  if (sevenOut && isLive() && players().length > 1) {
+    T.sh = nextShooter();
+    setTimeout(() => toast(`Seven out. The dice pass to ${nameOf(T.sh)}`), 1200);
+  }
+  step = 'bets';
+  pushTable();
+  render();
+  dice.showT = 0;
+  if (isShooter()) setHint('Place your bets for the next roll, then press "Bets are down"');
+  else onShooterChange();
+}
+
+// Another player's roll landed: settle your own bets against it
+function applyRemoteRoll(lr) {
+  const r = resolve(lr.a, lr.b, lr.pb);
+  if (lr.f) dice.items.forEach((d, i) => { d.mesh.position.fromArray(lr.f[i], 0); d.mesh.quaternion.fromArray(lr.f[i], 3); });
+  showResult(lr.a, lr.b, r.call);
+  speak(r.call);
+  logRoll(lr.a, lr.b, r, nameOf(lr.by));
+  step = 'bets';
+  save();
+  render();
+}
+
+/* ================= Throw guide: the arc and landing spot for the swing you're making right now ================= */
+const AIM_N = 28;
+const aimGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(AIM_N * 3), 3));
+const aimMat = new THREE.LineDashedMaterial({ color: 0xf3d04e, dashSize: 0.35, gapSize: 0.25, transparent: true, opacity: 0.85 });
+const aimLine = new THREE.Line(aimGeo, aimMat);
+const aimRing = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.68, 40), new THREE.MeshBasicMaterial({ color: 0xf3d04e, transparent: true, opacity: 0.8, depthWrite: false }));
+aimRing.rotation.x = -Math.PI / 2;
+aimLine.visible = aimRing.visible = false;
+scene.add(aimLine, aimRing);
+let aimLabel = '';
+function hideAim() { aimLine.visible = aimRing.visible = false; }
+function updateAim() {
+  const v = handVel, speed = v.length(), fwd = v.dot(THROW_DIR);
+  if (speed < 4 || fwd < 2) {
+    hideAim();
+    const msg = setActive() && !dice.setBroken ? 'Dice are set. Steady hand, then flick straight down the table at the far wall' : 'Shake if you like, then flick down the table toward the far wall and let go';
+    if (aimLabel !== msg) { aimLabel = msg; setHint(msg); }
+    return;
+  }
+  const s = Math.min(speed, 40), lift = 3 + s * 0.12, g = 42, h = HOLD_Y - 0.5;
+  const tLand = (lift + Math.sqrt(lift * lift + 2 * g * h)) / g;
+  const pos = aimGeo.attributes.position;
+  const vx = v.x * (s / speed), vz = v.z * (s / speed);
+  for (let i = 0; i < AIM_N; i++) {
+    const t = tLand * i / (AIM_N - 1);
+    pos.setXYZ(i, holdCur.x + vx * t, Math.max(0.05, HOLD_Y + lift * t - 0.5 * g * t * t), holdCur.z + vz * t);
+  }
+  pos.needsUpdate = true;
+  aimLine.computeLineDistances();
+  const landX = holdCur.x + vx * tLand, landZ = holdCur.z + vz * tLand;
+  aimRing.position.set(THREE.MathUtils.clamp(landX, -TW + 0.6, TW - 0.6), 0.03, THREE.MathUtils.clamp(landZ, -TD + 0.6, TD - 0.6));
+  // Dice keep sliding after they land, so a good toss lands about two-thirds of the way down
+  const label = fwd < 9 ? 'Too soft' : fwd > 34 ? 'Too hard' : 'Good throw';
+  const col = label === 'Good throw' ? 0x8be3a8 : label === 'Too hard' ? 0xff9583 : 0xf3d04e;
+  aimMat.color.setHex(col); aimRing.material.color.setHex(col);
+  aimLine.visible = aimRing.visible = true;
+  if (aimLabel !== label) { aimLabel = label; setHint(`${label} · let go to throw`); }
+}
+
+/* ================= Loop ================= */
+const clock = new THREE.Clock();
+const tmpQ = new THREE.Quaternion(), tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3();
+let lastRemoteImpacts = null, sendT = 0;
+function frame() {
+  const dt = Math.min(clock.getDelta(), 1 / 30);
+  const time = clock.elapsedTime;
+
+  if (isShooter()) {
+    if (dice.state === 'remote') { dice.state = 'idle'; restDice(); }
+    if (dice.state === 'holding') {
+      const prev = holdCur.clone();
+      holdCur.lerp(holdTarget, 1 - Math.exp(-dt * 22));
+      tmpV.copy(holdCur).sub(prev).divideScalar(Math.max(dt, 1e-4));
+      handVel.lerp(tmpV, Math.min(1, dt * 12));
+      handSpeed = handVel.length();
+      const keepSet = setActive() && !dice.setBroken;
+      if (keepSet && handSpeed > 16) {
+        dice.shake += dt;
+        if (dice.shake > 0.4) { dice.setBroken = true; toast('You shook the dice off their set. This throw will tumble'); }
+      }
+      dice.items.forEach((d, i) => {
+        const jig = Math.min(handSpeed, 30) * (keepSet ? 0.003 : 0.012);
+        tmpV.copy(holdCur).addScaledVector(HAND_SIDE, i ? 0.56 : -0.56);
+        tmpV.x += Math.sin(time * 37 + i * 2) * jig;
+        tmpV.y += (keepSet ? 0 : Math.sin(time * 9 + i * 1.7) * 0.1) + Math.cos(time * 41 + i) * jig;
+        tmpV.z += Math.cos(time * 33 + i * 3) * jig;
+        d.mesh.position.lerp(tmpV, 1 - Math.exp(-dt * 16));
+        if (keepSet) d.mesh.quaternion.slerp(d.setQ, 1 - Math.exp(-dt * 10));
+        else {
+          tmpQ.setFromAxisAngle(d.spin, (1.5 + handSpeed * 0.5) * dt);
+          d.mesh.quaternion.premultiply(tmpQ);
+          if (Math.random() < dt * 2) d.spin.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+        }
+      });
+      if (handSpeed > 5 && time - lastRattle > Math.max(0.06, 0.22 - handSpeed * 0.006)) {
+        lastRattle = time; sfx.rattle(Math.min(1, handSpeed / 30));
+      }
+      updateAim();
+    } else if (dice.state === 'rolling') {
+      world.step(1 / 120, dt, 10);
+      dice.rollT += dt;
+      let moving = false;
+      for (const d of dice.items) {
+        d.mesh.position.copy(d.body.position);
+        d.mesh.quaternion.copy(d.body.quaternion);
+        if (d.body.position.x < -TW + 1.45) dice.hitBack = true;
+        if (d.body.velocity.length() > 0.08 || d.body.angularVelocity.length() > 0.15) moving = true;
+      }
+      dice.still = moving ? 0 : dice.still + dt;
+      if (dice.still > 0.35 || dice.rollT > 9) finishRoll();
+    } else if (dice.state === 'settled') {
+      // The stickman lets the table see the dice, then rakes them back to the shooter
+      dice.showT += dt;
+      if (dice.showT > 1.8) {
+        dice.state = 'returning'; dice.retT = 0;
+        dice.items.forEach(d => { d.from.copy(d.mesh.position); d.fromQ.copy(d.mesh.quaternion); d.toQ = setActive() ? null : d.mesh.quaternion.clone(); });
+      }
+    } else if (dice.state === 'returning') {
+      dice.retT += dt;
+      const dur = 0.9 + dice.items[0].from.distanceTo(REST_SPOT[0]) * 0.06;
+      const k = Math.min(1, dice.retT / dur), e = k * k * (3 - 2 * k);
+      dice.items.forEach((d, i) => {
+        d.mesh.position.lerpVectors(d.from, REST_SPOT[i], e);
+        d.mesh.position.y = 0.5;
+      });
+      placeStick();
+      if (k >= 1) { dice.state = 'idle'; hideStick(); previewSet(); }
+    }
+    poseHand(dt);
+    // Stream the hand and dice to the table
+    sendT += dt;
+    if (isLive() && players().length > 1 && sendT > 1 / 30) {
+      sendT = 0;
+      room.presence({
+        st: dice.state,
+        h: [...packT(hand), Math.round(handState.grip * 100) / 100],
+        d: dice.items.map(d => packT(d.mesh)),
+        k: [dice.impacts, Math.round(dice.impactV * 10) / 10, dice.impactKind || 'felt']
+      }).catch(() => {});
+    }
+  } else {
+    // Watching another shooter: follow their streamed hand and dice
+    const sp = shooterPeer();
+    const pr = sp && sp.presence;
+    const f = 1 - Math.exp(-dt * 18);
+    if (pr && Array.isArray(pr.d) && pr.d.length === 2) {
+      dice.items.forEach((d, i) => {
+        const a = pr.d[i];
+        if (!Array.isArray(a) || a.length !== 7 || !a.every(Number.isFinite)) return;
+        d.mesh.position.lerp(tmpV.fromArray(a, 0), f);
+        d.mesh.quaternion.slerp(tmpQ.fromArray(a, 3).normalize(), f);
+      });
+    }
+    if (pr && Array.isArray(pr.h) && pr.h.length === 8 && pr.h.every(Number.isFinite)) {
+      hand.position.lerp(tmpV.fromArray(pr.h, 0), f);
+      hand.quaternion.slerp(tmpQ.fromArray(pr.h, 3).normalize(), f);
+      handState.grip += (pr.h[7] - handState.grip) * f;
+      applyGrip();
+    } else {
+      hand.position.lerp(REST, 1 - Math.exp(-dt * 5));
+    }
+    if (pr && pr.st === 'returning') placeStick();
+    else hideStick();
+    if (pr && Array.isArray(pr.k)) {
+      if (lastRemoteImpacts !== null && pr.k[0] > lastRemoteImpacts) sfx.hit('remote' + pr.k[2], Number(pr.k[1]) || 6, pr.k[2]);
+      lastRemoteImpacts = pr.k[0];
+    }
+  }
+  if (dice.state !== 'holding') hideAim();
+  // The camera drifts a little toward the dice while they're in the air, then settles back
+  const flying = isShooter() ? dice.state === 'rolling' : !!(shooterPeer() && shooterPeer().presence.st === 'rolling');
+  const look = tmpV2.copy(camTarget);
+  if (flying) look.lerp(stickTmp.copy(dice.items[0].mesh.position).add(dice.items[1].mesh.position).multiplyScalar(0.5).setY(0), 0.3);
+  camLook.lerp(look, 1 - Math.exp(-dt * 2.2));
+  camera.lookAt(camLook);
+  placeSeats();
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+render();
+renderSet();
+previewSet();
+renderPlayers();
+frame();
+</script>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Bear Run</title>
+<meta name="description" content="A 3D downhill skiing game. Carve through the pines, hit the ramps, and whatever you do, keep moving. There is a bear.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐻</text></svg>">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#cfdeea;color:#14202b;font:15px/1.4 "Segoe UI",system-ui,-apple-system,sans-serif;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+#game{position:fixed;left:0;top:52px;width:100vw;height:calc(100vh - 52px);height:calc(100dvh - 52px);display:block;touch-action:none;outline:none}
+.hud{position:fixed;pointer-events:none;z-index:5}
+.pill{background:rgba(255,255,255,.78);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(20,40,60,.12);border-radius:14px;box-shadow:0 6px 24px rgba(20,40,70,.15)}
+#stats{top:66px;left:14px;padding:10px 14px;display:grid;grid-template-columns:auto auto;gap:2px 14px;font-variant-numeric:tabular-nums}
+#stats b{font-size:20px;line-height:1.15}
+#stats span{color:#56687a;font-size:12px;text-transform:uppercase;letter-spacing:.06em;align-self:end}
+#best{top:66px;right:14px;padding:8px 14px;font-variant-numeric:tabular-nums;color:#33475a}
+#bear{left:50%;bottom:22px;transform:translateX(-50%);width:min(420px,80vw);padding:8px 14px 10px;display:none}
+#bear .row{display:flex;justify-content:space-between;font-weight:600;font-size:13px}
+#bear .track{height:10px;border-radius:5px;background:rgba(20,40,60,.12);overflow:hidden;margin-top:5px}
+#bear .track i{display:block;height:100%;width:50%;border-radius:5px;background:linear-gradient(90deg,#3f9b5a,#e3b341,#d9443a);transition:width .15s}
+#bear.close{animation:shake .25s infinite}
+@keyframes shake{0%,100%{transform:translateX(-50%)}25%{transform:translateX(calc(-50% - 2px))}75%{transform:translateX(calc(-50% + 2px))}}
+#banner{top:30%;left:0;right:0;text-align:center;font-weight:800;font-size:clamp(26px,5vw,46px);color:#fff;text-shadow:0 3px 0 #1b3550,0 6px 22px rgba(0,30,60,.45);opacity:0;transition:opacity .25s,transform .25s;transform:translateY(8px)}
+#banner.on{opacity:1;transform:none}
+#banner small{display:block;font-size:.45em;font-weight:600;margin-top:4px}
+.overlay{position:fixed;inset:52px 0 0;display:grid;place-items:center;z-index:10;background:radial-gradient(ellipse at center,rgba(15,35,55,.35),rgba(15,35,55,.6))}
+.overlay[hidden]{display:none}
+.card{width:min(480px,92vw);max-height:calc(100vh - 72px);max-height:calc(100dvh - 72px);overflow:auto;padding:26px 26px 22px;text-align:center;background:rgba(255,255,255,.92);border-radius:20px;box-shadow:0 20px 60px rgba(0,20,50,.35)}
+.card h1{margin:0;font-size:44px;letter-spacing:-1px;line-height:1}
+.card h1 em{font-style:normal;color:#b5482f}
+.card p{margin:10px 0 0;color:#46596b}
+.rides{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:16px 0 0}
+.ride{appearance:none;border:2px solid #d5dfe8;border-radius:14px;background:#f7fafc;padding:10px 4px 8px;font-family:inherit;color:#1f3142;cursor:pointer;display:grid;gap:2px;justify-items:center;transition:transform .12s,border-color .12s}
+.ride .ri{font-size:30px;line-height:1.1}
+.ride b{font-size:13px}
+.ride small{font-size:11px;color:#56687a}
+.ride.on{border-color:#b5482f;background:#fff1ec}
+.ride.locked{opacity:.6;cursor:not-allowed;background:#eef2f6}
+.ride:not(.locked):hover{transform:translateY(-2px)}
+.ride.nope{animation:nope .4s}
+@keyframes nope{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+#rideHelp{margin-top:10px;font-size:13.5px;line-height:1.5}
+#rideHelp kbd{font-size:11px}
+.row2{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.go.alt{background:#eef2f6;color:#1f3142;box-shadow:0 4px 0 #c3ccd6}
+.go.alt:active{box-shadow:0 2px 0 #c3ccd6}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;text-align:left;margin:18px auto 0;width:max-content;max-width:100%;font-size:14px}
+kbd{display:inline-block;min-width:24px;padding:1px 6px;border:1px solid #b9c7d3;border-bottom-width:3px;border-radius:6px;background:#f7fafc;font:600 12px/1.6 ui-monospace,Consolas,monospace;text-align:center;color:#1f3142}
+.go{margin-top:20px;appearance:none;border:0;border-radius:999px;padding:12px 30px;background:#b5482f;color:#fff;font:700 17px/1 inherit;font-family:inherit;cursor:pointer;box-shadow:0 4px 0 #7d2e1c}
+.go:active{transform:translateY(2px);box-shadow:0 2px 0 #7d2e1c}
+.score{font-size:40px;font-weight:800;margin-top:6px;font-variant-numeric:tabular-nums}
+#tools{right:14px;bottom:22px;display:flex;gap:8px;pointer-events:auto}
+#tools button{appearance:none;border:1px solid rgba(20,40,60,.15);border-radius:12px;background:rgba(255,255,255,.82);padding:9px 12px;font:600 13px/1 inherit;font-family:inherit;color:#1f3142;cursor:pointer}
+#touch{left:0;right:0;bottom:0;height:150px;display:none;pointer-events:none}
+#touch button{pointer-events:auto;position:absolute;bottom:18px;width:68px;height:68px;border-radius:50%;border:1px solid rgba(20,40,60,.15);background:rgba(255,255,255,.6);font:700 24px/1 inherit;color:#1f3142;touch-action:none}
+#tL{left:16px}#tR{left:96px}#tE{left:176px}#tJ{right:176px}#tD{right:96px}#tU{right:16px}
+#touch button.small{font-size:11px;font-weight:700}
+@media (pointer:coarse){#touch{display:block}#tools{bottom:auto;top:120px}#bear{bottom:104px}.desk{display:none}}
+@media (max-width:520px){.rides{grid-template-columns:repeat(2,1fr)}}
+@media (pointer:fine){.mob{display:none}}
+</style>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<canvas id="game" tabindex="0" aria-label="Bear Run game view"></canvas>
+
+<div id="stats" class="hud pill">
+  <b id="dist">0 m</b><span>distance</span>
+  <b id="speed">0</b><span>km/h</span>
+  <b id="score">0</b><span>score</span>
+</div>
+<div id="best" class="hud pill">Best <b id="bestv">0</b></div>
+<div id="bear" class="hud pill"><div class="row"><span id="bearName">🐻 Bear</span><span id="gap">—</span></div><div class="track"><i id="gapbar"></i></div></div>
+<div id="banner" class="hud"></div>
+<div id="tools" class="hud">
+  <button id="camBtn" type="button" title="Switch camera (C)">🎥 Chase view</button>
+  <button id="musicBtn" type="button" title="Next music track (Tab)">🎵</button>
+  <button id="muteBtn" type="button" title="Sound (M)">🔊</button>
+</div>
+<div id="touch" class="hud">
+  <button id="tL" type="button" aria-label="Steer left">◀</button>
+  <button id="tR" type="button" aria-label="Steer right">▶</button>
+  <button id="tE" type="button" aria-label="Scream for help">😱</button>
+  <button id="tJ" type="button" aria-label="Hop">⤒</button>
+  <button id="tD" type="button" class="small" aria-label="Snowplough to slow down">▼<br>plough</button>
+  <button id="tU" type="button" class="small" aria-label="Push with poles">▲<br>push</button>
+</div>
+
+<div id="start" class="overlay">
+  <div class="card">
+    <h1>Bear <em>Run</em></h1>
+    <p>Get down the mountain as far as you can. Thread the flags, hit the ramps, spin in the air. Around 200&nbsp;m, something wakes up. Score enough in one run and you unlock new rides.</p>
+    <div class="rides" id="rides"></div>
+    <p id="rideHelp"></p>
+    <p><b>Falling:</b> at speed, you must point the way you're travelling. Tap to carve; hold a turn and you slide off your line, and down you go. Slow is safe.</p>
+    <div class="keys desk">
+      <span><kbd>←</kbd> <kbd>→</kbd></span><span>Steer (spin when airborne)</span>
+      <span><kbd>Space</kbd></span><span>Hop</span>
+      <span><kbd>E</kbd></span><span>Scream (or roar). Startles the chaser, briefly. Once in a while.</span>
+      <span><kbd>C</kbd></span><span>Chase / top-down camera</span>
+      <span><kbd>Tab</kbd></span><span>Next music track: lo-fi chill, alpine run, yeti chase, off</span>
+    </div>
+    <p class="mob">◀ ▶ steer · 😱 scream · ▲ push · ▼ brake · ⤒ hop</p>
+    <button class="go" id="startBtn" type="button">Start</button>
+  </div>
+</div>
+<div id="over" class="overlay" hidden>
+  <div class="card">
+    <h1 id="overTitle">The bear got you</h1>
+    <div class="score" id="final">0</div>
+    <p id="overSub"></p>
+    <div class="row2"><button class="go" id="againBtn" type="button">Go again</button><button class="go alt" id="ridesBtn" type="button">Change ride</button></div>
+  </div>
+</div>
+<script type="module" src="./game.js"></script>
+</body>
+</html>

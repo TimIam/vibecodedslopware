@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Slopware Merch</title>
+<meta name="description" content="Shirts and hoodies with art from the vibe coded slopware games. Try them on with your camera, then wear the slop.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👕</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&display=swap">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+:root{--bg:#f4f0e6;--fg:#1f1d1a;--dim:#6b665c;--card:#fffdf7;--line:#ddd5c4;--accent:#3f7d4e;--accent-fg:#fff;--slop:#6fa64c;--stage:#e9e3d4}
+@media (prefers-color-scheme:dark){:root{--bg:#15171a;--fg:#ece8df;--dim:#9a958a;--card:#1d2024;--line:#2e3238;--accent:#8fc46a;--accent-fg:#13200f;--slop:#8fc46a;--stage:#23272c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 "Segoe UI",system-ui,-apple-system,sans-serif}
+button,input,select{font:inherit;color:inherit}
+.pixel{font-family:"Silkscreen",ui-monospace,monospace;letter-spacing:.5px}
+.site-topbar .cart-btn{display:inline-flex;align-items:center;gap:6px;padding:0 12px;border:1px solid #8c9b80;border-radius:999px;background:#26352b;font-weight:600}
+.site-topbar .cart-btn:hover{color:#ffe397}
+main{max-width:1120px;margin:0 auto;padding:28px 16px 64px}
+.hero h1{margin:0;font:400 clamp(34px,7vw,64px)/1.05 "Silkscreen",ui-monospace,monospace}
+.hero h1 span{color:var(--slop);position:relative}
+.hero p{max-width:640px;margin:12px 0 0;color:var(--dim);font-size:17px}
+.paid{margin:22px 0 0;padding:14px 18px;border:1px solid var(--accent);border-radius:12px;background:var(--card)}
+.paid strong{color:var(--accent)}
+
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px;margin-top:30px}
+.item{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden;transition:border-color .15s,transform .15s}
+.item:hover{border-color:var(--accent);transform:translateY(-2px)}
+.item-open{display:block;padding:0;border:0;background:var(--stage);cursor:pointer}
+.mock{display:block;width:100%;height:auto}
+.item-text{padding:14px 16px 4px;flex:1}
+.item h2{margin:0;font:400 19px/1.25 "Silkscreen",ui-monospace,monospace}
+.item-blurb{margin:4px 0 0;color:var(--dim);font-size:14.5px}
+.item-price{margin:8px 0 0;font-weight:600;font-size:14.5px}
+.item-actions{display:flex;gap:8px;padding:10px 16px 16px}
+
+.btn{min-height:44px;padding:0 18px;border:1px solid var(--accent);border-radius:10px;background:var(--accent);color:var(--accent-fg);font-weight:650;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;color:var(--fg)}
+.btn:disabled{opacity:.55;cursor:not-allowed;filter:none}
+:focus-visible{outline:3px solid #e2b84a;outline-offset:2px}
+
+.how{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px;margin-top:44px}
+.how div{padding:16px 18px;border:1px dashed var(--line);border-radius:12px}
+.how h3{margin:0 0 4px;font:400 15px/1.3 "Silkscreen",ui-monospace,monospace;color:var(--accent)}
+.how p{margin:0;color:var(--dim);font-size:14.5px}
+footer{margin-top:40px;color:var(--dim);font-size:14px}
+footer a{color:inherit}
+
+dialog{width:min(980px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:0;border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--fg)}
+dialog::backdrop{background:rgba(10,12,10,.62)}
+.dlg-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px 10px 20px;border-bottom:1px solid var(--line);background:var(--card)}
+.dlg-head h2{margin:0;font:400 18px/1.2 "Silkscreen",ui-monospace,monospace}
+.close{width:44px;height:44px;border:0;border-radius:10px;background:transparent;font-size:26px;line-height:1;cursor:pointer}
+.close:hover{background:var(--stage)}
+
+.product-body{display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:20px}
+.product-pic{border-radius:12px;background:var(--stage)}
+.product-info h2{margin:0;font:400 26px/1.15 "Silkscreen",ui-monospace,monospace}
+.product-info > p{margin:8px 0}
+.game-link{color:var(--accent);font-weight:600;text-decoration:none}
+.label{margin:14px 0 6px !important;font-weight:600;font-size:14px}
+.seg{display:inline-flex;margin-top:10px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{min-height:44px;padding:0 16px;border:0;background:transparent;cursor:pointer}
+.seg button[aria-checked=true]{background:var(--accent);color:var(--accent-fg);font-weight:650}
+.swatches{display:flex;flex-wrap:wrap;gap:8px}
+.swatch{width:40px;height:40px;border:2px solid var(--line);border-radius:50%;background:var(--c);cursor:pointer;box-shadow:inset 0 0 0 2px var(--card)}
+.swatch[aria-checked=true]{border-color:var(--accent);box-shadow:inset 0 0 0 3px var(--card),0 0 0 2px var(--accent)}
+.sizes{display:flex;flex-wrap:wrap;gap:6px}
+.sizes button{min-width:48px;min-height:44px;border:1px solid var(--line);border-radius:8px;background:transparent;cursor:pointer}
+.sizes button[aria-checked=true]{border-color:var(--accent);background:var(--accent);color:var(--accent-fg);font-weight:650}
+.buy-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:16px}
+.buy-row input{width:70px;min-height:44px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.price{font:400 18px "Silkscreen",ui-monospace,monospace}
+.fine{color:var(--dim);font-size:13.5px}
+
+.tryon-body{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:18px;padding:18px}
+.stage{position:relative;border-radius:12px;overflow:hidden;background:#1b1f1d}
+#tryon-canvas{display:block;width:100%;height:auto;max-height:70dvh;object-fit:contain;touch-action:none;cursor:grab}
+#tryon-status{margin:10px 0 0;min-height:1.5em;color:var(--dim);font-size:14.5px}
+.tryon-side{display:flex;flex-direction:column;gap:10px}
+.tryon-side .btn{width:100%}
+.file-btn{position:relative;display:flex;align-items:center;justify-content:center}
+.file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.tryon-side select{min-height:44px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.tryon-side .seg{margin:0}
+.tryon-side .seg button{padding:0 10px;font-size:14px}
+.tryon-side .swatch{width:34px;height:34px}
+.tryon-side label{font-size:14px;font-weight:600}
+.tryon-side input[type=range]{width:100%;accent-color:var(--accent)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.privacy{margin:0;color:var(--dim);font-size:13px}
+
+#cart{width:min(560px,calc(100vw - 24px))}
+#cart-lines{padding:8px 20px}
+.line{display:grid;grid-template-columns:60px 1fr 64px auto 36px;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.line .thumb{width:60px;height:72px;border-radius:8px;background:var(--stage)}
+.line span{display:block;color:var(--dim);font-size:13.5px}
+.line input{width:64px;min-height:40px;padding:0 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.line .price{font-size:15px}
+.x{width:36px;height:36px;border:0;border-radius:8px;background:transparent;font-size:22px;cursor:pointer}
+.x:hover{background:var(--stage)}
+.empty{color:var(--dim)}
+.totals{padding:8px 20px 20px}
+.totals p{display:flex;justify-content:space-between;margin:6px 0}
+.totals .grand{font-weight:700;font-size:18px}
+.totals select{min-height:40px;padding:0 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+#checkout{width:100%;margin-top:12px}
+#cart-note{margin:8px 0 0;color:var(--dim);font-size:13.5px;text-align:center}
+
+@media (max-width:760px){
+  .product-body,.tryon-body{grid-template-columns:1fr;padding:14px}
+  .line{grid-template-columns:52px 1fr 56px 32px;gap:8px}
+  .line .price{display:none}
+}
+</style>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+  <button class="cart-btn" id="cart-btn" type="button" aria-label="Open cart"><span aria-hidden="true">🛒</span> Cart <span id="cart-count">0</span></button>
+</nav>
+<script src="/site-nav.js"></script>
+
+<main>
+  <header class="hero">
+    <h1>Wear the <span>slop</span></h1>
+    <p>Shirts and hoodies with art pulled straight out of the games. Try one on with your camera, pick a size, and every order helps keep the slop coming.</p>
+  </header>
+  <div class="paid" id="paid" hidden role="status"><strong>Order placed.</strong> Thank you! Stripe has emailed your receipt. Your shirt gets printed and you'll get a tracking email when it ships, usually within a week.</div>
+
+  <section id="grid" aria-label="Designs"></section>
+
+  <section class="how" aria-label="How it works">
+    <div><h3>Try it on</h3><p>Your camera or a photo, with the shirt following your shoulders. It all happens in your browser. Nothing is uploaded.</p></div>
+    <div><h3>Printed on demand</h3><p>Printful prints each one when you order, so there's no warehouse full of unsold slop. Ships in about a week.</p></div>
+    <div><h3>Art from the games</h3><p>Every design is drawn by the game's own code, then blown up to print size. Pixel for pixel.</p></div>
+  </section>
+
+  <footer>Questions about an order? Reply to your receipt email. · <a href="/">Back to the games</a></footer>
+</main>
+
+<dialog id="product" aria-labelledby="product-title">
+  <div class="dlg-head"><span class="pixel">Merch</span><button class="close" type="button" aria-label="Close" onclick="this.closest('dialog').close()">×</button></div>
+  <div class="product-body"></div>
+</dialog>
+
+<dialog id="tryon" aria-labelledby="tryon-title">
+  <div class="dlg-head"><h2 id="tryon-title">Try it on</h2><button class="close" type="button" aria-label="Close" onclick="this.closest('dialog').close()">×</button></div>
+  <div class="tryon-body">
+    <div>
+      <div class="stage"><canvas id="tryon-canvas" width="960" height="720" aria-label="Your camera or photo with the shirt on"></canvas></div>
+      <p id="tryon-status" role="status">Turn on your camera or pick a photo of yourself.</p>
+    </div>
+    <div class="tryon-side">
+      <button class="btn" id="tryon-camera" type="button">Use my camera</button>
+      <label class="btn ghost file-btn">Pick a photo<input id="tryon-file" type="file" accept="image/*"></label>
+      <div id="tryon-pick" class="tryon-side"></div>
+      <label for="tryon-size">Size on screen</label>
+      <input id="tryon-size" type="range" min="0.7" max="1.4" step="0.01" value="1">
+      <div class="row2">
+        <button class="btn ghost" id="tryon-retrack" type="button">Follow me</button>
+        <button class="btn ghost" id="tryon-save" type="button">Save pic</button>
+      </div>
+      <button class="btn" id="tryon-add" type="button">Choose a size</button>
+      <p class="privacy">Body tracking runs on your device with MediaPipe. Your camera and photos never leave this page.</p>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="cart" aria-labelledby="cart-title">
+  <div class="dlg-head"><h2 id="cart-title">Cart</h2><button class="close" type="button" aria-label="Close" onclick="this.closest('dialog').close()">×</button></div>
+  <div id="cart-lines"></div>
+  <div class="totals">
+    <p><label for="region">Ship to</label><select id="region"></select></p>
+    <p><span>Subtotal</span><span id="cart-sub">$0</span></p>
+    <p><span>Shipping</span><span id="cart-ship">—</span></p>
+    <p class="grand"><span>Total</span><span id="cart-total">$0</span></p>
+    <button class="btn" id="checkout" type="button" disabled>Checkout</button>
+    <p id="cart-note"></p>
+  </div>
+</dialog>
+
+<script type="module" src="shop.js"></script>
+</body>
+</html>

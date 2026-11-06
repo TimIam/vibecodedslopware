@@ -63,6 +63,9 @@ function serveStatic(req, res, url) {
     if (!url.pathname.endsWith("/")) { res.writeHead(302, { location: url.pathname + "/" }); return res.end(); }
     file = path.join(file, "index.html");
   }
+  // vercel.json: an older version's unchanged files come from the live folder
+  const old = url.pathname.match(/^\/v\/([^/]+)\/\d+\/(.*)$/);
+  if (!fs.existsSync(file) && old) return serveStatic(req, res, new URL(`/${old[1]}/${old[2]}`, url));
   if (!fs.existsSync(file)) { res.writeHead(404, { "content-type": "text/plain" }); return res.end("not found"); }
   res.writeHead(200, { "content-type": types[path.extname(file)] ?? "application/octet-stream" });
   fs.createReadStream(file).pipe(res);

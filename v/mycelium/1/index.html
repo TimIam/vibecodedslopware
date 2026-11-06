@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mycelium</title>
+<meta name="description" content="A SimAnt-style colony sim where you are the fungus. Steer your hyphae through the soil, out-grow the rival, fruit mushrooms and drift spores across the garden.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍄</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+:root{--bg:#0f1512;--panel:#17211c;--line:#2d3b33;--fg:#ece6d2;--dim:#9aa894;--accent:#9cc97a;--cream:#eee8ce;--rival:#ec7a2e;--cyan:#7fe3e6}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:20px/1.2 "VT323","Courier New",monospace;overflow:hidden}
+body{display:flex;flex-direction:column}
+button{font:inherit;color:inherit}
+.game{flex:1;min-height:0;display:grid;grid-template-columns:1fr 290px}
+#stage{position:relative;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 30%,#1a2520,#0b100d 80%)}
+#world{image-rendering:pixelated;image-rendering:crisp-edges;display:block;box-shadow:0 0 0 2px #2d3b33,0 20px 60px rgba(0,0,0,.6);touch-action:none;cursor:crosshair}
+.panel{background:var(--panel);border-left:2px solid var(--line);padding:12px 14px;overflow:auto;display:flex;flex-direction:column;gap:10px}
+.panel h1{margin:0;font-size:34px;letter-spacing:2px;color:var(--cream);line-height:1}
+.panel h1 small{display:block;font-size:16px;color:var(--dim);letter-spacing:0}
+.meta{display:flex;justify-content:space-between;color:var(--dim);font-size:18px}
+.meta b{color:var(--fg);font-weight:normal}
+.stat{display:grid;grid-template-columns:78px 1fr 64px;align-items:center;gap:8px;font-size:18px}
+.stat label{color:var(--dim)}
+.stat .v{text-align:right;font-variant-numeric:tabular-nums}
+.track{height:8px;background:#0c120f;border:1px solid var(--line);position:relative}
+.fill{position:absolute;inset:0 auto 0 0;width:0;background:var(--accent);transition:width .3s}
+.fill.warn{background:#e9b44c}.fill.bad{background:#ea6a52}.fill.blue{background:#5aa0d8}.fill.rival{background:var(--rival)}.fill.spore{background:var(--cream)}
+.sec{border-top:1px solid var(--line);padding-top:8px}
+.sec h3{margin:0 0 6px;font-size:16px;letter-spacing:2px;color:var(--dim);text-transform:uppercase}
+#tri{display:block;margin:0 auto;width:180px;height:156px;image-rendering:pixelated;cursor:pointer;touch-action:none}
+.trilabels{position:relative;height:0}
+.trilabels span{position:absolute;font-size:16px;color:var(--dim)}
+#pct{text-align:center;color:var(--fg);font-size:16px;margin:4px 0 6px}
+.row{display:flex;gap:6px;flex-wrap:wrap}
+.btn{background:#0f1713;border:1px solid var(--line);padding:6px 10px;cursor:pointer;min-height:36px}
+.btn:hover{border-color:var(--accent)}
+.btn.on{background:#27402f;border-color:var(--accent);color:#fff}
+.btn.sm{font-size:16px;padding:4px 8px;min-height:30px}
+.btn.danger:hover{border-color:#ea6a52}
+#log{font-size:17px;line-height:1.25;color:var(--dim);display:flex;flex-direction:column;gap:3px}
+#log .fresh{color:var(--fg)}
+#hint{color:var(--dim);font-size:16px}
+kbd{font:inherit;font-size:15px;border:1px solid var(--line);padding:0 4px;color:var(--fg)}
+
+/* overlays */
+.screen{position:fixed;inset:52px 0 0 0;display:none;align-items:center;justify-content:center;background:rgba(6,10,8,.72);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);z-index:20;padding:16px;overflow:auto}
+.screen.open{display:flex}
+.card{background:var(--panel);border:2px solid var(--line);box-shadow:0 20px 60px rgba(0,0,0,.6);padding:22px 26px;max-width:640px;width:100%}
+.card h2{margin:0 0 6px;font-size:36px;letter-spacing:2px;color:var(--cream)}
+.card p{margin:8px 0;font-size:20px;line-height:1.3}
+.card p.dim{color:var(--dim)}
+.card .btn{font-size:22px;padding:8px 18px}
+.title{text-align:center;max-width:560px}
+.title h2{font-size:64px;letter-spacing:6px;line-height:1;margin-bottom:0}
+.title h2 i{font-style:normal;color:var(--accent)}
+.title .sub{color:var(--dim);font-size:22px;margin:0 0 18px}
+.title .row{justify-content:center}
+.pixelcap{display:inline-block;width:48px;height:36px;image-rendering:pixelated;vertical-align:middle;margin-right:8px}
+#plots{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}
+.plot{position:relative;display:flex;flex-direction:column;background:#0f1713;border:2px solid var(--line);padding:0;cursor:pointer;text-align:left;overflow:hidden}
+.plot canvas{display:block;width:100%;height:auto;image-rendering:pixelated}
+.plot .ptext{padding:5px 7px;font-size:16px;line-height:1.15}
+.plot .ptext b{display:block;font-weight:normal;color:var(--fg)}
+.plot .ptext span{color:var(--dim)}
+.plot .ptext em{display:block;font-style:normal;color:var(--dim);font-size:14px}
+.plot:disabled{cursor:default;opacity:.45}
+.plot.held{border-color:var(--accent)}
+.plot.held .ptext span{color:var(--accent)}
+.plot.ready{border-color:var(--cream);animation:pulse 1.6s infinite}
+.plot.ready:hover{background:#1f2e25}
+.plot.poor .ptext span{color:#e9b44c}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(238,232,206,0)}50%{box-shadow:0 0 0 4px rgba(238,232,206,.35)}}
+.bank{font-size:24px;text-align:center;margin:0 0 4px}
+.bank b{color:var(--cream);font-weight:normal}
+.help h3{margin:14px 0 4px;font-size:22px;color:var(--accent);letter-spacing:1px}
+.help ul{margin:0;padding-left:20px}
+.help li{margin:2px 0;font-size:19px;line-height:1.3}
+.sw{display:inline-block;width:12px;height:12px;vertical-align:-2px;margin-right:4px;border:1px solid #000}
+
+body.playing .panel{display:flex}
+@media (max-width:860px){
+  html,body{overflow:auto}
+  .game{grid-template-columns:1fr;grid-template-rows:auto auto}
+  #stage{aspect-ratio:5/3;max-height:62vh}
+  .panel{border-left:0;border-top:2px solid var(--line)}
+  #plots{grid-template-columns:repeat(2,1fr)}
+  .title h2{font-size:46px}
+  .screen{position:fixed;inset:52px 0 0 0}
+}
+</style>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<div class="game">
+  <div id="stage"><canvas id="world" width="480" height="288" aria-label="Soil cross-section. Click or drag to lay attractant for your hyphae."></canvas></div>
+  <aside class="panel" aria-label="Colony controls">
+    <h1>MYCELIUM <small id="plotName">a colony sim</small></h1>
+    <div class="meta"><b id="day">Day 1</b><span id="weather">☀ sunny</span></div>
+
+    <div class="stat"><label>energy</label><div class="track"><i id="energyBar" class="fill good"></i></div><span class="v" id="energy">0</span></div>
+    <div class="stat"><label>water</label><div class="track"><i id="waterBar" class="fill blue"></i></div><span class="v" id="water">0%</span></div>
+    <div class="stat"><label>network</label><div class="track"><i id="rivalBar" class="fill rival"></i></div><span class="v"><span id="net">0</span></span></div>
+    <div class="stat"><label>spores</label><div class="track"><i id="sporeBar" class="fill spore"></i></div><span class="v" id="spores">0 / 80</span></div>
+    <div class="meta" style="font-size:16px"><span>tips <b id="tipsN">0</b> · shrooms <b id="shroomsN">0</b> · grubs <b id="grubs">0</b></span><span>rival <b id="rival">0</b> · bank <b id="bank">0</b></span></div>
+    <div class="meta" style="font-size:16px"><span>core <b id="coreHp">♥♥♥♥♥</b></span><span class="dim">reach the rival core to consume it</span></div>
+
+    <div class="sec">
+      <h3>Allocation</h3>
+      <div class="trilabels"><span style="left:50%;top:-4px;transform:translateX(-50%)">grow</span><span style="left:4px;top:118px">defend</span><span style="right:4px;top:118px">fruit</span></div>
+      <canvas id="tri" width="120" height="104"></canvas>
+      <div id="pct">grow 60% · defend 20% · fruit 20%</div>
+      <div class="row">
+        <button class="btn sm" data-preset="1,0,0" title="Everything into exploring">explore</button>
+        <button class="btn sm" data-preset=".6,.2,.2" data-key="q" title="Balanced">balanced</button>
+        <button class="btn sm" data-preset=".3,.6,.1" title="Toxins up: repel grubs and the rival">fortify</button>
+        <button class="btn sm" data-preset=".3,.1,.6" title="Push mushrooms up and shed spores">fruit</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>Tools</h3>
+      <div class="row">
+        <button class="btn" id="toolAttract" title="Click/drag in the soil to lay attractant">◌ attract</button>
+        <button class="btn" id="toolErase" title="Erase attractant (or right-click / shift)">✕ erase</button>
+        <button class="btn" id="pause">❚❚ pause</button>
+        <button class="btn" data-speed="1">1×</button><button class="btn" data-speed="2">2×</button><button class="btn" data-speed="3">3×</button>
+        <button class="btn" id="helpBtn">? help</button>
+        <button class="btn danger" id="gardenBtn">↩ garden</button>
+      </div>
+      <div id="hint"><kbd>space</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> speed · <kbd>E</kbd> erase · <kbd>H</kbd> help</div>
+    </div>
+
+    <div class="sec"><h3>Log</h3><div id="log"></div></div>
+  </aside>
+</div>
+
+<!-- title -->
+<div class="screen" id="title">
+  <div class="card title">
+    <h2><i>MYCE</i>LIUM</h2>
+    <p class="sub">a colony sim in the SimAnt tradition, for fungi</p>
+    <p>You are a fungus. Grow a network through the soil, find things to eat, out-fight the rival colony and the grubs, then push up mushrooms and shed spores to drift onto the next plot. Take the whole garden.</p>
+    <div class="row"><button class="btn" id="playBtn">New garden</button><button class="btn" id="titleHelp">How to play</button></div>
+    <p class="dim" style="margin-top:14px;font-size:17px">Behind this card a colony is already at it. Watch it find the roots.</p>
+  </div>
+</div>
+
+<!-- garden map -->
+<div class="screen" id="garden">
+  <div class="card">
+    <h2>The garden</h2>
+    <p class="bank">spore bank: <b id="bankBig">0</b> 🍄</p>
+    <p class="dim" id="gardenNote"></p>
+    <div id="plots"></div>
+    <div class="row"><button class="btn sm" id="gardenHelp">? how to play</button><button class="btn sm danger" id="newGarden">new garden</button></div>
+  </div>
+</div>
+
+<!-- result -->
+<div class="screen" id="result">
+  <div class="card">
+    <h2>Plot claimed!</h2>
+    <p class="why"></p>
+    <p class="shed"></p>
+    <div class="row"><button class="btn" id="toGarden">To the garden map</button></div>
+  </div>
+</div>
+
+<!-- help -->
+<div class="screen" id="help">
+  <div class="card help">
+    <h2>How to play</h2>
+    <p>Each plot is a slice of soil seen from the side. Your colony starts at the pulsing white square. The rival starts at the orange one.</p>
+    <h3>Grow</h3>
+    <ul>
+      <li>Bright dots on the ends of your threads are <b>tips</b>. They wander, branch, and leave hyphae behind. Growing costs energy.</li>
+      <li><b>Click or drag in the soil</b> to lay attractant. Tips steer toward it. Draw a trail to the <span class="sw" style="background:#986428"></span>orange-brown food: dead roots, leaf litter, buried logs.</li>
+      <li>Hyphae on food pull energy back along the network. <b>Cut-off</b> threads turn grey and wither, so keep the network whole.</li>
+      <li>Dry soil (pale) slows growth and kills threads. Rain soaks the topsoil; <span class="sw" style="background:#2c60aa"></span>water pockets keep the deep soil wet. <span class="sw" style="background:#626268"></span>Rock is impassable; <span class="sw" style="background:#764836"></span>clay is slow.</li>
+    </ul>
+    <h3>Allocate</h3>
+    <ul>
+      <li>The triangle splits your effort. <b>Grow</b> gives more tips. <b>Defend</b> makes toxins (a purple stain) that hurt the rival and grubs on contact. <b>Fruit</b> pushes mushrooms up where your network touches the surface.</li>
+    </ul>
+    <h3>Fruit and spread</h3>
+    <ul>
+      <li>Grown mushrooms shed <b>spores</b> for a while, then wilt. Spores are your breeders: they drift to the rest of the garden.</li>
+      <li>Shed the target number of spores on a plot, or wipe out the rival, to claim it. On the garden map, spend banked spores to drift onto a plot next to one you hold. Spores count even if you lose the plot.</li>
+    </ul>
+    <h3>Threats</h3>
+    <ul>
+      <li><b>The rival</b> grows toward the same food and eats into your threads where you meet. Density and toxins decide fights.</li>
+      <li>Each colony has a <b>core</b> (the pulsing square) with five hearts. Reach the rival's with dense, toxic hyphae to consume it and win the plot outright. Guard your own.</li>
+      <li><b>Grubs</b> chew through anything. Toxins kill them, and a dead grub is food.</li>
+      <li><b>The gardener</b> occasionally digs. Nothing survives a spade.</li>
+    </ul>
+    <p class="dim">Keys: <kbd>space</kbd> pause · <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> speed · <kbd>E</kbd> toggle erase · right-click or <kbd>shift</kbd>-drag also erases · <kbd>H</kbd> this screen</p>
+    <div class="row"><button class="btn" id="helpClose">Back</button></div>
+  </div>
+</div>
+
+<script type="module" src="./game.js"></script>
+</body>
+</html>
