@@ -769,8 +769,8 @@ window.SLOPWARE = {
   },
   "wasteland": {
    "visits": 0,
-   "prompts": 2,
-   "tokens": 564857,
+   "prompts": 3,
+   "tokens": 629919,
    "sharedWith": null,
    "versions": [
     {
@@ -778,7 +778,14 @@ window.SLOPWARE = {
      "date": "2026-11-07T14:40:21-07:00",
      "note": "a post-apocalyptic isometric city builder",
      "prompts": 2,
-     "tokens": 564857
+     "tokens": 563436
+    },
+    {
+     "n": 2,
+     "date": "2026-11-07T15:05:41-07:00",
+     "note": "cast shadows, crisper sprites, livelier ground",
+     "prompts": 1,
+     "tokens": 66483
     }
    ]
   },
