@@ -959,6 +959,13 @@ window.SLOPWARE = {
      "note": "a seven-level campaign, from the clearing to the castle",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 6,
+     "date": "2026-11-07T12:26:36-07:00",
+     "note": "summoning Spitters no longer crashes on levels 2 to 7 (they looked for the patrol path)",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
@@ -972,6 +979,16 @@ window.SLOPWARE = {
      "n": 1,
      "date": "2026-11-06T14:47:28-07:00",
      "note": "The Sequel, a roguelike reverse boss fight"
+    },
+    {
+     "n": 2,
+     "date": "2026-11-07T12:26:36-07:00",
+     "note": "summoning Spitters no longer crashes on levels 2 to 7 (they looked for the patrol path)"
+    },
+    {
+     "n": 3,
+     "date": "2026-11-07T12:26:36-07:00",
+     "note": "the seven-map campaign, sequel-style"
     }
    ]
   }
