@@ -5,7 +5,8 @@ import { TEAMS, DRIVERS, TRACKS, COMPOUNDS, COMPOUND_ORDER, PEOPLE, POINTS, MOD_
 import { Race, rng, IN_T, OUT_T } from './race.js';
 import { PitStop, KEYMAP } from './stop.js';
 import { bake, bakeMap, Y, BOX_X, theme, straightCar } from './scene.js';
-import { Director, LINES, rename } from './banter.js';
+import { Director, LINES, rename, pepTalk, pickFresh, saveHeard } from './banter.js';
+import { calendar, MODES, TIME_NAME } from './season.js';
 import * as C from './custom.js';
 import * as A from './audio.js';
 
@@ -19,10 +20,17 @@ C.apply();
 const SAVE_KEY = 'pitcrew26.v1';
 
 // ------------------------------------------------------------ save
-function freshSave() { return { round: 0, team: {}, drv: {}, results: [], best: {}, practiceBest: null, muted: false }; }
+function freshSave(mode = 'short') { return { mode, round: 0, team: {}, drv: {}, results: [], best: {}, practiceBest: null, muted: false }; }
 let save = freshSave();
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && typeof s.round === 'number') save = { ...save, ...s }; } catch (e) {}
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
+const cal = () => calendar(save.mode || 'short');
+function newSeason(mode) {
+  const keep = { muted: save.muted, best: save.best, practiceBest: save.practiceBest };
+  save = { ...freshSave(mode), ...keep };
+  persist();
+  go(calendarScene);
+}
 A.setMuted(!!save.muted);
 const muteBtn = document.getElementById('mute');
 function syncMute() { muteBtn.textContent = A.isMuted() ? '♪ Sound off' : '♪ Sound on'; }
@@ -154,7 +162,7 @@ function button(x, y, w, h, label, fn, { hot = false, color = '#16b3a3', small =
 
 // ------------------------------------------------------------ shared visuals
 const bgCache = new Map();
-function bgFor(track) { if (!bgCache.has(track.id)) bgCache.set(track.id, bake(track)); return bgCache.get(track.id); }
+function bgFor(track) { const k = track.key || track.id; if (!bgCache.has(k)) bgCache.set(k, bake(track)); return bgCache.get(k); }
 
 function crowdShimmer(T) {
   for (let i = 0; i < 26; i++) {
@@ -252,8 +260,9 @@ const titleScene = (() => {
   const idle = () => new PitStop({ car: { compound: 'medium', wear: 0, damage: 0 }, track, compound: 'soft', fuelNow: 0, fuelNeed: 0, rng: rng(5) });
   let demo = null;
   const items = () => [
-    save.round > 0 && save.round < TRACKS.length ? ['CONTINUE SEASON', () => go(calendarScene)] : null,
-    ['NEW SEASON', () => { const m = save.muted, best = save.best, pb = save.practiceBest; save = freshSave(); save.muted = m; save.best = best; save.practiceBest = pb; persist(); go(calendarScene); }],
+    save.round > 0 && save.round < cal().length ? ['CONTINUE SEASON', () => go(calendarScene)] : null,
+    ['NEW SHORT SEASON', () => newSeason('short')],
+    ['NEW LONG SEASON', () => newSeason('long')],
     ['PIT PRACTICE', () => go(practiceScene)],
     ['TEAM SETUP', () => go(setupScene)],
     ['HOW TO PLAY', () => go(howScene)],
@@ -279,8 +288,9 @@ const titleScene = (() => {
       text(g, 'A REVERSE RACING GAME. YOU ARE THE PIT CREW.', W / 2, 98, '#9ad8ff', { align: 'center', shadow: '#05060a' });
       const its = items();
       sel = Math.min(sel, its.length - 1);
-      its.forEach(([label, fn], i) => button(W / 2 - 70, 122 + i * 22, 140, 18, label, fn, { hot: i === sel }));
-      if (save.round > 0) text(g, `SEASON: ROUND ${Math.min(save.round + 1, 6)} OF 6`, W / 2, 122 + its.length * 22 + 6, '#6a7898', { align: 'center' });
+      its.forEach(([label, fn], i) => button(W / 2 - 70, 116 + i * 20, 140, 17, label, fn, { hot: i === sel }));
+      const n = cal().length;
+      if (save.round > 0 && save.round < n) text(g, `${MODES[save.mode || 'short'].name}: ROUND ${save.round + 1} OF ${n}`, W / 2, 118 + its.length * 20, '#6a7898', { align: 'center' });
       text(g, 'ARROWS + ENTER, OR CLICK', W / 2, H - 28, '#6a7898', { align: 'center' });
       text(g, 'FICTIONAL TEAMS, DRIVERS AND CIRCUITS. NOT AFFILIATED WITH ANY RACING SERIES.', W / 2, H - 14, '#3a4660', { align: 'center' });
     },
@@ -374,12 +384,24 @@ const calendarScene = {
   draw() {
     rect(g, 0, 0, W, H, '#0a0c14');
     for (let y = 12; y < H; y += 4) rect(g, 0, y, W, 1, '#0d1018');
-    topBar("PIT CREW '26", 'SEASON CALENDAR', 'ENTER: NEXT RACE  ESC: TITLE');
+    topBar("PIT CREW '26", `${MODES[save.mode || 'short'].name}: ${cal().length} RACES`, 'ENTER: NEXT RACE  ESC: TITLE');
     text(g, TEAMS[0].name.toUpperCase(), 16, 22, TEAMS[0].c1, { scale: 2, shadow: '#05060a' });
-    TRACKS.forEach((tr, i) => {
-      const y = 46 + i * 30;
+    const races = cal(), long = races.length > 6;
+    races.forEach((tr, i) => {
       const done = save.results[i];
       const next = i === save.round;
+      if (long) {
+        // twelve rounds: one line each
+        const y = 42 + i * 15;
+        panel(g, 12, y, 300, 14, { fill: next ? '#18324a' : '#141826', edge: next ? '#16b3a3' : '#3a4660', hi: next ? '#6ae0d4' : '#5c6a8a', lo: '#0e1220' });
+        text(g, `R${i + 1}`, 18, y + 4, '#6a7898');
+        text(g, tr.name.toUpperCase(), 40, y + 4, next ? '#ffffff' : done ? '#c8ccd4' : '#8a96b0');
+        text(g, `${TIME_NAME[tr.time]}${tr.weather.some(w => w.wet) ? ' RAIN' : ''}`, 186, y + 4, '#5a6888');
+        if (done) text(g, `P${done.a} P${done.b} +${done.pts}`, 306, y + 4, '#ffd23a', { align: 'right' });
+        else if (next) text(g, 'NEXT', 306, y + 4, '#7cff8a', { align: 'right' });
+        return;
+      }
+      const y = 46 + i * 30;
       panel(g, 12, y, 300, 26, { fill: next ? '#18324a' : '#141826', edge: next ? '#16b3a3' : '#3a4660', hi: next ? '#6ae0d4' : '#5c6a8a', lo: '#0e1220' });
       text(g, `R${i + 1}`, 20, y + 6, '#6a7898');
       text(g, tr.name.toUpperCase(), 40, y + 6, next ? '#ffffff' : done ? '#c8ccd4' : '#8a96b0');
@@ -402,13 +424,13 @@ const calendarScene = {
     });
     const dp = DRIVERS.filter(d => d.team === 0).map(d => `${d.name.split(' ')[1].toUpperCase()} ${save.drv[d.code] || 0}`).join('   ');
     text(g, dp, 412, 168, '#9ad8ff', { align: 'center' });
-    if (save.round < TRACKS.length) button(324, 230, 176, 22, `GO TO ROUND ${save.round + 1}`, () => go(briefingScene), { hot: true });
+    if (save.round < cal().length) button(324, 230, 176, 22, `GO TO ROUND ${save.round + 1}`, () => go(briefingScene), { hot: true });
     else button(324, 230, 176, 22, 'SEASON REVIEW', () => go(seasonScene), { hot: true });
     button(12, 230, 100, 22, 'TITLE', () => go(titleScene), { color: '#5c6a8a' });
     button(118, 230, 110, 22, 'TEAM SETUP', () => go(setupScene), { color: '#5c6a8a' });
   },
   key(k) {
-    if (k === 'enter' || k === 'space') go(save.round < TRACKS.length ? briefingScene : seasonScene);
+    if (k === 'enter' || k === 'space') go(save.round < cal().length ? briefingScene : seasonScene);
     if (k === 'esc') go(titleScene);
   },
 };
@@ -416,16 +438,17 @@ const calendarScene = {
 // ===== briefing
 const briefingScene = {
   enter() {
-    this.tr = TRACKS[save.round]; this.map = bakeMap(this.tr, 150, 110); this.t = 0;
+    this.tr = cal()[save.round]; this.map = bakeMap(this.tr, 150, 110); this.t = 0;
     const pool = (LINES.BRIEF || {})[this.tr.id] || [['mags', 'Gloves on. Same as always.']];
-    this.quote = pool[Math.floor(Math.random() * pool.length)];
+    this.quote = pickFresh(pool);
+    saveHeard();
   },
   update(dt) { this.t += dt; },
   draw() {
     const tr = this.tr;
     g.drawImage(bgFor(tr), 0, 0);
     g.globalAlpha = 0.8; rect(g, 0, 0, W, H, '#05060a'); g.globalAlpha = 1;
-    topBar(`ROUND ${save.round + 1} OF 6`, tr.gp.toUpperCase(), `${tr.laps} LAPS`);
+    topBar(`ROUND ${save.round + 1} OF ${cal().length}`, tr.gp.toUpperCase(), `${tr.laps} LAPS  ${TIME_NAME[tr.time] || ''}`);
     text(g, tr.name.toUpperCase(), 20, 24, '#ffffff', { scale: 3, shadow: '#0b3a44' });
     wrap(tr.blurb, 300).forEach((l, i) => text(g, l, 20, 50 + i * 10, '#c8ccd4'));
     panel(g, 340, 22, 160, 120);
@@ -475,20 +498,23 @@ function raceScene(track, round, { practice = false } = {}) {
   const map = bakeMap(track, 96, 60);
   const dir = new Director(PEOPLE, r);
   const th = theme(track);
-  const wkind = track.theme === 'alpine' ? 'snow' : track.theme === 'desert' ? 'sand' : 'rain';
+  const wkind = track.weather.some(w => w.wet) ? 'rain' : track.theme === 'alpine' ? 'snow' : track.theme === 'desert' ? 'sand' : 'rain';
   const idlePool = LINES.IDLE.concat(LINES.TRACK_IDLE[track.id] || [], LINES.TRACK_IDLE[track.id] || []);
   const S = {
-    race, track, stop: null, leaving: null, picker: null, lightsT: 0, lights: 0, go: false, paused: false, pauseSel: 0,
+    race, track, stop: null, leaving: null, pickers: [], pepT: 0, lightsT: 0, lights: 0, go: false, paused: false, pauseSel: 0,
     log: [], toast: null, overT: 0, passX: {}, idle: new PitStop({ car: { compound: 'medium', wear: 0, damage: 0 }, track, compound: 'medium', fuelNow: 0, fuelNeed: 0, rng: r }),
     lastPass: 0, holdT: 0.6 + r() * 0.8,
   };
   const vars = c => ({ d: firstName(c), drv: drvKey(c), n: c.num, p: c.pos, x: track.name });
+  if (!practice) { dir.say(pepTalk(track, r), {}, 3); saveHeard(); }
 
   function toast(msg, color = '#ffd23a') { S.toast = { msg, color, t: 0 }; }
 
   function startStop(c) {
-    let pick = S.picker && S.picker.car === c ? S.picker.choice : race.recommend(c);
-    if (S.picker && S.picker.car === c) S.picker = null;
+    // each car keeps its own tyre call, so a double stack can't mix them up
+    const pi = S.pickers.findIndex(p => p.car === c);
+    let pick = pi >= 0 ? S.pickers[pi].choice : race.recommend(c);
+    if (pi >= 0) S.pickers.splice(pi, 1);
     if (pick === 'none' && c.puncture) pick = race.recommend(c);
     S.stop = new PitStop({
       car: c, track, compound: pick === 'none' ? c.compound : pick, keepTyres: pick === 'none', fuelNow: Math.max(0, c.fuel), fuelNeed: race.fuelNeed(c), rng: r,
@@ -553,7 +579,7 @@ function raceScene(track, round, { practice = false } = {}) {
         case 'start': { const own = LINES.TRACK_START[track.id] || []; dir.sayFrom(own.length ? own : LINES.START, { x: track.name }, 2); break; }
         case 'boxCall': dir.sayFrom(LINES.BOXCALL, vars(c), 2); A.sfx('radio'); toast(`BOX BOX: CAR ${c.num}`, '#ff8a1e'); break;
         case 'pitEntry':
-          if (c.player) { S.picker = { car: c, choice: race.recommend(c), rec: race.recommend(c), t: 0 }; A.sfx('radio'); }
+          if (c.player) { S.pickers = S.pickers.filter(p => p.car !== c); S.pickers.push({ car: c, choice: race.recommend(c), rec: race.recommend(c) }); A.sfx('radio'); }
           break;
         case 'arrive': startStop(c); break;
         case 'queue': dir.sayFrom(LINES.EVENTS.queue, vars(c), 2); break;
@@ -589,11 +615,12 @@ function raceScene(track, round, { practice = false } = {}) {
   }
 
   function pickerKey(k) {
-    if (!S.picker) return false;
+    const p0 = S.pickers[0];
+    if (!p0) return false;
     const i = PICK_KEYS.indexOf(k);
     if (i < 0) return false;
-    if (!pickable(S.picker, PICKS[i])) { A.sfx('buzz'); return true; }
-    S.picker.choice = PICKS[i];
+    if (!pickable(p0, PICKS[i])) { A.sfx('buzz'); return true; }
+    p0.choice = PICKS[i];
     A.sfx('select');
     return true;
   }
@@ -752,12 +779,12 @@ function raceScene(track, round, { practice = false } = {}) {
   }
 
   function drawPicker() {
-    const p = S.picker;
+    const p = S.pickers[0], nextUp = S.pickers[1];
     // over the garage normally; up over the straight when a stop is already on (double stack)
     const x = 126, y = S.stop ? 14 : 168, w = 260, h = 46;
     panel(g, x, y, w, h, { fill: '#10141f', edge: '#ff8a1e', hi: '#ffd08a', lo: '#3a1e08' });
     text(g, `CAR ${p.car.num} IN THE PIT LANE. TYRES?`, x + 6, y + 6, '#ffd23a');
-    text(g, `DEV: ${COMPOUNDS[p.rec].name}`, x + w - 6, y + 6, '#7cff8a', { align: 'right' });
+    text(g, nextUp ? `THEN CAR ${nextUp.car.num}` : `DEV: ${COMPOUNDS[p.rec].name}`, x + w - 6, y + 6, nextUp ? '#ff8a1e' : '#7cff8a', { align: 'right' });
     PICKS.forEach((k, i) => {
       const bx = x + 6 + i * 50, by = y + 16;
       const on = p.choice === k, off = !pickable(p, k);
@@ -792,7 +819,8 @@ function raceScene(track, round, { practice = false } = {}) {
     update(dt) {
       if (S.paused) return;
       if (S.toast) { S.toast.t += dt; if (S.toast.t > 2.2) S.toast = null; }
-      if (!S.go) {
+      if (!S.go && dir.talking && S.pepT < 45) S.pepT += dt; // the lights wait for Dev to finish
+      else if (!S.go) {
         S.lightsT += dt;
         const n = Math.min(5, Math.floor(S.lightsT / 0.75));
         if (n > S.lights) { S.lights = n; A.sfx('light'); }
@@ -800,7 +828,6 @@ function raceScene(track, round, { practice = false } = {}) {
       }
       race.update(dt);
       handleEvents();
-      if (S.picker) S.picker.t += dt;
       if (S.stop) {
         S.stop.update(dt);
         if (DEV && window.__pc.bot) autoplay(S.stop, dt, 1);
@@ -808,9 +835,9 @@ function raceScene(track, round, { practice = false } = {}) {
       }
       if (S.leaving) { S.leaving.update(dt); if (S.leaving.done) S.leaving = null; }
       if (S.stop && S.stop.fuel.st === 'fill') A.fuelPitch(S.stop.fuel.level / 12);
-      dir.update(dt, !!S.stop && S.stop.phase !== 'arrive', idlePool);
+      dir.update(dt, !!S.stop && S.stop.phase !== 'arrive', S.go ? idlePool : null);
       A.setRain(race.wet);
-      if (race.over) { S.overT += dt; if (S.overT > 2.4) endRace(); }
+      if (race.over) { S.overT += dt; if (S.overT > 2.4) { saveHeard(); endRace(); } }
       if (DEV && window.__pc.bot) for (const c of race.cars) if (c.player && c.compound !== 'wet' && race.wet > 0.5 && c.state === 'run' && !c.box) race.toggleBox(c);
     },
     draw() {
@@ -827,19 +854,19 @@ function raceScene(track, round, { practice = false } = {}) {
       drawTower();
       drawMap();
       const lapN = Math.max(1, Math.min(race.laps, Math.floor(race.order[0].dist) + 1));
-      topBar(track.name.toUpperCase(), race.started ? `LAP ${lapN} / ${race.laps}` : 'FORMATION', race.wet > 0.3 ? 'WET' : race.wetTarget > 0 ? 'RAIN COMING' : 'DRY');
+      topBar(track.name.toUpperCase(), race.started ? `LAP ${lapN} / ${race.laps}` : S.lights ? 'LIGHTS' : 'FORMATION: ENTER TO SKIP', race.wet > 0.3 ? 'WET' : race.wetTarget > 0 ? 'RAIN COMING' : 'DRY');
       // bottom panel
       rect(g, 0, Y.panel, W, H - Y.panel, '#05060a');
       carCard(race.cars[0], 0);
       carCard(race.cars[1], W - 150);
       if (S.stop) stopHud(S.stop);
       else dialogue(150, Y.panel, 212, 72, dir.cur, T);
-      if (S.picker) drawPicker();
+      if (S.pickers.length) drawPicker();
       if (!S.go) drawLights();
       if (S.toast) {
         const a = S.toast.t < 1.8 ? 1 : 1 - (S.toast.t - 1.8) / 0.4;
         g.globalAlpha = Math.max(0, a);
-        text(g, S.toast.msg, W / 2, S.picker && S.stop ? 64 : 32, S.toast.color, { align: 'center', scale: 2, outline: '#05060a' });
+        text(g, S.toast.msg, W / 2, S.pickers.length && S.stop ? 64 : 32, S.toast.color, { align: 'center', scale: 2, outline: '#05060a' });
         g.globalAlpha = 1;
       }
       if (S.stop && S.stop.repair && S.stop.repair.st === 'combo' && touchMode) dpad();
@@ -856,10 +883,11 @@ function raceScene(track, round, { practice = false } = {}) {
       }
       if (k === 'esc') { S.paused = true; S.pauseSel = 0; if (S.stop) for (const h of [...S.stop.held]) S.stop.releaseKey(h); A.sfx('fuel', 0); return; }
       if (k === 'm') { A.setMuted(!A.isMuted()); save.muted = A.isMuted(); persist(); syncMute(); return; }
-      if (S.picker && pickerKey(k)) return;
+      if (S.pickers.length && pickerKey(k)) return;
       if (k === '1') return toggle(race.cars[0]);
       if (k === '2') return toggle(race.cars[1]);
       if (S.stop) { S.stop.press(k); return; }
+      if ((k === 'enter' || k === 'space') && !S.go) { dir.clear(); return; } // skip the pep talk
       if (k === 'enter' || k === 'space') dir.skip();
     },
     keyUp(k) { if (S.stop) S.stop.releaseKey(k); },
@@ -923,8 +951,9 @@ function resultsScene(track, race, log, pts, round) {
   const tier = bestPos === 1 ? 'win' : bestPos <= 3 ? 'podium' : bestPos <= 10 && pts[0] + pts[1] >= 8 ? 'points' : 'none';
   const bossTier = bestPos <= 3 ? 'great' : pts[0] + pts[1] >= 10 ? 'good' : 'bad';
   const r = rng(Date.now() & 0xffff);
-  const quote = rename(LINES.BOSS[bossTier][Math.floor(r() * LINES.BOSS[bossTier].length)]);
-  const fin = LINES.FINISH[tier][Math.floor(r() * LINES.FINISH[tier].length)];
+  const quote = rename(pickFresh(LINES.BOSS[bossTier], r));
+  const fin = pickFresh(LINES.FINISH[tier], r);
+  saveHeard();
   const lead = race.result[0];
   let t = 0;
   return {
@@ -974,9 +1003,9 @@ function resultsScene(track, race, log, pts, round) {
       const name = (PEOPLE[who === '{drv}' ? (bestPos === ours[0].final ? 'nico' : 'sanna') : who] || PEOPLE.dev).name;
       const line = name + ': ' + said.replace(/{d}/g, (bestPos === ours[0].final ? DRIVERS[0] : DRIVERS[1]).name.split(' ')[0]).replace(/{p}/g, bestPos).replace(/{x}/g, track.gp).replace(/{n}/g, bestPos === ours[0].final ? 7 : 11);
       wrap(line, 440).slice(0, 4 - ql.length).forEach((l, i) => text(g, l, 52, 214 + ql.length * 10 + i * 10, '#9ad8ff'));
-      button(W / 2 - 60, 260, 120, 20, round === null ? 'BACK' : 'CONTINUE', () => go(save.round >= TRACKS.length ? seasonScene : calendarScene), { hot: true });
+      button(W / 2 - 60, 260, 120, 20, round === null ? 'BACK' : 'CONTINUE', () => go(save.round >= cal().length ? seasonScene : calendarScene), { hot: true });
     },
-    key(k) { if (k === 'enter' || k === 'space') go(save.round >= TRACKS.length ? seasonScene : calendarScene); },
+    key(k) { if (k === 'enter' || k === 'space') go(save.round >= cal().length ? seasonScene : calendarScene); },
   };
 }
 
@@ -1132,7 +1161,8 @@ const seasonScene = {
     });
     const q = rename(this.champ ? 'Mags: "Brake dust. It is just brake dust, Toby."' : 'Mags: "Next year. Gloves on, same as always."');
     text(g, q, W / 2, 230, '#9ad8ff', { align: 'center' });
-    button(W / 2 - 70, 250, 140, 20, 'NEW SEASON', () => { const m = save.muted, b = save.best, p = save.practiceBest; save = freshSave(); save.muted = m; save.best = b; save.practiceBest = p; persist(); go(calendarScene); }, { hot: true });
+    button(W / 2 - 150, 250, 140, 20, 'NEW SHORT SEASON', () => newSeason('short'), { hot: true });
+    button(W / 2 + 10, 250, 140, 20, 'NEW LONG SEASON', () => newSeason('long'));
   },
   key(k) { if (k === 'enter' || k === 'space') go(titleScene); },
 };
@@ -1243,7 +1273,7 @@ if (DEV) {
     speed: 1, bot: false,
     get scene() { return scene; },
     go: name => go({ setup: setupScene, title: titleScene, calendar: calendarScene, briefing: briefingScene, practice: practiceScene, how: howScene, season: seasonScene }[name]),
-    race: i => go(raceScene(TRACKS[i], i)),
+    race: (i, mode) => go(raceScene(calendar(mode || save.mode || 'short')[i] || TRACKS[i], i)),
     step(n = 1) { for (let i = 0; i < n; i++) { scene.update(STEP); T += STEP; } ui.length = 0; scene.draw(); present(); },
     key: k => scene.key && scene.key(k),
     keyUp: k => scene.keyUp && scene.keyUp(k),

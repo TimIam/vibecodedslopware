@@ -38,7 +38,7 @@ export const PEOPLE = {
   mags: { name: 'MAGS', role: 'Chief Mechanic', skin: '#8a5a3c', hair: '#d8d8d8', hairStyle: 'crop', glasses: 'safety', headset: true, bg: '#3a2f4a', voice: 150 },
   toby: { name: 'TOBY', role: 'Tyre Carrier', skin: '#f0c4a0', hair: '#d8662a', hairStyle: 'mop', freckles: true, bg: '#2f4a3a', voice: 330 },
   lou:  { name: 'BIG LOU', role: 'Front Jack', skin: '#c88f62', hair: '#3a2416', hairStyle: 'bald', moustache: true, headset: true, bg: '#4a3a2a', voice: 110 },
-  dev:  { name: 'DEV', role: 'Race Engineer', skin: '#a8724c', hair: '#1a1410', hairStyle: 'neat', glasses: 'round', headset: true, mic: true, bg: '#26364a', voice: 210 },
+  dev:  { name: 'DEV', role: 'Chief Engineer', skin: '#a8724c', hair: '#1a1410', hairStyle: 'neat', glasses: 'round', headset: true, mic: true, bg: '#26364a', voice: 210 },
   pip:  { name: 'PIP', role: 'Refueller', skin: '#b5835a', hair: '#141018', hairStyle: 'bob', fireproof: true, bg: '#4a2a2f', voice: 260 },
   nico: { name: 'NICO', role: 'Car 7', helmet: true, skin: '#6e4630', eyes: '#2a1a10', bg: '#123a40', voice: 180, num: 7 },
   sanna:{ name: 'SANNA', role: 'Car 11', helmet: true, skin: '#f2d2bc', eyes: '#4a8ad8', bg: '#123a40', voice: 240, num: 11 },

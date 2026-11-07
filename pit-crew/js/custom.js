@@ -31,7 +31,7 @@ export const SCHEMES = [
 
 export const FIELDS = [
   ['TEAM NAME', 'team'], ['CAR 7 FIRST NAME', 'd1.0'], ['CAR 7 SURNAME', 'd1.1'], ['CAR 11 FIRST NAME', 'd2.0'], ['CAR 11 SURNAME', 'd2.1'],
-  ['TEAM PRINCIPAL', 'boss'], ['CHIEF MECHANIC', 'mags'], ['TYRE CARRIER', 'toby'], ['FRONT JACK', 'lou'], ['RACE ENGINEER', 'dev'], ['REFUELLER', 'pip'],
+  ['TEAM PRINCIPAL', 'boss'], ['CHIEF MECHANIC', 'mags'], ['TYRE CARRIER', 'toby'], ['FRONT JACK', 'lou'], ['CHIEF ENGINEER', 'dev'], ['REFUELLER', 'pip'],
 ];
 
 const clone = o => JSON.parse(JSON.stringify(o));

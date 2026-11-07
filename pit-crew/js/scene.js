@@ -20,7 +20,19 @@ const THEMES = {
   sunset:  { asphalt: '#4e4a52', lane: '#5e5a62', grass: '#4a8a40', scen: 'sunset', tint: ['#ff7a3a', 0.2], crowd: 1 },
 };
 
-export function theme(track) { return THEMES[track.theme]; }
+// A race can run at another time of day than its track usually does (long season repeats).
+const TIME_LIGHT = {
+  day: { tint: null, night: false },
+  dusk: { tint: ['#ff9a50', 0.16], night: false },
+  sunset: { tint: ['#ff7a3a', 0.2], night: false },
+  night: { tint: ['#202060', 0.45], night: true },
+};
+const NATIVE = { harbour: 'day', forest: 'day', desert: 'dusk', alpine: 'day', neon: 'night', sunset: 'sunset' };
+export function theme(track) {
+  const th = THEMES[track.theme];
+  if (!track.time || track.time === NATIVE[track.theme]) return th;
+  return { ...th, ...TIME_LIGHT[track.time] };
+}
 
 let seedv = 1;
 const rnd = () => { seedv = (seedv * 16807) % 2147483647; return seedv / 2147483647; };

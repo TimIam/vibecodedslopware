@@ -6,6 +6,7 @@ import * as INTRO from './lines/intro.js';
 import { IDLE as MORE_IDLE } from './lines/idle.js';
 import { TRACK_IDLE as MORE_TRACK } from './lines/tracks.js';
 import * as EV from './lines/events.js';
+import * as PEP from './lines/pep.js';
 
 const IDLE = [
   [['toby', 'Mags, how many wheel nuts have you done in your career?'], ['mags', 'All of them, Toby.']],
@@ -201,60 +202,135 @@ export function rename(text) {
   return text.replace(/\u0001(\d+)\u0002/g, (_, i) => hold[+i]);
 }
 
+// What the crew has said lately, across races, so a bit can't come round again too soon.
+// Keyed by a conversation's first line (as written, before renaming).
+const HEARD_KEY = 'pitcrew26.heard.v1';
+const heard = { n: 0, at: {} };
+try { const s = JSON.parse(localStorage.getItem(HEARD_KEY)); if (s && s.at) Object.assign(heard, s); } catch (e) {}
+let heardDirty = false;
+function remember(key) { heard.at[key] = ++heard.n; heardDirty = true; }
+export function saveHeard() {
+  if (!heardDirty) return;
+  heardDirty = false;
+  // keep the file small: forget the oldest once it gets big
+  const keys = Object.keys(heard.at);
+  if (keys.length > 2500) keys.sort((a, b) => heard.at[a] - heard.at[b]).slice(0, keys.length - 2000).forEach(k => delete heard.at[k]);
+  try { localStorage.setItem(HEARD_KEY, JSON.stringify(heard)); } catch (e) {}
+}
+const keyOf = item => typeof item === 'string' ? item : Array.isArray(item[0]) ? item[0][1] : item[1];
+
+// Pick from a pool, least recently heard first: anything used waits until most of
+// the rest of its pool has had a turn.
+export function pickFresh(list, r = Math.random) {
+  if (!list || !list.length) return null;
+  const ranked = list.map(c => ({ c, at: heard.at[keyOf(c)] || 0, k: r() })).sort((a, b) => a.at - b.at || a.k - b.k);
+  const window = Math.max(1, Math.ceil(list.length / 4));
+  const pick = ranked[Math.floor(r() * window)].c;
+  remember(keyOf(pick));
+  return pick;
+}
+
+// Plays one conversation at a time. Every line of a conversation finishes before the
+// next conversation starts; urgent ones jump the queue but never cut in mid-chat
+// (only prio 3, a real emergency, does that). Small talk that has waited too long
+// goes stale and is dropped.
 export class Director {
   constructor(people, rnd) {
     this.people = people;
     this.r = rnd;
-    this.queue = [];
-    this.cur = null;
+    this.queue = [];   // conversations waiting: { lines, prio, age }
+    this.conv = null;  // lines left in the conversation now playing
+    this.cur = null;   // the line on screen
+    this.gap = 0;      // breath between conversations
     this.idleT = 4;
-    this.used = new Set();
   }
 
-  pick(list) {
-    const fresh = list.filter(c => !this.used.has(c));
-    const pool = fresh.length ? fresh : list;
-    const c = pool[Math.floor(this.r() * pool.length)];
-    this.used.add(c);
-    return c;
-  }
+  get talking() { return !!(this.cur || (this.conv && this.conv.length) || this.queue.length); }
 
   // vars: {d, drv (person key), n, p, t, r, x}
   say(conv, vars = {}, prio = 1) {
-    if (!conv) return;
+    if (!conv || !conv.length) return;
     const lines = conv.map(([who, txt]) => {
       const w = who === '{drv}' ? vars.drv || 'nico' : who;
       return { who: w, text: rename(txt).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '') };
     });
-    if (prio >= 3) { this.queue = []; this.cur = null; }
-    if (prio >= 2) this.queue.unshift(...lines.map(l => ({ ...l, prio })));
-    else {
-      if (this.queue.length > 3) return;
-      this.queue.push(...lines.map(l => ({ ...l, prio })));
+    const item = { lines, prio, age: 0 };
+    if (prio >= 3) { this.queue = [item]; this.conv = null; this.cur = null; this.gap = 0; }
+    else if (prio === 2) {
+      // behind any other urgent ones, ahead of small talk
+      const i = this.queue.findIndex(q => q.prio < 2);
+      this.queue.splice(i < 0 ? this.queue.length : i, 0, item);
+      this.queue = this.queue.filter(q => q.prio >= 2 || q === item).slice(0, 4);
+    } else {
+      // small talk only if nothing else is waiting
+      if (this.queue.length) return;
+      this.queue.push(item);
     }
     this.idleT = 3 + this.r() * 4;
   }
 
-  sayFrom(list, vars, prio) { this.say(this.pick(list), vars, prio); }
+  sayFrom(list, vars, prio) { this.say(pickFresh(list, this.r), vars, prio); }
 
-  // busy: true while a stop is underway (only short, urgent lines then).
+  // busy: true while a stop is underway (the radio holds everything until it's done).
   update(dt, busy, idlePool) {
+    for (const q of this.queue) q.age += dt;
+    this.queue = this.queue.filter(q => q.age < (q.prio >= 2 ? 25 : 8));
     if (this.cur) {
       this.cur.t += dt;
       const full = this.cur.text.length * 0.032;
-      if (this.cur.t > full + 1.5 + this.cur.text.length * 0.018) this.cur = null;
+      if (this.cur.t > full + 1.5 + this.cur.text.length * 0.018) {
+        this.cur = null;
+        if (this.conv && this.conv.length) this.cur = { ...this.conv.shift(), t: 0 };
+        else { this.conv = null; this.gap = 0.9; }
+      }
       return;
     }
+    if (this.gap > 0) { this.gap -= dt; return; }
     if (busy) return;
     if (this.queue.length) {
-      const l = this.queue.shift();
-      this.cur = { ...l, t: 0 };
+      const item = this.queue.shift();
+      this.conv = item.lines.slice(1);
+      this.cur = { ...item.lines[0], t: 0 };
       return;
     }
     this.idleT -= dt;
-    if (this.idleT <= 0 && idlePool) { this.say(this.pick(idlePool)); }
+    if (this.idleT <= 0 && idlePool) this.say(pickFresh(idlePool, this.r), {}, 0);
   }
 
-  skip() { if (this.cur) { const full = this.cur.text.length * 0.032; if (this.cur.t < full) this.cur.t = full; else this.cur = null; } }
-  clear() { this.queue = []; this.cur = null; }
+  skip() {
+    if (!this.cur) return;
+    const full = this.cur.text.length * 0.032;
+    if (this.cur.t < full) this.cur.t = full;
+    else this.cur.t = 1e9;
+  }
+  clear() { this.queue = []; this.conv = null; this.cur = null; }
+}
+
+// Dev's pep talk as the cars line up: built fresh each race from parts, about the day's
+// conditions, or about the basics when it's dry, mild and daylight.
+const PEP_ORDER = ['finale', 'rain', 'dry', 'heat', 'cold', 'night', 'dusk', 'sand', 'walls', 'doubleStack', 'tightLane', 'slick', 'long'];
+export function pepTalk(track, r = Math.random) {
+  const has = m => track.mods.includes(m);
+  const wet = track.weather.some(w => w.wet);
+  const time = track.time || 'day';
+  const c = new Set();
+  if (track.id === 'isla') c.add('finale');
+  if (wet) c.add('rain'); else if (track.dryNow) c.add('dry');
+  if (has('heat')) c.add('heat');
+  if (has('cold')) c.add('cold');
+  if (time === 'night') c.add('night'); else if (time === 'dusk' || time === 'sunset') c.add('dusk');
+  for (const m of ['sand', 'walls', 'doubleStack', 'tightLane']) if (has(m)) c.add(m);
+  if (has('slick') && !wet) c.add('slick');
+  if (track.laps >= 14) c.add('long');
+  const mild = !wet && !has('heat') && !has('cold') && time === 'day';
+  const say = list => ['dev', pickFresh(list, r)];
+  const lines = [say(PEP.OPEN)];
+  const keys = PEP_ORDER.filter(k => c.has(k) && PEP.COND[k]);
+  if (mild) {
+    lines.push(say(PEP.MILD));
+    if (keys.length && r() < 0.5) lines.push(say(PEP.COND[keys[0]]));
+  } else for (const k of keys.slice(0, 2)) lines.push(say(PEP.COND[k]));
+  lines.push(say(PEP.CLOSE));
+  if (r() < 0.6) lines.push(pickFresh(PEP.REPLY, r));
+  return lines;
 }

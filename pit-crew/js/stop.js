@@ -224,7 +224,7 @@ export class PitStop {
     it.n++;
     this.sfx('blow');
     for (let i = 0; i < 5; i++) this.fx.push({ x: this.carX + 2 + (this.r() - 0.5) * 30, y: this.carY - 8, vx: (this.r() - 0.5) * 120, vy: -20 - this.r() * 50, life: 0.5, c: '#e8c080', sz: 1 });
-    if (it.n >= it.need) { it.st = 'done'; this.pop('INTAKES CLEAR', this.carX, this.carY - 32, '#7cff8a'); this.sfx('good'); }
+    if (it.n >= it.need) { it.st = 'done'; this.pop('INTAKES CLEAR', BOX_X - 70, Y.box + 16, '#7cff8a'); this.sfx('good'); }
   }
 
   driverTap() {
