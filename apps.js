@@ -767,6 +767,21 @@ window.SLOPWARE = {
     }
    ]
   },
+  "red-tag": {
+   "visits": 0,
+   "prompts": 2,
+   "tokens": 564874,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-07T13:30:06-07:00",
+     "note": "a reverse theme park game where you are the federal ride inspector",
+     "prompts": 2,
+     "tokens": 564874
+    }
+   ]
+  },
   "pit-crew": {
    "visits": 19,
    "prompts": 7,
