@@ -770,7 +770,7 @@ window.SLOPWARE = {
   "pit-crew": {
    "visits": 19,
    "prompts": 7,
-   "tokens": 3025764,
+   "tokens": 3031803,
    "sharedWith": null,
    "versions": [
     {
@@ -806,7 +806,7 @@ window.SLOPWARE = {
      "date": "2026-11-07T07:57:48-07:00",
      "note": "breaker calls, per-tyre wear, two-stop races, white flags",
      "prompts": 1,
-     "tokens": 641420
+     "tokens": 647459
     }
    ]
   },
@@ -950,6 +950,13 @@ window.SLOPWARE = {
      "n": 4,
      "date": "2026-11-06T14:47:28-07:00",
      "note": "fix vanishing 5-man tanks, the horse guy roared off the map, and stuck maps",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 5,
+     "date": "2026-11-07T12:19:38-07:00",
+     "note": "a seven-level campaign, from the clearing to the castle",
      "prompts": 0,
      "tokens": 0
     }
