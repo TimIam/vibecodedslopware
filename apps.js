@@ -769,8 +769,8 @@ window.SLOPWARE = {
   },
   "pit-crew": {
    "visits": 19,
-   "prompts": 5,
-   "tokens": 1683807,
+   "prompts": 6,
+   "tokens": 2384344,
    "sharedWith": null,
    "versions": [
     {
@@ -792,7 +792,14 @@ window.SLOPWARE = {
      "date": "2026-11-06T12:44:28-07:00",
      "note": "team setup, fill-the-window scaling, per-track lights out",
      "prompts": 1,
-     "tokens": 252075
+     "tokens": 245482
+    },
+    {
+     "n": 4,
+     "date": "2026-11-07T06:27:14-07:00",
+     "note": "pep talks, quieter radio, double-stack tyres, two season lengths",
+     "prompts": 1,
+     "tokens": 707130
     }
    ]
   },
