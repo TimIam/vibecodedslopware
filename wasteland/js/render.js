@@ -72,12 +72,25 @@ export class Renderer {
       c = sh([72, 70, 66], 0.92 + hh * 0.12);
       if (hash(X >> 1, Y, 3) < 0.035) c = pk(46, 44, 42);
       if (hash(x, y, 6) < 0.3 && hash(X >> 2, Y >> 1, 8) < 0.15) c = sh([96, 90, 72], 0.9 + hh * 0.1);
-    } else if (t === T.SAND) {
-      c = sh([176, 152, 106], 0.93 + hh * 0.1 + ((Y + (X >> 2)) % 6 === 0 ? -0.08 : 0));
     } else {
-      const m = fbm(x + u, y + v, 99);
-      c = sh(m > 0.55 ? [120, 98, 68] : [108, 86, 60], 0.92 + hh * 0.12);
-      if (hash(X, Y, 9) < 0.01) c = pk(150, 136, 110);
+      // soft relief: shade by the slope of a height noise, lit from the upper left
+      const gx = x + u, gy = y + v, e = fbm(gx * 1.6, gy * 1.6, 41);
+      const lit = 1 + (e - fbm(gx * 1.6 + 0.12, gy * 1.6 + 0.12, 41)) * 2.4;
+      if (t === T.SAND) {
+        const rip = Math.sin((X * 0.5 + Y) * 0.7 + fbm(gx, gy, 5) * 12);
+        c = sh([180, 154, 106], lit * (0.93 + hh * 0.08 + (rip > 0.8 ? 0.06 : rip < -0.85 ? -0.07 : 0)));
+        if (hash(X >> 1, Y, 23) < 0.004) c = pk(120, 112, 66);
+      } else {
+        // dirt drifts between ochre, red clay and ash grey across the map
+        const m = fbm(gx, gy, 99), k = fbm(gx * 0.5, gy * 0.5, 77);
+        const base = k > 0.62 ? [126, 92, 62] : k < 0.34 ? [114, 100, 78] : m > 0.55 ? [120, 98, 68] : [110, 88, 60];
+        c = sh(base, lit * (0.93 + hh * 0.1));
+        const tuft = hash(X >> 1, Y, 21);
+        if (tuft < 0.006) c = sh([102, 104, 54], 0.9 + hh * 0.3);
+        else if (tuft < 0.009) c = sh([128, 122, 64], 1);
+        else if (hash(X, Y, 9) < 0.008) c = pk(156, 142, 114);
+        else if (hash(X, Y, 10) < 0.006) c = pk(70, 56, 40);
+      }
     }
     if (G.feat[i] === F.CRATER) {
       const r = Math.hypot(u - 0.5, (v - 0.5));
@@ -135,7 +148,7 @@ export class Renderer {
     b.imageSmoothingEnabled = false;
     b.fillStyle = '#0c0b0a'; b.fillRect(0, 0, bw, bh);
     // ground chunks in view
-    this.budget = this.bigBudget ? 999 : 3; this.bigBudget = false;
+    this.budget = this.bigBudget ? 999 : 2; this.bigBudget = false;
     const ncx = Math.ceil(N / CH);
     for (let cy = 0; cy < ncx; cy++) for (let cx = 0; cx < ncx; cx++) {
       const x0 = cx * CH, y0 = cy * CH, cl = (x0 - y0 - CH) * 16 - L, ct = (x0 + y0) * 8 - Tp;
@@ -167,6 +180,11 @@ export class Renderer {
     const miny = Math.max(0, Math.floor(Math.min(g0[1], g1[1], g2[1], g3[1])) - 1), maxy = Math.min(N - 1, Math.ceil(Math.max(g0[1], g1[1], g2[1], g3[1])) + 1);
     for (let y = miny; y <= maxy; y++) for (let x = minx; x <= maxx; x++) {
       const i = I(x, y), f = G.feat[i];
+      if (G.terr[i] === T.WATER && G.fog[i]) { // glints on the water
+        const ph = (hash(x, y, 3) * 7 + this.t * 0.45) % 1;
+        if (ph < 0.08) { const gx = (x - y) * 16 - L + (hash(x, y, 4) * 20 | 0) - 10, gy = (x + y) * 8 - Tp + 5 + (hash(x, y, 5) * 6 | 0); b.fillStyle = ph < 0.04 ? '#d8eef0' : '#8fb8c0'; b.fillRect(gx, gy, ph < 0.04 ? 2 : 1, 1); }
+        continue;
+      }
       if (!f || f === F.CRATER || !G.fog[i] || G.bld[i] >= 0) continue;
       const sx = (x - y) * 16 - L, sy = (x + y) * 8 - Tp;
       if (sx < -40 || sx > bw + 40 || sy < -20 || sy > bh + 70) continue;
@@ -222,10 +240,12 @@ export class Renderer {
     this.smoke = this.smoke.filter((p) => (p.t += dt) < p.d);
     for (const p of this.smoke) {
       const [sx, sy] = this.sp(p.x, p.y), a = 1 - p.t / p.d;
-      b.globalAlpha = a * (p.dust ? 0.6 : 0.55);
-      b.fillStyle = p.dust ? '#a08a66' : p.t < 0.3 && p.fire ? '#d9a050' : '#8c8780';
-      const r = p.dust ? 1 + (p.t * 2 | 0) : 1 + (p.t > 1.2 ? 1 : 0);
-      b.fillRect(Math.round(sx + (p.sx || 0) + p.t * 3), Math.round(sy - p.z - p.t * (p.dust ? 2 : 7)), r, r);
+      b.globalAlpha = a * (p.dust ? 0.6 : 0.5);
+      const r = p.dust ? 1 + (p.t * 2 | 0) : 1 + Math.min(3, (p.t * 1.3) | 0);
+      const px = Math.round(sx + (p.sx || 0) + p.t * p.t * 1.6 - r / 2), py = Math.round(sy - p.z - p.t * (p.dust ? 2 : 7) - r / 2);
+      b.fillStyle = p.dust ? '#a08a66' : p.t < 0.3 && p.fire ? '#e0a050' : p.t < 0.6 ? '#6e6a64' : '#9a958c';
+      b.fillRect(px, py, r, r);
+      if (!p.dust && r > 1) { b.fillStyle = '#b8b3a8'; b.fillRect(px, py, r - 1, 1); }
     }
     b.globalAlpha = 1;
     // combat effects
@@ -337,6 +357,7 @@ export class Renderer {
   drawUnit(G, u, sx, sy) {
     const b = this.bx, ph = Math.floor((u.walk || 0) * 4) % 2;
     const moving = !!u.path;
+    b.fillStyle = 'rgba(20,14,8,0.45)'; b.fillRect(sx, sy, u.kind === 'mutant' ? 3 : 2, 1); // a speck of shadow
     const SHIRT = ['#b55a3a', '#5f7f9a', '#8a8a4a', '#a07a5a', '#7a5a8a', '#4f8a6a', '#c0a060', '#9a4a5a'];
     if (u.kind === 'civ') {
       b.fillStyle = '#3b3530'; b.fillRect(sx + (moving && ph ? 1 : 0), sy - 1, 1, 1);
@@ -419,7 +440,7 @@ export class Renderer {
       const s = buildingSprite(bb), x = Math.floor(X - ((bb.x - bb.y) * 16 - s.ax)), y = Math.floor(Y - ((bb.x + bb.y) * 8 - s.ay));
       if (x < 0 || y < 0 || x >= s.w || y >= s.h) continue;
       if (!s.mask) s.mask = s.c.getContext('2d').getImageData(0, 0, s.w, s.h).data;
-      if (s.mask[(y * s.w + x) * 4 + 3] < 10) continue;
+      if (s.mask[(y * s.w + x) * 4 + 3] < 200) continue; // not the translucent shadow
       const depth = bb.x + bb.w / 2 + bb.y + bb.d / 2;
       if (depth > bd) { bd = depth; best = bb; }
     }

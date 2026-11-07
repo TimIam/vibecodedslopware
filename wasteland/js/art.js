@@ -25,13 +25,28 @@ export function canvas(w, h) {
 // ---------- software sprite ----------
 export class Spr {
   constructor(w, d, top = 64, pad = 4) {
-    this.W = Math.ceil((w + d) * 16 + pad * 2);
+    this.W = Math.ceil((w + d) * 16 + pad * 2 + top * 0.95); // room on the right for the cast shadow
     this.H = Math.ceil((w + d) * 8 + top + pad * 2);
     this.ox = d * 16 + pad; this.oy = top + pad;
     this.buf = new Uint32Array(this.W * this.H);
+    this.gnd = new Uint8Array(this.W * this.H); this.gm = 0; // which pixels are the plot's own ground
+    this.shm = new Uint8Array(this.W * this.H);              // cast shadow mask
     this.smoke = []; this.extra = {};
   }
-  set(x, y, c) { x |= 0; y |= 0; if (x >= 0 && y >= 0 && x < this.W && y < this.H && c) this.buf[y * this.W + x] = c; }
+  set(x, y, c) { x |= 0; y |= 0; if (x >= 0 && y >= 0 && x < this.W && y < this.H && c) { const i = y * this.W + x; this.buf[i] = c; this.gnd[i] = this.gm; } }
+  // late-afternoon sun from the upper left: a point at height z lands this far along the ground
+  shadow(pts) {
+    const q = pts.map(([gx, gy, z]) => this.p(gx + (z * 0.78) / 16, gy - (z * 0.16) / 16, 0)).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lo = [], hi = [];
+    for (const p of q) { while (lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for (let i = q.length - 1; i >= 0; i--) { const p = q[i]; while (hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    const hull = lo.slice(0, -1).concat(hi.slice(0, -1));
+    if (hull.length < 3) return;
+    const keep = this.set; this.set = (x, y) => { if (x >= 0 && y >= 0 && x < this.W && y < this.H) this.shm[y * this.W + x] = 1; };
+    this.poly(hull, () => 1); this.set = keep;
+  }
+  shadowBox(x, y, w, d, z, h) { const P = []; for (const [a, b] of [[x, y], [x + w, y], [x + w, y + d], [x, y + d]]) P.push([a, b, z], [a, b, z + h]); this.shadow(P); }
   p(gx, gy, z = 0) { return [this.ox + (gx - gy) * 16, this.oy + (gx + gy) * 8 - z]; }
   // scanline polygon fill; fn(sx, sy) -> colour
   poly(pts, fn) {
@@ -57,6 +72,8 @@ export class Spr {
       const hh = typeof h === 'function' ? h(c) : h;
       for (let v = 0; v < hh; v++) this.set(X + c, base - 1 - v, fn(c, v, side, len, hh));
     }
+    let hm = 0; for (let c = 0; c < len; c += 2) hm = Math.max(hm, typeof h === 'function' ? h(c) : h);
+    if (hm > 0 && !this.gm) this.shadowBox(side === 0 ? x : x + w, side === 0 ? y + d : y, side === 0 ? w : 0.001, side === 0 ? 0.001 : d, z, hm);
   }
   // flat top. fn(u, v) where u, v are pixel-ish coords across the rectangle (16 per tile)
   top(x, y, w, d, z, fn) {
@@ -97,12 +114,15 @@ export class Spr {
       }
       for (let y = Math.round(sy - h - ey); y < Math.round(sy - h + ey); y++) this.set(x, y, sh(topc, 1.05 + (y - (sy - h)) / ry * 0.08 - (Math.abs(t) > 0.9 ? 0.1 : 0)));
     }
+    const P = []; for (let k = 0; k < 12; k++) { const a = (k / 12) * Math.PI * 2, gx = cx + Math.cos(a) * r, gy = cy + Math.sin(a) * r; P.push([gx, gy, z], [gx, gy, z + h]); }
+    this.shadow(P);
   }
   // gable roof with ridge along x (slopes face +y and -y)
   gableX(x, y, w, d, z, rh, roof, gable, o = 0.08) {
     const X0 = x - o, X1 = x + w + o, Y0 = y - o, Y1 = y + d + o, ym = y + d / 2;
     const back = [this.p(X0, Y0, z - 1), this.p(X1, Y0, z - 1), this.p(X1, ym, z + rh), this.p(X0, ym, z + rh)];
     const front = [this.p(X0, Y1, z - 1), this.p(X1, Y1, z - 1), this.p(X1, ym, z + rh), this.p(X0, ym, z + rh)];
+    this.shadow([[X0, Y0, z], [X1, Y0, z], [X1, Y1, z], [X0, Y1, z], [X0, ym, z + rh], [X1, ym, z + rh]]);
     this.poly(back, (sx, sy) => roof(sx, sy, 2, 'x'));
     this.wall(1, x, y, w, d, z, (c) => Math.max(0, Math.round(rh * (1 - Math.abs(c / (d * 16) - 0.5) * 2))), gable);
     this.poly(front, (sx, sy) => roof(sx, sy, 0, 'x'));
@@ -114,6 +134,7 @@ export class Spr {
     const X0 = x - o, X1 = x + w + o, Y0 = y - o, Y1 = y + d + o, xm = x + w / 2;
     const back = [this.p(X0, Y0, z - 1), this.p(X0, Y1, z - 1), this.p(xm, Y1, z + rh), this.p(xm, Y0, z + rh)];
     const front = [this.p(X1, Y0, z - 1), this.p(X1, Y1, z - 1), this.p(xm, Y1, z + rh), this.p(xm, Y0, z + rh)];
+    this.shadow([[X0, Y0, z], [X1, Y0, z], [X1, Y1, z], [X0, Y1, z], [xm, Y0, z + rh], [xm, Y1, z + rh]]);
     this.poly(back, (sx, sy) => roof(sx, sy, 2, 'y'));
     this.poly(front, (sx, sy) => roof(sx, sy, 1, 'y'));
     this.wall(0, x, y, w, d, z, (c) => Math.max(0, Math.round(rh * (1 - Math.abs(c / (w * 16) - 0.5) * 2))), gable);
@@ -123,9 +144,24 @@ export class Spr {
   // single-pitch roof, high at the back (-x,-y corner side), for scrap lean-tos
   lean(x, y, w, d, z, hb, roof) {
     const pts = [this.p(x - 0.06, y - 0.06, z + hb), this.p(x + w + 0.06, y - 0.06, z + hb * 0.5), this.p(x + w + 0.06, y + d + 0.06, z - 1), this.p(x - 0.06, y + d + 0.06, z + hb * 0.5)];
+    this.shadow([[x, y, z + hb], [x + w, y, z + hb * 0.5], [x + w, y + d, z], [x, y + d, z + hb * 0.5]]);
     this.poly(pts, (sx, sy) => roof(sx, sy, 0, 'l'));
   }
   done() {
+    const W = this.W, B = this.buf, solid = (i) => B[i] && !this.gnd[i];
+    // darken the silhouette edge of everything standing up, so it reads against the ground
+    const edge = [];
+    for (let y = 1; y < this.H - 1; y++) for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x;
+      if (solid(i) && (!solid(i + 1) || !solid(i + W) || !solid(i - 1) || !solid(i - W))) edge.push(i);
+    }
+    for (const i of edge) { const c = B[i]; B[i] = pk((c & 255) * 0.78, ((c >> 8) & 255) * 0.78, ((c >> 16) & 255) * 0.78); }
+    // cast shadows: onto bare ground as translucent dark, onto the plot's own ground as a darker shade
+    for (let i = 0; i < B.length; i++) {
+      if (!this.shm[i]) continue;
+      if (!B[i]) B[i] = pk(26, 18, 10, 112);
+      else if (this.gnd[i]) { const c = B[i]; B[i] = pk((c & 255) * 0.66, ((c >> 8) & 255) * 0.64, ((c >> 16) & 255) * 0.62); }
+    }
     // crop to content
     let x0 = this.W, y0 = this.H, x1 = -1, y1 = -1;
     for (let y = 0; y < this.H; y++) for (let x = 0; x < this.W; x++) if (this.buf[y * this.W + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
@@ -330,7 +366,7 @@ function block(S, o, x, y, w, d, h, opt = {}) {
   else if (roof === 'gable') ((opt.axis || (o.hue % 2 ? 'x' : 'y')) === 'x' ? S.gableX(x, y, w, d, h, opt.rh || Math.round(Math.min(w, d) * 9), rf, f) : S.gableY(x, y, w, d, h, opt.rh || Math.round(Math.min(w, d) * 9), rf, f));
   else if (roof === 'none') S.top(x, y, w, d, h, m.top);
 }
-function ground(S, x, y, w, d, fn) { S.top(x, y, w, d, 0, fn); }
+function ground(S, x, y, w, d, fn) { S.gm = 1; S.top(x, y, w, d, 0, fn); S.gm = 0; }
 const dirtFn = (seed) => (u, v, sx, sy) => sh([112, 92, 64], n(sx, sy, seed, 0.12));
 const grassFn = (seed) => (u, v, sx, sy) => sh(hash(sx, sy, seed) < 0.12 ? [92, 140, 60] : [74, 120, 52], n(sx, sy, seed + 1, 0.1));
 const gravelFn = (seed) => (u, v, sx, sy) => sh([132, 126, 114], n(sx, sy, seed, 0.15));
@@ -369,6 +405,7 @@ function crops(S, x, y, w, d, seed, kind = 0) {
 function tree(S, gx, gy, s, seed, alive = true) {
   const [sx, sy] = S.p(gx, gy, 0);
   const trunk = H('#5b4330'), h = Math.round(4 + s * 6);
+  if (alive) { const r0 = (2 + s * 3) / 22; S.shadow([[gx, gy, 0], [gx - r0, gy, h + 2], [gx + r0, gy, h + 2], [gx, gy - r0, h + 2 + r0 * 30], [gx, gy + r0, h + 2], [gx, gy, h + (2 + s * 3) * 2]]); }
   for (let j = 0; j < h; j++) S.set(sx, sy - j, sh(trunk, 1));
   if (!alive) return;
   const r = 2 + s * 3;
@@ -731,6 +768,7 @@ export function featureSprite(f, fv) {
     const S = new Spr(1, 1, 30, 2);
     const [sx, sy] = S.p(0.5 + (hash(s, 1) - 0.5) * 0.4, 0.5 + (hash(s, 2) - 0.5) * 0.4, 0);
     const hgt = 10 + (hash(s, 3) * 10 | 0), col = [H('#4a3b2e'), H('#5c4a3a'), H('#3b3029')][fv % 3];
+    { const gx = 0.5 + (hash(s, 1) - 0.5) * 0.4, gy = 0.5 + (hash(s, 2) - 0.5) * 0.4; S.shadow([[gx, gy, 0], [gx + 0.04, gy, 0], [gx, gy, hgt], [gx + 0.04, gy, hgt]]); }
     for (let j = 0; j < hgt; j++) { S.set(sx, sy - j, sh(col, 1)); if (j < 4) S.set(sx + 1, sy - j, sh(col, 0.8)); }
     const nb = 3 + (hash(s, 4) * 3 | 0);
     for (let k = 0; k < nb; k++) {
