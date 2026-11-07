@@ -76,7 +76,7 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 function readInput() {
   const k = c => keys.has(c);
   return {
-    mx: mouse.x, my: mouse.y,
+    mx: mouse.x + g.cam.x, my: mouse.y + g.cam.y,   // aim in world pixels; the screen scrolls on later levels
     ax: (k('KeyD') || k('ArrowRight') ? 1 : 0) - (k('KeyA') || k('ArrowLeft') ? 1 : 0),
     ay: (k('KeyS') || k('ArrowDown') ? 1 : 0) - (k('KeyW') || k('ArrowUp') ? 1 : 0),
     press: { ...press },
@@ -92,7 +92,7 @@ function start() {
   R.reset();
   acc = 0;
   mode = 'play';
-  for (const id of ['title', 'over', 'paused', 'store']) $(id).hidden = true;
+  for (const id of ['title', 'over', 'paused', 'store', 'won']) $(id).hidden = true;
   canvas.focus();
 }
 function pause() { mode = 'paused'; $('paused').hidden = false; }
@@ -115,7 +115,7 @@ function gameOver() {
   $('stats').innerHTML = [
     ['Score', fmt(g.score) + (newBest ? ' <em>new best</em>' : '')],
     ['Shift length', `${m}:${s}`],
-    ['Maps cleared', g.maps],
+    ['Levels cleared', g.maps],
     ['Laps between rocks', g.laps],
     ['Adventurers eaten', g.kills],
     ['Raids wiped', g.wipes.raid + g.wipes.final],
@@ -129,7 +129,26 @@ function gameOver() {
   $('again').focus();
 }
 
+// the castle is down
+function gameWon() {
+  mode = 'over';
+  const newBest = g.score > best;
+  if (newBest) { best = Math.floor(g.score); try { localStorage.setItem(BEST_KEY, JSON.stringify({ score: best, at: Date.now() })); } catch {} }
+  const m = Math.floor(g.t / 60), s = String(Math.floor(g.t % 60)).padStart(2, '0');
+  $('wonStats').innerHTML = [
+    ['Score', fmt(g.score) + (newBest ? ' <em>new best</em>' : '')],
+    ['Time', `${m}:${s}`],
+    ['Adventurers eaten', g.kills],
+    ['Raids wiped', g.wipes.raid + g.wipes.final],
+    ['Points spent', fmt(g.spent)],
+  ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  showBest();
+  $('won').hidden = false;
+  $('wonAgain').focus();
+}
+
 $('go').addEventListener('click', start);
+$('wonAgain').addEventListener('click', start);
 $('again').addEventListener('click', start);
 $('resume').addEventListener('click', resume);
 
@@ -255,6 +274,7 @@ function drain() {
   for (const e of g.events) {
     if (e === 'over') gameOver();
     else if (e === 'store') openStore();
+    else if (e === 'won') gameWon();
     else audio.play(e);
   }
   g.events.length = 0;
@@ -326,5 +346,6 @@ if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
       return { t: g.t, score: Math.round(g.score), hp: Math.round(g.boss.hp), units: g.units.length, mult: g.mult };
     },
     world: () => import('./world.js'),
+    level: async n => { (await import('./world.js')).jumpToLevel(g, n); R.reset(); paint(); return g.map.name; },
   };
 }

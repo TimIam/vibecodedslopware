@@ -2,6 +2,33 @@
 
 import { PAL, drawText, textWidth, ICONS, makeBossSprites, BOSS_DIRS, BOSS_SIZE, tinted, hash, newCanvas } from './art.js';
 import { W, H, LEASH, CLASS, ADDS, SLOT_KEYS, RAID_LAPS, FINAL_LAPS, angDiff, pathDist, pathNearest, zoneFace, beamEnd, destRock } from './world.js';
+import { LEVELS } from './levels/index.js';
+import { KINDS, CRITTERS } from './props.js';
+
+// what the levels know how to draw: their props, animals, adds and the animals' bodies
+const PROP_ART = Object.assign({}, ...LEVELS.map(L => L.art?.props || {}));
+const CRITTER_ART = Object.assign({}, ...LEVELS.map(L => L.art?.critters || {}));
+const LEVEL_ADD_ART = Object.assign({}, ...LEVELS.map(L => L.art?.adds || {}));
+const CORPSE_ART = Object.assign({}, ...LEVELS.map(L => L.art?.corpses || {}));
+// the camera for this frame (world pixels of the screen's top-left), and a sprite cache the level art can use
+const VIEW = { x: 0, y: 0 };
+// Painting sprites pixel by pixel is slow, and a toppling tower can ask for dozens at once, so each frame gets a few
+// milliseconds of it. Past that, a missing sprite borrows the last one painted with the same name prefix and size
+// ('cb|castle_wall|…' → 'cb|castle_wall') and gets painted properly on a later frame.
+const sprites = new Map(), similar = new Map();
+let spriteBudget = 0;
+function sprite(key, w, h, paint) {
+  let c = sprites.get(key);
+  if (c) return c;
+  const pre = key.split('|', 2).join('|') + '#' + w + 'x' + h;
+  if (spriteBudget <= 0 && similar.has(pre)) return similar.get(pre);
+  const t0 = performance.now();
+  c = newCanvas(w, h); paint(c.getContext('2d'));
+  sprites.set(key, c); similar.set(pre, c);
+  spriteBudget -= performance.now() - t0;
+  return c;
+}
+const onScreen = (x, y, m = 30) => x > VIEW.x - m && x < VIEW.x + W + m && y > VIEW.y - m && y < VIEW.y + H + m;
 
 const TAU = Math.PI * 2;
 
@@ -30,19 +57,30 @@ const lookKey = l => `${l.head}${l.neck}${l.back}${l.tail}${l.limbs}`;
 export function createRenderer() {
   const buf = newCanvas(W, H), ctx = buf.getContext('2d');
   const shadow = makeShadow();
-  const trail = newCanvas(W, H), tctx = trail.getContext('2d');
+  let trail = newCanvas(W, H), tctx = trail.getContext('2d');
   let boss = null, bg = null, fg = null, bgFor = null;
 
   function render(g, view = {}) {
     if (!boss || boss.key !== lookKey(g.look)) boss = makeBossSprites(g.look);
-    if (bgFor !== g.map) { bg = makeBackground(g.map); fg = makeForeground(g.map.theme.id); bgFor = g.map; tctx.clearRect(0, 0, W, H); }
+    const m = g.map, art = m.level.art || {};
+    if (bgFor !== m) {
+      bg = m.mode === 'patrol' ? makeBackground(m) : makeGround(m);
+      if (art.decorate) art.decorate(bg.getContext('2d'), m, H_ART);
+      fg = art.canopy ? makeForeground(m.theme.id) : null;
+      bgFor = m;
+      trail = newCanvas(m.w, m.h); tctx = trail.getContext('2d');
+    }
+    VIEW.x = Math.round(g.cam.x); VIEW.y = Math.round(g.cam.y);
+    spriteBudget = 6;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
     const s = g.shake > 0 ? Math.ceil(g.shake * 4) : 0;
     const ox = s ? ((Math.floor(g.t * 40) % 2) ? s : -s) : 0, oy = s ? ((Math.floor(g.t * 33) % 2) ? s : -s) * 0.6 : 0;
     ctx.fillStyle = PAL.night; ctx.fillRect(0, 0, W, H);
-    ctx.translate(Math.round(ox), Math.round(oy));
+    ctx.translate(Math.round(ox) - VIEW.x, Math.round(oy) - VIEW.y);
     ctx.drawImage(bg, 0, 0);
+    // scorch marks are painted into the persistent ground layer once
+    for (const a of g.ashes) if (!a.stamped) { a.stamped = true; stampAsh(tctx, a); }
 
     // footprints wear the path in over time
     for (const st of g.steps) {
@@ -53,13 +91,15 @@ export function createRenderer() {
     g.steps.length = 0;
     ctx.drawImage(trail, 0, 0);
 
-    drawLeash(ctx, g);
+    if (g.water) drawWater(ctx, g);
+    art.under?.(ctx, g, H_ART);
     for (const i of g.ice) drawIce(ctx, i, g);
     drawFires(ctx, g);
     drawTelegraph(ctx, g);
-    for (const c of g.corpses) drawCorpse(ctx, c);
+    for (const c of g.corpses) if (onScreen(c.x, c.y)) drawCorpse(ctx, c);
     for (const r of g.rings) if (r.col !== 'slash') drawRing(ctx, r);
-    if (!g.clear) drawMarker(ctx, g, false);
+    const patrol = m.mode === 'patrol';
+    if (patrol && !g.clear) drawMarker(ctx, g, false);
 
     // y-sorted: adventurers, loose horses, adds, the boss
     const list = [];
@@ -71,17 +111,26 @@ export function createRenderer() {
     }
     for (const p of g.parts) if (p.horse) list.push({ y: p.y, f: () => drawHorse(ctx, p.x, p.y, p.face, p.walk, false, g.t) });
     for (const a of g.adds) list.push({ y: a.y, f: () => drawAdd(ctx, a, g) });
+    // scenery: fallen things lie under everybody, standing things sort by their foot
+    for (const p of g.props) {
+      if (p.state === 'gone' || !onScreen(p.x, p.y, 40)) continue;
+      const draw = PROP_ART[p.kind];
+      if (!draw) continue;
+      list.push({ y: p.state === 'down' ? p.y - 40 : p.y + (p.h ? p.h / 2 : 0) + (p.sortY || 0), f: () => { draw(ctx, p, g, H_ART); if (p.burning) drawFlames(ctx, p, g.t); } });
+    }
+    for (const c of g.critters) if (onScreen(c.x, c.y)) list.push({ y: c.y, f: () => (CRITTER_ART[c.kind] || drawCritter)(ctx, c, g, H_ART) });
     list.push({ y: g.boss.y + 2, f: () => drawBoss(ctx, g) });
     list.sort((a, b) => a.y - b.y);
     for (const d of list) d.f();
     for (const u of g.units) if (u.role === 'rider' && u.state === 'climb') drawClimber(ctx, u, g);
-    if (!g.clear) drawMarker(ctx, g, true);
+    art.over?.(ctx, g, H_ART);
+    if (patrol && !g.clear) drawMarker(ctx, g, true);
 
     drawBeam(ctx, g);
     for (const o of g.bolts) drawBolt(ctx, o);
     for (const r of g.rings) if (r.col === 'slash') drawSlash(ctx, r);
-    for (const p of g.parts) if (!p.horse) drawPart(ctx, p);
-    ctx.drawImage(fg, 0, 0);
+    for (const p of g.parts) if (!p.horse && onScreen(p.x, p.y, 4)) drawPart(ctx, p);
+    if (fg) ctx.drawImage(fg, VIEW.x, VIEW.y);
     for (const o of g.ghosts) drawGhost(ctx, o);
     for (const t of g.texts) {
       const k = t.t / t.life, a = k > 0.7 ? (1 - k) / 0.3 : 1;
@@ -157,6 +206,71 @@ export function bossPreview(look, dir, frame = 0) {
   const k = lookKey(look);
   if (!previews.has(k)) previews.set(k, makeBossSprites(look));
   return previews.get(k).get(dir, frame);
+}
+
+// ------------------------------------------------------------------------------------------------ level art support
+
+// what level art gets to draw with
+const H_ART = { px: (ctx, x, y, c) => px(ctx, x, y, c), PAL, hash, vnoise, drawText, sprite, tinted, ring: (...a) => ring(...a), textWidth, VIEW, W, H };
+
+// a level's whole world, painted once by its ground() art
+function makeGround(m) {
+  const c = newCanvas(m.w, m.h), x = c.getContext('2d');
+  x.fillStyle = PAL.grass1; x.fillRect(0, 0, m.w, m.h);
+  m.level.art?.ground?.(x, m, H_ART);
+  return c;
+}
+
+function stampAsh(c, a) {
+  const R = Math.ceil(a.r) + 1;
+  for (let py = -R; py <= R; py++) for (let qx = -R; qx <= R; qx++) {
+    const inside = a.w ? Math.abs(qx) <= a.w / 2 + 1 && Math.abs(py) <= a.h / 2 + 1 : Math.hypot(qx, py) <= a.r;
+    if (!inside) continue;
+    const h = hash(qx + a.seed, py + Math.round(a.x));
+    if (h < 0.25) continue;
+    c.fillStyle = h > 0.92 ? '#5a5248' : h > 0.6 ? '#1c1814' : '#2a241e';
+    c.fillRect(Math.round(a.x) + qx, Math.round(a.y) + py, 1, 1);
+  }
+}
+
+// open water ripples; filled cells are a heap of rubble you can walk on
+function drawWater(ctx, g) {
+  const w = g.water, cs = w.cs, fr = Math.floor(g.t * 3);
+  const c0 = Math.max(0, Math.floor(VIEW.x / cs)), c1 = Math.min(w.cols - 1, Math.ceil((VIEW.x + W) / cs));
+  const r0 = Math.max(0, Math.floor(VIEW.y / cs)), r1 = Math.min(w.rows - 1, Math.ceil((VIEW.y + H) / cs));
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    const v = w.a[r * w.cols + c];
+    if (!v) continue;
+    const x = c * cs, y = r * cs;
+    if (v === 1) {
+      ctx.fillStyle = (c + r) & 1 ? '#2a4a5e' : '#2e5266'; ctx.fillRect(x, y, cs, cs);
+      if (hash(c + fr, r) > 0.8) { ctx.fillStyle = '#5f8ea6'; ctx.fillRect(x + (hash(c, r + fr) * cs | 0), y + (hash(r, c) * cs | 0), 2, 1); }
+      // a dark lip where water meets land
+      if (r > 0 && !w.a[(r - 1) * w.cols + c]) { ctx.fillStyle = '#16262e'; ctx.fillRect(x, y, cs, 1); }
+    } else {
+      for (let k = 0; k < 6; k++) { ctx.fillStyle = ['#6b6c63', '#55564f', '#7a5a3a', '#8f8f84', '#5a3d29', '#3f403a'][(hash(c * 7 + k, r) * 6) | 0]; ctx.fillRect(x + (hash(k, c + r * 31) * (cs - 1) | 0), y + (hash(c, k + r) * (cs - 1) | 0), 2, 2); }
+      ctx.fillStyle = 'rgba(30,40,46,.35)'; ctx.fillRect(x, y, cs, cs);
+    }
+  }
+}
+
+// little flames licking up off anything that is burning
+function drawFlames(ctx, p, t) {
+  const w = p.w || p.r * 2 + 4, top = p.y - (p.state === 'up' ? (p.h ? p.h / 2 + 3 : 9) : 2);
+  const fr = Math.floor(t * 12), n = Math.min(16, 3 + Math.floor(w / 2));
+  for (let i = 0; i < n; i++) {
+    const x = Math.round(p.x - w / 2 + hash(i + p.seed, fr) * w), y = Math.round(top + hash(i * 3, fr + p.seed) * 5);
+    const h = hash(i, fr * 7 + p.seed);
+    ctx.fillStyle = h > 0.75 ? PAL.fire3 : h > 0.4 ? PAL.fire2 : PAL.fire1;
+    ctx.fillRect(x, y, 1, h > 0.5 ? 2 : 1);
+  }
+}
+
+// an animal with no art of its own: a small coloured lump
+function drawCritter(ctx, c) {
+  const x = Math.round(c.x), y = Math.round(c.y);
+  ctx.fillStyle = c.hitT > 0 ? '#ffffff' : PAL.brown; ctx.fillRect(x - 1, y - 2, 3, 2);
+  px(ctx, x + c.fx, y - 3, PAL.ink);
 }
 
 // ------------------------------------------------------------------------------------------------ the ground
@@ -272,21 +386,6 @@ function makeShadow() {
 
 // ------------------------------------------------------------------------------------------------ world bits
 
-// dotted leash line, only near the boss and only once it is getting close to it
-function drawLeash(ctx, g) {
-  const b = g.boss, m = g.map;
-  const near = pathDist(m, b.x, b.y);
-  const a = Math.max(0, Math.min(1, (near - (LEASH - 28)) / 22));
-  if (a <= 0 || b.dead) return;
-  ctx.fillStyle = PAL.cream;
-  ctx.globalAlpha = a * 0.5;
-  const t = Math.floor(g.t * 6);
-  for (let py = Math.max(0, Math.floor(b.y - 60)); py < Math.min(H, b.y + 60); py++) for (let px = Math.max(0, Math.floor(b.x - 60)); px < Math.min(W, b.x + 60); px++) {
-    const d = m.df[py * W + px];
-    if (Math.abs(d - LEASH) < 0.55 && (px + py + t) % 3 === 0 && Math.hypot(px - b.x, py - b.y) < 60) ctx.fillRect(px, py, 1, 1);
-  }
-  ctx.globalAlpha = 1;
-}
 
 function drawIce(ctx, i, g) {
   const fade = i.t < 0.2 ? i.t / 0.2 : i.t > i.life - 1.2 ? Math.max(0, (i.life - i.t) / 1.2) : 1;
@@ -447,8 +546,8 @@ function drawTelegraph(ctx, g) {
   }
   if (a.fired && k !== 'breath') return;
   const prog = a.fired ? 1 : a.t / d.wind;
-  const R = d.range, x0 = Math.max(0, Math.floor(b.x - R)), x1 = Math.min(W - 1, Math.ceil(b.x + R));
-  const y0 = Math.max(0, Math.floor(b.y - R)), y1 = Math.min(H - 1, Math.ceil(b.y + R));
+  const R = d.range, x0 = Math.max(VIEW.x, Math.floor(b.x - R)), x1 = Math.min(VIEW.x + W - 1, Math.ceil(b.x + R));
+  const y0 = Math.max(VIEW.y, Math.floor(b.y - R)), y1 = Math.min(VIEW.y + H - 1, Math.ceil(b.y + R));
   const blink = Math.floor(g.t * (prog > 0.6 ? 24 : 10)) & 1;
   const half = d.arc / 2, face = zoneFace(g, k);
   const channel = a.fired;
@@ -480,7 +579,7 @@ function drawLane(ctx, g, range, width, prog) {
   ctx.fillStyle = PAL.tele;
   for (let py = Math.floor(b.y - R); py <= Math.ceil(b.y + R); py++) for (let qx = Math.floor(b.x - R); qx <= Math.ceil(b.x + R); qx++) {
     const dx = qx + 0.5 - b.x, dy = py + 0.5 - b.y, lx = dx * c + dy * s, ly = -dx * s + dy * c;
-    if (qx < 0 || py < 0 || qx >= W || py >= H || lx < 8 || lx > d.range || Math.abs(ly) > d.width) continue;
+    if (qx < VIEW.x || py < VIEW.y || qx >= VIEW.x + W || py >= VIEW.y + H || lx < 8 || lx > d.range || Math.abs(ly) > d.width) continue;
     const edge = lx > d.range - 1 || Math.abs(ly) > d.width - 1;
     const al = edge ? 0.85 : lx < 8 + (d.range - 8) * prog ? (((qx + py + blink) & 1) ? 0.42 : 0.16) : (((qx + py) & 1) ? 0.12 : 0);
     if (!al) continue;
@@ -653,7 +752,8 @@ const ADD_COL = { k: PAL.ink, F: PAL.fur3, f: PAL.fur2, e: PAL.eye, h: PAL.horn,
 function drawAdd(ctx, a, g) {
   const x = Math.round(a.x), y = Math.round(a.y), flip = a.fx < 0, flash = a.hit > 0;
   ctx.fillStyle = 'rgba(8,10,6,.4)'; ctx.fillRect(x - Math.ceil(a.r), y + 1, Math.ceil(a.r) * 2 + 1, 1);
-  {
+  if (LEVEL_ADD_ART[a.kind]) LEVEL_ADD_ART[a.kind](ctx, a, g, H_ART);
+  else {
     const frames = ADD_ART[a.kind];
     const map = a.kind === 'spitter' || a.kind === 'necro' ? frames[a.swing > 0 ? 1 : 0] : frames[a.moving ? Math.floor(a.walk) % 2 : 0];
     const w = map[0].length, h = map.length, ox = x - Math.floor(w / 2), oy = y - h + 1 - (a.kind === 'gnasher' && a.swing > 0 ? 1 : 0);
@@ -670,6 +770,12 @@ function drawCorpse(ctx, c) {
   const a = c.t > 30 ? (40 - c.t) / 10 : 1;
   ctx.globalAlpha = Math.max(0, a) * 0.85;
   const x = Math.round(c.x), y = Math.round(c.y);
+  if (c.critter) {
+    if (CORPSE_ART[c.critter]) CORPSE_ART[c.critter](ctx, c, H_ART);
+    else { ctx.fillStyle = PAL.brown; ctx.fillRect(x - 1, y - 1, 3, 1); px(ctx, x, y, PAL.blood); }
+    ctx.globalAlpha = 1;
+    return;
+  }
   ctx.fillStyle = PAL[CLASS[c.cls].col]; ctx.fillRect(x - 1, y - 1, c.cls === 'pet' ? 2 : 3, 1);
   px(ctx, x + 2, y - 1, c.cls === 'pet' ? PAL.brown : PAL.skin);
   px(ctx, x, y, PAL.blood);
@@ -706,7 +812,7 @@ function drawPart(ctx, p) {
 
 function bubble(ctx, s, x, y, bg, fg, alpha = 1) {
   const w = textWidth(s);
-  const bx = Math.max(2, Math.min(W - w - 6, Math.round(x - w / 2 - 2))), by = Math.max(2, Math.round(y));
+  const bx = Math.max(VIEW.x + 2, Math.min(VIEW.x + W - w - 6, Math.round(x - w / 2 - 2))), by = Math.max(VIEW.y + 2, Math.round(y));
   ctx.globalAlpha = alpha * 0.82;
   ctx.fillStyle = bg; ctx.fillRect(bx, by, w + 4, 7);
   ctx.fillRect(Math.round(x), by + 7, 1, 1);
@@ -740,10 +846,20 @@ function drawHud(ctx, g, view) {
   ctx.globalAlpha = 1;
   drawText(ctx, fmt(g.score), 4, 3, PAL.cream, { scale: 2 });
   const mc = g.mult >= 4 ? PAL.gold : g.mult >= 2 ? PAL.yellow : PAL.cream;
-  drawText(ctx, `AIMLESS X${g.mult.toFixed(2)}`, 4, 15, mc);
-  // where this map is up to: laps to the 25-man, laps to the 40-man, then the 40-man itself
-  const goal = g.clear ? 'MAP CLEARED' : g.dir.final ? 'BEAT THE 40-MAN' : g.lapsMap < RAID_LAPS ? `LAP ${g.lapsMap}/${RAID_LAPS} TO THE RAID` : `LAP ${g.lapsMap}/${FINAL_LAPS} TO THE BIG ONE`;
-  drawText(ctx, `MAP ${g.map.n}  ${goal}`, 4, 22, g.dir.final ? PAL.red : PAL.rock3);
+  const mp = g.map, L = mp.level;
+  drawText(ctx, `${mp.mode === 'patrol' ? 'AIMLESS' : 'VENGEANCE'} X${g.mult.toFixed(2)}`, 4, 15, mc);
+  // where this level is up to: laps or Chaos to the 25-man and the 40-man, or the level's own goal
+  const goal = g.won ? 'YOU WIN' : g.clear ? 'LEVEL CLEARED' : L.hud ? L.hud(g) : g.dir.final ? 'BEAT THE 40-MAN'
+    : mp.mode === 'patrol' ? (g.lapsMap < RAID_LAPS ? `LAP ${g.lapsMap}/${RAID_LAPS} TO THE RAID` : `LAP ${g.lapsMap}/${FINAL_LAPS} TO THE BIG ONE`)
+    : `CHAOS ${Math.floor(g.chaos * 100)}%  ${g.chaos < 0.5 ? 'RAID AT 50' : 'BIG ONE AT 100'}`;
+  drawText(ctx, `LV ${mp.n}  ${goal}`, 4, 22, g.dir.final ? PAL.red : PAL.rock3);
+  if (mp.mode === 'chaos') {
+    // the Chaos meter, with a tick at the 25-man
+    const cx = 8 + textWidth('HOARD ' + fmt(g.points));
+    ctx.fillStyle = PAL.ink; ctx.fillRect(cx, 30, 42, 4);
+    ctx.fillStyle = g.chaos >= 1 ? PAL.red : PAL.orange; ctx.fillRect(cx + 1, 31, Math.round(40 * Math.min(1, g.chaos)), 2);
+    ctx.fillStyle = PAL.cream; ctx.fillRect(cx + 21, 30, 1, 4);
+  }
   drawText(ctx, `HOARD ${fmt(g.points)}`, 4, 29, PAL.gold, { alpha: 0.85 });
 
   // the target frame, as the adventurers see it
@@ -763,6 +879,7 @@ function drawHud(ctx, g, view) {
   const blink = Math.floor(g.t * 3) % 2;
   if (b.dead) drawText(ctx, 'DEFEATED', 4, 170, PAL.red);
   else if (b.evade) drawText(ctx, 'EVADING...', 4, 170, PAL.cream, { alpha: blink ? 1 : 0.5 });
+  else if (g.map.mode !== 'patrol') drawText(ctx, g.vengeT > 4 && g.mult > 1 ? 'VENGEANCE FADING' : 'WRECK IT', 4, 170, g.vengeT > 4 && g.mult > 1 ? PAL.red : PAL.orange, { alpha: g.vengeT > 4 && g.mult > 1 && !blink ? 0.6 : 1 });
   else if (g.onPatrol) drawText(ctx, 'ON PATROL', 4, 170, PAL.tuftHi);
   else drawText(ctx, g.offLane > 3 ? 'AIMLESSNESS FADING' : 'OFF THE PATH', 4, 170, PAL.red, { alpha: blink ? 1 : 0.6 });
   const m = Math.floor(g.t / 60), s = Math.floor(g.t % 60);

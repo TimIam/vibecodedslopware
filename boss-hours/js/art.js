@@ -14,6 +14,7 @@ export const PAL = {
   tele: '#ff3b2a', fire0: '#7a1a0e', fire1: '#d64a18', fire2: '#ffa22b', fire3: '#fff07a',
   heal: '#7cff8a', frost: '#9fd8ff', shadow: '#c27bff', arrow: '#e8d8b0', fireball: '#ff8a1f', flame: '#ff9a2e', ember: '#ffe066',
   blood: '#a3201a', dust: '#b4a27c', fur: '#6e4229', cream: '#f4ecd2', gold: '#ffd75a', ghost: '#bfe8ff',
+  splinter: '#c8a070', leaf: '#4e7a32', needle: '#2e5a3a', smoke: '#6b665c', splash: '#9fd0e8',
   hpHi: '#e2483a', hpLo: '#7a1d16', hpBg: '#2a1310', bone: '#e8e2cc', spark: '#bff6ff', beam: '#7fe8ff',
   ice0: '#b8e4f2', ice1: '#dff4fb', ice2: '#8cc8de',
 };
@@ -352,5 +353,8 @@ export function tinted(cv, col) {
 
 export function newCanvas(w, h) {
   if (typeof OffscreenCanvas !== 'undefined' && typeof document === 'undefined') return new OffscreenCanvas(w, h);
-  const c = document.createElement('canvas'); c.width = w; c.height = h; return c;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  // everything offscreen is painted a pixel at a time, which a CPU-backed canvas does far faster than a GPU one
+  c.getContext('2d', { willReadFrequently: true });
+  return c;
 }
