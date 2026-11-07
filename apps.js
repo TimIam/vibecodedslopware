@@ -769,8 +769,8 @@ window.SLOPWARE = {
   },
   "pit-crew": {
    "visits": 19,
-   "prompts": 6,
-   "tokens": 2384344,
+   "prompts": 7,
+   "tokens": 3025764,
    "sharedWith": null,
    "versions": [
     {
@@ -800,6 +800,13 @@ window.SLOPWARE = {
      "note": "pep talks, quieter radio, double-stack tyres, two season lengths",
      "prompts": 1,
      "tokens": 707130
+    },
+    {
+     "n": 5,
+     "date": "2026-11-07T07:57:48-07:00",
+     "note": "breaker calls, per-tyre wear, two-stop races, white flags",
+     "prompts": 1,
+     "tokens": 641420
     }
    ]
   },
