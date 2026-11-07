@@ -767,10 +767,25 @@ window.SLOPWARE = {
     }
    ]
   },
+  "wasteland": {
+   "visits": 0,
+   "prompts": 2,
+   "tokens": 564857,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-07T14:40:21-07:00",
+     "note": "a post-apocalyptic isometric city builder",
+     "prompts": 2,
+     "tokens": 564857
+    }
+   ]
+  },
   "park-inspector": {
    "visits": 0,
    "prompts": 2,
-   "tokens": 579356,
+   "tokens": 589382,
    "sharedWith": null,
    "versions": [
     {
@@ -778,7 +793,7 @@ window.SLOPWARE = {
      "date": "2026-11-07T13:31:05-07:00",
      "note": "rename Red Tag, now served at /park-inspector/",
      "prompts": 2,
-     "tokens": 579356
+     "tokens": 589382
     }
    ]
   },
