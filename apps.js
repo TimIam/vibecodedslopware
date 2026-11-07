@@ -767,18 +767,18 @@ window.SLOPWARE = {
     }
    ]
   },
-  "red-tag": {
+  "park-inspector": {
    "visits": 0,
    "prompts": 2,
-   "tokens": 564874,
+   "tokens": 579356,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
-     "date": "2026-11-07T13:30:06-07:00",
-     "note": "a reverse theme park game where you are the federal ride inspector",
+     "date": "2026-11-07T13:31:05-07:00",
+     "note": "rename Red Tag, now served at /park-inspector/",
      "prompts": 2,
-     "tokens": 564874
+     "tokens": 579356
     }
    ]
   },
