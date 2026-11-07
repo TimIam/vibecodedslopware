@@ -1,6 +1,6 @@
-# Red Tag: builds every ride part, building, prop and person in Blender and exports assets/parts.glb.
+# Park Inspector: builds every ride part, building, prop and person in Blender and exports assets/parts.glb.
 #
-#   "C:\Program Files\Blender Foundation\Blender 5.1\blender.exe" --background --factory-startup --python red-tag/build_assets.py
+#   "C:\Program Files\Blender Foundation\Blender 5.1\blender.exe" --background --factory-startup --python park-inspector/build_assets.py
 #
 # Metres. Authored Z-up with each part's front facing -Y; glTF export turns Blender (x, y, z) into three.js
 # (x, z, -y), so in the game fronts face +Z and up is +Y. Object names are the contract with js/world.js.

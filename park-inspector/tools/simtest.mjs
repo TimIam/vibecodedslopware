@@ -1,4 +1,4 @@
-// node red-tag/tools/simtest.mjs [parks=300] — generates parks and checks the generator's promises.
+// node park-inspector/tools/simtest.mjs [parks=300] — generates parks and checks the generator's promises.
 import { genPark, buildCoaster } from '../js/gen.js';
 import { SECTION } from '../js/code.js';
 const N = Number(process.argv[2] || 300);

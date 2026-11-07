@@ -150,7 +150,7 @@ export function overlay(html) {
 
 export function titleHtml(C) {
   const rank = RANKS[Math.min(RANKS.length - 1, C.rank || 0)];
-  return `<div class="panel"><div class="logo"><div class="tag">RED<br>TAG</div><div><h1>RED <span>TAG</span></h1>
+  return `<div class="panel"><div class="logo"><div class="tag">RED<br>TAG</div><div><h1>PARK <span>INSPECTOR</span></h1>
     <div class="cond" style="font-size:18px;color:var(--dim);letter-spacing:.1em">FEDERAL AMUSEMENT SAFETY ADMINISTRATION · FIELD DIVISION</div></div></div>
     <p class="lede">Somebody else designed these parks. Somebody else built them, cheaply. You're the one with the clipboard.
     Walk each park, examine the rides, read the paperwork, run test cycles with crash dummies, and decide what opens tomorrow.</p>

@@ -1,4 +1,4 @@
-# Red Tag — design notes
+# Park Inspector — design notes
 
 Tim's brief (2026-11-07): a *reverse theme park designer*. You are a federal inspector sent to procedurally
 generated theme parks and decide whether the rides, and the park in general, meet health and safety standards.

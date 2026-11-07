@@ -1,4 +1,4 @@
-// Red Tag: you are the federal inspector. Renderer + post, camera, input, the shift clock and scoring.
+// Park Inspector: you are the federal inspector. Renderer + post, camera, input, the shift clock and scoring.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -59,7 +59,7 @@ function resize() {
 addEventListener('resize', resize);
 
 // ------------------------------------------------------------------------------------------------ state
-const SAVE = 'rt_career_v1';
+const SAVE = 'pi_career_v1';
 const freshCareer = () => ({ day: 1, score: 0, incidents: 0, rank: 0, bribes: 0, seed: (Math.random() * 1e9) | 0, history: [] });
 let career;
 try { career = JSON.parse(localStorage.getItem(SAVE)) || freshCareer(); } catch { career = freshCareer(); }

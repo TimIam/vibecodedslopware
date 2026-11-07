@@ -1,4 +1,4 @@
-// Seeded RNG (mulberry32) and pickers. Everything procedural in Red Tag goes through one of these.
+// Seeded RNG (mulberry32) and pickers. Everything procedural in Park Inspector goes through one of these.
 export function makeRng(seed) {
   let a = (seed >>> 0) || 1;
   const r = () => {
