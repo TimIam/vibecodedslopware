@@ -88,7 +88,7 @@ const PTS = { raid: 30, dungeon: 60, pet: 10, rider: 1500 };
 const WIPE = { raid: 3000, dungeon: 400, final: 8000 };
 const ENGAGE_R = 80;
 export const LEVEL_POWER = 0.08;   // how much tougher every party gets per boss level
-export const MAP_CURVE = 0.06;     // and per map, on top of the first game's +0.35, so long runs do end
+export const MAP_CURVE = 0.02;     // and per map, on top of the first game's +0.28; the campaign ends at the castle
 const SIGIL = { x: -4, y: 0 };   // the weak spot on the boss's back, in boss-local pixels (x points at the head)
 const HORSE_SPD = 64;
 
@@ -854,7 +854,7 @@ function newParty(g, type) {
   // every party is a little better geared than the last, and every map is harder than the one before
   // and, this time, every level the boss gains makes them a little better too (they read the patch notes)
   const lv = (g.lv.level - 1) * LEVEL_POWER;
-  const power = type === 'rider' ? 1 + (g.map.n - 1) * 0.2 + lv * 0.6 : 1 + (g.map.n - 1) * 0.35 + (g.map.n - 1) ** 2 * MAP_CURVE + (type === 'raid' ? g.dir.raids * 0.05 : g.dir.n * 0.05) + lv;
+  const power = type === 'rider' ? 1 + (g.map.n - 1) * 0.2 + lv * 0.6 : 1 + (g.map.n - 1) * 0.28 + (g.map.n - 1) ** 2 * MAP_CURVE + (type === 'raid' ? g.dir.raids * 0.05 : g.dir.n * 0.05) + lv;
   const p = { id: g.nextId++, type, power, units: [], skill: SKILL[type], engaged: false, done: false, fleeing: false, t: 0, brez: 0, deadList: [], barkT: 3 };
   g.parties.push(p);
   return p;
