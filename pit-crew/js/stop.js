@@ -7,6 +7,7 @@ import { carSprite, wheelSprite, noseSprite, crew, rect, ellipse, bar, WHEELS, C
 import { text, measure } from './font.js';
 import { BOX_X, Y } from './scene.js';
 import { TEAMS, TV, COMPOUNDS } from './data.js';
+import { TANK } from './race.js';
 
 const ARRIVE_D = 1.7;
 const ON_D = 0.55;
@@ -49,8 +50,8 @@ export class PitStop {
     const cold = this.mods.has('cold');
     this.jacks = { a: { st: 'wait', t: 0 }, d: { st: 'wait', t: 0 } };
     this.wheels = WHEELS.map(w => ({ ...w, end: w.id[0] === 'R' ? 'a' : 'd', st: keepTyres ? 'done' : 'wait', mash: 0, need: cold ? 8 : 5, t: 0, misses: 0, perfect: false, warm: null, lock: 0, spin: 0 }));
-    const band = this.mods.has('heat') ? 0.75 : 1.2;
-    this.fuel = { st: 'wait', level: Math.max(0, fuelNow), lo: fuelNeed, hi: fuelNeed + band, max: 12, rate: 2.6, spilled: false, t: 0, need: fuelNeed > fuelNow + 0.05 };
+    const band = this.mods.has('heat') ? 0.5 : 0.8;
+    this.fuel = { st: 'wait', level: Math.max(0, fuelNow), lo: fuelNeed, hi: fuelNeed + band, max: TANK + 1, rate: 1.6, spilled: false, t: 0, need: fuelNeed > fuelNow + 0.05 };
     if (!this.fuel.need) this.fuel.st = 'skip';
     // Leaving the tyres on: no wheel work, and the car only goes up at the front for a new nose.
     if (keepTyres) { this.jacks.a.st = 'down'; if (!car.damage) this.jacks.d.st = 'down'; }

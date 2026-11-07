@@ -7,6 +7,7 @@ import { IDLE as MORE_IDLE } from './lines/idle.js';
 import { TRACK_IDLE as MORE_TRACK } from './lines/tracks.js';
 import * as EV from './lines/events.js';
 import * as PEP from './lines/pep.js';
+import * as FLAG from './lines/flags.js';
 
 const IDLE = [
   [['toby', 'Mags, how many wheel nuts have you done in your career?'], ['mags', 'All of them, Toby.']],
@@ -182,6 +183,7 @@ export const LINES = {
   EVENTS: merge(EVENTS, EV.EVENTS),
   FINISH: merge(FINISH, INTRO.FINISH),
   BOSS: merge(BOSS, INTRO.BOSS),
+  FLAG,
 };
 
 // Player-chosen names: every line is written with the defaults and swapped on the way out.
@@ -255,9 +257,20 @@ export class Director {
       return { who: w, text: rename(txt).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '') };
     });
     const item = { lines, prio, age: 0 };
-    if (prio >= 3) { this.queue = [item]; this.conv = null; this.cur = null; this.gap = 0; }
+    if (prio >= 3) {
+      // Urgent radio (box calls, rain, damage, a white flag) breaks into whatever chat is on,
+      // shows on the yellow panel, and queues behind any other urgent call already going.
+      lines.forEach(l => { l.urgent = true; });
+      if (this.cur && !this.cur.urgent) {
+        lines[0].text = 'BREAKER! ' + lines[0].text;
+        this.cur = null; this.conv = null; this.gap = 0;
+      }
+      const i = this.queue.findIndex(q => q.prio < 3);
+      this.queue.splice(i < 0 ? this.queue.length : i, 0, item);
+      this.queue = this.queue.filter(q => q.prio >= 2).slice(0, 5);
+    }
     else if (prio === 2) {
-      // behind any other urgent ones, ahead of small talk
+      // behind urgent calls and other important ones, ahead of small talk
       const i = this.queue.findIndex(q => q.prio < 2);
       this.queue.splice(i < 0 ? this.queue.length : i, 0, item);
       this.queue = this.queue.filter(q => q.prio >= 2 || q === item).slice(0, 4);

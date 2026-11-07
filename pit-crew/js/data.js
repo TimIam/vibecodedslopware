@@ -26,10 +26,11 @@ export const DRIVERS = [
 ];
 
 export const COMPOUNDS = {
-  soft:   { name: 'SOFT',   color: '#e8342c', wear: 0.115, pace: -0.009 },
-  medium: { name: 'MEDIUM', color: '#f2c218', wear: 0.08,  pace: 0 },
-  hard:   { name: 'HARD',   color: '#f4f4f0', wear: 0.058, pace: 0.009 },
-  wet:    { name: 'WET',    color: '#2a7ff0', wear: 0.075, pace: 0 },
+  // wear per lap (average over the four tyres); the same everywhere, tuned for 4-5 lap stints
+  soft:   { name: 'SOFT',   color: '#e8342c', wear: 0.2,  pace: -0.009 },
+  medium: { name: 'MEDIUM', color: '#f2c218', wear: 0.15, pace: 0 },
+  hard:   { name: 'HARD',   color: '#f4f4f0', wear: 0.11, pace: 0.009 },
+  wet:    { name: 'WET',    color: '#2a7ff0', wear: 0.14, pace: 0 },
 };
 export const COMPOUND_ORDER = ['soft', 'medium', 'hard', 'wet'];
 

@@ -2,7 +2,7 @@
 import { W, H, canvas as mkCanvas, rect, ellipse, panel, bar, tyreIcon, portrait, carSprite, wheelSprite, crew, shade, WHEELS } from './gfx.js';
 import { text, wrap, measure } from './font.js';
 import { TEAMS, DRIVERS, TRACKS, COMPOUNDS, COMPOUND_ORDER, PEOPLE, POINTS, MOD_INFO, TV } from './data.js';
-import { Race, rng, IN_T, OUT_T } from './race.js';
+import { Race, rng, IN_T, OUT_T, TANK } from './race.js';
 import { PitStop, KEYMAP } from './stop.js';
 import { bake, bakeMap, Y, BOX_X, theme, straightCar } from './scene.js';
 import { Director, LINES, rename, pepTalk, pickFresh, saveHeard } from './banter.js';
@@ -221,7 +221,9 @@ function logo(x, y, s = 4) {
 
 let shotT = 0;
 function dialogue(x, y, w, h, line, T) {
-  panel(g, x, y, w, h);
+  const hot = line && line.urgent;
+  if (hot) panel(g, x, y, w, h, { fill: '#f2c218', edge: '#ffe27a', hi: '#fff4b0', lo: '#7a5a08' });
+  else panel(g, x, y, w, h);
   if (!line) {
     text(g, 'PIT WALL RADIO', x + w / 2, y + h / 2 - 8, '#3a4660', { align: 'center' });
     text(g, '- quiet -', x + w / 2, y + h / 2 + 2, '#3a4660', { align: 'center' });
@@ -233,15 +235,15 @@ function dialogue(x, y, w, h, line, T) {
   const mouth = talking && (Math.floor(T * 10) % 2);
   const blink = (Math.floor(T * 1.3 + line.who.length) % 7) === 0 && (T * 1.3 % 1) < 0.15;
   g.drawImage(portrait(p, mouth, blink), x + 5, y + 6);
-  text(g, p.name, x + 42, y + 6, '#ffd23a');
-  text(g, p.role.toUpperCase(), x + 42 + measure(p.name) + 6, y + 6, '#6a7898');
+  text(g, p.name, x + 42, y + 6, hot ? '#5a1a00' : '#ffd23a');
+  text(g, p.role.toUpperCase(), x + 42 + measure(p.name) + 6, y + 6, hot ? '#7a5a20' : '#6a7898');
   const lines = wrap(line.text, w - 50);
   const vis = line.text.slice(0, shown);
   let used = 0;
   lines.slice(0, 5).forEach((ln, i) => {
     const part = vis.slice(used, used + ln.length);
     used += ln.length + 1;
-    text(g, part, x + 42, y + 17 + i * 9, '#e8e6dc');
+    text(g, part, x + 42, y + 17 + i * 9, hot ? '#1a1408' : '#e8e6dc');
   });
   // voice blips
   if (talking && shown !== shotT && shown % 2 === 0 && /[a-z0-9]/i.test(line.text[shown] || '')) A.sfx('blip', p.voice + (shown % 5) * 12);
@@ -493,7 +495,7 @@ const drvKey = c => c.i === 0 ? 'nico' : 'sanna';
 function raceScene(track, round, { practice = false } = {}) {
   const seed = (Date.now() & 0xffff) + round * 7919;
   const r = rng(seed);
-  const race = new Race(track, { seed, round });
+  const race = new Race(track, { seed, round, flagChance: practice ? 0 : 1.5 / cal().length });
   const bg = bgFor(track);
   const map = bakeMap(track, 96, 60);
   const dir = new Director(PEOPLE, r);
@@ -506,7 +508,7 @@ function raceScene(track, round, { practice = false } = {}) {
     lastPass: 0, holdT: 0.6 + r() * 0.8,
   };
   const vars = c => ({ d: firstName(c), drv: drvKey(c), n: c.num, p: c.pos, x: track.name });
-  if (!practice) { dir.say(pepTalk(track, r), {}, 3); saveHeard(); }
+  if (!practice) { dir.clear(); dir.say(pepTalk(track, r), {}, 2); saveHeard(); }
 
   function toast(msg, color = '#ffd23a') { S.toast = { msg, color, t: 0 }; }
 
@@ -577,23 +579,32 @@ function raceScene(track, round, { practice = false } = {}) {
       const c = e.car;
       switch (e.type) {
         case 'start': { const own = LINES.TRACK_START[track.id] || []; dir.sayFrom(own.length ? own : LINES.START, { x: track.name }, 2); break; }
-        case 'boxCall': dir.sayFrom(LINES.BOXCALL, vars(c), 2); A.sfx('radio'); toast(`BOX BOX: CAR ${c.num}`, '#ff8a1e'); break;
+        case 'boxCall': dir.sayFrom(LINES.BOXCALL, vars(c), 3); A.sfx('radio'); toast(`BOX BOX: CAR ${c.num}`, '#ff8a1e'); break;
         case 'pitEntry':
           if (c.player) { S.pickers = S.pickers.filter(p => p.car !== c); S.pickers.push({ car: c, choice: race.recommend(c), rec: race.recommend(c) }); A.sfx('radio'); }
           break;
         case 'arrive': startStop(c); break;
-        case 'queue': dir.sayFrom(LINES.EVENTS.queue, vars(c), 2); break;
+        case 'queue': dir.sayFrom(LINES.EVENTS.queue, vars(c), 3); break;
         case 'rain': dir.sayFrom(LINES.EVENTS.rain, {}, 3); toast('RAIN!', '#9ad8ff'); break;
         case 'dry': dir.sayFrom(LINES.EVENTS.dry, {}, 2); toast('TRACK DRYING', '#ffd23a'); break;
-        case 'damage': if (c.player) { dir.sayFrom(LINES.EVENTS.damage, vars(c), 2); A.sfx('radio'); } break;
+        case 'damage': if (c.player) { dir.sayFrom(LINES.EVENTS.damage, vars(c), 3); A.sfx('radio'); } break;
         case 'puncture': if (c.player) dir.sayFrom(LINES.EVENTS.puncture, vars(c), 3); break;
         case 'fuelOut': if (c.player) dir.sayFrom(LINES.EVENTS.fuelOut, vars(c), 3); break;
         case 'gain': if (r() < 0.45) dir.sayFrom(LINES.EVENTS.gain, vars(c), 1); break;
         case 'lose': if (r() < 0.3) dir.sayFrom(LINES.EVENTS.lose, vars(c), 1); break;
         case 'rivalPit': if (r() < 0.25) dir.sayFrom(LINES.EVENTS.rivalPit, { r: c.team.short }, 1); break;
         case 'lastLap': dir.sayFrom(LINES.EVENTS.lastLap, {}, 2); toast('FINAL LAP', '#ffffff'); break;
-        case 'late': dir.sayFrom(LINES.EVENTS.late, vars(c), 2); toast(`CAR ${c.num}: TOO LATE TO STOP`, '#9ad8ff'); break;
+        case 'late': dir.sayFrom(LINES.EVENTS.late, vars(c), 3); toast(`CAR ${c.num}: TOO LATE TO STOP`, '#9ad8ff'); break;
         case 'chequered': toast('CHEQUERED FLAG', '#ffffff'); A.sfx('cheer'); break;
+        case 'whiteFlag': {
+          const fv = { r: c.team.name.split(' ')[0], c: c.d.name.split(' ').slice(1).join(' ') || c.d.name };
+          dir.sayFrom(LINES.FLAG.INCIDENT[e.kind] || LINES.FLAG.INCIDENT.crash, fv, 3);
+          dir.sayFrom(LINES.FLAG.BOX, {}, 3);
+          toast(e.kind === 'crash' ? `${fv.r.toUpperCase()} BINNED IT! WHITE FLAG` : 'WHITE FLAG', '#ffffff');
+          A.sfx('radio');
+          break;
+        }
+        case 'flagEnd': dir.sayFrom(LINES.FLAG.CLEAR, {}, 2); toast('GREEN FLAG', '#7cff8a'); break;
         case 'over': break;
       }
     }
@@ -603,7 +614,7 @@ function raceScene(track, round, { practice = false } = {}) {
   function endRace() {
     const res = race.result;
     const pts = {};
-    res.forEach((c, k) => { pts[c.i] = POINTS[k] || 0; });
+    res.forEach((c, k) => { pts[c.i] = c.dnf ? 0 : POINTS[k] || 0; });
     if (!practice) {
       for (const c of res) { save.team[c.team.id] = (save.team[c.team.id] || 0) + pts[c.i]; save.drv[c.code] = (save.drv[c.code] || 0) + pts[c.i]; }
       const a = race.cars[0].final, b = race.cars[1].final;
@@ -658,6 +669,12 @@ function raceScene(track, round, { practice = false } = {}) {
     }
   }
 
+  function whiteFlag() {
+    const x = 352, y = Y.wall - 2, wave = Math.sin(T * 12);
+    rect(g, x, y - 18, 1, 20, '#c8ccd4');
+    for (let i = 0; i < 12; i++) rect(g, x + 1 + i, y - 18 + Math.round(Math.sin(T * 12 + i * 0.6) * 1.5), 1, 8, i % 4 === 0 && wave > 0 ? '#d8dce4' : '#ffffff');
+  }
+
   function drawTower() {
     const x0 = 2, y0 = 14, w = 80, fade = S.stop && S.stop.phase !== 'arrive' ? 0.45 : 1;
     g.globalAlpha = 0.86 * fade;
@@ -674,6 +691,7 @@ function raceScene(track, round, { practice = false } = {}) {
       let right;
       if (c.state === 'in' || c.state === 'box' || c.state === 'wait' || c.state === 'out') right = ['PIT', '#ff8a1e'];
       else if (c.finish != null) right = ['FIN', '#7cff8a'];
+      else if (c.dnf) right = ['OUT', '#ff6a5a'];
       else if (k === 0) right = ['LEAD', '#ffd23a'];
       else right = ['+' + (race.gapToLeader(c) * TV).toFixed(1), '#9aa8c8'];
       text(g, right[0], x0 + w - 3, y, right[1], { align: 'right' });
@@ -710,11 +728,17 @@ function raceScene(track, round, { practice = false } = {}) {
     const bx = x + 42;
     tyreIcon(g, bx + 4, y + 20, c.compound, 3);
     text(g, COMPOUNDS[c.compound].name, bx + 11, y + 17, '#c8ccd4');
-    const tl = 1 - Math.min(1, c.wear);
-    bar(g, bx + 60, y + 17, 42, 6, tl, tl < 0.25 ? '#ff5a2a' : tl < 0.5 ? '#ffd23a' : '#7cff8a');
+    // one bar per tyre: FL FR | RL RR (race tyre order is RL FL RR FR)
+    [1, 3, 0, 2].forEach((ti, k) => {
+      const left = 1 - Math.min(1, c.tw[ti]);
+      const tx = bx + 60 + k * 10 + (k > 1 ? 2 : 0), ty = y + 15;
+      rect(g, tx, ty, 8, 10, '#0a0a10');
+      const hgt = Math.round(8 * left);
+      rect(g, tx + 1, ty + 9 - hgt, 6, hgt, left < 0.25 ? '#ff5a2a' : left < 0.5 ? '#ffd23a' : '#7cff8a');
+    });
     text(g, 'FUEL', bx, y + 28, '#9aa8c8');
     const fl = Math.max(0, c.fuel) / Math.max(1, race.laps - Math.floor(c.dist));
-    bar(g, bx + 26, y + 28, 76, 6, Math.min(1, Math.max(0, c.fuel) / 12), fl < 0.999 && c.fuel < race.laps - c.dist ? '#ffd23a' : '#4ad8a0');
+    bar(g, bx + 26, y + 28, 76, 6, Math.min(1, Math.max(0, c.fuel) / TANK), fl < 0.999 && c.fuel < race.laps - c.dist ? '#ffd23a' : '#4ad8a0');
     // status
     let st = '', col = '#9aa8c8';
     if (c.outOfFuel) { st = 'OUT OF FUEL'; col = '#ff5a2a'; }
@@ -723,6 +747,7 @@ function raceScene(track, round, { practice = false } = {}) {
     else if (c.compound !== 'wet' && race.wet > 0.4) { st = 'NEEDS WETS'; col = '#9ad8ff'; }
     else if (c.compound === 'wet' && race.wet < 0.2 && race.wetTarget === 0) { st = 'WETS OVERHEATING'; col = '#ffd23a'; }
     else if (c.cold) { st = 'COLD TYRES'; col = '#9ad8ff'; }
+    else if (race.flag && c.state === 'run' && !c.box) { st = 'WHITE FLAG: BOX?'; col = '#ffffff'; }
     else if (c.penalty) { st = '+5s PENALTY'; col = '#ff6a5a'; }
     else { const k = race.order.indexOf(c); const ahead = race.order[k - 1]; st = ahead ? `GAP AHEAD ${((ahead.dist - c.dist) * 18 * TV).toFixed(1)}s` : 'LEADING'; }
     text(g, st, bx, y + 39, col);
@@ -745,8 +770,8 @@ function raceScene(track, round, { practice = false } = {}) {
     if (!race.started) return;
     const on = race.toggleBox(c);
     A.sfx('radio');
-    if (on) { dir.sayFrom(LINES.BOXCALL, vars(c), 2); toast(`BOX BOX: CAR ${c.num}`, '#ff8a1e'); }
-    else { dir.say([['dev', `Stay out, ${firstName(c)}. Stay out.`]], {}, 2); toast(`CAR ${c.num}: STAY OUT`, '#9ad8ff'); }
+    if (on) { dir.sayFrom(LINES.BOXCALL, vars(c), 3); toast(`BOX BOX: CAR ${c.num}`, '#ff8a1e'); }
+    else { dir.say([['dev', `Stay out, ${firstName(c)}. Stay out.`]], {}, 3); toast(`CAR ${c.num}: STAY OUT`, '#9ad8ff'); }
   }
 
   function stopHud(st) {
@@ -834,11 +859,11 @@ function raceScene(track, round, { practice = false } = {}) {
         if (S.stop.phase === 'leave') { finishStop(S.stop); S.leaving = S.stop; S.stop = null; }
       }
       if (S.leaving) { S.leaving.update(dt); if (S.leaving.done) S.leaving = null; }
-      if (S.stop && S.stop.fuel.st === 'fill') A.fuelPitch(S.stop.fuel.level / 12);
+      if (S.stop && S.stop.fuel.st === 'fill') A.fuelPitch(S.stop.fuel.level / (TANK + 1));
       dir.update(dt, !!S.stop && S.stop.phase !== 'arrive', S.go ? idlePool : null);
       A.setRain(race.wet);
       if (race.over) { S.overT += dt; if (S.overT > 2.4) { saveHeard(); endRace(); } }
-      if (DEV && window.__pc.bot) for (const c of race.cars) if (c.player && c.compound !== 'wet' && race.wet > 0.5 && c.state === 'run' && !c.box) race.toggleBox(c);
+      if (DEV && window.__pc.bot) for (const c of race.cars) if (c.player && c.state === 'run' && !c.box && ((c.compound !== 'wet' && race.wet > 0.5) || (c.compound === 'wet' && race.wetTarget === 0 && race.wet < 0.4))) race.toggleBox(c);
     },
     draw() {
       g.drawImage(bg, 0, 0);
@@ -854,7 +879,8 @@ function raceScene(track, round, { practice = false } = {}) {
       drawTower();
       drawMap();
       const lapN = Math.max(1, Math.min(race.laps, Math.floor(race.order[0].dist) + 1));
-      topBar(track.name.toUpperCase(), race.started ? `LAP ${lapN} / ${race.laps}` : S.lights ? 'LIGHTS' : 'FORMATION: ENTER TO SKIP', race.wet > 0.3 ? 'WET' : race.wetTarget > 0 ? 'RAIN COMING' : 'DRY');
+      topBar(track.name.toUpperCase(), race.started ? `LAP ${lapN} / ${race.laps}` : S.lights ? 'LIGHTS' : 'FORMATION: ENTER TO SKIP', race.flag ? ((T * 2 % 1) < 0.6 ? 'WHITE FLAG' : '') : race.wet > 0.3 ? 'WET' : race.wetTarget > 0 ? 'RAIN COMING' : 'DRY');
+      if (race.flag) whiteFlag();
       // bottom panel
       rect(g, 0, Y.panel, W, H - Y.panel, '#05060a');
       carCard(race.cars[0], 0);
@@ -866,7 +892,9 @@ function raceScene(track, round, { practice = false } = {}) {
       if (S.toast) {
         const a = S.toast.t < 1.8 ? 1 : 1 - (S.toast.t - 1.8) / 0.4;
         g.globalAlpha = Math.max(0, a);
-        text(g, S.toast.msg, W / 2, S.pickers.length && S.stop ? 64 : 32, S.toast.color, { align: 'center', scale: 2, outline: '#05060a' });
+        // small, under the picker, when a double stack has the picker up top
+        const low = S.pickers.length && S.stop;
+        text(g, S.toast.msg, W / 2, low ? 63 : 32, S.toast.color, { align: 'center', scale: low ? 1 : 2, outline: '#05060a' });
         g.globalAlpha = 1;
       }
       if (S.stop && S.stop.repair && S.stop.repair.st === 'combo' && touchMode) dpad();
@@ -972,7 +1000,7 @@ function resultsScene(track, race, log, pts, round) {
         text(g, String(k + 1), 30, y, k < 3 ? '#ffd23a' : '#9aa8c8', { align: 'right' });
         text(g, c.d.name, 36, y, c.player ? '#ffffff' : '#c8ccd4');
         text(g, '#' + c.num, 132, y, '#6a7898');
-        const gap = k === 0 ? 'WINNER' : '+' + ((c.finish + c.penalty - lead.finish - lead.penalty) * TV).toFixed(2);
+        const gap = c.dnf ? 'DNF' : k === 0 ? 'WINNER' : '+' + ((c.finish + c.penalty - lead.finish - lead.penalty) * TV).toFixed(2);
         text(g, gap, 222, y, '#9aa8c8', { align: 'right' });
         if (c.penalty) text(g, 'P', 228, y, '#ff6a5a');
         text(g, pts[c.i] ? '+' + pts[c.i] : '', 250, y, '#7cff8a', { align: 'right' });
@@ -1178,7 +1206,7 @@ const practiceScene = (() => {
     const mods = MODS.filter(() => r() < 0.3);
     const tr = { ...track, mods };
     const car = { num: 7, i: 0, compound: r() < 0.5 ? 'medium' : 'hard', wear: 0.6 + r() * 0.3, damage: mods.includes('walls') || r() < 0.3 ? 1 : 0, fuel: 1 };
-    st = new PitStop({ car, track: tr, compound: 'soft', fuelNow: 0.6, fuelNeed: 3 + Math.round(r() * 4), rng: r, sfx: (a, b) => A.sfx(a, b), hints: n <= 2 });
+    st = new PitStop({ car, track: tr, compound: 'soft', fuelNow: 0.6, fuelNeed: Math.round((2.5 + r() * 2.5) * 10) / 10, rng: r, sfx: (a, b) => A.sfx(a, b), hints: n <= 2 });
     st.mods = new Set(mods);
     idle = st;
   }
