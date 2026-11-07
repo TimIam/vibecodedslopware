@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Red Tag</title>
+<meta name="description" content="A reverse theme park game: you're the federal ride inspector. Walk procedurally generated parks, examine supports, lap bars and paperwork, run test cycles with crash dummies, look the numbers up in the code book, and approve, cite or red-tag every ride before 5 pm.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏷️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Bungee&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+*{box-sizing:border-box}
+:root{
+  --glass:rgba(12,17,28,.82);--glass2:rgba(20,27,42,.9);--line:rgba(255,255,255,.12);--ink:#eef1f6;--dim:#9aa6b8;
+  --vis:#d8f02a;--red:#e0352b;--amber:#ffb23e;--ok:#4fd18b;--paper:#f3eedf;--paperInk:#232019;--paperLine:#d9d0b8;
+}
+html,body{margin:0;height:100%;overflow:hidden;background:#0b0f18;color:var(--ink);font:14px/1.45 Inter,system-ui,sans-serif;-webkit-user-select:none;user-select:none;overscroll-behavior:none}
+#gl{position:fixed;left:0;top:52px;width:100vw;height:calc(100vh - 52px);height:calc(100dvh - 52px);display:block;outline:none;touch-action:none}
+.site-topbar .mute{margin-left:auto;margin-right:8px;padding:0 10px;border:1px solid #8c9b80;border-radius:999px;background:none;color:inherit;font:inherit;cursor:pointer}
+button{font:inherit;color:inherit;cursor:pointer}
+.hide{display:none!important}
+.cond{font-family:"Barlow Condensed",Inter,sans-serif;letter-spacing:.02em}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+
+/* HUD */
+#hud{position:fixed;top:64px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:stretch;z-index:5;pointer-events:none}
+#hud>div{background:var(--glass);border:1px solid var(--line);border-radius:12px;padding:6px 14px;backdrop-filter:blur(10px);box-shadow:0 8px 30px rgba(0,0,0,.35)}
+#clock{font:700 30px/1 "Barlow Condensed";letter-spacing:.04em;display:flex;align-items:center;gap:10px}
+#clock small{display:block;font:600 10.5px Inter;letter-spacing:.12em;color:var(--dim);text-transform:uppercase}
+#clock .bar{width:110px;height:6px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden}
+#clock .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--vis),var(--amber),var(--red));width:0}
+#clock.late{color:var(--amber)}
+#parkName{display:flex;flex-direction:column;justify-content:center}
+#parkName b{font:700 19px/1.05 "Barlow Condensed";letter-spacing:.03em}
+#parkName span{font-size:11.5px;color:var(--dim)}
+
+/* side sheet (clipboard) */
+#sheet{position:fixed;left:12px;top:64px;bottom:12px;width:350px;z-index:6;display:flex;flex-direction:column;background:var(--glass);border:1px solid var(--line);border-radius:16px;backdrop-filter:blur(12px);box-shadow:0 10px 40px rgba(0,0,0,.4);overflow:hidden}
+#sheet header{padding:12px 14px 10px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(216,240,42,.08),transparent)}
+#sheet header .kicker{font:700 10.5px Inter;letter-spacing:.16em;text-transform:uppercase;color:var(--vis)}
+#sheet header h2{margin:2px 0 0;font:700 25px/1.05 "Barlow Condensed";letter-spacing:.02em}
+#sheet header .sub{color:var(--dim);font-size:12.5px;margin-top:3px}
+#sheet .body{flex:1;overflow:auto;padding:10px 12px 14px}
+#sheet .body::-webkit-scrollbar{width:8px}#sheet .body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:4px}
+.sec{font:700 10.5px Inter;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:12px 2px 6px}
+.row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid transparent;margin-bottom:5px;cursor:pointer;transition:background .12s,border-color .12s}
+.row:hover{background:rgba(255,255,255,.09);border-color:var(--line)}
+.row .ic{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:rgba(255,255,255,.07);font-size:16px;flex:none}
+.row .t{flex:1;min-width:0}
+.row .t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .t span{font-size:11.5px;color:var(--dim)}
+.chip{font:700 10.5px Inter;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.08);color:var(--dim);white-space:nowrap}
+.chip.approve{background:rgba(79,209,139,.16);color:var(--ok)}
+.chip.cite{background:rgba(255,178,62,.18);color:var(--amber)}
+.chip.redtag{background:rgba(224,53,43,.22);color:#ff6b5f}
+.chip.bad{background:rgba(224,53,43,.22);color:#ff6b5f}.chip.ok{background:rgba(79,209,139,.16);color:var(--ok)}.chip.seen{background:rgba(255,209,102,.16);color:#ffd166}
+.pt{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:8px;cursor:pointer;font-size:13px}
+.pt:hover{background:rgba(255,255,255,.07)}
+.pt .n{width:22px;height:22px;border-radius:50%;border:2px solid #fff;display:grid;place-items:center;font:700 11px "Barlow Condensed";flex:none}
+.pt .n.ok{border-color:var(--ok);color:var(--ok)}.pt .n.bad{border-color:var(--red);color:#ff6b5f;background:rgba(224,53,43,.15)}.pt .n.seen{border-color:#ffd166;color:#ffd166}
+.pt .l{flex:1}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.07);font-weight:600;transition:transform .08s,background .12s}
+.btn:hover{background:rgba(255,255,255,.14)}.btn:active{transform:translateY(1px)}
+.btn small{color:var(--dim);font-weight:500}
+.btn.primary{background:var(--vis);color:#141a05;border-color:transparent}.btn.primary:hover{background:#e6ff4a}
+.btn.done{opacity:.7}
+.verdicts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
+.vbtn{padding:11px 4px;border-radius:10px;border:2px solid transparent;font:800 15px "Barlow Condensed";letter-spacing:.06em;text-transform:uppercase;transition:transform .08s,filter .12s}
+.vbtn:hover{filter:brightness(1.15)}.vbtn:active{transform:translateY(1px)}
+.vbtn.approve{background:#1f5e3f;color:#c9ffe2}.vbtn.cite{background:#6a4a12;color:#ffe2a8}.vbtn.redtag{background:#7a1c17;color:#ffd0cc}
+.vbtn.sel{border-color:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.18)}
+.back{display:inline-flex;align-items:center;gap:6px;color:var(--dim);font-size:12.5px;cursor:pointer;margin-bottom:4px}
+.back:hover{color:#fff}
+.hint{font-size:12px;color:var(--dim);margin:6px 2px}
+kbd{font:600 11px "IBM Plex Mono";padding:1px 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;background:rgba(255,255,255,.06);color:#dfe5ee}
+
+/* finding card (paper form) */
+#card{position:fixed;right:14px;top:64px;width:400px;max-width:calc(100vw - 390px);z-index:7;background:var(--paper);color:var(--paperInk);border-radius:6px;box-shadow:0 18px 50px rgba(0,0,0,.5),0 0 0 1px rgba(0,0,0,.2);transform-origin:top right;animation:cardIn .22s ease-out;overflow:hidden}
+@keyframes cardIn{from{opacity:0;transform:translateY(-8px) rotate(.6deg)}}
+#card .clip{height:16px;background:linear-gradient(180deg,#9aa3ad,#6c757f);margin:0 120px;border-radius:0 0 8px 8px;box-shadow:0 2px 3px rgba(0,0,0,.3)}
+#card .in{padding:8px 18px 16px;background:repeating-linear-gradient(180deg,transparent 0 25px,var(--paperLine) 25px 26px)}
+#card .form{font:700 10px Inter;letter-spacing:.14em;text-transform:uppercase;color:#8a7f66;display:flex;justify-content:space-between}
+#card h3{margin:2px 0 8px;font:800 22px/1.1 "Barlow Condensed";letter-spacing:.02em}
+#card ul{margin:0 0 10px;padding:0;list-style:none}
+#card li{font:500 13px/26px "IBM Plex Mono";white-space:normal}
+#card li:before{content:"▸ ";color:#a3967a}
+#card .mark{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+#card .mark button{padding:10px;border-radius:6px;border:2px solid #2c281f;background:transparent;color:#2c281f;font:800 15px "Barlow Condensed";letter-spacing:.08em;text-transform:uppercase}
+#card .mark button.sel.ok{background:#1e6a43;color:#fff;border-color:#1e6a43}
+#card .mark button.sel.bad{background:#b3261e;color:#fff;border-color:#b3261e}
+#card .foot{display:flex;justify-content:space-between;margin-top:10px;font-size:12px;color:#7a705a}
+#card .foot a{color:#2c4d8a;cursor:pointer;text-decoration:underline}
+#card canvas{display:block;width:100%;height:190px;background:#151a24;border-radius:4px;margin:4px 0 10px}
+#card .x{position:absolute;right:8px;top:18px;border:none;background:none;font-size:20px;color:#6d6450}
+
+/* code book */
+#book{position:fixed;inset:52px 0 0;z-index:20;background:rgba(5,8,14,.72);backdrop-filter:blur(6px);display:grid;place-items:center}
+#book .pg{width:min(860px,94vw);max-height:84vh;overflow:auto;background:var(--paper);color:var(--paperInk);border-radius:8px;padding:22px 30px 26px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+#book h2{margin:0;font:800 30px "Barlow Condensed";letter-spacing:.02em}
+#book .meta{font:600 11px Inter;letter-spacing:.14em;text-transform:uppercase;color:#8a7f66;margin-bottom:12px}
+#book .cols{columns:2 340px;column-gap:28px}
+#book .ch{break-inside:avoid;margin:0 0 14px}
+#book .ch h4{margin:0 0 4px;font:800 16px "Barlow Condensed";letter-spacing:.04em;text-transform:uppercase;color:#7a1c17;border-bottom:2px solid #2c281f;padding-bottom:2px}
+#book .it{font-size:13px;margin:5px 0}
+#book .it b{font-family:"IBM Plex Mono";font-weight:600;margin-right:6px}
+#book .it.hl{background:#ffe98a;margin-left:-6px;padding-left:6px;border-radius:3px}
+#book .close{float:right;border:2px solid #2c281f;background:none;border-radius:6px;padding:4px 12px;font:700 13px "Barlow Condensed";letter-spacing:.08em;text-transform:uppercase}
+
+/* overlays */
+.ov{position:fixed;inset:52px 0 0;z-index:30;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 30%,rgba(10,16,30,.55),rgba(4,6,12,.88));backdrop-filter:blur(3px);overflow:auto;padding:20px}
+.panel{width:min(760px,94vw);background:var(--glass2);border:1px solid var(--line);border-radius:18px;padding:26px 30px;box-shadow:0 30px 90px rgba(0,0,0,.6)}
+.logo{display:flex;align-items:center;gap:16px}
+.tag{width:74px;height:110px;flex:none;background:var(--red);border-radius:10px 10px 14px 14px;position:relative;transform:rotate(-8deg);box-shadow:0 10px 24px rgba(224,53,43,.35);display:grid;place-items:center;color:#fff;font:800 22px/1 "Barlow Condensed";letter-spacing:.06em;text-align:center}
+.tag:before{content:"";position:absolute;top:10px;left:50%;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#0b0f18;box-shadow:0 0 0 3px #b8251c}
+.tag:after{content:"";position:absolute;top:-34px;left:50%;width:2px;height:46px;background:#c9c2b0;transform:rotate(12deg)}
+h1{margin:0;font:800 64px/0.9 "Barlow Condensed";letter-spacing:.01em}
+h1 span{color:var(--red)}
+.lede{color:#c9d2df;font-size:15px;margin:14px 0 0;max-width:620px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}
+.box{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.box h4{margin:0 0 6px;font:700 11px Inter;letter-spacing:.14em;text-transform:uppercase;color:var(--vis)}
+.box p,.box li{margin:0;font-size:13px;color:#d3dae6}
+.box ul{margin:0;padding-left:16px}
+.cta{display:flex;gap:10px;margin-top:20px;align-items:center;flex-wrap:wrap}
+.cta .btn{padding:12px 20px;font-size:15px}
+.memo{background:var(--paper);color:var(--paperInk);border-radius:8px;padding:18px 22px;font-size:14px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.memo .hdr{display:grid;grid-template-columns:90px 1fr;gap:2px 10px;font:500 13px "IBM Plex Mono";border-bottom:2px solid #2c281f;padding-bottom:8px;margin-bottom:10px}
+.memo .hdr b{font-weight:600;color:#7a705a}
+.memo h3{margin:0 0 6px;font:800 26px "Barlow Condensed"}
+.memo ul{padding-left:18px;margin:6px 0}
+.memo li{margin:3px 0;font:500 13px/1.45 "IBM Plex Mono"}
+.memo .q{font-style:italic;color:#5b5240;margin:8px 0}
+.stamp{display:inline-block;border:3px solid currentColor;padding:2px 10px;font:800 18px "Barlow Condensed";letter-spacing:.12em;text-transform:uppercase;transform:rotate(-6deg);border-radius:4px}
+table.rep{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+table.rep th{text-align:left;font:700 10.5px Inter;letter-spacing:.12em;text-transform:uppercase;color:#7a705a;border-bottom:2px solid #2c281f;padding:4px 6px}
+table.rep td{border-bottom:1px solid #d9d0b8;padding:6px;vertical-align:top}
+table.rep td.pts{text-align:right;font:600 13px "IBM Plex Mono";white-space:nowrap}
+.pos{color:#1e6a43}.neg{color:#b3261e}
+.news{margin-top:14px;background:#efe9d8;border:1px solid #cfc4a8;border-radius:4px;padding:10px 14px}
+.news .mast{font:800 22px "Barlow Condensed";letter-spacing:.06em;border-bottom:3px double #2c281f;text-align:center;margin-bottom:6px}
+.news .hl{font:800 20px/1.1 "Barlow Condensed";margin:6px 0 2px}
+.news .by{font-size:12px;color:#6d6450}
+#bribe .memo{max-width:480px}
+
+/* tooltip + toast */
+#tip{position:fixed;z-index:8;pointer-events:none;padding:5px 10px;background:rgba(10,14,22,.9);border:1px solid var(--line);border-radius:8px;font-size:12.5px;white-space:nowrap;transform:translate(14px,10px)}
+#tip b{font-weight:600}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9;padding:9px 18px;background:var(--glass2);border:1px solid var(--line);border-radius:999px;font-weight:600;transition:opacity .3s;pointer-events:none}
+#stampFx{position:fixed;left:50%;top:45%;z-index:25;transform:translate(-50%,-50%) rotate(-10deg);font:800 84px/1 "Barlow Condensed";letter-spacing:.08em;border:8px solid currentColor;padding:6px 26px;border-radius:12px;pointer-events:none;opacity:0;text-transform:uppercase;text-shadow:0 4px 20px rgba(0,0,0,.4)}
+#stampFx.go{animation:stamp .9s ease-out}
+@keyframes stamp{0%{opacity:0;transform:translate(-50%,-50%) rotate(-10deg) scale(2.4)}18%{opacity:1;transform:translate(-50%,-50%) rotate(-10deg) scale(1)}70%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) rotate(-10deg) scale(1)}}
+#walkFx{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);z-index:9;padding:8px 16px;background:var(--glass2);border:1px solid var(--line);border-radius:999px;font-weight:600}
+#loading{position:fixed;inset:52px 0 0;z-index:40;display:grid;place-items:center;background:#0b0f18;font:700 22px "Barlow Condensed";letter-spacing:.1em;color:var(--dim)}
+@media (max-width:860px){
+  #sheet{top:auto;left:8px;right:8px;width:auto;height:44vh;bottom:8px}
+  #card{left:8px;right:8px;width:auto;max-width:none;top:116px}
+  #hud{top:58px}#parkName{display:none!important}
+  .grid2{grid-template-columns:1fr}
+  h1{font-size:46px}
+}
+</style>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <button class="mute" id="mute" type="button" aria-label="Toggle sound">♪ Sound on</button>
+  <a class="site-coffee" style="margin-left:0" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<canvas id="gl" tabindex="0" aria-label="Red Tag park view"></canvas>
+<div id="loading">LOADING PARK…</div>
+
+<div id="hud" class="hide">
+  <div id="clock"><div><small>Shift clock</small><span id="clockT">08:00</span></div><div><small id="clockLeft">9 h left</small><div class="bar"><i id="clockBar"></i></div></div></div>
+  <div id="parkName"><b id="pName">—</b><span id="pSub">—</span></div>
+</div>
+<aside id="sheet" class="hide"><header id="sheetHead"></header><div class="body" id="sheetBody"></div></aside>
+<div id="card" class="hide"></div>
+<div id="book" class="hide"></div>
+<div id="tip" class="hide"></div>
+<div id="toast" style="opacity:0"></div>
+<div id="stampFx"></div>
+<div id="walkFx" class="hide"></div>
+<div id="ov" class="ov hide"></div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"}}</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
