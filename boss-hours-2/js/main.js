@@ -70,7 +70,7 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 function readInput() {
   const k = c => keys.has(c);
   return {
-    mx: mouse.x, my: mouse.y,
+    mx: mouse.x + g.cam.x, my: mouse.y + g.cam.y,   // aim in world pixels; the screen scrolls on later levels
     ax: (k('KeyD') || k('ArrowRight') ? 1 : 0) - (k('KeyA') || k('ArrowLeft') ? 1 : 0),
     ay: (k('KeyS') || k('ArrowDown') ? 1 : 0) - (k('KeyW') || k('ArrowUp') ? 1 : 0),
     press: { ...press },
@@ -86,7 +86,7 @@ function start() {
   R.reset();
   acc = 0;
   mode = 'play';
-  for (const id of ['title', 'over', 'paused', 'cards']) $(id).hidden = true;
+  for (const id of ['title', 'over', 'paused', 'cards', 'won']) $(id).hidden = true;
   canvas.focus();
 }
 function pause() { mode = 'paused'; $('paused').hidden = false; }
@@ -136,7 +136,37 @@ function gameOver() {
   $('again').focus();
 }
 
+// the castle is down: the campaign is over, and the sequel is, technically, finished
+const WON_REVIEWS = [
+  ['10/10', 'Finished it. Not sure the developers did.', 'Sequel Quarterly'],
+  ['9/10', 'The kingdom is rubble. The roadmap is not.', 'Rock & Other Rock Weekly'],
+  ['7/10', 'Credits rolled. Then a battle pass.', 'A Guy On A Forum'],
+  ['8/10', 'Destructible environments, as promised on the box.', 'The Monthly Patrol'],
+];
+function gameWon() {
+  mode = 'over';
+  $('cards').hidden = true;
+  const rare = g.lv.rare;
+  const newBest = g.score > best;
+  if (newBest) { best = Math.floor(g.score); try { localStorage.setItem(BEST_KEY, JSON.stringify({ score: best, at: Date.now() })); } catch {} }
+  const m = Math.floor(g.t / 60), s = String(Math.floor(g.t % 60)).padStart(2, '0');
+  $('wonStats').innerHTML = [
+    ['Score', fmt(g.score) + (newBest ? ' <em>new best</em>' : '')],
+    ['Time', `${m}:${s}`],
+    ['Adventurers eaten', g.kills],
+    ['Level reached', g.lv.level],
+    ['Cards taken', `${g.lv.picks.length}` + (rare[3] ? ` <em>${rare[3]} legendary</em>` : '')],
+    ['Raids wiped', g.wipes.raid + g.wipes.final],
+  ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  const rv = WON_REVIEWS[Math.floor(Math.random() * WON_REVIEWS.length)];
+  $('wonReview').innerHTML = `<b>${rv[0]}</b> “${rv[1]}” <span>— ${rv[2]}</span>`;
+  showBest();
+  $('won').hidden = false;
+  $('wonAgain').focus();
+}
+
 $('go').addEventListener('click', start);
+$('wonAgain').addEventListener('click', start);
 $('again').addEventListener('click', start);
 $('resume').addEventListener('click', resume);
 
@@ -151,6 +181,7 @@ const QUIPS = [
   'Choose wisely. Or quickly. The raid is literally frozen mid-swing.',
 ];
 const WHY = { 'LEVEL UP': 'Level up!', 'RAID WIPED': 'Raid wiped: bonus card!', '40-MAN WIPED': '40-man wiped: a great card!', 'MAP CLEARED': 'Map cleared: bonus card!' };
+const whyLine = w => WHY[w] || (w && w !== 'LEVEL UP' ? w[0] + w.slice(1).toLowerCase() + ': bonus card!' : 'Level up!');
 let picking = null;      // the index of an ability card waiting for a slot
 let hover = -1, spin = null, spinDir = 0;
 
@@ -177,7 +208,7 @@ function openCards() {
 
 function drawCards(deal) {
   const o = g.offer;
-  $('cardsTitle').textContent = `${WHY[o.why] || 'Level up!'}`;
+  $('cardsTitle').textContent = whyLine(o.why);
   $('cardsLevel').textContent = `Level ${g.lv.level}`;
   $('cardsQuip').textContent = QUIPS[(o.level + o.cards.length) % QUIPS.length];
   const cur = lookKey(g.look);
@@ -292,6 +323,7 @@ function drain() {
   for (const e of g.events) {
     if (e === 'over') gameOver();
     else if (e === 'levelup') cards = true;
+    else if (e === 'won') gameWon();
     else audio.play(e);
   }
   g.events.length = 0;
@@ -369,5 +401,6 @@ if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
     // sets how much has gone into each card tree and redraws the boss: e.g. { beam: 9, hp: 9, legend: 1 }
     evolve(inv) { const { legend = 0, ...rest } = inv; g.inv = { ...rest }; g.lv.rare[3] = legend; g.look = evoLook(g); paint(); return g.look; },
     world: () => import('./world.js'),
+    level: async n => { (await import('./world.js')).jumpToLevel(g, n); R.reset(); paint(); return g.map.name; },
   };
 }

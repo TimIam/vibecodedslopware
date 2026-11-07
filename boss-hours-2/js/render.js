@@ -2,6 +2,33 @@
 
 import { PAL, drawText, textWidth, ICONS, makeBossSprites, BOSS_DIRS, BOSS_SIZE, tinted, hash, newCanvas, lookKey } from './art.js';
 import { W, H, LEASH, CLASS, ADDS, SLOT_KEYS, RAID_LAPS, FINAL_LAPS, angDiff, pathDist, pathNearest, zoneFace, beamEnd, destRock } from './world.js';
+import { LEVELS } from './levels/index.js';
+import { KINDS, CRITTERS } from './props.js';
+
+// what the levels know how to draw: their props, animals, adds and the animals' bodies
+const PROP_ART = Object.assign({}, ...LEVELS.map(L => L.art?.props || {}));
+const CRITTER_ART = Object.assign({}, ...LEVELS.map(L => L.art?.critters || {}));
+const LEVEL_ADD_ART = Object.assign({}, ...LEVELS.map(L => L.art?.adds || {}));
+const CORPSE_ART = Object.assign({}, ...LEVELS.map(L => L.art?.corpses || {}));
+// the camera for this frame (world pixels of the screen's top-left), and a sprite cache the level art can use
+const VIEW = { x: 0, y: 0 };
+// Painting sprites pixel by pixel is slow, and a toppling tower can ask for dozens at once, so each frame gets a few
+// milliseconds of it. Past that, a missing sprite borrows the last one painted with the same name prefix and size
+// ('cb|castle_wall|…' → 'cb|castle_wall') and gets painted properly on a later frame.
+const sprites = new Map(), similar = new Map();
+let spriteBudget = 0;
+function sprite(key, w, h, paint) {
+  let c = sprites.get(key);
+  if (c) return c;
+  const pre = key.split('|', 2).join('|') + '#' + w + 'x' + h;
+  if (spriteBudget <= 0 && similar.has(pre)) return similar.get(pre);
+  const t0 = performance.now();
+  c = newCanvas(w, h); paint(c.getContext('2d'));
+  sprites.set(key, c); similar.set(pre, c);
+  spriteBudget -= performance.now() - t0;
+  return c;
+}
+const onScreen = (x, y, m = 30) => x > VIEW.x - m && x < VIEW.x + W + m && y > VIEW.y - m && y < VIEW.y + H + m;
 
 const TAU = Math.PI * 2;
 
@@ -29,23 +56,32 @@ const THEME_PAL = {
 export function createRenderer() {
   const buf = newCanvas(W, H), ctx = buf.getContext('2d');
   const shadow = makeShadow();
-  const trail = newCanvas(W, H), tctx = trail.getContext('2d');
+  let trail = newCanvas(W, H), tctx = trail.getContext('2d');
   let boss = null, bg = null, fg = null, bgFor = null, clouds = null, grade = null;
 
   function render(g, view = {}) {
     if (!boss || boss.key !== lookKey(g.look)) boss = makeBossSprites(g.look);
-    if (bgFor !== g.map) {
-      bg = makeBackground(g.map); fg = makeForeground(g.map.theme.id); bgFor = g.map; tctx.clearRect(0, 0, W, H);
-      clouds = makeClouds(g.map.seed); grade = makeGrade(g.map.theme.id);
+    const m = g.map, art = m.level.art || {};
+    if (bgFor !== m) {
+      bg = m.mode === 'patrol' ? makeBackground(m) : makeGround(m);
+      if (art.decorate) art.decorate(bg.getContext('2d'), m, H_ART);
+      fg = art.canopy ? makeForeground(m.theme.id) : null;
+      bgFor = m;
+      trail = newCanvas(m.w, m.h); tctx = trail.getContext('2d');
+      clouds = makeClouds(m.seed); grade = makeGrade(m.theme.id);
     }
-    const fx = THEME_FX[g.map.theme.id] || THEME_FX.clearing;
+    const fx = THEME_FX[m.theme.id] || THEME_FX.clearing;
+    VIEW.x = Math.round(g.cam.x); VIEW.y = Math.round(g.cam.y);
+    spriteBudget = 6;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
     const s = g.shake > 0 ? Math.ceil(g.shake * 4) : 0;
     const ox = s ? ((Math.floor(g.t * 40) % 2) ? s : -s) : 0, oy = s ? ((Math.floor(g.t * 33) % 2) ? s : -s) * 0.6 : 0;
     ctx.fillStyle = PAL.night; ctx.fillRect(0, 0, W, H);
-    ctx.translate(Math.round(ox), Math.round(oy));
+    ctx.translate(Math.round(ox) - VIEW.x, Math.round(oy) - VIEW.y);
     ctx.drawImage(bg, 0, 0);
+    // scorch marks are painted into the persistent ground layer once
+    for (const a of g.ashes) if (!a.stamped) { a.stamped = true; stampAsh(tctx, a); }
 
     // footprints wear the path in over time
     for (const st of g.steps) {
@@ -56,17 +92,19 @@ export function createRenderer() {
     g.steps.length = 0;
     ctx.drawImage(trail, 0, 0);
 
-    drawLeash(ctx, g);
+    if (g.water) drawWater(ctx, g);
+    art.under?.(ctx, g, H_ART);
     for (const i of g.ice) drawIce(ctx, i, g);
     drawFires(ctx, g);
     drawTelegraph(ctx, g);
-    for (const c of g.corpses) drawCorpse(ctx, c);
+    for (const c of g.corpses) if (onScreen(c.x, c.y)) drawCorpse(ctx, c);
     for (const r of g.rings) if (r.col !== 'slash') drawRing(ctx, r);
-    if (!g.clear) drawMarker(ctx, g, false);
+    const patrol = m.mode === 'patrol';
+    if (patrol && !g.clear) drawMarker(ctx, g, false);
 
     // a dark outline round every hero, so the little ones read on any ground
     ctx.globalAlpha = 0.55;
-    for (const u of g.units) if (u.role !== 'rider') for (const [dx, dy] of HALO) { ctx.translate(dx, dy); drawUnit(ctx, u, g, PAL.ink); ctx.translate(-dx, -dy); }
+    for (const u of g.units) if (u.role !== 'rider' && onScreen(u.x, u.y, 8)) for (const [dx, dy] of HALO) { ctx.translate(dx, dy); drawUnit(ctx, u, g, PAL.ink); ctx.translate(-dx, -dy); }
     ctx.globalAlpha = 1;
 
     // y-sorted: adventurers, loose horses, adds, the boss
@@ -79,25 +117,39 @@ export function createRenderer() {
     }
     for (const p of g.parts) if (p.horse) list.push({ y: p.y, f: () => drawHorse(ctx, p.x, p.y, p.face, p.walk, false, g.t) });
     for (const a of g.adds) list.push({ y: a.y, f: () => drawAdd(ctx, a, g) });
+    // scenery: fallen things lie under everybody, standing things sort by their foot
+    for (const p of g.props) {
+      if (p.state === 'gone' || !onScreen(p.x, p.y, 40)) continue;
+      const draw = PROP_ART[p.kind];
+      if (!draw) continue;
+      list.push({ y: p.state === 'down' ? p.y - 40 : p.y + (p.h ? p.h / 2 : 0) + (p.sortY || 0), f: () => { draw(ctx, p, g, H_ART); if (p.burning) drawFlames(ctx, p, g.t); } });
+    }
+    for (const c of g.critters) if (onScreen(c.x, c.y)) list.push({ y: c.y, f: () => (CRITTER_ART[c.kind] || drawCritter)(ctx, c, g, H_ART) });
     list.push({ y: g.boss.y + 2, f: () => drawBoss(ctx, g) });
     list.sort((a, b) => a.y - b.y);
     for (const d of list) d.f();
     for (const u of g.units) if (u.role === 'rider' && u.state === 'climb') drawClimber(ctx, u, g);
-    if (!g.clear) drawMarker(ctx, g, true);
+    art.over?.(ctx, g, H_ART);
+    if (patrol && !g.clear) drawMarker(ctx, g, true);
 
     drawBeam(ctx, g);
     for (const o of g.bolts) drawBolt(ctx, o);
     for (const r of g.rings) if (r.col === 'slash') drawSlash(ctx, r);
-    for (const p of g.parts) if (!p.horse) drawPart(ctx, p);
-    // cloud shadows drift over the field, then everything that glows adds its light on top
-    const cx = -Math.floor((g.t * 3 + (view.bare ? performance.now() / 300 : 0)) % W);
+    for (const p of g.parts) if (!p.horse && onScreen(p.x, p.y, 4)) drawPart(ctx, p);
+    // cloud shadows drift over the field (anchored to the world, so they scroll with it), then everything that glows
+    // adds its light on top
+    const cx = -wrap(Math.floor(g.t * 3 + (view.bare ? performance.now() / 300 : 0)) + VIEW.x, W), cy = -wrap(VIEW.y, H);
     ctx.globalAlpha = fx.cloud;
-    ctx.drawImage(clouds, cx, 0); ctx.drawImage(clouds, cx + W, 0);
+    for (const qx of [0, W]) for (const qy of cy ? [0, H] : [0]) ctx.drawImage(clouds, VIEW.x + cx + qx, VIEW.y + cy + qy);
     ctx.globalAlpha = 1;
     drawLights(ctx, g);
-    ctx.drawImage(fg, 0, 0);
-    drawWeather(ctx, g, fx.amb);
-    ctx.drawImage(grade, -Math.round(ox), -Math.round(oy));
+    if (fg) ctx.drawImage(fg, VIEW.x, VIEW.y);
+    // the weather and the vignette belong to the screen, not the world
+    ctx.setTransform(1, 0, 0, 1, Math.round(ox), Math.round(oy));
+    drawWeather(ctx, g, fx);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(grade, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, Math.round(ox) - VIEW.x, Math.round(oy) - VIEW.y);
     for (const o of g.ghosts) drawGhost(ctx, o);
     for (const t of g.texts) {
       const k = t.t / t.life, a = k > 0.7 ? (1 - k) / 0.3 : 1;
@@ -187,6 +239,71 @@ export function bossPreview(look, dir, frame = 0) {
   const k = lookKey(look);
   if (!previews.has(k)) previews.set(k, makeBossSprites(look));
   return previews.get(k).get(dir, frame);
+}
+
+// ------------------------------------------------------------------------------------------------ level art support
+
+// what level art gets to draw with
+const H_ART = { px: (ctx, x, y, c) => px(ctx, x, y, c), PAL, hash, vnoise, drawText, sprite, tinted, ring: (...a) => ring(...a), textWidth, VIEW, W, H };
+
+// a level's whole world, painted once by its ground() art
+function makeGround(m) {
+  const c = newCanvas(m.w, m.h), x = c.getContext('2d');
+  x.fillStyle = PAL.grass1; x.fillRect(0, 0, m.w, m.h);
+  m.level.art?.ground?.(x, m, H_ART);
+  return c;
+}
+
+function stampAsh(c, a) {
+  const R = Math.ceil(a.r) + 1;
+  for (let py = -R; py <= R; py++) for (let qx = -R; qx <= R; qx++) {
+    const inside = a.w ? Math.abs(qx) <= a.w / 2 + 1 && Math.abs(py) <= a.h / 2 + 1 : Math.hypot(qx, py) <= a.r;
+    if (!inside) continue;
+    const h = hash(qx + a.seed, py + Math.round(a.x));
+    if (h < 0.25) continue;
+    c.fillStyle = h > 0.92 ? '#5a5248' : h > 0.6 ? '#1c1814' : '#2a241e';
+    c.fillRect(Math.round(a.x) + qx, Math.round(a.y) + py, 1, 1);
+  }
+}
+
+// open water ripples; filled cells are a heap of rubble you can walk on
+function drawWater(ctx, g) {
+  const w = g.water, cs = w.cs, fr = Math.floor(g.t * 3);
+  const c0 = Math.max(0, Math.floor(VIEW.x / cs)), c1 = Math.min(w.cols - 1, Math.ceil((VIEW.x + W) / cs));
+  const r0 = Math.max(0, Math.floor(VIEW.y / cs)), r1 = Math.min(w.rows - 1, Math.ceil((VIEW.y + H) / cs));
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+    const v = w.a[r * w.cols + c];
+    if (!v) continue;
+    const x = c * cs, y = r * cs;
+    if (v === 1) {
+      ctx.fillStyle = (c + r) & 1 ? '#2a4a5e' : '#2e5266'; ctx.fillRect(x, y, cs, cs);
+      if (hash(c + fr, r) > 0.8) { ctx.fillStyle = '#5f8ea6'; ctx.fillRect(x + (hash(c, r + fr) * cs | 0), y + (hash(r, c) * cs | 0), 2, 1); }
+      // a dark lip where water meets land
+      if (r > 0 && !w.a[(r - 1) * w.cols + c]) { ctx.fillStyle = '#16262e'; ctx.fillRect(x, y, cs, 1); }
+    } else {
+      for (let k = 0; k < 6; k++) { ctx.fillStyle = ['#6b6c63', '#55564f', '#7a5a3a', '#8f8f84', '#5a3d29', '#3f403a'][(hash(c * 7 + k, r) * 6) | 0]; ctx.fillRect(x + (hash(k, c + r * 31) * (cs - 1) | 0), y + (hash(c, k + r) * (cs - 1) | 0), 2, 2); }
+      ctx.fillStyle = 'rgba(30,40,46,.35)'; ctx.fillRect(x, y, cs, cs);
+    }
+  }
+}
+
+// little flames licking up off anything that is burning
+function drawFlames(ctx, p, t) {
+  const w = p.w || p.r * 2 + 4, top = p.y - (p.state === 'up' ? (p.h ? p.h / 2 + 3 : 9) : 2);
+  const fr = Math.floor(t * 12), n = Math.min(16, 3 + Math.floor(w / 2));
+  for (let i = 0; i < n; i++) {
+    const x = Math.round(p.x - w / 2 + hash(i + p.seed, fr) * w), y = Math.round(top + hash(i * 3, fr + p.seed) * 5);
+    const h = hash(i, fr * 7 + p.seed);
+    ctx.fillStyle = h > 0.75 ? PAL.fire3 : h > 0.4 ? PAL.fire2 : PAL.fire1;
+    ctx.fillRect(x, y, 1, h > 0.5 ? 2 : 1);
+  }
+}
+
+// an animal with no art of its own: a small coloured lump
+function drawCritter(ctx, c) {
+  const x = Math.round(c.x), y = Math.round(c.y);
+  ctx.fillStyle = c.hitT > 0 ? '#ffffff' : PAL.brown; ctx.fillRect(x - 1, y - 2, 3, 2);
+  px(ctx, x + c.fx, y - 3, PAL.ink);
 }
 
 // ------------------------------------------------------------------------------------------------ the ground
@@ -302,21 +419,6 @@ function makeShadow() {
 
 // ------------------------------------------------------------------------------------------------ world bits
 
-// dotted leash line, only near the boss and only once it is getting close to it
-function drawLeash(ctx, g) {
-  const b = g.boss, m = g.map;
-  const near = pathDist(m, b.x, b.y);
-  const a = Math.max(0, Math.min(1, (near - (LEASH - 28)) / 22));
-  if (a <= 0 || b.dead) return;
-  ctx.fillStyle = PAL.cream;
-  ctx.globalAlpha = a * 0.5;
-  const t = Math.floor(g.t * 6);
-  for (let py = Math.max(0, Math.floor(b.y - 60)); py < Math.min(H, b.y + 60); py++) for (let px = Math.max(0, Math.floor(b.x - 60)); px < Math.min(W, b.x + 60); px++) {
-    const d = m.df[py * W + px];
-    if (Math.abs(d - LEASH) < 0.55 && (px + py + t) % 3 === 0 && Math.hypot(px - b.x, py - b.y) < 60) ctx.fillRect(px, py, 1, 1);
-  }
-  ctx.globalAlpha = 1;
-}
 
 function drawIce(ctx, i, g) {
   const fade = i.t < 0.2 ? i.t / 0.2 : i.t > i.life - 1.2 ? Math.max(0, (i.life - i.t) / 1.2) : 1;
@@ -477,8 +579,8 @@ function drawTelegraph(ctx, g) {
   }
   if (a.fired && k !== 'breath') return;
   const prog = a.fired ? 1 : a.t / d.wind;
-  const R = d.range, x0 = Math.max(0, Math.floor(b.x - R)), x1 = Math.min(W - 1, Math.ceil(b.x + R));
-  const y0 = Math.max(0, Math.floor(b.y - R)), y1 = Math.min(H - 1, Math.ceil(b.y + R));
+  const R = d.range, x0 = Math.max(VIEW.x, Math.floor(b.x - R)), x1 = Math.min(VIEW.x + W - 1, Math.ceil(b.x + R));
+  const y0 = Math.max(VIEW.y, Math.floor(b.y - R)), y1 = Math.min(VIEW.y + H - 1, Math.ceil(b.y + R));
   const blink = Math.floor(g.t * (prog > 0.6 ? 24 : 10)) & 1;
   const half = d.arc / 2, face = zoneFace(g, k);
   const channel = a.fired;
@@ -510,7 +612,7 @@ function drawLane(ctx, g, range, width, prog) {
   ctx.fillStyle = PAL.tele;
   for (let py = Math.floor(b.y - R); py <= Math.ceil(b.y + R); py++) for (let qx = Math.floor(b.x - R); qx <= Math.ceil(b.x + R); qx++) {
     const dx = qx + 0.5 - b.x, dy = py + 0.5 - b.y, lx = dx * c + dy * s, ly = -dx * s + dy * c;
-    if (qx < 0 || py < 0 || qx >= W || py >= H || lx < 8 || lx > d.range || Math.abs(ly) > d.width) continue;
+    if (qx < VIEW.x || py < VIEW.y || qx >= VIEW.x + W || py >= VIEW.y + H || lx < 8 || lx > d.range || Math.abs(ly) > d.width) continue;
     const edge = lx > d.range - 1 || Math.abs(ly) > d.width - 1;
     const al = edge ? 0.85 : lx < 8 + (d.range - 8) * prog ? (((qx + py + blink) & 1) ? 0.42 : 0.16) : (((qx + py) & 1) ? 0.12 : 0);
     if (!al) continue;
@@ -605,12 +707,19 @@ function drawUnit(ctx, u, g, sil) {
 // ------------------------------------------------------------------------------------------------ light, weather, clouds
 
 const HALO = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-// per theme: how dark the edges get and in what colour, how strong the cloud shadows are, and what drifts through the air
+// per theme: how dark the edges get and in what colour, how strong the cloud shadows are, and what drifts through the
+// air (cols overrides the drift's colours). The campaign's maps are keyed by their level id.
 const THEME_FX = {
   clearing: { tint: [6, 14, 6], dark: 0.4, cloud: 0.14, amb: 'pollen' },
   autumn: { tint: [24, 10, 4], dark: 0.45, cloud: 0.14, amb: 'leaves' },
   ash: { tint: [16, 6, 6], dark: 0.55, cloud: 0.18, amb: 'ash' },
   snow: { tint: [10, 20, 38], dark: 0.36, cloud: 0.1, amb: 'snow' },
+  forest: { tint: [4, 16, 10], dark: 0.5, cloud: 0.17, amb: 'leaves', cols: ['#4e7a32', '#6e9a3a', '#2e5a3a', '#a8892e'] },
+  farms: { tint: [26, 20, 6], dark: 0.34, cloud: 0.12, amb: 'chaff' },
+  village: { tint: [22, 14, 6], dark: 0.4, cloud: 0.13, amb: 'pollen' },
+  wall: { tint: [10, 14, 22], dark: 0.45, cloud: 0.16, amb: 'dust' },
+  city: { tint: [22, 10, 6], dark: 0.5, cloud: 0.16, amb: 'smoke' },
+  castle: { tint: [22, 6, 12], dark: 0.56, cloud: 0.18, amb: 'smoke' },
 };
 
 // banded, dithered light blobs, added on with 'lighter' so they glow without going smooth
@@ -643,13 +752,22 @@ const PART_LIGHT = { flame: ['#ff7a1a', 3], ember: ['#ffb02e', 2], spark: ['#7fe
 function drawLights(ctx, g) {
   const b = g.boss, t = g.t;
   ctx.globalCompositeOperation = 'lighter';
+  // anything burning lights up the ground round it, more for bigger things
+  let lit = 0;
+  for (const p of g.props) {
+    if (!p.burning || p.state === 'gone' || lit > 70 || !onScreen(p.x, p.y, 24)) continue;
+    lit++;
+    const size = p.w ? (p.w + p.h) / 2 : p.r * 2, r = Math.max(6, Math.min(20, Math.round(5 + size * 0.6)));
+    light(ctx, p.x, p.y - (p.state === 'up' ? Math.min(10, size * 0.4) : 0), '#ff6a12', r, 0.6 + 0.25 * Math.sin(t * 13 + p.seed));
+  }
   for (const f of g.fires) {
+    if (!onScreen(f.x, f.y, 10)) continue;
     const fade = f.t < 0.25 ? f.t / 0.25 : f.t > f.life - 1.2 ? Math.max(0, (f.life - f.t) / 1.2) : 1;
     light(ctx, f.x, f.y, '#ff6a12', 9, fade * (0.75 + 0.25 * Math.sin(t * 17 + f.x)));
   }
   for (const i of g.ice) light(ctx, i.x, i.y, '#5fb8ff', Math.min(26, Math.round(i.r * 0.7)), Math.max(0, Math.min(1, (i.life - i.t) / 1.5)) * 0.5);
   let n = 0;
-  for (const p of g.parts) { const L = PART_LIGHT[p.kind]; if (L && n++ % 2 === 0) light(ctx, p.x, p.y, L[0], L[1], 0.6 * (1 - p.t / p.life)); }
+  for (const p of g.parts) { const L = PART_LIGHT[p.kind]; if (L && n++ % 2 === 0 && onScreen(p.x, p.y, 4)) light(ctx, p.x, p.y, L[0], L[1], 0.6 * (1 - p.t / p.life)); }
   for (const o of g.bolts) light(ctx, o.x, o.y, o.kind === 'fireball' ? '#ff7a1a' : o.kind === 'shadow' ? '#a463e0' : o.kind === 'frost' ? '#7fc8ff' : '#e8d8b0', 4, 0.7);
   for (const a of g.adds) {
     if (a.kind === 'necro') light(ctx, a.x, a.y - 4, '#4cff6a', 6, 0.35 + (a.swing > 0 ? 0.5 : 0));
@@ -668,7 +786,7 @@ function drawLights(ctx, g) {
     const climbed = g.units.some(u => u.role === 'rider' && u.state === 'climb');
     light(ctx, b.x - 4 * Math.cos(b.face), b.y - 4 * Math.sin(b.face), '#6ff3e8', 4, climbed ? 0.9 : 0.35 + 0.15 * Math.sin(t * 2.5));
   }
-  if (!g.clear) {
+  if (!g.clear && g.map.mode === 'patrol') {
     const R = destRock(g), m = (g.map.n - 1) % 5;   // the marker style follows the map, as in drawMarker
     light(ctx, R.x, R.y - (m === 0 ? 3 : 14), ['#ffd75a', '#a463e0', '#3a7bff', '#ffd75a', '#ee8fbf'][m] || '#ffd75a', 12, 0.3 + 0.1 * Math.sin(t * 3));
   }
@@ -678,18 +796,38 @@ function drawLights(ctx, g) {
 
 const wrap = (v, m) => ((v % m) + m) % m;
 // things in the air: pollen and fireflies, falling leaves, ash and embers, snow. Stateless, worked out from time.
-function drawWeather(ctx, g, kind) {
-  const t = g.t + (g.weatherT || 0);
+// Drawn in screen pixels; the camera's offset (VIEW) shifts it so it drifts with the world as the screen scrolls.
+// chaff: bits of straw and seed blowing across; dust: grey grit off the wall; smoke: drifting smoke, ash and embers.
+function drawWeather(ctx, g, fx) {
+  const kind = fx.amb, t = g.t + (g.weatherT || 0), vx = VIEW.x * 0.9, vy = VIEW.y * 0.9;
   for (let i = 0; i < 44; i++) {
     const h1 = hash(i, 1), h2 = hash(i, 2), h3 = hash(i, 3);
     let x, y, col, a = 1, w = 1, hgt = 1;
-    if (kind === 'pollen') {
+    const X = v => wrap(v - vx, W), Y = v => wrap(v - vy, H);
+    if (kind === 'chaff') {
+      x = X(h1 * W + t * (14 + h3 * 12) + Math.sin(t * 2.1 + i) * 3); y = Y(h2 * H + Math.sin(t * 0.7 + i * 2) * 8 + t * (2 + h3 * 2));
+      col = ['#e8d27a', '#c8a050', '#f4ecd2', '#b49a5a'][i % 4]; w = (i + Math.floor(t * 4)) % 3 ? 2 : 1; a = 0.55 + h3 * 0.4;
+    } else if (kind === 'dust') {
+      if (i % 2) continue;
+      x = X(h1 * W + t * (6 + h3 * 6)); y = Y(h2 * H + Math.sin(t + i) * 4 + t * (1 + h3));
+      col = h3 > 0.5 ? '#9a948a' : '#b4a27c'; a = 0.35 + h3 * 0.3;
+    } else if (kind === 'smoke') {
+      if (i % 3 === 0) {
+        // slow grey puffs rising off the fires
+        x = X(h1 * W + t * (4 + h3 * 4) + Math.sin(t * 0.5 + i) * 6); y = Y(h2 * H - t * (6 + h3 * 5));
+        col = h3 > 0.5 ? '#3f3b34' : '#6b665c'; a = 0.22 + 0.12 * Math.sin(t * 0.8 + i); w = 3; hgt = 2;
+      } else if (i % 5 === 0) {
+        x = X(h1 * W + Math.sin(t * 2 + i) * 3); y = Y(h2 * H - t * (12 + h3 * 9));
+        col = '#ffb02e'; a = 0.5 + 0.5 * Math.sin(t * 9 + i);
+        ctx.globalCompositeOperation = 'lighter'; light(ctx, x, y, '#ff6a12', 2, a * 0.7); ctx.globalCompositeOperation = 'source-over';
+      } else { x = X(h1 * W + t * (3 + h3 * 3)); y = Y(h2 * H + t * (5 + h3 * 4)); col = h3 > 0.5 ? '#6b665c' : '#9a948a'; a = 0.65; }
+    } else if (kind === 'pollen') {
       x = wrap(h1 * W + t * (3 + h3 * 5) + Math.sin(t * 0.8 + i) * 4, W); y = wrap(h2 * H - t * (1 + h3 * 2) + Math.cos(t * 0.6 + i) * 3, H);
       a = 0.25 + 0.75 * Math.max(0, Math.sin(t * 2.2 + i * 1.7)); col = h3 > 0.6 ? '#fff07a' : '#f4ecd2';
       if (h3 > 0.85) { ctx.globalCompositeOperation = 'lighter'; light(ctx, x, y, '#fff07a', 3, a * 0.6); ctx.globalCompositeOperation = 'source-over'; }
     } else if (kind === 'leaves') {
-      x = wrap(h1 * W + t * (9 + h3 * 9) + Math.sin(t * 1.6 + i) * 4, W); y = wrap(h2 * H + t * (12 + h3 * 9), H);
-      col = ['#e8892e', '#d8473a', '#ffd75a', '#b0501c'][i % 4]; w = Math.sin(t * 3 + i) > 0 ? 2 : 1; hgt = w === 2 ? 1 : 2;
+      x = X(h1 * W + t * (9 + h3 * 9) + Math.sin(t * 1.6 + i) * 4); y = Y(h2 * H + t * (12 + h3 * 9));
+      col = (fx.cols || ['#e8892e', '#d8473a', '#ffd75a', '#b0501c'])[i % 4]; w = Math.sin(t * 3 + i) > 0 ? 2 : 1; hgt = w === 2 ? 1 : 2;
     } else if (kind === 'ash') {
       if (i % 4 === 0) {
         x = wrap(h1 * W + Math.sin(t * 2 + i) * 3, W); y = wrap(h2 * H - t * (10 + h3 * 8), H);
@@ -707,14 +845,15 @@ function drawWeather(ctx, g, kind) {
   ctx.globalAlpha = 1;
 }
 
-// soft cloud shadows, one screen wide and seamless left to right so they can scroll forever
+// soft cloud shadows, one screen big and seamless both ways so they can tile across a scrolling world forever
 function makeClouds(seed) {
   const c = newCanvas(W, H), x = c.getContext('2d');
   const so = (seed % 997) + 0.5;
   const N = (qx, qy) => vnoise(qx / 46 + so, qy / 34) * 0.7 + vnoise(qx / 17 + so + 9, qy / 13) * 0.3;
   x.fillStyle = PAL.ink;
   for (let py = 0; py < H; py++) for (let qx = 0; qx < W; qx++) {
-    const k = qx / W, n = N(qx, py) * (1 - k) + N(qx + W, py) * k;
+    const k = qx / W, j = py / H;
+    const n = (N(qx, py) * (1 - k) + N(qx + W, py) * k) * (1 - j) + (N(qx, py + H) * (1 - k) + N(qx + W, py + H) * k) * j;
     if (n > 0.66 || (n > 0.6 && (qx + py) & 1)) x.fillRect(qx, py, 1, 1);
   }
   return c;
@@ -820,7 +959,8 @@ const ADD_COL = { k: PAL.ink, F: PAL.fur3, f: PAL.fur2, e: PAL.eye, h: PAL.horn,
 function drawAdd(ctx, a, g) {
   const x = Math.round(a.x), y = Math.round(a.y), flip = a.fx < 0, flash = a.hit > 0;
   ctx.fillStyle = 'rgba(8,10,6,.4)'; ctx.fillRect(x - Math.ceil(a.r), y + 1, Math.ceil(a.r) * 2 + 1, 1);
-  {
+  if (LEVEL_ADD_ART[a.kind]) LEVEL_ADD_ART[a.kind](ctx, a, g, H_ART);
+  else {
     const frames = ADD_ART[a.kind];
     const map = a.kind === 'spitter' || a.kind === 'necro' ? frames[a.swing > 0 ? 1 : 0] : frames[a.moving ? Math.floor(a.walk) % 2 : 0];
     const w = map[0].length, h = map.length, ox = x - Math.floor(w / 2), oy = y - h + 1 - (a.kind === 'gnasher' && a.swing > 0 ? 1 : 0);
@@ -837,6 +977,12 @@ function drawCorpse(ctx, c) {
   const a = c.t > 30 ? (40 - c.t) / 10 : 1;
   ctx.globalAlpha = Math.max(0, a) * 0.85;
   const x = Math.round(c.x), y = Math.round(c.y);
+  if (c.critter) {
+    if (CORPSE_ART[c.critter]) CORPSE_ART[c.critter](ctx, c, H_ART);
+    else { ctx.fillStyle = PAL.brown; ctx.fillRect(x - 1, y - 1, 3, 1); px(ctx, x, y, PAL.blood); }
+    ctx.globalAlpha = 1;
+    return;
+  }
   ctx.fillStyle = PAL[CLASS[c.cls].col]; ctx.fillRect(x - 1, y - 1, c.cls === 'pet' ? 2 : 3, 1);
   px(ctx, x + 2, y - 1, c.cls === 'pet' ? PAL.brown : PAL.skin);
   px(ctx, x, y, PAL.blood);
@@ -873,7 +1019,7 @@ function drawPart(ctx, p) {
 
 function bubble(ctx, s, x, y, bg, fg, alpha = 1) {
   const w = textWidth(s);
-  const bx = Math.max(2, Math.min(W - w - 6, Math.round(x - w / 2 - 2))), by = Math.max(2, Math.round(y));
+  const bx = Math.max(VIEW.x + 2, Math.min(VIEW.x + W - w - 6, Math.round(x - w / 2 - 2))), by = Math.max(VIEW.y + 2, Math.round(y));
   ctx.globalAlpha = alpha * 0.82;
   ctx.fillStyle = bg; ctx.fillRect(bx, by, w + 4, 7);
   ctx.fillRect(Math.round(x), by + 7, 1, 1);
@@ -907,10 +1053,21 @@ function drawHud(ctx, g, view) {
   ctx.globalAlpha = 1;
   drawText(ctx, fmt(g.score), 4, 3, PAL.cream, { scale: 2 });
   const mc = g.mult >= 4 ? PAL.gold : g.mult >= 2 ? PAL.yellow : PAL.cream;
-  drawText(ctx, `AIMLESS X${g.mult.toFixed(2)}`, 4, 15, mc);
-  // where this map is up to: laps to the 25-man, laps to the 40-man, then the 40-man itself
-  const goal = g.clear ? 'MAP CLEARED' : g.dir.final ? 'BEAT THE 40-MAN' : g.lapsMap < RAID_LAPS ? `LAP ${g.lapsMap}/${RAID_LAPS} TO THE RAID` : `LAP ${g.lapsMap}/${FINAL_LAPS} TO THE BIG ONE`;
-  drawText(ctx, `MAP ${g.map.n}  ${goal}`, 4, 22, g.dir.final ? PAL.red : PAL.rock3);
+  const mp = g.map, ML = mp.level;
+  drawText(ctx, `${mp.mode === 'patrol' ? 'AIMLESS' : 'VENGEANCE'} X${g.mult.toFixed(2)}`, 4, 15, mc);
+  // where this map is up to: laps or Chaos to the 25-man and the 40-man, or the map's own goal
+  const goal = g.won ? 'YOU WIN (EARLY ACCESS)' : g.clear ? 'MAP CLEARED' : ML.hud ? ML.hud(g) : g.dir.final ? 'BEAT THE 40-MAN'
+    : mp.mode === 'patrol' ? (g.lapsMap < RAID_LAPS ? `LAP ${g.lapsMap}/${RAID_LAPS} TO THE RAID` : `LAP ${g.lapsMap}/${FINAL_LAPS} TO THE BIG ONE`)
+    : `CHAOS ${Math.floor(g.chaos * 100)}%  ${g.chaos < 0.5 ? 'RAID AT 50' : 'BIG ONE AT 100'}`;
+  const goalTxt = `MAP ${mp.n}  ${goal}`;
+  drawText(ctx, goalTxt, 4, 22, g.dir.final ? PAL.red : PAL.rock3);
+  if (mp.mode === 'chaos') {
+    // the Chaos meter, with a tick at the 25-man
+    const cx = 8 + textWidth(goalTxt);
+    ctx.fillStyle = PAL.ink; ctx.fillRect(cx, 22, 42, 5);
+    ctx.fillStyle = g.chaos >= 1 ? PAL.red : PAL.orange; ctx.fillRect(cx + 1, 23, Math.round(40 * Math.min(1, g.chaos)), 3);
+    ctx.fillStyle = PAL.cream; ctx.fillRect(cx + 21, 22, 1, 5);
+  }
   // level and XP to the next card
   const L = g.lv, lvTxt = `LVL ${L.level}`;
   drawText(ctx, lvTxt, 4, 30, PAL.gold);
@@ -940,6 +1097,7 @@ function drawHud(ctx, g, view) {
   const blink = Math.floor(g.t * 3) % 2;
   if (b.dead) drawText(ctx, 'DEFEATED', 4, 170, PAL.red);
   else if (b.evade) drawText(ctx, 'EVADING...', 4, 170, PAL.cream, { alpha: blink ? 1 : 0.5 });
+  else if (g.map.mode !== 'patrol') drawText(ctx, g.vengeT > 4 && g.mult > 1 ? 'VENGEANCE FADING' : 'WRECK IT', 4, 170, g.vengeT > 4 && g.mult > 1 ? PAL.red : PAL.orange, { alpha: g.vengeT > 4 && g.mult > 1 && !blink ? 0.6 : 1 });
   else if (g.onPatrol) drawText(ctx, 'ON PATROL', 4, 170, PAL.tuftHi);
   else drawText(ctx, g.offLane > 3 ? 'AIMLESSNESS FADING' : 'OFF THE PATH', 4, 170, PAL.red, { alpha: blink ? 1 : 0.6 });
   const m = Math.floor(g.t / 60), s = Math.floor(g.t % 60);

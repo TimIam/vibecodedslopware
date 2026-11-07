@@ -1521,8 +1521,8 @@ function summon(g) {
 function spawnAdd(g, kind, x, y) {
   const b = g.boss, D = ADDS[kind];
   if (x == null) {
-    if (kind === 'spitter') {
-      // squats just off the path, somewhere near you
+    if (kind === 'spitter' && g.map.pts) {
+      // squats just off the path, somewhere near you (on patrol maps; elsewhere it lands beside you like the rest)
       const p = pathNearest(g.map, b.x + (g.rng() - 0.5) * 50, b.y + (g.rng() - 0.5) * 50), side = g.rng() < 0.5 ? -1 : 1;
       const q = pathNearest(g.map, p.x + 3, p.y), ang = Math.atan2(q.y - p.y, q.x - p.x) + Math.PI / 2;
       x = p.x + Math.cos(ang) * side * (LANE + 5); y = p.y + Math.sin(ang) * side * (LANE + 5);

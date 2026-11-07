@@ -1,8 +1,10 @@
-// Headless balance bot for Boss Hours 2: patrols the path, fights whatever is near, shakes off the horse guy and
-// picks level-up cards, then reports when the cards came, how rare they were, and how the run ended.
+// Headless balance bot for Boss Hours 2: patrols the path (map 1), wrecks the scenery (maps 2 to 7), fights whatever is
+// near, shakes off the horse guy and picks level-up cards, then reports when the cards came, how rare they were, and
+// how the run ended.
 //   node boss-hours-2/tools/bot.mjs [runs=8] [minutes=40] [--idle] [--verbose]
-// --idle only patrols (no abilities); --verbose lists every card taken; TRACE=<run> prints that run's state each minute.
-import { createGame, step, pickCard, needsSlot, destRock, pathNearest, inZone, RARITY, pathDist, LEASH } from '../js/world.js';
+// --idle only walks (no abilities); --verbose lists every card taken; TRACE=<run> prints that run's state each minute;
+// START=<map> drops each run straight into that campaign map.
+import { createGame, step, pickCard, needsSlot, destRock, pathNearest, inZone, RARITY, pathDist, LEASH, jumpToLevel } from '../js/world.js';
 
 const args = process.argv.slice(2).filter(a => !a.startsWith('--'));
 const RUNS = Number(args[0] || 8), MINUTES = Number(args[1] || 40);
@@ -13,6 +15,7 @@ function drive(g) {
   const b = g.boss, m = g.map;
   const foes = g.units.filter(u => !u.dead && !u.gone && u.state !== 'flee' && !(u.role === 'rider' && u.state === 'climb'));
   const near = foes.map(u => ({ u, d: Math.hypot(u.x - b.x, u.y - b.y) })).sort((a, c) => a.d - c.d);
+  if (m.mode !== 'patrol') return wreck(g, b, m, near, foes);
   // walk the path toward the rock you are due at
   const here = pathNearest(m, b.x, b.y), i = m.pts.indexOf(here), R = destRock(g);
   const fwd = R === m.B ? 1 : -1;
@@ -47,6 +50,45 @@ function drive(g) {
   return { mx, my, ax, ay, press, hold };
 }
 
+// maps 2 to 7 have no path: walk to the nearest standing scenery (north first inside the walls), swipe and burn it,
+// fight whatever comes close, and give up on a target you cannot reach (moats, walls) for a while
+const W8 = new WeakMap();
+function wreck(g, b, m, near, foes) {
+  const st = W8.get(g) || { stuck: 0, wander: 0, bad: new Set() };
+  W8.set(g, st);
+  if (st.map !== m) { st.map = m; st.tgt = null; st.bad = new Set(); }
+  if (!st.tgt || st.tgt.state !== 'up' || st.stuck > 2.5) {
+    if (st.stuck > 2.5 && st.tgt) { st.bad.add(st.tgt); st.wander = 1.2; }
+    let best = null, bd = 1e9;
+    for (const p of g.props) {
+      if (p.state !== 'up' || st.bad.has(p)) continue;
+      const d = Math.hypot(p.x - b.x, p.y - b.y) + (m.level.id === 'city' ? (p.y - b.y) * 0.8 : 0);
+      if (d < bd) { bd = d; best = p; }
+    }
+    st.tgt = best; st.stuck = 0;
+  }
+  let tx = b.x, ty = b.y - 30;
+  if (st.wander > 0) { st.wander -= DT; tx = b.x + Math.cos(g.t * 0.7) * 60; ty = b.y + Math.sin(g.t * 0.5) * 40 - 20; }
+  else if (st.tgt) { tx = st.tgt.x; ty = st.tgt.y; }
+  if (near.length && near[0].d < 50) { tx = near[0].u.x; ty = near[0].u.y; }
+  let ax = tx - b.x, ay = ty - b.y; const l = Math.hypot(ax, ay) || 1, close = l < 12;
+  ax = close ? 0 : ax / l; ay = close ? 0 : ay / l;
+  const moved = Math.hypot(b.x - (st.lx ?? b.x), b.y - (st.ly ?? b.y)); st.lx = b.x; st.ly = b.y;
+  st.stuck = !close && moved < 0.05 ? st.stuck + DT : Math.max(0, st.stuck - DT);
+  const press = {}, hold = {};
+  if (IDLE) return { mx: tx, my: ty, ax, ay, press, hold };
+  hold.slot0 = true;
+  const within = r => near.filter(e => e.d < r).length, fighting = g.parties.some(p => p.engaged);
+  g.slots.forEach((ab, s) => {
+    if (!ab || ab === 'swipe' || b.cd[ab] > 0) return;
+    const want = { stomp: close || within(35) >= 2, breath: close || within(60) >= 2, roar: within(g.abil.roar.range) >= 5, tail: within(28) >= 2,
+      summon: fighting, beam: within(160) >= 3 || close, ice: within(40) >= 3, charge: close, haste: !fighting }[ab];
+    if (want) press['slot' + s] = true;
+  });
+  if (g.units.some(u => u.role === 'rider' && u.state === 'climb') && b.cd.shake <= 0) press.shake = true;
+  return { mx: tx, my: ty, ax, ay, press, hold };
+}
+
 // card policy: rarity first, then new abilities, then upgrades to what is slotted
 function choose(g) {
   const cs = g.offer.cards;
@@ -77,10 +119,11 @@ const fmtT = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2
 const all = [];
 for (let run = 0; run < RUNS; run++) {
   const g = createGame(1000 + run * 77);
+  if (process.env.START > 1) jumpToLevel(g, +process.env.START);
   const levels = [], maps = [];
   let lastMap = 1, crashed = null, powerAt = {}, scoreAt = {};
   try {
-    while (g.t < MINUTES * 60 && !g.over) {
+    while (g.t < MINUTES * 60 && !g.over && !g.wonSent) {
       if (g.offer) {
         const why = g.offer.why, ch = choose(g), c = g.offer.cards[ch.i];
         levels.push({ t: g.t, why, r: c.r, title: c.title, rs: g.offer.cards.map(x => x.r) });
@@ -102,7 +145,7 @@ for (let run = 0; run < RUNS; run++) {
   const res = { run, t: g.t, over: g.over, score: Math.round(g.score), level: g.lv.level, cards: levels.length, maps: g.maps,
     rare: g.lv.rare, wipes: g.wipes, slots: g.slots.join(","), look: g.look, gaps, levels, mapTimes: maps.map(fmtT), crashed, powerAt };
   all.push(res);
-  console.log(`run ${run}: ${g.over ? 'died' : 'alive'} at ${fmtT(g.t)}  score ${res.score}  lvl ${res.level}  cards ${res.cards}  maps cleared ${g.maps} (${res.mapTimes.join(" ")})  ` +
+  console.log(`run ${run}: ${g.won ? "WON" : g.over ? "died" : "alive"} on map ${g.map.n} at ${fmtT(g.t)}  score ${res.score}  lvl ${res.level}  cards ${res.cards}  maps cleared ${g.maps} (${res.mapTimes.join(" ")})  ` +
     `rarity ${g.lv.rare.join('/')}  wipes d${g.wipes.dungeon} r${g.wipes.raid} f${g.wipes.final} h${g.wipes.rider}  slots ${res.slots}`);
   console.log(`   first card ${levels[0] ? fmtT(levels[0].t) : '-'}; level-up gaps (s): ${gaps.map(x => Math.round(x)).join(' ')}`);
   console.log(`   score (k) by minute: ${Object.values(scoreAt).join(' ')}`);
