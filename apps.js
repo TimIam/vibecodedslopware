@@ -124,6 +124,21 @@ window.SLOPWARE = {
     }
    ]
   },
+  "antfarm": {
+   "visits": 0,
+   "prompts": 3,
+   "tokens": 525128,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-08T10:57:24-07:00",
+     "note": "a photoreal colony across every monitor, founded by a lone queen",
+     "prompts": 3,
+     "tokens": 525128
+    }
+   ]
+  },
   "matrix": {
    "visits": 62,
    "prompts": 5,
