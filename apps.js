@@ -1059,6 +1059,13 @@ window.SLOPWARE = {
      "note": "smoke, a walk home to the rocks, New Game +, the keep is 60% of the castle, the king makes an entrance",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 9,
+     "date": "2026-11-08T13:25:07-07:00",
+     "note": "a new name, a stone title screen, attract mode, saves, free looks in Settings, and seven music tracks",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
