@@ -1145,6 +1145,13 @@ window.SLOPWARE = {
      "note": "moved to /the-endgame-is-me/, the walk home is back, cello and drum fight music, sound from launch",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 11,
+     "date": "2026-11-08T16:39:49-07:00",
+     "note": "every fire makes smoke again, drifting on the wind",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
