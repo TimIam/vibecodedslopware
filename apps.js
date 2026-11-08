@@ -88,6 +88,19 @@ window.SLOPWARE = {
     }
    ]
   },
+  "party-health-pie": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-08T13:08:27-07:00",
+     "note": "a free Classic Forever addon download"
+    }
+   ]
+  },
   "psychic": {
    "visits": 72,
    "prompts": 8,
@@ -126,16 +139,16 @@ window.SLOPWARE = {
   },
   "antfarm": {
    "visits": 0,
-   "prompts": 3,
-   "tokens": 525128,
+   "prompts": 5,
+   "tokens": 854676,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
      "date": "2026-11-08T10:57:24-07:00",
      "note": "a photoreal colony across every monitor, founded by a lone queen",
-     "prompts": 3,
-     "tokens": 525128
+     "prompts": 5,
+     "tokens": 854676
     }
    ]
   },
