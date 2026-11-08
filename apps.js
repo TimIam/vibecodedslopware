@@ -770,7 +770,7 @@ window.SLOPWARE = {
   "wasteland": {
    "visits": 0,
    "prompts": 3,
-   "tokens": 629919,
+   "tokens": 633614,
    "sharedWith": null,
    "versions": [
     {
@@ -785,7 +785,7 @@ window.SLOPWARE = {
      "date": "2026-11-07T15:05:41-07:00",
      "note": "cast shadows, crisper sprites, livelier ground",
      "prompts": 1,
-     "tokens": 66483
+     "tokens": 70178
     }
    ]
   },
@@ -1001,6 +1001,13 @@ window.SLOPWARE = {
      "n": 6,
      "date": "2026-11-07T12:26:36-07:00",
      "note": "summoning Spitters no longer crashes on levels 2 to 7 (they looked for the patrol path)",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 7,
+     "date": "2026-11-07T18:56:18-07:00",
+     "note": "a bigger store with ability demos and Mutate, a fur colour picker, walk-off endings, a real castle gate, a garrisoned castle with a king",
      "prompts": 0,
      "tokens": 0
     }
