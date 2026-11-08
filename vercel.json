@@ -6,13 +6,13 @@
       "permanent": true
     },
     {
-      "source": "/boss-hours/:path*",
-      "destination": "/the-endgame-is-me/:path*",
+      "source": "/boss-hours/(.*)",
+      "destination": "/the-endgame-is-me/$1",
       "permanent": true
     },
     {
-      "source": "/v/boss-hours/:path*",
-      "destination": "/v/the-endgame-is-me/:path*",
+      "source": "/v/boss-hours/(.*)",
+      "destination": "/v/the-endgame-is-me/$1",
       "permanent": true
     }
   ],

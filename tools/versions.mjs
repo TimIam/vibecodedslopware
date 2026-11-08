@@ -156,8 +156,8 @@ fs.writeFileSync(path.join(root, "apps.js"),
 fs.writeFileSync(path.join(root, "vercel.json"), JSON.stringify({
   redirects: Object.entries(MOVED).flatMap(([to, from]) => [
     { source: `/${from}`, destination: `/${to}/`, permanent: true },
-    { source: `/${from}/:path*`, destination: `/${to}/:path*`, permanent: true },
-    { source: `/v/${from}/:path*`, destination: `/v/${to}/:path*`, permanent: true },
+    { source: `/${from}/(.*)`, destination: `/${to}/$1`, permanent: true },
+    { source: `/v/${from}/(.*)`, destination: `/v/${to}/$1`, permanent: true },
   ]),
   rewrites: [{ source: "/v/:slug/:n/:path*", destination: "/:slug/:path*" }],
 }, null, 2) + "\n");
