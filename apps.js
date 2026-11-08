@@ -126,16 +126,16 @@ window.SLOPWARE = {
   },
   "antfarm": {
    "visits": 0,
-   "prompts": 3,
-   "tokens": 525128,
+   "prompts": 5,
+   "tokens": 852516,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
      "date": "2026-11-08T10:57:24-07:00",
      "note": "a photoreal colony across every monitor, founded by a lone queen",
-     "prompts": 3,
-     "tokens": 525128
+     "prompts": 5,
+     "tokens": 852516
     }
    ]
   },
@@ -816,6 +816,21 @@ window.SLOPWARE = {
      "note": "rename Red Tag, now served at /park-inspector/",
      "prompts": 2,
      "tokens": 589382
+    }
+   ]
+  },
+  "dit-happens": {
+   "visits": 0,
+   "prompts": 2,
+   "tokens": 290608,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-08T12:16:16-07:00",
+     "note": "a Morse code trainer with single-A graphics",
+     "prompts": 2,
+     "tokens": 290608
     }
    ]
   },
