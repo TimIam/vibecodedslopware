@@ -2,6 +2,7 @@
 // One unit is one pixel: the arena is the 320×180 screen.
 
 import * as P from './props.js';
+import { updateSmoke } from './smoke.js';
 import { LEVELS, levelFor, lastLevel } from './levels/index.js';
 
 export const W = 320, H = 180;   // the screen; a level's world can be bigger and scrolls (g.map.w, g.map.h)
@@ -13,6 +14,8 @@ export const ARENA = { x0: 5, y0: 16, x1: W - 5, y1: H - 20 };
 export const BOSS_HP = 4000, BOSS_SPEED = 23, BOSS_R = 10;
 export const MULT_STEP = 0.25, MULT_MAX = 5;
 export const RAID_LAPS = 10, FINAL_LAPS = 20;   // a 25-man comes at lap 10, the 40-man at lap 20
+// New Game+: each round, heroes have this much more health, hit this much harder, and turn up this much more often
+export const NG_HP = 0.6, NG_HIT = 0.4, NG_PACE = 0.25;
 export const SLOT_KEYS = ['LMB', 'RMB', 'Q', 'E', 'R'];
 
 // base numbers; g.abil holds this run's copy with upgrades applied
@@ -82,7 +85,7 @@ export const CLASS = {
   hunter:    { role: 'ranged', col: 'green',  hp: 80,  spd: 27, dmg: 9,  rate: 1.3, bolt: 'arrow' },
   pet:       { role: 'pet',    col: 'brown',  hp: 40,  spd: 40, dmg: 2,  rate: 0.9 },
   rider:     { role: 'rider',  col: 'tan',    hp: 100, spd: 30, dmg: 100, rate: 1.1 },
-  king:      { role: 'king',   col: 'gold',   hp: 30,  spd: 14 },   // castle.js: shiny, slow, crunchy
+  king:      { role: 'king',   col: 'gold',   hp: 30,  spd: 14, dmg: 0 },   // castle.js: shiny, slow, crunchy, harmless
 };
 
 const SKILL = {
@@ -133,6 +136,9 @@ const BARK = {
   pet: ['PET!!!', 'HUNTER WTF', 'PET PULLED', 'SORRY PET', 'TURN PET OFF', 'GROWL OFF PLS'],
   logoff: ['BRB', 'GTG', 'LOGGING', 'NOPE', 'CYA', 'BEDTIME', 'WORK TMRW', 'DC'],
   reset: ['BACK TO POSTS', 'LEASH IT', 'RESET', 'HOLD THE TOWER', 'NOT OUR JOB', 'GUARD DUTY'],
+  // what the king says the first time he is on screen: until he has said it he is untouchable (spawnKing)
+  kingHello: ['KNEEL, BEAST. I AM YOUR KING', 'HALT! THIS IS A ROYAL CASTLE', 'HOW DARE YOU. I AM THE KING', 'BY ROYAL DECREE: GO AWAY',
+    'YOU ARE NOT ON THE GUEST LIST', 'BEHOLD MY MAGNIFICENT ARMOUR'],
   king: ['GUARDS!', 'NOT THE FACE', 'I AM THE KING', 'SOMEONE DO SOMETHING', 'MY ARMOUR!', 'I PAY YOU PEOPLE', 'PROTECT ME'],
   wreckThoughts: ['SMASH.', 'VENGEANCE...', 'MINE NOW', 'NO MORE ROCKS', '*SNIFF* SMOKE', 'WHO BUILT THIS', 'TOO MANY HOUSES', 'HM. FLAMMABLE', 'THEY STARTED IT'],
   thoughts: ['HM.', '*SNIFF*', 'NICE ROCK', 'OTHER ROCK', 'PATROL...', 'WHERE WAS I', '*YAWN*', 'THIS WAY', 'NO, THIS WAY', 'GOOD PATH', '...'],
@@ -234,6 +240,7 @@ export function createGame(seed = (Math.random() * 2 ** 32) >>> 0, look) {
     abil: null, owned: new Set(ABILITIES.filter(a => a.start).map(a => a.id)), lvl: {},
     slots: ['swipe', 'stomp', 'breath', 'roar', null],
     look: { head: 0, neck: 0, back: 0, tail: 0, limbs: 0, marker: 0, fur: null, ...look },
+    ng: 0,                    // New Game+ round: 0 the first time through
     score: 0, points: 0, spent: 0, mult: 1, laps: 0, lapsMap: 0, legDist: 0, kills: 0, summoned: 0, maps: 0,
     wipes: { raid: 0, dungeon: 0, rider: 0, final: 0 }, escaped: 0, patrolDist: 0,
     lastMark: 'A', onPatrol: false, offLane: 0, shortcutT: 0,
@@ -322,6 +329,7 @@ export function step(g, inp, dt) {
   separate(g);
   updateBolts(g, dt);
   updateFx(g, dt);
+  updateSmoke(g, dt);
   g.units = g.units.filter(u => !u.dead && !u.gone);
   g.adds = g.adds.filter(a => !a.dead);
   g.parties = g.parties.filter(p => !p.done);
@@ -772,8 +780,9 @@ export function telegraph(g) {
 
 function hurtBoss(g, amt, u) {
   const b = g.boss;
+  if (u?.role === 'king') return;   // the king never lays a finger on anyone
   if (b.evade || b.dead || g.walkoff) return;   // nothing touches you on the way out
-  b.hp -= amt;
+  b.hp -= amt * (1 + NG_HIT * g.ng);
   b.flash = 0.06;
   b.calmT = 0;
   g.blame[u.party.type] += amt;
@@ -823,7 +832,7 @@ function director(g) {
   if (type === 'rider') spawnRider(g);
   else { spawnDungeon(g); if (d.n > 6 && g.rng() < 0.3) spawnDungeon(g, true); }
   d.n++;
-  d.next = g.t + Math.max(14, 30 - d.n * 1.2 - g.map.n * 2) + g.rng() * 8;
+  d.next = g.t + (Math.max(14, 30 - d.n * 1.2 - g.map.n * 2) + g.rng() * 8) / (1 + NG_PACE * g.ng);
 }
 
 function newParty(g, type) {
@@ -837,7 +846,7 @@ function newParty(g, type) {
 function mkUnit(g, p, cls, x, y) {
   const c = CLASS[cls];
   const u = {
-    id: g.nextId++, party: p, cls, role: c.role, x, y, hp: c.hp * p.power, maxhp: c.hp * p.power, spd: c.spd, atk: g.rng() * c.rate, cast: 0,
+    id: g.nextId++, party: p, cls, role: c.role, x, y, hp: c.hp * p.power * (1 + NG_HP * g.ng), maxhp: c.hp * p.power * (1 + NG_HP * g.ng), spd: c.spd, atk: g.rng() * c.rate, cast: 0,
     state: 'travel', kx: 0, ky: 0, hit: 0, dead: false, gone: false, moving: false, fx: 1, walk: g.rng() * 10,
     slotA: 0, slotD: 0, fear: 0, stun: 0, slow: 1, react: Infinity, willDodge: false, inFire: false, fireOk: false, tauntCd: 4 + g.rng() * 6,
   };
@@ -951,14 +960,35 @@ function garrison(g, o) {
   return p;
 }
 
+// The king is untouchable (u.immune) until he has been on screen and said his piece (u.helloT): kingStep.
 function spawnKing(g, o) {
   const p = newParty(g, 'dungeon');
   p.king = true; p.post = { x: o.x, y: o.y }; p.power = 1;
   p.skill = { react: 0.9, dodge: 0.15, fire: 0 };
   const u = mkUnit(g, p, 'king', o.x, o.y);
   u.hp = u.maxhp = o.hp || CLASS.king.hp;
-  u.state = 'post'; u.post = { x: o.x, y: o.y }; u.king = true;
+  u.state = 'post'; u.post = { x: o.x, y: o.y }; u.king = true; u.immune = true; u.helloT = null;
   return u;
+}
+const KING_HELLO = 2.2;   // how long his first line stays up; he can be hurt once it is over
+function kingStep(g, u) {
+  if (!u.immune) return;
+  if (u.helloT == null) {
+    if (u.x > V.x + 8 && u.x < V.x + W - 8 && u.y > V.y + 50 && u.y < V.y + H - 24) {   // well in view, clear of the HUD
+      u.helloT = g.t;
+      bark(g, u, pick(g, BARK.kingHello), KING_HELLO);
+      g.events.push('kinghello');
+    }
+  } else if (g.t - u.helloT >= KING_HELLO) u.immune = false;
+}
+// a blow that bounces off the king's plate: a spark and a CLANG, now and then
+function clang(g, u, amt) {
+  if (amt < 1 || g.t - (u.clangT ?? -9) < 0.35) return;
+  u.clangT = g.t;
+  u.clangN = (u.clangN || 0) + 1;
+  text(g, u.x + (u.clangN % 2 ? 16 : -16), u.y + 2, 'CLANG', 'gold', 0.7);   // off to one side, clear of his speech bubble
+  for (let i = 0; i < 4; i++) { const a = -Math.PI / 2 + (g.rng() - 0.5) * 2.4, s = 20 + g.rng() * 25; part(g, u.x, u.y - 3, Math.cos(a) * s, Math.sin(a) * s, 0.25, 'spark'); }
+  sound(g, 'tick');
 }
 
 function scatter(g, p) {
@@ -1199,6 +1229,7 @@ function updateUnit(g, u, dt) {
   const k = Math.exp(-9 * dt); u.kx *= k; u.ky *= k;
   u.slow = (onIce(g, u.x, u.y) ? 0.4 : 1) * (g.props.length ? P.slowAt(g, u.x, u.y) : 1);
   if (u.role === 'rider') { updateRider(g, u, dt); return; }
+  if (u.role === 'king') kingStep(g, u);
   if (b.dead) { u.moving = false; u.dance = (u.dance || g.rng() * 3) + dt; return; }
 
   // fire on the ground
@@ -1269,7 +1300,7 @@ function updateUnit(g, u, dt) {
       if (shy) {
         const l = db || 1, k = (70 - db) * 0.6;
         tx = clamp(u.x + (u.x - b.x) / l * k, u.post.x - 34, u.post.x + 34); ty = clamp(u.y + (u.y - b.y) / l * k, u.post.y - 22, u.post.y + 22);
-        if (db < 44 && g.rng() < 0.5 * dt) bark(g, u, pick(g, BARK.king));
+        if (db < 44 && !u.immune && g.rng() < 0.5 * dt) bark(g, u, pick(g, BARK.king));   // not over his first line
       }
       if (Math.hypot(tx - u.x, ty - u.y) > 1.5) moveTo(u, tx, ty, u.spd, dt);
       else u.moving = false;
@@ -1277,6 +1308,9 @@ function updateUnit(g, u, dt) {
       return;
     }
   }
+
+  // a king never fights: whatever state he ends up in, he goes back to standing about
+  if (u.role === 'king') { u.state = 'post'; return; }
 
   // one of the boss's adds is in the way: deal with it first
   u.foeT = (u.foeT || 0) - dt;
@@ -1478,6 +1512,7 @@ function shakeRider(g, u) {
 
 function hurt(g, u, amt) {
   if (!hittable(u)) return;
+  if (u.immune) { clang(g, u, amt); return; }
   if (u.role === 'rider' && u.state === 'stun') amt *= 2;
   u.hp -= amt;
   if (amt > 5) u.hit = 0.12;
@@ -1879,9 +1914,87 @@ export function demoStep(d, dt) {
 
 function part(g, x, y, vx, vy, life, kind) { if (g.parts.length < 400) g.parts.push({ x, y, vx, vy, t: 0, life, kind }); }
 function text(g, x, y, s, col, life = 1.1) { g.texts.push({ x, y, s, col, t: 0, life }); }
-function bark(g, u, s) {
+function bark(g, u, s, life = 2) {
   g.barks = g.barks.filter(k => k.u !== u);
   if (g.barks.length >= 6) g.barks.shift();
-  g.barks.push({ u: u.dead ? null : u, x: u.x, y: u.y, s, t: 0, life: 2 });
+  g.barks.push({ u: u.dead ? null : u, x: u.x, y: u.y, s, t: 0, life });
 }
 function banner(g, s, sub, dur = 3.2) { g.banner = { s, sub, t: 0, dur }; }
+
+// ---------------------------------------------------------------------------------------------- after the castle
+
+// New Game+: a fresh run from level 1 with every ability, upgrade and slot from the run you just won, and heroes who
+// are tougher, hit harder and come more often (NG_HP, NG_HIT, NG_PACE per round). Looks and points start over.
+export function newGamePlus(prev) {
+  const g = createGame();
+  g.ng = (prev.ng || 0) + 1;
+  g.owned = new Set(prev.owned);
+  g.lvl = { ...prev.lvl };
+  g.slots = [...prev.slots];
+  applyLevels(g);
+  g.boss.hp = g.boss.maxhp;
+  return g;
+}
+
+// The ending: back in the clearing, the boss comes home to its rocks. A tiny script drives the ordinary sim (nobody
+// spawns, nothing scores); the page adds the captions and hearts. endingStep returns false once it is over.
+export const ENDING_LINES = [
+  [0, 'THE KINGDOM IS RUBBLE.'],
+  [2.8, 'THE HEROES HAVE ALL LOGGED OFF.'],
+  [5.6, 'AND AT LAST, THE LONG WALK HOME.'],
+];
+export function createEnding(look) {
+  const e = createGame(11, look);
+  e.dir.final = true;
+  const { A, B } = e.map;
+  Object.assign(e.boss, { x: W - 8, y: H - 26, face: Math.PI * 1.2 });
+  e.lastMark = 'A';   // walking to B first
+  e.end = { wp: [{ x: W - 70, y: H - 46 }, { x: B.x + 40, y: B.y + 22 }], t: 0, phase: 'walk', caption: ENDING_LINES[0][1], capT: 0, hearts: [], at: null, done: false };
+  return e;
+}
+export function endingStep(e, dt) {
+  const en = e.end, b = e.boss, { A, B } = e.map;
+  en.t += dt; en.capT += dt;
+  const say = s => { if (en.caption !== s) { en.caption = s; en.capT = 0; } };
+  const heart = n => { for (let i = 0; i < n; i++) en.hearts.push({ x: b.x + (e.rng() - 0.5) * 18, y: b.y - 8 - e.rng() * 6, vx: (e.rng() - 0.5) * 8, t: -i * 0.18 }); };
+  for (const h of en.hearts) { h.t += dt; if (h.t > 0) { h.y -= 9 * dt; h.x += h.vx * dt; } }
+  en.hearts = en.hearts.filter(h => h.t < 2.4);
+  if (en.phase === 'walk') for (const [t, s] of ENDING_LINES) if (en.t >= t) say(s);
+
+  const inp = { mx: b.x - 30, my: b.y, ax: 0, ay: 0, press: {}, hold: {} };
+  const go = (p, side, pace = 1) => {
+    const tx = p.x + side * 15, ty = p.y + 3, dx = tx - b.x, dy = ty - b.y, d = Math.hypot(dx, dy);
+    if (d < 2) return true;
+    inp.ax = dx / Math.max(d, 8) * pace; inp.ay = dy / Math.max(d, 8) * pace;
+    inp.mx = b.x + dx; inp.my = b.y + dy;
+    return false;
+  };
+  const look = p => { inp.mx = p.x; inp.my = p.y; };
+  if (en.phase === 'walk') {
+    // a tired amble in from the corner, the long way round
+    if (en.wp.length) { if (go(en.wp[0], 0, 0.55)) en.wp.shift(); }
+    else if (go(B, 1, 0.7)) { en.phase = 'other'; en.at = en.t; e.lastMark = 'B'; say('OTHER ROCK!'); heart(6); inp.press.shake = true; e.events.push('buy'); }
+  } else if (en.phase === 'other') {
+    look(B);
+    if (en.t - en.at > 2.6) { en.phase = 'cross'; say('NOW, WHERE IS...'); }
+  } else if (en.phase === 'cross') {
+    b.haste = 0.5;   // zoomies, obviously
+    if (go(A, -1)) { b.haste = 0; en.phase = 'rock'; en.at = en.t; e.lastMark = 'A'; say('ROCK!!'); heart(9); inp.press.shake = true; e.events.push('buy'); }
+  } else if (en.phase === 'rock') {
+    look(A);
+    if (en.t - en.at > 2.6) { en.phase = 'home'; en.at = en.t; say('TOGETHER AGAIN. AS IT SHOULD BE.'); }
+  } else if (en.phase === 'home') {
+    // settles between them, facing out over the clearing, and pats each rock with a heart now and then
+    const mid = { x: (A.x + B.x) / 2, y: A.y + 14 };
+    const dx = mid.x - b.x, dy = mid.y - b.y, d = Math.hypot(dx, dy);
+    if (d > 2) { inp.ax = dx / Math.max(d, 8); inp.ay = dy / Math.max(d, 8); inp.mx = b.x + dx; inp.my = b.y + dy; }
+    else { inp.mx = b.x; inp.my = b.y + 30; }
+    if (Math.floor((en.t - en.at) / 1.4) !== Math.floor((en.t - en.at - dt) / 1.4)) heart(2);
+    if (en.t - en.at > 5.5) { say('THE END. (CLOCK IN AGAIN?)'); }
+    if (en.t - en.at > 8.5) en.done = true;
+  }
+  step(e, inp, dt);
+  b.hp = b.maxhp;
+  e.texts.length = 0; e.thought = null; e.banner = null; e.barks.length = 0;
+  return !en.done;
+}

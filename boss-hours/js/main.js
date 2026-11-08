@@ -1,9 +1,9 @@
 // The page: input, the fixed-step loop, scaling the 320×180 buffer to the window, the between-maps store,
 // overlays, and saving the best score.
 
-import { createGame, step, nextMap, W, H, ABILITIES, LOOKS, LOOK_COST, FUR_COST, SLOT_KEYS, abilityOffer, buyAbility, upgradeAbility, setSlot, spend, createDemo, demoSet, demoStep } from './world.js';
-import { createRenderer, bossPreview } from './render.js';
-import { BOSS_SIZE, ICONS, PAL } from './art.js';
+import { createGame, step, nextMap, W, H, ABILITIES, LOOKS, LOOK_COST, FUR_COST, SLOT_KEYS, abilityOffer, buyAbility, upgradeAbility, setSlot, spend, createDemo, demoSet, demoStep, createEnding, endingStep, newGamePlus } from './world.js';
+import { createRenderer, bossPreview, markerPreview } from './render.js';
+import { BOSS_SIZE, ICONS, PAL, drawText } from './art.js';
 import { createFurPicker } from './furpick.js';
 import { createAudio } from './audio.js';
 
@@ -23,7 +23,8 @@ function showBest() { $('best').textContent = best ? `Best shift: ${fmt(best)} p
 showBest();
 
 let g = createGame();
-let mode = 'title';   // title | play | store | paused | over
+let mode = 'title';   // title | play | store | paused | ending | over
+let ending = null;    // the walk home after the castle falls
 const DT = 1 / 60;
 let acc = 0, last = performance.now();
 let frozen = false;   // tests only: stop the clock so a screenshot shows exactly the stepped state
@@ -39,6 +40,8 @@ addEventListener('keydown', e => {
   if (e.target.closest?.('a, button, select')) return;
   if (mode === 'title' && (e.code === 'Enter' || e.code === 'Space')) { e.preventDefault(); start(); return; }
   if (mode === 'over' && (e.code === 'KeyR' || e.code === 'Enter')) { e.preventDefault(); start(); return; }
+  if (mode === 'won' && e.code === 'Enter') { e.preventDefault(); start(newGamePlus(g)); return; }
+  if (mode === 'ending' && ['Enter', 'Space', 'Escape'].includes(e.code)) { e.preventDefault(); endingDone(); return; }
   if (e.code === 'KeyM') { audio.toggleMute(); return; }
   if (mode === 'store') return;
   if (e.code === 'Escape' || e.code === 'KeyP') { if (mode === 'play') pause(); else if (mode === 'paused') resume(); return; }
@@ -60,6 +63,7 @@ addEventListener('pointermove', toBuffer);
 canvas.addEventListener('pointerdown', e => {
   toBuffer(e);
   canvas.focus();
+  if (mode === 'ending' && ending.end.t > 1) { endingDone(); return; }
   if (mode !== 'play') return;
   if (e.button === 0) { press.slot0 = true; mouse.l = true; }
   if (e.button === 2) press.slot1 = true;
@@ -80,9 +84,10 @@ function readInput() {
 
 // ---------------------------------------------------------------------------------------------- flow
 
-function start() {
+function start(next) {
   audio.unlock();
-  g = createGame();
+  ending = null;
+  g = next && next.map ? next : createGame();
   R.reset();
   acc = 0;
   mode = 'play';
@@ -123,41 +128,59 @@ function gameOver() {
   $('again').focus();
 }
 
-// the castle is down
+// the castle is down: first the walk home to the rocks, then the card
 function gameWon() {
-  mode = 'over';
+  mode = 'ending';
+  ending = createEnding(g.look);
+  R.reset();
+  acc = 0;
+}
+function endingDone() {
+  if (mode !== 'ending') return;
+  // the boss stays home with its rocks behind the card
+  const en = ending.end;
+  if (en.phase !== 'home') { const { A, B } = ending.map; Object.assign(ending.boss, { x: (A.x + B.x) / 2, y: A.y + 14, face: Math.PI / 2 }); en.phase = 'home'; en.at = en.t; }
+  showWon();
+}
+function showWon() {
+  mode = 'won';
   const newBest = g.score > best;
   if (newBest) { best = Math.floor(g.score); try { localStorage.setItem(BEST_KEY, JSON.stringify({ score: best, at: Date.now() })); } catch {} }
   const m = Math.floor(g.t / 60), s = String(Math.floor(g.t % 60)).padStart(2, '0');
   $('wonStats').innerHTML = [
     ['Score', fmt(g.score) + (newBest ? ' <em>new best</em>' : '')],
     ['Time', `${m}:${s}`],
+    ...(g.ng ? [['Round', `New Game +${g.ng > 1 ? g.ng : ''}`]] : []),
     ['Adventurers eaten', g.kills],
     ['Raids wiped', g.wipes.raid + g.wipes.final],
     ['Points spent', fmt(g.spent)],
   ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   showBest();
+  $('wonPlus').textContent = g.ng ? `New Game +${g.ng + 1}` : 'New Game +';
   $('won').hidden = false;
-  $('wonAgain').focus();
+  $('wonPlus').focus();
 }
 
 $('go').addEventListener('click', start);
 $('wonAgain').addEventListener('click', start);
+$('wonPlus').addEventListener('click', () => start(newGamePlus(g)));
 $('again').addEventListener('click', start);
 $('resume').addEventListener('click', resume);
 
 // ---------------------------------------------------------------------------------------------- the store, between maps
 
 let tab = 'abil', spin = null, sel = 'summon', pend = null, demo = null, demoRaf = 0;
+let lookFocus = null;   // the part last clicked in Looks: the marker shows on a rock instead of on the boss
+let openSlot = -1;      // the Loadout slot whose list is open
 const PART_NAMES = { head: 'Head', neck: 'Neck', back: 'Back', tail: 'Tail', limbs: 'Limbs', marker: 'Destination marker' };
 const PR = createRenderer();   // the demo reel's own renderer
-const furPick = createFurPicker($('furPick'), hex => { pend = { ...pend, fur: hex }; drawLooks(); drawPreview(0); });
+const furPick = createFurPicker($('furPick'), hex => { lookFocus = 'fur'; pend = { ...pend, fur: hex }; drawLooks(); drawPreview(0); });
 
 function openStore() {
   mode = 'store';
   keys.clear(); mouse.l = false;
   $('storeMap').textContent = g.map.n;
-  tab = 'abil';
+  tab = 'abil'; lookFocus = null; openSlot = -1;
   pend = { ...g.look };
   furPick.set(g.look.fur);
   if (!ABILITIES.some(a => a.id === sel)) sel = 'summon';
@@ -177,6 +200,7 @@ function openStore() {
       while (acc >= DT) { demoStep(demo, DT); acc -= DT; }
       paintDemo();
     } else acc = 0;
+    if (tab === 'looks' && lookFocus === 'marker') drawPreview(0);   // markers twinkle and spin
     demoRaf = requestAnimationFrame(tick);
   };
   demoRaf = requestAnimationFrame(tick);
@@ -244,11 +268,22 @@ function paintDemo() {
   c.drawImage(buf, 10, 28, 240, 135, 0, 0, cv.width, cv.height);
 }
 
+// the loadout: five slots, each a pick-list in the game's own type. Every ability in a list says which key it is
+// already on, so you can see what picking it would swap.
 function drawSlots() {
   const owned = ABILITIES.filter(a => !a.passive && g.owned.has(a.id));
-  $('tabSlots').innerHTML = `<p class="hint">Five slots. Pick what goes where; picking something already in another slot swaps them. Shake your fur stays on <kbd>Space</kbd>.</p>` +
-    g.slots.map((id, i) => `<label class="slot"><kbd>${SLOT_KEYS[i]}</kbd>${icon(id || 'empty')}
-      <select data-slot="${i}"><option value="">(empty)</option>${owned.map(a => `<option value="${a.id}" ${a.id === id ? 'selected' : ''}>${a.name}</option>`).join('')}</select></label>`).join('');
+  const name = id => id ? ABILITIES.find(a => a.id === id).name : '(empty)';
+  $('tabSlots').innerHTML = `<p class="hint">Five slots. Pick what goes where; picking something already on another key swaps them. Shake your fur stays on <kbd>Space</kbd>.</p>` +
+    g.slots.map((id, i) => {
+      const list = openSlot !== i ? '' : `<div class="pickList" role="listbox" aria-label="${SLOT_KEYS[i]} slot">` +
+        [null, ...owned.map(a => a.id)].map(o => {
+          const on = g.slots.indexOf(o), here = o === id;
+          const tag = here ? 'here' : o && on >= 0 ? `on ${SLOT_KEYS[on]}` : o ? 'unbound' : '';
+          return `<button type="button" role="option" aria-selected="${here}" class="pickOpt ${here ? 'here' : ''} ${o && on >= 0 && !here ? 'bound' : ''}" data-slot="${i}" data-pick="${o || ''}">${icon(o || 'empty')}<span>${name(o)}</span><small>${tag}</small></button>`;
+        }).join('') + '</div>';
+      return `<div class="slot ${openSlot === i ? 'open' : ''}"><kbd>${SLOT_KEYS[i]}</kbd>
+        <button type="button" class="pickBtn" data-open="${i}" aria-haspopup="listbox" aria-expanded="${openSlot === i}">${icon(id || 'empty')}<span>${name(id)}</span><i aria-hidden="true">${openSlot === i ? '▲' : '▼'}</i></button>${list}</div>`;
+    }).join('');
 }
 
 // looks are tried on for free and paid for when you mutate; nothing is owned, so going back costs again
@@ -280,7 +315,8 @@ function drawPreview(dir) {
   c.imageSmoothingEnabled = false;
   c.clearRect(0, 0, cv.width, cv.height);
   const s = Math.floor(cv.width / BOSS_SIZE);
-  c.drawImage(bossPreview(pend, dir, Math.floor(performance.now() / 300) % 4), 0, 0, BOSS_SIZE * s, BOSS_SIZE * s);
+  const img = lookFocus === 'marker' ? markerPreview(pend.marker, performance.now() / 1000) : bossPreview(pend, dir, Math.floor(performance.now() / 300) % 4);
+  c.drawImage(img, 0, 0, BOSS_SIZE * s, BOSS_SIZE * s);
 }
 
 $('store').addEventListener('click', e => {
@@ -289,8 +325,10 @@ $('store').addEventListener('click', e => {
   if (t.dataset.tab) { tab = t.dataset.tab; drawStore(); return; }
   if (t.id === 'storeGo') { closeStore(); return; }
   if (t.dataset.sel) { sel = t.dataset.sel; showDemo(); drawAbilities(); return; }
-  if (t.dataset.part) { pend = { ...pend, [t.dataset.part]: +t.dataset.i }; drawLooks(); drawPreview(0); return; }
-  if (t.id === 'furNatural') { pend = { ...pend, fur: null }; furPick.set(null); drawLooks(); drawPreview(0); return; }
+  if (t.dataset.open) { const i = +t.dataset.open; openSlot = openSlot === i ? -1 : i; drawSlots(); focusPick(); return; }
+  if (t.dataset.pick !== undefined) { setSlot(g, +t.dataset.slot, t.dataset.pick || null); openSlot = -1; audio.play('buy'); drawSlots(); return; }
+  if (t.dataset.part) { lookFocus = t.dataset.part; pend = { ...pend, [t.dataset.part]: +t.dataset.i }; drawLooks(); drawPreview(0); return; }
+  if (t.id === 'furNatural') { lookFocus = 'fur'; pend = { ...pend, fur: null }; furPick.set(null); drawLooks(); drawPreview(0); return; }
   if (t.id === 'lookRevert') { pend = { ...g.look }; furPick.set(g.look.fur); drawLooks(); drawPreview(0); return; }
   let ok = false;
   if (t.id === 'abilMutate') {
@@ -303,9 +341,19 @@ $('store').addEventListener('click', e => {
   }
   if (ok) { audio.play('buy'); drawStore(); }
 });
-$('store').addEventListener('change', e => {
-  const s = e.target.closest('select[data-slot]');
-  if (s) { setSlot(g, +s.dataset.slot, s.value || null); drawStore(); }
+// an open pick-list closes on a click anywhere else or on Escape; arrow keys walk it
+function focusPick() { (document.querySelector('.pickOpt.here') || document.querySelector('.pickOpt'))?.focus(); }
+document.addEventListener('pointerdown', e => {
+  if (openSlot >= 0 && !e.target.closest('.slot.open, .pickBtn')) { openSlot = -1; drawSlots(); }
+});
+$('store').addEventListener('keydown', e => {
+  if (openSlot < 0) return;
+  if (e.key === 'Escape') { e.preventDefault(); const i = openSlot; openSlot = -1; drawSlots(); document.querySelector(`[data-open="${i}"]`)?.focus(); return; }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const opts = [...document.querySelectorAll('.pickOpt')], k = opts.indexOf(document.activeElement);
+    opts[(k + (e.key === 'ArrowDown' ? 1 : opts.length - 1)) % opts.length]?.focus();
+  }
 });
 
 // ---------------------------------------------------------------------------------------------- loop
@@ -336,6 +384,31 @@ function drain() {
   g.events.length = 0;
 }
 
+// the ending: the clearing, the boss, its rocks, hearts, and a line of narration letterboxed at the bottom
+const HEART = ['.#.#.', '#####', '#####', '.###.', '..#..'];
+function paintEnding(card = false) {
+  const buf = R.render(ending, { bare: true }), c = buf.getContext('2d'), en = ending.end;
+  for (const h of en.hearts) {
+    if (h.t < 0) continue;
+    c.globalAlpha = h.t > 1.6 ? Math.max(0, (2.4 - h.t) / 0.8) : 1;
+    const x = Math.round(h.x - ending.cam.x) - 2, y = Math.round(h.y - ending.cam.y) - 2;
+    c.fillStyle = PAL.ink; HEART.forEach((r, j) => { for (let i = 0; i < 5; i++) if (r[i] === '#') c.fillRect(x + i - 1, y + j, 3, 1); });
+    HEART.forEach((r, j) => { for (let i = 0; i < 5; i++) if (r[i] === '#') { c.fillStyle = i === 1 && j === 1 ? '#ffd0dc' : '#e2486a'; c.fillRect(x + i, y + j, 1, 1); } });
+  }
+  c.globalAlpha = 1;
+  const warm = Math.min(0.32, en.t * 0.012);
+  if (card) { c.globalAlpha = warm; c.fillStyle = '#ff9a4a'; c.fillRect(0, 0, W, H); c.globalAlpha = 1; out.drawImage(buf, 0, 0, canvas.width, canvas.height); return; }
+  // letterbox bars, the caption typed out, and a warm wash that deepens toward the end
+  const k = Math.min(1, en.t / 1.2);
+  c.fillStyle = '#0a0806'; c.fillRect(0, 0, W, Math.round(16 * k)); c.fillRect(0, H - Math.round(22 * k), W, 22);
+  c.globalAlpha = warm; c.fillStyle = '#ff9a4a'; c.fillRect(0, 16, W, H - 38); c.globalAlpha = 1;
+  if (en.caption) drawText(c, en.caption.slice(0, Math.floor(en.capT * 28)), W / 2, H - 15, PAL.cream, { align: 'center' });
+  if (en.t > 2) drawText(c, 'CLICK TO SKIP', W - 4, 5, '#6b665c', { align: 'right', shadow: false });
+  if (en.done || en.phase === 'home' && en.t - (en.at || 0) > 7.5) { c.globalAlpha = Math.min(1, (en.t - en.at - 7.5) / 1); c.fillStyle = '#000'; c.fillRect(0, 0, W, H); c.globalAlpha = 1; }
+  out.imageSmoothingEnabled = false;
+  out.drawImage(buf, 0, 0, canvas.width, canvas.height);
+}
+
 function paint() {
   const buf = R.render(g, { mx: mouse.x, my: mouse.y, cursor: mode === 'play', muted: audio.muted, bare: mode === 'title' });
   out.imageSmoothingEnabled = false;
@@ -354,6 +427,22 @@ function frame(now) {
       drain();
     }
     audio.setCombat(g.parties.some(p => p.engaged));
+  }
+  if (mode === 'won' && ending) {
+    endingStep(ending, Math.min(dt, 0.05));
+    ending.events.length = 0;
+    paintEnding(true); requestAnimationFrame(frame); return;
+  }
+  if (mode === 'ending') {
+    acc += dt;
+    while (acc >= DT && mode === 'ending') {
+      const more = endingStep(ending, DT);
+      for (const e of ending.events) audio.play(e);
+      ending.events.length = 0;
+      acc -= DT;
+      if (!more) endingDone();
+    }
+    if (mode === 'ending') { paintEnding(); requestAnimationFrame(frame); return; }
   }
   paint();
   requestAnimationFrame(frame);
@@ -381,6 +470,8 @@ if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
     get mode() { return mode; },
     start,
     openStore, closeStore,
+    win: () => gameWon(),
+    get ending() { return ending; },
     tab(t) { tab = t; drawStore(); },
     freeze(on = true) { frozen = on; },
     // covers the page with a magnified crop of the buffer (w buffer px wide), for close-up screenshots

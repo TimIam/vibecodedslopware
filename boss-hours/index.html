@@ -83,8 +83,18 @@ dd em{font-style:normal;color:#ffd75a;font-size:11px;margin-left:6px}
 button[aria-disabled="true"]{opacity:.5;cursor:default}
 button[aria-disabled="true"]:active{transform:none}
 .hint{font-size:11.5px;color:#aeac9b;margin:0 0 10px}
-.slot{display:grid;grid-template-columns:52px 20px 1fr;gap:8px;align-items:center;margin:6px 0;max-width:420px}
-.slot select{font:12px "Silkscreen",monospace;background:#2a2016;color:#f4ecd2;border:2px solid #14100c;padding:5px 6px}
+.slot{position:relative;display:grid;grid-template-columns:52px 1fr;gap:10px;align-items:center;margin:8px 0;max-width:460px}
+.pickBtn{margin:0;padding:8px 10px 6px;display:grid;grid-template-columns:16px 1fr auto;gap:8px;align-items:center;text-align:left;font-size:12px;text-transform:none;letter-spacing:0;background:#2a2016;box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c}
+.pickBtn:hover,.slot.open .pickBtn{background:#3a2c1e}
+.pickBtn i{font-style:normal;font-size:9px;color:#aeac9b}
+.pickList{grid-column:2;display:grid;gap:2px;padding:4px;margin-top:-4px;background:#1c1610;box-shadow:0 0 0 2px #14100c,0 0 0 4px #633b25,0 10px 24px rgba(0,0,0,.6)}
+.pickOpt{margin:0;padding:6px 8px 4px;display:grid;grid-template-columns:16px 1fr auto;gap:8px;align-items:center;text-align:left;font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;background:#2a2016;box-shadow:none;color:#f4ecd2}
+.pickOpt:hover,.pickOpt:focus-visible{background:#4a3220;outline:2px solid #ffd75a;outline-offset:-2px}
+.pickOpt:active{transform:none;box-shadow:none}
+.pickOpt small{font-size:10px;color:#7f7f74}
+.pickOpt.bound small{color:#ffd75a}
+.pickOpt.here{background:#6e4229}
+.pickOpt.here small{color:#f4ecd2}
 #preview{width:280px;height:280px;max-width:100%;justify-self:center;image-rendering:pixelated;background:#2c3e23;box-shadow:0 0 0 2px #14100c,inset 0 0 0 2px #364b2a}
 .part h3{margin:0 0 4px;font-size:12px;color:#aeac9b;font-weight:400}
 .part{margin-bottom:8px}
@@ -100,6 +110,9 @@ button[aria-disabled="true"]:active{transform:none}
 .furSide{display:grid;gap:8px;justify-items:start}
 #furSwatch{display:block;width:48px;height:48px;box-shadow:0 0 0 2px #14100c,inset 0 0 0 2px rgba(255,255,255,.15)}
 #storeGo{display:block;margin:14px auto 0}
+.wonBtns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+button.quiet{background:#2a2016;box-shadow:0 4px 0 #14100c,0 0 0 3px #14100c}
+button.quiet:hover{background:#3a2c1e}
 .touch-only{display:none}
 @media (hover:none) and (pointer:coarse){.touch-only{display:block}}
 </style>
@@ -178,9 +191,10 @@ button[aria-disabled="true"]:active{transform:none}
 <div id="won" class="overlay" hidden>
   <div class="card">
     <h2 style="color:#ffd75a">The kingdom is rubble</h2>
-    <p>The castle is down and every hero left is running. Somewhere, two rocks wait.</p>
+    <p>The castle is down, the heroes have logged off, and the boss is home with Rock and Other Rock.</p>
     <dl id="wonStats"></dl>
-    <button id="wonAgain" type="button">Start a new shift</button>
+    <div class="wonBtns"><button id="wonPlus" type="button">New Game +</button><button id="wonAgain" type="button" class="quiet">Start fresh</button></div>
+    <p class="note" id="wonPlusNote">New Game +: back to the rocks with every ability you own. The heroes have been practising.</p>
   </div>
 </div>
 
