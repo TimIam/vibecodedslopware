@@ -1070,7 +1070,7 @@ window.SLOPWARE = {
     }
    ]
   },
-  "boss-hours": {
+  "the-endgame-is-me": {
    "visits": 4,
    "prompts": 4,
    "tokens": 718948,
@@ -1136,6 +1136,13 @@ window.SLOPWARE = {
      "n": 9,
      "date": "2026-11-08T13:25:07-07:00",
      "note": "a new name, a stone title screen, attract mode, saves, free looks in Settings, and seven music tracks",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 10,
+     "date": "2026-11-08T15:33:40-07:00",
+     "note": "moved to /the-endgame-is-me/, the walk home is back, cello and drum fight music, sound from launch",
      "prompts": 0,
      "tokens": 0
     }

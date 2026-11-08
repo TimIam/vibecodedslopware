@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Endgame is Me</title>
+<meta name="description" content="A reverse boss fight in pixel art. You are the boss: pace between a rock and another rock for points, eat the 5-mans, raids and the quiet man on a horse who keep interrupting, and spend the points on new abilities.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐾</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#141a12;color:#f4ecd2;font:14px/1.45 "Silkscreen",ui-monospace,Consolas,monospace;user-select:none;-webkit-user-select:none}
+main{position:fixed;inset:52px 0 0;display:grid;place-items:center}
+#game{display:block;image-rendering:pixelated;image-rendering:crisp-edges;outline:none;cursor:none;background:#141a12}
+.overlay{position:fixed;inset:52px 0 0;display:grid;place-items:center;z-index:10;background:rgba(10,12,8,.55)}
+.overlay[hidden]{display:none}
+.card{width:min(600px,94vw);max-height:calc(100dvh - 72px);overflow:auto;padding:18px 24px 18px;background:#1c1610;border:4px solid #14100c;box-shadow:0 0 0 4px #633b25,0 0 0 8px #14100c,0 18px 50px rgba(0,0,0,.6);text-align:center}
+h1{margin:0;font-size:40px;line-height:1;letter-spacing:1px;color:#ffd75a;text-shadow:4px 4px 0 #14100c,0 0 0 #000}
+h1 small{display:block;font-size:13px;letter-spacing:2px;color:#aeac9b;text-shadow:none;margin-top:8px;font-weight:400}
+h2{margin:0;font-size:24px;color:#e2483a;text-shadow:3px 3px 0 #14100c}
+p{margin:12px 0 0;color:#d2cfbd}
+.how{text-align:left;margin:12px 0 0;padding:0;list-style:none;display:grid;gap:5px;font-size:12px;line-height:1.4;color:#d2cfbd}
+.how li{padding-left:18px;position:relative}
+.how li::before{content:"";position:absolute;left:2px;top:6px;width:7px;height:7px;background:#ffd75a;box-shadow:2px 2px 0 #14100c}
+.how b{color:#f4ecd2;font-weight:700}
+.keys{display:grid;grid-template-columns:auto auto auto auto;gap:6px 10px;margin:14px auto 0;width:max-content;max-width:100%;text-align:left;font-size:11.5px;align-items:center}
+@media (max-width:560px){.keys{grid-template-columns:auto 1fr}}
+.keys .k{justify-self:end;white-space:nowrap}
+kbd{display:inline-block;min-width:22px;padding:2px 6px 1px;background:#2f302c;border:2px solid #14100c;border-bottom-width:4px;color:#f4ecd2;font:inherit;font-size:11px;text-align:center}
+button{appearance:none;margin-top:14px;border:0;padding:12px 26px 10px;background:#c0392b;color:#fff;font:700 18px/1 "Silkscreen",monospace;cursor:pointer;box-shadow:0 4px 0 #6e1d14,0 0 0 3px #14100c;text-transform:uppercase;letter-spacing:1px}
+button:hover{background:#d8473a}
+button:active{transform:translateY(3px);box-shadow:0 1px 0 #6e1d14,0 0 0 3px #14100c}
+button:focus-visible{outline:3px solid #ffd75a;outline-offset:4px}
+#best{margin-top:10px;font-size:12px;color:#ffd75a;min-height:1em}
+.note{font-size:11px;color:#7f7f74;margin-top:12px}
+dl{display:grid;grid-template-columns:1fr auto;gap:4px 18px;margin:16px auto 0;width:min(340px,100%);text-align:left;font-size:13px}
+dt{color:#aeac9b}
+dd{margin:0;text-align:right;color:#f4ecd2}
+dd em{font-style:normal;color:#ffd75a;font-size:11px;margin-left:6px}
+.store{width:min(1160px,98vw);text-align:left;padding:18px 26px 20px}
+.store h2{text-align:center}
+.loot{text-align:center;margin-top:6px}
+.loot b{color:#ffd75a;font-size:18px}
+.loot span{display:block;font-size:11px;color:#7f7f74}
+.tabs{display:flex;gap:6px;justify-content:center;margin-top:10px}
+.tabs button{margin:0;padding:8px 14px 6px;font-size:13px;background:#2a2016;box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c}
+.tabs button[aria-selected="true"]{background:#c0392b;box-shadow:0 3px 0 #6e1d14,0 0 0 2px #14100c}
+.tab{margin-top:12px}
+.tab[hidden]{display:none!important}
+#tabAbil{display:grid;grid-template-columns:minmax(0,480px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:900px){#tabAbil{grid-template-columns:1fr}}
+.stage{display:grid;gap:10px;justify-items:stretch;width:min(480px,100%)}
+#demo{width:480px;max-width:100%;height:auto;aspect-ratio:16/9;image-rendering:pixelated;background:#2c3e23;box-shadow:0 0 0 2px #14100c,inset 0 0 0 2px #364b2a}
+#abilInfo,#lookInfo{display:grid;gap:4px;font-size:12px}
+#abilInfo .nm{font-size:16px;color:#ffd75a}
+#abilInfo .desc{color:#d2cfbd}
+#abilInfo .up{color:#aeac9b;font-size:11px}
+.mutate{margin:8px 0 0;width:100%;display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:17px}
+.mutate b{color:#ffd75a}
+.mutate small{font-size:11px;opacity:.85;text-transform:none;letter-spacing:0}
+.revert{margin:4px 0 0;padding:7px 10px 5px;font-size:12px;background:#2a2016;box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c}
+#abilList{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:7px;align-content:start}
+.item{margin:0;text-transform:none;letter-spacing:0;text-align:left;color:#f4ecd2;font-weight:400;cursor:pointer;display:grid;grid-template-columns:auto 1fr auto;gap:3px 8px;align-items:center;padding:8px 10px;background:#2a2016;font-size:12px;box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c}
+.item:hover{background:#3a2c1e}
+.item.owned{box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c,inset 3px 0 0 #ffd75a}
+.item.sel{background:#4a3220;box-shadow:0 3px 0 #14100c,0 0 0 2px #ffd75a,inset 3px 0 0 #ffd75a}
+.item .cost{grid-column:1/-1;font-size:11px;color:#ffd75a}
+.item .cost.dim{color:#7f7f74}
+.item .nm{font-size:13px}
+.item .tag{font-size:10px;color:#aeac9b;text-align:right}
+.item .desc{grid-column:1/-1;color:#d2cfbd;font-size:11px}
+.item .buy{grid-column:1/-1;margin:2px 0 0;padding:7px 10px 5px;font-size:12px;text-transform:none;letter-spacing:0;text-align:left;display:grid;grid-template-columns:auto 1fr;gap:0 8px}
+.item .buy b{color:#ffd75a;text-align:right}
+.item .buy small{grid-column:1/-1;font-size:10.5px;opacity:.85}
+.item .maxed{grid-column:1/-1;color:#7f7f74;font-size:11px}
+.pips{display:flex;gap:2px;justify-self:end}
+.pips i{width:6px;height:6px;background:#3a3026;box-shadow:0 0 0 1px #14100c}
+.pips i.on{background:#ffd75a}
+.ico{width:16px;height:16px;fill:#f4ecd2;shape-rendering:crispEdges}
+button[aria-disabled="true"]{opacity:.5;cursor:default}
+button[aria-disabled="true"]:active{transform:none}
+.hint{font-size:11.5px;color:#aeac9b;margin:0 0 10px}
+.slot{display:grid;grid-template-columns:52px 20px 1fr;gap:8px;align-items:center;margin:6px 0;max-width:420px}
+.slot select{font:12px "Silkscreen",monospace;background:#2a2016;color:#f4ecd2;border:2px solid #14100c;padding:5px 6px}
+#preview{width:280px;height:280px;max-width:100%;justify-self:center;image-rendering:pixelated;background:#2c3e23;box-shadow:0 0 0 2px #14100c,inset 0 0 0 2px #364b2a}
+.opt{margin:0;padding:6px 8px 4px;font-size:11px;text-transform:none;letter-spacing:0;background:#2a2016;box-shadow:0 2px 0 #14100c,0 0 0 2px #14100c;display:grid;text-align:left}
+.opt small{font-size:10px;color:#ffd75a}
+.opt.on{background:#6e4229;box-shadow:0 2px 0 #14100c,0 0 0 2px #ffd75a}
+.furRow{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+#furPick{width:180px;height:180px;image-rendering:pixelated;cursor:crosshair;touch-action:none;background:#1c1610}
+.furSide{display:grid;gap:8px;justify-items:start}
+#furSwatch{display:block;width:48px;height:48px;box-shadow:0 0 0 2px #14100c,inset 0 0 0 2px rgba(255,255,255,.15)}
+#storeGo{display:block;margin:14px auto 0}
+.wonBtns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+button.quiet{background:#2a2016;box-shadow:0 4px 0 #14100c,0 0 0 3px #14100c}
+button.quiet:hover{background:#3a2c1e}
+#title{background:none}
+.titleStage{position:relative;width:var(--cw,100%);height:var(--ch,100%);visibility:hidden;opacity:0;transition:opacity .25s;font-size:calc(var(--u,3)*1px)}
+.titleStage.on{visibility:visible;opacity:1}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+#titleMenu{position:absolute;left:50%;top:44%;transform:translateX(-50%);display:grid;justify-items:center;gap:1.2em}
+.mi{position:relative;margin:0;padding:0 1.8em;background:none;box-shadow:none;color:#d2cfbd;font-size:9em;line-height:1.15;font-weight:700;letter-spacing:.04em;white-space:nowrap;text-shadow:.13em .13em 0 #14100c;outline:none}
+.mi[hidden]{display:none}
+.mi:hover{background:none}
+.mi:active{transform:none;box-shadow:none}
+.mi:focus,.mi:focus-visible{color:#ffd75a;outline:none}
+.mi:disabled{color:#6b665c;cursor:default;text-shadow:none}
+/* the selected item sits between a rock and another rock */
+.mi::before,.mi::after{content:"";position:absolute;top:.1em;width:1.15em;height:.86em;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 6' shape-rendering='crispEdges'%3E%3Cpath fill='%2314100c' d='M2 0h4v1h1v1h1v4H0V2h1V1h1z'/%3E%3Cpath fill='%237f7f74' d='M2 1h4v1h1v3H1V2h1z'/%3E%3Cpath fill='%23aeac9b' d='M2 1h3v1H3v1H2z'/%3E%3Cpath fill='%234f6a32' d='M1 4h2v1H1z'/%3E%3C/svg%3E") center/contain no-repeat;image-rendering:pixelated;opacity:0}
+.mi::before{left:0}
+.mi::after{right:0;transform:scaleX(-1)}
+.mi:focus::before,.mi:focus::after{opacity:1}
+.titleSide{position:absolute;right:1.9%;top:72.8%;width:31%;height:24.5%;padding:.5em .7em;background:rgba(10,8,6,.55);display:flex;flex-direction:column;justify-content:space-between;text-align:left}
+#menuHint{margin:0;font-size:6.2em;line-height:1.25;color:#f4ecd2}
+#best{margin:0;font-size:6.2em;line-height:1.2;color:#ffd75a;min-height:0}
+.titleSide .note{margin:0;font-size:5.4em}
+#panel{background:rgba(10,12,8,.84)}
+.panelCard{width:min(640px,94vw)}
+.panelCard.wide{width:min(1060px,97vw);text-align:left}
+.panelCard.wide h2{text-align:center}
+.panelCard .how{margin-top:10px}
+.panelCard h2{color:#ffd75a}
+.panelBody[hidden]{display:none}
+.panelBody h3{margin:14px 0 6px;font-size:13px;color:#ffd75a;font-weight:700}
+.nameRow{display:flex;gap:10px;align-items:center;margin-top:10px}
+.nameRow label{font-size:13px;color:#aeac9b;white-space:nowrap}
+#bossName{flex:1;min-width:0;padding:9px 10px 7px;background:#14100c;border:2px solid #633b25;color:#f4ecd2;font:700 15px/1 "Silkscreen",monospace;text-transform:uppercase;user-select:text;-webkit-user-select:text}
+#bossName:focus{outline:2px solid #ffd75a;outline-offset:1px}
+.die{flex:none;margin:0;width:38px;height:38px;padding:1px;background:none;box-shadow:none}
+.die:hover{background:none;filter:brightness(1.15)}
+.die:active{transform:none;box-shadow:none}
+.die svg{display:block;width:36px;height:36px}
+.die.roll svg{animation:roll .3s steps(4)}
+@keyframes roll{0%{transform:rotate(0) translateY(0)}35%{transform:rotate(90deg) translateY(-5px)}70%{transform:rotate(200deg) translateY(-2px)}100%{transform:rotate(360deg)}}
+.setCols{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:8px 26px;align-items:start}
+@media (max-width:820px){.setCols{grid-template-columns:1fr}}
+.slRow{display:grid;grid-template-columns:104px 1fr auto;gap:10px;align-items:center;margin:8px 0;font-size:13px}
+.chk{display:inline-flex;gap:6px;align-items:center;font-size:12px;color:#d2cfbd;cursor:pointer}
+.chk input,.radio input{appearance:none;margin:0;flex:none;width:14px;height:14px;background:#14100c;box-shadow:0 0 0 2px #633b25;cursor:pointer}
+.chk input:checked{background:#ffd75a;box-shadow:0 0 0 2px #633b25,inset 0 0 0 2px #14100c}
+.radio input{border-radius:50%}
+.radio input:checked{background:#ffd75a;box-shadow:0 0 0 2px #ffd75a,inset 0 0 0 2px #14100c}
+.chk input:focus-visible,.radio input:focus-visible{outline:2px solid #ffd75a;outline-offset:3px}
+input[type=range]{appearance:none;width:100%;height:12px;margin:0;background:linear-gradient(90deg,#ffd75a var(--at,50%),#3a3026 var(--at,50%));box-shadow:0 0 0 2px #14100c;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:10px;height:20px;background:#f4ecd2;box-shadow:0 0 0 2px #14100c}
+input[type=range]::-moz-range-thumb{width:10px;height:20px;border:0;border-radius:0;background:#f4ecd2;box-shadow:0 0 0 2px #14100c}
+input[type=range]:focus-visible{outline:2px solid #ffd75a;outline-offset:4px}
+#musicPick{position:relative;display:grid;grid-template-columns:104px 1fr;gap:10px;align-items:center;margin:8px 0 14px;font-size:13px}
+.pickBtn{margin:0;padding:8px 10px 6px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;text-align:left;font-size:12px;text-transform:none;letter-spacing:0;background:#2a2016;box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c}
+.pickBtn:hover,.pickBtn[aria-expanded=true]{background:#3a2c1e}
+.pickBtn i{font-style:normal;font-size:9px;color:#aeac9b}
+.pickList{grid-column:2;display:grid;gap:2px;padding:4px;background:#1c1610;box-shadow:0 0 0 2px #14100c,0 0 0 4px #633b25}
+.pickList[hidden]{display:none}
+.pickOpt{margin:0;padding:6px 8px 4px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;text-align:left;font-size:12px;font-weight:400;text-transform:none;letter-spacing:0;background:#2a2016;box-shadow:none;color:#f4ecd2}
+.pickOpt:hover,.pickOpt:focus-visible{background:#4a3220;outline:2px solid #ffd75a;outline-offset:-2px}
+.pickOpt:active{transform:none;box-shadow:none}
+.pickOpt small{font-size:10px;color:#7f7f74}
+.pickOpt.here{background:#6e4229}
+.setRow{width:100%;margin:6px 0 0;padding:10px 12px 8px;display:flex;justify-content:space-between;align-items:center;gap:14px;font-size:13px;font-weight:400;text-transform:none;letter-spacing:0;background:#2a2016;box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c;color:#f4ecd2}
+.setRow:hover,.setRow:focus-visible{background:#4a3220}
+.setRow:active{transform:none;box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c}
+.setRow .val{color:#ffd75a}
+.setLinks{display:flex;gap:10px;margin-top:14px}
+.setLinks button{margin:0;padding:8px 14px 6px;font-size:12px}
+.lookTop{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.lookTop #preview{width:168px;height:168px}
+fieldset.part{border:0;padding:0;margin:0 0 7px;min-width:0}
+fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
+.radio{display:inline-flex;gap:6px;align-items:center;font-size:12px;padding:2px 12px 2px 2px;cursor:pointer;color:#d2cfbd}
+.radio input:checked+span{color:#ffd75a}
+.opts{display:flex;flex-wrap:wrap;gap:2px 4px}
+.creditRows{display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;margin:14px 0 0;font-size:12px;text-align:left}
+.creditRows dt{text-align:right;color:#aeac9b}
+.creditRows dd{text-align:left;margin:0;color:#f4ecd2}
+.pauseBtns{display:grid;justify-items:center;gap:0}
+.pauseBtns button{width:min(320px,100%)}
+.touch-only{display:none}
+@media (hover:none) and (pointer:coarse){.touch-only{display:block}}
+</style>
+<script src="/splash.js"></script>
+<script type="module" src="./js/main.js"></script>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<main><canvas id="game" tabindex="0" aria-label="The Endgame is Me, game view"></canvas></main>
+
+<div id="title" class="overlay">
+  <div class="titleStage" id="titleStage">
+    <h1 class="sr">The Endgame is Me: a reverse boss fight</h1>
+    <nav id="titleMenu" aria-label="Main menu">
+      <button class="mi" type="button" data-go="new">New Game</button>
+      <button class="mi" type="button" data-go="continue" disabled>Continue</button>
+      <button class="mi" type="button" data-go="plus" hidden>New Game+</button>
+      <button class="mi" type="button" data-go="settings">Settings</button>
+    </nav>
+    <div class="titleSide">
+      <p id="menuHint" aria-live="polite"></p>
+      <p class="note touch-only">Needs a keyboard and mouse.</p>
+      <div id="best"></div>
+    </div>
+  </div>
+</div>
+
+<div id="panel" class="overlay" hidden>
+  <div class="card panelCard" id="panelCard">
+    <h2 id="panelTitle">Handbook</h2>
+    <div class="panelBody" data-panel="handbook">
+    <p>You are the boss. The job is to walk from a rock to another rock, forever. Adventurers keep interrupting.</p>
+    <ul class="how">
+      <li><b>Walk the path</b> between the rocks for points. Touch each rock in turn to build <b>Aimlessness</b>, which multiplies everything.</li>
+      <li>Step off the path and Aimlessness fades. Go past your leash and you <b>evade</b>: you heal, but the multiplier resets.</li>
+      <li><b>5-mans</b> wander in (one is always AFK). After <b>10 laps</b> a 25-man raid shows up; they count down, then dodge your telegraphs because they read the guide. At <b>20 laps</b> comes the 40-man, and nothing else.</li>
+      <li>A <b>quiet man on a horse</b> will try to climb your fur and stab the glowing spot on your back. Shake him off, then step on him.</li>
+      <li>Beat the 40-man and <b>the Hoard</b> opens: spend your points on new abilities (adds, a lightning beam, ice, a stun charge, zoomies) and upgrades. Then the next level. Horns, tails, wings and fur colour are free in Settings.</li>
+      <li>After the Clearing the job changes: woods, farms, villages, a city wall and a castle, all there to be flattened. Wrecking things builds <b>Vengeance</b>. Flatten the castle and you can go home.</li>
+    </ul>
+    <div class="keys">
+      <span class="k"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>lumber about</span>
+      <span class="k"><kbd>mouse</kbd></span><span>face somewhere</span>
+      <span class="k"><kbd>LMB</kbd></span><span>swipe (hold it)</span>
+      <span class="k"><kbd>RMB</kbd></span><span>stomp</span>
+      <span class="k"><kbd>Q</kbd></span><span>fire breath (leaves fire)</span>
+      <span class="k"><kbd>E</kbd></span><span>roar (everyone runs)</span>
+      <span class="k"><kbd>Space</kbd></span><span>shake your fur</span>
+      <span class="k"><kbd>R</kbd></span><span>5th slot (buy something)</span>
+      <span class="k"><kbd>P</kbd> <kbd>M</kbd></span><span>pause, mute</span>
+    </div>
+    </div>
+    <div class="panelBody" data-panel="settings" hidden>
+      <div class="nameRow"><label for="bossName">Boss name</label><input id="bossName" maxlength="26" autocomplete="off" spellcheck="false"><button id="nameDie" class="die" type="button" aria-label="Pick a random name" title="Random name"></button></div>
+      <div class="setCols">
+        <div>
+          <h3>Sound</h3>
+          <div class="slRow"><label for="volMusic">Music</label><input id="volMusic" type="range" min="0" max="10" step="1"><label class="chk"><input id="muteMusic" type="checkbox"><span>Mute</span></label></div>
+          <div id="musicPick"><span>Music select</span><button id="musicBtn" class="pickBtn" type="button" aria-haspopup="listbox" aria-expanded="false"><span></span><i aria-hidden="true">▼</i></button><div id="musicList" class="pickList" role="listbox" aria-label="Music select" hidden></div></div>
+          <div class="slRow"><label for="volSfx">Sound effects</label><input id="volSfx" type="range" min="0" max="10" step="1"><label class="chk"><input id="muteSfx" type="checkbox"><span>Mute</span></label></div>
+          <h3>Game</h3>
+          <label class="chk"><input id="setShake" type="checkbox"><span>Screen shake</span></label>
+          <button id="setForget" type="button" class="setRow"><span class="lbl">Forget best shift</span><span class="val"></span></button>
+          <div class="setLinks"><button id="openHandbook" type="button" class="quiet">Handbook</button><button id="openCredits" type="button" class="quiet">Credits</button></div>
+        </div>
+        <div>
+          <h3>Appearance</h3>
+          <div class="lookTop">
+            <canvas id="preview" width="280" height="280" aria-label="Your boss, turning slowly"></canvas>
+            <canvas id="furPick" width="72" height="72" aria-label="Fur colour: hue ring and saturation and lightness triangle"></canvas>
+            <div class="furSide"><span id="furSwatch"></span><button type="button" class="opt" id="furNatural">Natural brown</button></div>
+          </div>
+          <div id="lookRows"></div>
+        </div>
+      </div>
+    </div>
+    <div class="panelBody" data-panel="credits" hidden>
+      <dl class="creditRows">
+        <dt>The Boss</dt><dd>You</dd>
+        <dt>Rock</dt><dd>Itself</dd>
+        <dt>Other Rock</dt><dd>Itself</dd>
+        <dt>The Quiet Man</dt><dd>Declined to comment</dd>
+        <dt>The Horse</dt><dd>Did not help</dd>
+        <dt>Healer</dt><dd>AFK</dd>
+        <dt>The 5-Man</dt><dd>Met an hour ago</dd>
+        <dt>The 40-Man</dt><dd>Read the guide</dd>
+        <dt>The King</dt><dd>Said something</dd>
+        <dt>Moat Fill</dt><dd>Various rubble</dd>
+      </dl>
+      <p class="note">No rocks were harmed. They were visited repeatedly.</p>
+      <p class="note">A Vibe Coded Slopware production.</p>
+    </div>
+    <button id="panelBack" type="button" class="quiet">Back</button>
+  </div>
+</div>
+
+<div id="store" class="overlay" hidden>
+  <div class="card store">
+    <h2 style="color:#ffd75a">The Hoard</h2>
+    <p class="loot">Points: <b id="storePts">0</b> <span>Level <i id="storeMap">1</i> cleared. Spend what you earned, then on to the next one.</span></p>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="abil">Abilities</button>
+      <button type="button" role="tab" data-tab="slots">Loadout</button>
+    </div>
+    <div id="tabAbil" class="tab">
+      <div class="stage">
+        <canvas id="demo" width="480" height="270" aria-label="The selected ability in action"></canvas>
+        <div id="abilInfo"></div>
+      </div>
+      <div id="abilList"></div>
+    </div>
+    <div id="tabSlots" class="tab" hidden></div>
+    <button id="storeGo" type="button">Next level</button>
+  </div>
+</div>
+
+<div id="won" class="overlay" hidden>
+  <div class="card">
+    <h2 style="color:#ffd75a">The kingdom is rubble</h2>
+    <p>The castle is down and every hero left is running. Somewhere, two rocks wait.</p>
+    <dl id="wonStats"></dl>
+    <div class="wonBtns"><button id="wonPlus" type="button">New Game +</button><button id="wonAgain" type="button" class="quiet">Start fresh</button><button id="wonTitle" type="button" class="quiet">Title screen</button></div>
+    <p class="note">New Game +: back to the rocks with every ability you own. The heroes have been practising.</p>
+  </div>
+</div>
+
+<div id="paused" class="overlay" hidden>
+  <div class="card">
+    <h2 style="color:#ffd75a">On break</h2>
+    <p>The adventurers are also on break. Probably.</p>
+    <div class="pauseBtns">
+      <button id="resume" type="button">Back to pacing</button>
+      <button id="pausedHandbook" type="button" class="quiet">Handbook</button>
+      <button id="pausedSettings" type="button" class="quiet">Settings</button>
+      <button id="pausedSave" type="button" class="quiet">Save and Quit</button>
+    </div>
+  </div>
+</div>
+
+<div id="over" class="overlay" hidden>
+  <div class="card">
+    <h2>You have been defeated</h2>
+    <p id="overBy"></p>
+    <p id="overSub" style="color:#aeac9b;margin-top:4px"></p>
+    <dl id="stats"></dl>
+    <div class="wonBtns"><button id="again" type="button">Respawn at last save</button><button id="overTitle" type="button" class="quiet">Title screen</button></div>
+    <p class="note">Bosses respawn on reset. Reset is whenever you press R.</p>
+  </div>
+</div>
+</body>
+</html>

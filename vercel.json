@@ -1,4 +1,21 @@
 {
+  "redirects": [
+    {
+      "source": "/boss-hours",
+      "destination": "/the-endgame-is-me/",
+      "permanent": true
+    },
+    {
+      "source": "/boss-hours/:path*",
+      "destination": "/the-endgame-is-me/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/v/boss-hours/:path*",
+      "destination": "/v/the-endgame-is-me/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/v/:slug/:n/:path*",
