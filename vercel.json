@@ -18,6 +18,10 @@
   ],
   "rewrites": [
     {
+      "source": "/v/:slug/:n/",
+      "destination": "/:slug/"
+    },
+    {
       "source": "/v/:slug/:n/:path*",
       "destination": "/:slug/:path*"
     }

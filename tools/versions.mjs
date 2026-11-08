@@ -159,6 +159,10 @@ fs.writeFileSync(path.join(root, "vercel.json"), JSON.stringify({
     { source: `/${from}/(.*)`, destination: `/${to}/$1`, permanent: true },
     { source: `/v/${from}/(.*)`, destination: `/v/${to}/$1`, permanent: true },
   ]),
-  rewrites: [{ source: "/v/:slug/:n/:path*", destination: "/:slug/:path*" }],
+  rewrites: [
+    // :path* doesn't match the bare folder, which a version needs when its index.html is the same as today's
+    { source: "/v/:slug/:n/", destination: "/:slug/" },
+    { source: "/v/:slug/:n/:path*", destination: "/:slug/:path*" },
+  ],
 }, null, 2) + "\n");
 console.log(`${Object.keys(apps).length} apps, ${Object.values(apps).reduce((a, x) => a + x.versions.length, 0)} versions; wrote ${written} files (${(bytes / 1e6).toFixed(1)} MB) under v/`);
