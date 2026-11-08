@@ -1904,3 +1904,66 @@ export function newGamePlus(prev, look) {
   g.boss.hp = g.boss.maxhp;
   return g;
 }
+
+// The ending: back in the clearing, the boss comes home to its rocks. A tiny script drives the ordinary sim (nobody
+// spawns, nothing scores); the page adds the captions and hearts. endingStep returns false once it is over.
+export const ENDING_LINES = [
+  [0, 'THE KINGDOM IS RUBBLE.'],
+  [2.8, 'THE HEROES HAVE ALL LOGGED OFF.'],
+  [5.6, 'AND AT LAST, THE LONG WALK HOME.'],
+];
+export function createEnding(look) {
+  const e = createGame(11, look);
+  e.dir.final = true;
+  const { A, B } = e.map;
+  Object.assign(e.boss, { x: W - 8, y: H - 26, face: Math.PI * 1.2 });
+  e.lastMark = 'A';   // walking to B first
+  e.end = { wp: [{ x: W - 70, y: H - 46 }, { x: B.x + 40, y: B.y + 22 }], t: 0, phase: 'walk', caption: ENDING_LINES[0][1], capT: 0, hearts: [], at: null, done: false };
+  return e;
+}
+export function endingStep(e, dt) {
+  const en = e.end, b = e.boss, { A, B } = e.map;
+  en.t += dt; en.capT += dt;
+  const say = s => { if (en.caption !== s) { en.caption = s; en.capT = 0; } };
+  const heart = n => { for (let i = 0; i < n; i++) en.hearts.push({ x: b.x + (e.rng() - 0.5) * 18, y: b.y - 8 - e.rng() * 6, vx: (e.rng() - 0.5) * 8, t: -i * 0.18 }); };
+  for (const h of en.hearts) { h.t += dt; if (h.t > 0) { h.y -= 9 * dt; h.x += h.vx * dt; } }
+  en.hearts = en.hearts.filter(h => h.t < 2.4);
+  if (en.phase === 'walk') for (const [t, s] of ENDING_LINES) if (en.t >= t) say(s);
+
+  const inp = { mx: b.x - 30, my: b.y, ax: 0, ay: 0, press: {}, hold: {} };
+  const go = (p, side, pace = 1) => {
+    const tx = p.x + side * 15, ty = p.y + 3, dx = tx - b.x, dy = ty - b.y, d = Math.hypot(dx, dy);
+    if (d < 2) return true;
+    inp.ax = dx / Math.max(d, 8) * pace; inp.ay = dy / Math.max(d, 8) * pace;
+    inp.mx = b.x + dx; inp.my = b.y + dy;
+    return false;
+  };
+  const look = p => { inp.mx = p.x; inp.my = p.y; };
+  if (en.phase === 'walk') {
+    // a tired amble in from the corner, the long way round
+    if (en.wp.length) { if (go(en.wp[0], 0, 0.55)) en.wp.shift(); }
+    else if (go(B, 1, 0.7)) { en.phase = 'other'; en.at = en.t; e.lastMark = 'B'; say('OTHER ROCK!'); heart(6); inp.press.shake = true; e.events.push('buy'); }
+  } else if (en.phase === 'other') {
+    look(B);
+    if (en.t - en.at > 2.6) { en.phase = 'cross'; say('NOW, WHERE IS...'); }
+  } else if (en.phase === 'cross') {
+    b.haste = 0.5;   // zoomies, obviously
+    if (go(A, -1)) { b.haste = 0; en.phase = 'rock'; en.at = en.t; e.lastMark = 'A'; say('ROCK!!'); heart(9); inp.press.shake = true; e.events.push('buy'); }
+  } else if (en.phase === 'rock') {
+    look(A);
+    if (en.t - en.at > 2.6) { en.phase = 'home'; en.at = en.t; say('TOGETHER AGAIN. AS IT SHOULD BE.'); }
+  } else if (en.phase === 'home') {
+    // settles between them, facing out over the clearing, and pats each rock with a heart now and then
+    const mid = { x: (A.x + B.x) / 2, y: A.y + 14 };
+    const dx = mid.x - b.x, dy = mid.y - b.y, d = Math.hypot(dx, dy);
+    if (d > 2) { inp.ax = dx / Math.max(d, 8); inp.ay = dy / Math.max(d, 8); inp.mx = b.x + dx; inp.my = b.y + dy; }
+    else { inp.mx = b.x; inp.my = b.y + 30; }
+    if (Math.floor((en.t - en.at) / 1.4) !== Math.floor((en.t - en.at - dt) / 1.4)) heart(2);
+    if (en.t - en.at > 5.5) { say('THE END. (CLOCK IN AGAIN?)'); }
+    if (en.t - en.at > 8.5) en.done = true;
+  }
+  step(e, inp, dt);
+  b.hp = b.maxhp;
+  e.texts.length = 0; e.thought = null; e.banner = null; e.barks.length = 0;
+  return !en.done;
+}

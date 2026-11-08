@@ -177,10 +177,12 @@ fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
 .creditRows dd{text-align:left;margin:0;color:#f4ecd2}
 .pauseBtns{display:grid;justify-items:center;gap:0}
 .pauseBtns button{width:min(320px,100%)}
+#soundGate{position:fixed;inset:52px 0 0;z-index:40;display:grid;place-content:center;justify-items:center;gap:6px;background:#0a0806;text-align:center;padding:16px}
+#soundGate[hidden]{display:none}
+#soundGate p{font-size:12px;color:#aeac9b}
 .touch-only{display:none}
 @media (hover:none) and (pointer:coarse){.touch-only{display:block}}
 </style>
-<script src="/splash.js"></script>
 <script type="module" src="./js/main.js"></script>
 </head>
 <body>
@@ -189,6 +191,8 @@ fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
   <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
 </nav>
 <script src="/site-nav.js"></script>
+
+<div id="soundGate" hidden><button id="soundGo" type="button">Click to start</button><p>Or press any key. Browsers keep games silent until you do.</p></div>
 
 <main><canvas id="game" tabindex="0" aria-label="The Endgame is Me, game view"></canvas></main>
 
@@ -301,7 +305,7 @@ fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
 <div id="won" class="overlay" hidden>
   <div class="card">
     <h2 style="color:#ffd75a">The kingdom is rubble</h2>
-    <p>The castle is down and every hero left is running. Somewhere, two rocks wait.</p>
+    <p>The castle is down, the heroes have logged off, and the boss is home with Rock and Other Rock.</p>
     <dl id="wonStats"></dl>
     <div class="wonBtns"><button id="wonPlus" type="button">New Game +</button><button id="wonAgain" type="button" class="quiet">Start fresh</button><button id="wonTitle" type="button" class="quiet">Title screen</button></div>
     <p class="note">New Game +: back to the rocks with every ability you own. The heroes have been practising.</p>

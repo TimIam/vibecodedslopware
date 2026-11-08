@@ -151,8 +151,8 @@ const HELPERS = `
 
 const DESIGNS = {
   // The boss, facing you, over the title in its own 3×5 font.
-  "boss-hours": { url: "/boss-hours/", draw: async () => {
-    const A = await import("/boss-hours/js/art.js");
+  "boss-hours": { url: "/the-endgame-is-me/", draw: async () => {
+    const A = await import("/the-endgame-is-me/js/art.js");
     const [c, g] = layer();
     const boss = A.makeBossSprites()[8][0];
     g.drawImage(boss, 18, 22, 144, 144);

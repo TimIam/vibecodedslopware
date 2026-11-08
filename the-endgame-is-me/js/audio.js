@@ -35,8 +35,10 @@ export function createAudio() {
   function installRetry() {
     if (retryOff) return;
     const again = () => { if (ac && ac.state !== 'running') ac.resume().catch(() => {}); };
-    for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, again, true);
-    retryOff = () => { for (const ev of ['pointerdown', 'keydown']) removeEventListener(ev, again, true); retryOff = null; };
+    // touch only counts as permission on the way up, so listen for all of these
+    const EVENTS = ['pointerdown', 'pointerup', 'click', 'touchend', 'keydown'];
+    for (const ev of EVENTS) addEventListener(ev, again, true);
+    retryOff = () => { for (const ev of EVENTS) removeEventListener(ev, again, true); retryOff = null; };
   }
 
   // soft ceiling on the very end of the chain: unity below 0.85, so it only ever catches stacked peaks
@@ -53,6 +55,7 @@ export function createAudio() {
     return pre;
   }
 
+  let attached = false;   // the music waits for the title, so it doesn't talk over the studio splash
   function ensure() {
     if (!ac) {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -68,7 +71,6 @@ export function createAudio() {
         if (ac.state === 'running') { if (retryOff) retryOff(); player.kick(); }
         else if (ac.state !== 'closed') installRetry();
       };
-      player.attach(ac, mus);
     }
     if (ac.state !== 'running') {
       if (!navigator.userActivation || navigator.userActivation.hasBeenActive) ac.resume().catch(() => {});
@@ -193,7 +195,13 @@ export function createAudio() {
   const tracks = TRACKS.map(t => ({ id: t.id, name: t.name, stage: t.stage, seconds: t.seconds }));
 
   return {
-    unlock() { if (ensure()) player.kick(); },
+    // the click that lifts the browser's block: wakes the sound without starting the music yet
+    arm() { ensure(); },
+    unlock() {
+      if (!ensure()) return;
+      if (!attached) { attached = true; player.attach(ac, mus); }
+      player.kick();
+    },
     play(name) { if (!ac || mute.sfx || levels.sfx <= 0) return; const f = SFX[name]; if (f) f(); },
     setStage: n => player.setStage(n),
     setCombat: on => player.setCombat(on),
