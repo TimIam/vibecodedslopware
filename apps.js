@@ -807,7 +807,7 @@ window.SLOPWARE = {
   "pit-crew": {
    "visits": 19,
    "prompts": 8,
-   "tokens": 3982832,
+   "tokens": 3989892,
    "sharedWith": null,
    "versions": [
     {
@@ -850,7 +850,7 @@ window.SLOPWARE = {
      "date": "2026-11-07T19:12:55-07:00",
      "note": "options, sky, Mags' pep talks, season menu, title music",
      "prompts": 1,
-     "tokens": 957068
+     "tokens": 964128
     }
    ]
   },
@@ -1015,6 +1015,13 @@ window.SLOPWARE = {
      "n": 7,
      "date": "2026-11-07T18:56:18-07:00",
      "note": "a bigger store with ability demos and Mutate, a fur colour picker, walk-off endings, a real castle gate, a garrisoned castle with a king",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 8,
+     "date": "2026-11-07T21:39:07-07:00",
+     "note": "smoke, a walk home to the rocks, New Game +, the keep is 60% of the castle, the king makes an entrance",
      "prompts": 0,
      "tokens": 0
     }
