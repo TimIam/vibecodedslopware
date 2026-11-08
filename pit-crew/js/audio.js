@@ -4,14 +4,27 @@ let muted = false;
 let fuelNode = null, crowdGain = null, rainGain = null;
 let song = null, step = 0, nextT = 0, timer = null;
 
+// Levels from the options screen; music dips during stops unless the player turned that off.
+const lv = { music: 0.8, sfx: 0.9, duckOn: true, ducked: false };
+const musicGain = () => 0.4 * lv.music * (lv.ducked && lv.duckOn ? 0.38 : 1);
+export function setLevels({ music, sfx, duckOn }) {
+  if (music != null) lv.music = music;
+  if (sfx != null) lv.sfx = sfx;
+  if (duckOn != null) lv.duckOn = duckOn;
+  if (!ac) return;
+  musicBus.gain.setTargetAtTime(musicGain(), ac.currentTime, 0.05);
+  sfxBus.gain.setTargetAtTime(lv.sfx, ac.currentTime, 0.05);
+}
+let wanted = null; // the song a scene asked for before sound was allowed to start
+
 export function init() {
   if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return;
   ac = new AC();
   master = ac.createGain(); master.gain.value = muted ? 0 : 0.7; master.connect(ac.destination);
-  musicBus = ac.createGain(); musicBus.gain.value = 0.32; musicBus.connect(master);
-  sfxBus = ac.createGain(); sfxBus.gain.value = 0.9; sfxBus.connect(master);
+  musicBus = ac.createGain(); musicBus.gain.value = musicGain(); musicBus.connect(master);
+  sfxBus = ac.createGain(); sfxBus.gain.value = lv.sfx; sfxBus.connect(master);
   noiseBuf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
   const d = noiseBuf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -21,6 +34,7 @@ export function init() {
   rainGain = ac.createGain(); rainGain.gain.value = 0;
   loopNoise('highpass', 2500, rainGain);
   timer = setInterval(schedule, 40);
+  if (wanted) { const w = wanted; wanted = null; music(w); }
 }
 
 function loopNoise(type, f, out) {
@@ -33,7 +47,9 @@ export function setMuted(m) { muted = m; if (master) master.gain.setTargetAtTime
 export function isMuted() { return muted; }
 export function setCrowd(v) { if (crowdGain) crowdGain.gain.setTargetAtTime(v * 0.12, ac.currentTime, 0.3); }
 export function setRain(v) { if (rainGain) rainGain.gain.setTargetAtTime(v * 0.1, ac.currentTime, 0.5); }
-export function duck(v) { if (musicBus) musicBus.gain.setTargetAtTime(v, ac.currentTime, 0.15); }
+export function duck(on) { lv.ducked = !!on; if (musicBus) musicBus.gain.setTargetAtTime(musicGain(), ac.currentTime, 0.15); }
+export const ready = () => !!ac && ac.state === 'running';
+export const playing = () => (song ? song.name : null);
 
 function env(g, t, a, peak, dec) {
   g.gain.setValueAtTime(0.0001, t);
@@ -176,7 +192,7 @@ const SONGS = {
 };
 
 export function music(name) {
-  if (!ac) return;
+  if (!ac) { wanted = name; return; }
   if (song && song.name === name) return;
   song = name ? { name, ...SONGS[name] } : null;
   step = 0;

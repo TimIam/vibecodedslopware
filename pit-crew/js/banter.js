@@ -8,6 +8,7 @@ import { TRACK_IDLE as MORE_TRACK } from './lines/tracks.js';
 import * as EV from './lines/events.js';
 import * as PEP from './lines/pep.js';
 import * as FLAG from './lines/flags.js';
+import * as SHUTDOWN from './lines/shutdown.js';
 
 const IDLE = [
   [['toby', 'Mags, how many wheel nuts have you done in your career?'], ['mags', 'All of them, Toby.']],
@@ -184,6 +185,7 @@ export const LINES = {
   FINISH: merge(FINISH, INTRO.FINISH),
   BOSS: merge(BOSS, INTRO.BOSS),
   FLAG,
+  SHUTDOWN,
 };
 
 // Player-chosen names: every line is written with the defaults and swapped on the way out.
@@ -319,15 +321,16 @@ export class Director {
   clear() { this.queue = []; this.conv = null; this.cur = null; }
 }
 
-// Dev's pep talk as the cars line up: built fresh each race from parts, about the day's
+// Mags' pep talk as the cars line up: built fresh each race from parts, about the day's
 // conditions, or about the basics when it's dry, mild and daylight.
-const PEP_ORDER = ['finale', 'rain', 'dry', 'heat', 'cold', 'night', 'dusk', 'sand', 'walls', 'doubleStack', 'tightLane', 'slick', 'long'];
+const PEP_ORDER = ['finale', 'shutdown', 'rain', 'dry', 'heat', 'cold', 'night', 'dusk', 'sand', 'walls', 'doubleStack', 'tightLane', 'slick', 'long'];
 export function pepTalk(track, r = Math.random) {
   const has = m => track.mods.includes(m);
   const wet = track.weather.some(w => w.wet);
   const time = track.time || 'day';
   const c = new Set();
-  if (track.id === 'isla') c.add('finale');
+  if (track.finale) c.add('finale');
+  if (track.shutdown) c.add('shutdown');
   if (wet) c.add('rain'); else if (track.dryNow) c.add('dry');
   if (has('heat')) c.add('heat');
   if (has('cold')) c.add('cold');
@@ -336,7 +339,7 @@ export function pepTalk(track, r = Math.random) {
   if (has('slick') && !wet) c.add('slick');
   if (track.laps >= 14) c.add('long');
   const mild = !wet && !has('heat') && !has('cold') && time === 'day';
-  const say = list => ['dev', pickFresh(list, r)];
+  const say = list => ['mags', pickFresh(list, r)];
   const lines = [say(PEP.OPEN)];
   const keys = PEP_ORDER.filter(k => c.has(k) && PEP.COND[k]);
   if (mild) {

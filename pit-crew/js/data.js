@@ -36,7 +36,7 @@ export const COMPOUND_ORDER = ['soft', 'medium', 'hard', 'wet'];
 
 // Portrait specs are drawn by gfx.portrait(). Voice is the blip pitch for the typewriter.
 export const PEOPLE = {
-  mags: { name: 'MAGS', role: 'Chief Mechanic', skin: '#8a5a3c', hair: '#d8d8d8', hairStyle: 'crop', glasses: 'safety', headset: true, bg: '#3a2f4a', voice: 150 },
+  mags: { name: 'MAGS', role: 'Crew Chief', skin: '#8a5a3c', hair: '#d8d8d8', hairStyle: 'crop', glasses: 'safety', headset: true, bg: '#3a2f4a', voice: 150 },
   toby: { name: 'TOBY', role: 'Tyre Carrier', skin: '#f0c4a0', hair: '#d8662a', hairStyle: 'mop', freckles: true, bg: '#2f4a3a', voice: 330 },
   lou:  { name: 'BIG LOU', role: 'Front Jack', skin: '#c88f62', hair: '#3a2416', hairStyle: 'bald', moustache: true, headset: true, bg: '#4a3a2a', voice: 110 },
   dev:  { name: 'DEV', role: 'Chief Engineer', skin: '#a8724c', hair: '#1a1410', hairStyle: 'neat', glasses: 'round', headset: true, mic: true, bg: '#26364a', voice: 210 },

@@ -37,60 +37,91 @@ export function theme(track) {
 let seedv = 1;
 const rnd = () => { seedv = (seedv * 16807) % 2147483647; return seedv / 2147483647; };
 
-function scenery(g, th, kind) {
-  const y0 = Y.scenery, h = Y.stand - Y.scenery;
-  if (kind === 'harbour') {
-    rect(g, 0, y0, W, h, '#2a6ab0');
-    for (let i = 0; i < 260; i++) { const x = rnd() * W | 0, y = y0 + rnd() * h | 0; rect(g, x, y, 3, 1, '#4a8ad0'); }
-    // quay wall
-    rect(g, 0, Y.stand - 3, W, 3, '#b8a888');
-    for (let i = 0; i < 9; i++) {
-      const x = 20 + i * 56 + rnd() * 20;
-      poly(g, [[x, y0 + 5], [x + 26, y0 + 5], [x + 22, y0 + 12], [x + 4, y0 + 12]], '#f4f4f0');
-      rect(g, x + 8, y0 + 6, 10, 3, '#9ac8e8'); rect(g, x + 4, y0 + 11, 18, 1, '#1a3a6a');
-      if (i % 3 === 0) rect(g, x + 12, y0 + 1, 1, 5, '#ddd');
+// Behind the grandstand you look out, not down: sky to the horizon, with the local
+// landmarks (masts, treetops, palms, peaks, towers) standing just proud of the stands.
+// Rain in the forecast turns the sky overcast with low dark cloud.
+const SKY = {
+  day:    { clear: ['#4f9de6', '#bfe2f6'], grey: ['#6a7078', '#a4a9b0'] },
+  dusk:   { clear: ['#3e3470', '#f2925a'], grey: ['#3c3a44', '#8a7468'] },
+  sunset: { clear: ['#5a3f86', '#ffb26c'], grey: ['#40384a', '#9a7a6c'] },
+  night:  { clear: ['#070a1c', '#1e2650'], grey: ['#0c0e12', '#24272e'] },
+};
+const NATIVE_TIME = { harbour: 'day', forest: 'day', desert: 'dusk', alpine: 'day', neon: 'night', sunset: 'sunset' };
+
+function cloud(g, x, y, w, body, top) {
+  ellipse(g, x, y, w * 0.5, w * 0.16, body);
+  ellipse(g, x - w * 0.18, y - w * 0.07, w * 0.22, w * 0.12, body);
+  ellipse(g, x + w * 0.14, y - w * 0.09, w * 0.2, w * 0.13, body);
+  rect(g, x - w * 0.22, y - w * 0.17, w * 0.3, 1, top);
+}
+
+function scenery(g, th, kind, track) {
+  const y0 = Y.scenery, h = Y.stand - Y.scenery, hz = Y.stand - 4; // horizon line
+  const time = track.time || NATIVE_TIME[track.theme] || 'day';
+  const grey = track.weather && track.weather.some(w => w.wet);
+  const [top, low] = SKY[time][grey ? 'grey' : 'clear'];
+  const night = time === 'night';
+  for (let y = y0; y < Y.stand; y++) rect(g, 0, y, W, 1, mix(top, low, (y - y0) / h));
+  if (night && !grey) for (let i = 0; i < 70; i++) rect(g, rnd() * W | 0, y0 + rnd() * (h - 6) | 0, 1, 1, rnd() < 0.3 ? '#ffffff' : '#8890b8');
+  if (time === 'sunset' && !grey) { ellipse(g, 380, hz, 9, 9, '#ffe08a'); ellipse(g, 380, hz, 7, 7, '#fff2c0'); }
+  if (time === 'dusk' && !grey) ellipse(g, 120, hz + 1, 7, 6, '#ffc070');
+  // clouds: a few fair-weather puffs, or a low, dark overcast when rain is due
+  if (grey) {
+    for (let i = 0; i < 26; i++) {
+      const x = rnd() * W, y = y0 + 1 + rnd() * 7, w = 30 + rnd() * 50;
+      cloud(g, x, y, w, night ? ['#1a1c22', '#22252c'][i % 2] : ['#4a4e56', '#5a5e66', '#3e424a'][i % 3], night ? '#2c3038' : '#7a7e86');
+    }
+  } else if (!night) {
+    const body = time === 'day' ? '#f4f8fc' : '#f8c8a8', topc = time === 'day' ? '#ffffff' : '#ffe0c0';
+    for (let i = 0; i < 7; i++) cloud(g, rnd() * W, y0 + 3 + rnd() * 5, 20 + rnd() * 26, body, topc);
+  }
+  const sil = (c, k = 0.55) => night ? shade(c, -0.75) : grey ? shade(c, -0.3) : shade(c, -k * 0.4);
+  if (kind === 'harbour' || kind === 'sunset') {
+    // sea to the horizon, boats on it, masts above
+    rect(g, 0, hz, W, Y.stand - hz, night ? '#0c1a34' : grey ? '#3a5068' : kind === 'sunset' ? '#3a6aa0' : '#2a6ab0');
+    for (let x = 0; x < W; x += 5) rect(g, x + (rnd() * 3 | 0), hz + 1 + (rnd() * 2 | 0), 2, 1, night ? '#2a3a5a' : '#8ab8e0');
+    if (kind === 'harbour') for (let i = 0; i < 12; i++) {
+      const x = 12 + i * 42 + rnd() * 14;
+      rect(g, x, hz - 2, 18, 3, sil('#f4f4f0', 0.1)); rect(g, x + 4, hz - 4, 8, 2, sil('#dfe6ee', 0.1));
+      if (i % 2 === 0) { rect(g, x + 8, hz - 13, 1, 9, sil('#d8d8d8', 0.2)); poly(g, [[x + 9, hz - 12], [x + 15, hz - 6], [x + 9, hz - 6]], sil('#f8f8f8', 0.1)); }
+      if (night) rect(g, x + 6, hz - 3, 2, 1, '#ffe08a');
+    }
+    if (kind === 'sunset') for (let i = 0; i < 9; i++) {
+      const x = 20 + i * 58 + rnd() * 16, tt = hz - 10 - rnd() * 4;
+      rect(g, x, tt, 1, Y.stand - tt, sil('#5a3a1a'));
+      for (let a = 0; a < 6; a++) { const ang = Math.PI + 0.15 + a / 5 * (Math.PI - 0.3); poly(g, [[x, tt], [x + Math.cos(ang) * 8, tt - Math.sin(ang) * 3 + 3], [x + Math.cos(ang + 0.3) * 6, tt - Math.sin(ang + 0.3) * 2 + 3]], sil('#1f5a2a')); }
     }
   } else if (kind === 'forest') {
-    rect(g, 0, y0, W, h, '#1a3a1e');
-    for (let i = 0; i < 90; i++) {
-      const x = rnd() * W, y = y0 + rnd() * h, r = 4 + rnd() * 5;
-      const c = ['#1f4a24', '#2a5e2e', '#173c1c', '#33703a'][i % 4];
-      ellipse(g, x, y, r, r * 0.8, c);
-      ellipse(g, x - 1, y - 1, r * 0.5, r * 0.4, shade(c, 0.2));
+    // a line of pine tops just over the stands
+    for (let i = 0; i < 70; i++) {
+      const x = rnd() * W, tip = hz - 4 - rnd() * 8, wdt = 4 + rnd() * 4;
+      poly(g, [[x, tip], [x + wdt, Y.stand], [x - wdt, Y.stand]], sil(['#1f4a24', '#2a5e2e', '#173c1c'][i % 3]));
     }
   } else if (kind === 'desert') {
-    for (let y = y0; y < y0 + h; y++) rect(g, 0, y, W, 1, mix('#e8a860', '#c88850', (y - y0) / h));
-    for (let i = 0; i < 6; i++) { const x = rnd() * W; ellipse(g, x, y0 + 8 + rnd() * 6, 60, 5, '#f0b870'); }
-    for (let i = 0; i < 14; i++) {
-      const x = 10 + i * 37 + rnd() * 10, y = y0 + 4 + rnd() * 10;
-      for (let a = 0; a < 6; a++) { const ang = a / 6 * Math.PI * 2; poly(g, [[x, y], [x + Math.cos(ang) * 8, y + Math.sin(ang) * 5], [x + Math.cos(ang + 0.3) * 6, y + Math.sin(ang + 0.3) * 4]], a % 2 ? '#2a6a30' : '#3a8a3a'); }
-      rect(g, x - 1, y - 1, 2, 2, '#6a4a2a');
+    for (let i = 0; i < 5; i++) ellipse(g, rnd() * W, hz + 3, 60 + rnd() * 40, 4, sil('#d89a5a', 0.2));
+    rect(g, 0, hz + 2, W, Y.stand - hz - 2, sil('#c88850', 0.2));
+    for (let i = 0; i < 11; i++) {
+      const x = 14 + i * 47 + rnd() * 14, tt = hz - 9 - rnd() * 5;
+      rect(g, x, tt, 1, Y.stand - tt, sil('#6a4a2a'));
+      for (let a = 0; a < 6; a++) { const ang = Math.PI + 0.15 + a / 5 * (Math.PI - 0.3); poly(g, [[x, tt], [x + Math.cos(ang) * 8, tt - Math.sin(ang) * 3 + 3], [x + Math.cos(ang + 0.3) * 6, tt - Math.sin(ang + 0.3) * 2 + 3]], sil('#3a7a3a')); }
     }
   } else if (kind === 'alpine') {
-    rect(g, 0, y0, W, h, '#e8eef6');
-    for (let i = 0; i < 300; i++) rect(g, rnd() * W | 0, y0 + rnd() * h | 0, 2, 1, '#c8d4e4');
-    for (let i = 0; i < 40; i++) {
-      const x = rnd() * W, y = y0 + rnd() * h;
-      ellipse(g, x, y, 5, 5, '#1f4a34'); ellipse(g, x - 1, y - 1, 3, 3, '#e8f0f8'); ellipse(g, x, y, 2, 2, '#2a5a40');
+    // peaks behind, snow on top, pines at their feet
+    for (let i = 0; i < 9; i++) {
+      const x = i * 64 + rnd() * 30, pk = y0 + 1 + rnd() * 5, wdt = 34 + rnd() * 20;
+      poly(g, [[x, pk], [x + wdt, Y.stand], [x - wdt, Y.stand]], sil('#6a7488', 0.3));
+      poly(g, [[x, pk], [x + wdt * 0.28, pk + 5], [x + 4, pk + 4], [x - 3, pk + 6], [x - wdt * 0.28, pk + 5]], night ? '#8a90a8' : '#f4f8ff');
     }
-    for (let i = 0; i < 6; i++) ellipse(g, rnd() * W, y0 + rnd() * h, 7, 4, '#8a8e98');
+    for (let i = 0; i < 50; i++) { const x = rnd() * W, tip = hz - 2 - rnd() * 5; poly(g, [[x, tip], [x + 3, Y.stand], [x - 3, Y.stand]], sil('#1f4a34')); }
   } else if (kind === 'neon') {
-    rect(g, 0, y0, W, h, '#14141e');
-    for (let x = 0; x < W;) {
-      const w = 20 + rnd() * 40 | 0;
-      const c = ['#202232', '#1a1c2a', '#262838'][rnd() * 3 | 0];
-      rect(g, x, y0, w - 2, h, c);
-      for (let k = 0; k < w * h / 30; k++) rect(g, x + 2 + rnd() * (w - 6) | 0, y0 + 2 + rnd() * (h - 4) | 0, 2, 1, rnd() < 0.5 ? '#ffe08a' : '#6a6a80');
-      if (rnd() < 0.5) rect(g, x + 3, y0 + 3 + rnd() * 8 | 0, w - 8, 2, ['#ff3aa8', '#30e8ff', '#a8ff30', '#ffb030'][rnd() * 4 | 0]);
+    // skyline: towers with lit windows and signs
+    for (let x = -4; x < W;) {
+      const w = 14 + rnd() * 26 | 0, tt = y0 + 1 + rnd() * 10 | 0;
+      const c = night ? ['#141624', '#1a1c2c', '#10121e'][rnd() * 3 | 0] : sil(['#5a6070', '#6a7080', '#4a5060'][rnd() * 3 | 0], 0.2);
+      rect(g, x, tt, w - 1, Y.stand - tt, c);
+      for (let wy = tt + 2; wy < Y.stand - 1; wy += 3) for (let wx = x + 2; wx < x + w - 3; wx += 3) if (rnd() < (night ? 0.45 : 0.15)) rect(g, wx, wy, 1, 1, night ? (rnd() < 0.8 ? '#ffe08a' : '#8ae0ff') : '#2a2e38');
+      if (rnd() < 0.4) rect(g, x + 2, tt + 2, w - 5, 1, night ? ['#ff3aa8', '#30e8ff', '#a8ff30', '#ffb030'][rnd() * 4 | 0] : '#8a8e98');
       x += w;
-    }
-  } else if (kind === 'sunset') {
-    for (let y = y0; y < y0 + h; y++) rect(g, 0, y, W, 1, mix('#e8a060', '#2a6aa0', (y - y0) / h * 1.4));
-    for (let i = 0; i < 200; i++) rect(g, rnd() * W | 0, y0 + rnd() * h | 0, 3, 1, '#ffd08a');
-    rect(g, 0, Y.stand - 4, W, 4, '#f0d8a0');
-    for (let i = 0; i < 10; i++) {
-      const x = 15 + i * 52 + rnd() * 10, y = Y.stand - 6;
-      for (let a = 0; a < 5; a++) { const ang = Math.PI + a / 4 * Math.PI; poly(g, [[x, y], [x + Math.cos(ang) * 9, y + Math.sin(ang) * 6], [x + Math.cos(ang + 0.35) * 7, y + Math.sin(ang + 0.35) * 5]], '#1a4a24'); }
     }
   }
 }
@@ -100,7 +131,7 @@ export function bake(track) {
   const th = theme(track);
   const [c, g] = canvas(W, Y.panel);
   rect(g, 0, 0, W, Y.panel, '#000');
-  scenery(g, th, th.scen);
+  scenery(g, th, th.scen, track);
   // grandstand: stepped rows with a crowd
   for (let r = 0; r < 4; r++) {
     const y = Y.stand + r * 3.5 | 0;

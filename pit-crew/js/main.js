@@ -3,12 +3,13 @@ import { W, H, canvas as mkCanvas, rect, ellipse, panel, bar, tyreIcon, portrait
 import { text, wrap, measure } from './font.js';
 import { TEAMS, DRIVERS, TRACKS, COMPOUNDS, COMPOUND_ORDER, PEOPLE, POINTS, MOD_INFO, TV } from './data.js';
 import { Race, rng, IN_T, OUT_T, TANK } from './race.js';
-import { PitStop, KEYMAP } from './stop.js';
+import { PitStop } from './stop.js';
 import { bake, bakeMap, Y, BOX_X, theme, straightCar } from './scene.js';
 import { Director, LINES, rename, pepTalk, pickFresh, saveHeard } from './banter.js';
 import { calendar, MODES, TIME_NAME } from './season.js';
 import * as C from './custom.js';
 import * as A from './audio.js';
+import * as O from './options.js';
 
 // The game draws at 512x288 into an offscreen canvas; present() scales it to fill the window.
 const cv = document.getElementById('game');
@@ -32,6 +33,10 @@ function newSeason(mode) {
   go(calendarScene);
 }
 A.setMuted(!!save.muted);
+A.setLevels({ music: O.opts.music, sfx: O.opts.sfx, duckOn: O.opts.duck });
+// Browsers hold sound until the first click or key: wake it on any of them, anywhere.
+for (const ev of ['pointerdown', 'keydown', 'touchstart']) addEventListener(ev, () => A.init(), { capture: true, passive: true });
+function toggleMute() { A.init(); A.setMuted(!A.isMuted()); save.muted = A.isMuted(); persist(); syncMute(); }
 const muteBtn = document.getElementById('mute');
 function syncMute() { muteBtn.textContent = A.isMuted() ? '♪ Sound off' : '♪ Sound on'; }
 syncMute();
@@ -98,30 +103,29 @@ addEventListener('keydown', e => {
     return;
   }
   A.init();
-  if (e.code === 'KeyF' && !e.repeat) { toggleFull(); return; }
-  const k = KEYMAP[e.code] || keyName(e);
-  if (!k) return;
-  if (['space', 'up', 'down', 'left', 'right'].includes(k) || e.code === 'Tab') e.preventDefault();
+  // the options screen waiting for a new key gets the raw key first
+  if (scene.capture && scene.capture(e.code)) { e.preventDefault(); return; }
+  const acts = O.actionsFor(e.code), nav = NAV[e.code];
+  if (acts.length || nav || e.code === 'Tab') e.preventDefault();
   if (e.repeat) return;
-  scene.key && scene.key(k);
+  if (acts.includes('fullscreen')) return toggleFull();
+  if (acts.includes('mute')) return toggleMute();
+  if (scene.actions && acts.length && scene.actions(acts)) return;
+  if (nav && scene.key) scene.key(nav);
 });
 addEventListener('keyup', e => {
-  const k = KEYMAP[e.code] || keyName(e);
-  if (k && scene.keyUp) scene.keyUp(k);
+  const acts = O.actionsFor(e.code);
+  if (acts.length && scene.actionsUp) scene.actionsUp(acts);
 });
+// Menus always answer to these, whatever the gameplay bindings are.
+const NAV = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'enter', NumpadEnter: 'enter', Escape: 'esc', Space: 'space' };
+const STOP_KEYS = new Set(['space', 'a', 'd', 'q', 'e', 'z', 'c', 's', 'x', 'w', 'up', 'down', 'left', 'right']);
+const stopActs = acts => acts.filter(a => STOP_KEYS.has(a));
 // Losing focus mid-stop must not leave a key (the fuel hose) held down.
 addEventListener('blur', () => {
   const st = scene && (scene.S ? scene.S.stop : scene.stop);
   if (st) for (const k of [...st.held]) st.releaseKey(k);
 });
-function keyName(e) {
-  if (e.code === 'Enter' || e.code === 'NumpadEnter') return 'enter';
-  if (e.code === 'Escape') return 'esc';
-  if (e.code === 'KeyM') return 'm';
-  if (/^Digit[0-4]$/.test(e.code)) return e.code.slice(5);
-  if (/^Numpad[0-4]$/.test(e.code)) return e.code.slice(6);
-  return null;
-}
 
 cv.addEventListener('pointerdown', e => {
   A.init();
@@ -146,7 +150,7 @@ const endPointer = e => {
 };
 cv.addEventListener('pointerup', endPointer);
 cv.addEventListener('pointercancel', endPointer);
-cv.addEventListener('pointermove', e => { mouse = toLocal(e); });
+cv.addEventListener('pointermove', e => { mouse = toLocal(e); if (e.buttons & 1 && scene.drag) scene.drag(mouse.x, mouse.y); });
 cv.addEventListener('contextmenu', e => e.preventDefault());
 
 function button(x, y, w, h, label, fn, { hot = false, color = '#16b3a3', small = false, disabled = false } = {}) {
@@ -188,6 +192,8 @@ function weather(T, dt, kind, wet) {
 
 function wetOverlay(wet, T) {
   if (wet <= 0.02) return;
+  g.globalAlpha = wet * 0.45;
+  rect(g, 0, Y.scenery, W, Y.stand - Y.scenery, '#2a2e36');
   g.globalAlpha = wet * 0.28;
   rect(g, 0, Y.straight, W, Y.curb - Y.straight, '#10203a');
   rect(g, 0, Y.lane, W, Y.garage - Y.lane, '#10203a');
@@ -257,20 +263,25 @@ function go(s) { scene = s; s.enter && s.enter(); }
 
 // ===== title
 const titleScene = (() => {
-  let sel = 0, t = 0, carT = 0;
+  let sel = 0, t = 0, carT = 0, menu = 'main';
   const track = TRACKS[0];
   const idle = () => new PitStop({ car: { compound: 'medium', wear: 0, damage: 0 }, track, compound: 'soft', fuelNow: 0, fuelNeed: 0, rng: rng(5) });
   let demo = null;
-  const items = () => [
+  const open = m => { menu = m; sel = 0; };
+  const items = () => menu === 'season' ? [
     save.round > 0 && save.round < cal().length ? ['CONTINUE SEASON', () => go(calendarScene)] : null,
     ['NEW SHORT SEASON', () => newSeason('short')],
     ['NEW LONG SEASON', () => newSeason('long')],
+    ['BACK', () => open('main')],
+  ].filter(Boolean) : [
+    ['SEASON', () => open('season')],
     ['PIT PRACTICE', () => go(practiceScene)],
     ['TEAM SETUP', () => go(setupScene)],
+    ['OPTIONS', () => openOptions(titleScene)],
     ['HOW TO PLAY', () => go(howScene)],
-  ].filter(Boolean);
+  ];
   return {
-    enter() { t = 0; sel = 0; demo = idle(); demo.hints = false; A.music('title'); A.setCrowd(0.4); A.setRain(0); A.duck(0.32); },
+    enter() { t = 0; sel = 0; menu = 'main'; demo = idle(); demo.hints = false; A.music('title'); A.setCrowd(0.4); A.setRain(0); A.duck(false); },
     update(dt) {
       t += dt; carT += dt;
       demo.update(dt);
@@ -292,8 +303,9 @@ const titleScene = (() => {
       sel = Math.min(sel, its.length - 1);
       its.forEach(([label, fn], i) => button(W / 2 - 70, 116 + i * 20, 140, 17, label, fn, { hot: i === sel }));
       const n = cal().length;
-      if (save.round > 0 && save.round < n) text(g, `${MODES[save.mode || 'short'].name}: ROUND ${save.round + 1} OF ${n}`, W / 2, 118 + its.length * 20, '#6a7898', { align: 'center' });
-      text(g, 'ARROWS + ENTER, OR CLICK', W / 2, H - 28, '#6a7898', { align: 'center' });
+      if (menu === 'season') text(g, 'SHORT: 6 RACES, +3 LAPS.  LONG: 12 RACES, +6 LAPS.', W / 2, 118 + its.length * 20, '#6a7898', { align: 'center' });
+      else if (save.round > 0 && save.round < n) text(g, `${MODES[save.mode || 'short'].name}: ROUND ${save.round + 1} OF ${n}`, W / 2, 118 + its.length * 20, '#6a7898', { align: 'center' });
+      text(g, A.ready() ? 'ARROWS + ENTER, OR CLICK' : 'CLICK OR PRESS ANY KEY FOR SOUND', W / 2, H - 28, A.ready() ? '#6a7898' : '#ffd23a', { align: 'center' });
       text(g, 'FICTIONAL TEAMS, DRIVERS AND CIRCUITS. NOT AFFILIATED WITH ANY RACING SERIES.', W / 2, H - 14, '#3a4660', { align: 'center' });
     },
     key(k) {
@@ -301,7 +313,7 @@ const titleScene = (() => {
       if (k === 'up') { sel = (sel + its.length - 1) % its.length; A.sfx('move'); }
       if (k === 'down') { sel = (sel + 1) % its.length; A.sfx('move'); }
       if (k === 'enter' || k === 'space') { A.sfx('select'); its[sel][1](); }
-      if (k === 'm') { A.setMuted(!A.isMuted()); save.muted = A.isMuted(); persist(); syncMute(); }
+      if (k === 'esc' && menu !== 'main') open('main');
     },
   };
 })();
@@ -348,24 +360,24 @@ const howScene = {
     for (const w of WHEELS) g.drawImage(wheelSprite('soft'), cx - 39 + w.x, cy - 16 + w.y);
     g.drawImage(carSprite(TEAMS[0]), cx - 39, cy - 16);
     const keyCap = (x, y, k, c = '#ffffff') => { rect(g, x - 7, y - 7, 15, 15, '#05060a'); rect(g, x - 6, y - 6, 13, 12, c); rect(g, x - 6, y + 4, 13, 2, shade(c, -0.4)); text(g, k, x + 1, y - 3, '#0a0a10', { align: 'center' }); };
-    keyCap(cx - 24, cy - 32, 'Q'); keyCap(cx + 20, cy - 32, 'E'); keyCap(cx - 24, cy + 32, 'Z'); keyCap(cx + 20, cy + 32, 'C');
-    keyCap(cx - 58, cy, 'A', '#9ad8ff'); keyCap(cx + 58, cy, 'D', '#9ad8ff');
-    keyCap(cx - 2, cy + 32, 'S', '#7cff8a'); keyCap(cx - 2, cy - 32, 'W', '#9ad8ff'); keyCap(cx - 2, cy + 54, 'X', '#ff9a7a');
+    keyCap(cx - 24, cy - 32, O.label('q')); keyCap(cx + 20, cy - 32, O.label('e')); keyCap(cx - 24, cy + 32, O.label('z')); keyCap(cx + 20, cy + 32, O.label('c'));
+    keyCap(cx - 58, cy, O.label('a'), '#9ad8ff'); keyCap(cx + 58, cy, O.label('d'), '#9ad8ff');
+    keyCap(cx - 2, cy + 32, O.label('s'), '#7cff8a'); keyCap(cx - 2, cy - 32, O.label('w'), '#9ad8ff'); keyCap(cx - 2, cy + 54, O.label('x'), '#ff9a7a');
     const rows = [
-      ['SPACE', 'Stop the car on the ring as it slides in'],
-      ['A  D', 'Lift rear / front jack. Again to drop'],
-      ['Q E Z C', 'Guns: mash to loosen, tap on the ring'],
-      ['S', 'Hold to fuel, let go in the green'],
-      ['ARROWS', 'Nose swap: type the arrows shown'],
-      ['X', 'Mash: blow out sand, kill a fire'],
-      ['W', 'Driver: visor or drink, for a bonus'],
-      ['SPACE', 'Release on green. Not into traffic'],
+      [O.label('space'), 'Stop the car on the ring as it slides in'],
+      [`${O.label('a')}  ${O.label('d')}`, 'Lift rear / front jack. Again to drop'],
+      [['q', 'e', 'z', 'c'].map(O.label).join(' '), 'Guns: mash to loosen, tap on the ring'],
+      [O.label('s'), 'Hold to fuel, let go in the green'],
+      [['up', 'down', 'left', 'right'].map(O.label).join(''), 'Nose swap: type the keys shown'],
+      [O.label('x'), 'Mash: blow out sand, kill a fire'],
+      [O.label('w'), 'Driver: visor or drink, for a bonus'],
+      [O.label('space'), 'Release on green. Not into traffic'],
     ];
     rows.forEach(([k, d], i) => { text(g, k, 222, 44 + i * 13, '#ffd23a'); text(g, d, 272, 44 + i * 13, '#e8e6dc'); });
     const tips = [
       'Between stops, the race runs on its own. Dev calls the cars in when the plan says so.',
-      `Press 1 or 2 (or tap BOX) to bring ${DRIVERS[0].name.split(' ')[0]} (car 7) or ${DRIVERS[1].name.split(' ')[0]} (car 11) in early, or to wave off a call.`,
-      'When a car turns into the pit lane, pick its tyres with 1-4, or 0 to leave them on. Dev\'s pick is underlined in green.',
+      `Press ${O.label('box7')} or ${O.label('box11')} (or tap BOX) to bring ${DRIVERS[0].name.split(' ')[0]} (car 7) or ${DRIVERS[1].name.split(' ')[0]} (car 11) in early, or to wave off a call.`,
+      `When a car turns into the pit lane, pick its tyres with ${['pick_soft', 'pick_medium', 'pick_hard', 'pick_wet'].map(O.label).join(' ')}, or ${O.label('pick_none')} to leave them on. Dev's pick is underlined in green.`,
       'Everything overlaps: fuel while you gun the wheels. Faster stops gain places. Mistakes cost seconds.',
       'Touch screens: tap the key bubbles. Hold the S bubble to fuel.',
     ];
@@ -441,7 +453,7 @@ const calendarScene = {
 const briefingScene = {
   enter() {
     this.tr = cal()[save.round]; this.map = bakeMap(this.tr, 150, 110); this.t = 0;
-    const pool = (LINES.BRIEF || {})[this.tr.id] || [['mags', 'Gloves on. Same as always.']];
+    const pool = (this.tr.shutdown ? LINES.SHUTDOWN.BRIEF : LINES.BRIEF[this.tr.id]) || [['mags', 'Gloves on. Same as always.']];
     this.quote = pickFresh(pool);
     saveHeard();
   },
@@ -501,7 +513,8 @@ function raceScene(track, round, { practice = false } = {}) {
   const dir = new Director(PEOPLE, r);
   const th = theme(track);
   const wkind = track.weather.some(w => w.wet) ? 'rain' : track.theme === 'alpine' ? 'snow' : track.theme === 'desert' ? 'sand' : 'rain';
-  const idlePool = LINES.IDLE.concat(LINES.TRACK_IDLE[track.id] || [], LINES.TRACK_IDLE[track.id] || []);
+  const own = track.shutdown ? LINES.SHUTDOWN.TRACK_IDLE : LINES.TRACK_IDLE[track.id] || [];
+  const idlePool = LINES.IDLE.concat(own, own);
   const S = {
     race, track, stop: null, leaving: null, pickers: [], pepT: 0, lightsT: 0, lights: 0, go: false, paused: false, pauseSel: 0,
     log: [], toast: null, overT: 0, passX: {}, idle: new PitStop({ car: { compound: 'medium', wear: 0, damage: 0 }, track, compound: 'medium', fuelNow: 0, fuelNeed: 0, rng: r }),
@@ -523,7 +536,7 @@ function raceScene(track, round, { practice = false } = {}) {
       sfx: (n, p) => A.sfx(n, p), hints: track.hints || round === 0,
       external: () => laneCars().filter(o => o.moving).map(o => o.x),
     });
-    A.duck(0.12);
+    A.duck(true);
   }
 
   function finishStop(st) {
@@ -536,8 +549,9 @@ function raceScene(track, round, { practice = false } = {}) {
     race.release(c);
     const par = track.par * TV;
     const grade = res.unsafe ? 'unsafe' : res.tv < par * 0.85 ? 'lightning' : res.tv < par ? 'great' : res.tv < par * 1.2 ? 'ok' : 'slow';
-    S.log.push({ num: c.num, lap: c.lapsDone, tv: res.tv, grade, notes: res.notes, compound: res.compound });
-    if (!practice && (!save.best[track.id] || res.tv < save.best[track.id])) { save.best[track.id] = res.tv; persist(); }
+    const full = res.tyres && res.fuelled;
+    S.log.push({ num: c.num, lap: c.lapsDone, tv: res.tv, grade, notes: res.notes, compound: res.compound, full });
+    if (!practice && full && (!save.best[track.id] || res.tv < save.best[track.id])) { save.best[track.id] = res.tv; persist(); }
     toast(`${res.tv.toFixed(2)}s  ${grade === 'lightning' ? 'LIGHTNING!' : grade.toUpperCase()}`, grade === 'slow' || grade === 'unsafe' ? '#ff6a5a' : grade === 'ok' ? '#ffe27a' : '#7cff8a');
     if (grade === 'lightning' || grade === 'great') A.sfx('cheer');
     const v = { ...vars(c), t: res.tv.toFixed(2) };
@@ -545,7 +559,7 @@ function raceScene(track, round, { practice = false } = {}) {
     if (res.fire) key = 'fire'; else if (res.fuelShort) key = 'short'; else if (res.cold && grade !== 'lightning') key = 'cold'; else if (st.offset > 18 && grade !== 'unsafe') key = 'overshoot';
     if (grade === 'unsafe') key = 'unsafe';
     dir.sayFrom(LINES.REACT[key], v, 2);
-    A.duck(0.32);
+    A.duck(false);
   }
 
   // Cars in the pit lane other than the one in our box: x along the fast lane, y, sprite info.
@@ -578,7 +592,7 @@ function raceScene(track, round, { practice = false } = {}) {
     for (const e of race.events) {
       const c = e.car;
       switch (e.type) {
-        case 'start': { const own = LINES.TRACK_START[track.id] || []; dir.sayFrom(own.length ? own : LINES.START, { x: track.name }, 2); break; }
+        case 'start': { const own = track.shutdown ? LINES.SHUTDOWN.TRACK_START : LINES.TRACK_START[track.id] || []; dir.sayFrom(own.length ? own : LINES.START, { x: track.name }, 2); break; }
         case 'boxCall': dir.sayFrom(LINES.BOXCALL, vars(c), 3); A.sfx('radio'); toast(`BOX BOX: CAR ${c.num}`, '#ff8a1e'); break;
         case 'pitEntry':
           if (c.player) { S.pickers = S.pickers.filter(p => p.car !== c); S.pickers.push({ car: c, choice: race.recommend(c), rec: race.recommend(c) }); A.sfx('radio'); }
@@ -618,7 +632,7 @@ function raceScene(track, round, { practice = false } = {}) {
     if (!practice) {
       for (const c of res) { save.team[c.team.id] = (save.team[c.team.id] || 0) + pts[c.i]; save.drv[c.code] = (save.drv[c.code] || 0) + pts[c.i]; }
       const a = race.cars[0].final, b = race.cars[1].final;
-      save.results[round] = { a, b, pts: pts[0] + pts[1], best: Math.min(...S.log.map(l => l.tv), 99) };
+      save.results[round] = { a, b, pts: pts[0] + pts[1], best: Math.min(...S.log.filter(l => l.full).map(l => l.tv), 99) };
       save.round = round + 1;
       persist();
     }
@@ -628,7 +642,7 @@ function raceScene(track, round, { practice = false } = {}) {
   function pickerKey(k) {
     const p0 = S.pickers[0];
     if (!p0) return false;
-    const i = PICK_KEYS.indexOf(k);
+    const i = PICK_ACTS.indexOf(k);
     if (i < 0) return false;
     if (!pickable(p0, PICKS[i])) { A.sfx('buzz'); return true; }
     p0.choice = PICKS[i];
@@ -753,7 +767,7 @@ function raceScene(track, round, { practice = false } = {}) {
     text(g, st, bx, y + 39, col);
     const lapsLeft = race.laps - Math.floor(c.dist);
     // box button
-    const key = c.i === 0 ? '1' : '2';
+    const key = O.label(c.i === 0 ? 'box7' : 'box11');
     let label, color = '#d42a24', dis = false;
     if (c.finish != null) { label = `FINISHED P${c.pos}`; dis = true; }
     else if (c.state === 'in') { label = 'PIT ENTRY'; dis = true; color = '#ff8a1e'; }
@@ -817,7 +831,7 @@ function raceScene(track, round, { practice = false } = {}) {
       rect(g, bx + 1, by + 1, 46, 24, off ? '#14161c' : on ? '#2a3a5a' : '#161a26');
       if (on) { rect(g, bx + 1, by + 1, 46, 1, '#ffd23a'); rect(g, bx + 1, by + 24, 46, 1, '#ffd23a'); }
       if (p.rec === k) rect(g, bx + 1, by + 24, 46, 1, '#7cff8a');
-      keycap(bx + 3, by + 3, PICK_KEYS[i], off);
+      keycap(bx + 3, by + 3, O.label(PICK_ACTS[i]), off);
       if (k === 'none') {
         ellipse(g, bx + 37, by + 8, 5, 5, '#0a0a10'); ellipse(g, bx + 37, by + 8, 4, 4, '#5a5e68'); ellipse(g, bx + 37, by + 8, 2.5, 2.5, '#1a1a1f');
         for (let d = -4; d <= 4; d++) rect(g, bx + 37 + d, by + 8 - d, 1, 1, '#ff5a4a');
@@ -840,7 +854,7 @@ function raceScene(track, round, { practice = false } = {}) {
 
   const obj = {
     S,
-    enter() { A.music('race'); A.setCrowd(0.7); A.duck(0.32); particles.length = 0; },
+    enter() { A.music('race'); A.setCrowd(0.7); A.duck(false); particles.length = 0; },
     update(dt) {
       if (S.paused) return;
       if (S.toast) { S.toast.t += dt; if (S.toast.t > 2.2) S.toast = null; }
@@ -900,9 +914,21 @@ function raceScene(track, round, { practice = false } = {}) {
       if (S.stop && S.stop.repair && S.stop.repair.st === 'combo' && touchMode) dpad();
       if (S.paused) pauseMenu();
     },
+    // gameplay keys (as bound in Options); menus and the pause screen use key() below
+    actions(acts) {
+      if (S.paused) return false;
+      const pick = acts.find(a => a.startsWith('pick_'));
+      if (S.pickers.length && pick) { pickerKey(pick); return true; }
+      if (acts.includes('box7')) { toggle(race.cars[0]); return true; }
+      if (acts.includes('box11')) { toggle(race.cars[1]); return true; }
+      const sk = stopActs(acts);
+      if (S.stop && sk.length) { sk.forEach(a => S.stop.press(a)); return true; }
+      return false;
+    },
+    actionsUp(acts) { if (S.stop) stopActs(acts).forEach(a => S.stop.releaseKey(a)); },
     key(k) {
       if (S.paused) {
-        const n = 3;
+        const n = 4;
         if (k === 'up') S.pauseSel = (S.pauseSel + n - 1) % n;
         if (k === 'down') S.pauseSel = (S.pauseSel + 1) % n;
         if (k === 'enter' || k === 'space') pauseAct(S.pauseSel);
@@ -910,15 +936,9 @@ function raceScene(track, round, { practice = false } = {}) {
         return;
       }
       if (k === 'esc') { S.paused = true; S.pauseSel = 0; if (S.stop) for (const h of [...S.stop.held]) S.stop.releaseKey(h); A.sfx('fuel', 0); return; }
-      if (k === 'm') { A.setMuted(!A.isMuted()); save.muted = A.isMuted(); persist(); syncMute(); return; }
-      if (S.pickers.length && pickerKey(k)) return;
-      if (k === '1') return toggle(race.cars[0]);
-      if (k === '2') return toggle(race.cars[1]);
-      if (S.stop) { S.stop.press(k); return; }
       if ((k === 'enter' || k === 'space') && !S.go) { dir.clear(); return; } // skip the pep talk
       if (k === 'enter' || k === 'space') dir.skip();
     },
-    keyUp(k) { if (S.stop) S.stop.releaseKey(k); },
     pointer(x, y) {
       if (S.paused || !S.stop) return null;
       const k = S.stop.hit(x, y);
@@ -932,21 +952,22 @@ function raceScene(track, round, { practice = false } = {}) {
 
   function pauseMenu() {
     g.globalAlpha = 0.7; rect(g, 0, 0, W, H, '#05060a'); g.globalAlpha = 1;
-    panel(g, W / 2 - 80, 70, 160, 104);
-    text(g, 'PAUSED', W / 2, 80, '#ffd23a', { align: 'center', scale: 2 });
-    ['RESUME', practice ? 'NEW PRACTICE' : 'RESTART RACE', 'QUIT TO TITLE'].forEach((l, i) => button(W / 2 - 60, 102 + i * 22, 120, 18, l, () => pauseAct(i), { hot: S.pauseSel === i }));
+    panel(g, W / 2 - 80, 62, 160, 126);
+    text(g, 'PAUSED', W / 2, 72, '#ffd23a', { align: 'center', scale: 2 });
+    ['RESUME', practice ? 'NEW PRACTICE' : 'RESTART RACE', 'OPTIONS', 'QUIT TO TITLE'].forEach((l, i) => button(W / 2 - 60, 102 + i * 22, 120, 18, l, () => pauseAct(i), { hot: S.pauseSel === i }));
   }
   function pauseAct(i) {
     if (i === 0) S.paused = false;
     if (i === 1) go(practice ? practiceScene : raceScene(track, round));
-    if (i === 2) go(titleScene);
+    if (i === 2) openOptions(obj);
+    if (i === 3) go(titleScene);
   }
   return obj;
 }
 
 // Tyre picker options: the four compounds, or leave the tyres on (fuel and fixes only).
 const PICKS = [...COMPOUND_ORDER, 'none'];
-const PICK_KEYS = ['1', '2', '3', '4', '0'];
+const PICK_ACTS = ['pick_soft', 'pick_medium', 'pick_hard', 'pick_wet', 'pick_none'];
 const PICK_NAME = { soft: 'SOFT', medium: 'MED', hard: 'HARD', wet: 'WET', none: 'NONE' };
 const pickable = (p, k) => !(k === 'none' && p.car.puncture);
 
@@ -1019,7 +1040,9 @@ function resultsScene(track, race, log, pts, round) {
         // mistakes go on their own line under the stop
         if (l.notes.length) text(g, l.notes.join(', ').slice(0, 44), 310, y + 8, '#6a7898');
       });
-      text(g, `PAR ${(track.par * TV).toFixed(2)}s`, 383, 172, '#6a7898', { align: 'center' });
+      const fulls = log.filter(l => l.full);
+      text(g, `PAR ${(track.par * TV).toFixed(2)}s`, 272, 172, '#6a7898');
+      text(g, fulls.length ? `FASTEST FULL STOP ${Math.min(...fulls.map(l => l.tv)).toFixed(2)}s` : 'NO FULL STOPS', 498, 172, fulls.length ? '#7cff8a' : '#6a7898', { align: 'right' });
       // boss
       panel(g, 8, 190, 496, 60);
       g.drawImage(portrait(PEOPLE.boss, t < 2 && Math.floor(t * 9) % 2 ? 1 : 0), 14, 198);
@@ -1164,6 +1187,131 @@ const setupScene = (() => {
   };
 })();
 
+// ===== options: key bindings, volume, music dip in stops
+// Opened from the title or a pause menu, and hands control straight back when done.
+function openOptions(from) { optionsScene.from = from; scene = optionsScene; optionsScene.enter(); }
+const optionsScene = (() => {
+  const COL_A = ['space', 'a', 'd', 'q', 'e', 'z', 'c', 's', 'x', 'w'];
+  const NOSE = ['up', 'down', 'left', 'right'];
+  const COL_B = ['box7', 'box11', 'pick_soft', 'pick_medium', 'pick_hard', 'pick_wet', 'pick_none', 'fullscreen', 'mute'];
+  const NAME = Object.fromEntries(O.ACTIONS.map(a => [a[0], a[1]]));
+  // everything you can select, in up/down order
+  const ITEMS = [...COL_A, ...NOSE, ...COL_B, 'music', 'sfx', 'duck', 'reset', 'done'];
+  let sel = 0, waiting = null, note = '', noteT = 0;
+  const SLIDER = { x: 364, w: 132, y: { music: 46, sfx: 78 } };
+  const levels = () => { A.setLevels({ music: O.opts.music, sfx: O.opts.sfx, duckOn: O.opts.duck }); O.save(); };
+  const leave = () => { waiting = null; scene = optionsScene.from || titleScene; };
+
+  // a key cap in a green square
+  function slot(x, y, act, w = 22) {
+    const i = ITEMS.indexOf(act), on = sel === i, wait = waiting === act;
+    const lab = wait ? '?' : O.label(act);
+    w = Math.max(w, measure(lab) + 8);
+    rect(g, x - 1, y - 1, w + 2, 13, on ? '#ffd23a' : '#05060a');
+    rect(g, x, y, w, 11, wait && (T * 3 % 1) < 0.5 ? '#ffe27a' : '#3ab04a');
+    rect(g, x, y, w, 1, '#8af09a');
+    rect(g, x, y + 9, w, 2, '#1f7a2c');
+    text(g, lab, x + w / 2, y + 2, '#05140a', { align: 'center' });
+    ui.push({ x: x - 1, y: y - 1, w: w + 2, h: 13, fn: () => { sel = i; waiting = act; } });
+    return w;
+  }
+
+  function setSlider(k, x) {
+    O.opts[k] = Math.max(0, Math.min(1, Math.round((x - SLIDER.x) / SLIDER.w * 20) / 20));
+    levels();
+  }
+
+  return {
+    from: null,
+    enter() { sel = 0; waiting = null; note = ''; },
+    update(dt) { if (noteT > 0) noteT -= dt; },
+    // the next key pressed while a slot is waiting becomes its binding
+    capture(code) {
+      if (!waiting) return false;
+      if (code === 'Escape') { waiting = null; return true; }
+      const swapped = O.bind(waiting, code);
+      note = swapped.length ? `${NAME[waiting]} TAKES ${O.codeLabel(code)}. SWAPPED WITH ${swapped.join(', ')}.` : `${NAME[waiting]}: ${O.codeLabel(code)}`;
+      noteT = 4;
+      waiting = null;
+      A.sfx('select');
+      return true;
+    },
+    drag(x, y) {
+      for (const k of ['music', 'sfx']) if (y >= SLIDER.y[k] - 4 && y <= SLIDER.y[k] + 10 && x >= SLIDER.x - 6 && x <= SLIDER.x + SLIDER.w + 6) setSlider(k, x);
+    },
+    draw() {
+      rect(g, 0, 0, W, H, '#0a0c14');
+      for (let y = 12; y < H; y += 4) rect(g, 0, y, W, 1, '#0d1018');
+      topBar('OPTIONS', 'CONTROLS AND SOUND', 'ESC: DONE');
+      // controls
+      panel(g, 6, 16, 346, 206);
+      text(g, 'PIT STOP', 14, 23, '#ffd23a');
+      COL_A.forEach((act, r) => {
+        const y = 34 + r * 14;
+        text(g, NAME[act], 14, y + 2, sel === ITEMS.indexOf(act) ? '#ffffff' : '#9aa8c8');
+        slot(124, y, act);
+      });
+      // nose swap: four key spaces in one wide green bar
+      const ny = 34 + COL_A.length * 14 + 2;
+      text(g, 'REPLACE NOSE', 14, ny + 2, NOSE.includes(ITEMS[sel]) ? '#ffffff' : '#9aa8c8');
+      rect(g, 13, ny + 11, 156, 19, '#05060a');
+      rect(g, 14, ny + 12, 154, 17, '#1f6a2c');
+      rect(g, 14, ny + 12, 154, 1, '#3ab04a');
+      NOSE.forEach((act, k) => slot(19 + k * 37, ny + 15, act, 32));
+      text(g, 'RACE', 184, 23, '#ffd23a');
+      COL_B.forEach((act, r) => {
+        const y = 34 + r * 14 + (r >= 7 ? 8 : 0);
+        if (r === 7) text(g, 'ANY TIME', 184, y - 9, '#ffd23a');
+        text(g, NAME[act], 184, y + 2, sel === ITEMS.indexOf(act) ? '#ffffff' : '#9aa8c8');
+        slot(296, y, act);
+      });
+      text(g, 'TYRE KEYS CAN SHARE BOX KEYS:', 184, 192, '#6a7898');
+      text(g, 'THE PICKER WINS WHILE OPEN.', 184, 201, '#6a7898');
+      // sound
+      panel(g, 356, 16, 150, 206);
+      for (const k of ['music', 'sfx']) {
+        const y = SLIDER.y[k], on = sel === ITEMS.indexOf(k);
+        text(g, k === 'music' ? 'MUSIC' : 'SOUND EFFECTS', 364, y - 12, on ? '#ffffff' : '#9aa8c8');
+        text(g, `${Math.round(O.opts[k] * 100)}%`, 496, y - 12, on ? '#ffd23a' : '#6a7898', { align: 'right' });
+        rect(g, SLIDER.x - 1, y + 1, SLIDER.w + 2, 5, '#05060a');
+        rect(g, SLIDER.x, y + 2, Math.round(SLIDER.w * O.opts[k]), 3, on ? '#ffd23a' : '#3ab04a');
+        const kx = SLIDER.x + Math.round(SLIDER.w * O.opts[k]);
+        rect(g, kx - 3, y - 2, 7, 11, '#05060a'); rect(g, kx - 2, y - 1, 5, 9, on ? '#ffffff' : '#c8ccd4');
+        ui.push({ x: SLIDER.x - 6, y: y - 4, w: SLIDER.w + 12, h: 14, fn: () => { sel = ITEMS.indexOf(k); setSlider(k, mouse.x); } });
+      }
+      const dOn = sel === ITEMS.indexOf('duck');
+      text(g, 'QUIETER MUSIC', 364, 104, dOn ? '#ffffff' : '#9aa8c8');
+      text(g, 'DURING PIT STOPS', 364, 113, dOn ? '#ffffff' : '#9aa8c8');
+      button(364, 124, 60, 16, O.opts.duck ? 'ON' : 'OFF', () => { sel = ITEMS.indexOf('duck'); O.opts.duck = !O.opts.duck; levels(); }, { hot: dOn, color: O.opts.duck ? '#3ab04a' : '#5c6a8a' });
+      text(g, O.opts.duck ? 'Music dips while' : 'Music stays at', 364, 148, '#6a7898');
+      text(g, O.opts.duck ? 'the crew works.' : 'full volume.', 364, 157, '#6a7898');
+      // footer
+      const msg = waiting ? `PRESS A KEY FOR ${NAME[waiting]}. ESC CANCELS.` : noteT > 0 ? note : 'CLICK A KEY (OR ENTER), THEN PRESS THE NEW ONE.';
+      text(g, msg, W / 2, 228, waiting ? '#ffd23a' : noteT > 0 ? '#7cff8a' : '#6a7898', { align: 'center' });
+      button(6, 242, 150, 20, 'RESET CONTROLS', () => { O.resetKeys(); note = 'CONTROLS BACK TO DEFAULTS.'; noteT = 3; }, { hot: sel === ITEMS.indexOf('reset'), color: '#5c6a8a' });
+      button(356, 242, 150, 20, 'DONE', leave, { hot: sel === ITEMS.indexOf('done') });
+    },
+    key(k) {
+      if (waiting) return;
+      const item = ITEMS[sel];
+      if (k === 'esc') return leave();
+      if (k === 'up') { sel = (sel + ITEMS.length - 1) % ITEMS.length; A.sfx('move'); }
+      if (k === 'down') { sel = (sel + 1) % ITEMS.length; A.sfx('move'); }
+      if ((k === 'left' || k === 'right') && (item === 'music' || item === 'sfx')) {
+        O.opts[item] = Math.max(0, Math.min(1, Math.round((O.opts[item] + (k === 'left' ? -0.05 : 0.05)) * 20) / 20));
+        levels(); A.sfx('move');
+      }
+      if (k === 'enter' || k === 'space') {
+        if (item === 'duck') { O.opts.duck = !O.opts.duck; levels(); }
+        else if (item === 'reset') { O.resetKeys(); note = 'CONTROLS BACK TO DEFAULTS.'; noteT = 3; }
+        else if (item === 'done') leave();
+        else if (item !== 'music' && item !== 'sfx') waiting = item;
+        A.sfx('select');
+      }
+    },
+  };
+})();
+
 // ===== season end
 const seasonScene = {
   enter() { A.music('title'); this.t = 0; const s = standings(); this.champ = s[0].i === 0; this.pos = s.findIndex(x => x.i === 0) + 1; if (this.champ) A.sfx('cheer'); },
@@ -1212,7 +1360,7 @@ const practiceScene = (() => {
   }
   return {
     get stop() { return st; },
-    enter() { r = rng(Date.now() & 0xffff); n = 0; times = []; wait = 0; last = null; paused = false; next(); A.music('race'); A.setCrowd(0.3); A.duck(0.2); particles.length = 0; },
+    enter() { r = rng(Date.now() & 0xffff); n = 0; times = []; wait = 0; last = null; paused = false; next(); A.music('race'); A.setCrowd(0.3); A.duck(true); particles.length = 0; },
     update(dt) {
       if (paused) return;
       if (st) {
@@ -1222,7 +1370,7 @@ const practiceScene = (() => {
           st._logged = true;
           const res = st.result();
           last = res; times.unshift(res.tv); times = times.slice(0, 6);
-          if (!save.practiceBest || res.tv < save.practiceBest) { save.practiceBest = res.tv; persist(); A.sfx('cheer'); }
+          if (res.tyres && res.fuelled && (!save.practiceBest || res.tv < save.practiceBest)) { save.practiceBest = res.tv; persist(); A.sfx('cheer'); }
         }
         if (st.done) { st = null; wait = 1.2; }
       } else { wait -= dt; if (wait <= 0) next(); }
@@ -1259,17 +1407,23 @@ const practiceScene = (() => {
       if (st && st.repair && st.repair.st === 'combo' && touchMode) dpad();
       if (paused) {
         g.globalAlpha = 0.7; rect(g, 0, 0, W, H, '#05060a'); g.globalAlpha = 1;
-        panel(g, W / 2 - 80, 80, 160, 80);
-        button(W / 2 - 60, 96, 120, 18, 'RESUME', () => { paused = false; }, { hot: true });
-        button(W / 2 - 60, 120, 120, 18, 'QUIT TO TITLE', () => go(titleScene));
+        panel(g, W / 2 - 80, 74, 160, 100);
+        button(W / 2 - 60, 90, 120, 18, 'RESUME', () => { paused = false; }, { hot: true });
+        button(W / 2 - 60, 114, 120, 18, 'OPTIONS', () => openOptions(practiceScene));
+        button(W / 2 - 60, 138, 120, 18, 'QUIT TO TITLE', () => go(titleScene));
       }
     },
+    actions(acts) {
+      const sk = stopActs(acts);
+      if (paused || !st || !sk.length) return false;
+      sk.forEach(a => st.press(a));
+      return true;
+    },
+    actionsUp(acts) { if (st) stopActs(acts).forEach(a => st.releaseKey(a)); },
     key(k) {
       if (k === 'esc') { paused = !paused; if (st) for (const h of [...st.held]) st.releaseKey(h); A.sfx('fuel', 0); return; }
-      if (paused) { if (k === 'enter') paused = false; return; }
-      if (st) st.press(k);
+      if (paused && k === 'enter') paused = false;
     },
-    keyUp(k) { if (st) st.releaseKey(k); },
     pointer(x, y) {
       if (!st || paused) return null;
       const k = st.hit(x, y) || dpadHit(x, y);

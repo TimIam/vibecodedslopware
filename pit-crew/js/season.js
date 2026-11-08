@@ -38,6 +38,15 @@ export function variant(base, extra, second) {
 export function calendar(mode = 'short') {
   const extra = (MODES[mode] || MODES.short).extra;
   const list = TRACKS.map(t => variant(t, extra, false));
-  if (mode === 'long') list.push(...TRACKS.map(t => variant(t, extra, true)));
+  if (mode === 'long') {
+    // halfway: Isla Grande is the last race before the summer break, not the decider
+    const mid = list[list.length - 1];
+    Object.assign(mid, {
+      shutdown: true, gp: 'Island Grand Prix', key: mid.key + 's',
+      blurb: 'The last race before the Summer Shutdown. Both cars stop on the same lap, a squall rolls through, and everyone wants points to take on holiday.',
+    });
+    list.push(...TRACKS.map(t => variant(t, extra, true)));
+  }
+  list[list.length - 1].finale = true;
   return list;
 }

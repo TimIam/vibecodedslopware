@@ -8,6 +8,7 @@ import { text, measure } from './font.js';
 import { BOX_X, Y } from './scene.js';
 import { TEAMS, TV, COMPOUNDS } from './data.js';
 import { TANK } from './race.js';
+import { label as keyLabel } from './options.js';
 
 const ARRIVE_D = 1.7;
 const ON_D = 0.55;
@@ -435,6 +436,7 @@ export class PitStop {
       penalty: this.penalty,
       compound: this.compound,
       tyres: !this.keepTyres,
+      fuelled: this.fuel.st === 'idle',
       notes: this.notes,
     };
   }
@@ -592,7 +594,7 @@ export class PitStop {
   }
 
   bubble(g, x, y, key, { label, prog, color = '#ffffff', urgent = false, held = false, T = 0, up = false, always = false } = {}) {
-    const ch = key === 'space' ? 'SPACE' : ARROW_CH[key] || key.toUpperCase();
+    const ch = keyLabel(key); // the player's binding, see Options
     const w = Math.max(11, measure(ch) + 6), h = 11;
     const bx = Math.round(x - w / 2), by = Math.round(y - h / 2);
     const pulse = urgent && (T * 4 % 1) < 0.5;
@@ -688,7 +690,8 @@ export class PitStop {
         const x = sx + i * 13, y = sy;
         rect(g, x - 1, y - 1, 12, 12, '#05060a');
         rect(g, x, y, 10, 10, done ? '#3ab04a' : i === r.idx ? (r.lock > 0 ? '#ff6a5a' : '#ffe27a') : '#c8ccd4');
-        text(g, ARROW_CH[k], x + 5, y + 2, '#0a0a10', { align: 'center' });
+        const lab = keyLabel(k);
+        text(g, measure(lab) <= 8 ? lab : ARROW_CH[k], x + 5, y + 2, '#0a0a10', { align: 'center' });
         if (i === r.idx) this.bubbles.push({ x: x - 2, y: y - 2, w: 14, h: 14, key: k });
       });
       if (r.st === 'combo') text(g, 'NOSE SWAP: ARROWS', cx + 60, sy - 10, '#ffffff', { align: 'center', outline: '#0a0a10' });
