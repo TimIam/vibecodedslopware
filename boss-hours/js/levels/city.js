@@ -1,5 +1,7 @@
-// Level 6, inside the walls: a tall city that scrolls up and down. You come in at the south gate and the level ends when
-// you reach the castle gate in the north. In between: stone houses, shops, pubs and inns along cobbled streets, cut
+// Level 6, inside the walls: a tall city that scrolls up and down. You come in at the south gate; across the top stands
+// the castle's outer wall, two round towers and a small shut gate, all of it solid. Batter the gate, a tower or a run
+// of wall until it gives (about 20 hits), walk into the hole, and the boss walks on north out of sight (api.walkOff):
+// that ends the level. In between: stone houses, shops, pubs and inns along cobbled streets, cut
 // into bands by canals with a bridge or two each. Wrecking things feeds Vengeance. Fire is a poor tool here: it pays
 // points but no Vengeance, and only the timber roofs, tents and stalls burn at all. Rubble shoved into a canal fills
 // it, which makes a shortcut.
@@ -11,7 +13,14 @@ export const INK = '#14100c';
 // ---------------------------------------------------------------------------------------------- the layout
 
 const MW = 320, MH = 900, CANAL_H = 18, BR_W = 36;
-export const GOAL_Y = 94;  // the boss's centre north of this and you are at the castle gate
+// the castle front across the top: the wall walk down to FACE, the wall's face down to BOT. Pieces left to right:
+// curtain runs, the two round towers (with the bits of wall either side of the gate), and the gate itself
+export const FRONT = { face: 30, bot: 74 };
+const BASH = 45;                        // one bash (props.js bossTouch default)
+const HITS = { cf_wall: 20, cf_tower: 24, cf_gate: 18 };
+const LABEL = { cf_wall: 'WALL', cf_tower: 'TOWER', cf_gate: 'GATE' };
+const GATE_X0 = 147, GATE_X1 = 173, TOWER_X = [114, 206];
+const FRONT_SECS = [[0, 52, 'cf_wall'], [52, 97, 'cf_wall'], [97, GATE_X0, 'cf_tower'], [GATE_X0, GATE_X1, 'cf_gate'], [GATE_X1, 223, 'cf_tower'], [223, 268, 'cf_wall'], [268, MW, 'cf_wall']];
 const CANALS = [
   { y: 798, br: [252] },
   { y: 600, br: [144] },
@@ -29,7 +38,11 @@ const BANDS = [
 
 const STONE = { solid: true, rubble: 'city_rubble', rubbleN: 2, onDown: ruinOf };
 const TIMBER = { ...STONE, flammable: true, fireVenge: false, spread: 0.3, crushShare: 0.75, rubbleN: 1 };
+const FRONTK = { solid: true, rubble: 'city_rubble', rubbleN: 3, value: { pts: 0, venge: 0, chaos: 0 } };
 export const kinds = {
+  cf_wall: { ...FRONTK, w: 45, h: 74, hp: HITS.cf_wall * BASH },
+  cf_tower: { ...FRONTK, w: 50, h: 80, hp: HITS.cf_tower * BASH, rubbleN: 4 },
+  cf_gate: { ...FRONTK, w: 26, h: 74, hp: HITS.cf_gate * BASH, rubbleN: 2 },
   city_house: { ...STONE, w: 30, h: 24, hp: 300, value: { pts: 300, venge: 0.16, chaos: 1 } },
   city_chapel: { ...STONE, w: 40, h: 48, hp: 560, rubbleN: 4, value: { pts: 650, venge: 0.32, chaos: 2 } },
   city_shop: { ...TIMBER, w: 26, h: 24, hp: 190, burnTime: 9, value: { pts: 240, venge: 0.14, chaos: 1 } },
@@ -157,7 +170,13 @@ function build(g, rng, P) {
     P.addCritter(g, 'city_folk', x, y, { col: Math.floor(rng() * 6) });
     n++;
   }
-  return { w: MW, h: MH, scroll: 'y', start: { x: 160, y: 866, face: -Math.PI / 2 }, canals, plazas, foots };
+  // the castle front: one solid piece per section of wall, tower and gate, across the top of the map
+  const front = FRONT_SECS.map(([x0, x1, kind]) => {
+    const hh = kind === 'cf_tower' ? FRONT.bot + 6 : FRONT.bot, hp = kinds[kind].hp;
+    const p = P.addProp(g, kind, (x0 + x1) / 2, hh / 2, { w: x1 - x0, h: hh, hp, maxhp: hp });
+    return { x0, x1, kind, prop: p, total: HITS[kind], label: LABEL[kind], bot: hh, breached: false };
+  });
+  return { w: MW, h: MH, scroll: 'y', start: { x: 160, y: 866, face: -Math.PI / 2 }, canals, plazas, foots, front };
 }
 
 // ---------------------------------------------------------------------------------------------- heroes and canals
@@ -181,7 +200,7 @@ export function steerHeroes(g, dt, barriers) {
   const b = g.boss;
   for (const u of g.units) {
     if (u.dead || u.gone || u.role === 'rider' || u.stun > 0) continue;
-    const t = (u.state === 'flee' || u.state === 'leave') && u.exit ? u.exit : !u.party?.engaged && u.stage ? u.stage : b;
+    const t = (u.state === 'flee' || u.state === 'leave') && u.exit ? u.exit : !u.party?.engaged && (u.post || u.stage) ? (u.post || u.stage) : b;
     for (const c of barriers) {
       const mid = (c.y0 + c.y1) / 2;
       if (u.y < c.y0 - 14 || u.y > c.y1 + 14 || (u.y < mid) === (t.y < mid) || !c.open?.length) continue;
@@ -197,10 +216,51 @@ export function steerHeroes(g, dt, barriers) {
 // ---------------------------------------------------------------------------------------------- level logic
 
 function update(g, dt, api) {
-  steerHeroes(g, dt, g.map.canals);
-  if (!g.clear && !g.boss.dead && g.boss.y < GOAL_Y) api.endLevel(g, 'AT THE CASTLE GATES', 'THE HOARD OPENS IN A MOMENT. THEN THE CASTLE.');
+  const m = g.map, b = g.boss;
+  steerHeroes(g, dt, m.canals);
+  // heroes arrive from the sides and the south while the castle front is on screen, never out of the wall itself
+  const top = g.cam.y < 90;
+  m.edges = top ? [0, 1, 3] : undefined; m.sideBand = top ? [96, 150] : undefined;
+  for (const s of m.front) {
+    const p = s.prop;
+    if (p.state === 'up') continue;
+    if (!s.breached) {
+      // through: dust, a bonus, and the hole stands open
+      s.breached = true;
+      g.shake = Math.max(g.shake, 0.7);
+      for (let i = 0; i < 40; i++) { const a = g.rng() * Math.PI, sp = 20 + g.rng() * 50; api.part(g, p.x + (g.rng() - 0.5) * p.w, s.bot - g.rng() * 30, Math.cos(a) * sp, Math.sin(a) * sp * 0.6, 0.6 + g.rng() * 0.8, g.rng() < 0.6 ? 'dust' : 'splinter'); }
+      const pts = Math.round(3000 * g.mult);
+      api.addScore(g, pts);
+      api.text(g, p.x, s.bot + 12, `+${pts}`, 'gold', 2);
+      api.sound(g, 'collapse');
+      if (!g.clear) api.banner(g, s.kind === 'cf_gate' ? 'THE CASTLE GATE IS DOWN' : s.kind === 'cf_tower' ? 'THE TOWER IS DOWN' : 'THE CASTLE WALL IS DOWN', 'WALK IN.', 4);
+    }
+    // into the hole: the boss walks on north and out of sight
+    if (!g.clear && !g.won && !b.dead && b.y < s.bot + 4 && b.x > s.x0 - 2 && b.x < s.x1 + 2)
+      api.walkOff(g, { x: clamp((s.x0 + s.x1) / 2, 16, MW - 16), title: 'INTO THE CASTLE', sub: 'THE HOARD OPENS IN A MOMENT. THEN THE CASTLE.' });
+  }
+  // nobody stands inside the wall; anyone running off north goes round by the sides instead
+  for (const u of g.units) {
+    if (u.dead || u.gone || u.role === 'rider') continue;
+    if (u.exit && u.exit.y < FRONT.bot + 12 && (u.state === 'flee' || u.state === 'leave')) u.exit = { x: u.x < MW / 2 ? -20 : MW + 20, y: Math.max(u.y, FRONT.bot + 20) };
+    if (u.y > FRONT.bot + 6) continue;
+    const s = m.front.find(s => u.x >= s.x0 && u.x < s.x1);
+    if (s && s.prop.state === 'up' && u.y < s.bot + 2) u.y = s.bot + 3;
+  }
 }
-const hud = g => `NORTH TO THE CASTLE  ${Math.max(0, Math.round((g.boss.y - GOAL_Y) / 4))} M`;
+function hud(g) {
+  const m = g.map, b = g.boss;
+  if (g.walkoff) return 'INTO THE CASTLE';
+  if (m.front.some(s => s.breached)) return 'THE WAY IS OPEN. WALK IN';
+  let best = null;
+  for (const s of m.front) {
+    const hits = Math.round((s.prop.maxhp - s.prop.hp) / BASH);
+    if (hits > 0 && (!best || hits / s.total > best.k)) best = { s, hits, k: hits / s.total };
+  }
+  if (best) return `${best.s.label} ${Math.min(best.hits, best.s.total - 1)}/${best.s.total}`;
+  if (b.y < 150) return 'THE GATE IS SHUT. BREAK SOMETHING';
+  return `NORTH TO THE CASTLE  ${Math.max(0, Math.round((b.y - FRONT.bot - 10) / 4))} M`;
+}
 
 // ---------------------------------------------------------------------------------------------- palettes
 
@@ -603,7 +663,7 @@ function ground(ctx, m, h) {
 
 // the castle's outer wall and gatehouse across the top of the city: the walk-top with its merlons, then the face
 export function castleFront(ctx, m, h) {
-  const face = 30, bot = 74;
+  const { face, bot } = FRONT;
   for (let y = 0; y < bot; y++) for (let x = 0; x < m.w; x++) {
     let col;
     if (y < face) col = (x * 3 + Math.floor(y / 3) * 7) % 11 === 0 ? STONEP[2] : STONEP[y < face - 8 ? 3 : 4];
@@ -621,7 +681,7 @@ export function castleFront(ctx, m, h) {
   rect(ctx, 0, bot, m.w, 1, INK);
   rect(ctx, 0, bot + 1, m.w, 4, 'rgba(5,8,10,.4)');
   // two round gate towers standing proud of the wall
-  for (const cx of [114, 206]) {
+  for (const cx of TOWER_X) {
     const R = 17, cy = 20;
     for (let y = 0; y < bot + 8; y++) for (let x = -R - 1; x <= R + 1; x++) {
       const X = cx + x, inTop = Math.hypot(x, (y - cy) * 1.2) <= R, inBody = y >= cy && Math.abs(x) <= R && y < bot + 6;
@@ -646,17 +706,68 @@ export function castleFront(ctx, m, h) {
     rect(ctx, cx - 4, 60, 2, 2, '#8a1e18'); rect(ctx, cx + 3, 60, 2, 2, '#8a1e18');
     rect(ctx, cx - 1, 66, 3, 5, INK); put(ctx, cx, 68, '#e8b850');
   }
-  // the gate: a deep arch with the portcullis half up and torches either side
-  const gx0 = 134, gx1 = 186, gy = 38;
-  rect(ctx, gx0 - 2, gy - 2, gx1 - gx0 + 4, bot - gy + 3, INK);
-  for (let y = gy; y < bot; y++) for (let x = gx0; x < gx1; x++) {
-    const ax = x - (gx0 + gx1 - 1) / 2, top = gy + 12 - Math.sqrt(Math.max(0, 26 * 26 - ax * ax)) * 0.46;
-    if (y < top) { put(ctx, x, y, (x + y) % 5 === 0 ? STONEP[2] : STONEP[3]); continue; }
-    put(ctx, x, y, y < top + 2 ? STONEP[1] : y < 54 ? '#0c0a08' : '#14110d');
+  // the gate: a small pointed arch, shut: oak doors with iron straps behind the portcullis, which is right down.
+  // A stone hood over it, and torches either side.
+  const gx0 = GATE_X0 + 1, gx1 = GATE_X1 - 1, gy = 44, gw = gx1 - gx0, mid = (gx0 + gx1 - 1) / 2;
+  const archTop = x => gy + 9 - Math.sqrt(Math.max(0, 1 - ((x - mid) / (gw / 2)) ** 2)) * 9;
+  for (let y = gy - 4; y < bot; y++) for (let x = gx0 - 3; x < gx1 + 3; x++) {
+    const t = archTop(clamp(x, gx0, gx1 - 1));
+    if (x < gx0 - 1 || x > gx1 || y < t - 3) { if (y >= t - 4 && y < t - 1 && x >= gx0 - 3 && x < gx1 + 3) put(ctx, x, y, (x + y) % 3 === 0 ? STONEP[3] : STONEP[4]); continue; }
+    if (y < t - 1 || x === gx0 - 1 || x === gx1) { put(ctx, x, y, INK); continue; }
+    if (y < t + 1) { put(ctx, x, y, STONEP[1]); continue; }
+    // the doors: vertical planks, a dark seam down the middle, iron straps and studs
+    const lx = x - gx0, ly = y - gy;
+    let col = lx % 3 === 0 ? '#3a2414' : (lx < gw / 2 ? '#6e4a2a' : '#5a3a22');
+    if (Math.abs(x - mid) < 0.6) col = '#1a100a';
+    if (ly % 9 === 5) col = '#2e2e30';
+    put(ctx, x, y, col);
   }
-  for (let x = gx0 + 3; x < gx1 - 2; x += 5) { rect(ctx, x, gy + 4, 1, 14, '#3e3e38'); put(ctx, x, gy + 18, '#6b6c63'); }
-  rect(ctx, gx0 + 2, gy + 9, gx1 - gx0 - 4, 1, '#3e3e38');
-  for (const tx of [gx0 - 6, gx1 + 4]) { rect(ctx, tx, 56, 3, 4, INK); put(ctx, tx + 1, 54, '#ffa22b'); put(ctx, tx + 1, 55, '#fff07a'); put(ctx, tx + 1, 53, '#d64a18'); }
+  // the portcullis in front of the doors, all the way down: iron bars and cross-bars, spiked feet on the sill
+  for (let x = gx0 + 1; x < gx1; x += 3) for (let y = Math.ceil(archTop(x)) + 1; y < bot; y++) put(ctx, x, y, y % 2 ? '#62626a' : '#4a4a52');
+  for (let y = gy + 2; y < bot; y += 5) for (let x = gx0; x < gx1; x++) if (y > archTop(x) + 1) put(ctx, x, y, (x % 3 === 1) ? '#8a8a92' : '#3a3a40');
+  for (let x = gx0 + 1; x < gx1; x += 3) put(ctx, x, bot - 1, '#a9a9b2');
+  rect(ctx, gx0 - 2, bot - 1, gw + 4, 1, INK);
+  // the gate's own merlons on the walk above, a little proud of the rest
+  rect(ctx, gx0 - 4, face - 8, gw + 8, 2, STONEP[5]); rect(ctx, gx0 - 4, face - 6, gw + 8, 1, INK);
+  for (const tx of [gx0 - 8, gx1 + 5]) { rect(ctx, tx, 56, 3, 4, INK); put(ctx, tx + 1, 54, '#ffa22b'); put(ctx, tx + 1, 55, '#fff07a'); put(ctx, tx + 1, 53, '#d64a18'); }
+}
+
+// a hole battered through the castle front: torn masonry either side, the wall walk's broken ends, the passage beyond
+// running north in shadow, and the wreckage spilled out on the city side (the gate's leaves its doors and portcullis)
+function breachSprite(h, s) {
+  const W = s.x1 - s.x0 + 2, Hh = s.bot + 10, kind = s.kind, seed = s.x0 * 7 + 3;
+  return h.sprite(`cfbreach|${s.x0}|${kind}`, W, Hh, c => {
+    const edgeL = y => 1 + Math.floor(h.hash(seed, Math.floor(y / 3)) * 3 + (y < FRONT.face ? 1 : 0));
+    const edgeR = y => W - 2 - Math.floor(h.hash(Math.floor(y / 3), seed) * 3 + (y < FRONT.face ? 1 : 0));
+    for (let y = 0; y < s.bot; y++) {
+      const a = edgeL(y), b = edgeR(y);
+      for (let x = 0; x < W; x++) {
+        let col;
+        if (x < a - 1 || x > b + 1) col = null;
+        else if (x === a - 1 || x === b + 1) col = INK;
+        else if (x === a || x === b) col = (y + x) % 4 === 0 ? STONEP[1] : x === a ? STONEP[4] : STONEP[2];   // the cut ends of the courses
+        else {
+          // the passage: cobbles, darker the further in, with a shadow down the east side
+          const k = y / s.bot, row = Math.floor(y / 3), lx = (x + row * 2) % 5;
+          const base = lx === 0 || y % 3 === 0 ? 0 : 1 + Math.floor(h.hash(Math.floor((x + row * 2) / 5) + seed, row) * 2);
+          col = COBBLE_HEX[clamp(base - (k < 0.4 ? 1 : 0) - (x > b - 3 ? 1 : 0), 0, 4)];
+          if (y < 4) col = '#1a1712';
+        }
+        if (col) put(c, x, y, col);
+      }
+    }
+    // wreckage spilled out of the hole and across the foot of the wall
+    const nS = Math.round(W / 3);
+    for (let i = 0; i < nS; i++) {
+      const x = Math.floor(h.hash(i, seed + 1) * (W - 3)), y = s.bot - 8 + Math.floor(h.hash(seed + 1, i) * 14), z = 1 + (h.hash(i, 7) > 0.6 ? 1 : 0);
+      rect(c, x, y, z + 2, z + 2, INK); rect(c, x + 1, y + 1, z, z, STONEP[2 + (i % 3)]); put(c, x + 1, y + 1, STONEP[5]);
+    }
+    if (kind === 'cf_gate') {
+      // the doors, flat on their backs and split, and the portcullis twisted across them
+      for (let i = 0; i < 6; i++) { const x = 2 + i * 3 + (i > 2 ? 2 : 0), y = s.bot - 14 + (i % 2) * 2; rect(c, x, y, 2, 11, INK); rect(c, x, y, 1, 10, i % 2 ? '#6e4a2a' : '#5a3a22'); }
+      for (let x = 1; x < W - 2; x++) { const y = s.bot - 9 + Math.round(Math.sin(x * 0.7) * 1.5); put(c, x, y, '#62626a'); if (x % 3 === 0) put(c, x, y + 1, '#3a3a40'); }
+    }
+  });
 }
 
 // the south gate you came in by, at the very bottom
@@ -673,6 +784,7 @@ function southGate(ctx, m, h) {
 // bridges are drawn over the canal: a cobbled deck with a parapet each side
 function under(ctx, g, h) {
   const m = g.map;
+  if (m.front && h.VIEW.y < FRONT.bot + 12) for (const s of m.front) if (s.prop.state !== 'up') ctx.drawImage(breachSprite(h, s), s.x0 - 1, 0);
   for (const c of m.canals) {
     if (c.y1 + 6 < h.VIEW.y || c.y0 - 6 > h.VIEW.y + h.H) continue;
     for (const b of c.bridges) {
@@ -699,13 +811,42 @@ function under(ctx, g, h) {
 }
 const COBBLE_HEX = ['#3c3933', '#48443c', '#534e45', '#5e584d', '#6a6356'];
 
+// a piece of the castle front, standing: the stone is painted into the ground; this adds the cracks as it takes hits,
+// and the white flash of each one
+function drawFront(ctx, p, g, h) {
+  const st = Math.min(4, Math.floor((1 - p.hp / p.maxhp) * 5)), x0 = Math.round(p.x - p.w / 2), top = FRONT.face;
+  if (st > 0) {
+    const s = h.sprite(`cfcrack|${p.kind}|${p.w}|${st}|${p.seed % 5}`, p.w, p.h, c => {
+      const seed = p.seed % 5 * 17 + 3, n = st * 2 + (p.w > 30 ? 1 : 0);
+      for (let i = 0; i < n; i++) {
+        // a crack wandering down the face from somewhere along the top of it
+        let x = 2 + Math.floor(h.hash(i, seed) * (p.w - 4)), y = top + 2 + Math.floor(h.hash(seed, i) * 10);
+        const len = 10 + Math.floor(h.hash(i * 3, seed) * (14 + st * 6));
+        for (let k = 0; k < len && y < p.h - 1; k++) {
+          put(c, x, y, '#120e0a'); if (k % 3 === 1) put(c, x + 1, y, STONEP[1]);
+          y++; if (h.hash(k, i + seed) > 0.62) x += h.hash(i, k + seed) > 0.5 ? 1 : -1;
+          x = clamp(x, 1, p.w - 2);
+        }
+      }
+      // chips knocked out of the merlons and stones fallen out of the face
+      for (let i = 0; i < st * 3; i++) {
+        const x = Math.floor(h.hash(i + 40, seed) * (p.w - 3)), y = i % 2 ? top - 6 + Math.floor(h.hash(seed, i + 40) * 4) : top + 6 + Math.floor(h.hash(seed, i + 40) * (p.h - top - 10));
+        rect(c, x, y, 2 + (i % 2), 2, '#14110d'); put(c, x, y + 2, STONEP[1]);
+      }
+    });
+    ctx.drawImage(s, x0, 0);
+  }
+  if (p.hitT > 0) { ctx.globalAlpha = p.hitT / 0.12 * 0.3; ctx.fillStyle = '#ffffff'; ctx.fillRect(x0, top, p.w, p.h - top); ctx.globalAlpha = 1; }
+}
+
 const props = {
   city_house: drawBuilding, city_shop: drawBuilding, city_pub: drawBuilding, city_inn: drawBuilding, city_chapel: drawBuilding,
   city_tent: drawTent, city_stall: drawStall, city_lamp: drawLamp, city_fountain: drawFountain, city_rubble: drawRubble,
+  cf_wall: drawFront, cf_tower: drawFront, cf_gate: drawFront,
 };
 
 export default {
-  n: 6, id: 'city', name: 'INSIDE THE WALLS', sub: 'GO NORTH TO THE CASTLE. WRECK THE TOWN ON THE WAY.', mode: 'timed',
+  n: 6, id: 'city', name: 'INSIDE THE WALLS', sub: 'GO NORTH TO THE CASTLE. BREAK YOUR WAY IN.', mode: 'timed',
   kinds, critters,
   build(g, rng, P) { return build(g, rng, P); },
   update, hud,

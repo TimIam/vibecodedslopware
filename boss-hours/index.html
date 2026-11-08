@@ -40,7 +40,7 @@ dl{display:grid;grid-template-columns:1fr auto;gap:4px 18px;margin:16px auto 0;w
 dt{color:#aeac9b}
 dd{margin:0;text-align:right;color:#f4ecd2}
 dd em{font-style:normal;color:#ffd75a;font-size:11px;margin-left:6px}
-.store{width:min(820px,97vw);text-align:left}
+.store{width:min(1160px,98vw);text-align:left;padding:18px 26px 20px}
 .store h2{text-align:center}
 .loot{text-align:center;margin-top:6px}
 .loot b{color:#ffd75a;font-size:18px}
@@ -50,9 +50,25 @@ dd em{font-style:normal;color:#ffd75a;font-size:11px;margin-left:6px}
 .tabs button[aria-selected="true"]{background:#c0392b;box-shadow:0 3px 0 #6e1d14,0 0 0 2px #14100c}
 .tab{margin-top:12px}
 .tab[hidden]{display:none!important}
-#tabAbil{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px}
-.item{display:grid;grid-template-columns:auto 1fr auto;gap:3px 8px;align-items:center;padding:8px 10px;background:#2a2016;font-size:12px;box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c}
+#tabAbil,#tabLooks{display:grid;grid-template-columns:minmax(0,480px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:900px){#tabAbil,#tabLooks{grid-template-columns:1fr}}
+.stage{display:grid;gap:10px;justify-items:stretch;width:min(480px,100%)}
+#demo{width:480px;max-width:100%;height:auto;aspect-ratio:16/9;image-rendering:pixelated;background:#2c3e23;box-shadow:0 0 0 2px #14100c,inset 0 0 0 2px #364b2a}
+#abilInfo,#lookInfo{display:grid;gap:4px;font-size:12px}
+#abilInfo .nm{font-size:16px;color:#ffd75a}
+#abilInfo .desc{color:#d2cfbd}
+#abilInfo .up{color:#aeac9b;font-size:11px}
+.mutate{margin:8px 0 0;width:100%;display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:17px}
+.mutate b{color:#ffd75a}
+.mutate small{font-size:11px;opacity:.85;text-transform:none;letter-spacing:0}
+.revert{margin:4px 0 0;padding:7px 10px 5px;font-size:12px;background:#2a2016;box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c}
+#abilList{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:7px;align-content:start}
+.item{margin:0;text-transform:none;letter-spacing:0;text-align:left;color:#f4ecd2;font-weight:400;cursor:pointer;display:grid;grid-template-columns:auto 1fr auto;gap:3px 8px;align-items:center;padding:8px 10px;background:#2a2016;font-size:12px;box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c}
+.item:hover{background:#3a2c1e}
 .item.owned{box-shadow:0 3px 0 #14100c,0 0 0 2px #14100c,inset 3px 0 0 #ffd75a}
+.item.sel{background:#4a3220;box-shadow:0 3px 0 #14100c,0 0 0 2px #ffd75a,inset 3px 0 0 #ffd75a}
+.item .cost{grid-column:1/-1;font-size:11px;color:#ffd75a}
+.item .cost.dim{color:#7f7f74}
 .item .nm{font-size:13px}
 .item .tag{font-size:10px;color:#aeac9b;text-align:right}
 .item .desc{grid-column:1/-1;color:#d2cfbd;font-size:11px}
@@ -69,15 +85,20 @@ button[aria-disabled="true"]:active{transform:none}
 .hint{font-size:11.5px;color:#aeac9b;margin:0 0 10px}
 .slot{display:grid;grid-template-columns:52px 20px 1fr;gap:8px;align-items:center;margin:6px 0;max-width:420px}
 .slot select{font:12px "Silkscreen",monospace;background:#2a2016;color:#f4ecd2;border:2px solid #14100c;padding:5px 6px}
-#tabLooks{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start}
-@media (max-width:640px){#tabLooks{grid-template-columns:1fr}}
-#preview{width:224px;height:224px;image-rendering:pixelated;background:#2c3e23;box-shadow:0 0 0 2px #14100c,inset 0 0 0 2px #364b2a}
+#preview{width:280px;height:280px;max-width:100%;justify-self:center;image-rendering:pixelated;background:#2c3e23;box-shadow:0 0 0 2px #14100c,inset 0 0 0 2px #364b2a}
 .part h3{margin:0 0 4px;font-size:12px;color:#aeac9b;font-weight:400}
 .part{margin-bottom:8px}
 .opts{display:flex;flex-wrap:wrap;gap:5px}
 .opt{margin:0;padding:6px 8px 4px;font-size:11px;text-transform:none;letter-spacing:0;background:#2a2016;box-shadow:0 2px 0 #14100c,0 0 0 2px #14100c;display:grid;text-align:left}
 .opt small{font-size:10px;color:#ffd75a}
 .opt.on{background:#6e4229;box-shadow:0 2px 0 #14100c,0 0 0 2px #ffd75a}
+.opt.try{background:#2a3a2a;box-shadow:0 2px 0 #14100c,0 0 0 2px #8fd16a}
+.opt.try small{color:#8fd16a}
+.part h3 small{font-size:10px;color:#ffd75a;margin-left:6px}
+.furRow{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+#furPick{width:180px;height:180px;image-rendering:pixelated;cursor:crosshair;touch-action:none;background:#1c1610}
+.furSide{display:grid;gap:8px;justify-items:start}
+#furSwatch{display:block;width:48px;height:48px;box-shadow:0 0 0 2px #14100c,inset 0 0 0 2px rgba(255,255,255,.15)}
 #storeGo{display:block;margin:14px auto 0}
 .touch-only{display:none}
 @media (hover:none) and (pointer:coarse){.touch-only{display:block}}
@@ -102,7 +123,7 @@ button[aria-disabled="true"]:active{transform:none}
       <li>Step off the path and Aimlessness fades. Go past your leash and you <b>evade</b>: you heal, but the multiplier resets.</li>
       <li><b>5-mans</b> wander in (one is always AFK). After <b>10 laps</b> a 25-man raid shows up; they count down, then dodge your telegraphs because they read the guide. At <b>20 laps</b> comes the 40-man, and nothing else.</li>
       <li>A <b>quiet man on a horse</b> will try to climb your fur and stab the glowing spot on your back. Shake him off, then step on him.</li>
-      <li>Beat the 40-man and <b>the Hoard</b> opens: spend your points on new abilities (adds, a lightning beam, ice, a stun charge, zoomies), upgrades, and new horns, tails, wings and limbs. Then a longer path.</li>
+      <li>Beat the 40-man and <b>the Hoard</b> opens: spend your points on new abilities (adds, a lightning beam, ice, a stun charge, zoomies), upgrades, and mutations: horns, tails, wings, limbs, fur colour. Then the next level.</li>
     </ul>
     <div class="keys">
       <span class="k"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>lumber about</span>
@@ -124,16 +145,33 @@ button[aria-disabled="true"]:active{transform:none}
 <div id="store" class="overlay" hidden>
   <div class="card store">
     <h2 style="color:#ffd75a">The Hoard</h2>
-    <p class="loot">Points: <b id="storePts">0</b> <span>Map <i id="storeMap">1</i> cleared. Spend what you earned on the patrol, then off to a longer path.</span></p>
+    <p class="loot">Points: <b id="storePts">0</b> <span>Level <i id="storeMap">1</i> cleared. Spend what you earned, then on to the next one.</span></p>
     <div class="tabs" role="tablist">
       <button type="button" role="tab" data-tab="abil">Abilities</button>
       <button type="button" role="tab" data-tab="slots">Loadout</button>
       <button type="button" role="tab" data-tab="looks">Looks</button>
     </div>
-    <div id="tabAbil" class="tab"></div>
+    <div id="tabAbil" class="tab">
+      <div class="stage">
+        <canvas id="demo" width="480" height="270" aria-label="The selected ability in action"></canvas>
+        <div id="abilInfo"></div>
+      </div>
+      <div id="abilList"></div>
+    </div>
     <div id="tabSlots" class="tab" hidden></div>
-    <div id="tabLooks" class="tab" hidden><canvas id="preview" width="224" height="224" aria-label="Your boss, turning slowly"></canvas><div id="lookRows"></div></div>
-    <button id="storeGo" type="button">Next map</button>
+    <div id="tabLooks" class="tab" hidden>
+      <div class="stage">
+        <canvas id="preview" width="280" height="280" aria-label="Your boss, turning slowly, wearing what you are trying on"></canvas>
+        <div id="lookInfo"></div>
+        <div class="part furPart"><h3>Fur colour <small>5,000 a mutation</small></h3>
+          <div class="furRow"><canvas id="furPick" width="72" height="72" aria-label="Fur colour: hue ring and saturation and lightness triangle"></canvas>
+            <div class="furSide"><span id="furSwatch"></span><button type="button" class="opt" id="furNatural">Natural brown<small>free</small></button></div></div>
+        </div>
+      </div>
+      <div><div id="lookRows"></div>
+      </div>
+    </div>
+    <button id="storeGo" type="button">Next level</button>
   </div>
 </div>
 

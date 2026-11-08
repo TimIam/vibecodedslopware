@@ -1,7 +1,8 @@
 // Level 5, the City Wall: the outskirts under a great round city. The wall runs along the top of the world with a moat
 // below it; the drawbridge is up. Nothing says so, but the way in is to knock the outlying houses down, shove the
 // rubble (and the old bridge's timbers) into the moat until there is a crossing wide enough to walk, then batter a wall
-// section or the gate until it gives (about 20 hits). Wrecking houses feeds Vengeance. No laps, no Chaos.
+// section or the gate until it gives (about 20 hits), and walk into the breach: the boss walks on north and off the
+// screen (api.walkOff) and the level is over. Wrecking houses feeds Vengeance. No laps, no Chaos.
 //
 // The wall is drawn as if the city were a drum turning past as the camera scrolls: every screen column looks up the
 // wall texture through a cylindrical projection (squeezed and shaded toward the screen edges, the base curving up),
@@ -146,15 +147,27 @@ function update(g, dt, api) {
           if (g.rng() < 0.3) api.part(g, p.x + (g.rng() - 0.5) * p.w, WALL_B - 4, (g.rng() - 0.5) * 20, 15, 0.3, 'spark');
         }
       }
-    } else if (!g.clear && !g.won) {
-      // through: the breach coughs dust, and the level is done
+    } else if (!s.breached && !g.clear && !g.won) {
+      // through: the breach coughs dust and stands open. Walking into it ends the level.
+      s.breached = true;
       g.shake = Math.max(g.shake, 0.7);
       for (let i = 0; i < 40; i++) { const a = g.rng() * Math.PI, sp = 20 + g.rng() * 50; api.part(g, p.x + (g.rng() - 0.5) * p.w, WALL_B - g.rng() * 20, Math.cos(a) * sp, Math.sin(a) * sp * 0.6, 0.6 + g.rng() * 0.8, g.rng() < 0.6 ? 'dust' : 'rock2'); }
       const pts = Math.round(3000 * g.mult);
       api.addScore(g, pts);
       api.text(g, p.x, WALL_B + 14, `+${pts}`, 'gold', 2);
       api.sound(g, 'collapse');
-      api.endLevel(g, s.kind === 'wl_gate' ? 'THE GATE IS DOWN' : 'THE WALL IS DOWN', 'THE CITY IS OPEN. THE HOARD OPENS IN A MOMENT.');
+      api.banner(g, s.kind === 'wl_gate' ? 'THE GATE IS DOWN' : 'THE WALL IS DOWN', 'THE CITY IS OPEN. WALK IN.', 4);
+    }
+  }
+  // into a breach: the boss walks on through, north and out of sight, and the level is over
+  if (!g.clear && !g.won && !b.dead) {
+    for (const s of m.wall) {
+      if (!s.breached) continue;
+      const a = Math.max(0, s.x0), c = Math.min(WW, s.x1);
+      if (b.y < WALL_B + 6 && b.x > a - 2 && b.x < c + 2) {
+        api.walkOff(g, { x: (a + c) / 2, title: 'INTO THE CITY', sub: 'THE HOARD OPENS IN A MOMENT.' });
+        break;
+      }
     }
   }
   // rubble shoved up a crossing stops at the wall foot. Rubble that comes to rest on a heap in the moat tumbles off it
@@ -180,6 +193,8 @@ const TUMBLE = [[0, -1], [-1, 0], [1, 0], [-1, -1], [1, -1], [0, 1], [-1, 1], [1
 
 const FLAVOUR = ['THE GATES ARE SHUT', 'THE CITY HOLDS ITS BREATH', 'THEY ARE WATCHING FROM THE WALL', 'THE MOAT IS DEEP AND COLD'];
 function hud(g) {
+  if (g.walkoff) return 'INTO THE CITY';
+  if (g.map.wall.some(s => s.breached)) return 'THE WAY IS OPEN. WALK IN';
   let best = null;
   for (const s of g.map.wall) {
     const p = s.prop;

@@ -263,7 +263,7 @@ function buildSprite(dir, frame, mouth, L) {
     const p = mat[y * N + x];
     if (!p) continue;
     const edge = x === 0 || x === N - 1 || !mat[y * N + x - 1] || !mat[y * N + x + 1] || !mat[(y - 1) * N + x] || !mat[(y + 1) * N + x];
-    cx.fillStyle = edge ? (BONE[p.k] || PAL.ink) : shade(p);
+    cx.fillStyle = edge ? (BONE[p.k] || PAL.ink) : shade(p, L.F);
     cx.fillRect(x, y, 1, 1);
   }
   return cv;
@@ -272,9 +272,10 @@ function buildSprite(dir, frame, mouth, L) {
 // a lazily filled sprite sheet for one look: get(dir, idx) with idx = mouth * 4 + frame
 export function makeBossSprites(look) {
   const L = { head: 0, neck: 0, back: 0, tail: 0, limbs: 0, ...look };
+  L.F = furRamp(L.fur);
   const cache = new Map();
   return {
-    key: `${L.head}${L.neck}${L.back}${L.tail}${L.limbs}`,
+    key: bossKey(L),
     get(dir, idx) {
       const k = dir * 8 + idx;
       let s = cache.get(k);
@@ -284,10 +285,34 @@ export function makeBossSprites(look) {
   };
 }
 
-function shade(p) {
+export const bossKey = l => `${l.head}${l.neck}${l.back}${l.tail}${l.limbs}${l.fur || ''}`;
+
+// the five fur shades, darkest first. No colour picked is the natural brown; a picked colour becomes the middle shade
+// with the others stepped darker and lighter around it, the way the brown ones are.
+const FUR_STEP = [-0.15, -0.078, 0, 0.09, 0.178];
+export function furRamp(hex) {
+  if (!hex) return [PAL.fur0, PAL.fur1, PAL.fur2, PAL.fur3, PAL.fur4];
+  const [h, s, l] = hexToHsl(hex);
+  return FUR_STEP.map((d, i) => hslToHex(h + (i - 2) * -4, Math.min(1, s * (1 + (2 - i) * 0.06)), Math.max(0.04, Math.min(0.96, l + d))));
+}
+export function hexToHsl(hex) {
+  const n = parseInt(hex.slice(1), 16), r = (n >> 16) / 255, g = (n >> 8 & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+  if (!d) return [0, 0, l];
+  const s = d / (1 - Math.abs(2 * l - 1));
+  const h = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, s, l];
+}
+export function hslToHex(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = l - c / 2;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return '#' + [r, g, b].map(v => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('');
+}
+
+function shade(p, F) {
   const light = (-p.sx * 0.55 - p.sy * 0.8) / 14;
   const n = hash(Math.round(p.lx * 0.9 + p.ly * 0.35) + 40, Math.round(p.ly * 0.85 - p.lx * 0.12) + 90);
-  const furs = ['fur0', 'fur1', 'fur2', 'fur3', 'fur4'];
   const two = (hi, lo) => light > 0.15 ? hi : lo;
   let lvl;
   switch (p.k) {
@@ -297,10 +322,10 @@ function shade(p) {
     case 'eyeWhite': return '#f2efe2';
     case 'pupil': return PAL.ink;
     case 'mouth': return PAL.mouth;
-    case 'nostril': return PAL.fur0;
-    case 'snout': return light > 0.3 ? PAL.fur4 : PAL.snout;
-    case 'snoutC': return two(PAL.fur3, PAL.fur2);
-    case 'leg': return light > 0.2 ? PAL.fur2 : PAL.fur1;
+    case 'nostril': return F[0];
+    case 'snout': return light > 0.3 ? F[4] : PAL.snout;
+    case 'snoutC': return two(F[3], F[2]);
+    case 'leg': return light > 0.2 ? F[2] : F[1];
     case 'leather': return '#3a2618';
     case 'frill': return two('#d8673f', '#c0533a');
     case 'frillD': return '#7e2a18';
@@ -315,14 +340,14 @@ function shade(p) {
     case 'wingBone': return '#2a1a33';
     case 'club': return two('#a8977a', '#7e6f56');
     case 'sting': return PAL.red;
-    case 'tailSeg': return PAL.fur1;
-    case 'tailTip': return PAL.fur0;
+    case 'tailSeg': return F[1];
+    case 'tailTip': return F[0];
     case 'tailWhite': return '#f2efe2';
     case 'hoof': return '#2a2420';
     case 'talon': return '#e8c86a';
     case 'tentacle': return two('#93619f', '#7a4a8a');
     case 'tentacleD': return '#4e2c5a';
-    case 'mane': lvl = light > 0.3 ? 2 : light > -0.3 ? 1 : 0; if (n < 0.3) lvl = Math.max(0, lvl - 1); return PAL[furs[lvl]];
+    case 'mane': lvl = light > 0.3 ? 2 : light > -0.3 ? 1 : 0; if (n < 0.3) lvl = Math.max(0, lvl - 1); return F[lvl];
     case 'head': case 'neckFur': lvl = light > 0.35 ? 3 : light > -0.2 ? 2 : 1; break;
     case 'tail': lvl = light > 0.2 ? 2 : 1; break;
     default: {
@@ -332,7 +357,7 @@ function shade(p) {
     }
   }
   if (n < 0.1) lvl--; else if (n > 0.96) lvl++;
-  return PAL[furs[Math.max(0, Math.min(4, lvl))]];
+  return F[Math.max(0, Math.min(4, lvl))];
 }
 
 // a solid-colour silhouette of a sprite, for hit flashes

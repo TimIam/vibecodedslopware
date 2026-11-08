@@ -1,6 +1,6 @@
 // Draws a game state into a 320×180 buffer. Everything lands on whole pixels.
 
-import { PAL, drawText, textWidth, ICONS, makeBossSprites, BOSS_DIRS, BOSS_SIZE, tinted, hash, newCanvas } from './art.js';
+import { PAL, drawText, textWidth, ICONS, makeBossSprites, bossKey, BOSS_DIRS, BOSS_SIZE, tinted, hash, newCanvas } from './art.js';
 import { W, H, LEASH, CLASS, ADDS, SLOT_KEYS, RAID_LAPS, FINAL_LAPS, angDiff, pathDist, pathNearest, zoneFace, beamEnd, destRock } from './world.js';
 import { LEVELS } from './levels/index.js';
 import { KINDS, CRITTERS } from './props.js';
@@ -52,7 +52,6 @@ const THEME_PAL = {
     dirt: ['#6e6459', '#83786b', '#968a7c', '#a99d8e'], flowers: ['#ffffff', '#9fd8ff'] },
 };
 
-const lookKey = l => `${l.head}${l.neck}${l.back}${l.tail}${l.limbs}`;
 
 export function createRenderer() {
   const buf = newCanvas(W, H), ctx = buf.getContext('2d');
@@ -61,11 +60,11 @@ export function createRenderer() {
   let boss = null, bg = null, fg = null, bgFor = null;
 
   function render(g, view = {}) {
-    if (!boss || boss.key !== lookKey(g.look)) boss = makeBossSprites(g.look);
+    if (!boss || boss.key !== bossKey(g.look)) boss = makeBossSprites(g.look);
     const m = g.map, art = m.level.art || {};
     if (bgFor !== m) {
       bg = m.mode === 'patrol' ? makeBackground(m) : makeGround(m);
-      if (art.decorate) art.decorate(bg.getContext('2d'), m, H_ART);
+      if (art.decorate && !m.plain) art.decorate(bg.getContext('2d'), m, H_ART);
       fg = art.canopy ? makeForeground(m.theme.id) : null;
       bgFor = m;
       trail = newCanvas(m.w, m.h); tctx = trail.getContext('2d');
@@ -98,7 +97,7 @@ export function createRenderer() {
     drawTelegraph(ctx, g);
     for (const c of g.corpses) if (onScreen(c.x, c.y)) drawCorpse(ctx, c);
     for (const r of g.rings) if (r.col !== 'slash') drawRing(ctx, r);
-    const patrol = m.mode === 'patrol';
+    const patrol = m.mode === 'patrol' && !m.plain;
     if (patrol && !g.clear) drawMarker(ctx, g, false);
 
     // y-sorted: adventurers, loose horses, adds, the boss
@@ -203,7 +202,7 @@ export function createRenderer() {
 // a still of the boss for the store: one look, one heading, drawn at 1 px per pixel
 const previews = new Map();
 export function bossPreview(look, dir, frame = 0) {
-  const k = lookKey(look);
+  const k = bossKey(look);
   if (!previews.has(k)) previews.set(k, makeBossSprites(look));
   return previews.get(k).get(dir, frame);
 }
@@ -285,8 +284,8 @@ function makeBackground(m) {
     x.fillStyle = T.grass[lvl];
     x.fillRect(px, py, 1, 1);
   }
-  // the path, worn by a thousand years of pacing
-  for (let py = 0; py < H; py++) for (let px = 0; px < W; px++) {
+  // the path, worn by a thousand years of pacing (the store's demo field has none)
+  if (!m.plain) for (let py = 0; py < H; py++) for (let px = 0; px < W; px++) {
     const d = m.df[py * W + px];
     const w = 5.2 + vnoise(px / 6 + so, py / 6) * 2.6;
     if (d > w + 1.5) continue;
@@ -300,14 +299,14 @@ function makeBackground(m) {
   const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 700; i++) {
     const px = Math.floor(r() * W), py = Math.floor(r() * H);
-    if (m.df[py * W + px] < 9) continue;
+    if (!m.plain && m.df[py * W + px] < 9) continue;
     x.fillStyle = r() < 0.5 ? T.tuft[0] : T.tuft[1];
     x.fillRect(px, py, 1, 1);
     x.fillStyle = T.tuft[0]; x.fillRect(px + (r() < 0.5 ? -1 : 1), py + 1, 1, 1);
   }
   for (let i = 0; i < 60; i++) {
     const px = Math.floor(r() * W), py = Math.floor(r() * H);
-    if (m.df[py * W + px] < 9) continue;
+    if (!m.plain && m.df[py * W + px] < 9) continue;
     x.fillStyle = T.flowers[Math.floor(r() * T.flowers.length)];
     x.fillRect(px, py, 1, 1);
   }
@@ -316,6 +315,7 @@ function makeBackground(m) {
     x.fillStyle = PAL.rock1; x.fillRect(px, py, 1, 1);
     x.fillStyle = PAL.rock0; x.fillRect(px + 1, py + 1, 1, 1);
   }
+  if (m.plain) return c;
   const { A, B } = m;
   drawRock(x, Math.round(A.x), Math.round(A.y), 6.2, 1, 3);
   drawRock(x, Math.round(B.x), Math.round(B.y), 5.6, 2, 7);
@@ -645,9 +645,17 @@ function drawUnit(ctx, u, g) {
   const st = u.moving ? Math.floor(u.walk) % 2 : 2;
   if (st !== 0) px(ctx, x - 1, y, C(PAL.ink));
   if (st !== 1) px(ctx, x + 1, y, C(PAL.ink));
-  const tall = u.role === 'tank' ? 3 : 2;
+  const tall = u.role === 'tank' || u.role === 'king' ? 3 : 2;
+  if (u.role === 'king') { ctx.fillStyle = C('#8a1e18'); ctx.fillRect(x - fx * 2, y - 3, 1, 3); px(ctx, x - fx, y, C('#8a1e18')); }   // the cape
   ctx.fillStyle = col; ctx.fillRect(x - 1, y - tall, 3, tall);
   px(ctx, x, y - tall - 1, C(u.role === 'tank' ? PAL.steelHi : PAL.skin));
+  if (u.role === 'king') {
+    // shiny gold plate (a darker side, a glint that runs over it now and then) and a crown with a red stone
+    px(ctx, x - fx, y - 1, C('#c8962a')); px(ctx, x, y - 2, C('#fff2b0'));
+    if ((Math.floor(g.t * 2.3 + u.id) % 5) === 0) px(ctx, x + fx, y - 3, '#ffffff');
+    px(ctx, x - 1, y - tall - 2, C(PAL.gold)); px(ctx, x, y - tall - 2, C('#e0403a')); px(ctx, x + 1, y - tall - 2, C(PAL.gold));
+    px(ctx, x - 1, y - tall - 3, C(PAL.gold)); px(ctx, x + 1, y - tall - 3, C(PAL.gold));
+  }
   if (u.role === 'tank') { ctx.fillStyle = C(PAL.steelHi); ctx.fillRect(x + fx * 2, y - 3, 1, 3); }
   else if (u.role === 'melee') {
     const sw = u.swing > 0;

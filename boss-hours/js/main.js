@@ -1,9 +1,10 @@
 // The page: input, the fixed-step loop, scaling the 320×180 buffer to the window, the between-maps store,
-// overlays, saving the best score and the looks you have bought.
+// overlays, and saving the best score.
 
-import { createGame, step, nextMap, W, H, ABILITIES, LOOKS, LOOK_COST, SLOT_KEYS, abilityOffer, buyAbility, upgradeAbility, setSlot, spend } from './world.js';
+import { createGame, step, nextMap, W, H, ABILITIES, LOOKS, LOOK_COST, FUR_COST, SLOT_KEYS, abilityOffer, buyAbility, upgradeAbility, setSlot, spend, createDemo, demoSet, demoStep } from './world.js';
 import { createRenderer, bossPreview } from './render.js';
-import { BOSS_SIZE, ICONS } from './art.js';
+import { BOSS_SIZE, ICONS, PAL } from './art.js';
+import { createFurPicker } from './furpick.js';
 import { createAudio } from './audio.js';
 
 const canvas = document.getElementById('game');
@@ -15,20 +16,13 @@ const fmt = n => Math.floor(n).toLocaleString('en-US');
 
 // ---------------------------------------------------------------------------------------------- saved things
 
-// looks are kept between runs once bought; abilities are not
-const LOOKS_KEY = 'bosshours.looks.v1';
-let looks = { owned: {}, wear: {} };
-try { looks = { owned: {}, wear: {}, ...JSON.parse(localStorage.getItem(LOOKS_KEY) || '{}') }; } catch {}
-for (const part in LOOKS) { looks.owned[part] = [...new Set([0, ...(looks.owned[part] || [])])]; looks.wear[part] ??= 0; }
-const saveLooks = () => { try { localStorage.setItem(LOOKS_KEY, JSON.stringify(looks)); } catch {} };
-
 const BEST_KEY = 'bosshours.best.v1';
 let best = 0;
 try { best = Number(JSON.parse(localStorage.getItem(BEST_KEY) || '{}').score) || 0; } catch {}
 function showBest() { $('best').textContent = best ? `Best shift: ${fmt(best)} points` : ''; }
 showBest();
 
-let g = createGame(undefined, looks.wear);
+let g = createGame();
 let mode = 'title';   // title | play | store | paused | over
 const DT = 1 / 60;
 let acc = 0, last = performance.now();
@@ -88,7 +82,7 @@ function readInput() {
 
 function start() {
   audio.unlock();
-  g = createGame(undefined, looks.wear);
+  g = createGame();
   R.reset();
   acc = 0;
   mode = 'play';
@@ -154,21 +148,42 @@ $('resume').addEventListener('click', resume);
 
 // ---------------------------------------------------------------------------------------------- the store, between maps
 
-let tab = 'abil', spin = null;
+let tab = 'abil', spin = null, sel = 'summon', pend = null, demo = null, demoRaf = 0;
 const PART_NAMES = { head: 'Head', neck: 'Neck', back: 'Back', tail: 'Tail', limbs: 'Limbs', marker: 'Destination marker' };
+const PR = createRenderer();   // the demo reel's own renderer
+const furPick = createFurPicker($('furPick'), hex => { pend = { ...pend, fur: hex }; drawLooks(); drawPreview(0); });
 
 function openStore() {
   mode = 'store';
   keys.clear(); mouse.l = false;
   $('storeMap').textContent = g.map.n;
+  tab = 'abil';
+  pend = { ...g.look };
+  furPick.set(g.look.fur);
+  if (!ABILITIES.some(a => a.id === sel)) sel = 'summon';
+  demo ||= createDemo(g.look);
+  showDemo();
   drawStore();
   $('store').hidden = false;
   let dir = 0;
   clearInterval(spin);
-  spin = setInterval(() => { dir = (dir + 1) % 32; drawPreview(dir); }, 140);
+  spin = setInterval(() => { dir = (dir + 1) % 32; if (tab === 'looks') drawPreview(dir); }, 140);
+  cancelAnimationFrame(demoRaf);
+  let then = performance.now(), acc = 0;
+  const tick = now => {
+    if (mode !== 'store') return;
+    acc = Math.min(0.25, acc + (now - then) / 1000); then = now;
+    if (tab === 'abil') {
+      while (acc >= DT) { demoStep(demo, DT); acc -= DT; }
+      paintDemo();
+    } else acc = 0;
+    demoRaf = requestAnimationFrame(tick);
+  };
+  demoRaf = requestAnimationFrame(tick);
 }
 function closeStore() {
   clearInterval(spin);
+  cancelAnimationFrame(demoRaf);
   $('store').hidden = true;
   nextMap(g);
   R.reset();
@@ -191,18 +206,42 @@ function drawStore() {
   if (tab === 'looks') { drawLooks(); drawPreview(0); }
 }
 
+// what the Mutate button would buy for one ability: its price, and the level the demo should show
+function mutateOffer(id) {
+  const o = abilityOffer(g, id);
+  if (o.buyCost != null) return { o, cost: o.buyCost, what: 'Learn it', show: 0 };
+  if (o.upCost != null) return { o, cost: o.upCost, what: o.upText, show: o.it.passive ? o.lvl : o.lvl + 1 };
+  return { o, cost: null, what: 'Fully mutated', show: o.lvl };
+}
+
 function drawAbilities() {
-  $('tabAbil').innerHTML = ABILITIES.map(a => {
-    const o = abilityOffer(g, a.id);
+  $('abilList').innerHTML = ABILITIES.map(a => {
+    const { o, cost } = mutateOffer(a.id);
     const pips = `<span class="pips">${Array.from({ length: o.max }, (_, i) => `<i class="${i < o.lvl ? 'on' : ''}"></i>`).join('')}</span>`;
-    let act;
-    if (o.buyCost != null) act = `<button type="button" class="buy" data-buy="${a.id}" ${g.points < o.buyCost ? 'aria-disabled="true"' : ''}>Buy <b>${fmt(o.buyCost)}</b></button>`;
-    else if (o.upCost != null) act = `<button type="button" class="buy" data-up="${a.id}" ${g.points < o.upCost ? 'aria-disabled="true"' : ''}>${a.passive && !o.owned ? 'Buy' : 'Upgrade'} <b>${fmt(o.upCost)}</b><small>${o.upText}</small></button>`;
-    else act = `<span class="maxed">Maxed</span>`;
-    const tag = a.passive ? 'passive' : o.owned ? (g.slots.includes(a.id) ? `on ${SLOT_KEYS[g.slots.indexOf(a.id)]}` : 'owned, not slotted') : 'not owned';
-    return `<div class="item ${o.owned ? 'owned' : ''}">${icon(a.id)}<b class="nm">${a.name}</b>${pips}<span class="tag">${tag}</span>
-      <small class="desc">${a.desc}</small>${act}</div>`;
+    const owned = o.owned || (a.passive && o.lvl > 0);
+    const line = cost == null ? '<span class="cost dim">maxed</span>' : `<span class="cost ${g.points < cost ? 'dim' : ''}">${owned ? 'upgrade' : 'learn'} ${fmt(cost)}</span>`;
+    return `<button type="button" class="item ${owned ? 'owned' : ''} ${a.id === sel ? 'sel' : ''}" data-sel="${a.id}" aria-pressed="${a.id === sel}">${icon(a.id)}<b class="nm">${a.name}</b>${pips}${line}</button>`;
   }).join('');
+  const { o, cost, what } = mutateOffer(sel), a = o.it;
+  const tag = a.passive ? (o.lvl ? `level ${o.lvl}` : 'not grown') : o.owned ? (g.slots.includes(a.id) ? `on ${SLOT_KEYS[g.slots.indexOf(a.id)]}` : 'owned, not slotted') : 'not owned';
+  const desc = a.id === 'summon' && o.owned && o.lvl > 0 ? a.ups[o.lvl - 1] : a.desc;
+  $('abilInfo').innerHTML = `<b class="nm">${icon(a.id)} ${a.name}</b><span class="up">${tag}</span><span class="desc">${desc}</span>` +
+    (cost == null ? `<span class="up">Fully mutated. Nothing left to grow.</span>`
+      : `<button type="button" class="mutate" id="abilMutate" ${g.points < cost ? 'aria-disabled="true"' : ''}><span>Mutate <small>${what}</small></span><b>${fmt(cost)}</b></button>`);
+}
+
+// the demo reel: the selected ability (at the level Mutate would give you), cast on a loop at a 5-man
+function showDemo() {
+  const { show } = mutateOffer(sel);
+  demoSet(demo, sel, show, g.look);
+  for (let i = 0; i < 20; i++) demoStep(demo, DT);
+  paintDemo();
+}
+function paintDemo() {
+  const buf = PR.render(demo, { bare: true });
+  const cv = $('demo'), c = cv.getContext('2d');
+  c.imageSmoothingEnabled = false;
+  c.drawImage(buf, 10, 28, 240, 135, 0, 0, cv.width, cv.height);
 }
 
 function drawSlots() {
@@ -212,13 +251,28 @@ function drawSlots() {
       <select data-slot="${i}"><option value="">(empty)</option>${owned.map(a => `<option value="${a.id}" ${a.id === id ? 'selected' : ''}>${a.name}</option>`).join('')}</select></label>`).join('');
 }
 
+// looks are tried on for free and paid for when you mutate; nothing is owned, so going back costs again
+function mutateCost() {
+  let n = 0;
+  for (const part in LOOKS) if (pend[part] !== g.look[part]) n += LOOK_COST[pend[part]];
+  if (pend.fur !== g.look.fur && pend.fur) n += FUR_COST;
+  return n;
+}
+function lookChanged() { return Object.keys(LOOKS).some(p => pend[p] !== g.look[p]) || pend.fur !== g.look.fur; }
+
 function drawLooks() {
   $('lookRows').innerHTML = Object.entries(LOOKS).map(([part, names]) => `<div class="part"><h3>${PART_NAMES[part]}</h3><div class="opts">` +
     names.map((nm, i) => {
-      const have = looks.owned[part].includes(i), wearing = g.look[part] === i;
-      const label = wearing ? 'wearing' : have ? 'owned' : fmt(LOOK_COST[i]);
-      return `<button type="button" class="opt ${wearing ? 'on' : ''}" data-part="${part}" data-i="${i}" ${!have && g.points < LOOK_COST[i] ? 'aria-disabled="true"' : ''}>${nm}<small>${label}</small></button>`;
+      const wearing = g.look[part] === i, trying = pend[part] === i && !wearing;
+      const label = trying ? 'trying on' : wearing ? 'wearing' : LOOK_COST[i] ? fmt(LOOK_COST[i]) : 'free';
+      return `<button type="button" class="opt ${wearing ? 'on' : ''} ${trying ? 'try' : ''}" data-part="${part}" data-i="${i}">${nm}<small>${label}</small></button>`;
     }).join('') + '</div></div>').join('');
+  $('furSwatch').style.background = pend.fur || PAL.fur2;
+  $('furNatural').classList.toggle('on', !pend.fur);
+  const cost = mutateCost(), changed = lookChanged();
+  $('lookInfo').innerHTML = changed
+    ? `<button type="button" class="mutate" id="lookMutate" ${g.points < cost ? 'aria-disabled="true"' : ''}><span>Mutate</span><b>${cost ? fmt(cost) : 'free'}</b></button><button type="button" class="revert" id="lookRevert">Put it all back</button>`
+    : `<span class="hint" style="margin:0;text-align:center">Click a part or a colour to try it on. Nothing is kept: every mutation is paid for again.</span>`;
 }
 
 function drawPreview(dir) {
@@ -226,7 +280,7 @@ function drawPreview(dir) {
   c.imageSmoothingEnabled = false;
   c.clearRect(0, 0, cv.width, cv.height);
   const s = Math.floor(cv.width / BOSS_SIZE);
-  c.drawImage(bossPreview(g.look, dir, Math.floor(performance.now() / 300) % 4), 0, 0, BOSS_SIZE * s, BOSS_SIZE * s);
+  c.drawImage(bossPreview(pend, dir, Math.floor(performance.now() / 300) % 4), 0, 0, BOSS_SIZE * s, BOSS_SIZE * s);
 }
 
 $('store').addEventListener('click', e => {
@@ -234,16 +288,18 @@ $('store').addEventListener('click', e => {
   if (!t || t.getAttribute('aria-disabled') === 'true') return;
   if (t.dataset.tab) { tab = t.dataset.tab; drawStore(); return; }
   if (t.id === 'storeGo') { closeStore(); return; }
+  if (t.dataset.sel) { sel = t.dataset.sel; showDemo(); drawAbilities(); return; }
+  if (t.dataset.part) { pend = { ...pend, [t.dataset.part]: +t.dataset.i }; drawLooks(); drawPreview(0); return; }
+  if (t.id === 'furNatural') { pend = { ...pend, fur: null }; furPick.set(null); drawLooks(); drawPreview(0); return; }
+  if (t.id === 'lookRevert') { pend = { ...g.look }; furPick.set(g.look.fur); drawLooks(); drawPreview(0); return; }
   let ok = false;
-  if (t.dataset.buy) ok = buyAbility(g, t.dataset.buy);
-  else if (t.dataset.up) ok = upgradeAbility(g, t.dataset.up);
-  else if (t.dataset.part) {
-    const part = t.dataset.part, i = +t.dataset.i;
-    if (!looks.owned[part].includes(i)) { if (!spend(g, LOOK_COST[i])) return; looks.owned[part].push(i); }
-    g.look = { ...g.look, [part]: i };
-    looks.wear[part] = i;
-    saveLooks();
-    ok = true;
+  if (t.id === 'abilMutate') {
+    const o = abilityOffer(g, sel);
+    ok = o.buyCost != null ? buyAbility(g, sel) : upgradeAbility(g, sel);
+    if (ok) showDemo();
+  } else if (t.id === 'lookMutate') {
+    ok = spend(g, mutateCost());
+    if (ok) { g.look = { ...pend }; demo.look = { ...g.look }; }
   }
   if (ok) { audio.play('buy'); drawStore(); }
 });

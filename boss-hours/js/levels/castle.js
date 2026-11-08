@@ -2,6 +2,11 @@
 // donjon in the middle) behind a moat, in a world that scrolls only up and down. Every block of it has hit points and
 // crumbles to rubble; towers topple over when they go, and crush whatever they land on. Bring 90% of it down and
 // every hero left runs for it: the game is won.
+//
+// It is held: a 5-man stands guard at the foot of every tower (and one at the drawbridge, and a couple along the
+// walls), a 40-man waits in front of the keep, and the king himself hides behind them in gold plate that a stomp, a
+// swipe or a careless step will crush. They stay at their posts until the boss comes near (api.garrison), so they slow
+// the wrecking down without all piling in at once. A tower that falls takes its garrison with it, or sends it running.
 
 import * as P from '../props.js';
 import { INK, STONEP, ROOF_PAL, rubbleSprite, steerHeroes, shade, paintGround, fillZone, sideWall } from './city.js';
@@ -44,6 +49,7 @@ function blockDown(g, p) {
 // a tower doesn't just crumble: it falls over, away from whatever pushed it, and lands on things
 function towerDown(g, p) {
   blockDown(g, p);
+  g.cs?.fallen.push(p);
   const len = p.donjon ? 58 : 46;
   g.cs?.topples.push({ x: p.x, y: p.y, ang: p.fallA, len, t: 0, hit: false, seed: p.seed, roof: p.roof, donjon: p.donjon, r: p.w / 2 });
 }
@@ -52,7 +58,8 @@ function towerDown(g, p) {
 
 function build(g, rng) {
   g.ruins = [];
-  const cs = g.cs = { cell: new Array(COLS * ROWS + 200).fill(null), orig: new Uint8Array(COLS * ROWS), blocks: [], topples: [], falls: [], dust: [], won: false, crumbleT: 0, share: 0 };
+  const cs = g.cs = { cell: new Array(COLS * ROWS + 200).fill(null), orig: new Uint8Array(COLS * ROWS), blocks: [], topples: [], falls: [], dust: [], won: false, crumbleT: 0, share: 0,
+    fallen: [], garrisons: [], king: null, manned: false };
   const key = (c, r) => c >= 0 && r >= 0 && c < COLS && r < ROWS ? r * COLS + c : -1;
   const taken = new Set();
   const block = (kind, c, r, n = 1, extra = {}) => {
@@ -101,6 +108,78 @@ function build(g, rng) {
   return { w: MW, h: MH, scroll: 'y', start: { x: 160, y: 420, face: -Math.PI / 2 }, canals };
 }
 
+// ---------------------------------------------------------------------------------------------- the garrison
+
+const MIDX = X0 + COLS * C / 2, MIDY = Y0 + ROWS * C / 2;
+const KING_BONUS = 5000;
+// the garrison is a little softer than the heroes the director sends (2.68 on this level): there are a lot of them
+const GARRISON_POWER = 1.6, RAID_POWER = 2;
+// a spot near (x, y) with nothing solid within r: searched in rings outward, so posts never land inside the stone.
+// in: keep to the courtyard, inside the curtain wall.
+function freeSpot(g, x, y, r = 9, inYard = false) {
+  const yard = (px, py) => px > X0 + 2 * C + r && px < X0 + (COLS - 2) * C - r && py > Y0 + 2 * C + r && py < Y0 + (ROWS - 2) * C - r;
+  const clear = (px, py) => {
+    if (P.isWater(g, px, py) || px < 12 || px > MW - 12 || (inYard && !yard(px, py))) return false;
+    for (const q of P.near(g, px, py, r + 4)) if (q.state === 'up' && P.KINDS[q.kind].solid && P.touches(q, px, py, r)) return false;
+    return true;
+  };
+  for (let d = 0; d < 60; d += 3) for (let k = 0; k < Math.max(1, d * 2); k++) {
+    const a = k / Math.max(1, d * 2) * TAU, px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
+    if (clear(px, py)) return { x: Math.round(px), y: Math.round(py) };
+  }
+  return { x, y };
+}
+function manCastle(g, api) {
+  const cs = g.cs;
+  cs.manned = true;
+  // a 5-man at the foot of each tower, on the courtyard side (the donjon stands in the keep, which has its own)
+  for (const t of cs.blocks) {
+    if (t.kind !== 'castle_tower' || t.donjon) continue;
+    const dx = MIDX - t.x, dy = MIDY - t.y, l = Math.hypot(dx, dy) || 1;
+    const s = freeSpot(g, t.x + dx / l * (t.w / 2 + 16), t.y + dy / l * (t.w / 2 + 16), 8, true);
+    const p = api.garrison(g, { x: s.x, y: s.y, size: 5, guard: 52, leash: 110, power: GARRISON_POWER });
+    p.tower = t;
+    cs.garrisons.push(p);
+  }
+  // and a few more: on the drawbridge's landing, and along the west and east walls
+  for (const [x, y, yard] of [[162, 360, false], [74, 258, true], [246, 150, true]]) {
+    const s = freeSpot(g, x, y, 8, yard);
+    cs.garrisons.push(api.garrison(g, { x: s.x, y: s.y, size: 5, guard: 52, leash: 110 }));
+  }
+  // the 40-man, drawn up in front of the keep, and the king behind them on the keep's steps
+  const ky = Y0 + (KEEP.r1 + 1) * C;
+  cs.raid = api.garrison(g, { x: MIDX, y: ky + 22, size: 40, guard: 58, leash: 150, power: RAID_POWER });
+  cs.king = api.king(g, { x: MIDX, y: ky + 6, hp: 30 });
+}
+
+// a tower comes down on the heroes standing guard under it: the ones at its foot are crushed, the rest run
+function towerFell(g, api, t) {
+  for (const p of g.cs.garrisons) {
+    if (p.tower !== t || p.done) continue;
+    let dead = 0;
+    for (const u of api.alive(p)) if (Math.hypot(u.x - t.x, u.y - t.y) < t.w / 2 + 22) { api.hurtUnit(g, u, 9999); dead++; }
+    const left = api.alive(p);
+    if (left.length) { api.scatter(g, p); api.bark(g, left[0], dead ? 'RUN!!!' : 'NOPE'); }
+    api.text(g, t.x, t.y - 22, dead ? 'GARRISON CRUSHED' : 'GARRISON ROUTED', 'gold', 1.6);
+  }
+}
+
+// the king: crushed by anything at all, a step included
+function updateKing(g, api) {
+  const cs = g.cs, k = cs.king, b = g.boss;
+  if (!k || cs.kingDone) return;
+  if (!k.dead && !k.gone && !b.dead && !g.won && Math.hypot(k.x - b.x, k.y - b.y) < b.r + 3.5) api.hurtUnit(g, k, 9999);
+  if (k.dead) {
+    cs.kingDone = true;
+    const pts = Math.round(KING_BONUS * g.mult);
+    api.addScore(g, pts);
+    api.text(g, k.x, k.y - 12, `+${pts}`, 'gold', 2.2);
+    for (let i = 0; i < 18; i++) { const a = g.rng() * TAU, s = 15 + g.rng() * 40; api.part(g, k.x, k.y - 2, Math.cos(a) * s, Math.sin(a) * s, 0.6, i % 3 ? 'spark' : 'blood'); }
+    api.sound(g, 'crunch');
+    if (!g.won) api.banner(g, 'THE KING IS CRUSHED', `+${pts}. THE ARMOUR WAS MOSTLY GOLD LEAF.`, 4);
+  } else if (k.gone) cs.kingDone = true;
+}
+
 // ---------------------------------------------------------------------------------------------- logic
 
 export function castleShare(g) {
@@ -147,7 +226,7 @@ function steerThroughWalls(g, dt) {
   const inside = (x, y) => x > X0 + 4 && x < X0 + COLS * C - 4 && y > Y0 + 4 && y < Y0 + ROWS * C - 4;
   for (const u of g.units) {
     if (u.dead || u.gone || u.role === 'rider' || u.stun > 0 || u.y > MOAT.y0 - 2) continue;
-    const t = (u.state === 'flee' || u.state === 'leave') && u.exit ? u.exit : !u.party?.engaged && u.stage ? u.stage : b;
+    const t = (u.state === 'flee' || u.state === 'leave') && u.exit ? u.exit : !u.party?.engaged && (u.post || u.stage) ? (u.post || u.stage) : b;
     const ui = inside(u.x, u.y);
     if (ui === inside(t.x, t.y)) continue;
     let best = null, bd = 1e9;
@@ -183,8 +262,12 @@ function steerThroughWalls(g, dt) {
 function update(g, dt, api) {
   const cs = g.cs;
   if (!cs) return;
+  if (!cs.manned) manCastle(g, api);
+  if (!cs.kingSaid && g.t - g.levelT0 > 4.5 && !g.won) { cs.kingSaid = true; api.banner(g, 'THE KING IS AT HOME', 'GOLD ARMOUR. VERY SHINY. VERY THIN.', 3.4); }
   steerHeroes(g, dt, g.map.canals);
   steerThroughWalls(g, dt);
+  while (cs.fallen.length) towerFell(g, api, cs.fallen.shift());
+  updateKing(g, api);
   // toppling towers: they lean, fall, and land a moment later on whatever is in the way
   for (const t of cs.topples) {
     t.t += dt;

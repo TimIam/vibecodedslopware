@@ -37,7 +37,7 @@ export const ABILITIES = [
   { id: 'breath', name: 'Fire Breath', start: true, desc: 'A cone of fire that leaves the ground burning.', up: '+30% damage, 15% farther' },
   { id: 'roar', name: 'Roar', start: true, desc: 'Everyone nearby runs away screaming.', up: '15% farther, fear lasts longer' },
   { id: 'summon', name: 'Call Adds', cost: 12000, desc: 'Summon two Gnashers: melee adds that run down heroes and bite.',
-    ups: ['Casters instead: two Spitters that spit fire from beside the path', 'A Necromancer instead, who raises dead heroes as skeletons'], upCost: [15000, 30000] },
+    ups: ['Casters instead: two Spitters that spit fire from beside the path', 'A Necromancer instead, who raises dead heroes as skeletons'], upCost: [25000, 40000] },
   { id: 'beam', name: 'Lightning Beam', cost: 20000, desc: 'Charge up, then fire a huge beam of lightning across the map. Steer it with the mouse.', up: '+35% damage, 20% longer' },
   { id: 'ice', name: 'Ice Floor', cost: 10000, desc: 'Coat the ground around you in ice. Heroes on it slow to a shuffle.', up: '25% wider, lasts 2 s longer' },
   { id: 'charge', name: 'Stun Charge', cost: 12000, desc: 'Lunge forward, stunning everyone you hit, then back up to where you started.', up: '+30% damage, 20% farther, longer stun' },
@@ -45,9 +45,10 @@ export const ABILITIES = [
   { id: 'tail', name: 'Tail Sweep', cost: 9000, desc: 'Sweep your tail through everyone standing behind you.', up: '+30% damage, longer reach' },
   { id: 'fur', name: 'Thicker Fur', passive: true, cost: 6000, desc: 'Not an ability. +25% max health, permanently.', up: '+25% max health' },
 ];
-const UP_COST = [6000, 14000, 28000];
+const UP_COST = [16000, 24000, 38000];
 
-// how the boss looks, part by part, and what marks the rock you are walking to. Option 0 is free.
+// how the boss looks, part by part, and what marks the rock you are walking to. Option 0 is free. Looks are not
+// owned: every mutation into an option costs its price again, and a new run starts plain.
 export const LOOKS = {
   head: ['Bull horns', 'Ram curls', 'Antlers', 'Cyclops', 'Croc snout'],
   neck: ['Bare', 'Lion mane', 'Spiked collar', 'Long neck', 'Frill'],
@@ -57,6 +58,7 @@ export const LOOKS = {
   marker: ['Sparkles', 'Black hole', 'TomTom arrow', 'Victim on a cross', 'Disco ball'],
 };
 export const LOOK_COST = [0, 2500, 3500, 5000, 7000];
+export const FUR_COST = 5000;   // a new fur colour (look.fur, '#rrggbb'; null is the natural brown)
 
 export const ADDS = {
   gnasher:  { name: 'GNASHER', hp: 160, r: 2.5, spd: 36, dmg: 26, rate: 0.8, reach: 4, sense: 80 },
@@ -80,6 +82,7 @@ export const CLASS = {
   hunter:    { role: 'ranged', col: 'green',  hp: 80,  spd: 27, dmg: 9,  rate: 1.3, bolt: 'arrow' },
   pet:       { role: 'pet',    col: 'brown',  hp: 40,  spd: 40, dmg: 2,  rate: 0.9 },
   rider:     { role: 'rider',  col: 'tan',    hp: 100, spd: 30, dmg: 100, rate: 1.1 },
+  king:      { role: 'king',   col: 'gold',   hp: 30,  spd: 14 },   // castle.js: shiny, slow, crunchy
 };
 
 const SKILL = {
@@ -129,6 +132,8 @@ const BARK = {
     'RIP BOZO', 'NERF THIS', 'PATCH WHEN', 'ITS BUGGED', 'L', 'RATIO', 'SKILL ISSUE', 'TOUCH GRASS', 'COPE', 'MAIN CHARACTER'],
   pet: ['PET!!!', 'HUNTER WTF', 'PET PULLED', 'SORRY PET', 'TURN PET OFF', 'GROWL OFF PLS'],
   logoff: ['BRB', 'GTG', 'LOGGING', 'NOPE', 'CYA', 'BEDTIME', 'WORK TMRW', 'DC'],
+  reset: ['BACK TO POSTS', 'LEASH IT', 'RESET', 'HOLD THE TOWER', 'NOT OUR JOB', 'GUARD DUTY'],
+  king: ['GUARDS!', 'NOT THE FACE', 'I AM THE KING', 'SOMEONE DO SOMETHING', 'MY ARMOUR!', 'I PAY YOU PEOPLE', 'PROTECT ME'],
   wreckThoughts: ['SMASH.', 'VENGEANCE...', 'MINE NOW', 'NO MORE ROCKS', '*SNIFF* SMOKE', 'WHO BUILT THIS', 'TOO MANY HOUSES', 'HM. FLAMMABLE', 'THEY STARTED IT'],
   thoughts: ['HM.', '*SNIFF*', 'NICE ROCK', 'OTHER ROCK', 'PATROL...', 'WHERE WAS I', '*YAWN*', 'THIS WAY', 'NO, THIS WAY', 'GOOD PATH', '...'],
 };
@@ -228,7 +233,7 @@ export function createGame(seed = (Math.random() * 2 ** 32) >>> 0, look) {
     props: [], critters: [], ashes: [], water: null, chaos: 0, vengeT: 0, won: false, winT: 0,
     abil: null, owned: new Set(ABILITIES.filter(a => a.start).map(a => a.id)), lvl: {},
     slots: ['swipe', 'stomp', 'breath', 'roar', null],
-    look: { head: 0, neck: 0, back: 0, tail: 0, limbs: 0, marker: 0, ...look },
+    look: { head: 0, neck: 0, back: 0, tail: 0, limbs: 0, marker: 0, fur: null, ...look },
     score: 0, points: 0, spent: 0, mult: 1, laps: 0, lapsMap: 0, legDist: 0, kills: 0, summoned: 0, maps: 0,
     wipes: { raid: 0, dungeon: 0, rider: 0, final: 0 }, escaped: 0, patrolDist: 0,
     lastMark: 'A', onPatrol: false, offLane: 0, shortcutT: 0,
@@ -273,6 +278,7 @@ function loadLevel(g, n) {
 
 // the camera follows the boss along whichever axis the level scrolls
 function updateCam(g, dt, snap) {
+  if (g.walkoff && !snap) return;   // the camera stays put and watches you go
   const m = g.map, b = g.boss;
   const tx = m.scroll === 'x' || m.scroll === 'xy' ? clamp(b.x - W / 2, 0, m.w - W) : 0;
   const ty = m.scroll === 'y' || m.scroll === 'xy' ? clamp(b.y - H / 2 - 8, 0, m.h - H) : 0;
@@ -286,7 +292,7 @@ export function nextMap(g) {
   const b = g.boss;
   Object.assign(b, { act: null, queue: null, evade: null, taunt: null, haste: 0, flash: 0, hp: b.maxhp, calmT: 99 });
   for (const k in b.cd) b.cd[k] = 0;
-  Object.assign(g, { lastMark: 'A', legDist: 0, lapsMap: 0, clear: null, store: false, offLane: 0, mult: 1 });
+  Object.assign(g, { lastMark: 'A', legDist: 0, lapsMap: 0, clear: null, store: false, offLane: 0, mult: 1, walkoff: null });
   loadLevel(g, n);
   g.dir = { next: g.t + 8, n: 0, lastRaid: g.t, raids: 0, final: false };
   banner(g, `LEVEL ${n}: ${g.map.level.name}`, g.map.level.sub || '', 4);
@@ -324,7 +330,9 @@ export function step(g, inp, dt) {
   if (g.won && !g.boss.dead) { g.winT += dt; if (g.winT > 6 && !g.wonSent) { g.wonSent = true; g.events.push('won'); } }
   if (g.clear && !g.boss.dead) {
     g.clear.t += dt;
-    if (g.clear.t > 4.5 && !g.units.some(u => !u.gone && u.x > V.x - 8 && u.x < V.x + W + 8 && u.y > V.y - 8 && u.y < V.y + H + 8) || g.clear.t > 9) {
+    // after a walk-off the store opens a moment after you leave the top of the screen; heroes still running don't matter
+    if (g.walkoff) { if (g.walkoff.off && (g.walkoff.offT = (g.walkoff.offT || 0) + dt) > 1) { g.store = true; g.maps++; g.events.push('store'); } }
+    else if (g.clear.t > 4.5 && !g.units.some(u => !u.gone && u.x > V.x - 8 && u.x < V.x + W + 8 && u.y > V.y - 8 && u.y < V.y + H + 8) || g.clear.t > 9) {
       g.store = true; g.maps++;
       g.events.push('store');
     }
@@ -363,6 +371,18 @@ const LAPI = {
   spawnRaid: (g, size) => spawnRaid(g, size), spawnDungeon: g => spawnDungeon(g),
   addAdd: (g, kind, x, y) => spawnAdd(g, kind, x, y),
   hurtUnit: (g, u, a) => hurt(g, u, a), flee: g => sendHome(g),
+  // the end of the City Wall and the city: control goes, the boss walks north through the hole (towards x) and off
+  // the top of the screen taking no damage, the heroes run, and the store opens once it is gone. { x, title, sub }
+  walkOff: (g, o) => walkOff(g, o),
+  // heroes stationed somewhere (castle.js): { x, y, size: 5 | 25 | 40, power, guard, leash, spread }. They stand at
+  // their posts until the boss comes within guard px of one of them (or they get hit), fight, and go back to their
+  // posts if the boss leads them more than leash px from where they were stationed. Returns the party.
+  garrison: (g, o) => garrison(g, o),
+  // a king: one unit in gold armour who never fights and keeps away from the boss near his post. Returns the unit.
+  king: (g, o) => spawnKing(g, o),
+  scatter: (g, p) => scatter(g, p),   // a party drops everything and runs for the edge
+  bark: (g, u, s) => bark(g, u, s),
+  alive: p => alive(p),
 };
 
 // ---------------------------------------------------------------------------------------------- boss
@@ -370,6 +390,7 @@ const LAPI = {
 function updateBoss(g, inp, dt) {
   const b = g.boss, m = g.map;
   if (b.dead) return;
+  if (g.walkoff) { walkOffStep(g, dt); return; }
   for (const k in b.cd) b.cd[k] = Math.max(0, b.cd[k] - dt);
   b.flash = Math.max(0, b.flash - dt);
   b.haste = Math.max(0, b.haste - dt);
@@ -506,6 +527,33 @@ function startEvade(g) {
   if (lost) text(g, b.x, b.y - 24, 'AIMLESSNESS RESET', 'pink', 1.8);
   g.events.push('evade');
   for (const p of g.parties) if (p.engaged && p.type !== 'rider') { const u = alive(p)[0]; if (u) bark(g, u, pick(g, BARK.evade)); }
+}
+
+// The walk-off: the input is ignored, and the boss heads north through the breach and off the top of the screen. It
+// steers onto the breach's centre line as it goes so the stubs either side don't catch it, and nothing solid, no
+// water and no arena edge stops it on the way.
+function walkOff(g, o = {}) {
+  const b = g.boss;
+  if (g.walkoff || g.clear || g.won || b.dead) return;
+  g.walkoff = { x: o.x ?? b.x, t: 0, off: false };
+  Object.assign(b, { act: null, queue: null, evade: null, taunt: null, haste: 0 });
+  levelCleared(g, o.title, o.sub);
+}
+function walkOffStep(g, dt) {
+  const b = g.boss, w = g.walkoff;
+  w.t += dt;
+  b.flash = 0;
+  const sp = BOSS_SPEED * 1.1;
+  const vx = clamp((w.x - b.x) * 3, -sp * 0.8, sp * 0.8), vy = -Math.sqrt(sp * sp - vx * vx);
+  const ox = b.x, oy = b.y;
+  b.x += vx * dt; b.y += vy * dt;
+  b.face = turnToward(b.face, Math.atan2(vy, vx), 6 * dt);
+  const moved = Math.hypot(b.x - ox, b.y - oy);
+  b.moving = moved > 0.01;
+  const before = Math.floor(b.walk / 4);
+  b.walk += moved * 0.3;
+  if (Math.floor(b.walk / 4) !== before && b.y > 0) g.steps.push({ x: b.x, y: b.y, face: b.face, side: Math.floor(b.walk / 4) & 1 });
+  if (!w.off && b.y < V.y - 26) { w.off = true; g.events.push('walkoff'); }
 }
 
 function tryCast(g, k) {
@@ -724,11 +772,12 @@ export function telegraph(g) {
 
 function hurtBoss(g, amt, u) {
   const b = g.boss;
-  if (b.evade || b.dead) return;
+  if (b.evade || b.dead || g.walkoff) return;   // nothing touches you on the way out
   b.hp -= amt;
   b.flash = 0.06;
   b.calmT = 0;
   g.blame[u.party.type] += amt;
+  u.party.hitT = g.t;
   if (b.hp <= 0) {
     b.hp = 0; b.dead = true; b.act = null; b.taunt = null;
     g.events.push('bossdie');
@@ -833,12 +882,7 @@ function spawnRaid(g, size, final) {
   sx = clamp(sx, AR.x0 + 10, AR.x1 - 10); sy = clamp(sy, AR.y0 + 10, AR.y1 - 10);
   p.stage = { x: sx, y: sy };
   const base = Math.atan2(sy - g.boss.y, sx - g.boss.x);
-  const tanks = 2 + Math.floor((size - 25) / 15), healers = Math.round(size * 0.2), dps = size - tanks - healers;
-  const melee = ['rogue', 'berserker', 'paladin'], ranged = ['mage', 'warlock', 'hunter'];
-  const comp = [];
-  for (let i = 0; i < tanks; i++) comp.push('warrior');
-  for (let i = 0; i < healers; i++) comp.push(i % 2 ? 'druid' : 'priest');
-  for (let i = 0; i < dps; i++) comp.push(i % 2 ? ranged[(i >> 1) % 3] : melee[(i >> 1) % 3]);
+  const comp = raidComp(size);
   const nMelee = comp.filter(c => CLASS[c].role === 'melee').length;
   const px = -e.ny, py = e.nx;   // along the edge
   let tank = 0, mi = 0;
@@ -868,15 +912,69 @@ function spawnRider(g) {
   g.events.push('neigh');
 }
 
+// the class list of a raid of a given size: tanks, a fifth healers, the rest DPS, melee and ranged alternating
+function raidComp(size) {
+  const tanks = 2 + Math.floor((size - 25) / 15), healers = Math.round(size * 0.2), dps = size - tanks - healers;
+  const melee = ['rogue', 'berserker', 'paladin'], ranged = ['mage', 'warlock', 'hunter'];
+  const comp = [];
+  for (let i = 0; i < tanks; i++) comp.push('warrior');
+  for (let i = 0; i < healers; i++) comp.push(i % 2 ? 'druid' : 'priest');
+  for (let i = 0; i < dps; i++) comp.push(i % 2 ? ranged[(i >> 1) % 3] : melee[(i >> 1) % 3]);
+  return comp;
+}
+
+// heroes stationed at a post (see LAPI.garrison), in a loose block around (x, y)
+function garrison(g, o) {
+  const size = o.size || 5, raid = size > 5;
+  const p = newParty(g, raid ? 'raid' : 'dungeon');
+  if (o.power) p.power = o.power;
+  p.post = { x: o.x, y: o.y };
+  p.guard = o.guard || (raid ? 60 : 56);
+  p.leash = o.leash || (raid ? 150 : 120);
+  if (raid) { p.brez = 1; g.dir.raids++; }
+  const comp = raid ? raidComp(size) : ['warrior', g.rng() < 0.5 ? 'priest' : 'druid', g.rng() < 0.5 ? 'rogue' : 'berserker', 'mage', 'hunter'];
+  const cols = raid ? Math.ceil(Math.sqrt(size * 1.4)) : 3, sp = o.spread || (raid ? 5 : 6), rows = Math.ceil(comp.length / cols);
+  const face = Math.atan2(g.boss.y - o.y, g.boss.x - o.x);
+  const nMelee = comp.filter(c => CLASS[c].role === 'melee').length;
+  let tank = 0, mi = 0;
+  comp.forEach((cls, i) => {
+    const row = Math.floor(i / cols), col = i % cols;
+    const x = o.x + (col - (cols - 1) / 2) * sp + (g.rng() - 0.5) * 1.5, y = o.y + (row - (rows - 1) / 2) * sp * 0.8;
+    const u = mkUnit(g, p, cls, x, y);
+    u.state = 'post'; u.post = { x, y }; u.fx = Math.cos(face) >= 0 ? 1 : -1;
+    if (u.role === 'tank') u.slot = tank++;
+    u.slotA = u.role === 'melee' ? (raid ? ((mi++) / Math.max(1, nMelee - 1) - 0.5) * 2.2 : (g.rng() - 0.5) * 1.6) : face + Math.PI + (g.rng() - 0.5) * 2.2;
+    u.slotD = u.role === 'healer' ? 52 + g.rng() * 10 : u.role === 'ranged' ? 44 + g.rng() * 14 : g.rng() * 3;
+    if (cls === 'hunter' && !raid) { const pet = mkUnit(g, p, 'pet', x + 2, y + 1); pet.state = 'post'; pet.post = { x: x + 2, y: y + 1 }; pet.slotA = (g.rng() - 0.5) * 2; }
+  });
+  p.leader = p.units[0];
+  return p;
+}
+
+function spawnKing(g, o) {
+  const p = newParty(g, 'dungeon');
+  p.king = true; p.post = { x: o.x, y: o.y }; p.power = 1;
+  p.skill = { react: 0.9, dodge: 0.15, fire: 0 };
+  const u = mkUnit(g, p, 'king', o.x, o.y);
+  u.hp = u.maxhp = o.hp || CLASS.king.hp;
+  u.state = 'post'; u.post = { x: o.x, y: o.y }; u.king = true;
+  return u;
+}
+
+function scatter(g, p) {
+  p.fleeing = true;
+  for (const u of alive(p)) { u.state = 'flee'; u.exit = nearestExit(u); u.fear = 0; }
+}
+
 // ---------------------------------------------------------------------------------------------- parties
 
 const alive = p => p.units.filter(u => !u.dead && !u.gone);
 
 function engage(g, p, why) {
   if (p.engaged) return;
-  p.engaged = true;
+  p.engaged = true; p.engT = g.t;
   p.countdown = null;
-  for (const u of p.units) if (u.state === 'travel' || u.state === 'stage') u.state = 'fight';
+  for (const u of p.units) if ((u.state === 'travel' || u.state === 'stage' || u.state === 'post') && u.role !== 'king') u.state = 'fight';
   g.events.push('engage');
   const u = alive(p).find(v => v.role !== 'pet');
   if (u) bark(g, u, why === 'pet' ? pick(g, BARK.pet) : why === 'early' ? pick(g, BARK.pull) : p.type === 'raid' ? 'GO GO GO' : 'GOGO');
@@ -889,6 +987,20 @@ function updateParty(g, p, dt) {
   if (p.type === 'rider') return;
   const b = g.boss;
 
+  if (p.post && !g.clear && !g.won) {
+    // a garrison: stays home until the boss comes close, and goes back once it has been led too far away
+    if (p.king) return;
+    // (or once it has spent 8 s engaged without landing a single blow: stuck behind a wall, say)
+    if (p.engaged && !p.fleeing && (Math.hypot(b.x - p.post.x, b.y - p.post.y) > p.leash || g.t - Math.max(p.engT || 0, p.hitT || 0) > 8)) {
+      p.engaged = false;
+      for (const u of live) if (u.state === 'fight' || u.state === 'afk') { u.state = 'post'; u.foe = null; }
+      if (g.rng() < 0.5) bark(g, live[0], pick(g, BARK.reset));
+    } else if (!p.engaged) {
+      const near = live.find(u => Math.hypot(u.x - b.x, u.y - b.y) < p.guard);
+      if (near && Math.hypot(b.x - p.post.x, b.y - p.post.y) < p.leash * 0.8) engage(g, p, near.role === 'pet' ? 'pet' : 'near');
+      return;
+    }
+  }
   if (!p.engaged && !g.clear) {
     // anyone wandering too close, or a pet with ideas, starts the fight
     const near = live.find(u => u.state !== 'afk' && Math.hypot(u.x - b.x, u.y - b.y) < (p.type === 'raid' ? 52 : ENGAGE_R));
@@ -951,6 +1063,7 @@ function updateParty(g, p, dt) {
 
 function finishParty(g, p) {
   p.done = true;
+  if (p.king) return;   // the level makes its own fuss about the king
   const esc = p.units.filter(u => u.gone).length;
   if (p.final && !g.boss.dead) { mapCleared(g, esc); return; }
   if (esc && (g.boss.dead || g.clear || g.won)) return;
@@ -1149,6 +1262,20 @@ function updateUnit(g, u, dt) {
     case 'stage':
       u.moving = false;
       return;
+    case 'post': {
+      // standing guard. A king keeps his distance from the boss, but never wanders far from his post.
+      let tx = u.post.x, ty = u.post.y;
+      const db = Math.hypot(u.x - b.x, u.y - b.y), shy = u.role === 'king' && db < 70;
+      if (shy) {
+        const l = db || 1, k = (70 - db) * 0.6;
+        tx = clamp(u.x + (u.x - b.x) / l * k, u.post.x - 34, u.post.x + 34); ty = clamp(u.y + (u.y - b.y) / l * k, u.post.y - 22, u.post.y + 22);
+        if (db < 44 && g.rng() < 0.5 * dt) bark(g, u, pick(g, BARK.king));
+      }
+      if (Math.hypot(tx - u.x, ty - u.y) > 1.5) moveTo(u, tx, ty, u.spd, dt);
+      else u.moving = false;
+      clampArena(u);
+      return;
+    }
   }
 
   // one of the boss's adds is in the way: deal with it first
@@ -1665,6 +1792,89 @@ export function setSlot(g, i, id) {
   const j = id ? g.slots.indexOf(id) : -1;
   if (j >= 0) g.slots[j] = g.slots[i];
   g.slots[i] = id || null;
+}
+
+// ---------------------------------------------------------------------------------------------- the store's demo reel
+
+// A little world for the store's preview screen: the boss on the first map, nothing spawning, a 5-man walking into
+// whatever ability is on show, cast on a loop. demoSet picks the ability and its level; demoStep runs it.
+const DEMO_AT = { x: 110, y: 96 };
+export function createDemo(look) {
+  const d = createGame(7, look);
+  d.dir.final = true;   // the director stays home
+  // a plain field: no path, and the rocks are somewhere else entirely
+  Object.assign(d.map, { plain: true, A: { x: -400, y: -400 }, B: { x: -300, y: -400 } });
+  d.demo = { id: 'swipe', t: 0, cycle: 0 };
+  return d;
+}
+
+export function demoSet(d, id, lvl, look) {
+  for (const k of ['units', 'parties', 'corpses', 'ghosts', 'fires', 'ice', 'bolts', 'parts', 'texts', 'barks', 'rings', 'adds', 'ashes']) d[k] = [];
+  const it = ABILITIES.find(a => a.id === id);
+  d.owned = new Set([id, 'swipe']); d.lvl = { [id]: lvl };
+  d.slots = [it.passive ? 'swipe' : id, null, null, null, null];
+  if (look) d.look = { ...look };
+  const b = d.boss;
+  b.hp = b.maxhp;
+  applyLevels(d);
+  Object.assign(b, { x: DEMO_AT.x, y: DEMO_AT.y, face: 0, act: null, queue: null, haste: 0, taunt: null, evade: null, dead: false, hp: b.maxhp });
+  for (const k in b.cd) b.cd[k] = 0;
+  d.demo = { id, t: 0, cycle: 0 };
+  d.banner = null; d.thought = null;
+  demoParty(d);
+}
+
+function demoParty(d) {
+  const p = newParty(d, 'dungeon');
+  p.power = 0.6;
+  const tail = d.demo.id === 'tail';
+  const comp = ['warrior', 'priest', 'rogue', 'mage', 'hunter'];
+  comp.forEach((cls, i) => {
+    const x = tail ? 30 + i * 6 : 200 + i * 7, y = DEMO_AT.y - 14 + i * 7;
+    const u = mkUnit(d, p, cls, x, y);
+    u.slotA = u.role === 'melee' ? (d.rng() - 0.5) * 1.2 : Math.PI + (d.rng() - 0.5) * 1.2;
+    u.slotD = u.role === 'healer' ? 50 : u.role === 'ranged' ? 42 : 2;
+    u.home = { x, y };
+  });
+}
+
+export function demoStep(d, dt) {
+  const dm = d.demo, b = d.boss, id = dm.id;
+  dm.t += dt;
+  const live = d.units.filter(u => !u.dead && !u.gone);
+  // a fresh party once this one is dead or scared off screen
+  if (!live.length || live.every(u => u.x < -20 || u.x > W + 20 || u.y < -20 || u.y > H + 20)) {
+    if ((dm.gap = (dm.gap || 0) + dt) > 1.2) { dm.gap = 0; d.units = []; d.parties = []; demoParty(d); }
+  }
+  // the boss cannot lose in the shop
+  b.hp = b.maxhp; b.dead = false; b.evade = null;
+  const near = live.reduce((a, u) => !a || Math.hypot(u.x - b.x, u.y - b.y) < Math.hypot(a.x - b.x, a.y - b.y) ? u : a, null);
+  const aim = near ? { x: near.x, y: near.y } : { x: b.x + 40, y: b.y };
+  const inp = { mx: aim.x, my: aim.y, ax: 0, ay: 0, press: {}, hold: {} };
+  const dist = near ? Math.hypot(near.x - b.x, near.y - b.y) : 999;
+  const it = ABILITIES.find(a => a.id === id);
+  if (id === 'tail') { inp.mx = b.x + (b.x - aim.x); inp.my = b.y + (b.y - aim.y); }
+  if (id === 'haste') {
+    // zoomies: run laps of the clearing
+    const k = Math.floor(dm.t / 1.6) % 2 ? -1 : 1;
+    inp.ax = k; inp.mx = b.x + k * 30; inp.my = b.y;
+    if (b.haste <= 0 && !b.act) { b.cd.haste = 0; inp.press.slot0 = true; }
+    if (Math.hypot(b.x - DEMO_AT.x, b.y - DEMO_AT.y) > 70) { inp.ax = Math.sign(DEMO_AT.x - b.x); }
+  } else if (id === 'swipe' || it.passive) {
+    if (dist < 34) inp.hold.slot0 = true;
+  } else {
+    // everything else goes off once the party is close enough to be worth it, then again after a short breather
+    const ready = !b.act && dm.t - (dm.last || -9) > 3.2;
+    const range = { stomp: 34, roar: 70, breath: 60, beam: 160, ice: 44, charge: 60, summon: 200, tail: 30 }[id] || 40;
+    if (ready && dist < range) { b.cd[id] = 0; inp.press.slot0 = true; dm.last = dm.t; }
+  }
+  // the boss wanders back to its mark between casts (charge brings itself back)
+  if (!b.act && id !== 'haste' && Math.hypot(b.x - DEMO_AT.x, b.y - DEMO_AT.y) > 6) {
+    inp.ax = clamp((DEMO_AT.x - b.x) / 20, -1, 1); inp.ay = clamp((DEMO_AT.y - b.y) / 20, -1, 1);
+  }
+  step(d, inp, dt);
+  if (d.adds.length > 4) d.adds.splice(0, d.adds.length - 4);
+  d.events.length = 0; d.banner = null; d.thought = null; d.clear = null; d.store = false;
 }
 
 function part(g, x, y, vx, vy, life, kind) { if (g.parts.length < 400) g.parts.push({ x, y, vx, vy, t: 0, life, kind }); }
