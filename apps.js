@@ -126,16 +126,83 @@ window.SLOPWARE = {
   },
   "antfarm": {
    "visits": 0,
-   "prompts": 3,
-   "tokens": 525128,
+   "prompts": 5,
+   "tokens": 852516,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
      "date": "2026-11-08T10:57:24-07:00",
      "note": "a photoreal colony across every monitor, founded by a lone queen",
-     "prompts": 3,
-     "tokens": 525128
+     "prompts": 5,
+     "tokens": 852516
+    }
+   ]
+  },
+  "snowglobe": {
+   "visits": 0,
+   "prompts": 0,
+   "tokens": 3370547,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-08T12:31:20-07:00",
+     "note": "Snow Globe, Terrarium, Rain Window, Koi Pond, Aurora",
+     "prompts": 0,
+     "tokens": 3370547
+    }
+   ]
+  },
+  "terrarium": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": "snowglobe",
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-08T12:31:20-07:00",
+     "note": "Snow Globe, Terrarium, Rain Window, Koi Pond, Aurora"
+    }
+   ]
+  },
+  "rainwindow": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": "snowglobe",
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-08T12:31:20-07:00",
+     "note": "Snow Globe, Terrarium, Rain Window, Koi Pond, Aurora"
+    }
+   ]
+  },
+  "koipond": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": "snowglobe",
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-08T12:31:20-07:00",
+     "note": "Snow Globe, Terrarium, Rain Window, Koi Pond, Aurora"
+    }
+   ]
+  },
+  "aurora": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": "snowglobe",
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-08T12:31:20-07:00",
+     "note": "Snow Globe, Terrarium, Rain Window, Koi Pond, Aurora"
     }
    ]
   },
