@@ -1,4 +1,4 @@
-// Boss Hours: everything on a level that can be knocked down, set on fire, trampled or shoved into water.
+// The Endgame is Me: everything on a level that can be knocked down, set on fire, trampled or shoved into water.
 // Props are trees, crops, buildings, walls and rubble; critters are the animals that run about; water is a grid of
 // cells that pushed rubble fills in. No DOM. Kinds are registered by the level modules (see levels/index.js).
 //
@@ -213,8 +213,7 @@ export function updateProps(g, dt) {
       if (g.rng() < d.spread * dt * 4) {
         for (const q of near(g, p.x, p.y, 16)) if (q !== p && !q.burning && KINDS[q.kind].flammable && Math.hypot(q.x - p.x, q.y - p.y) < (p.w || p.r * 2) + 10 && g.rng() < 0.25) ignite(g, q);
       }
-      // licks of flame (the smoke comes from smoke.js)
-      if (g.rng() < 0.25) API.part(g, p.x + (g.rng() - 0.5) * (p.w || p.r * 2), p.y - 2 - g.rng() * 4, (g.rng() - 0.5) * 8, -12 - g.rng() * 14, 0.5 + g.rng() * 0.4, 'flame');
+      if (g.rng() < 0.4) API.part(g, p.x + (g.rng() - 0.5) * (p.w || p.r * 2), p.y - 2 - g.rng() * 4, (g.rng() - 0.5) * 8, -12 - g.rng() * 14, 0.5 + g.rng() * 0.4, g.rng() < 0.6 ? 'flame' : 'smoke');
       for (const u of g.units) if (!u.dead && touches(p, u.x, u.y, 4)) API.hurt(g, u, 20 * dt);
       if (p.burnT >= d.burnTime) {
         p.burning = false; p.state = 'gone'; p.ash = true;

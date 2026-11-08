@@ -12,6 +12,7 @@
 import { scatter } from './forest.js';
 import { isWater } from '../props.js';
 
+const roadY = x => 132 + Math.sin(x / 110) * 9 + Math.sin(x / 37) * 3;
 const TAU = Math.PI * 2;
 const WW = 1280, WH = 180;
 const MOAT0 = 42, MOAT1 = 72;          // the moat's rows (world y): open water from the wall foot to the outer bank
@@ -104,7 +105,6 @@ function build(g, rng, P) {
   }
 
   // the outskirts: a road along the bottom, a lane up to the gate, houses, barns and towers either side
-  const roadY = x => 132 + Math.sin(x / 110) * 9 + Math.sin(x / 37) * 3;
   const keep = [{ x: start.x, y: start.y, r: 34 }];
   for (let y = 70; y < 140; y += 8) keep.push({ x: gateLaneX(y), y, r: 18 });
   keep.push({ x: OLD_X, y: 88, r: 20 }, { x: 600, y: 94, r: 22 });
@@ -871,6 +871,7 @@ function drawRubble(ctx, p, g, h) {
 }
 
 export default {
+  roadY,
   n: 5, id: 'wall', name: 'THE CITY WALL', sub: 'THEY PULLED UP THE BRIDGE.', mode: 'timed',
   kinds,
   build(g, rng, P) { return build(g, rng, P); },
