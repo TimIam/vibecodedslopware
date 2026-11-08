@@ -105,44 +105,69 @@ function distPoly(px, py, pts) {
 
 const HORN = [[7.5, 3.8], [9.5, 6.8], [12.5, 8.8], [16, 9.2], [18.4, 7.6]];
 const ANTLER = [[[7, 3.5], [4.5, 8.5], [1.5, 12.5]], [[4.5, 8.5], [7.5, 11.5]], [[2.6, 11], [3.6, 14.5]], [[6.2, 5.5], [9.5, 7.2]]];
+// the leg layouts, by look.legs: where along the flank each pair sits, and how much smaller and calmer the legs get
+// the more of them there are. fan spreads the feet apart beyond the point they join the body.
+const GAITS = [
+  { at: [5, -8], y: 10.2, size: 1, tent: 1, swing: 1, wriggle: 1, fan: 0 },
+  { at: [7.5, -1.25, -10], y: 10.8, size: 0.86, tent: 0.95, swing: 0.72, wriggle: 0.85, fan: 0.15 },
+  { at: [8.5, 2.6, -3.3, -9.2], y: 11.2, size: 0.72, tent: 0.88, swing: 0.45, wriggle: 0.65, fan: 0.2 },
+];
 
 // What the boss is made of at a boss-local point (x toward the head, y to its right), for one look:
-// L = { head, neck, back, tail, limbs }, each 0..4 (see LOOKS in world.js for the names).
+// L = { head, horns, neck, back, tail, limbs, legs }, each an index into its list in LOOKS in world.js. Any head takes
+// any horns, and any limb style comes in any leg count.
 function material(lx, ly, frame, mouth, L) {
   const ay = Math.abs(ly);
   const hx = L.neck === 3 ? 4 : 0;   // a long neck pushes the whole head forward
   const X = lx - hx;
+  const cyclops = L.head === 1, croc = L.head === 2, turtle = L.head === 3, bird = L.head === 4;
 
-  // ---- head ornaments
-  if (L.head === 0) {
+  // ---- eyes, above the horns so a wide horn base never covers one
+  if (cyclops) { const d = Math.hypot(X - 11.2, ly); if (d < 0.9) return 'pupil'; if (d < 2.1) return 'eyeWhite'; }
+  else if (turtle || bird) { const d = Math.hypot(X - (turtle ? 9.7 : 9.9), ay - (turtle ? 3.9 : 3.6)); if (d < 0.75) return 'pupil'; if (d < 1.35) return 'eyeWhite'; }
+  else if (Math.hypot(X - (croc ? 9.4 : 10.6), ay - (croc ? 3.1 : 2.7)) < 1.05) return 'eye';
+
+  // ---- horns
+  if (L.horns === 0) {
     for (let i = 0; i < HORN.length - 1; i++) {
       const [d, t] = distSeg(X, ay, HORN[i][0], HORN[i][1], HORN[i + 1][0], HORN[i + 1][1]);
       if (d < 1.9 - (i + t) * 0.28) return i === 3 ? 'hornD' : 'horn';
     }
-  } else if (L.head === 1) {
+  } else if (L.horns === 1) {
     // ram horns curl round beside the head
     const d = Math.hypot(X - 7, ay - 6.8);
     if (d > 1.3 && d < 3.4) return d < 2.2 ? 'hornD' : 'horn';
-  } else if (L.head === 2) {
+  } else if (L.horns === 2) {
     for (const br of ANTLER) if (distPoly(X, ay, br)[0] < 0.8) return 'horn';
   }
 
-  // ---- eyes, mouth, snout
-  if (L.head === 3) { const d = Math.hypot(X - 11.2, ly); if (d < 0.9) return 'pupil'; if (d < 2.1) return 'eyeWhite'; }
-  else if (Math.hypot(X - (L.head === 4 ? 9.4 : 10.6), ay - (L.head === 4 ? 3.1 : 2.7)) < 1.05) return 'eye';
-  if (L.head === 4) {
+  // ---- mouth, snout or beak
+  if (croc) {
     // a long croc snout with teeth along the edges
     if (X > 10.5 && X < 20.5) {
       const hw = 2.8 - (X - 10.5) * 0.11;
       if (mouth && X > 12 && ay < 1) return 'mouth';
       if (ay < hw) return ay > hw - 0.9 && Math.floor(X) % 2 === 0 ? 'tooth' : 'snoutC';
     }
+  } else if (turtle || bird) {
+    // a beak, whose gape runs back along the sides of the face; open, its two halves part in a V around a red mouth
+    const len = turtle ? 7.4 : 10.8, t = Math.max(0, (X - 12.4) / len);
+    if (t < 1 && X > 12.4 - ay * ay * (turtle ? 0.13 : 0.11)) {
+      const gap = mouth ? 0.3 + 2.2 * t ** 1.2 : 0;
+      // squat with a hooked tip, or long and pointed; the open bird's halves stay thick enough to survive the pixels
+      const hw = turtle ? 4.3 * (1 - t) ** 0.55 * (mouth ? 0.8 : 1) : mouth ? 1.9 - t * 1.2 : 3.1 * (1 - t) ** 0.9;
+      if (ay < gap) { if (t < 0.6) return 'mouth'; }
+      else if (ay - gap < hw) {
+        if (turtle) return t > 0.7 ? 'beakGD' : ay - gap < 0.8 ? 'beakGHi' : 'beakG';
+        return t > 0.84 ? 'beakYD' : ay - gap < 0.7 ? 'beakYHi' : 'beakY';
+      }
+    }
   } else {
     if (mouth && X > 13.2 && X < 17 && ay < 1.6) return 'mouth';
     if (Math.hypot(X - 15.1, ay - 1.1) < 0.65) return 'nostril';
     if (Math.hypot(X - 13.6, ly) < 2.9) return 'snout';
   }
-  if (Math.hypot(X - 9, ly) < (L.head === 3 ? 6.2 : 5.7)) return 'head';
+  if (Math.hypot(X - 9, ly) < (cyclops ? 6.2 : 5.7)) return 'head';
 
   // ---- neck
   if (L.neck === 3 && lx > 2 && lx < 10 && ay < 3.4) return 'neckFur';
@@ -219,33 +244,36 @@ function material(lx, ly, frame, mouth, L) {
     if (e < 1) return lx < -22.2 ? 'tailWhite' : 'tail';
   }
 
-  // ---- limbs, front and back (and middle), swinging in diagonal pairs
-  const ph = [0, 2.2, 0, -2.2][frame];
-  const legs = L.limbs === 4 ? [[6, 1, 1], [6, -1, -1], [-1, 1, -1], [-1, -1, 1], [-8, 1, 1], [-8, -1, -1]]
-    : [[5, 1, 1], [5, -1, -1], [-8, 1, -1], [-8, -1, 1]];
-  for (const [fx, side, sw] of legs) {
-    const cx = fx + ph * sw, cy = side * 10.2;
+  // ---- limbs along the flanks, swinging in diagonal pairs
+  const G = GAITS[L.legs] || GAITS[0], ph = [0, 2.2, 0, -2.2][frame] * G.swing;
+  for (let i = 0; i < G.at.length * 2; i++) {
+    // neighbours along a flank swing opposite ways, and so do the two legs of a pair
+    const side = i & 1 ? -1 : 1, n = i >> 1, sw = (n & 1 ? -1 : 1) * side, fx = G.at[n], s = G.size;
+    const cx = fx + ph * sw, cy = side * G.y;
     if (L.limbs === 3) {
-      // tentacles that wriggle out sideways
+      // tentacles that wriggle out sideways, fanning apart when there are many
       for (let t = 0; t <= 1; t += 0.1) {
-        const tx = fx + ph * sw * 0.4 + Math.sin(t * 3.2 + frame * 1.6 + fx) * 2.4, ty = side * (6.5 + t * 9);
-        if (Math.hypot(lx - tx, ly - ty) < 2 - t * 1.2) return hash(Math.round(lx * 2), Math.round(ly * 2)) > 0.8 ? 'tentacleD' : 'tentacle';
+        const tx = fx + ph * sw * 0.4 + Math.sin(t * 3.2 + frame * 1.6 + fx) * 2.4 * G.wriggle + fx * G.fan * t * 2, ty = side * (6.5 + t * 9);
+        if (Math.hypot(lx - tx, ly - ty) < (2 - t * 1.2) * G.tent) return hash(Math.round(lx * 2), Math.round(ly * 2)) > 0.8 ? 'tentacleD' : 'tentacle';
       }
       continue;
     }
-    if (L.limbs === 1 && Math.hypot(lx - cx - 1.6, ly - cy - side * 1.1) < 1.7) return 'hoof';
+    if (L.limbs === 1 && Math.hypot(lx - cx - 1.6 * s, ly - cy - side * 1.1 * s) < 1.7 * s) return 'hoof';
     if (L.limbs === 2) {
-      const ox = cx + 1.4, oy = cy + side * 1.2;
-      for (const [tx, ty] of [[4, -0.2], [3.6, 2.2], [0.8, 3.6]]) if (distSeg(lx, ly, ox, oy, ox + tx, oy + side * ty)[0] < 0.6) return 'talon';
+      const ox = cx + 1.4 * s, oy = cy + side * 1.2 * s;
+      for (const [tx, ty] of G.at.length === 4 ? [[4.4, -0.2], [1.4, 4]] : [[4, -0.2], [3.6, 2.2], [0.8, 3.6]]) if (distSeg(lx, ly, ox, oy, ox + tx * s, oy + side * ty * s)[0] < 0.6) return 'talon';
     }
-    if ((L.limbs === 0 || L.limbs === 4) && Math.hypot(lx - cx - 2.6, ly - cy - side * 1.4) < 1.15) return 'claw';
-    if (Math.hypot(lx - cx, ly - cy) < (L.limbs === 2 ? 2.6 : 3.1)) return 'leg';
+    if (L.limbs === 0 && Math.hypot(lx - cx - 2.6 * s, ly - cy - side * 1.4 * s) < 1.15) return 'claw';
+    if (Math.hypot(lx - cx, ly - cy) < (L.limbs === 2 ? 2.6 : 3.1) * s) return 'leg';
+    // the extra legs reach further from the rounded ends of the body, so tie each foot back to the flank
+    if (G.fan && distSeg(lx, ly, fx * (1 - G.fan), side * 5, cx, cy)[0] < 1.9 * s) return 'leg';
   }
   return null;
 }
 
 export const BOSS_DIRS = 32, BOSS_SIZE = 56;
-const BONE = { horn: PAL.hornD, hornD: PAL.hornD, claw: PAL.hornD, tooth: PAL.hornD, talon: '#a88a3a', plate: '#5f8496', plateHi: '#5f8496' };
+const BONE = { horn: PAL.hornD, hornD: PAL.hornD, claw: PAL.hornD, tooth: PAL.hornD, talon: '#a88a3a', plate: '#5f8496', plateHi: '#5f8496',
+  beakG: '#5c615d', beakGHi: '#5c615d', beakGD: '#3b3f3c', beakY: '#a8701a', beakYHi: '#a8701a', beakYD: '#8a5512' };
 
 // one sprite: a heading, a walk frame, mouth open or shut, for one look
 function buildSprite(dir, frame, mouth, L) {
@@ -271,7 +299,7 @@ function buildSprite(dir, frame, mouth, L) {
 
 // a lazily filled sprite sheet for one look: get(dir, idx) with idx = mouth * 4 + frame
 export function makeBossSprites(look) {
-  const L = { head: 0, neck: 0, back: 0, tail: 0, limbs: 0, ...look };
+  const L = { head: 0, horns: 0, neck: 0, back: 0, tail: 0, limbs: 0, legs: 0, ...look };
   L.F = furRamp(L.fur);
   const cache = new Map();
   return {
@@ -285,7 +313,7 @@ export function makeBossSprites(look) {
   };
 }
 
-export const bossKey = l => `${l.head}${l.neck}${l.back}${l.tail}${l.limbs}${l.fur || ''}`;
+export const bossKey = l => [l.head, l.horns, l.neck, l.back, l.tail, l.limbs, l.legs].map(n => n || 0).join('.') + (l.fur || '');
 
 // the five fur shades, darkest first. No colour picked is the natural brown; a picked colour becomes the middle shade
 // with the others stepped darker and lighter around it, the way the brown ones are.
@@ -325,6 +353,12 @@ function shade(p, F) {
     case 'nostril': return F[0];
     case 'snout': return light > 0.3 ? F[4] : PAL.snout;
     case 'snoutC': return two(F[3], F[2]);
+    case 'beakG': return two('#a9aea8', '#868c86');
+    case 'beakGHi': return '#bcc1ba';
+    case 'beakGD': return '#5e635f';
+    case 'beakY': return two('#f5c531', '#dfa522');
+    case 'beakYHi': return '#ffe67e';
+    case 'beakYD': return '#d98a1c';
     case 'leg': return light > 0.2 ? F[2] : F[1];
     case 'leather': return '#3a2618';
     case 'frill': return two('#d8673f', '#c0533a');

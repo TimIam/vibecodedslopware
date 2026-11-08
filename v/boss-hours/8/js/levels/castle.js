@@ -1,11 +1,13 @@
 // Level 7, the castle: the finale. A huge castle (curtain walls two blocks thick, round towers, a gatehouse, a keep with a
 // donjon in the middle) behind a moat, in a world that scrolls only up and down. Every block of it has hit points and
 // crumbles to rubble; towers topple over when they go, and crush whatever they land on. Bring 90% of it down and
-// every hero left runs for it: the game is won.
+// every hero left runs for it: the game is won. The keep (its blocks and the donjon in the middle of it) is worth
+// KEEP_SHARE of that by itself, the walls, towers and gate the rest, so 90% means the keep flat and most of the rest.
 //
 // It is held: a 5-man stands guard at the foot of every tower (and one at the drawbridge, and a couple along the
 // walls), a 40-man waits in front of the keep, and the king himself hides behind them in gold plate that a stomp, a
-// swipe or a careless step will crush. They stay at their posts until the boss comes near (api.garrison), so they slow
+// swipe or a careless step will crush, once he has shown himself and said his piece (until then it all goes CLANG; he
+// never hurts anyone). They stay at their posts until the boss comes near (api.garrison), so they slow
 // the wrecking down without all piling in at once. A tower that falls takes its garrison with it, or sends it running.
 
 import * as P from '../props.js';
@@ -20,6 +22,7 @@ const MW = 320, MH = 452;
 const X0 = 40, Y0 = 64, C = 10, COLS = 24, ROWS = 28;          // the castle grid: 240 × 280 px of stone
 const MOAT = { y0: 378, y1: 396 }, BRIDGE = { x0: 144, x1: 180 };
 export const WIN_SHARE = 0.9;
+export const KEEP_SHARE = 0.6;   // of the destruction share: the keep and its donjon; walls, towers and gate are the rest
 // towers: top-left cell, size in cells, roof ('cone' or 'flat'), lift (how tall it stands)
 const TOWERS = [
   { c: -1, r: -1, n: 3, roof: 'cone' }, { c: 22, r: -1, n: 3, roof: 'cone' }, { c: -1, r: 26, n: 3, roof: 'cone' }, { c: 22, r: 26, n: 3, roof: 'cone' },
@@ -73,16 +76,17 @@ function build(g, rng) {
     }
     return p;
   };
-  for (const t of TOWERS) block('castle_tower', t.c, t.r, t.n, { roof: t.roof, banner: !!t.banner, donjon: !!t.donjon, ...(t.donjon ? { hp: 1600 } : {}) });
+  for (const t of TOWERS) block('castle_tower', t.c, t.r, t.n, { roof: t.roof, banner: !!t.banner, donjon: !!t.donjon, keep: !!t.donjon, ...(t.donjon ? { hp: 1600 } : {}) });
   block('castle_gate', GATE.c, GATE.r, GATE.n);
   // the curtain wall, two blocks thick, and the keep
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
     const edge = r < 2 || r >= ROWS - 2 || c < 2 || c >= COLS - 2;
     const keep = c >= KEEP.c0 && c <= KEEP.c1 && r >= KEEP.r0 && r <= KEEP.r1;
     if ((!edge && !keep) || taken.has(key(c, r))) continue;
-    block(keep ? 'castle_keep' : 'castle_wall', c, r);
+    block(keep ? 'castle_keep' : 'castle_wall', c, r, 1, keep ? { keep: true } : {});
   }
   cs.total = cs.blocks.reduce((s, p) => s + p.maxhp, 0);
+  cs.keepTotal = cs.blocks.reduce((s, p) => s + (p.keep ? p.maxhp : 0), 0);
 
   // the courtyard: a chapel, stables and barracks against the walls, a well, the training ground and a market
   const bld = (kind, x, y, w, h) => { const d = P.KINDS[kind], hp = Math.round(d.hp * Math.sqrt(w * h / (d.w * d.h))); const p = P.addProp(g, kind, x + w / 2, y + h / 2, { w, h, hp, maxhp: hp }); p.v = p.seed % 3; };
@@ -168,6 +172,8 @@ function towerFell(g, api, t) {
 function updateKing(g, api) {
   const cs = g.cs, k = cs.king, b = g.boss;
   if (!k || cs.kingDone) return;
+  // the first time he is on screen he speaks (world.js); when he has finished he can be hurt, and the castle says so
+  if (k.helloT != null && !k.immune && !cs.kingSaid && !g.won) { cs.kingSaid = true; api.banner(g, 'THE KING IS AT HOME', 'THE NICEST ARMOUR IN THE GAME. NOT THE THICKEST.', 3.4); }
   if (!k.dead && !k.gone && !b.dead && !g.won && Math.hypot(k.x - b.x, k.y - b.y) < b.r + 3.5) api.hurtUnit(g, k, 9999);
   if (k.dead) {
     cs.kingDone = true;
@@ -182,11 +188,15 @@ function updateKing(g, api) {
 
 // ---------------------------------------------------------------------------------------------- logic
 
+// how much of the castle is down, by hit points: the keep's share weighted to KEEP_SHARE, the rest to what is left
 export function castleShare(g) {
   const cs = g.cs;
-  let down = 0;
-  for (const p of cs.blocks) down += p.state === 'up' ? clamp(p.maxhp - p.hp, 0, p.maxhp) : p.maxhp;
-  return down / cs.total;
+  let keep = 0, rest = 0;
+  for (const p of cs.blocks) {
+    const d = p.state === 'up' ? clamp(p.maxhp - p.hp, 0, p.maxhp) : p.maxhp;
+    if (p.keep) keep += d; else rest += d;
+  }
+  return KEEP_SHARE * keep / cs.keepTotal + (1 - KEEP_SHARE) * rest / (cs.total - cs.keepTotal);
 }
 
 // gaps in the curtain wall (where both blocks of its thickness are down), as points just outside and just inside
@@ -263,7 +273,6 @@ function update(g, dt, api) {
   const cs = g.cs;
   if (!cs) return;
   if (!cs.manned) manCastle(g, api);
-  if (!cs.kingSaid && g.t - g.levelT0 > 4.5 && !g.won) { cs.kingSaid = true; api.banner(g, 'THE KING IS AT HOME', 'GOLD ARMOUR. VERY SHINY. VERY THIN.', 3.4); }
   steerHeroes(g, dt, g.map.canals);
   steerThroughWalls(g, dt);
   while (cs.fallen.length) towerFell(g, api, cs.fallen.shift());

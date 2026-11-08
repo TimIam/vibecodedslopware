@@ -53,6 +53,9 @@ const THEME_PAL = {
 };
 
 
+let calm = false;   // Settings: screen shake off, for every renderer on the page
+export function setCalm(on) { calm = on; }
+
 export function createRenderer() {
   const buf = newCanvas(W, H), ctx = buf.getContext('2d');
   const shadow = makeShadow();
@@ -73,7 +76,7 @@ export function createRenderer() {
     spriteBudget = 6;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
-    const s = g.shake > 0 ? Math.ceil(g.shake * 4) : 0;
+    const s = g.shake > 0 && !calm ? Math.ceil(g.shake * 4) : 0;
     const ox = s ? ((Math.floor(g.t * 40) % 2) ? s : -s) : 0, oy = s ? ((Math.floor(g.t * 33) % 2) ? s : -s) * 0.6 : 0;
     ctx.fillStyle = PAL.night; ctx.fillRect(0, 0, W, H);
     ctx.translate(Math.round(ox) - VIEW.x, Math.round(oy) - VIEW.y);
@@ -130,7 +133,6 @@ export function createRenderer() {
     for (const r of g.rings) if (r.col === 'slash') drawSlash(ctx, r);
     for (const p of g.parts) if (!p.horse && onScreen(p.x, p.y, 4)) drawPart(ctx, p);
     if (fg) ctx.drawImage(fg, VIEW.x, VIEW.y);
-    drawSmoke(ctx, g);
     for (const o of g.ghosts) drawGhost(ctx, o);
     for (const t of g.texts) {
       const k = t.t / t.life, a = k > 0.7 ? (1 - k) / 0.3 : 1;
@@ -208,7 +210,7 @@ export function bossPreview(look, dir, frame = 0) {
   return previews.get(k).get(dir, frame);
 }
 
-// the store's look at a destination marker: a rock wearing it, in a canvas the size of the boss preview
+// Settings' look at a destination marker: a rock wearing it, in a canvas the size of the boss preview
 let markerCv = null;
 export function markerPreview(style, t) {
   markerCv ||= newCanvas(BOSS_SIZE, BOSS_SIZE);
@@ -278,62 +280,6 @@ function drawFlames(ctx, p, t) {
   }
 }
 
-// smoke (the clouds come from smoke.js). Each cloud is a cached dithered blob, one per radius step, density step and
-// variant, drawn with an alpha that rises with density: thin smoke is see-through, only very dense smoke nearly solid.
-const SMOKE_R = [2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 19, 22, 26, 30];
-const SMOKE_COL = ['#3a3733', '#55514a', PAL.smoke, '#8a857a', '#aba69a', '#c9c4b6'];
-const SMOKE_RGB = SMOKE_COL.map(h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
-const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + 0.5) / 16);
-function smokeSprite(R, db, v) {
-  const S = 2 * R + 5;
-  return sprite(`smoke|${R}|${db}|${v}`, S, S, c => {
-    const img = c.createImageData(S, S), d = img.data, o = R + 2, dens = db / 4;
-    // a billow: a middle lump and a ring of smaller lumps round it, each lit from the top left
-    const L = [{ x: 0, y: 0, r: R * (R < 5 ? 1 : 0.64) + 0.5 }];
-    if (R >= 5) {
-      const n = 4 + v, a0 = v * 1.7 + R * 0.3;
-      for (let i = 0; i < n; i++) {
-        const a = a0 + i / n * TAU + (hash(i + R, v) - 0.5) * 0.6, r = R * (0.42 + hash(v, i * 7 + R) * 0.16);
-        L.push({ x: Math.cos(a) * (R - r), y: Math.sin(a) * (R - r) * 0.85, r: r + 0.5 });
-      }
-    }
-    // thin smoke gets a dithered, ragged rim; dense smoke is solid and darker in the middle
-    const rim = 0.35 - 0.25 * dens;
-    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-      const dx = x - o, dy = y - o;
-      let h = -1, lit = 0;
-      for (const l of L) {
-        const lx = dx - l.x, ly = dy - l.y, k = 1 - Math.hypot(lx, ly) / l.r;
-        if (k > h) { h = k; lit = (-lx * 0.6 - ly * 0.8) / l.r; }
-      }
-      if (h < 0) continue;
-      if (h < rim && BAYER[(y & 3) * 4 + (x & 3)] >= 0.35 + h / rim * 0.5) continue;
-      const deep = 1 - Math.hypot(dx, dy) / (R + 0.5);
-      let ci = 3 + Math.round(lit * 1.5) - (h < 0.12 ? 1 : 0) - Math.round(Math.max(0, deep) * dens * 2.2);
-      if (hash(x * 3 + v, y * 5 + R) > 0.9) ci += 1;
-      ci = Math.max(0, Math.min(5, ci));
-      const i = (y * S + x) * 4, col = SMOKE_RGB[ci];
-      d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
-    }
-    c.putImageData(img, 0, 0);
-  });
-}
-function drawSmoke(ctx, g) {
-  const cs = g.smoke?.clouds;
-  if (!cs || !cs.length) return;
-  for (const c of cs) {
-    if (!onScreen(c.x, c.y, c.r + 4)) continue;
-    const dn = Math.min(1, c.m / (c.r * c.r));
-    let R = SMOKE_R[0];
-    for (const r of SMOKE_R) if (Math.abs(r - c.r) < Math.abs(R - c.r)) R = r;
-    const spr = smokeSprite(R, Math.min(4, Math.round(dn * 4)), c.v);
-    const born = (c.age < 0.35 ? c.age / 0.35 : 1) * Math.min(1, (dn - 0.045) / 0.06);
-    ctx.globalAlpha = Math.min(0.9, 0.28 + 0.64 * dn ** 1.3) * born;
-    ctx.drawImage(spr, Math.round(c.x) - R - 2, Math.round(c.y) - R - 2);
-  }
-  ctx.globalAlpha = 1;
-}
-
 // an animal with no art of its own: a small coloured lump
 function drawCritter(ctx, c) {
   const x = Math.round(c.x), y = Math.round(c.y);
@@ -377,6 +323,7 @@ function makeBackground(m) {
     const px = Math.floor(r() * W), py = Math.floor(r() * H);
     if (!m.plain && m.df[py * W + px] < 9) continue;
     x.fillStyle = T.flowers[Math.floor(r() * T.flowers.length)];
+    if (m.n === 1 && px === 128 && py === 47) continue;   // it sat in the top of the H of THE HORSE SEEMS RELIEVED and made an A of it
     x.fillRect(px, py, 1, 1);
   }
   for (let i = 0; i < 40; i++) {
@@ -516,8 +463,6 @@ function drawMarker(ctx, g, over) {
   }
   markerAt(ctx, style, Math.round(R.x), Math.round(R.y), g.t, over, label);
 }
-
-// one marker over a rock at (x, y); label is the sat-nav's distance line
 function markerAt(ctx, style, x, y, t, over, label) {
   if (style === 0) {
     if (!over) return;
@@ -553,7 +498,7 @@ function markerAt(ctx, style, x, y, t, over, label) {
     const arrow = ['#######', '.#####.', '..###..', '...#...'];
     arrow.forEach((row, ry) => { for (let rx = 0; rx < 7; rx++) if (row[rx] === '#') { px(ctx, x - 3 + rx, by + ry, ry === 0 || rx === 0 || rx === 6 ? '#ffffff' : '#3a7bff'); } });
     ctx.fillStyle = PAL.ink; ctx.fillRect(x - 4, by - 1, 9, 1);
-    if (label) drawText(ctx, label, x, by - 8, '#9fc4ff', { align: 'center' });
+    drawText(ctx, label, x, by - 8, '#9fc4ff', { align: 'center' });
   } else if (style === 3) {
     if (!over) return;
     // a poor soul tied to a wooden cross above the rock
@@ -727,13 +672,9 @@ function drawUnit(ctx, u, g) {
   ctx.fillStyle = col; ctx.fillRect(x - 1, y - tall, 3, tall);
   px(ctx, x, y - tall - 1, C(u.role === 'tank' ? PAL.steelHi : PAL.skin));
   if (u.role === 'king') {
-    // the nicest armour in the game: a shaded side, a bright pauldron, a glint that runs down the plate now and then
-    // (with a little star when it catches), and a crown with a red stone. Untouchable, it twinkles over his head.
-    px(ctx, x - fx, y - 1, C('#a8761e')); px(ctx, x - fx, y - 2, C('#c8962a')); px(ctx, x, y - 2, C('#fff2b0')); px(ctx, x + fx, y - 3, C('#ffe27a'));
-    const gl = (g.t * 1.7 + u.id * 0.37) % 2.6;
-    if (gl < 0.45) px(ctx, x + (gl < 0.15 ? fx : 0), y - 3 + Math.floor(gl / 0.15), '#ffffff');
-    if (gl >= 0.15 && gl < 0.3) { ctx.globalAlpha = 0.7; px(ctx, x + fx * 2, y - 3, '#fff6d0'); px(ctx, x + fx, y - 4, '#fff6d0'); ctx.globalAlpha = 1; }
-    if (u.immune) { const tw = (g.t * 1.3 + u.id) % 1.2; if (tw < 0.3) { const sx = x - fx * 2, sy = y - tall - 5; ctx.globalAlpha = 1 - tw / 0.3; px(ctx, sx, sy, '#ffffff'); px(ctx, sx - 1, sy, '#ffe27a'); px(ctx, sx + 1, sy, '#ffe27a'); px(ctx, sx, sy - 1, '#ffe27a'); px(ctx, sx, sy + 1, '#ffe27a'); ctx.globalAlpha = 1; } }
+    // shiny gold plate (a darker side, a glint that runs over it now and then) and a crown with a red stone
+    px(ctx, x - fx, y - 1, C('#c8962a')); px(ctx, x, y - 2, C('#fff2b0'));
+    if ((Math.floor(g.t * 2.3 + u.id) % 5) === 0) px(ctx, x + fx, y - 3, '#ffffff');
     px(ctx, x - 1, y - tall - 2, C(PAL.gold)); px(ctx, x, y - tall - 2, C('#e0403a')); px(ctx, x + 1, y - tall - 2, C(PAL.gold));
     px(ctx, x - 1, y - tall - 3, C(PAL.gold)); px(ctx, x + 1, y - tall - 3, C(PAL.gold));
   }
@@ -941,7 +882,7 @@ function drawHud(ctx, g, view) {
   const goal = g.won ? 'YOU WIN' : g.clear ? 'LEVEL CLEARED' : L.hud ? L.hud(g) : g.dir.final ? 'BEAT THE 40-MAN'
     : mp.mode === 'patrol' ? (g.lapsMap < RAID_LAPS ? `LAP ${g.lapsMap}/${RAID_LAPS} TO THE RAID` : `LAP ${g.lapsMap}/${FINAL_LAPS} TO THE BIG ONE`)
     : `CHAOS ${Math.floor(g.chaos * 100)}%  ${g.chaos < 0.5 ? 'RAID AT 50' : 'BIG ONE AT 100'}`;
-  drawText(ctx, `${g.ng ? `NG+${g.ng > 1 ? g.ng : ""} ` : ""}LV ${mp.n}  ${goal}`, 4, 22, g.dir.final ? PAL.red : PAL.rock3);
+  drawText(ctx, `LV ${mp.n}  ${goal}`, 4, 22, g.dir.final ? PAL.red : PAL.rock3);
   if (mp.mode === 'chaos') {
     // the Chaos meter, with a tick at the 25-man
     const cx = 8 + textWidth('HOARD ' + fmt(g.points));

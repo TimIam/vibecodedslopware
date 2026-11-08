@@ -88,6 +88,19 @@ window.SLOPWARE = {
     }
    ]
   },
+  "party-health-pie": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-08T13:08:27-07:00",
+     "note": "a free Classic Forever addon download"
+    }
+   ]
+  },
   "psychic": {
    "visits": 72,
    "prompts": 8,
@@ -127,7 +140,7 @@ window.SLOPWARE = {
   "antfarm": {
    "visits": 0,
    "prompts": 5,
-   "tokens": 852516,
+   "tokens": 854676,
    "sharedWith": null,
    "versions": [
     {
@@ -135,74 +148,7 @@ window.SLOPWARE = {
      "date": "2026-11-08T10:57:24-07:00",
      "note": "a photoreal colony across every monitor, founded by a lone queen",
      "prompts": 5,
-     "tokens": 852516
-    }
-   ]
-  },
-  "snowglobe": {
-   "visits": 0,
-   "prompts": 0,
-   "tokens": 3370547,
-   "sharedWith": null,
-   "versions": [
-    {
-     "n": 1,
-     "date": "2026-11-08T12:31:20-07:00",
-     "note": "Snow Globe, Terrarium, Rain Window, Koi Pond, Aurora",
-     "prompts": 0,
-     "tokens": 3370547
-    }
-   ]
-  },
-  "terrarium": {
-   "visits": 0,
-   "prompts": null,
-   "tokens": null,
-   "sharedWith": "snowglobe",
-   "versions": [
-    {
-     "n": 1,
-     "date": "2026-11-08T12:31:20-07:00",
-     "note": "Snow Globe, Terrarium, Rain Window, Koi Pond, Aurora"
-    }
-   ]
-  },
-  "rainwindow": {
-   "visits": 0,
-   "prompts": null,
-   "tokens": null,
-   "sharedWith": "snowglobe",
-   "versions": [
-    {
-     "n": 1,
-     "date": "2026-11-08T12:31:20-07:00",
-     "note": "Snow Globe, Terrarium, Rain Window, Koi Pond, Aurora"
-    }
-   ]
-  },
-  "koipond": {
-   "visits": 0,
-   "prompts": null,
-   "tokens": null,
-   "sharedWith": "snowglobe",
-   "versions": [
-    {
-     "n": 1,
-     "date": "2026-11-08T12:31:20-07:00",
-     "note": "Snow Globe, Terrarium, Rain Window, Koi Pond, Aurora"
-    }
-   ]
-  },
-  "aurora": {
-   "visits": 0,
-   "prompts": null,
-   "tokens": null,
-   "sharedWith": "snowglobe",
-   "versions": [
-    {
-     "n": 1,
-     "date": "2026-11-08T12:31:20-07:00",
-     "note": "Snow Globe, Terrarium, Rain Window, Koi Pond, Aurora"
+     "tokens": 854676
     }
    ]
   },
@@ -1111,6 +1057,13 @@ window.SLOPWARE = {
      "n": 8,
      "date": "2026-11-07T21:39:07-07:00",
      "note": "smoke, a walk home to the rocks, New Game +, the keep is 60% of the castle, the king makes an entrance",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 9,
+     "date": "2026-11-08T13:25:07-07:00",
+     "note": "a new name, a stone title screen, attract mode, saves, free looks in Settings, and seven music tracks",
      "prompts": 0,
      "tokens": 0
     }

@@ -1,23 +1,79 @@
-// Every sound is synthesised: a handful of oscillators and filtered noise, plus a small looping boss theme.
+// Every sound is synthesised: SFX from oscillators and filtered noise, music from pre-rendered loops in music.js.
+import { TRACKS, createPlayer } from './music.js';
+
+const LS = {
+  get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+};
 
 export function createAudio() {
-  let ac = null, master, sfx, mus, noiseBuf, musicT = 0, step = 0, timer = null, combat = 0;
-  let muted = false;
-  try { muted = localStorage.getItem('bosshours.muted') === '1'; } catch {}
+  let ac = null, master, shaper, sfx, mus, noiseBuf, retryOff = null;
+  const player = createPlayer({ get: () => LS.get('bosshours.music'), set: v => LS.set('bosshours.music', v) });
+  // the old single mute key counts as both on first load
+  const oldMuted = LS.get('bosshours.muted') === '1';
+  const readMute = k => { const v = LS.get(k); return v === null ? oldMuted : v === '1'; };
+  const mute = { music: readMute('bosshours.muteMusic'), sfx: readMute('bosshours.muteSfx') };
+  // volume steps from the Settings menu, 0 to 10; 7 is the mix the game was balanced at
+  const levels = { music: 7, sfx: 7 };
+  try {
+    const saved = JSON.parse(LS.get('bosshours.levels') || '{}');
+    for (const k in levels) if (Number.isFinite(saved[k])) levels[k] = Math.max(0, Math.min(10, Math.round(saved[k])));
+  } catch {}
+  // equal 3 dB steps so the slider feels even; 0 is true silence
+  const stepGain = k => k <= 0 ? 0 : 10 ** ((k - 7) * 3 / 20);
+  const sfxGain = () => mute.sfx ? 0 : 0.9 * stepGain(levels.sfx);
+  const musGain = () => mute.music ? 0 : 0.32 * stepGain(levels.music);
+
+  function setGain(node, v) {
+    if (!ac) return;
+    const t = ac.currentTime, p = node.gain;
+    p.cancelScheduledValues(t);
+    p.setValueAtTime(p.value, t);
+    p.linearRampToValueAtTime(v, t + 0.04);
+  }
+
+  function installRetry() {
+    if (retryOff) return;
+    const again = () => { if (ac && ac.state !== 'running') ac.resume().catch(() => {}); };
+    for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, again, true);
+    retryOff = () => { for (const ev of ['pointerdown', 'keydown']) removeEventListener(ev, again, true); retryOff = null; };
+  }
+
+  // soft ceiling on the very end of the chain: unity below 0.85, so it only ever catches stacked peaks
+  function makeCeiling() {
+    const n = 8192, curve = new Float32Array(n + 1), K = 0.85;
+    for (let i = 0; i <= n; i++) {
+      const u = (i - n / 2) / (n / 2) * 4, a = Math.abs(u);
+      const y = a <= K ? a : K + (1 - K) * Math.tanh((a - K) / (1 - K));
+      curve[i] = u < 0 ? -y : y;
+    }
+    const pre = ac.createGain(); pre.gain.value = 0.25;
+    shaper = ac.createWaveShaper(); shaper.curve = curve; shaper.oversample = 'none';
+    pre.connect(shaper); shaper.connect(ac.destination);
+    return pre;
+  }
 
   function ensure() {
     if (!ac) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return false;
       ac = new AC();
-      master = ac.createGain(); master.gain.value = muted ? 0 : 0.7; master.connect(ac.destination);
-      sfx = ac.createGain(); sfx.gain.value = 0.9; sfx.connect(master);
-      mus = ac.createGain(); mus.gain.value = 0.32; mus.connect(master);
+      master = ac.createGain(); master.gain.value = 0.7; master.connect(makeCeiling());
+      sfx = ac.createGain(); sfx.gain.value = sfxGain(); sfx.connect(master);
+      mus = ac.createGain(); mus.gain.value = musGain(); mus.connect(master);
       noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
       const d = noiseBuf.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      ac.onstatechange = () => {
+        if (ac.state === 'running') { if (retryOff) retryOff(); player.kick(); }
+        else if (ac.state !== 'closed') installRetry();
+      };
+      player.attach(ac, mus);
     }
-    if (ac.state === 'suspended') ac.resume();
+    if (ac.state !== 'running') {
+      if (!navigator.userActivation || navigator.userActivation.hasBeenActive) ac.resume().catch(() => {});
+      installRetry();
+    }
     return true;
   }
 
@@ -69,6 +125,8 @@ export function createAudio() {
     wind_charge: () => { tone('sawtooth', 60, 50, 0.3, 0.08); noise(0.3, 0.1, { type: 'lowpass', f0: 400, f1: 200 }); },
     charge: () => { for (let i = 0; i < 4; i++) tone('sine', 90, 40, 0.12, 0.35, { delay: i * 0.09 }); noise(0.4, 0.25, { type: 'lowpass', f0: 900, f1: 150 }); },
     buy: () => notes([660, 990, 1320], 'square', 0.06, 0.08, 0.05),
+    menuMove: () => tone('square', 520, 520, 0.03, 0.03),
+    menuGo: () => notes([392, 587], 'square', 0.05, 0.07, 0.05),
     crunch: () => { noise(0.16, 0.22, { f0: 1800, f1: 400, q: 1.2 }); tone('square', 160, 60, 0.1, 0.06); },
     collapse: () => { noise(0.8, 0.4, { type: 'lowpass', f0: 900, f1: 80 }); tone('sine', 70, 30, 0.7, 0.3); },
     thump: () => { tone('sine', 120, 50, 0.16, 0.3); noise(0.1, 0.15, { type: 'lowpass', f0: 600, f1: 150 }); },
@@ -109,44 +167,56 @@ export function createAudio() {
     evade: () => tone('triangle', 400, 1300, 0.45, 0.09),
     wipe: () => notes([523, 659, 784, 1047], 'square', 0.07, 0.14, 0.09),
     rez: () => tone('sine', 600, 1300, 0.45, 0.07),
+    titleThud: () => {
+      const p = 1 + (Math.random() - 0.5) * 0.14;
+      tone('sine', 150 * p, 40 * p, 0.3, 0.62);
+      noise(0.26, 0.42, { type: 'lowpass', f0: 650 * p, f1: 90 });
+    },
+    titleBoom: () => {
+      tone('sine', 120, 26, 1.9, 0.85);
+      tone('triangle', 62, 28, 1.6, 0.34);
+      noise(1.7, 0.55, { type: 'lowpass', f0: 460, f1: 38, attack: 0.008 });
+      noise(0.2, 0.5, { f0: 2600, f1: 700, q: 0.9 });
+      noise(0.07, 0.3, { type: 'highpass', f0: 3200, f1: 1800 });
+      tone('square', 190, 60, 0.09, 0.12);
+    },
     bossdie: () => { tone('sawtooth', 220, 28, 2.2, 0.25, { vib: 10 }); noise(1.5, 0.3, { type: 'lowpass', f0: 800, f1: 60 }); },
   };
 
-  // ---- music: a plodding minor riff; drums and an arpeggio join in when there is a fight
-  const BASS = [45, 45, 48, 45, 43, 43, 40, 43, 41, 41, 45, 41, 40, 40, 44, 40];
-  const ARP = [[57, 60, 64], [55, 59, 62], [53, 57, 60], [52, 56, 59]];
-  const mtof = m => 440 * 2 ** ((m - 69) / 12);
-  function schedule() {
-    if (!ac || ac.state !== 'running') return;
-    const spb = 60 / 92 / 2;   // eighth notes
-    while (musicT < ac.currentTime + 0.25) {
-      const delay = Math.max(0, musicT - ac.currentTime);
-      const i = step % 16, bar = Math.floor(step / 4) % 4;
-      tone('triangle', mtof(BASS[i]), mtof(BASS[i]), spb * 0.95, 0.22, { delay, bus: mus, attack: 0.01 });
-      if (i % 4 === 0) tone('sine', 120, 40, 0.18, 0.4, { delay, bus: mus });
-      if (combat > 0.5) {
-        if (i % 4 === 2) noise(0.12, 0.12, { f0: 2000, f1: 800, delay, bus: mus });
-        noise(0.03, 0.05, { type: 'highpass', f0: 7000, f1: 6000, delay, bus: mus });
-        const ch = ARP[bar];
-        tone('square', mtof(ch[i % 3] + 12), mtof(ch[i % 3] + 12), spb * 0.5, 0.035, { delay, bus: mus });
-        tone('square', mtof(ch[(i + 1) % 3] + 12), mtof(ch[(i + 1) % 3] + 12), spb * 0.45, 0.025, { delay: delay + spb / 2, bus: mus });
-      }
-      musicT += spb;
-      step++;
-    }
+  const applyMute = k => { if (ac) setGain(k === 'music' ? mus : sfx, k === 'music' ? musGain() : sfxGain()); };
+  function setMutedBoth(v) {
+    mute.music = v; mute.sfx = v;
+    LS.set('bosshours.muteMusic', v ? '1' : '0'); LS.set('bosshours.muteSfx', v ? '1' : '0');
+    applyMute('music'); applyMute('sfx');
   }
 
+  const tracks = TRACKS.map(t => ({ id: t.id, name: t.name, stage: t.stage, seconds: t.seconds }));
+
   return {
-    unlock() { if (ensure() && !timer) { musicT = ac.currentTime + 0.1; timer = setInterval(schedule, 60); } },
-    play(name) { if (!ac || muted) return; const f = SFX[name]; if (f) f(); },
-    setCombat(on) { combat = on ? 1 : 0; },
-    stopMusic() { if (timer) { clearInterval(timer); timer = null; } },
-    get muted() { return muted; },
-    toggleMute() {
-      muted = !muted;
-      try { localStorage.setItem('bosshours.muted', muted ? '1' : '0'); } catch {}
-      if (master) master.gain.value = muted ? 0 : 0.7;
-      return muted;
+    unlock() { if (ensure()) player.kick(); },
+    play(name) { if (!ac || mute.sfx || levels.sfx <= 0) return; const f = SFX[name]; if (f) f(); },
+    setStage: n => player.setStage(n),
+    setCombat: on => player.setCombat(on),
+    tracks,
+    get selection() { return player.selection; },
+    select: v => player.select(v),
+    get nowPlaying() { const t = player.nowPlaying; return t ? tracks.find(x => x.id === t.id) : null; },
+    stopMusic() { player.stop(); },
+    level: k => levels[k],
+    setLevel(k, v) {
+      if (!(k in levels)) return;
+      levels[k] = Math.max(0, Math.min(10, Math.round(+v || 0)));
+      LS.set('bosshours.levels', JSON.stringify(levels));
+      applyMute(k);
     },
+    isMuted: k => !!mute[k],
+    setMuted(k, on) {
+      if (!(k in mute)) return;
+      mute[k] = !!on;
+      LS.set(k === 'music' ? 'bosshours.muteMusic' : 'bosshours.muteSfx', on ? '1' : '0');
+      applyMute(k);
+    },
+    get muted() { return mute.music && mute.sfx; },
+    toggleMute() { setMutedBoth(!(mute.music && mute.sfx)); return mute.music && mute.sfx; },
   };
 }
