@@ -2,6 +2,7 @@
 // One unit is one pixel: the arena is the 320×180 screen.
 
 import * as P from './props.js';
+import { updateSmoke } from './smoke.js';
 import { LEVELS, levelFor, lastLevel } from './levels/index.js';
 
 export const W = 320, H = 180;   // the screen; a level's world can be bigger and scrolls (g.map.w, g.map.h)
@@ -329,6 +330,7 @@ export function step(g, inp, dt) {
   separate(g);
   updateBolts(g, dt);
   updateFx(g, dt);
+  updateSmoke(g, dt);
   g.units = g.units.filter(u => !u.dead && !u.gone);
   g.adds = g.adds.filter(a => !a.dead);
   g.parties = g.parties.filter(p => !p.done);

@@ -213,7 +213,8 @@ export function updateProps(g, dt) {
       if (g.rng() < d.spread * dt * 4) {
         for (const q of near(g, p.x, p.y, 16)) if (q !== p && !q.burning && KINDS[q.kind].flammable && Math.hypot(q.x - p.x, q.y - p.y) < (p.w || p.r * 2) + 10 && g.rng() < 0.25) ignite(g, q);
       }
-      if (g.rng() < 0.4) API.part(g, p.x + (g.rng() - 0.5) * (p.w || p.r * 2), p.y - 2 - g.rng() * 4, (g.rng() - 0.5) * 8, -12 - g.rng() * 14, 0.5 + g.rng() * 0.4, g.rng() < 0.6 ? 'flame' : 'smoke');
+      // licks of flame (the smoke comes from smoke.js)
+      if (g.rng() < 0.25) API.part(g, p.x + (g.rng() - 0.5) * (p.w || p.r * 2), p.y - 2 - g.rng() * 4, (g.rng() - 0.5) * 8, -12 - g.rng() * 14, 0.5 + g.rng() * 0.4, 'flame');
       for (const u of g.units) if (!u.dead && touches(p, u.x, u.y, 4)) API.hurt(g, u, 20 * dt);
       if (p.burnT >= d.burnTime) {
         p.burning = false; p.state = 'gone'; p.ash = true;

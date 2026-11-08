@@ -133,6 +133,7 @@ export function createRenderer() {
     for (const r of g.rings) if (r.col === 'slash') drawSlash(ctx, r);
     for (const p of g.parts) if (!p.horse && onScreen(p.x, p.y, 4)) drawPart(ctx, p);
     if (fg) ctx.drawImage(fg, VIEW.x, VIEW.y);
+    drawSmoke(ctx, g);
     for (const o of g.ghosts) drawGhost(ctx, o);
     for (const t of g.texts) {
       const k = t.t / t.life, a = k > 0.7 ? (1 - k) / 0.3 : 1;
@@ -531,6 +532,62 @@ function markerAt(ctx, style, x, y, t, over, label) {
       px(ctx, x + qx, by + py, lit ? '#ffffff' : (qx + py) & 1 ? PAL.rock3 : PAL.rock2);
     }
   }
+}
+
+// smoke (the clouds come from smoke.js). Each cloud is a cached dithered blob, one per radius step, density step and
+// variant, drawn with an alpha that rises with density: thin smoke is see-through, only very dense smoke nearly solid.
+const SMOKE_R = [2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 19, 22, 26, 30];
+const SMOKE_COL = ['#3a3733', '#55514a', PAL.smoke, '#8a857a', '#aba69a', '#c9c4b6'];
+const SMOKE_RGB = SMOKE_COL.map(h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + 0.5) / 16);
+function smokeSprite(R, db, v) {
+  const S = 2 * R + 5;
+  return sprite(`smoke|${R}|${db}|${v}`, S, S, c => {
+    const img = c.createImageData(S, S), d = img.data, o = R + 2, dens = db / 4;
+    // a billow: a middle lump and a ring of smaller lumps round it, each lit from the top left
+    const L = [{ x: 0, y: 0, r: R * (R < 5 ? 1 : 0.64) + 0.5 }];
+    if (R >= 5) {
+      const n = 4 + v, a0 = v * 1.7 + R * 0.3;
+      for (let i = 0; i < n; i++) {
+        const a = a0 + i / n * TAU + (hash(i + R, v) - 0.5) * 0.6, r = R * (0.42 + hash(v, i * 7 + R) * 0.16);
+        L.push({ x: Math.cos(a) * (R - r), y: Math.sin(a) * (R - r) * 0.85, r: r + 0.5 });
+      }
+    }
+    // thin smoke gets a dithered, ragged rim; dense smoke is solid and darker in the middle
+    const rim = 0.35 - 0.25 * dens;
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const dx = x - o, dy = y - o;
+      let h = -1, lit = 0;
+      for (const l of L) {
+        const lx = dx - l.x, ly = dy - l.y, k = 1 - Math.hypot(lx, ly) / l.r;
+        if (k > h) { h = k; lit = (-lx * 0.6 - ly * 0.8) / l.r; }
+      }
+      if (h < 0) continue;
+      if (h < rim && BAYER[(y & 3) * 4 + (x & 3)] >= 0.35 + h / rim * 0.5) continue;
+      const deep = 1 - Math.hypot(dx, dy) / (R + 0.5);
+      let ci = 3 + Math.round(lit * 1.5) - (h < 0.12 ? 1 : 0) - Math.round(Math.max(0, deep) * dens * 2.2);
+      if (hash(x * 3 + v, y * 5 + R) > 0.9) ci += 1;
+      ci = Math.max(0, Math.min(5, ci));
+      const i = (y * S + x) * 4, col = SMOKE_RGB[ci];
+      d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
+    }
+    c.putImageData(img, 0, 0);
+  });
+}
+function drawSmoke(ctx, g) {
+  const cs = g.smoke?.clouds;
+  if (!cs || !cs.length) return;
+  for (const c of cs) {
+    if (!onScreen(c.x, c.y, c.r + 4)) continue;
+    const dn = Math.min(1, c.m / (c.r * c.r));
+    let R = SMOKE_R[0];
+    for (const r of SMOKE_R) if (Math.abs(r - c.r) < Math.abs(R - c.r)) R = r;
+    const spr = smokeSprite(R, Math.min(4, Math.round(dn * 4)), c.v);
+    const born = (c.age < 0.35 ? c.age / 0.35 : 1) * Math.min(1, (dn - 0.045) / 0.06);
+    ctx.globalAlpha = Math.min(0.9, 0.28 + 0.64 * dn ** 1.3) * born;
+    ctx.drawImage(spr, Math.round(c.x) - R - 2, Math.round(c.y) - R - 2);
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawFires(ctx, g) {
