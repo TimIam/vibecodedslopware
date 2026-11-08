@@ -98,6 +98,11 @@ window.SLOPWARE = {
      "n": 1,
      "date": "2026-11-08T13:08:27-07:00",
      "note": "a free Classic Forever addon download"
+    },
+    {
+     "n": 2,
+     "date": "2026-11-08T13:50:10-07:00",
+     "note": "add the retail Midnight download"
     }
    ]
   },
@@ -155,7 +160,7 @@ window.SLOPWARE = {
   "snowglobe": {
    "visits": 0,
    "prompts": 1,
-   "tokens": 3462300,
+   "tokens": 3489410,
    "sharedWith": null,
    "versions": [
     {
@@ -163,7 +168,7 @@ window.SLOPWARE = {
      "date": "2026-11-08T12:31:20-07:00",
      "note": "Snow Globe, Terrarium, Rain Window, Koi Pond, Aurora",
      "prompts": 1,
-     "tokens": 3462300
+     "tokens": 3489410
     }
    ]
   },
