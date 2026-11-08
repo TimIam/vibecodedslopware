@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rain Window · Vibe Coded Slopware</title>
+<meta name="description" content="A rain-streaked window at night across every monitor you own. Draw in the fog, tap the glass, wipe it with your sleeve while the traffic goes by.">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230b121c'/><rect x='22' y='18' width='56' height='64' rx='5' fill='%23182638'/><path d='M38 28v14M56 34v20M46 56v14' stroke='%23ffb56b' stroke-width='5' stroke-linecap='round'/></svg>">
+<style>
+:root{--bg:#07090e;--fg:#ecebea;--dim:#99a0ad;--card:#11161f;--line:#262e3b;--accent:#ffb56b;--accent-fg:#2a1605}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}
+main{max-width:860px;margin:0 auto;padding:40px 16px 100px}
+h1{font-size:clamp(38px,8vw,64px);line-height:1.02;margin:28px 0 12px;letter-spacing:-1.5px}
+.lede{font-size:clamp(18px,2.6vw,21px);margin:0 0 22px;max-width:640px}
+.frame{aspect-ratio:16/9;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#000;margin:0 0 24px}
+.frame iframe{width:100%;height:100%;border:0;display:block;pointer-events:none}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px}
+.btn{display:inline-flex;flex-direction:column;padding:13px 20px;border-radius:12px;text-decoration:none;border:1px solid var(--line);color:inherit;background:var(--card);transition:transform .15s,border-color .15s}
+.btn:hover{transform:translateY(-2px);border-color:var(--accent)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn b{font-size:16.5px}
+.btn small{color:var(--dim);font-size:12.5px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.primary small{color:inherit;opacity:.8}
+h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:36px 0 12px;font-weight:600}
+ul,ol{margin:0;padding-left:20px}
+li{margin:6px 0}
+li b{font-weight:600}
+a{color:var(--accent)}
+code{font:13px ui-monospace,Consolas,monospace;background:rgba(255,181,107,.1);border:1px solid var(--line);border-radius:5px;padding:1px 6px;word-break:break-all}
+footer{margin-top:56px;color:var(--dim);font-size:13px}
+</style>
+<link rel="stylesheet" href="/site-nav.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<main>
+  <h1>Rain Window</h1>
+  <p class="lede">You are indoors, it is late, and it has been raining for hours. One long window runs across all your monitors, the street outside has gone soft and out of focus, and you can write your name in the fog.</p>
+  <div class="frame"><iframe src="/rainwindow/window.html#embed" title="A live rainy window" tabindex="-1"></iframe></div>
+  <div class="cta">
+    <a class="btn primary" href="/rainwindow/window.html"><b>Open your window</b><small>in your browser · saved between visits</small></a>
+    <a class="btn" href="/rainwindow/window.html" download="rain-window.html"><b>Download it</b><small>one .html file · works offline</small></a>
+  </div>
+
+  <h2>How it works</h2>
+  <ol>
+    <li><b>Every drop is a tiny lens.</b> Look closely and each one holds the whole street, upside down and in focus, while the street itself stays a blur behind it.</li>
+    <li><b>The big ones run.</b> A drop sits still until it has soaked up enough of its neighbors, then lets go, sticking and slipping down the glass, eating the beads in its way and leaving a broken string of tiny ones behind.</li>
+    <li><b>The fog comes back.</b> Condensation creeps over anything you clear, unevenly, the way it does on a real window, so whatever you draw slowly disappears.</li>
+  </ol>
+
+  <h2>Things you can do</h2>
+  <ul>
+    <li><b>Draw in the fog</b> with your pointer. What your finger pushes aside gathers at the edge of the line and eventually drips.</li>
+    <li><b>Tap the glass</b> and the drops nearby jolt loose and run.</li>
+    <li><b>Wipe with a sleeve</b> for a wide, streaky clear patch.</li>
+    <li><b>Call lightning</b> whenever you like. It lights up the whole sky at once, and the thunder arrives a moment later and shakes the water.</li>
+    <li><b>Customize:</b> look out on a city, a coast road or a forest road, at dusk, blue hour, midnight or just before dawn. Set the rain, fog, wind and how blurred the outside is, how often it storms, and whether there is traffic.</li>
+  </ul>
+
+  <h2>Every monitor</h2>
+  <ul>
+    <li>In Chrome or Edge, open Customize and click <b>Every monitor</b>. The browser asks to manage windows on your displays; say yes, then click once per extra screen and once inside each new window.</li>
+    <li>It is one window with a sash at every join, so your bezels look like they were meant to be there. Headlights, tail lights and the occasional tram cross from screen to screen, lightning hits them all at the same instant, and a gust can push a rivulet straight past the frame. A portrait monitor just gets a taller window.</li>
+    <li>Add <code>#embed</code> to the address for just the window with no controls, handy for kiosk and web-screensaver setups.</li>
+  </ul>
+
+  <footer>Made with questionable judgment and an AI pair programmer. It is not actually raining. Probably.</footer>
+</main>
+</body>
+</html>

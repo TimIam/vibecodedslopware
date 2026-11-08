@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{title}}</title>
+<meta name="description" content="{{desc}}">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="{{icon}}">
+<style>
+:root{--acc:{{accent}};--acc-fg:{{accentFg}};--ink:{{ink}};--bg:{{bg}};--panel:{{panel}}}
+{{css}}
+</style>
+<link rel="stylesheet" href="/site-nav.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div id="stats"></div>
+  <div id="tools" role="toolbar" aria-label="Tools"></div>
+  <button id="menuBtn" aria-expanded="false" aria-controls="panel">Customize</button>
+  <aside id="panel" aria-label="Customize"></aside>
+  <div id="toast" role="status"></div>
+</div>
+<div id="paneCard"><div>Click to fill this screen</div></div>
+<div id="fade">{{loading}}</div>
+<script>
+(() => {
+'use strict';
+{{head}}
+{{scene}}
+{{tail}}
+})();
+</script>
+</body>
+</html>

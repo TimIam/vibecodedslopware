@@ -1,0 +1,942 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aurora</title>
+<meta name="description" content="Northern lights over a frozen lake, across every monitor. Release lanterns and make a wish on the meteors.">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23031018'/><path d='M10 70C30 20 50 80 90 24v60H10z' fill='%237ef0b8' opacity='.8'/><path d='M10 82h80' stroke='%23031' stroke-width='6'/></svg>">
+<style>
+:root{--acc:#7ef0b8;--acc-fg:#04201a;--ink:#e4efea;--bg:#02040a;--panel:rgba(6,12,20,.8)}
+html,body{margin:0;height:100%;background:var(--bg);overflow:hidden}
+#c{position:fixed;left:0;top:0;width:100%;height:100%;display:block;cursor:grab}
+#fade{position:fixed;inset:0;background:var(--bg);transition:opacity 1.1s;pointer-events:none;display:grid;place-items:center;color:var(--ink);font:13px/1 ui-monospace,Consolas,monospace;letter-spacing:.3em;text-transform:uppercase;opacity:1}
+body.saver,body.saver *{cursor:none!important}
+body.saver #hud,body.embed #hud,body.saver .site-topbar,body.embed .site-topbar,body.host .site-topbar,body.pane .site-topbar{display:none!important}
+.site-topbar{transition:opacity .35s}
+body.idle .site-topbar{opacity:0;pointer-events:none}
+#hud{position:fixed;font:13.5px/1.4 "Segoe UI",system-ui,-apple-system,sans-serif;color:var(--ink);pointer-events:none;user-select:none;-webkit-user-select:none}
+#hud>*{transition:opacity .35s,transform .35s;pointer-events:auto}
+body.idle #tools,body.idle #menuBtn{opacity:0;pointer-events:none}
+#tools{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:3px;padding:5px;background:var(--panel);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.13);border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.45)}
+#tools button{all:unset;cursor:pointer;padding:8px 13px;border-radius:10px;color:var(--ink);font-weight:500;white-space:nowrap}
+#tools button:hover{background:rgba(255,255,255,.1);color:#fff}
+#tools button.on{background:var(--acc);color:var(--acc-fg)}
+#tools button:focus-visible,#panel :focus-visible,#menuBtn:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+#tools i{width:1px;margin:6px 4px;background:rgba(255,255,255,.16)}
+#menuBtn{all:unset;pointer-events:auto;position:absolute;right:18px;bottom:22px;cursor:pointer;padding:12px 16px;border-radius:12px;background:var(--panel);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.13);font-weight:600}
+#menuBtn:hover{border-color:var(--acc)}
+#panel{position:absolute;right:18px;top:58px;bottom:80px;width:296px;overflow-y:auto;padding:18px 18px 14px;box-sizing:border-box;background:var(--panel);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.13);border-radius:16px;box-shadow:0 18px 60px rgba(0,0,0,.5);opacity:0;transform:translateX(14px);pointer-events:none!important;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.3) transparent}
+#panel.open{opacity:1;transform:none;pointer-events:auto!important}
+#panel h2{margin:0 0 2px;font-size:18px;color:#fff;font-weight:600}
+#panel .sub{margin:0 0 14px;opacity:.72;font-size:12.5px}
+.row{margin:0 0 13px}
+.row label{display:flex;justify-content:space-between;margin-bottom:5px;opacity:.85;font-size:12.5px}
+.row label b{color:#fff;font-weight:600}
+.row select,.row input[type=range]{width:100%;box-sizing:border-box;accent-color:var(--acc)}
+.row select{background:rgba(255,255,255,.08);color:var(--ink);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:7px 8px;font:inherit}
+.row select option{background:#20242a;color:#eee}
+.seg{display:flex;gap:3px;background:rgba(255,255,255,.07);border-radius:9px;padding:3px}
+.seg button{all:unset;flex:1;text-align:center;cursor:pointer;padding:5px 0;border-radius:7px;font-size:12.5px}
+.seg button.on{background:var(--acc);color:var(--acc-fg);font-weight:600}
+.tog{display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:12.5px;cursor:pointer}
+.tog input{accent-color:var(--acc);width:16px;height:16px;margin:0}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.btns button{all:unset;cursor:pointer;padding:7px 11px;border-radius:8px;background:rgba(255,255,255,.1);font-size:12.5px}
+.btns button:hover{background:rgba(255,255,255,.2)}
+.btns button.danger:hover{background:#7d2b1c;color:#fff}
+.note{margin:10px 0 0;opacity:.6;font-size:11.5px}
+#stats{position:absolute;left:18px;bottom:24px;padding:8px 13px;background:var(--panel);border-radius:10px;font:12px/1.55 ui-monospace,Consolas,monospace;pointer-events:none!important;display:none}
+#stats.on{display:block}
+body.idle #stats{opacity:.45}
+#toast{position:absolute;left:50%;top:24%;transform:translate(-50%,0);padding:12px 20px;background:var(--panel);border:1px solid rgba(255,255,255,.15);border-radius:12px;font-size:14px;text-align:center;opacity:0;pointer-events:none!important;max-width:440px}
+#toast.show{opacity:1}
+#paneCard{position:fixed;inset:0;display:none;place-items:center;font:15px/1.5 "Segoe UI",system-ui,sans-serif;color:var(--ink);cursor:pointer}
+#paneCard div{background:var(--panel);padding:24px 30px;border-radius:14px;border:1px solid rgba(255,255,255,.15)}
+
+</style>
+<link rel="stylesheet" href="/site-nav.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div id="stats"></div>
+  <div id="tools" role="toolbar" aria-label="Tools"></div>
+  <button id="menuBtn" aria-expanded="false" aria-controls="panel">Customize</button>
+  <aside id="panel" aria-label="Customize"></aside>
+  <div id="toast" role="status"></div>
+</div>
+<div id="paneCard"><div>Click to fill this screen</div></div>
+<div id="fade">Waiting for dark</div>
+<script>
+(() => {
+'use strict';
+// One file, no dependencies, plain WebGL2. Built from tools/savers/ + <folder>/src/scene.js by tools/build-savers.mjs.
+//
+// URL hash (key=value joined with &):
+//   host=saver|app|config   running inside a screensaver host
+//   views=x,y,w,h;...       monitor rectangles inside the canvas, in canvas pixels
+//   primary=i               which of those views gets the controls
+//   screens=x,y,w,h;...     monitors in screen coordinates, for one browser window stretched across them
+//   pane=1&cid=..&wx&ww&wh  a window this page opened on another monitor
+//   embed                   just the scene: no controls, no input
+//
+// One continuous world: monitors sit side by side, left to right, tops aligned.
+const hash = {};
+for (const kv of location.hash.slice(1).split('&')) { if (!kv) continue; const i = kv.indexOf('='); if (i < 0) hash[kv] = '1'; else hash[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1)); }
+const HOST = hash.host || '', IS_PANE = !!hash.pane, EMBED = !!hash.embed, LEADER = !IS_PANE;
+const hostPost = (m) => { try { window.chrome.webview.postMessage(m); } catch (e) { if (m === 'exit') window.close(); } };
+if (HOST) document.body.classList.add('host');
+if (HOST === 'saver') document.body.classList.add('saver');
+if (IS_PANE) document.body.classList.add('pane');
+if (EMBED) document.body.classList.add('embed');
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl2', { antialias: true, alpha: false, depth: true, powerPreference: 'high-performance', preserveDrawingBuffer: false });
+if (!gl) { document.getElementById('fade').textContent = 'This needs WebGL2'; throw new Error('no webgl2'); }
+gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+const FLOAT_RT = !!gl.getExtension('EXT_color_buffer_float') || !!gl.getExtension('EXT_color_buffer_half_float');
+gl.getExtension('OES_texture_float_linear');
+
+const TAU = Math.PI * 2, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t, sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const rnd = (a = 1, b) => b === undefined ? Math.random() * a : a + Math.random() * (b - a);
+const angDiff = (a, b) => { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; };
+function mulberry(seed) { let a = seed >>> 0; return (x, y) => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; const r = ((t ^ (t >>> 14)) >>> 0) / 4294967296; return x === undefined ? r : y === undefined ? r * x : x + r * (y - x); }; }
+
+const S = {};
+let views = [], W = 0, H = 0, unit = 1080, primaryView = 0, multi = null, SEED = +(hash.seed || 0) || (Math.random() * 1e9) | 0;
+const parseRects = (t) => t.split(';').map(s => s.split(',').map(Number)).filter(r => r.length === 4 && r[2] > 0 && r[3] > 0);
+const screenRects = hash.screens ? parseRects(hash.screens) : null, hostRects = hash.views ? parseRects(hash.views) : null;
+function layout() {
+  let cw, ch, useRects = hostRects;
+  if (screenRects && screenRects.length) {
+    const edge = (outerWidth - innerWidth) / 2, ox = screenX + edge, oy = screenY + (outerHeight - innerHeight) - edge;
+    useRects = screenRects.map(r => [r[0] - ox, r[1] - oy, r[2], r[3]]);
+  }
+  if (useRects && useRects.length) {
+    const rects = useRects.map((r, i) => ({ r, i })).sort((a, b) => a.r[0] - b.r[0]);
+    if (screenRects) { cw = Math.round(innerWidth); ch = Math.round(innerHeight); }
+    else { cw = Math.max(...useRects.map(r => r[0] + r[2])); ch = Math.max(...useRects.map(r => r[1] + r[3])); }
+    let wx = 0; views = [];
+    for (const { r, i } of rects) { views.push({ cx: r[0], cy: r[1], cw: r[2], ch: r[3], wx, ww: r[2], wh: r[3], src: i }); wx += r[2]; }
+    W = wx; H = Math.max(...useRects.map(r => r[3]));
+    primaryView = Math.max(0, views.findIndex(v => v.src === (+hash.primary || 0)));
+  } else {
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    cw = Math.round(innerWidth * dpr); ch = Math.round(innerHeight * dpr);
+    if (IS_PANE) { views = [{ cx: 0, cy: 0, cw, ch, wx: +hash.wx, ww: +hash.ww, wh: +hash.wh }]; W = +hash.W || (+hash.ww + +hash.wx); H = +hash.H || +hash.wh; }
+    else if (multi) { views = [{ cx: 0, cy: 0, cw, ch, wx: multi.wx, ww: multi.ww, wh: multi.wh, all: multi.list }]; W = multi.W; H = multi.H; }
+    else { views = [{ cx: 0, cy: 0, cw, ch, wx: 0, ww: cw, wh: ch }]; W = cw; H = ch; }
+    primaryView = 0;
+  }
+  canvas.width = cw; canvas.height = ch;
+  unit = Math.min(...(multi ? multi.list.map(l => l.h) : views.map(v => v.wh)));
+  const cssK = cw / (canvas.clientWidth || cw), p = views[primaryView] || views[0], hud = document.getElementById('hud');
+  hud.style.left = (p.cx / cssK) + 'px'; hud.style.top = (p.cy / cssK) + 'px'; hud.style.width = (p.cw / cssK) + 'px'; hud.style.height = ((p.ch / cssK) - (screenRects ? Math.max(48, screen.height - screen.availHeight) : 0)) + 'px';
+}
+// the monitors as the scene should lay itself out: every monitor, even ones another window is drawing
+const monitors = () => multi ? multi.list.map(l => ({ wx: l.wx, ww: l.w, wh: l.h })) : IS_PANE && hash.mons ? parseRects(hash.mons).map(r => ({ wx: r[0], ww: r[1], wh: r[2] })) : views.map(v => ({ wx: v.wx, ww: v.ww, wh: v.wh }));
+
+function program(vs, fs) {
+  const mk = (t, src) => { const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + '\n' + src.split('\n').slice(0, 3).join('\n')); return s; };
+  const p = gl.createProgram(); gl.attachShader(p, mk(gl.VERTEX_SHADER, vs)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i), name = a.name.replace('[0]', ''); u[name] = gl.getUniformLocation(p, a.name); }
+  return { p, u };
+}
+const HEAD = '#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n';
+const NOISE = `
+float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
+float h12(vec2 p){vec3 a=fract(vec3(p.xyx)*.1031);a+=dot(a,a.yzx+33.33);return fract((a.x+a.y)*a.z);}
+vec2 h22(vec2 p){vec3 a=fract(vec3(p.xyx)*vec3(.1031,.1030,.0973));a+=dot(a,a.yzx+33.33);return fract((a.xx+a.yz)*a.zy);}
+float h13(vec3 p){p=fract(p*.1031);p+=dot(p,p.zyx+31.32);return fract((p.x+p.y)*p.z);}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h12(i),h12(i+vec2(1,0)),f.x),mix(h12(i+vec2(0,1)),h12(i+vec2(1,1)),f.x),f.y);}
+float n3(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(h13(i),h13(i+vec3(1,0,0)),f.x),mix(h13(i+vec3(0,1,0)),h13(i+vec3(1,1,0)),f.x),f.y),mix(mix(h13(i+vec3(0,0,1)),h13(i+vec3(1,0,1)),f.x),mix(h13(i+vec3(0,1,1)),h13(i+vec3(1,1,1)),f.x),f.y),f.z);}
+float fbm(vec2 p){float a=.5,s=0.;for(int i=0;i<5;i++){s+=a*vn(p);p=p*2.03+vec2(17.1,9.2);a*=.5;}return s;}
+float fbm3(vec3 p){float a=.5,s=0.;for(int i=0;i<4;i++){s+=a*n3(p);p=p*2.03+vec3(17.1,9.2,4.7);a*=.5;}return s;}
+vec2 voro(vec2 p){vec2 ip=floor(p),fp=fract(p);float f1=9.,f2=9.;for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){vec2 g=vec2(i,j),r=g+h22(ip+g)-fp;float d=dot(r,r);if(d<f1){f2=f1;f1=d;}else if(d<f2)f2=d;}return vec2(sqrt(f1),sqrt(f2));}
+`;
+const FS_TRI = HEAD + 'const vec2 P[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));void main(){gl_Position=vec4(P[gl_VertexID],0,1);}';
+// World-space fullscreen quad. uView = (wx, ww, wh): vW is the world pixel under the fragment (y down).
+const QUAD_VS = HEAD + `uniform vec4 uView;out vec2 vW;const vec2 P[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));void main(){vec2 c=P[gl_VertexID];vW=vec2(uView.x+(c.x*.5+.5)*uView.y,(1.-(c.y*.5+.5))*uView.z);gl_Position=vec4(c,.9999,1);}`;
+// Vertex-shader helper: world pixel to clip space.
+const W2C = `vec4 w2c(vec2 w,float z,vec4 v){return vec4((w.x-v.x)/v.y*2.-1.,1.-w.y/v.z*2.,z,1.);}`;
+const emptyVAO = gl.createVertexArray();
+const tri = () => { gl.bindVertexArray(emptyVAO); gl.drawArrays(gl.TRIANGLES, 0, 3); };
+
+function makeRT(w, h, opts = {}) {
+  const { float = false, filter = gl.LINEAR, mips = false, attachments = 1 } = opts;
+  const useF = float && FLOAT_RT, ifmt = useF ? gl.RGBA16F : gl.RGBA8, type = useF ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, tex = [], f = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+  for (let i = 0; i < attachments; i++) {
+    const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, ifmt, w, h, 0, gl.RGBA, type, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mips ? gl.LINEAR_MIPMAP_LINEAR : filter); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, t, 0); tex.push(t);
+  }
+  gl.drawBuffers(tex.map((_, i) => gl.COLOR_ATTACHMENT0 + i));
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return { tex: tex[0], texs: tex, fb: f, w, h, free() { gl.deleteFramebuffer(f); tex.forEach(t => gl.deleteTexture(t)); } };
+}
+const bindTex = (unitI, t, loc) => { gl.activeTexture(gl.TEXTURE0 + unitI); gl.bindTexture(gl.TEXTURE_2D, t); if (loc) gl.uniform1i(loc, unitI); };
+
+// Progressive baking. Jobs run a slice per frame, so a slow GPU never hangs. Budget is in pixels.
+let bakeQ = [], baked = false, bakeBudget = 1400000;
+function bakeTiles(rt, opts) {
+  // opts: { tile, passes, cost, begin(pass), blend, x,y,w,h }
+  const tile = opts.tile || 128, passes = opts.passes || 1, cost = opts.cost || 1, x0 = opts.x || 0, y0 = opts.y || 0, w = opts.w || rt.w, h = opts.h || rt.h;
+  let pass = 0, tx = 0, ty = 0;
+  bakeQ.push((budget) => {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, rt.fb); gl.viewport(0, 0, rt.w, rt.h); gl.enable(gl.SCISSOR_TEST);
+    gl.disable(gl.DEPTH_TEST); if (opts.blend) { gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, opts.premult ? gl.ONE_MINUS_SRC_ALPHA : gl.ONE); } else gl.disable(gl.BLEND);
+    opts.begin(pass); gl.bindVertexArray(emptyVAO); let spent = 0;
+    while (spent < budget) {
+      const tw = Math.min(tile, w - tx), th = Math.min(tile, h - ty);
+      gl.scissor(x0 + tx, y0 + ty, tw, th); gl.drawArrays(gl.TRIANGLES, 0, 3); spent += tw * th * cost;
+      tx += tile; if (tx >= w) { tx = 0; ty += tile; if (ty >= h) { ty = 0; pass++; if (pass >= passes) break; opts.begin(pass); } }
+    }
+    gl.disable(gl.SCISSOR_TEST); gl.disable(gl.BLEND); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    return { done: pass >= passes, spent };
+  });
+}
+const bakeStep = (fn) => bakeQ.push(() => { fn(); return { done: true, spent: 1000 }; });
+function runBakes() {
+  let left = bakeBudget;
+  while (bakeQ.length && left > 0) { const r = bakeQ[0](left); left -= Math.max(1, r.spent); if (r.done) bakeQ.shift(); }
+  if (!bakeQ.length && !baked) { baked = true; document.getElementById('fade').style.opacity = 0; if (SCENE.onBaked) SCENE.onBaked(); }
+}
+function rebake() { bakeQ = []; baked = false; }
+
+function eachView(fn) { gl.enable(gl.SCISSOR_TEST); for (const v of views) { gl.viewport(v.cx, canvas.height - v.cy - v.ch, v.cw, v.ch); gl.scissor(v.cx, canvas.height - v.cy - v.ch, v.cw, v.ch); fn(v); } gl.disable(gl.SCISSOR_TEST); }
+const setView = (u, v) => gl.uniform4f(u.uView, v.wx, v.ww, v.wh, 0);
+
+// Aurora. One continuous night sky across every monitor. x is azimuth on a cylinder, y is elevation.
+// Baked: tileable float noise, a Milky Way on the sphere, the treeline and mountains as a silhouette, and the frozen
+// lake as a little G-buffer (albedo, moon, reflectivity, what the shore hides in the mirror) so moon and aurora relight it live.
+// Live: curtains marched in a reduced float buffer with temporal accumulation, then bicubic upsampling and a dithered film curve.
+
+const PAL = {
+  classic: { name: 'Classic green', c0: [.24, 1.0, .30], c1: [.022, 1.0, .19], c2: [.48, .05, .66] },
+  violet: { name: 'Violet storm', c0: [.95, .42, 1.0], c1: [.30, .16, 1.0], c2: [.95, .06, .55] },
+  crimson: { name: 'Crimson, the rare kind', c0: [1.0, .46, .22], c1: [.92, .055, .10], c2: [.40, .02, .34] },
+  teal: { name: 'Teal', c0: [.40, 1.0, .85], c1: [.02, .72, .80], c2: [.20, .20, .95] },
+};
+const CAM = 8, LAT = 1.08;
+const MOON_R = .015;
+
+// ---- noise: tileable, float, four different characters in four channels
+const noiseFS = HEAD + `uniform float uS;out vec4 o;
+float h(vec2 p,float s){p=mod(p,s);vec3 a=fract(vec3(p.xyx)*.1031);a+=dot(a,a.yzx+33.33);return fract((a.x+a.y)*a.z);}
+float vn(vec2 p,float s){vec2 i=floor(p),f=fract(p);f=f*f*f*(f*(f*6.-15.)+10.);return mix(mix(h(i,s),h(i+vec2(1,0),s),f.x),mix(h(i+vec2(0,1),s),h(i+vec2(1,1),s),f.x),f.y);}
+float fb(vec2 p,float s,int n,float g){float a=.5,t=0.,w=0.;for(int i=0;i<n;i++){t+=a*vn(p,s);w+=a;p=p*2.+vec2(19.3,7.7);s*=2.;a*=g;}return t/w;}
+float rd(vec2 p,float s,int n){float a=.5,t=0.,w=0.;for(int i=0;i<n;i++){float v=1.-abs(2.*vn(p,s)-1.);t+=a*v*v;w+=a;p=p*2.+vec2(5.3,13.1);s*=2.;a*=.55;}return t/w;}
+void main(){vec2 uv=gl_FragCoord.xy/uS;o=vec4(fb(uv*16.,16.,6,.5),fb(uv*32.+vec2(3.,9.),32.,5,.56),rd(uv*16.+vec2(7.,1.),16.,5),vn(uv*96.,96.));}`;
+
+// ---- the Milky Way, equirectangular in the sky's own frame, so it can turn about the pole
+const N3 = `precision highp sampler3D;uniform sampler3D uN3;float n3(vec3 p){return textureLod(uN3,p/32.,0.).r;}float fb3(vec3 p){return .5*n3(p)+.25*n3(p*2.03+vec3(17.1,9.2,4.7))+.125*n3(p*4.12+vec3(3.3,1.9,8.1))+.0625*n3(p*8.3+vec3(5.,11.,2.));}`;
+const milkyFS = HEAD + N3 + `uniform vec2 uRes;uniform vec3 uG,uC;out vec4 o;
+float h13(vec3 p){p=fract(p*.1031);p+=dot(p,p.zyx+31.32);return fract((p.x+p.y)*p.z);}
+void main(){vec2 uv=gl_FragCoord.xy/uRes;float lon=(uv.x-.5)*6.28318531,lat=(uv.y-.5)*3.14159265;vec3 d=vec3(sin(lon)*cos(lat),sin(lat),cos(lon)*cos(lat));
+ float b=dot(d,uG);if(abs(b)>.86){o=vec4(0,0,0,1);return;}
+ vec3 w=vec3(fb3(d*3.6+1.),fb3(d*3.6+7.),fb3(d*3.6+13.))-.47;
+ float bb=b+.05*w.x;
+ float core=exp(-pow(bb/.062,2.)),wide=exp(-pow(bb/.20,2.));
+ float cd=dot(d,uC);float bulge=exp(-(1.-cd)*6.);
+ float lon2=fb3(d*1.7+21.);
+ float dens=(.028*wide+.13*core)*(.40+1.15*bulge)*(.55+.85*lon2);
+ float rift=fb3(d*16.+w*2.4);float rid=1.-abs(2.*fb3(d*33.+w*1.8+3.)-1.);
+ float lane=smoothstep(.44,.80,rift*.72+rid*.40)*exp(-pow((bb-.008)/.075,2.));
+ float fine=fb3(d*88.+w*.8);float cloud=mix(.72,1.3,smoothstep(.24,.68,fine));
+ vec3 col=mix(vec3(.66,.75,1.),vec3(1.,.86,.68),clamp(bulge*.9+core*.15,0.,1.));
+ vec3 c=col*dens*cloud*(1.-.88*lane)+vec3(.05,.024,.012)*lane*core*.12;
+ float g=h13(floor(d*1150.));c*=.86+.26*g;
+ o=vec4(max(c,vec3(0)),1.);}`;
+
+// ---- silhouettes: R far range, G near range, B trees
+const silFS = HEAD + NOISE + `uniform float uYH,uU,uTop,uPh;out vec4 o;
+float shore(float x){float u=x/uU;return uYH+uU*(.040+.010*sin(u*2.3+1.1+uPh)+.006*sin(u*5.7+.4+uPh*2.));}
+float ridge(float x,float s,float f){float n=0.,a=.5,w=0.;for(int i=0;i<7;i++){float v=1.-abs(2.*vn(vec2(x*f,s+float(i)*3.1))-1.);n+=a*v*v;w+=a;a*=.60;f*=2.11;}return n/w;}
+float spruce(vec2 q,float h,float w,float s){float t=q.y/h;if(t<0.||t>1.)return 0.;
+ float env=w*pow(1.-t,.70);env*=1.+.75*exp(-pow((t-.87)/.06,2.));env+=w*.05;
+ float T=12.+floor(s*7.),k=fract(t*T+s*3.),tier=floor(t*T+s*3.),r=h11(tier*.73+s*17.);
+ float jag=(.40+.65*(1.-k)*(1.-k))*(.62+.80*r);
+ float hw=env*jag,off=(h11(tier*1.9+s*5.)-.5)*w*.22;
+ float e=hw-abs(q.x-off);return smoothstep(-.75,.75,e);}
+float row(float x,float y,float cell,float hA,float hB,float seed,float gap,float base){float cov=0.,i0=floor(x/cell);for(int k=-3;k<=3;k++){float id=i0+float(k),r=h11(id*.71+seed);if(r<gap)continue;float cx=(id+.5+(h11(id*1.37+seed)-.5)*.85)*cell;float b=shore(cx)+base;float pk=h11(id*2.13+seed);float h=mix(hA,hB,pow(pk,1.5));cov=max(cov,spruce(vec2(x-cx,b-y),h,h*.105,r));}return cov;}
+void main(){vec2 w=vec2(gl_FragCoord.x,gl_FragCoord.y+uTop);float U=uU;
+ float h1=U*(.040+.170*pow(ridge(w.x/U,3.+uPh,1.15),1.05)),h2=U*(.020+.100*pow(ridge(w.x/U,11.+uPh,2.1),1.1));
+ float y1=uYH+U*.02-h1,y2=uYH+U*.03-h2;
+ float f=smoothstep(-1.,1.,w.y-y1),n=smoothstep(-1.,1.,w.y-y2);
+ float t=0.;
+ t=max(t,row(w.x,w.y,U*.0064,U*.022,U*.052,3.1,.05,-U*.016));
+ t=max(t,row(w.x,w.y,U*.0086,U*.030,U*.072,8.7,.12,-U*.008));
+ t=max(t,row(w.x,w.y,U*.0130,U*.040,U*.098,5.3,.34,0.));
+ float hill=U*.006*sin(w.x/U*1.9+uPh);
+ t=max(t,smoothstep(-1.,1.,w.y-(shore(w.x)-U*.0115-hill*.6-U*.006*vn(vec2(w.x/U*14.,4.)))));
+ o=vec4(f,n,t,1.);}`;
+
+// ---- the lake: albedo + coverage, then moon / reflectivity / reflection visibility / ao
+const groundFS = HEAD + NOISE + `uniform sampler2D uN,uSil;uniform vec2 uWorld,uSilRes;uniform float uYH,uU,uTop,uPX,uPY,uPh,uMoonX;uniform vec3 uMoon;
+uniform vec4 uP[16];uniform int uNP;uniform vec4 uTr[4];uniform int uNT;
+layout(location=0)out vec4 o0;layout(location=1)out vec4 o1;
+float shore(float x){float u=x/uU;return uYH+uU*(.040+.010*sin(u*2.3+1.1+uPh)+.006*sin(u*5.7+.4+uPh*2.));}
+float sdBox(vec2 p,vec2 b){vec2 q=abs(p)-b;return length(max(q,0.))+min(max(q.x,q.y),0.);}
+float sdSeg(vec2 p,vec2 a,vec2 b){vec2 pa=p-a,ba=b-a;return length(pa-ba*clamp(dot(pa,ba)/dot(ba,ba),0.,1.));}
+float hgt(vec2 P,float d){
+ float far=smoothstep(170.,50.,d),nr=smoothstep(26.,5.,d);
+ vec2 q=P+vec2(texture(uN,P*.0031+.2).g,texture(uN,P*.0029+.6).g)*26.;
+ float a=texture(uN,q*vec2(.0030,.0085)).r;
+ float b=texture(uN,q*vec2(.010,.038)+a*.05).r;
+ float c=texture(uN,q*vec2(.070,.19)+.4).g;
+ float e=texture(uN,P*.62).g;
+ return a*1.15+b*.20*far+(c-.5)*.12*far+(e-.5)*.018*nr;}
+float crack(vec2 q,float w){vec2 v=voro(q);float e=v.y-v.x;float f=max(fwidth(q.x)+fwidth(q.y),1e-4);return smoothstep(w+f,w*.15,e)*clamp(w/f*1.5,0.,1.);}
+float tracks(vec2 w){float res=0.;for(int t=0;t<uNT;t++){vec4 T=uTr[t];if(w.y<T.z-40.||w.y>T.w+40.)continue;
+  float dep=max(.002,(w.y-uYH)/uPY),d=${CAM.toFixed(1)}/tan(dep);float k0=floor(d/.62);
+  for(int j=-1;j<=1;j++){float k=k0+float(j);float dk=(k+.5)*.62;float yk=uYH+atan(${CAM.toFixed(1)}/dk)*uPY;if(yk<T.z||yk>T.w)continue;float px=uPY/dk;float side=mod(k,2.)<1.?-1.:1.;float xk=T.x+T.y*sin((yk-T.z)*.0065+float(t)*2.)+side*.15*px;float sq=.012/max(.15,${CAM.toFixed(1)}/dk/(1.+pow(${CAM.toFixed(1)}/dk,2.)));vec2 q=(w-vec2(xk,yk))/vec2(.11*px,.20*px*sq/.012*.6);res=max(res,smoothstep(1.2,.5,length(q)));}}
+ return res;}
+void main(){vec2 w=vec2(gl_FragCoord.x,gl_FragCoord.y+uTop);float ys=shore(w.x);
+ vec4 s=texture(uSil,vec2(w.x,w.y-uTop)/uSilRes);
+ // far side: mountains with snow relief, then the trees
+ vec3 far=vec3(0);float mo=0.;float fcov=max(s.r,max(s.g,s.b));
+ {vec2 p=w/uU;vec2 e0=vec2(.010,0.);
+  float hf=texture(uN,p*vec2(.62,.9)).g+texture(uN,p*vec2(1.9,2.7)+.3).g*.5;float hE=texture(uN,(p+e0)*vec2(.62,.9)).g+texture(uN,(p+e0)*vec2(1.9,2.7)+.3).g*.5;float facet=clamp(.5+(hf-hE)*4.2,0.,1.);
+  float streak=texture(uN,vec2(p.x*3.4+p.y*1.1,p.y*.8)+.7).r;float rock=smoothstep(.40,.84,streak+.14*(hf-.75));float low=smoothstep(uYH+uU*.03,uYH-uU*.07,w.y);
+  float snow=(1.-rock*.42)*(.45+.55*low);float gully2=facet;
+  vec3 m1=mix(vec3(.022,.026,.036),vec3(.70,.76,.90),snow)*(.28+1.05*facet);
+  vec3 m2=mix(vec3(.014,.017,.024),vec3(.40,.44,.54),snow)*(.26+1.*facet);
+  far=mix(m1,m2,s.g);far=mix(far,vec3(.0045,.0055,.0048)+vec3(.05,.055,.065)*pow(max(0.,texture(uN,p*1.7).g-.42),3.)*3.,s.b);
+  mo=mix(mix(.27*snow*(.4+1.1*facet),.18*snow*(.4+1.1*facet),s.g),.05,s.b);}
+ vec3 alb=far;float cov=fcov,moon=mo,refl=0.,vis=1.,ao=1.;
+ float gc=smoothstep(ys-.8,ys+.8,w.y);
+ if(gc>0.){
+  float dep=max(.002,(w.y-uYH)/uPY),d=${CAM.toFixed(1)}/tan(dep),az=(w.x-uWorld.x*.5)/uPX;vec2 P=vec2(sin(az),cos(az))*d;
+  float e=max(.012,d*.012);float h0=hgt(P,d),hE=hgt(P+vec2(e,0.),d),hN=hgt(P+vec2(0.,e),d);
+  vec3 n=normalize(vec3((h0-hE)/e*.8,1.,(h0-hN)/e*.8));
+  float bank=smoothstep(ys+uU*.022+uU*.012*texture(uN,vec2(w.x/uU*.3,.2)).r,ys+uU*.002,w.y);
+  float patchN=texture(uN,P*.00125+.05).r;float pat2=texture(uN,P*.0052+.45).g;
+  float cover=smoothstep(.56,.70,patchN*.98+pat2*.30+.05*(h0-.75));cover=max(cover,bank);
+  float dust=smoothstep(.40,.62,texture(uN,P*.009+.15).g)*.65;
+  vec3 snowA=mix(vec3(.74,.83,1.),vec3(.90,.94,1.),texture(uN,P*.03).g);
+  float nl=max(0.,dot(n,uMoon));float glit=pow(texture(uN,w/uU*11.).a,70.)*smoothstep(.15,.5,cover)*22.;
+  vec3 ground=snowA;float m=nl*(.7+.5*h0*.4)+glit*nl;float rf=.018;float a=clamp(.66+(h0-.70)*2.1,.35,1.25);
+  if(cover<.999){
+   vec2 cq=P*.17+vec2(texture(uN,P*.011).r,texture(uN,P*.012+.3).r)*2.8;
+   float wv=.35+1.3*texture(uN,P*.021+.33).g*texture(uN,P*.021+.33).g*2.;float c1=crack(cq,.0065*wv),c2=crack(cq*2.7+7.,.0055*wv)*.4,c3=crack(cq*.31+3.,.0035*wv)*.9;float cr=clamp(max(c1,max(c2,c3)),0.,1.)*(.45+.75*texture(uN,P*.05+.8).g);
+   float sub=texture(uN,P*.09+.7).g;vec3 ice=mix(vec3(.018,.028,.04),vec3(.05,.075,.10),smoothstep(.34,.72,sub));
+   ice=mix(ice,vec3(.30,.36,.46),cr*.8);ice=mix(ice,snowA*.75,dust*.42);
+   float cs=sin(dep);float F=.022+.978*pow(1.-cs,3.2);float clear=.74-.40*dust-.35*cr;
+   ground=mix(ice,snowA,cover);m=mix(nl*(.3+.5*cr)+cr*.3,m,cover);rf=mix(max(.0,F*clear),.022,cover);a=mix(1.,a,cover);
+  }
+  // the shore in the mirror: mirrored silhouette, blurrier the farther from the shore it is
+  float dy=w.y-ys;float wob=(texture(uN,vec2(w.x/uU*.9,w.y/uU*2.7)).g-.5)*uU*.012;float yM=ys-dy;float lod=clamp(log2(1.+dy*.20),0.,5.5);vec2 mu=vec2(w.x+wob,yM-uTop)/uSilRes;
+  vec3 msl=vec3(0.);for(int i=-1;i<=1;i++){msl+=textureLod(uSil,mu+vec2(float(i)*.004,0.),lod).rgb;}msl/=3.;
+  float mv=max(msl.b,max(msl.g*.85,msl.r*.7));vis=1.-mv;
+  // props standing on the ice
+  float shd=0.;
+  for(int i=0;i<uNP;i++){vec4 Pr=uP[i];vec2 q=vec2(w.x-Pr.x,Pr.y-w.y)/Pr.z;float t=Pr.w;float aa=1.2/Pr.z;
+   float ms=sign(Pr.x-uMoonX);
+   if(t<.5){ // the cabin: gable end on
+    float shw=exp(-pow((q.x-ms*3.4)/4.8,2.)-pow((q.y+.15)/.35,2.));shd=max(shd,shw*.8);float cg=exp(-pow(q.x/3.9,2.)-pow((q.y+.06)/.2,2.));a*=1.-.45*cg;
+   } else { // figure + tripod
+    float shw=exp(-pow((q.x-ms*1.0)/1.6,2.)-pow((q.y+.03)/.11,2.));shd=max(shd,shw*.7);a*=1.-.5*exp(-pow((q.x+.3)/.9,2.)-pow((q.y+.01)/.09,2.));
+   }
+  }
+  float fp=tracks(w);if(fp>0.){ground*=mix(1.,.84,fp);a*=1.-.32*fp;m*=1.-.5*fp;rf*=1.-fp;}
+  moon=mix(moon,m*(1.-shd)+.0,gc);alb=mix(alb,ground,gc);cov=mix(cov,1.,gc);refl=mix(0.,rf,gc);vis=mix(1.,vis,gc);ao=mix(1.,a,gc);
+ }
+ // props on top of everything, on land or lake
+ for(int i=0;i<uNP;i++){vec4 Pr=uP[i];vec2 q=vec2(w.x-Pr.x,Pr.y-w.y)/Pr.z;float t=Pr.w;float aa=1.2/Pr.z;
+  if(t<.5){ if(abs(q.x)>5.5||q.y>6.2||q.y<-.6)continue;
+   float wall=sdBox(q-vec2(0.,1.2),vec2(2.9,1.2));float roof=max(abs(q.x)*.56+(q.y-2.4)-1.6,-(q.y-2.3));roof=max(roof,abs(q.x)-3.25);
+   float snowRoof=max(abs(q.x)*.56+(q.y-2.42)-1.96,-(abs(q.x)*.56+(q.y-2.42)-1.56));snowRoof=max(snowRoof,abs(q.x)-3.5);snowRoof=max(snowRoof,-(q.y-2.5));
+   float chim=sdBox(q-vec2(1.5,3.85),vec2(.28,.75));float chimSnow=sdBox(q-vec2(1.5,4.68),vec2(.34,.09));
+   float door=sdBox(q-vec2(0.,.95),vec2(.5,.95));float win=min(sdBox(q-vec2(-1.75,1.4),vec2(.42,.45)),sdBox(q-vec2(1.75,1.4),vec2(.42,.45)));
+   float bank2=q.y-(.14+.20*exp(-pow(q.x/3.2,4.))*(.6+.5*sin(q.x*2.1+1.)));
+   vec3 logCol=mix(vec3(.05,.035,.024),vec3(.09,.062,.04),.5+.5*sin(q.y*26.+q.x*.5));
+   float c=smoothstep(aa,-aa,min(wall,roof));if(c>0.){vec3 acol=mix(logCol,vec3(.025,.025,.03),smoothstep(aa,-aa,roof));float wc=smoothstep(aa,-aa,win);acol=mix(acol,vec3(.012,.014,.022),wc);float dc=smoothstep(aa,-aa,door);acol=mix(acol,vec3(.03,.018,.012),dc);alb=mix(alb,acol,c);moon=mix(moon,.12,c);cov=max(cov,c);ao=mix(ao,.9,c);refl*=1.-c;}
+   float cc=smoothstep(aa,-aa,chim);if(cc>0.){alb=mix(alb,vec3(.03,.028,.03),cc);moon=mix(moon,.14,cc);cov=max(cov,cc);refl*=1.-cc;}
+   float sc=smoothstep(aa,-aa,min(snowRoof,chimSnow));if(sc>0.){float nv=texture(uN,q*.03).g;alb=mix(alb,vec3(.88,.91,.98)*(.85+.3*nv),sc);moon=mix(moon,.85,sc);cov=max(cov,sc);ao=mix(ao,1.,sc);refl*=1.-sc;}
+   float bc=smoothstep(aa,-aa,bank2);if(bc>0.&&q.y>-.1){alb=mix(alb,vec3(.85,.9,.98),bc);moon=mix(moon,.45,bc);cov=max(cov,bc);ao=mix(ao,.85,bc);refl*=1.-bc;}
+  } else { if(abs(q.x)>2.4||q.y>2.2||q.y<-.3)continue;
+   float leg=min(sdSeg(q,vec2(-.13,.0),vec2(-.09,.86))-.085,sdSeg(q,vec2(.13,.0),vec2(.09,.86))-.085);
+   float body=sdSeg(q,vec2(0.,.86),vec2(.0,1.40))-.215;float head=length(q-vec2(0.,1.66))-.135;float hood=length(q-vec2(.01,1.70))-.16;
+   float arm=sdSeg(q,vec2(-.10,1.34),vec2(-.64,1.26))-.068;
+   float legs=min(sdSeg(q,vec2(-.78,1.14),vec2(-1.26,0.))-.016,min(sdSeg(q,vec2(-.78,1.14),vec2(-.78,0.))-.014,sdSeg(q,vec2(-.78,1.14),vec2(-.32,0.))-.016));
+   float cam=sdBox(q-vec2(-.80,1.26),vec2(.15,.10));float lens=sdSeg(q,vec2(-.72,1.30),vec2(-.56,1.44))-.05;
+   float fig=min(min(leg,body),min(min(head,hood),min(arm,min(legs,min(cam,lens)))));
+   float c=smoothstep(aa,-aa,fig);if(c>0.){alb=mix(alb,vec3(.018,.017,.022),c);moon=mix(moon,.08,c);cov=max(cov,c);ao=mix(ao,.95,c);refl*=1.-c;}
+  }
+ }
+ o0=vec4(alb,cov);o1=vec4(moon,refl,vis,ao);}`;
+
+// ---- per frame: the curtains' state along the arc (one row per curtain), then the march
+const CURT = { R: [340, 620, 230], F: [210, 280, 150], W: [24, 34, 22], H: [100, 98, 104], FOLD: [.20, .34, .14] };
+const stripFS = HEAD + `uniform sampler2D uN;uniform float uSW,uUmax,uT,uRay,uA;uniform vec4 uS[12];uniform int uNS;out vec4 o;
+const float RC[3]=float[3](${CURT.R.map(v => v.toFixed(1)).join(',')});
+float surge(float u){float sg=0.;for(int i=0;i<uNS;i++){vec4 s=uS[i];float d=(u-s.x)/s.z;sg+=exp(-d*d)*s.y;}return sg;}
+void main(){float u=gl_FragCoord.x/uSW*uUmax,row=floor(gl_FragCoord.y),c=mod(row,3.);int ci=int(c);float t=uT;float sg=surge(u);
+ if(row>=3.){ // the rays: tall thin columns sliding along the curtain, crisp, one row per curtain
+  float r1=texture(uN,vec2(u*.60+uRay*.0038+c*.13,c*.71+t*.0021)).a;
+  float r2=texture(uN,vec2(u*1.9-uRay*.0087+c*.91,c*.33+t*.0047)).a;
+  float r3=texture(uN,vec2(u*5.3+uRay*.019+c*.47,c*.19+t*.0093)).a;
+  float slow=texture(uN,vec2(u*.11+uRay*.0009+c*.53,c*.27+t*.0031)).g;
+  float q=r1*.36+r2*.40+r3*.24;float rays=smoothstep(.36,.70,q);rays*=mix(.55,1.15,smoothstep(.34,.66,slow));
+  float top=clamp(.50+.26*rays+.34*sg+.62*(slow-.5),.22,1.2);
+  o=vec4(rays,top/1.5,sg/4.,1.);return;}
+ float a=texture(uN,vec2(u*.027+c*.37+t*.0011,t*.0023+c*.61)).r-.5;
+ float b=texture(uN,vec2(u*.071-t*.0036+c*.21,c*.43+t*.0043)).r-.5;
+ float f=texture(uN,vec2(u*.183+t*.0081+c*.73,c*.17-t*.0061)).r-.5;
+ float g=texture(uN,vec2(u*.44-t*.012+c*.11,c*.57+t*.009)).g-.5;
+ float rc=RC[ci]+a*1150.+b*640.+f*360.+g*60.;
+ float env=smoothstep(.26,.70,texture(uN,vec2(u*.043+c*.59+t*.0021,t*.0063+c*.33)).r);
+ float brk=smoothstep(.2,.55,texture(uN,vec2(u*.27-t*.0043,c*.83+t*.012)).g);
+ float B=mix(.045,1.3,env*env)*mix(.34,1.,brk);
+ float base=mix(.16,1.2,uA);float gl=(base*B+sg*1.05);
+ rc-=sg*46.;
+ o=vec4(rc/1000.,gl/4.,sg/4.,1.);}`;
+const marchFS = HEAD + `uniform sampler2D uState,uPrev;uniform vec2 uRes;uniform float uW,uYH,uPY,uU,uUmax,uJ,uBlend;uniform int uSteps;uniform vec3 uC0,uC1,uC2;out vec4 o;
+float ign(vec2 p){return fract(52.9829189*fract(dot(p,vec2(.06711056,.00583715))));}
+const float RC[3]=float[3](${CURT.R.map(v => v.toFixed(1)).join(',')});
+const float FC[3]=float[3](${CURT.F.map(v => v.toFixed(1)).join(',')});
+const float WC[3]=float[3](${CURT.W.map(v => v.toFixed(1)).join(',')});
+const float HC[3]=float[3](${CURT.H.map(v => v.toFixed(1)).join(',')});
+const float KC[3]=float[3](.12,.16,.09);
+void main(){vec2 uv=gl_FragCoord.xy/uRes;float x=uv.x*uW,y=uv.y*uYH,el=max(.008,(uYH-y)/uPY),te=tan(el),u=x/uU;
+ float j=fract(ign(gl_FragCoord.xy)+uJ);vec3 s=vec3(0.);float uC=uUmax*.5,conv=(uC-u)*.085;
+ for(int c=0;c<3;c++){float Rc=RC[c],F=FC[c],H0=HC[c],W=WC[c];
+  float a=max(Rc-F,(H0-6.)/te),b=min(Rc+F,300./te);if(b<=a)continue;float dr=(b-a)/float(uSteps);vec3 acc=vec3(0.);
+  for(int i=0;i<uSteps;i++){float r=a+dr*(float(i)+j),h=r*te,rel=(r-Rc)/F;float uu=u+rel*KC[c]+conv*(el-.25);vec4 st=textureLod(uState,vec2(uu/uUmax,(float(c)+.5)/6.),0.);
+   float d=(r-st.r*1000.)/W;float g=exp(-d*d);if(g<.002)continue;
+   vec4 ry=textureLod(uState,vec2((u+conv*(el-.25)+rel*.018)/uUmax,(float(c)+3.5)/6.),0.);
+   float top=ry.g*1.5*150.;float hr=(h-H0)/top;float ray=ry.r;
+   float prof=smoothstep(-.03,.014,hr)*(exp(-max(hr,0.)*3.4)+.34*exp(-max(hr,0.)*1.35)+.9*exp(-pow((hr-.022)/.03,2.)))*smoothstep(1.08,.42,hr);
+   vec3 col=mix(mix(uC0,uC1,smoothstep(.0,.05,hr)),uC2,smoothstep(.22,.82,hr));
+   acc+=col*g*prof*st.g*4.*(.66+.34*ray+.72*ray*ray);}
+  s+=acc*dr/(W*1.77)*(c==1?.66:1.)*.46;
+ }
+ s*=exp(-.10*(1./sin(el)-1.));
+ vec3 p=texelFetch(uPrev,ivec2(gl_FragCoord.xy),0).rgb;o=vec4(mix(p,s,uBlend),1.);}`;
+const blurFS = HEAD + `uniform sampler2D uT;uniform vec2 uDir;out vec4 o;void main(){vec3 c=vec3(0.);float w=0.;for(int i=-5;i<=5;i++){float k=exp(-float(i*i)/12.);c+=texture(uT,(gl_FragCoord.xy+uDir*float(i))*uScale).rgb*k;w+=k;}o=vec4(c/w,1.);}`.replace('uniform sampler2D uT;', 'uniform sampler2D uT;uniform vec2 uScale;');
+
+const TONE = `vec3 tm(vec3 c){c=max(c,vec3(0.))*1.15;float L=max(c.r,max(c.g,c.b))+1e-6;vec3 h=c*(1.-exp(-L))/L,p=1.-exp(-c);c=mix(p,h,.55);return pow(c,vec3(1./2.2));}float dith(vec2 p){return (h12(p+uFr)+h12(p+uFr*1.7+.31)-1.)*1.2/255.;}`;
+const CUB = `vec3 cub(sampler2D t,vec2 uv){vec2 r=vec2(textureSize(t,0)),p=uv*r-.5,f=fract(p);p-=f;vec2 ff=f*f,fff=ff*f,w0=(1.-f)*(1.-f)*(1.-f)/6.,w1=(4.-6.*ff+3.*fff)/6.,w2=(1.+3.*f+3.*ff-3.*fff)/6.,w3=fff/6.;vec2 g0=w0+w1,g1=w2+w3,h0=w1/g0-1.,h1=w3/g1+1.;vec2 a=(p+h0+.5)/r,b=(p+h1+.5)/r;return mix(mix(texture(t,vec2(b.x,b.y)).rgb,texture(t,vec2(a.x,b.y)).rgb,g0.x/(g0.x+g1.x)),mix(texture(t,vec2(b.x,a.y)).rgb,texture(t,vec2(a.x,a.y)).rgb,g0.x/(g0.x+g1.x)),g0.y/(g0.y+g1.y));}`;
+const SKYU = `uniform sampler2D uAur,uAurB,uMW,uN;uniform vec2 uWorld;uniform float uYH,uPX,uPY,uU,uFr,uMoonI,uMoonK;uniform vec3 uMoonD,uMoonR,uMoonU;uniform mat3 uRotI;
+const float MR=${MOON_R.toFixed(4)};
+vec3 dirOf(float az,float el){float c=cos(el);return vec3(sin(az)*c,sin(el),cos(az)*c);}
+vec3 mwAt(vec3 d){vec3 s=uRotI*d;return texture(uMW,vec2(atan(s.x,s.z)/6.28318531+.5,asin(clamp(s.y,-1.,1.))/3.14159265+.5)).rgb;}
+vec3 airglow(vec3 d){float e=max(.012,d.y);float g=exp(-e*6.5);float mC=dot(d,uMoonD);vec3 c=vec3(.0011,.0014,.0027)+vec3(.0044,.0066,.0044)*g*g+vec3(.0016,.0014,.0026)*g;
+ c+=vec3(.05,.07,.13)*uMoonI*(.022+.20*exp(-(1.-mC)*3.2)+.42*exp(-(1.-mC)*38.));return c;}`;
+const skyFS = HEAD + NOISE + SKYU + TONE + CUB + `in vec2 vW;out vec4 o;
+void main(){vec2 uv=vec2(vW.x/uWorld.x,vW.y/uYH);float az=(vW.x-uWorld.x*.5)/uPX,el=(uYH-vW.y)/uPY;vec3 d=dirOf(az,el);
+ vec3 c=airglow(d);c+=mwAt(d)*(1.-.7*uMoonI)*smoothstep(.0,.2,el)*.6;
+ if(el>-.06){vec3 a=cub(uAur,uv);vec3 g=texture(uAurB,uv).rgb;c+=a*1.0+g*.07;
+  float mc=dot(d,uMoonD);if(uMoonI>.001&&mc>.99){float ang=acos(clamp(mc,-1.,1.));vec2 q=vec2(dot(d,uMoonR),dot(d,uMoonU))/MR;float r=length(q);float nz=sqrt(max(0.,1.-r*r));float k=uMoonK;float phi=acos(clamp(2.*k-1.,-1.,1.));vec3 L=normalize(vec3(sin(phi),.15,cos(phi)));float lit=max(0.,dot(normalize(vec3(q,nz)),L));float maria=.72+.28*fbm(q*2.7+7.);float disc=smoothstep(1.02,.97,r);vec3 mcol=vec3(1.,.96,.84)*pow(lit,.75)*maria*(.75+1.2*uMoonI)*.26;c+=mcol*7.*disc*smoothstep(.0,.08,lit);c+=vec3(.7,.78,1.)*uMoonI*(.16*exp(-max(0.,r-1.)*1.5)+.022*exp(-max(0.,r-1.)*.18));}}
+ c=tm(c)+vec3(dith(vW));o=vec4(c,1.);}`;
+const compFS = HEAD + NOISE + SKYU + TONE + CUB + `uniform sampler2D uA,uB,uWide;uniform float uTop,uGH,uAmbK;uniform vec3 uMoonC;uniform vec4 uLP[8];uniform vec3 uLC[8];uniform int uNL;in vec2 vW;out vec4 o;
+void main(){vec2 uv=vec2(vW.x/uWorld.x,(vW.y-uTop)/uGH);if(uv.y<0.){o=vec4(0.);return;}vec4 A=texture(uA,uv);if(A.a<.002){o=vec4(0.);return;}vec4 B=texture(uB,uv);
+ vec3 wide=texture(uWide,vec2(uv.x,.5)).rgb;
+ vec3 amb=vec3(.0042,.0056,.0098)*uAmbK+wide*.30;
+ vec3 c=A.rgb*(amb*B.a+uMoonC*B.r);
+ float refl=B.g;if(refl>.001){
+  float mir=2.*uYH-vW.y;float fade=smoothstep(-40.,uU*.1,mir);
+  float wob=(texture(uN,vec2(vW.x/uU*.42,vW.y/uU*2.1)).g-.5)*uU*.03;
+  vec2 mu=vec2((vW.x+wob)/uWorld.x,clamp(mir/uYH,.002,.998));
+  vec3 a=cub(uAurB,mu);vec3 s=texture(uAur,mu).rgb;
+  float az=(vW.x+wob-uWorld.x*.5)/uPX,el=(uYH-mir)/uPY;vec3 d=dirOf(az,el);vec3 sk=airglow(d)+mwAt(d)*.32;
+  vec3 r=mix(s,a,.75)*fade+sk;
+  float dm=(vW.x-(uWorld.x*.5+atan(uMoonD.x,uMoonD.z)*uPX))/(uU*(.05+.26*(vW.y-uYH)/uU));
+  float gl=exp(-dm*dm)*uMoonI*.34*(texture(uN,vW/uU*vec2(9.,44.)).g+.1);
+  c+=(r+gl*vec3(.8,.84,1.))*refl*B.b;
+ }
+ if(uNL>0&&vW.y>uYH){float dep=max(.002,(vW.y-uYH)/uPY),d=${CAM.toFixed(1)}/tan(dep),az=(vW.x-uWorld.x*.5)/uPX;vec2 P=vec2(sin(az),cos(az))*d;
+  for(int i=0;i<uNL;i++){vec4 L=uLP[i];vec2 dv=P-L.xy;float r2=dot(dv,dv)+L.z*L.z;float f=L.z/(r2*sqrt(r2));c+=A.rgb*uLC[i]*f*L.w*B.a+uLC[i]*f*L.w*.03*refl;}
+ }
+ c=tm(c)+vec3(dith(vW));o=vec4(c,A.a);}`;
+
+// stars: a VBO in the sky's frame; positions go through the rotation every frame
+const starVS = HEAD + `layout(location=0)in vec3 aS;layout(location=1)in vec4 aI;uniform mat3 uRot;uniform vec4 uView;uniform vec2 uWorld;uniform float uYH,uPX,uPY,uT,uMoon;out vec3 vC;out float vK;${W2C}
+vec3 bv(float t){t=clamp(t,0.,1.);return t<.5?mix(vec3(.62,.74,1.),vec3(1.,.97,.92),t*2.):mix(vec3(1.,.97,.92),vec3(1.,.66,.38),(t-.5)*2.);}
+void main(){vec3 d=uRot*aS;float el=asin(clamp(d.y,-1.,1.)),az=atan(d.x,d.z);if(el<.012){gl_Position=vec4(9.,9.,0.,1.);gl_PointSize=0.;return;}
+ vec2 w=vec2(uWorld.x*.5+az*uPX,uYH-el*uPY);
+ float air=1./max(.05,sin(el));float ext=exp(-.22*(air-1.));float tw=1.+(.08+.34*clamp(air*.11,0.,1.))*sin(uT*aI.z+aI.w)*sin(uT*aI.z*.43+aI.w*1.7);
+ float f=aI.x*ext*tw*mix(1.,.42,uMoon);
+ float dlog=log(1.+f*3.);float s=clamp(2.6+dlog*1.9,3.,10.5);
+ vC=bv(aI.y)*mix(vec3(1.),vec3(1.1,.86,.62),clamp(air*.09,0.,1.));vK=f;
+ gl_Position=w2c(w,0.,uView);gl_PointSize=s;}`;
+const starFS = HEAD + `in vec3 vC;in float vK;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-1.;float r2=dot(q,q);if(r2>1.)discard;
+ float core=exp(-r2*9.);float hal=exp(-r2*2.6)*.05;float k=min(vK,2.6);vec3 c=vC*(k*core+min(vK,30.)*hal*.12);c=1.-exp(-c*1.8);o=vec4(pow(c,vec3(1./2.2)),0.);}`;
+
+// streaks and points: iA = x,y,len,w  iB = dx,dy,brightness,kind  iC = colour
+const glowVS = HEAD + `layout(location=0)in vec4 iA;layout(location=1)in vec4 iB;layout(location=2)in vec4 iC;uniform vec4 uView;out vec2 vP;flat out vec4 vB;flat out vec4 vC;${W2C}
+const vec2 Q[4]=vec2[4](vec2(-1,-1),vec2(1,-1),vec2(-1,1),vec2(1,1));
+void main(){vec2 c=Q[gl_VertexID],d=iB.xy,n=vec2(-d.y,d.x);vP=c;vB=iB;vC=iC;gl_Position=w2c(iA.xy+d*c.x*iA.z+n*c.y*iA.w,0.,uView);}`;
+const glowFS = HEAD + NOISE + `in vec2 vP;flat in vec4 vB;flat in vec4 vC;out vec4 o;void main(){float k=vB.w;float a;
+ if(k<.5){float s=vP.x*.5+.5;float head=exp(-pow((vP.x-.92)/.05,2.)-vP.y*vP.y*5.)*smoothstep(1.,.8,abs(vP.y));float tail=pow(s,2.4)*exp(-vP.y*vP.y*(14.+40.*s*s))*smoothstep(1.,.75,abs(vP.y));a=head*1.8+tail;}
+ else if(k<1.5){float r=length(vP);a=(exp(-r*r*24.)*2.+exp(-r*r*5.)*.1)*smoothstep(1.,.5,r);}
+ else{float s=vP.x*.5+.5;float n=fbm(vec2(s*14.+vC.a*7.,vC.a*3.));float w=.28+.5*n;a=exp(-vP.y*vP.y/(w*w)*3.)*smoothstep(0.,.1,s)*smoothstep(1.,.9,s)*smoothstep(1.,.7,abs(vP.y))*(.25+.5*n);}
+ o=vec4(pow(1.-exp(-vC.rgb*a*vB.z*2.),vec3(1./2.2)),0.);}`;
+
+// lanterns, fires, lit windows; iA = x,y,hw,hh  iB = kind,flicker,seed,reflection
+const litVS = HEAD + `layout(location=0)in vec4 iA;layout(location=1)in vec4 iB;uniform vec4 uView;out vec2 vP;out vec2 vW;flat out vec4 vI;${W2C}
+const vec2 Q[4]=vec2[4](vec2(-1,-1),vec2(1,-1),vec2(-1,1),vec2(1,1));
+void main(){vec2 c=Q[gl_VertexID];vP=vec2(c.x,-c.y);vI=iB;vec2 w=iA.xy+c*iA.zw;vW=w;gl_Position=w2c(w,0.,uView);}`;
+const litFS = HEAD + NOISE + `uniform sampler2D uB,uN;uniform vec2 uWorld;uniform float uTop,uGH,uT;in vec2 vP;in vec2 vW;flat in vec4 vI;out vec4 o;
+void main(){float kind=vI.x,fl=vI.y,sd=vI.z,rf=vI.w;vec3 c=vec3(0.);
+ vec2 p=vP;
+ if(rf>.5){float k=texture(uB,vec2(vW.x/uWorld.x,(vW.y-uTop)/uGH)).g;float wob=(texture(uN,vec2(vW.x*.004,vW.y*.016+uT*.01)).g-.5)*.8;p.x+=wob*.5;p.y=p.y*.6;if(k<.002)discard;
+  if(kind<.5){vec2 g=p*vec2(2.2,1.);float r=dot(g,g);c=vec3(1.,.5,.16)*(exp(-r*7.)*smoothstep(1.4,.2,r)+exp(-r*2.)*.04*smoothstep(1.,.2,r))*k*.9;}
+  else if(kind<1.5){float r=dot(p*vec2(2.8,1.),p*vec2(2.8,1.));c=vec3(1.,.46,.14)*exp(-r*4.)*smoothstep(1.,.2,r)*k*1.2;}
+  else{float r=dot(p*vec2(2.4,1.),p*vec2(2.4,1.));c=vec3(1.,.62,.3)*exp(-r*4.)*smoothstep(1.,.2,r)*k*1.;}
+  c*=fl;o=vec4(pow(1.-exp(-c*1.1),vec3(1./2.2)),0.);return;}
+ if(kind<.5){ // a paper sky lantern: quad is three body-heights tall
+  vec2 b=p*3.;float t=clamp(b.y*.5+.5,0.,1.);float hw=mix(.55,.92,t);float e=hw-abs(b.x);float m=smoothstep(0.,.12,e)*smoothstep(1.02,.92,abs(b.y));
+  float rib=.84+.16*cos(b.x*22.);float paper=m*rib*mix(1.,.5,smoothstep(.1,1.,t));float fl2=fl*(.86+.3*sin(uT*7.+sd*30.)+.14*sin(uT*17.+sd*13.));
+  float flame=exp(-dot(b-vec2(0.,-.72),b-vec2(0.,-.72))*14.);float r=dot(p,p);float halo=(exp(-r*9.)*.09+exp(-r*3.2)*.018)*smoothstep(.95,.3,r);
+  c=vec3(1.,.50,.14)*paper*.62*fl2+vec3(1.,.82,.5)*flame*1.1*fl2+vec3(1.,.42,.12)*halo*fl2;
+ } else if(kind<1.5){ // campfire
+  float f=clamp(p.y*.55+.45,0.,1.);float w1=fbm(vec2(p.x*3.+sd*9.,p.y*2.4-uT*3.2));float wd=mix(.74,.05,f)*(.72+.6*w1);float e=wd-abs(p.x+(w1-.5)*.5*f);float m=smoothstep(-.02,.26,e)*pow(max(0.,1.-f),.7);
+  vec3 hot=mix(vec3(.9,.12,.02),vec3(1.,.55,.08),smoothstep(.0,.55,m));hot=mix(hot,vec3(1.,.92,.55),smoothstep(.55,1.,m));float r=dot(p,p);
+  c=hot*m*2.2*fl+vec3(1.,.36,.08)*exp(-r*5.)*.05*smoothstep(1.,.35,r)*fl;float bed=exp(-pow(p.y+.82,2.)*42.-p.x*p.x*2.2);c+=vec3(1.,.28,.05)*bed*.5*smoothstep(1.,.6,abs(p.x));
+ } else if(kind<2.5){ // a lit window with its glazing bars
+  vec2 b=p*2.;float m=smoothstep(.05,.0,max(abs(b.x)-1.,abs(b.y)-1.));float bars=smoothstep(.045,.09,abs(b.x))*smoothstep(.045,.09,abs(b.y));float r=dot(p,p);float glow=exp(-r*3.)*.05*smoothstep(1.,.4,r);c=vec3(1.,.66,.28)*m*bars*1.5*fl+vec3(1.,.55,.2)*glow*fl;
+ } else {float r=dot(p,p);c=vec3(1.,.08,.04)*(exp(-r*30.)*1.6+exp(-r*5.)*.03*smoothstep(1.,.4,r))*fl;}
+ o=vec4(pow(1.-exp(-c*1.2),vec3(1./2.2)),0.);}`;
+
+// snow needs no CPU: every flake's whole life is a function of the shared clock
+const snowVS = HEAD + `layout(location=0)in vec4 iA;uniform vec4 uView;uniform vec2 uWorld;uniform float uT,uU;out vec2 vP;out float vA;${W2C}
+const vec2 Q[4]=vec2[4](vec2(-1,-1),vec2(1,-1),vec2(-1,1),vec2(1,1));
+void main(){vec2 c=Q[gl_VertexID];float z=iA.z;float H=uWorld.y+uU*.2;float y=fract(iA.y+uT*(.012+.05*z))*H-uU*.1;float wind=uT*uU*(.014+.05*z);float wob=sin(uT*.8*(1.+iA.w)+iA.w*40.)*uU*.008*(1.+2.*z);
+ float x=mod(iA.x*uWorld.x+wind+wob,uWorld.x+uU*.2)-uU*.1;float s=mix(.0010,.0062,z*z)*uU*(1.+(y/uU)*.6);vP=c;vA=mix(.18,.55,1.-z*.6);gl_Position=w2c(vec2(x,y)+c*s,0.,uView);}`;
+const snowFS = HEAD + `uniform vec3 uC;in vec2 vP;in float vA;out vec4 o;void main(){float r=length(vP);float a=smoothstep(1.,.25,r)*vA;o=vec4(uC*a,0.);}`;
+const finishFS = HEAD + NOISE + `in vec2 vW;uniform vec2 uWorld;uniform float uFr;out vec4 o;void main(){vec2 q=vW/uWorld-.5;float vig=smoothstep(.38,.85,abs(q.y)*1.05+q.x*q.x*.32)*.34;float g=(h12(vW*1.3+uFr)-.5)*.018;o=vec4(vec3(max(g,0.)),vig+max(-g,0.));}`;
+
+const P = {};
+function ensurePrograms() {
+  if (P.sky) return;
+  P.noise = program(FS_TRI, noiseFS); P.milky = program(FS_TRI, milkyFS); P.sil = program(FS_TRI, silFS); P.ground = program(FS_TRI, groundFS);
+  P.strip = program(FS_TRI, stripFS); P.march = program(FS_TRI, marchFS); P.blur = program(FS_TRI, blurFS);
+  P.sky = program(QUAD_VS, skyFS); P.comp = program(QUAD_VS, compFS); P.star = program(starVS, starFS); P.glow = program(glowVS, glowFS); P.lit = program(litVS, litFS); P.snow = program(snowVS, snowFS); P.finish = program(QUAD_VS, finishFS);
+}
+let n3Tex = null;
+function ensureN3() { if (n3Tex) return; const n = 32, d = new Uint8Array(n * n * n), r = mulberry(77); for (let i = 0; i < d.length; i++) d[i] = r() * 255; n3Tex = gl.createTexture(); gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_3D, n3Tex); gl.texImage3D(gl.TEXTURE_3D, 0, gl.R8, n, n, n, 0, gl.RED, gl.UNSIGNED_BYTE, d); gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); for (const w of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T, gl.TEXTURE_WRAP_R]) gl.texParameteri(gl.TEXTURE_3D, w, gl.REPEAT); gl.activeTexture(gl.TEXTURE0); }
+function repeatTex(t, s, tt) { gl.bindTexture(gl.TEXTURE_2D, t); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, s); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, tt); }
+
+// ---- world
+let yH = 0, pX = 1, pY = 1, topY = 0, GH = 0, SH = 0, phase = 0, uMax = 1, moonX = 0, moonEl = .38, moonDir = [0, 0, 1], moonR = [1, 0, 0], moonU = [0, 1, 0];
+let noiseRT = null, milkyRT = null, silRT = null, gRT = null, stripRT = null, aurA = null, aurB = null, blurA = null, blurB = null, wideRT = null;
+let time = 0, rayT = 0, skyA = 0, frameN = 0, steps = 12, slowT = 0, accumReset = 1;
+let lanterns = [], meteors = [], trains = [], sats = [], surges = [], fires = [], cabins = [], figures = [], tracks = [], sparks = [];
+let autoL = 0, metT = 6, satT = 3, surgeT = 12, windPh = 0;
+let starBuf = null, starVAO = null, starN = 0, glowBuf = null, glowVAO = null, litBuf = null, litVAO = null, snowBuf = null, snowVAO = null, snowN = 0;
+const GLOW = new Float32Array(600 * 12), LIT = new Float32Array(160 * 8);
+
+const shoreYjs = (x) => { const u = x / unit; return yH + unit * (.040 + .010 * Math.sin(u * 2.3 + 1.1 + phase) + .006 * Math.sin(u * 5.7 + .4 + phase * 2)); };
+const depOf = (y) => Math.max(.002, (y - yH) / pY);
+const distOf = (y) => CAM / Math.tan(depOf(y));
+const groundP = (x, y) => { const d = distOf(y), az = (x - W * .5) / pX; return [Math.sin(az) * d, Math.cos(az) * d, d]; };
+function rot(axis, a) { const [x, y, z] = axis, c = Math.cos(a), s = Math.sin(a), t = 1 - c; return [t * x * x + c, t * x * y + s * z, t * x * z - s * y, t * x * y - s * z, t * y * y + c, t * y * z + s * x, t * x * z + s * y, t * y * z - s * x, t * z * z + c]; } // column major
+const POLE = [0, Math.sin(LAT), Math.cos(LAT)];
+const norm = (v) => { const l = Math.hypot(...v); return v.map(a => a / l); };
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const dirOf = (az, el) => { const c = Math.cos(el); return [Math.sin(az) * c, Math.sin(el), Math.cos(az) * c]; };
+const GA = dirOf(-1.15, .02), GB = dirOf(.62, .96), GN = norm(cross(GA, GB)), GC = norm([GA[0] + GB[0], GA[1] + GB[1], GA[2] + GB[2]]);
+
+function makeStars() {
+  if (!starBuf) { starBuf = gl.createBuffer(); starVAO = gl.createVertexArray(); gl.bindVertexArray(starVAO); gl.bindBuffer(gl.ARRAY_BUFFER, starBuf); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 28, 12); gl.bindVertexArray(null); }
+  const R = mulberry(SEED + 9), want = Math.round(46000 * S.stars), d = new Float32Array(want * 7); let n = 0, tries = 0;
+  while (n < want && tries < want * 12) {
+    tries++; const z = R() * 2 - 1, a = R() * TAU, r = Math.sqrt(1 - z * z), v = [Math.cos(a) * r, z, Math.sin(a) * r];
+    if (dot(v, POLE) < -.42) continue;
+    const b = dot(v, GN), clump = .72 + .28 * Math.sin(v[0] * 5.1 + 1.3) * Math.sin(v[1] * 6.7 + .4) * Math.sin(v[2] * 4.3 + 2.1);
+    if (R() > (.26 + .74 * Math.exp(-(b / .3) * (b / .3))) * clump) continue;
+    const m = Math.min(10.4, 10.4 + Math.log10(Math.max(1e-6, R())) / .47);
+    const flux = Math.pow(10, -.4 * (m - 8.3)) * .016;
+    const k = R(), T = k < .28 ? R() * .28 : k < .8 ? .28 + R() * .34 : .62 + R() * .38;
+    d.set([v[0], v[1], v[2], flux, T, R(.8, 4.2), R(TAU)], n * 7); n++;
+  }
+  starN = n; gl.bindBuffer(gl.ARRAY_BUFFER, starBuf); gl.bufferData(gl.ARRAY_BUFFER, d, gl.STATIC_DRAW);
+}
+function makeSnow() {
+  if (!snowBuf) { snowBuf = gl.createBuffer(); snowVAO = gl.createVertexArray(); gl.bindVertexArray(snowVAO); gl.bindBuffer(gl.ARRAY_BUFFER, snowBuf); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 16, 0); gl.vertexAttribDivisor(0, 1); gl.bindVertexArray(null); }
+  snowN = Math.min(9000, Math.round(W * H / 1100)); const R = mulberry(SEED + 41), d = new Float32Array(snowN * 4);
+  for (let i = 0; i < snowN; i++) { const u = R(); d.set([R(), R(), u * u * u, R()], i * 4); }
+  gl.bindBuffer(gl.ARRAY_BUFFER, snowBuf); gl.bufferData(gl.ARRAY_BUFFER, d, gl.STATIC_DRAW);
+}
+function makeInstanceBufs() {
+  if (glowBuf) return;
+  glowBuf = gl.createBuffer(); glowVAO = gl.createVertexArray(); gl.bindVertexArray(glowVAO); gl.bindBuffer(gl.ARRAY_BUFFER, glowBuf); for (let i = 0; i < 3; i++) { gl.enableVertexAttribArray(i); gl.vertexAttribPointer(i, 4, gl.FLOAT, false, 48, i * 16); gl.vertexAttribDivisor(i, 1); }
+  litBuf = gl.createBuffer(); litVAO = gl.createVertexArray(); gl.bindVertexArray(litVAO); gl.bindBuffer(gl.ARRAY_BUFFER, litBuf); for (let i = 0; i < 2; i++) { gl.enableVertexAttribArray(i); gl.vertexAttribPointer(i, 4, gl.FLOAT, false, 32, i * 16); gl.vertexAttribDivisor(i, 1); }
+  gl.bindVertexArray(null);
+}
+function placeProps() {
+  cabins = []; figures = []; tracks = [];
+  const mons = monitors(), R = mulberry(SEED + 3);
+  // a small cabin on the far shore on the middle-most monitor, and a foreground camp on every tall one
+  const mid = mons[Math.floor((mons.length - 1) / 2 + .5)] || mons[0];
+  const cx = mid.wx + mid.ww * (mons.length > 1 ? .28 : .68), cy = shoreYjs(cx) + unit * .012, cd = distOf(cy), cs = pY / cd * 1.15;
+  cabins.push({ x: cx, y: cy, s: cs, lamp: true, far: true });
+  for (const m of mons) {
+    if (m.wh < unit * 1.14) continue;
+    const by = Math.max(yH + (m.wh - yH) * .36, unit * .90), fy = Math.max(by + (m.wh - by) * .42, unit + unit * .06);
+    const hx = m.wx + m.ww * .68, hd = distOf(by), hs = pY / hd * .9;
+    cabins.push({ x: hx, y: by, s: hs, lamp: true, far: false });
+    const fx = m.wx + m.ww * .32, fd = distOf(fy), fs = pY / fd;
+    figures.push({ x: fx, y: fy, s: fs });
+    tracks.push({ x: fx + m.ww * .06, a: m.ww * .10, y0: fy + 6, y1: m.wh + 30 });
+    tracks.push({ x: hx - m.ww * .10, a: m.ww * .05, y0: by + 6, y1: fy - 8 });
+  }
+  if (!figures.length) { // no tall monitor: the photographer stands at the near edge of the frame instead
+    const m = mons[0], fy = unit * .965, fx = m.wx + m.ww * .17, fs = pY / distOf(fy);
+    figures.push({ x: fx, y: fy, s: fs });
+    tracks.push({ x: fx + m.ww * .05, a: m.ww * .05, y0: fy + 4, y1: H + 30 });
+  }
+}
+function aurScale() { return 3; }
+function makeLiveRTs() {
+  if (stripRT) { stripRT.free(); aurA.free(); aurB.free(); blurA.free(); blurB.free(); wideRT.free(); }
+  const k = aurScale(), aw = Math.ceil(W / k), ah = Math.ceil(yH / k);
+  stripRT = makeRT(Math.min(2048, aw), 6, { float: true });
+  aurA = makeRT(aw, ah, { float: true }); aurB = makeRT(aw, ah, { float: true });
+  const bw = Math.max(32, Math.ceil(aw / 4)), bh = Math.max(16, Math.ceil(ah / 4));
+  blurA = makeRT(bw, bh, { float: true }); blurB = makeRT(bw, bh, { float: true });
+  wideRT = makeRT(Math.max(64, Math.ceil(W / 32)), 2, { float: true });
+  accumReset = 1;
+}
+
+const palette = () => PAL[S.palette] || PAL.classic;
+const SCENE = {
+  key: 'aurora',
+  defaults: { tool: 'lantern', palette: 'classic', activity: .6, stars: 1, moon: .12, timelapse: 30, snow: false, autoLantern: 0 },
+  validate(S) { if (!PAL[S.palette]) S.palette = 'classic'; for (const [k, a, b] of [['activity', 0, 1], ['stars', .3, 2], ['moon', 0, 1]]) { S[k] = clamp(+S[k], a, b); if (!isFinite(S[k])) S[k] = this.defaults[k]; } if (![0, 30, 120, 480].includes(+S.timelapse)) S.timelapse = 30; if (![0, 45, 15].includes(+S.autoLantern)) S.autoLantern = 0; if (!['lantern', 'wish', 'surge', 'light'].includes(S.tool)) S.tool = 'lantern'; },
+  panelTitle: 'Your night', panelSub: 'A frozen lake, a clear sky, nobody around. Saved between visits.',
+  hello: 'Click the ice to let a lantern go. The other tools fire meteors, conjure surges and light fires.',
+  tools: [['lantern', 'Release a lantern'], ['wish', 'Wish on a meteor'], ['surge', 'Conjure a surge'], ['light', 'Light a fire or lamp'], null, ['flock', 'Ten lanterns', () => { act('flock', 0, 0, 'down'); }], ['shower', 'Meteor shower', () => { act('shower', 0, 0, 'down'); }]],
+  panel(ui) {
+    ui.sel('Aurora color', 'palette', PAL);
+    ui.range('Activity', 'activity', 0, 1, .05, v => Math.round(v * 100) + '%');
+    ui.range('Stars', 'stars', .3, 2, .1, v => Math.round(v * 100) + '%');
+    ui.range('Moon', 'moon', 0, 1, .02, v => v < .02 ? 'New' : v > .98 ? 'Full' : Math.round(v * 100) + '% lit');
+    ui.seg('Time-lapse', 'timelapse', [[0, 'Off'], [30, 'Slow'], [120, 'Medium'], [480, 'Fast']]);
+    ui.tog('Snowfall', 'snow');
+    ui.seg('Lanterns on their own', 'autoLantern', [[0, 'Off'], [45, 'A few'], [15, 'Many']]);
+  },
+  changed(k) { if (k === 'stars') makeStars(); },
+  build() {
+    ensurePrograms(); ensureN3(); makeInstanceBufs(); rebake();
+    document.getElementById('fade').style.opacity = 1;
+    yH = Math.round(unit * .72); pY = yH / .98; pX = Math.max(pY, W / 6.0); uMax = W / unit; topY = Math.floor(yH - unit * .24); GH = H - topY; SH = Math.ceil(yH + unit * .10 - topY); phase = (SEED % 628) / 100;
+    if (milkyRT) { milkyRT.free(); silRT.free(); gRT.free(); }
+    milkyRT = makeRT(3072, 1536, { float: true }); repeatTex(milkyRT.tex, gl.REPEAT, gl.CLAMP_TO_EDGE);
+    silRT = makeRT(W, SH, { mips: true });
+    gRT = makeRT(W, GH, { float: true, attachments: 2 });
+    if (!noiseRT) {
+      noiseRT = makeRT(1024, 1024, { float: true }); repeatTex(noiseRT.tex, gl.REPEAT, gl.REPEAT);
+      bakeTiles(noiseRT, { tile: 256, cost: 2, begin: () => { const p = P.noise; gl.useProgram(p.p); gl.uniform1f(p.u.uS, 1024); } });
+    }
+    makeLiveRTs(); makeStars(); makeSnow(); placeProps();
+    const mons = monitors(), m0 = mons[mons.length > 1 ? mons.length - 1 : 0];
+    moonX = m0.wx + m0.ww * (mons.length > 1 ? .62 : .24); const az = (moonX - W * .5) / pX; moonDir = dirOf(az, moonEl); moonR = norm(cross([0, 1, 0], moonDir)); moonU = cross(moonDir, moonR);
+    bakeTiles(milkyRT, { tile: 256, cost: 4, begin: () => { const p = P.milky; gl.useProgram(p.p); gl.uniform1i(p.u.uN3, 5); gl.uniform2f(p.u.uRes, 3072, 1536); gl.uniform3fv(p.u.uG, GN); gl.uniform3fv(p.u.uC, GC); } });
+    bakeTiles(silRT, { tile: 256, cost: 3, begin: () => { const p = P.sil; gl.useProgram(p.p); gl.uniform1f(p.u.uYH, yH); gl.uniform1f(p.u.uU, unit); gl.uniform1f(p.u.uTop, topY); gl.uniform1f(p.u.uPh, phase); } });
+    bakeStep(() => { gl.bindTexture(gl.TEXTURE_2D, silRT.tex); gl.generateMipmap(gl.TEXTURE_2D); });
+    bakeTiles(gRT, { tile: 256, cost: 4, begin: () => { const p = P.ground; gl.useProgram(p.p); bindTex(0, noiseRT.tex, p.u.uN); bindTex(1, silRT.tex, p.u.uSil); gl.uniform2f(p.u.uWorld, W, H); gl.uniform2f(p.u.uSilRes, W, SH); gl.uniform1f(p.u.uYH, yH); gl.uniform1f(p.u.uU, unit); gl.uniform1f(p.u.uTop, topY); gl.uniform1f(p.u.uPX, pX); gl.uniform1f(p.u.uPY, pY); gl.uniform1f(p.u.uPh, phase); gl.uniform1f(p.u.uMoonX, moonX); gl.uniform3fv(p.u.uMoon, moonDir);
+      const pr = [...cabins.map(c => [c.x, c.y, c.s, 0]), ...figures.map(f => [f.x, f.y, f.s, 1])].slice(0, 16), A = new Float32Array(64); pr.forEach((v, i) => A.set(v, i * 4)); gl.uniform4fv(p.u.uP, A); gl.uniform1i(p.u.uNP, pr.length);
+      const T = new Float32Array(16); tracks.slice(0, 4).forEach((t, i) => T.set([t.x, t.a, t.y0, t.y1], i * 4)); gl.uniform4fv(p.u.uTr, T); gl.uniform1i(p.u.uNT, Math.min(4, tracks.length)); } });
+    if (LEADER) { lanterns = []; meteors = []; trains = []; sats = []; surges = []; fires = []; sparks = []; }
+  },
+  act(tool, x, y, phase_, dx, dy) {
+    if (phase_ !== 'down') return;
+    if (tool === 'flock') { for (let i = 0; i < 10; i++) setTimeout(() => releaseLantern(rnd(W), shoreYjs(0) + unit * rnd(.02, .24)), i * 260); return; }
+    if (tool === 'shower') { for (let i = 0; i < 14; i++) setTimeout(() => spawnMeteor(), i * 280 + Math.random() * 180); return; }
+    if (tool === 'lantern') { releaseLantern(x, Math.max(y, shoreYjs(x) + unit * .03)); return; }
+    if (tool === 'wish') { fireWish(x, Math.min(y, yH - unit * .12)); return; }
+    if (tool === 'surge') { addSurge(x / unit, -1, 1.05, .62, .95, 10); addSurge(x / unit, 1, 1.05, .62, .95, 10); return; }
+    if (tool === 'light') { lightAt(x, y); return; }
+  },
+  sim(dt) {
+    frameN++; time += dt;
+    if (!LEADER) return;
+    skyA += dt * (S.timelapse || 0) * (TAU / 86164);
+    rayT += dt * (1 + 2.4 * Math.max(0, surges.reduce((a, s) => a + s.a, 0)));
+    fireStep(dt); lanternStep(dt); meteorStep(dt); satStep(dt); surgeStep(dt);
+    if (S.autoLantern) { autoL += dt; if (autoL > S.autoLantern) { autoL = rnd(-.3, .1) * S.autoLantern; releaseLantern(rnd(W), yH + unit * rnd(.05, .3)); } }
+    slowT += dt; if (slowT > 2) { slowT = 0; if (fps < 24 && steps > 6) steps -= 2; else if (fps > 50 && steps < 12) steps += 1; }
+  },
+  netState() { return { t: time, a: skyA, r: rayT, l: lanterns.map(l => [l.x, l.d, l.h, l.seed, l.fl]), m: meteors.map(m => [m.x, m.y, m.dx, m.dy, m.len, m.t, m.life, m.b]), tr: trains.map(m => [m.x, m.y, m.dx, m.dy, m.len, m.t, m.life, m.seed]), s: sats.map(s => [s.x, s.y, s.b]), su: surges.map(s => [s.x, s.a, s.w]), f: fires.map(f => [f.x, f.y, f.t]), c: cabins.map(c => c.lamp ? 1 : 0), sp: sparks.map(s => [s.x, s.y, s.t, s.l]) }; },
+  netApply(d) { time = d.t; skyA = d.a; rayT = d.r; lanterns = d.l.map(v => ({ x: v[0], d: v[1], h: v[2], seed: v[3], fl: v[4] })); meteors = d.m.map(v => ({ x: v[0], y: v[1], dx: v[2], dy: v[3], len: v[4], t: v[5], life: v[6], b: v[7] })); trains = d.tr.map(v => ({ x: v[0], y: v[1], dx: v[2], dy: v[3], len: v[4], t: v[5], life: v[6], seed: v[7] })); sats = d.s.map(v => ({ x: v[0], y: v[1], b: v[2] })); surges = d.su.map(v => ({ x: v[0], a: v[1], w: v[2] })); fires = d.f.map(v => ({ x: v[0], y: v[1], t: v[2] })); d.c.forEach((v, i) => { if (cabins[i]) cabins[i].lamp = !!v; }); sparks = d.sp.map(v => ({ x: v[0], y: v[1], t: v[2], l: v[3] })); },
+  render(t) { renderAll(t); },
+  stats() { return `${starN} stars · ${lanterns.length} lanterns · ${fires.length} fires · aurora ${aurA ? aurA.w + 'x' + aurA.h : ''} · ${steps} steps`; },
+};
+
+function wind(t, x) { return unit * (.036 + .016 * Math.sin(t * .11 + windPh) + .012 * Math.sin(x / unit * 1.3 + t * .07)); }
+function releaseLantern(x, y) {
+  if (lanterns.length >= 60) lanterns.shift();
+  const d = distOf(y); lanterns.push({ x, d, h: .3, vh: .1, vd: rnd(1.6, 3.2), vs: rnd(.75, 1.25), t: 0, life: rnd(90, 150), seed: Math.random(), fl: 1 });
+}
+function lanternStep(dt) {
+  for (const l of lanterns) { l.t += dt; l.vh += (1.2 * l.vs - l.vh) * dt * .25; l.h += l.vh * dt; l.d += l.vd * dt * (l.t > 4 ? 1 : .35); l.x += wind(time, l.x) * l.vs * dt * sstep(0, 5, l.t); l.fl = (.75 + .25 * Math.sin(time * 3.1 + l.seed * 19) * Math.sin(time * 1.7 + l.seed * 7)) * sstep(l.life, l.life - 10, l.t); }
+  lanterns = lanterns.filter(l => l.t < l.life && l.x < W + unit * .4);
+}
+function addSurge(u0, dir, amp, speed, w, life) { surges.push({ x0: u0, v: speed * dir, a0: amp, age: 0, life, x: u0, a: 0, w }); if (surges.length > 10) surges.shift(); }
+function surgeStep(dt) {
+  for (const s of surges) { s.age += dt; s.x = s.x0 + s.v * s.age; s.a = s.a0 * sstep(0, .6, s.age) * Math.exp(-s.age / s.life * 1.2) * (1 + .15 * Math.sin(s.age * 5)); }
+  surges = surges.filter(s => s.age < s.life * 2.2 && s.x > -s.w * 2.5 && s.x < uMax + s.w * 2.5);
+  surgeT -= dt; if (surgeT <= 0 && S.activity > .02) { surgeT = rnd(lerp(90, 16, S.activity), lerp(150, 36, S.activity)); const fromL = Math.random() < .5, sp = rnd(.42, .95); addSurge(fromL ? -1.2 : uMax + 1.2, fromL ? 1 : -1, rnd(.8, 1.5) * (.5 + S.activity), sp, rnd(.9, 1.5), (uMax + 2.4) / sp); }
+}
+function spawnMeteor(x0, y0, big) {
+  const mons = monitors(); let x = x0, y = y0;
+  if (x === undefined) { y = rnd(.06, .46) * yH; const seam = mons.length > 1 && Math.random() < .65 ? mons[1 + ((Math.random() * (mons.length - 1)) | 0)].wx + rnd(-.2, .2) * unit : rnd(W); x = seam; }
+  let a = rnd(.08, .42); if (Math.random() < .5) a = Math.PI - a;
+  const sp = rnd(2.0, 4.2) * unit, life = rnd(.55, 1.4) * (big ? 1.7 : 1), b = (big ? 2.6 : rnd(.35, 1.3)), dx = Math.cos(a), dy = Math.sin(a);
+  x -= dx * sp * life * .46; y -= dy * sp * life * .46;
+  meteors.push({ x, y, dx, dy, sp, len: Math.min(unit * .5, sp * .17), t: 0, life, b, big: !!big }); if (meteors.length > 16) meteors.shift();
+}
+function fireWish(x, y) {
+  const mons = monitors(); let seam = null, best = 1e12; for (let i = 1; i < mons.length; i++) { const d = Math.abs(mons[i].wx - x); if (d < best) { best = d; seam = mons[i].wx; } }
+  let dirx = seam !== null ? Math.sign(seam - x) || 1 : (Math.random() < .5 ? -1 : 1); const a = rnd(.12, .34), dx = Math.cos(a) * dirx, dy = Math.sin(a), sp = rnd(3.2, 4.4) * unit, life = Math.min(1.3, (seam !== null ? Math.abs(seam - x) / (Math.cos(a) * sp) * 1.5 : 1) + .55);
+  meteors.push({ x, y, dx, dy, sp, len: Math.min(unit * .55, sp * .2), t: 0, life, b: 3, big: true });
+  addSurge(x / unit, dirx, .35, 1.1, .6, 2);
+}
+function meteorStep(dt) {
+  for (const m of meteors) { m.t += dt; m.x += m.dx * m.sp * dt; m.y += m.dy * m.sp * dt; }
+  for (const m of meteors) if (m.t >= m.life && m.big && !m.dead) { m.dead = true; if (trains.length < 12) trains.push({ x: m.x - m.dx * m.len * .55, y: m.y - m.dy * m.len * .55, dx: m.dx, dy: m.dy, len: m.len * .9, t: 0, life: rnd(4, 7), seed: Math.random() }); }
+  meteors = meteors.filter(m => m.t < m.life && m.y < yH); for (const t of trains) t.t += dt; trains = trains.filter(t => t.t < t.life);
+  metT -= dt; if (metT <= 0) { metT = rnd(5, 26); spawnMeteor(); }
+}
+function satStep(dt) {
+  for (const s of sats) { s.x += s.v * dt; s.age += dt; s.y = s.y0 + s.c * Math.pow(s.x / W - .5, 2) * unit; s.b = .75 * (.8 + .2 * Math.sin(s.age * .9 + s.ph)) * sstep(0, 1.5, s.age) * sstep(s.fade, s.fade - 3, s.age); }
+  sats = sats.filter(s => s.x > -60 && s.x < W + 60 && s.age < s.fade); satT -= dt; if (satT <= 0 && sats.length < 2) { satT = rnd(18, 44); const left = Math.random() < .5, speed = rnd(.055, .13) * unit; sats.push({ x: left ? -40 : W + 40, v: left ? speed : -speed, y0: rnd(.08, .5) * yH, c: rnd(-.25, .18), age: 0, ph: rnd(TAU), fade: Math.random() < .35 ? rnd(30, 60) : 1e9, b: 0 }); }
+}
+function lightAt(x, y) {
+  for (const c of cabins) { if (Math.hypot(x - c.x, y - (c.y - c.s * 1.5)) < Math.max(c.s * 4.5, unit * .04)) { c.lamp = !c.lamp; return; } }
+  for (let i = 0; i < fires.length; i++) { const f = fires[i]; if (Math.hypot(x - f.x, y - f.y) < unit * .03) { fires.splice(i, 1); return; } }
+  if (fires.length >= 6) fires.shift();
+  const yy = Math.max(y, shoreYjs(x) + unit * .004); fires.push({ x, y: yy, t: 0 });
+}
+function fireStep(dt) { for (const f of fires) { f.t += dt; if (Math.random() < dt * 8) { const s = f.scale || 1, d = distOf(f.y), sc = pY / d; sparks.push({ x: f.x + rnd(-.3, .3) * sc, y: f.y - .5 * sc, vx: rnd(-.25, .25) * sc, vy: -rnd(1.5, 3.4) * sc, t: 0, l: rnd(.6, 1.8) }); } } for (const s of sparks) { s.t += dt; s.x += (s.vx || 0) * dt; s.y += (s.vy || 0) * dt; } sparks = sparks.filter(s => s.t < s.l).slice(-60); }
+
+function drawStrip() {
+  const p = P.strip, sr = stripRT; gl.bindFramebuffer(gl.FRAMEBUFFER, sr.fb); gl.viewport(0, 0, sr.w, sr.h); gl.disable(gl.BLEND); gl.useProgram(p.p); bindTex(0, noiseRT.tex, p.u.uN); gl.uniform1f(p.u.uSW, sr.w); gl.uniform1f(p.u.uUmax, uMax); gl.uniform1f(p.u.uT, time + (SEED % 4000)); gl.uniform1f(p.u.uRay, rayT); gl.uniform1f(p.u.uA, S.activity);
+  const su = new Float32Array(48); surges.slice(0, 12).forEach((s, i) => su.set([s.x, s.a, s.w, 0], i * 4)); gl.uniform4fv(p.u.uS, su); gl.uniform1i(p.u.uNS, Math.min(12, surges.length)); tri();
+}
+function drawMarch() {
+  const p = P.march, pal = palette(); const t = aurA; aurA = aurB; aurB = t; // aurB now holds last frame
+  gl.bindFramebuffer(gl.FRAMEBUFFER, aurA.fb); gl.viewport(0, 0, aurA.w, aurA.h); gl.disable(gl.BLEND); gl.useProgram(p.p); bindTex(0, stripRT.tex, p.u.uState); bindTex(1, aurB.tex, p.u.uPrev); gl.uniform2f(p.u.uRes, aurA.w, aurA.h); gl.uniform1f(p.u.uW, W); gl.uniform1f(p.u.uYH, yH); gl.uniform1f(p.u.uPY, pY); gl.uniform1f(p.u.uU, unit); gl.uniform1f(p.u.uUmax, uMax); gl.uniform1f(p.u.uJ, (frameN * .61803398875) % 1); gl.uniform1i(p.u.uSteps, steps); gl.uniform3fv(p.u.uC0, pal.c0); gl.uniform3fv(p.u.uC1, pal.c1); gl.uniform3fv(p.u.uC2, pal.c2); gl.uniform1f(p.u.uBlend, accumReset ? 1 : .22); accumReset = 0; tri();
+}
+function drawBlur() {
+  const p = P.blur; gl.useProgram(p.p); gl.disable(gl.BLEND);
+  const pass = (src, dst, dx, dy) => { gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fb); gl.viewport(0, 0, dst.w, dst.h); bindTex(0, src.tex, p.u.uT); gl.uniform2f(p.u.uScale, 1 / dst.w, 1 / dst.h); gl.uniform2f(p.u.uDir, dx, dy); tri(); };
+  pass(aurA, blurA, 1.2, 0); pass(blurA, blurB, 0, 1.2); pass(blurB, blurA, 2.6, 0); pass(blurA, blurB, 0, 2.6);
+  pass(blurB, wideRT, 2, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+function setSky(u) {
+  gl.uniform2f(u.uWorld, W, H); gl.uniform1f(u.uYH, yH); gl.uniform1f(u.uPX, pX); gl.uniform1f(u.uPY, pY); gl.uniform1f(u.uU, unit); gl.uniform1f(u.uFr, (frameN % 97) * 1.37);
+  const i = Math.pow(S.moon, 1.3); gl.uniform1f(u.uMoonI, i); gl.uniform1f(u.uMoonK, S.moon); gl.uniform3fv(u.uMoonD, moonDir); gl.uniform3fv(u.uMoonR, moonR); gl.uniform3fv(u.uMoonU, moonU);
+  gl.uniformMatrix3fv(u.uRotI, false, rot(POLE, skyA));
+}
+function drawSky(v) { const p = P.sky; gl.disable(gl.BLEND); gl.useProgram(p.p); setView(p.u, v); setSky(p.u); bindTex(0, aurA.tex, p.u.uAur); bindTex(1, blurB.tex, p.u.uAurB); bindTex(2, milkyRT.tex, p.u.uMW); tri(); }
+function drawStars(v) {
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+  const p = P.star; gl.useProgram(p.p); setView(p.u, v); gl.uniform2f(p.u.uWorld, W, H); gl.uniform1f(p.u.uYH, yH); gl.uniform1f(p.u.uPX, pX); gl.uniform1f(p.u.uPY, pY); gl.uniform1f(p.u.uT, time); gl.uniform1f(p.u.uMoon, Math.pow(S.moon, 1.3)); gl.uniformMatrix3fv(p.u.uRot, false, rot(POLE, -skyA));
+  gl.bindVertexArray(starVAO); gl.drawArrays(gl.POINTS, 0, starN);
+}
+function drawGlows(v) {
+  let n = 0; const push = (x, y, l, w, dx, dy, b, kind, r, g, bl, a) => { if (n >= 600 || x + l < v.wx - 300 || x - l > v.wx + v.ww + 300) return; GLOW.set([x, y, l, w, dx, dy, b, kind, r, g, bl, a], n * 12); n++; };
+  for (const m of meteors) { const k = sstep(0, .08, m.t) * sstep(m.life, m.life * .72, m.t), g = m.b > 1 ? [.82, 1, .86] : [1, .96, .86]; push(m.x, m.y, m.len, unit * .004 * (m.big ? 1.6 : 1), m.dx, m.dy, m.b * k * 1.2, 0, g[0], g[1], g[2], 0); }
+  for (const t of trains) { const k = 1 - t.t / t.life; push(t.x, t.y, t.len, unit * .004 * (1 + t.t), t.dx, t.dy, k * k * .34, 2, .5, 1, .62, t.seed); }
+  for (const s of sats) push(s.x, s.y, unit * .006, unit * .006, 1, 0, s.b, 1, .9, .95, 1, 0);
+  if (n) { const p = P.glow; gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.useProgram(p.p); setView(p.u, v); gl.bindVertexArray(glowVAO); gl.bindBuffer(gl.ARRAY_BUFFER, glowBuf); gl.bufferData(gl.ARRAY_BUFFER, GLOW.subarray(0, n * 12), gl.DYNAMIC_DRAW); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, n); }
+}
+function gatherLights() {
+  const L = [];
+  for (const c of cabins) if (c.lamp) { const pos = groundP(c.x, Math.max(c.y, yH + 2)); L.push([pos[0], pos[1] - 1.2, 1.5, c.far ? 34 : 5, 1, .62, .26]); }
+  for (const f of fires) { const pos = groundP(f.x, Math.max(f.y, yH + 2)); const fl = .72 + .28 * Math.sin(time * 9 + f.x) * Math.sin(time * 5.3 + f.y); L.push([pos[0], pos[1], .85, 14 * fl, 1, .5, .17]); }
+  for (const l of lanterns) { if (l.h > 7 || L.length >= 8) continue; const pos = groundP(l.x, yH + CAM / Math.max(.2, l.d) * pY); L.push([pos[0], pos[1], Math.max(.6, l.h), 7 * l.fl, 1, .52, .17]); }
+  return L.slice(0, 8);
+}
+function drawGround(v) {
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  const p = P.comp; gl.useProgram(p.p); setView(p.u, v); setSky(p.u); gl.uniform1f(p.u.uTop, topY); gl.uniform1f(p.u.uGH, GH); gl.uniform1f(p.u.uAmbK, 1 + S.moon * 1.2);
+  const i = Math.pow(S.moon, 1.3); gl.uniform3f(p.u.uMoonC, .155 * i, .185 * i, .27 * i);
+  bindTex(0, aurA.tex, p.u.uAur); bindTex(1, blurB.tex, p.u.uAurB); bindTex(2, milkyRT.tex, p.u.uMW); bindTex(3, noiseRT.tex, p.u.uN); bindTex(4, gRT.texs[0], p.u.uA); bindTex(6, gRT.texs[1], p.u.uB); bindTex(7, wideRT.tex, p.u.uWide);
+  const L = gatherLights(), lp = new Float32Array(32), lc = new Float32Array(24); L.forEach((l, k) => { lp.set([l[0], l[1], l[2], l[3]], k * 4); lc.set([l[4], l[5], l[6]], k * 3); }); gl.uniform4fv(p.u.uLP, lp); gl.uniform3fv(p.u.uLC, lc); gl.uniform1i(p.u.uNL, L.length);
+  tri();
+}
+function drawLit(v) {
+  let n = 0; const push = (x, y, hw, hh, kind, fl, seed, rf) => { if (n >= 160 || x + hw < v.wx - 100 || x - hw > v.wx + v.ww + 100) return; LIT.set([x, y, hw, hh, kind, fl, seed, rf], n * 8); n++; };
+  const pxm = (d) => pY / Math.max(.5, d);
+  for (const l of lanterns) {
+    const d = Math.max(.5, l.d), sz = clamp(.72 * pxm(d), 5.5, unit * .026), sy = yH - Math.atan2(l.h - CAM, d) * pY;
+    push(l.x, sy, sz * 3, sz * 3, 0, l.fl, l.seed, 0);
+    const my = yH + Math.atan2(l.h + CAM, d) * pY; push(l.x, my, sz * 2.2, sz * 2.2 * 2.6, 0, l.fl * .85, l.seed, 1);
+  }
+  for (const f of fires) { const s = clamp(.8 * pxm(distOf(f.y)), 7, unit * .05), fl = .85 + .15 * Math.sin(time * 11 + f.x); push(f.x, f.y - s * .96, s * 1.1, s * 1.1, 1, fl, (f.x * .13) % 1, 0); push(f.x, f.y + s * .9, s * 1.1, s * 3.2, 1, fl * .7, (f.x * .13) % 1, 1); }
+  for (const c of cabins) { if (!c.lamp) continue; const fl = .96 + .04 * Math.sin(time * 6 + c.x); for (const wx of [-1.75, 1.75]) { const x = c.x + wx * c.s, y = c.y - 1.4 * c.s; push(x, y, .42 * c.s * 2.8, .45 * c.s * 2.8, 2, fl, 0, 0); push(x, c.y + .9 * c.s, .5 * c.s * 2.2, c.s * 2.4, 2, fl * .7, 0, 1); } }
+  for (const f of figures) { const fl = .55 + .45 * Math.pow(.5 + .5 * Math.sin(time * 1.6 + f.x), 4); push(f.x - .80 * f.s, f.y - 1.30 * f.s, f.s * .12, f.s * .12, 3, fl * .8, 0, 0); }
+  if (n) { const p = P.lit; gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.useProgram(p.p); setView(p.u, v); gl.uniform2f(p.u.uWorld, W, H); gl.uniform1f(p.u.uTop, topY); gl.uniform1f(p.u.uGH, GH); gl.uniform1f(p.u.uT, time); bindTex(0, gRT.texs[1], p.u.uB); bindTex(1, noiseRT.tex, p.u.uN); gl.bindVertexArray(litVAO); gl.bindBuffer(gl.ARRAY_BUFFER, litBuf); gl.bufferData(gl.ARRAY_BUFFER, LIT.subarray(0, n * 8), gl.DYNAMIC_DRAW); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, n); }
+  if (sparks.length) { let k = 0; for (const s of sparks) { if (k >= 200) break; const a = 1 - s.t / s.l; GLOW.set([s.x, s.y, 2.2, 2.2, 1, 0, a * .7, 1, 1, .5, .15, 0], k * 12); k++; } const p = P.glow; gl.useProgram(p.p); setView(p.u, v); gl.blendFunc(gl.ONE, gl.ONE); gl.bindVertexArray(glowVAO); gl.bindBuffer(gl.ARRAY_BUFFER, glowBuf); gl.bufferData(gl.ARRAY_BUFFER, GLOW.subarray(0, k * 12), gl.DYNAMIC_DRAW); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, k); }
+}
+function drawSnow(v) {
+  if (!S.snow) return;
+  const wide = .06; const p = P.snow; gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.useProgram(p.p); setView(p.u, v); gl.uniform2f(p.u.uWorld, W, H); gl.uniform1f(p.u.uT, time); gl.uniform1f(p.u.uU, unit);
+  const i = Math.pow(S.moon, 1.3); gl.uniform3f(p.u.uC, wide + .03 * i, wide + .06 + .03 * i, wide + .05 + .05 * i);
+  gl.bindVertexArray(snowVAO); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, snowN);
+}
+function renderAll(t) {
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.SCISSOR_TEST); gl.disable(gl.BLEND);
+  drawStrip(); drawMarch(); drawBlur();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, canvas.width, canvas.height); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  eachView(v => {
+    drawSky(v); drawStars(v); drawGlows(v); drawGround(v); drawLit(v); drawSnow(v);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    const p = P.finish; gl.useProgram(p.p); setView(p.u, v); gl.uniform2f(p.u.uWorld, W, H); gl.uniform1f(p.u.uFr, (frameN % 89) * 1.13); gl.bindVertexArray(emptyVAO); tri(); gl.disable(gl.BLEND);
+  });
+}
+
+// ---- settings
+Object.assign(S, SCENE.defaults);
+try { Object.assign(S, JSON.parse(localStorage.getItem(SCENE.key + '.settings') || '{}')); } catch (e) {}
+if (SCENE.validate) SCENE.validate(S);
+const saveSettings = () => { if (LEADER) try { localStorage.setItem(SCENE.key + '.settings', JSON.stringify(S)); } catch (e) {} };
+
+// ---- the scene across browser windows: one window thinks, the others draw what it says
+let channel = null, cid = hash.cid || '', netT = 0;
+function openChannel(id) {
+  if (channel) channel.close(); cid = id; channel = new BroadcastChannel(SCENE.key + '-' + id);
+  channel.onmessage = (e) => {
+    const m = e.data;
+    if (LEADER) { if (m.t === 'hello') channel.postMessage({ t: 'world', W, H, seed: SEED, S: { ...S } }); else if (m.t === 'act') act(m.tool, m.x, m.y, m.phase, m.dx, m.dy); else if (m.t === 'stop') stopSaver(); return; }
+    if (m.t === 'world') { W = m.W; H = m.H; SEED = m.seed; Object.assign(S, m.S); SCENE.build(); }
+    else if (m.t === 'f') { if (SCENE.netApply) SCENE.netApply(m.d); }
+    else if (m.t === 'settings') { const prev = { ...S }; Object.assign(S, m.S); if (SCENE.changed) for (const k in m.S) if (prev[k] !== m.S[k]) SCENE.changed(k); }
+    else if (m.t === 'stop') { try { window.close(); } catch (e) {} }
+  };
+}
+
+// ---- input and controls
+const $ = (id) => document.getElementById(id);
+const toolsEl = $('tools'), panel = $('panel'), menuBtn = $('menuBtn'), toast = $('toast');
+let toastT = 0, idleT = 0;
+function say(msg, ms = 2800) { toast.textContent = msg; toast.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toast.classList.remove('show'), ms); }
+function act(tool, x, y, phase, dx, dy) { if (!LEADER) { channel && channel.postMessage({ t: 'act', tool, x, y, phase, dx, dy }); return; } SCENE.act(tool, x, y, phase, dx || 0, dy || 0); }
+function buildTools() {
+  toolsEl.innerHTML = '';
+  for (const t of SCENE.tools) { if (!t) { toolsEl.appendChild(document.createElement('i')); continue; } const b = document.createElement('button'); b.textContent = t[1]; b.dataset.tool = t[0]; if (S.tool === t[0]) b.className = 'on'; b.onclick = () => { if (t[2]) { t[2](); return; } S.tool = t[0]; saveSettings(); toolsEl.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.tool === S.tool)); }; toolsEl.appendChild(b); }
+}
+function changed(key) { saveSettings(); if (channel) channel.postMessage({ t: 'settings', S: { ...S } }); if (key && SCENE.changed) SCENE.changed(key); }
+const ui = {
+  row(label) { const d = document.createElement('div'); d.className = 'row'; const l = document.createElement('label'); l.textContent = label; d.appendChild(l); panel.appendChild(d); return [d, l]; },
+  sel(label, key, table, nameOf) { const [d] = ui.row(label); const s = document.createElement('select'); for (const k in table) { const o = document.createElement('option'); o.value = k; o.textContent = nameOf ? nameOf(table[k]) : table[k].name || table[k]; s.appendChild(o); } s.value = S[key]; s.setAttribute('aria-label', label); s.onchange = () => { S[key] = s.value; changed(key); }; d.appendChild(s); },
+  seg(label, key, opts) { const [d] = ui.row(label); const w = document.createElement('div'); w.className = 'seg'; for (const [v, t] of opts) { const b = document.createElement('button'); b.textContent = t; b.className = String(S[key]) === String(v) ? 'on' : ''; b.onclick = () => { S[key] = v; changed(key); w.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); }; w.appendChild(b); } d.appendChild(w); },
+  tog(label, key) { const l = document.createElement('label'); l.className = 'tog'; l.textContent = label; const c = document.createElement('input'); c.type = 'checkbox'; c.checked = !!S[key]; c.onchange = () => { S[key] = c.checked; changed(key); }; l.appendChild(c); panel.appendChild(l); },
+  range(label, key, min, max, step, fmt) { const [d, l] = ui.row(label); const b = document.createElement('b'); const f = fmt || (v => v); b.textContent = f(S[key]); l.appendChild(b); const r = document.createElement('input'); r.type = 'range'; r.min = min; r.max = max; r.step = step; r.value = S[key]; r.setAttribute('aria-label', label); r.oninput = () => { S[key] = +r.value; b.textContent = f(S[key]); changed(key); }; d.appendChild(r); },
+};
+function buildPanel() {
+  panel.innerHTML = `<h2>${SCENE.panelTitle}</h2><p class="sub">${SCENE.panelSub}</p>`;
+  SCENE.panel(ui);
+  const btns = document.createElement('div'); btns.className = 'btns'; panel.appendChild(btns);
+  const addBtn = (t, fn, cls) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.onclick = fn; btns.appendChild(b); return b; };
+  if (!HOST) {
+    addBtn('Fullscreen', () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); });
+    addBtn('Every monitor', () => spread());
+    addBtn('Screensaver mode', () => goSaver());
+  } else addBtn('Quit', () => hostPost('exit'));
+  addBtn('Show stats', () => { S.stats = !S.stats; saveSettings(); $('stats').classList.toggle('on', S.stats); });
+  const note = document.createElement('p'); note.className = 'note'; note.textContent = HOST ? 'Esc quits.' : 'Space hides everything. Settings are saved between visits.'; panel.appendChild(note);
+}
+menuBtn.onclick = () => { const o = panel.classList.toggle('open'); menuBtn.setAttribute('aria-expanded', o ? 'true' : 'false'); menuBtn.textContent = o ? 'Close' : 'Customize'; };
+
+function worldAt(ev) {
+  const k = canvas.width / (canvas.clientWidth || canvas.width), px = ev.clientX * k, py = ev.clientY * k;
+  for (const v of views) if (px >= v.cx && px < v.cx + v.cw && py >= v.cy && py < v.cy + v.ch) return [v.wx + (px - v.cx) / v.cw * v.ww, (py - v.cy) / v.ch * v.wh];
+  return null;
+}
+let dragging = false, lastW = null;
+canvas.addEventListener('pointerdown', (e) => { if (EMBED || HOST === 'saver' || saverOn) return; const w = worldAt(e); if (!w) return; dragging = true; lastW = w; act(S.tool, w[0], w[1], 'down', 0, 0); canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointermove', (e) => { if (!dragging) return; const w = worldAt(e); if (!w) return; act(S.tool, w[0], w[1], 'drag', w[0] - lastW[0], w[1] - lastW[1]); lastW = w; });
+addEventListener('pointerup', () => { if (dragging && lastW) act(S.tool, lastW[0], lastW[1], 'up', 0, 0); dragging = false; });
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+function wake() { document.body.classList.remove('idle'); clearTimeout(idleT); idleT = setTimeout(() => { if (!panel.classList.contains('open')) document.body.classList.add('idle'); }, 3200); }
+addEventListener('pointermove', wake); addEventListener('pointerdown', wake);
+addEventListener('keydown', (e) => {
+  if (HOST === 'saver' || saverOn) return;
+  if (e.key === 'Escape' && HOST) hostPost('exit');
+  if (e.key === ' ' && e.target === document.body) { e.preventDefault(); document.body.classList.toggle('idle'); }
+  const n = +e.key, real = SCENE.tools.filter(Boolean); if (n >= 1 && n <= real.length) { const b = toolsEl.querySelector(`[data-tool="${real[n - 1][0]}"]`); if (b) b.click(); }
+});
+
+// ---- browser screensaver mode and spreading over monitors (Chrome/Edge; one popup per click)
+let saverOn = false, saverOrigin = null, saverArm = 0, details = null, queue = [], popups = [];
+function goSaver() { document.documentElement.requestFullscreen().catch(() => {}); saverOn = true; saverArm = performance.now() + 1200; saverOrigin = null; document.body.classList.add('saver'); panel.classList.remove('open'); }
+function stopSaver() { saverOn = false; document.body.classList.remove('saver'); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); for (const w of popups) try { w.close(); } catch (e) {} popups = []; if (channel) channel.postMessage({ t: 'stop' }); }
+addEventListener('mousemove', (e) => { if (!saverOn || performance.now() < saverArm) return; if (!saverOrigin) { saverOrigin = [e.screenX, e.screenY]; return; } if (Math.hypot(e.screenX - saverOrigin[0], e.screenY - saverOrigin[1]) > 14) stopSaver(); });
+for (const ev of ['mousedown', 'keydown', 'wheel']) addEventListener(ev, () => { if (saverOn && performance.now() >= saverArm) stopSaver(); }, { passive: true });
+async function spread() {
+  if (!window.getScreenDetails) { say('This browser can only use one screen. Chrome or Edge can use them all.'); return; }
+  if (!details) {
+    try { details = await window.getScreenDetails(); } catch (e) { say('Permission declined, so just this screen.'); details = null; return; }
+    if (details.screens.length < 2) { say('Only one monitor here.'); details = null; return; }
+    const sorted = [...details.screens].sort((a, b) => a.left - b.left), list = sorted.map(s => { const d = s.devicePixelRatio || 1; return { s, w: Math.round(s.width * d), h: Math.round(s.height * d) }; });
+    let wx = 0; for (const i of list) { i.wx = wx; wx += i.w; }
+    const totalW = wx, totalH = Math.max(...list.map(i => i.h)), mine = list.find(i => i.s === details.currentScreen) || list[0];
+    multi = { W: totalW, H: totalH, wx: mine.wx, ww: mine.w, wh: mine.h, list };
+    layout(); SCENE.build();
+    const id = Math.random().toString(36).slice(2, 10); openChannel(id);
+    queue = list.filter(i => i !== mine);
+    say(`${list.length} monitors found. Click Every monitor once per extra screen.`, 5000);
+    return;
+  }
+  if (queue.length) {
+    const i = queue.shift(), s = i.s, mons = multi.list.map(l => [l.wx, l.w, l.h, 1].join(',')).join(';'), url = location.href.replace(/#.*$/, '') + `#pane=1&cid=${cid}&wx=${i.wx}&ww=${i.w}&wh=${i.h}&W=${multi.W}&H=${multi.H}&seed=${SEED}&mons=${encodeURIComponent(mons)}`;
+    const w = window.open(url, '_blank', `popup,left=${s.availLeft},top=${s.availTop},width=${s.availWidth},height=${s.availHeight}`);
+    if (w) popups.push(w);
+    say(queue.length ? `Opened. ${queue.length} more to go.` : 'All open. Click once inside each new window to fill its screen.', 5000);
+  } else say('Every monitor already has its window. Click inside each to fill the screen.', 4000);
+}
+if (IS_PANE) { const card = $('paneCard'); card.style.display = 'grid'; card.onclick = () => { document.documentElement.requestFullscreen().catch(() => {}); card.style.display = 'none'; }; }
+
+// ---- go
+let last = performance.now(), fps = 60, frameCount = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (!W) return;
+  const dt = Math.min(.05, Math.max(.001, (now - last) / 1000)); last = now; fps = lerp(fps, 1 / dt, .05); frameCount++;
+  if (bakeQ.length) runBakes();
+  if (!baked) return;
+  SCENE.sim(dt, now / 1000);
+  if (channel && LEADER && SCENE.netState) { netT -= dt; if (netT <= 0) { netT = 1 / 30; channel.postMessage({ t: 'f', d: SCENE.netState() }); } }
+  SCENE.render(now / 1000);
+  if (S.stats && frameCount % 15 === 0) $('stats').innerHTML = (SCENE.stats ? SCENE.stats() + '<br>' : '') + fps.toFixed(0) + ' fps';
+}
+function boot() {
+  if (!innerWidth || !innerHeight) { setTimeout(boot, 100); return; }
+  layout();
+  if (LEADER) SCENE.build(); else { openChannel(cid); channel.postMessage({ t: 'hello' }); }
+  buildTools(); buildPanel();
+  if (S.stats) $('stats').classList.add('on');
+  if (HOST === 'config') { panel.classList.add('open'); menuBtn.textContent = 'Close'; }
+  if (LEADER && !EMBED && HOST !== 'saver' && SCENE.hello) say(SCENE.hello, 6000);
+  wake();
+  requestAnimationFrame(frame);
+}
+let resizeT = 0;
+addEventListener('resize', () => { if (hostRects) return; if (screenRects) { layout(); return; } clearTimeout(resizeT); resizeT = setTimeout(() => { layout(); if (LEADER && !multi) SCENE.build(); }, 260); });
+if (navigator.wakeLock && (HOST || EMBED)) navigator.wakeLock.request('screen').catch(() => {});
+window.__saver = { S, act, SCENE, get views() { return views; }, get W() { return W; }, get H() { return H; }, get baked() { return baked; }, get fps() { return fps; }, get bakeLeft() { return bakeQ.length; }, changed };
+boot();
+
+})();
+</script>
+</body>
+</html>

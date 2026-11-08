@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Terrarium · Vibe Coded Slopware</title>
+<meta name="description" content="A photoreal reptile terrarium across every monitor you own. Drop in a cricket, mist the glass, watch them walk to the basking lamp.">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%2322300f'/><ellipse cx='50' cy='56' rx='30' ry='13' fill='%23b9d68a'/><circle cx='78' cy='48' r='9' fill='%23b9d68a'/></svg>">
+<style>
+:root{--bg:#0a0d07;--fg:#ecefdf;--dim:#9aa38a;--card:#161c10;--line:#2d3722;--accent:#b9d68a;--accent-fg:#172208}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}
+main{max-width:860px;margin:0 auto;padding:40px 16px 100px}
+h1{font-size:clamp(38px,8vw,64px);line-height:1.02;margin:28px 0 12px;letter-spacing:-1.5px}
+.lede{font-size:clamp(18px,2.6vw,21px);margin:0 0 22px;max-width:640px}
+.frame{aspect-ratio:16/9;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#000;margin:0 0 24px}
+.frame iframe{width:100%;height:100%;border:0;display:block;pointer-events:none}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px}
+.btn{display:inline-flex;flex-direction:column;padding:13px 20px;border-radius:12px;text-decoration:none;border:1px solid var(--line);color:inherit;background:var(--card);transition:transform .15s,border-color .15s}
+.btn:hover{transform:translateY(-2px);border-color:var(--accent)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn b{font-size:16.5px}
+.btn small{color:var(--dim);font-size:12.5px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.primary small{color:inherit;opacity:.8}
+h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:36px 0 12px;font-weight:600}
+ul,ol{margin:0;padding-left:20px}
+li{margin:6px 0}
+li b{font-weight:600}
+a{color:var(--accent)}
+code{font:13px ui-monospace,Consolas,monospace;background:rgba(185,214,138,.1);border:1px solid var(--line);border-radius:5px;padding:1px 6px;word-break:break-all}
+footer{margin-top:56px;color:var(--dim);font-size:13px}
+</style>
+<link rel="stylesheet" href="/site-nav.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<main>
+  <h1>Terrarium</h1>
+  <p class="lede">One long glass tank across your monitors, with a lizard or two who have things to do. They warm up under the lamp, cross the tank for a drink, and hunt anything you drop in.</p>
+  <div class="frame"><iframe src="/terrarium/tank.html#embed" title="A live reptile terrarium" tabindex="-1"></iframe></div>
+  <div class="cta">
+    <a class="btn primary" href="/terrarium/tank.html"><b>Open your tank</b><small>in your browser · saved between visits</small></a>
+    <a class="btn" href="/terrarium/tank.html" download="terrarium.html"><b>Download it</b><small>one .html file · works offline</small></a>
+  </div>
+
+  <h2>How a day goes</h2>
+  <ol>
+    <li><b>They get cold.</b> A chilly lizard walks to the basking rock under the first lamp and sits there until it has warmed through.</li>
+    <li><b>They get thirsty and hungry.</b> The water dish is somewhere else on purpose. Long walks are the point.</li>
+    <li><b>The lights go out.</b> At night the lamps switch off and everybody heads for the rock cave.</li>
+  </ol>
+
+  <h2>Things you can do</h2>
+  <ul>
+    <li><b>Drop a cricket</b> and watch the nearest lizard stalk it, then lunge.</li>
+    <li><b>Mist the tank.</b> Beads of water land on the glass, gather, and run.</li>
+    <li><b>Tap the glass</b> and everyone nearby bolts, usually for the cave.</li>
+    <li><b>Pick a turtle</b> and the dish becomes a shallow pool. It plods over to swim, stretches out to bask, pulls into its shell when you tap the glass, then peeks back out when it feels brave. Offer it a strawberry or a lettuce leaf and watch it take bites.</li>
+    <li><b>Customize:</b> leopard gecko, bearded dragon, green anole, blue-tongued skink, box turtle or red-eared slider; desert sandstone or tropical forest floor; lamps, dusk, moonlight or a full day and night cycle; how many, how big, how many plants.</li>
+  </ul>
+
+  <h2>Every monitor</h2>
+  <ul>
+    <li>In Chrome or Edge, open Customize and click <b>Every monitor</b>. The browser asks to manage windows on your displays; say yes, then click once per extra screen and once inside each new window. It is one continuous tank, and the lizards walk from screen to screen.</li>
+    <li>Add <code>#embed</code> to the address for just the tank with no controls, handy for kiosk and web-screensaver setups.</li>
+  </ul>
+
+  <footer>Made with questionable judgment and an AI pair programmer. The crickets did not read the terms.</footer>
+</main>
+</body>
+</html>
