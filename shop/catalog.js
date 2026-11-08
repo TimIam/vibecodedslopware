@@ -11,6 +11,7 @@ export const KINDS = { art: "Game art", shot: "Screenshots", props: "Prop sheets
 
 export const DESIGNS = [
   { id: "slopware", kind: "art", title: "Vibe Coded Slopware", game: null, blurb: "The house logo. Made with vibes, shipped with bugs." },
+  { id: "splash", kind: "art", title: "Slopware 16-Bit", game: null, blurb: "The studio splash from the start of every game, sunglasses and all. 100% hand-prompted." },
   { id: "boss-hours", kind: "art", title: "Boss Hours", game: null, blurb: "The raid boss, facing you. You are the encounter." },
   { id: "pit-crew", kind: "art", title: "Pit Crew '26", game: "/pit-crew/", blurb: "The Brightwater car and the crew's motto." },
   { id: "space-bear", kind: "art", title: "Orbital", game: "/pour-decisions/", blurb: "The bear astronaut regular from Pour Decisions. Gravity is a lot tonight." },

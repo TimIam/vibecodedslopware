@@ -201,6 +201,24 @@ const DESIGNS = {
     return out(print(c));
   } },
 
+  // The studio splash, drawn by /splash.js itself and frozen just after the shine, in a 4:3 screen.
+  "splash": { url: "/pit-crew/", setup: async (page) => { await page.setViewportSize({ width: 320, height: 240 }); }, draw: async () => {
+    const F = await import("/pit-crew/js/font.js");
+    await new Promise((ok, fail) => { const s = document.createElement("script"); s.src = "/splash.js"; s.dataset.manual = ""; s.onload = ok; s.onerror = fail; document.head.append(s); });
+    SlopwareSplash.play({ at: 3.2, tagline: "100% HAND-PROMPTED" });
+    const shot = document.querySelector("#slopware-splash canvas");
+    const [c, g] = layer();
+    F.text(g, "VIBECODEDSLOPWARE.COM", 90, 182, "#8c9b80", { align: "center" });
+    const X = 40, Y = 800, S = 11, w = shot.width * S, h = shot.height * S;
+    return out(print(c, (p) => {
+      p.drawImage(shot, X, Y, w, h);
+      // stair-stepped corners, one splash pixel per step
+      [[0, 3], [1, 2], [2, 1]].forEach(([row, n]) => {
+        for (const yy of [Y + row * S, Y + h - (row + 1) * S]) { p.clearRect(X, yy, n * S, S); p.clearRect(X + w - n * S, yy, n * S, S); }
+      });
+    }));
+  } },
+
   // Orbital, the bear astronaut regular from Pour Decisions (vector, so drawn at full size).
   "space-bear": { url: "/pour-decisions/", draw: async () => {
     const F = await import("/pit-crew/js/font.js");
