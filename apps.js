@@ -806,8 +806,8 @@ window.SLOPWARE = {
   },
   "pit-crew": {
    "visits": 19,
-   "prompts": 7,
-   "tokens": 3031803,
+   "prompts": 8,
+   "tokens": 3982832,
    "sharedWith": null,
    "versions": [
     {
@@ -843,7 +843,14 @@ window.SLOPWARE = {
      "date": "2026-11-07T07:57:48-07:00",
      "note": "breaker calls, per-tyre wear, two-stop races, white flags",
      "prompts": 1,
-     "tokens": 647459
+     "tokens": 641420
+    },
+    {
+     "n": 6,
+     "date": "2026-11-07T19:12:55-07:00",
+     "note": "options, sky, Mags' pep talks, season menu, title music",
+     "prompts": 1,
+     "tokens": 957068
     }
    ]
   },
