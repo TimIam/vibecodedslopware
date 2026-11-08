@@ -922,7 +922,14 @@ window.SLOPWARE = {
      "date": "2026-11-04T14:17:46-07:00",
      "note": "18 more designs from old and new games",
      "prompts": 1,
-     "tokens": 344706
+     "tokens": 337926
+    },
+    {
+     "n": 3,
+     "date": "2026-11-08T10:10:30-07:00",
+     "note": "Slopware 16-Bit, the studio splash on a shirt",
+     "prompts": 0,
+     "tokens": 6780
     }
    ]
   },
