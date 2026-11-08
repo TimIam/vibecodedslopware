@@ -1,0 +1,1132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ant Farm</title>
+<meta name="description" content="A photoreal ant farm that runs across every monitor you own. Feed them, tap the glass, watch them dig.">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23c9a26b'/><ellipse cx='30' cy='56' rx='19' ry='12' fill='%23201008'/><ellipse cx='55' cy='52' rx='11' ry='8' fill='%23201008'/><ellipse cx='74' cy='46' rx='12' ry='10' fill='%23201008'/></svg>">
+<style>
+html,body{margin:0;height:100%;background:#0b0705;overflow:hidden}
+#c{position:fixed;left:0;top:0;width:100%;height:100%;display:block;cursor:crosshair}
+#fade{position:fixed;inset:0;background:#0b0705;transition:opacity 1.1s;pointer-events:none;display:grid;place-items:center;color:#a98f70;font:13px/1 ui-monospace,Consolas,monospace;letter-spacing:.3em;text-transform:uppercase}
+body.saver,body.saver *{cursor:none!important}
+body.saver #hud,body.embed #hud,body.saver .site-topbar,body.embed .site-topbar,body.host .site-topbar,body.pane .site-topbar{display:none!important}
+.site-topbar{transition:opacity .35s}
+body.idle .site-topbar{opacity:0;pointer-events:none}
+#hud{position:fixed;font:13.5px/1.4 "Segoe UI",system-ui,-apple-system,sans-serif;color:#eadfce;pointer-events:none;user-select:none;-webkit-user-select:none}
+#hud>*{transition:opacity .35s,transform .35s;pointer-events:auto}
+body.idle #tools,body.idle #menuBtn{opacity:0;pointer-events:none}
+#tools{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:3px;padding:5px;background:rgba(20,13,8,.72);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid rgba(255,235,205,.13);border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.45)}
+#tools button{all:unset;cursor:pointer;padding:8px 13px;border-radius:10px;color:#d9ccb8;font-weight:500;white-space:nowrap}
+#tools button:hover{background:rgba(255,235,205,.1);color:#fff}
+#tools button.on{background:#e5c28d;color:#2a1a0a}
+#tools button:focus-visible,#panel :focus-visible,#menuBtn:focus-visible{outline:2px solid #e5c28d;outline-offset:1px}
+#tools i{width:1px;margin:6px 4px;background:rgba(255,235,205,.16)}
+#menuBtn{all:unset;position:absolute;right:18px;bottom:22px;cursor:pointer;padding:12px 16px;border-radius:12px;background:rgba(20,13,8,.72);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid rgba(255,235,205,.13);font-weight:600}
+#menuBtn:hover{border-color:#e5c28d}
+#panel{position:absolute;right:18px;top:58px;bottom:80px;width:296px;overflow-y:auto;padding:18px 18px 14px;box-sizing:border-box;background:rgba(20,13,8,.84);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid rgba(255,235,205,.13);border-radius:16px;box-shadow:0 18px 60px rgba(0,0,0,.5);opacity:0;transform:translateX(14px);pointer-events:none!important;scrollbar-width:thin;scrollbar-color:#6b5a45 transparent}
+#panel.open{opacity:1;transform:none;pointer-events:auto!important}
+#panel h2{margin:0 0 2px;font-size:18px;color:#fff;font-weight:600}
+#panel .sub{margin:0 0 14px;color:#a8977f;font-size:12.5px}
+.row{margin:0 0 13px}
+.row label{display:flex;justify-content:space-between;margin-bottom:5px;color:#c9b9a2;font-size:12.5px}
+.row label b{color:#fff;font-weight:600}
+.row select,.row input[type=range]{width:100%;box-sizing:border-box;accent-color:#e5c28d}
+.row select{background:#2a1e14;color:#f0e6d6;border:1px solid rgba(255,235,205,.18);border-radius:8px;padding:7px 8px;font:inherit}
+.seg{display:flex;gap:3px;background:rgba(255,235,205,.07);border-radius:9px;padding:3px}
+.seg button{all:unset;flex:1;text-align:center;cursor:pointer;padding:5px 0;border-radius:7px;color:#c9b9a2;font-size:12.5px}
+.seg button.on{background:#e5c28d;color:#2a1a0a;font-weight:600}
+.tog{display:flex;align-items:center;justify-content:space-between;padding:4px 0;color:#c9b9a2;font-size:12.5px;cursor:pointer}
+.tog input{accent-color:#e5c28d;width:16px;height:16px;margin:0}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.btns button{all:unset;cursor:pointer;padding:7px 11px;border-radius:8px;background:rgba(255,235,205,.1);font-size:12.5px;color:#f0e6d6}
+.btns button:hover{background:rgba(255,235,205,.2)}
+.btns button.danger:hover{background:#7d2b1c;color:#fff}
+.note{margin:10px 0 0;color:#8f7e68;font-size:11.5px}
+#stats{position:absolute;left:18px;bottom:24px;padding:8px 13px;background:rgba(20,13,8,.6);border-radius:10px;font:12px/1.55 ui-monospace,Consolas,monospace;color:#d9ccb8;pointer-events:none!important;display:none}
+#stats.on{display:block}
+body.idle #stats{opacity:.45}
+#toast{position:absolute;left:50%;top:24%;transform:translate(-50%,0);padding:12px 20px;background:rgba(20,13,8,.88);border:1px solid rgba(255,235,205,.15);border-radius:12px;font-size:14px;text-align:center;opacity:0;pointer-events:none!important;max-width:440px}
+#toast.show{opacity:1}
+#paneCard{position:fixed;inset:0;display:none;place-items:center;font:15px/1.5 "Segoe UI",system-ui,sans-serif;color:#eadfce;cursor:pointer}
+#paneCard div{background:rgba(20,13,8,.85);padding:24px 30px;border-radius:14px;border:1px solid rgba(255,235,205,.15)}
+</style>
+<link rel="stylesheet" href="/site-nav.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div id="stats"></div>
+  <div id="tools" role="toolbar" aria-label="Tools"></div>
+  <button id="menuBtn" aria-expanded="false" aria-controls="panel">Customize</button>
+  <aside id="panel" aria-label="Customize the farm"></aside>
+  <div id="toast" role="status"></div>
+</div>
+<div id="paneCard"><div>Click to fill this screen</div></div>
+<div id="fade">Settling the sand</div>
+<script>
+(() => {
+'use strict';
+// Ant Farm. One file, no dependencies, plain WebGL2.
+//
+// URL hash (key=value joined with &):
+//   host=saver|app|config   running inside AntFarm.scr / AntFarm.exe
+//   views=x,y,w,h;...       monitor rectangles inside the canvas, in canvas pixels
+//   primary=i               which of those views gets the controls
+//   screens=x,y,w,h;...     monitors in screen coordinates, for one browser window stretched across them
+//   pane=1&cid=..&wx&ww&wh  a window this page opened on another monitor
+//   embed                   just the farm: no controls, no input
+//
+// One long, continuous farm: monitors sit side by side, left to right, tops aligned, so each one
+// shows the surface and an ant leaving one edge arrives at the next monitor's edge.
+const hash = {};
+for (const kv of location.hash.slice(1).split('&')) { if (!kv) continue; const i = kv.indexOf('='); if (i < 0) hash[kv] = '1'; else hash[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1)); }
+const HOST = hash.host || '', IS_PANE = !!hash.pane, EMBED = !!hash.embed;
+const LEADER = !IS_PANE;
+const hostPost = (m) => { try { window.chrome.webview.postMessage(m); } catch (e) { if (m === 'exit') window.close(); } };
+if (HOST) document.body.classList.add('host');
+if (HOST === 'saver') document.body.classList.add('saver');
+if (IS_PANE) document.body.classList.add('pane');
+if (EMBED) document.body.classList.add('embed');
+
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl2', { antialias: true, alpha: false, depth: true, powerPreference: 'high-performance' });
+if (!gl) { document.getElementById('fade').textContent = 'This needs WebGL2'; return; }
+gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+
+const TAU = Math.PI * 2, clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t;
+const rnd = (a = 1, b) => b === undefined ? Math.random() * a : a + Math.random() * (b - a);
+const angDiff = (a, b) => { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; };
+
+// ---- settings
+const SPECIES = {
+  black:   { name: 'Black garden ant', body: [.030, .026, .024], gaster: [.022, .019, .019], legs: [.055, .040, .030], len: 1.00, gloss: 1.0 },
+  red:     { name: 'Red harvester',    body: [.300, .085, .030], gaster: [.105, .040, .022], legs: [.270, .085, .035], len: 1.14, gloss: .9 },
+  fire:    { name: 'Fire ant',         body: [.370, .135, .040], gaster: [.060, .030, .020], legs: [.330, .130, .045], len: .84,  gloss: 1.1 },
+  carpenter: { name: 'Carpenter ant',  body: [.150, .045, .024], gaster: [.012, .011, .011], legs: [.120, .040, .022], len: 1.34, gloss: 1.2 },
+  weaver:  { name: 'Golden weaver',    body: [.650, .330, .085], gaster: [.520, .270, .075], legs: [.620, .320, .090], len: 1.10, gloss: .8 },
+};
+const SOILS = {
+  sand:   { name: 'Desert sand',  a: [.66, .45, .23], b: [.83, .62, .36], dark: [.24, .15, .08], pale: [1.0, .92, .76], gel: 0 },
+  loam:   { name: 'Garden loam',  a: [.14, .09, .055], b: [.25, .17, .10], dark: [.05, .035, .025], pale: [.46, .36, .24], gel: 0 },
+  clay:   { name: 'Red clay',     a: [.46, .17, .08], b: [.62, .27, .13], dark: [.20, .07, .04], pale: [.82, .55, .36], gel: 0 },
+  layers: { name: 'Layered sand', a: [.60, .43, .25], b: [.74, .57, .36], dark: [.20, .13, .08], pale: [.93, .86, .72], gel: 2 },
+  gel:    { name: 'Blue space gel', a: [.05, .32, .62], b: [.16, .55, .86], dark: [.02, .12, .30], pale: [.65, .90, 1.0], gel: 1 },
+};
+const LIGHTS = {
+  studio: { name: 'Studio lamp',  key: [1.00, .95, .87], fill: [.46, .47, .50], bounce: [.42, .32, .21], skyT: [.075, .062, .052], skyB: [.27, .205, .145], bokeh: [1.0, .82, .58], gain: 1.0 },
+  window: { name: 'Sunset window', key: [1.25, .78, .44], fill: [.36, .28, .30], bounce: [.46, .27, .14], skyT: [.10, .05, .07], skyB: [.55, .24, .09], bokeh: [1.0, .55, .24], gain: 1.0 },
+  red:    { name: 'Red keeper lamp', key: [.95, .13, .07], fill: [.20, .035, .03], bounce: [.26, .04, .03], skyT: [.035, .006, .006], skyB: [.13, .018, .014], bokeh: [.8, .08, .05], gain: .85 },
+  moon:   { name: 'Moonlit shelf', key: [.42, .54, .86], fill: [.12, .16, .28], bounce: [.09, .10, .15], skyT: [.012, .018, .04], skyB: [.05, .075, .15], bokeh: [.4, .55, 1.0], gain: .85 },
+};
+const SIZES = { small: 36, medium: 60, macro: 112 };
+const FOODS = {
+  sugar: { label: 'Sugar',  value: 1.0, amt: 26 },
+  seeds: { label: 'Seeds',  value: 1.5, amt: 18 },
+  honey: { label: 'Honey',  value: 2.2, amt: 34 },
+  crumb: { label: 'Crumbs', value: 1.2, amt: 24 },
+  water: { label: 'Water',  value: .15, amt: 18 },
+};
+const DEFAULTS = { species: 'black', soil: 'sand', light: 'studio', size: 'medium', colony: 0, speed: 1, dig: true, autofeed: true, glass: true, stones: true, stats: false, tool: 'sugar' };
+const S = Object.assign({}, DEFAULTS);
+try { Object.assign(S, JSON.parse(localStorage.getItem('antfarm.settings') || '{}')); } catch (e) {}
+for (const [k, t] of [['species', SPECIES], ['soil', SOILS], ['light', LIGHTS], ['size', SIZES]]) if (!t[S[k]]) S[k] = DEFAULTS[k];
+const saveSettings = () => { if (LEADER) try { localStorage.setItem('antfarm.settings', JSON.stringify(S)); } catch (e) {} };
+
+// ---- views: which part of the world each monitor shows
+// A view maps world [wx, wx+ww] x [0, wh] onto canvas rectangle cx,cy,cw,ch (canvas y grows down).
+let views = [], W = 0, H = 0, unit = 1, antLen = 60, cell = 5, primaryView = 0;
+let multi = null;     // set when this page has spread itself over other monitors
+const parseRects = (t) => t.split(';').map(s => s.split(',').map(Number)).filter(r => r.length === 4 && r[2] > 0 && r[3] > 0);
+const screenRects = hash.screens ? parseRects(hash.screens) : null;
+const hostRects = hash.views ? hash.views.split(';').map(s => s.split(',').map(Number)).filter(r => r.length === 4 && r[2] > 0 && r[3] > 0) : null;
+function layout() {
+  let cw, ch;
+  let useRects = hostRects;
+  if (screenRects && screenRects.length) {
+    const edge = (outerWidth - innerWidth) / 2, ox = screenX + edge, oy = screenY + (outerHeight - innerHeight) - edge;
+    useRects = screenRects.map(r => [r[0] - ox, r[1] - oy, r[2], r[3]]);
+  }
+  if (useRects && useRects.length) {
+    const rects = useRects.map((r, i) => ({ r, i })).sort((a, b) => a.r[0] - b.r[0]);
+    if (screenRects) { cw = Math.round(innerWidth); ch = Math.round(innerHeight); }
+    else { cw = Math.max(...useRects.map(r => r[0] + r[2])); ch = Math.max(...useRects.map(r => r[1] + r[3])); }
+    let wx = 0; views = [];
+    for (const { r, i } of rects) { views.push({ cx: r[0], cy: r[1], cw: r[2], ch: r[3], wx, ww: r[2], wh: r[3], src: i }); wx += r[2]; }
+    W = wx; H = Math.max(...useRects.map(r => r[3]));
+    primaryView = Math.max(0, views.findIndex(v => v.src === (+hash.primary || 0)));
+  } else {
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    cw = Math.round(innerWidth * dpr); ch = Math.round(innerHeight * dpr);
+    if (IS_PANE) { views = [{ cx: 0, cy: 0, cw, ch, wx: +hash.wx, ww: +hash.ww, wh: +hash.wh }]; W = +hash.ww + +hash.wx; H = +hash.wh; }
+    else if (multi) { views = [{ cx: 0, cy: 0, cw, ch, wx: multi.wx, ww: multi.ww, wh: multi.wh }]; W = multi.W; H = multi.H; }
+    else { views = [{ cx: 0, cy: 0, cw, ch, wx: 0, ww: cw, wh: ch }]; W = cw; H = ch; }
+    primaryView = 0;
+  }
+  canvas.width = cw; canvas.height = ch;
+  const cssK = cw / (canvas.clientWidth || cw), p = views[primaryView] || views[0], hud = document.getElementById('hud');
+  hud.style.left = (p.cx / cssK) + 'px'; hud.style.top = (p.cy / cssK) + 'px'; hud.style.width = (p.cw / cssK) + 'px'; hud.style.height = ((p.ch / cssK) - (screenRects ? Math.max(48, screen.height - screen.availHeight) : 0)) + 'px';
+}
+
+// ---- shaders
+function program(vs, fs) {
+  const mk = (t, src) => { const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + '\n' + src.split('\n').slice(0, 3).join('\n')); return s; };
+  const p = gl.createProgram(); gl.attachShader(p, mk(gl.VERTEX_SHADER, vs)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i), name = a.name.replace('[0]', ''); u[name] = gl.getUniformLocation(p, a.name); }
+  return { p, u };
+}
+const HEAD = '#version 300 es\nprecision highp float;\nprecision highp int;\n';
+const NOISE = `
+float h12(vec2 p){vec3 a=fract(vec3(p.xyx)*.1031);a+=dot(a,a.yzx+33.33);return fract((a.x+a.y)*a.z);}
+vec2 h22(vec2 p){vec3 a=fract(vec3(p.xyx)*vec3(.1031,.1030,.0973));a+=dot(a,a.yzx+33.33);return fract((a.xx+a.yz)*a.zy);}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h12(i),h12(i+vec2(1,0)),f.x),mix(h12(i+vec2(0,1)),h12(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){float a=.5,s=0.;for(int i=0;i<5;i++){s+=a*vn(p);p=p*2.03+vec2(17.1,9.2);a*=.5;}return s;}
+`;
+const FS_TRI = HEAD + 'const vec2 P[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));void main(){gl_Position=vec4(P[gl_VertexID],0,1);}';
+
+// The sand. Every grain is a Voronoi cell; a grain exists or doesn't according to the dig mask AT ITS
+// CENTRE, so tunnel walls are made of whole grains instead of a smooth cut. Baked once, re-baked
+// only around fresh digging, so the lit sand costs nothing per frame.
+const soilFS = HEAD + NOISE + `
+uniform sampler2D uMask; uniform vec2 uGrid,uWorld; uniform float uGrain,uTun,uGround,uGel;
+uniform vec3 uA,uB,uDark,uPale,uKey,uFill,uBounce,uSkyT,uSkyB,uBokeh; uniform float uGain;
+out vec4 o;
+const vec3 L=normalize(vec3(-.36,-.72,.60));
+struct G{vec2 c;float f1;float edge;float id;};
+G grain(vec2 p,float s){
+ vec2 w=vec2(vn(p/s*.7+3.1),vn(p/s*.7+8.4))-.5;p+=w*s*.75;
+ vec2 q=p/s,ip=floor(q),fq=fract(q);float f1=9.,f2=9.;vec2 br=vec2(0),bc=vec2(0);
+ for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){vec2 g=vec2(i,j),r=g+h22(ip+g)-fq;float d=dot(r,r);if(d<f1){f2=f1;f1=d;br=r;bc=ip+g;}else if(d<f2)f2=d;}
+ f1=sqrt(f1);f2=sqrt(f2);G r;r.c=p+br*s;r.f1=f1;r.edge=f2-f1;r.id=h12(bc+11.7);return r;}
+float maskR(vec2 p){return texture(uMask,p/uGrid).r;}
+vec3 layerTint(vec2 p){
+ if(uGel>1.5){float w=p.y+70.*fbm(p*vec2(.0026,.004))+22.*fbm(p*.012);float k=floor(w/86.);float f=h12(vec2(k,3.));
+  vec3 c=f<.2?vec3(.62,.17,.10):f<.4?vec3(.13,.28,.55):f<.6?vec3(.86,.68,.24):f<.8?vec3(.16,.42,.26):vec3(.86,.78,.66);return c*1.7;}
+ return vec3(1.);}
+vec3 grainCol(float id,vec2 p){
+ float zone=fbm(p*.012+21.);float t=fract(id*7.31);vec3 c=mix(uA,uB,t*t*(3.-2.*t));
+ if(id<.07)c=mix(uDark,uA,fract(id*40.)*.6);
+ else if(id>.985-.05*zone)c=mix(uB,uPale,.25+.55*fract(id*31.));
+ else if(fract(id*53.)<.09)c*=vec3(1.16,.92,.76);
+ else if(fract(id*91.)<.07)c*=vec3(.82,.84,.90);
+ return c*layerTint(p);}
+vec3 shadeGrain(G g,vec2 p,float s,float amb,float depthK){
+ float bevel=smoothstep(.0,.30,g.edge);
+ vec2 out2=(p-g.c)/s;float ol=length(out2)+1e-4;
+ float tilt=(1.-bevel)*.95+.14*min(1.,ol*1.6);
+ vec3 n=normalize(vec3(out2/ol*tilt,.62+.5*bevel));
+ float m1=vn(p*.42+g.id*90.),m2=vn(p*.42+g.id*50.+7.),f1=vn(p*1.5+g.id*20.),f2=vn(p*1.5+g.id*33.);
+ n.xy+=(vec2(m1,m2)-.5)*.62+(vec2(f1,f2)-.5)*.30;n=normalize(n);
+ vec3 c=grainCol(g.id,g.c);c*=.86+.30*vn(p*.8+g.id*40.);
+ float dif=max(0.,dot(n,L));
+ float gap=smoothstep(.0,.05+.05*fract(g.id*29.),g.edge),ao=mix(.74,1.,smoothstep(.02,.30,g.edge));
+ vec3 lit=c*(uFill*amb*(.46+.54*n.z)+uKey*dif*1.20*depthK+uBounce*.20*max(0.,n.y));
+ float side=max(0.,-dot(normalize(n.xy+1e-3),normalize(L.xy)));
+ lit+=c*c*uKey*.55*(1.-bevel)*side*depthK;
+ lit+=c*uKey*.10*pow(bevel,3.)*depthK;
+ vec3 H=normalize(L+vec3(0,0,1));bool mica=fract(g.id*17.)>.90;float sp=pow(max(0.,dot(n,H)),mica?220.:26.);
+ lit+=uKey*sp*(mica?1.25:.07)*depthK;
+ return lit*mix(.30+.34*vn(p*.7),1.,gap)*ao;}
+vec3 sky(vec2 p){
+ float g=smoothstep(0.,uGround,p.y);vec3 c=mix(uSkyT,uSkyB,g*g);
+ float a=fbm(p*.0011+vec2(4.,9.)),b=fbm(p*.0023+vec2(13.,2.));
+ c*=.62+.95*a;c=mix(c,c*vec3(1.22,1.02,.82),smoothstep(.4,.7,b));
+ float win=exp(-pow((p.x/uWorld.x-.32)*3.2,2.))*exp(-pow(p.y/uGround-.42,2.)*3.);c+=uBokeh*.11*win;
+ c=mix(c,c*vec3(1.06,.95,.82)*.72,smoothstep(uGround-90.,uGround,p.y));
+ return c;}
+void main(){
+ vec2 p=vec2(gl_FragCoord.x,gl_FragCoord.y);
+ vec4 m=texture(uMask,p/uGrid);
+ float blur=0.;vec2 grad=vec2(0);
+ for(int i=0;i<14;i++){float a=float(i)*2.3999632,rr=sqrt((float(i)+.5)/14.)*uTun*1.05;vec2 d=vec2(cos(a),sin(a))*rr;float v=maskR(p+d);blur+=v;grad+=d/(rr+1.)*v;}
+ blur/=14.;
+ float depth=max(0.,p.y-uGround),depthK=mix(1.,.70,1.-exp(-depth/430.));
+ vec3 c;
+ if(uGel>.5&&uGel<1.5){
+  float e=uGrid.x>0.?uTun*.34:0.;float mr=(maskR(p)+maskR(p+vec2(e,0))+maskR(p-vec2(e,0))+maskR(p+vec2(0,e))+maskR(p-vec2(0,e))+maskR(p+vec2(e,e)*.7)+maskR(p+vec2(e,-e)*.7)+maskR(p+vec2(-e,e)*.7)+maskR(p-vec2(e,e)*.7))/9.;float soil=smoothstep(.40,.60,mr+(fbm(p*.11)-.5)*.10);
+  float wob=fbm(p*.006+4.),hz=exp(-depth/640.);
+  vec3 body=mix(uA,uB,wob)*(.72+.65*hz)+uPale*.05*pow(fbm(p*.03),3.)*5.;
+  vec2 q=p/34.;vec2 ip=floor(q);for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){vec2 g=ip+vec2(i,j);float id=h12(g+2.);if(id<.86)continue;float d=length(q-(g+h22(g)));float rr=.05+.13*fract(id*11.);float b=smoothstep(rr,rr-.03,d);float ri=smoothstep(rr-.05,rr-.015,d)*b;body+=uPale*b*(.03+.22*ri);}
+  vec3 air=mix(uDark*.8,uA*.75,blur)+uPale*.42*smoothstep(.15,.5,blur)*smoothstep(.75,.45,blur);
+  vec2 gd=normalize(grad+1e-4);air*=1.+.5*dot(-gd,normalize(L.xy))*blur;
+  if(m.g>.02&&soil<.98){vec3 bodyOrAir=mix(air,body,soil);c=mix(sky(p),bodyOrAir,m.g>.5?soil:1.);}else{c=mix(air,body,soil);c+=uPale*.26*smoothstep(.34,.5,mr)*smoothstep(.66,.5,mr);}
+ } else {
+  G g=grain(p,uGrain);
+  G b=grain(p+vec2(3.7,8.1),uGrain*1.85);
+  G pb=grain(p+vec2(91.,17.),uGrain*5.2);
+  float ga=maskR(g.c)+(g.id-.5)*.26;
+  bool solid=ga>.5;
+  vec3 col=vec3(0);
+  float amb=1.;
+  float strat=fbm(vec2(p.x*.0024,(p.y+55.*fbm(p*.004))*.017));
+  vec3 tint=mix(vec3(.78),vec3(1.16),strat);tint*=mix(1.,.80,smoothstep(.45,.72,fbm(p*.0056+9.)));
+  if(solid){
+   vec3 fine=shadeGrain(g,p,uGrain,amb,depthK);
+   col=fine;
+   G sf=grain(p+vec2(13.,29.),uGrain*.58);
+   if(sf.id>.56&&sf.edge>.02){vec3 fc=shadeGrain(sf,p,uGrain*.58,amb,depthK);col=mix(col,fc,.92);}
+   bool big=b.id>.80&&b.edge>.012&&maskR(b.c)>.58;
+   if(big)col=shadeGrain(b,p,uGrain*1.85,amb,depthK);
+   float pz=smoothstep(.52,.70,fbm(p*.0035+31.));
+   if(pb.id>.996-.05*pz&&pb.edge>.015&&maskR(pb.c)>.74){vec3 stone=shadeGrain(pb,p,uGrain*5.2,amb,depthK);float vein=fbm(p*.32+pb.id*30.);stone*=.50+.66*vein;col=mix(stone,stone*vec3(.86,.78,.70),step(.5,fract(pb.id*13.)));}
+   float meanL=dot(col,vec3(.3,.5,.2));col=mix(col,vec3(meanL)*(uA+uB)*.75,.10);
+   col*=tint;
+   float open=1.-blur;vec2 gd=normalize(grad+1e-4);
+   col*=1.+.42*open*max(0.,dot(-gd,normalize(L.xy)));
+   col*=mix(1.,.74,open*max(0.,-dot(-gd,normalize(L.xy))));
+  } else if(m.g>.5){
+   col=sky(p);
+  } else {
+   G d=grain(p+vec2(37.,5.),uGrain*.8),d2=grain(p+vec2(11.,63.),uGrain*.55),d3=grain(p+vec2(71.,23.),uGrain*1.3);
+   vec3 back=(shadeGrain(d,p,uGrain*.8,1.,1.)*.42+shadeGrain(d2,p,uGrain*.55,1.,1.)*.33+shadeGrain(d3,p,uGrain*1.3,1.,1.)*.25)*tint*1.08;
+   float bl=dot(back,vec3(.3,.5,.2));back=mix(back,vec3(bl)*(uA+uB)*1.05,.5);
+   float open=1.-blur;vec2 gd=normalize(grad+1e-4);
+   float face=dot(-gd,normalize(L.xy));
+   float wall=mix(.60,.27,smoothstep(.08,.86,open));
+   wall*=1.+.60*face*(1.-open*.7);
+   float sh=0.;for(int i=0;i<6;i++){float t=(float(i)+.5)/6.;sh+=maskR(p+L.xy*uTun*(.18+.72*t)+vec2(sin(float(i)*2.4),cos(float(i)*2.4))*uTun*.14);}sh/=6.;
+   col=back*max(.05,wall)*mix(1.,.46,smoothstep(.1,.85,sh))*depthK;
+  }
+  c=col;
+ }
+ c*=uGain;
+ c=c/(1.+c*.20);
+ c=pow(max(c,vec3(0)),vec3(1./2.2));
+ c+=(h12(p+1.3)-.5)/255.;
+ o=vec4(c,1);
+}`;
+
+const quadVS = HEAD + `uniform vec4 uView;out vec2 vW;const vec2 P[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));void main(){vec2 c=P[gl_VertexID];vW=vec2(uView.x+(c.x*.5+.5)*uView.y,(1.-(c.y*.5+.5))*uView.z);gl_Position=vec4(c,.9999,1);}`;
+const composeFS = HEAD + `in vec2 vW;uniform sampler2D uSoil,uShadow;uniform vec2 uWorld;out vec4 o;
+void main(){vec2 uv=vW/uWorld;vec3 c=texture(uSoil,uv).rgb;float s=0.;vec2 t=vec2(5.)/uWorld;
+s+=texture(uShadow,uv).r*.34;s+=texture(uShadow,uv+vec2(t.x,0)).r*.165;s+=texture(uShadow,uv-vec2(t.x,0)).r*.165;s+=texture(uShadow,uv+vec2(0,t.y)).r*.165;s+=texture(uShadow,uv-vec2(0,t.y)).r*.165;
+o=vec4(c*(1.-.60*s),1);}`;
+const glassFS = HEAD + NOISE + `in vec2 vW;uniform vec4 uView;uniform float uTime,uGlass,uHasGlass;uniform vec3 uKey;out vec4 o;
+void main(){vec2 v=(vW-vec2(uView.x,0.))/uView.yz;
+ float aspect=uView.y/uView.z;vec2 q=(v-.5)*vec2(aspect,1.);float vig=smoothstep(.45,1.15,length(q*vec2(.72,1.)));
+ float a=vig*.42;vec3 add=vec3(0);
+ if(uHasGlass>.5){
+  float band=vW.x*.8+vW.y*.55;float st=smoothstep(.0,.5,sin(band*.0021+.6)*.5+.5);st*=smoothstep(.62,1.,sin(band*.0013+2.)*.5+.5);
+  float smudge=fbm(vW*.0075+3.);float fine=fbm(vW*.09);
+  add+=uKey*(.040*st*(.5+smudge)+.014*smoothstep(.55,.8,smudge)*fine);
+  vec2 ip=floor(vW/42.);float d=h12(ip+4.);if(d>.965){float rr=length(fract(vW/42.)-h22(ip)*.8-.1);float dust=smoothstep(.05,.0,rr);add+=vec3(.20)*dust*fract(d*33.);}
+ }
+ float g=(h12(vW+fract(uTime)*311.)-.5)*.045;
+ add+=vec3(max(g,0.));a+=max(-g,0.);
+ o=vec4(add,a);}`;
+
+const antVS = HEAD + `layout(location=0)in vec3 aP;layout(location=1)in vec3 iO;layout(location=2)in vec3 iX;layout(location=3)in vec3 iY;layout(location=4)in vec3 iZ;layout(location=5)in vec4 iC;
+uniform vec4 uView;out vec3 vN;out vec3 vL;out vec3 vW;out vec3 vC;flat out float vM;
+void main(){vec3 w=iO+iX*aP.x+iY*aP.y+iZ*aP.z;vL=aP;vW=w;vC=iC.rgb;vM=iC.a;vN=iX*aP.x/dot(iX,iX)+iY*aP.y/dot(iY,iY)+iZ*aP.z/dot(iZ,iZ);
+ gl_Position=vec4((w.x-uView.x)/uView.y*2.-1.,1.-w.y/uView.z*2.,-w.z/3000.,1.);}`;
+const antFS = HEAD + `
+float h13(vec3 p){p=fract(p*.1031);p+=dot(p,p.zyx+31.32);return fract((p.x+p.y)*p.z);}
+float n3(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(mix(h13(i),h13(i+vec3(1,0,0)),f.x),mix(h13(i+vec3(0,1,0)),h13(i+vec3(1,1,0)),f.x),f.y),mix(mix(h13(i+vec3(0,0,1)),h13(i+vec3(1,0,1)),f.x),mix(h13(i+vec3(0,1,1)),h13(i+vec3(1,1,1)),f.x),f.y),f.z);}
+in vec3 vN,vL,vW,vC;flat in float vM;uniform vec3 uKey,uFill,uBounce;uniform sampler2D uSoil;uniform vec2 uWorld;uniform float uGloss;out vec4 o;
+const vec3 L=normalize(vec3(-.36,-.72,.60));
+float box(vec3 R,vec2 c,vec2 s){vec2 q=(R.xy-c)/s;return smoothstep(1.,.45,pow(pow(abs(q.x),3.)+pow(abs(q.y),3.),1./3.));}
+void main(){
+ int m=int(vM);float lit=fract(vM)/.99;
+ vec3 N=normalize(vN);vec3 alb=vC;float rough=.34,sp=1.;
+ if(m<=2){
+  float f=m==1?22.:m==2?34.:26.;
+  vec3 pit=vec3(n3(vL*f),n3(vL*f+5.3),n3(vL*f+9.1))-.5;N=normalize(N+pit*.13);
+  if(m==1){float k=fract((vL.x+1.15)*2.05);float seam=smoothstep(.0,.075,k)*smoothstep(1.,.93,k);alb*=mix(.25,1.,seam);N=normalize(N+vec3(0,(k-.5)*.22,0)*1.);alb+=vC*.38*smoothstep(.72,1.,k);}
+  if(m==2){float g=n3(vL*vec3(16.,32.,16.));alb*=.8+.42*g;}
+ }
+ vec3 V=vec3(0,0,1);float ndv=max(0.,N.z);float ndl=max(0.,dot(N,L));vec3 R=reflect(-V,N);
+ float F=.04+.96*pow(1.-ndv,5.);
+ vec3 env=mix(uFill*.9,uBounce*.8,R.y*.5+.5);
+ float softbox=box(R,vec2(-.34,-.58),vec2(.44,.30))+.32*box(R,vec2(.55,-.38),vec2(.16,.30));
+ vec3 col;
+ if(m<=2){
+  col=alb*(uFill*.62+uKey*ndl*1.05+uBounce*.42*max(0.,N.y));
+  col+=vC*uKey*.75*pow(1.-ndv,2.2);
+  col+=uKey*softbox*(.40+F)*.62*uGloss;
+  col+=env*F*.8;
+ } else if(m==3){
+  float hex=n3(vL*vec3(26.))*.3;col=vec3(.012,.010,.009)+alb*.12*(.6+hex)+uKey*smoothstep(.62,.0,length(R.xy-vec2(-.32,-.52)))*1.3+env*F;
+ } else if(m==4){
+  col=alb*(uFill+uKey*.9);
+ } else if(m==5){
+  float sss=pow(ndv,.7);col=alb*(uFill*.9+uKey*(.35+.65*ndl)+vec3(.35,.3,.22)*sss)+uKey*softbox*.3;
+  float rib=m==5?smoothstep(.2,.8,sin(vL.x*22.)*.5+.5):0.;col*=mix(1.,.86,rib*vC.g*.5);
+ } else if(m==6){
+  col=alb*(uFill+uKey*ndl*1.1)+uKey*pow(max(0.,dot(N,normalize(L+V))),40.)*.5;
+ } else if(m==7){
+  float g=n3(vL*vec3(5.,28.,5.));alb*=.7+.5*g;col=alb*(uFill*.7+uKey*ndl*1.1)+uKey*softbox*.26+env*F;
+ } else if(m==8){
+  vec3 nf=normalize(sign(vN)*pow(abs(normalize(vN)),vec3(1.6)));N=normalize(mix(N,nf,.75));ndl=max(0.,dot(N,L));R=reflect(-V,N);softbox=box(R,vec2(-.34,-.58),vec2(.5,.35));
+  col=vec3(.82,.80,.76)*(uFill*.9+uKey*(.5+.5*ndl))+uKey*softbox*.9+vec3(.12)*n3(vL*12.);
+ } else if(m==9||m==10){
+  vec2 uv=(vW.xy+N.xy*38.)/uWorld;vec3 bg=texture(uSoil,uv).rgb;bg=pow(bg,vec3(2.2));
+  vec3 tint=m==9?vec3(1.0,.46,.08):vec3(.95,.98,1.);
+  float thick=pow(ndv,.8);col=bg*mix(vec3(1.),tint,m==9?thick:.15)*(m==9?1.7:1.08);
+  if(m==9)col+=vec3(.55,.24,.03)*uKey*pow(thick,2.)*.75;
+  col+=uKey*softbox*1.15+env*F*1.2;
+  lit=max(lit,.8);
+ } else if(m==11){
+  float g=n3(vL*9.)*.6+n3(vL*26.)*.4;float cr=smoothstep(.28,.55,g);alb*=mix(.55,1.15,cr);N=normalize(N+(vec3(n3(vL*18.),n3(vL*18.+4.),n3(vL*18.+8.))-.5)*.75);ndl=max(0.,dot(N,L));col=alb*(uFill*.8+uKey*ndl*1.1);
+ } else {
+  float g=n3(vL*5.)*.5+n3(vL*16.)*.3+n3(vL*44.)*.2;alb*=.50+1.0*g;N=normalize(N+(vec3(n3(vL*8.),n3(vL*8.+4.),n3(vL*8.+8.))-.5)*.8+(vec3(n3(vL*30.),n3(vL*30.+4.),n3(vL*30.+8.))-.5)*.35);ndl=max(0.,dot(N,L));col=alb*(uFill*.72+uKey*ndl*1.12+uBounce*.3*max(0.,N.y));col+=uKey*pow(max(0.,dot(N,normalize(L+V))),22.)*.07;
+ }
+ col*=lit;
+ col=col/(1.+col*.20);
+ o=vec4(pow(max(col,vec3(0)),vec3(1./2.2)),1);
+}`;
+const shadowFS = HEAD + 'out vec4 o;void main(){o=vec4(1);}';
+const shadowVS = HEAD + `layout(location=0)in vec3 aP;layout(location=1)in vec3 iO;layout(location=2)in vec3 iX;layout(location=3)in vec3 iY;layout(location=4)in vec3 iZ;
+uniform vec2 uWorld;void main(){vec3 w=iO+iX*aP.x+iY*aP.y+iZ*aP.z;float h=max(0.,w.z)+uWorld.x*0.;vec2 s=w.xy+vec2(.34,.66)*h;gl_Position=vec4(s.x/uWorld.x*2.-1.,s.y/uWorld.y*2.-1.,0,1);}`;
+
+const P = { soil: program(FS_TRI, soilFS), compose: program(quadVS, composeFS), glass: program(quadVS, glassFS), ant: program(antVS, antFS), shadow: program(shadowVS, shadowFS) };
+const emptyVAO = gl.createVertexArray();
+
+// ---- meshes and the instance streams
+const FLOATS = 16;
+function makeMesh(rings, segs, cap) {
+  const v = [], idx = [];
+  for (let r = 0; r <= rings; r++) { const th = Math.PI * r / rings; for (let s = 0; s <= segs; s++) { const ph = TAU * s / segs; v.push(Math.cos(th), Math.sin(th) * Math.cos(ph), Math.sin(th) * Math.sin(ph)); } }
+  for (let r = 0; r < rings; r++) for (let s = 0; s < segs; s++) { const a = r * (segs + 1) + s, b = a + segs + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+  const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(v), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 12, 0);
+  const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
+  const inst = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, inst); gl.bufferData(gl.ARRAY_BUFFER, cap * FLOATS * 4, gl.DYNAMIC_DRAW);
+  const stride = FLOATS * 4;
+  [[1, 3, 0], [2, 3, 12], [3, 3, 24], [4, 3, 36], [5, 4, 48]].forEach(([loc, n, off]) => { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, n, gl.FLOAT, false, stride, off); gl.vertexAttribDivisor(loc, 1); });
+  gl.bindVertexArray(null);
+  return { vao, inst, count: idx.length, cap, data: new Float32Array(cap * FLOATS), n: 0 };
+}
+const HI = makeMesh(16, 22, 14000), LO = makeMesh(5, 8, 70000);
+
+// ---- render targets
+let soilTex = 0, soilFB = 0, shadowTex = 0, shadowFB = 0, maskTex = 0, RTW = 0, RTH = 0, SHW = 0, SHH = 0;
+function makeRT(w, h, ifmt, fmt) {
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, ifmt, w, h, 0, fmt, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return [t, f];
+}
+
+// ---- the world grid
+let gw = 0, gh = 0, soil, open, ground, maxRow, maskBytes, dirty = null, fieldsDirty = true, tunR = 6;
+let fH, fS, fF, fT, bfsQ;
+const idx = (c, r) => r * gw + c;
+const inGrid = (c, r) => c >= 0 && r >= 0 && c < gw && r < gh;
+const groundPx = (x) => { const c = clamp(x / cell - .5, 0, gw - 1.001), i = c | 0, f = c - i; return lerp(ground[i], ground[Math.min(gw - 1, i + 1)], f) * cell; };
+const isOpen = (x, y) => { const c = x / cell | 0, r = y / cell | 0; return inGrid(c, r) && open[idx(c, r)] === 1; };
+const isSolid = (x, y) => { const c = x / cell | 0, r = y / cell | 0; return !inGrid(c, r) || soil[idx(c, r)] !== 0; };
+const WALK_BAND = 4;
+function refreshOpen(c0, r0, c1, r1) {
+  c0 = Math.max(0, c0); r0 = Math.max(0, r0); c1 = Math.min(gw - 1, c1); r1 = Math.min(gh - 1, r1);
+  for (let c = c0; c <= c1; c++) { const g = ground[c], m = maxRow[c];
+    for (let r = r0; r <= r1; r++) { const i = idx(c, r); open[i] = (soil[i] === 0 && r < m && r >= g - WALK_BAND) ? 1 : 0; } }
+}
+function touch(c0, r0, c1, r1) { if (!dirty) dirty = [c0, r0, c1, r1]; else { dirty[0] = Math.min(dirty[0], c0); dirty[1] = Math.min(dirty[1], r0); dirty[2] = Math.max(dirty[2], c1); dirty[3] = Math.max(dirty[3], r1); } }
+
+function carve(x, y, rad, rough = true) {
+  const rc = Math.ceil(rad), cc = Math.round(x / cell), cr = Math.round(y / cell); let n = 0;
+  for (let r = cr - rc - 1; r <= cr + rc + 1; r++) for (let c = cc - rc - 1; c <= cc + rc + 1; c++) {
+    if (!inGrid(c, r) || r >= maxRow[c] || r < ground[c]) continue;
+    const dd = Math.hypot(c - cc, r - cr), lim = rough ? rad * (.86 + .22 * Math.abs(Math.sin(c * 12.9898 + r * 78.233) * 43758.5453 % 1)) : rad;
+    if (dd <= lim && soil[idx(c, r)]) { soil[idx(c, r)] = 0; n++; }
+  }
+  if (n) { refreshOpen(cc - rc - 2, cr - rc - 2, cc + rc + 2, cr + rc + 2); touch(cc - rc - 2, cr - rc - 2, cc + rc + 2, cr + rc + 2); fieldsDirty = true; }
+  return n;
+}
+function fill(x, y, rad) {
+  const rc = Math.ceil(rad), cc = Math.round(x / cell), cr = Math.round(y / cell); let n = 0;
+  for (let r = cr - rc; r <= cr + rc; r++) for (let c = cc - rc; c <= cc + rc; c++) { if (!inGrid(c, r) || r >= maxRow[c] || r < ground[c] || Math.hypot(c - cc, r - cr) > rad) continue; if (!soil[idx(c, r)]) { soil[idx(c, r)] = 255; n++; } }
+  if (n) { refreshOpen(cc - rc - 1, cr - rc - 1, cc + rc + 1, cr + rc + 1); touch(cc - rc - 1, cr - rc - 1, cc + rc + 1, cr + rc + 1); fieldsDirty = true; }
+}
+// A pellet of spoil rolls downhill until the pile is at its angle of repose.
+function addSpoil(c) {
+  c = clamp(c | 0, 2, gw - 3);
+  for (let i = 0; i < 40; i++) {
+    const l = ground[c - 1] - ground[c], rr = ground[c + 1] - ground[c];
+    if (l > 1 && l >= rr) c--; else if (rr > 1) c++; else break;
+    c = clamp(c, 2, gw - 3);
+  }
+  if (!soil[idx(c, ground[c])] || ground[c] < 8) return;
+  ground[c]--; soil[idx(c, ground[c])] = 255;
+  refreshOpen(c - 1, ground[c] - WALK_BAND - 2, c + 1, ground[c] + 2); touch(c - 2, ground[c] - 3, c + 2, ground[c] + 2); fieldsDirty = true;
+}
+function digPath(x0, y0, x1, y1, rad, wob) {
+  const len = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.round(len / cell)), a = rnd(TAU), b = rnd(TAU), ka = rnd(2.6, 5.2), kb = rnd(7, 12), radPh = rnd(TAU);
+  const ox = -(y1 - y0) / (len || 1), oy = (x1 - x0) / (len || 1);
+  for (let i = 0; i <= n; i++) { const t = i / n, w = (Math.sin(t * ka + a) * .62 + Math.sin(t * kb + b) * .38) * wob * Math.sin(t * Math.PI); carve(lerp(x0, x1, t) + ox * w, lerp(y0, y1, t) + oy * w, rad * (.86 + .24 * Math.sin(t * 11 + radPh))); }
+}
+function chamber(x, y, rx, ry) { const n = 18; for (let i = 0; i < n; i++) { const t = i / n; for (let k = 0; k < 6; k++) { const a = t * TAU; carve(x + Math.cos(a) * rx * cell * (k / 5) * .95, y + Math.sin(a) * ry * cell * (k / 5) * .95, Math.min(rx, ry) * .55); } } }
+
+let hatched = 0, nurseryDug = false, home = { x: 0, y: 0 }, nursery = { x: 0, y: 0, rx: 40, ry: 20 }, tips = [], store = 15, brood = [], foods = [], ants = [], stones = [], carved = 0, deliveries = 0;
+const nowDepth = (c) => (maxRow[c] - ground[c]) * cell;
+
+function spawnStones() { stones = []; const n = Math.round(W / 420); for (let i = 0; i < n; i++) stones.push({ x: rnd(W), r: rnd(.22, .6), sq: rnd(.5, .8), a: rnd(-.35, .35), tone: rnd(.7, 1.25) }); }
+
+function addTip(x, y, a) { tips.push({ x, y, a, life: rnd(32, 80), wob: rnd(TAU) }); }
+
+function serializeColony() { let runs = [], cur = soil[0] ? 1 : 0, n = 0; for (let i = 0; i < soil.length; i++) { const v = soil[i] ? 1 : 0; if (v === cur) n++; else { runs.push(n); cur = v; n = 1; } } runs.push(n);
+  return { v: 2, gw, gh, cell, hatched, nurseryDug, workers: ants.length - 1, first: soil[0] ? 1 : 0, runs: runs.join(','), ground: Array.from(ground).join(','), store, home, nursery, tips, carved, brood: brood.map(b => [b.x, b.y, b.st, b.t | 0]) }; }
+function saveColony() { if (!LEADER || EMBED || HOST === 'config' || hash.windowed) return; try { localStorage.setItem('antfarm.colony', JSON.stringify(serializeColony())); } catch (e) {} }
+function loadColonyData() { try { const d = JSON.parse(localStorage.getItem('antfarm.colony') || 'null'); return d && d.v === 2 ? d : null; } catch (e) { return null; } }
+function restoreInto(d) {
+  let v = d.first, i = 0, ci = 0, rr = 0;
+  const copyH = Math.min(gh, d.gh), copyW = Math.min(gw, d.gw), runs = d.runs.split(',').map(Number);
+  for (const n of runs) { for (let k = 0; k < n; k++, ci++) { rr = (ci / d.gw) | 0; const cc = ci % d.gw; if (cc < copyW && rr < copyH && cc >= 0) { if (rr < maxRow[cc]) soil[idx(cc, rr)] = v ? 255 : 0; } } v = v ? 0 : 1; }
+  const g = d.ground.split(',').map(Number); for (let c = 0; c < copyW; c++) ground[c] = g[c];
+  return copyW;
+}
+
+function buildWorld(saved) {
+  if (!S.colony) S.colony = defaultColony();
+  antLen = SIZES[S.size] * unit; cell = Math.max(2, Math.round(antLen / 11)); tunR = Math.max(4, Math.round(antLen * .5 / cell));
+  gw = Math.ceil(W / cell); gh = Math.ceil(H / cell);
+  soil = new Uint8Array(gw * gh).fill(255); open = new Uint8Array(gw * gh); ground = new Int16Array(gw); maxRow = new Int16Array(gw); maskBytes = new Uint8Array(gw * gh * 2);
+  fH = new Uint16Array(gw * gh); fS = new Uint16Array(gw * gh); fF = new Uint16Array(gw * gh); fT = new Uint16Array(gw * gh); bfsQ = new Int32Array(gw * gh + 8);
+  const minH = Math.min(...views.map(v => v.wh));
+  const surfaceBase = minH * .24, ph = rnd(TAU);
+  for (let c = 0; c < gw; c++) {
+    const x = c * cell;
+    ground[c] = Math.round((surfaceBase + Math.sin(x * .0041 + ph) * 16 + Math.sin(x * .013 + ph * 2) * 7 + Math.sin(x * .037) * 3) / cell);
+    const v = views.find(v => x >= v.wx && x < v.wx + v.ww) || views[views.length - 1];
+    maxRow[c] = Math.max(ground[c] + 8, Math.floor(v.wh / cell) - 2);
+  }
+  for (let c = 0; c < gw; c++) for (let r = 0; r < ground[c]; r++) soil[idx(c, r)] = 0;
+  let from = 0;
+  tips = []; brood = []; foods = []; store = 15; hatched = 0; nurseryDug = false; let workers = 0;
+  const biggest = views.reduce((a, b) => (b.ww * b.wh > a.ww * a.wh ? b : a), views[0]);
+  if (saved && saved.cell === cell && saved.gh <= gh + 400) {
+    from = restoreInto(saved);
+    home = saved.home; nursery = saved.nursery; store = saved.store || 0; carved = saved.carved || 0; hatched = saved.hatched || 0; nurseryDug = !!saved.nurseryDug; workers = saved.workers || 0;
+    if (saved.tips) tips = saved.tips.filter(t => t.x < W && t.y < H);
+    if (saved.brood) brood = saved.brood.filter(b => b[0] < W && b[1] < H).map(b => ({ x: b[0], y: b[1], st: b[2], t: b[3], s: rnd(.85, 1.15), a: rnd(TAU) }));
+  }
+  refreshOpen(0, 0, gw - 1, gh - 1);
+  if (!from) {
+    // A newly mated queen: one short shaft down to one small chamber, and nobody else.
+    const cx = biggest.wx + biggest.ww * .5, base = ground[(cx / cell) | 0] * cell, d = Math.min(...views.map(v => v.wh)) - base;
+    home = { x: cx, y: base + d * .30 };
+    digPath(cx - 70, groundPx(cx - 70) + cell, home.x, home.y, tunR * .9, cell * 7);
+    chamber(home.x, home.y, tunR * 2.3, tunR * 1.35);
+    nursery = { x: home.x, y: home.y, rx: tunR * cell * 1.9, ry: tunR * cell * 1.05 };
+    carved = 0; broodT = 3; autoT = 58;
+  }
+  carve(home.x, home.y, tunR);
+  spawnStones();
+  for (let c = 0; c < gw; c++) for (let r = 0; r < gh; r++) { const i = idx(c, r) * 2; maskBytes[i] = soil[idx(c, r)]; maskBytes[i + 1] = r < ground[c] ? 255 : 0; }
+  if (maskTex) gl.deleteTexture(maskTex);
+  maskTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, maskTex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG8, gw, gh, 0, gl.RG, gl.UNSIGNED_BYTE, maskBytes);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  if (RTW !== W || RTH !== H) {
+    if (soilTex) { gl.deleteTexture(soilTex); gl.deleteFramebuffer(soilFB); gl.deleteTexture(shadowTex); gl.deleteFramebuffer(shadowFB); }
+    RTW = W; RTH = H; [soilTex, soilFB] = makeRT(W, H, gl.RGBA8, gl.RGBA);
+    SHW = Math.ceil(W / 3); SHH = Math.ceil(H / 3); [shadowTex, shadowFB] = makeRT(SHW, SHH, gl.R8, gl.RED);
+  }
+  dirty = null; fieldsDirty = true; fieldStage = 0; bakeAll();
+  computeAllFields();
+  ants = []; placeQueen();
+  for (let i = 0; i < Math.min(workers, S.colony); i++) ants.push(newAnt(false, false));
+}
+
+// ---- baking the sand, a chunk at a time
+let bakeQueue = [], baked = false;
+function bakeAll() { bakeQueue = []; const T = 512; for (let y = 0; y < H; y += T) for (let x = 0; x < W; x += T) bakeQueue.push([x, y, Math.min(T, W - x), Math.min(T, H - y)]); baked = false; }
+function bakeRects(budget) {
+  if (!bakeQueue.length) return;
+  const s = SOILS[S.soil], l = LIGHTS[S.light], p = P.soil;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, soilFB); gl.viewport(0, 0, W, H); gl.useProgram(p.p); gl.bindVertexArray(emptyVAO);
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.enable(gl.SCISSOR_TEST);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, maskTex); gl.uniform1i(p.u.uMask, 0);
+  gl.uniform2f(p.u.uGrid, gw * cell, gh * cell); gl.uniform2f(p.u.uWorld, W, H);
+  gl.uniform1f(p.u.uGrain, antLen / 12.5); gl.uniform1f(p.u.uTun, tunR * cell); gl.uniform1f(p.u.uGround, Math.min(...views.map(v => v.wh)) * .24); gl.uniform1f(p.u.uGel, s.gel); gl.uniform1f(p.u.uGain, l.gain);
+  for (const [n, v] of [['uA', s.a], ['uB', s.b], ['uDark', s.dark], ['uPale', s.pale], ['uKey', l.key], ['uFill', l.fill], ['uBounce', l.bounce], ['uSkyT', l.skyT], ['uSkyB', l.skyB], ['uBokeh', l.bokeh]]) gl.uniform3fv(p.u[n], v);
+  let area = 0;
+  while (bakeQueue.length && area < budget) { const [x, y, w, h] = bakeQueue.shift(); gl.scissor(x, y, w, h); gl.drawArrays(gl.TRIANGLES, 0, 3); area += w * h; }
+  gl.disable(gl.SCISSOR_TEST); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  if (!bakeQueue.length && !baked) { baked = true; document.getElementById('fade').style.opacity = 0; hostPost('ready'); }
+}
+function flushDirty() {
+  if (!dirty) return;
+  let [c0, r0, c1, r1] = dirty; dirty = null;
+  c0 = Math.max(0, c0 - 1); r0 = Math.max(0, r0 - 1); c1 = Math.min(gw - 1, c1 + 1); r1 = Math.min(gh - 1, r1 + 1);
+  const w = c1 - c0 + 1, h = r1 - r0 + 1, buf = new Uint8Array(w * h * 2);
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { const k = ((r - r0) * w + (c - c0)) * 2; buf[k] = soil[idx(c, r)]; buf[k + 1] = r < ground[c] ? 255 : 0; }
+  gl.bindTexture(gl.TEXTURE_2D, maskTex); gl.texSubImage2D(gl.TEXTURE_2D, 0, c0, r0, w, h, gl.RG, gl.UNSIGNED_BYTE, buf);
+  if (LEADER && channel) { const g = ground.slice(c0, c1 + 1), sub = new Uint8Array(w * h); for (let r = r0; r <= r1; r++) sub.set(soil.subarray(idx(c0, r), idx(c0, r) + w), (r - r0) * w); channel.postMessage({ t: 'dig', c0, r0, w, h, sub, g }); }
+  const pad = tunR * cell + 26, x = Math.max(0, c0 * cell - pad), y = Math.max(0, r0 * cell - pad);
+  bakeQueue.push([x, y, Math.min(W - x, w * cell + pad * 2), Math.min(H - y, h * cell + pad * 2)]);
+}
+
+// ---- pathfinding: distance-to-X over everywhere an ant can stand. Rebuilt one field at a time.
+const FAR = 65535;
+function bfs(f, seeds) {
+  f.fill(FAR); let head = 0, tail = 0;
+  for (const s of seeds) { if (open[s] && f[s] === FAR) { f[s] = 0; bfsQ[tail++] = s; } }
+  while (head < tail) { const i = bfsQ[head++], d = f[i] + 1;
+    const a = i - 1, b = i + 1, c = i - gw, e = i + gw;
+    if (i % gw > 0 && open[a] && f[a] === FAR) { f[a] = d; bfsQ[tail++] = a; }
+    if (i % gw < gw - 1 && open[b] && f[b] === FAR) { f[b] = d; bfsQ[tail++] = b; }
+    if (c >= 0 && open[c] && f[c] === FAR) { f[c] = d; bfsQ[tail++] = c; }
+    if (e < open.length && open[e] && f[e] === FAR) { f[e] = d; bfsQ[tail++] = e; }
+  }
+}
+const nearOpen = (x, y) => { const c0 = x / cell | 0, r0 = y / cell | 0; for (let R = 0; R < 16; R++) for (let r = r0 - R; r <= r0 + R; r++) for (let c = c0 - R; c <= c0 + R; c++) if (inGrid(c, r) && open[idx(c, r)]) return idx(c, r); return -1; };
+const seedsAt = (list, rad) => { const out = []; for (const p of list) { const s = nearOpen(p.x, p.y); if (s >= 0) out.push(s); } return out; };
+function fieldHome() { bfs(fH, seedsAt([home], tunR)); }
+function fieldSurface() { const s = []; for (let c = 0; c < gw; c++) s.push(idx(c, ground[c] - 1)); bfs(fS, s); }
+function fieldFood() { bfs(fF, seedsAt(foods.filter(f => f.found && f.amt > 0 && !f.vy), 2)); }
+function fieldTips() { bfs(fT, seedsAt(tips, 2)); }
+const FIELD_FNS = [fieldHome, fieldSurface, fieldFood, fieldTips];
+let fieldStage = 0, fieldTimer = 0;
+function computeAllFields() { FIELD_FNS.forEach(f => f()); fieldsDirty = false; }
+
+// ---- brood and colony growth
+function layEgg() {
+  let px = nursery.x, py = nursery.y;
+  for (let i = 0; i < 24; i++) { const a = rnd(TAU), rr = Math.sqrt(rnd(1)), x = nursery.x + Math.cos(a) * rr * nursery.rx, y = nursery.y + Math.sin(a) * rr * nursery.ry; if (!isSolid(x, y)) { px = x; py = y; let k = 0; while (k < 40 && !isSolid(px, py + cell)) { py += cell * .6; k++; } break; } }
+  brood.push({ x: px + rnd(-3, 3), y: py - 2, st: 0, t: 0, s: rnd(.85, 1.15), a: rnd(-.6, .6) });
+  const q = ants.find(a => a.q); if (q) q.lay = 1.3;
+}
+const STAGE_TIME = [16, 22, 22];   // egg, larva, pupa: about a minute to the first worker
+const FIRST_FORAGERS = 8;
+// The first daughters are all foragers: the queen fed the brood from her own body and the colony needs food.
+function hatch(b) {
+  const a = newAnt(false);
+  a.x = b.x; a.y = b.y; const s = nearOpen(a.x, a.y); if (s >= 0) { a.x = (s % gw + .5) * cell; a.y = ((s / gw | 0) + .5) * cell; }
+  if (hatched < FIRST_FORAGERS) { a.job = 'forage'; a.first = true; a.scout = true; }
+  hatched++; ants.push(a);
+}
+function placeQueen() { let q = ants.find(a => a.q); if (!q) { q = newAnt(true); ants.push(q); } q.x = home.x; q.y = home.y; const s = nearOpen(q.x, q.y); if (s >= 0) { q.x = (s % gw + .5) * cell; q.y = ((s / gw | 0) + .5) * cell; } }
+function newAnt(queen, atHome) {
+  const start = atHome !== false ? home : null;
+  const a = { x: home.x, y: home.y, a: rnd(TAU), aim: 0, aimT: 0, job: queen ? 'queen' : pickJob(), carry: 0, foodType: null, roll: 0, nx: 0, ny: 0, tnx: 0, tny: 0, stride: rnd(1), pause: 0, panic: 0, work: 0, dir: Math.random() < .5 ? -1 : 1, dirT: rnd(4, 18), q: !!queen, antPh: rnd(TAU), sz: queen ? 1 : rnd(.90, 1.08), lit: .7, mov: 0, jit: rnd(.84, 1.2), goalX: null };
+  a.aim = a.a;
+  if (!queen && atHome === false) { const s = randomTunnelCell(); if (s >= 0) { a.x = (s % gw + .5) * cell; a.y = ((s / gw | 0) + .5) * cell; } }
+  return a;
+}
+function randomTunnelCell() { for (let i = 0; i < 400; i++) { const c = rnd(gw) | 0, r = rnd(gh) | 0, k = idx(c, r); if (open[k] && r >= ground[c] && fH[k] !== FAR) return k; } return nearOpen(home.x, home.y); }
+function pickJob() { if (hatched <= FIRST_FORAGERS) return 'forage'; const dg = S.dig ? .22 : 0, u = Math.random(); return u < dg ? 'dig' : u < .90 ? 'forage' : 'nurse'; }
+const defaultColony = () => clamp(Math.round(48 * W / (1920 * unit) * Math.pow(60 / SIZES[S.size], 1.5)), 12, 400);
+function syncPopulation() { let drop = ants.length - 1 - S.colony; if (drop > 0) ants = ants.filter(a => { if (a.q || drop <= 0) return true; drop--; return false; }); }
+
+// ---- food
+let foodSeed = 1;
+function dropFood(type, x, y) {
+  x = clamp(x, cell * 6, W - cell * 6);
+  const c = x / cell | 0, gy = ground[c] * cell;
+  let sy = y; if (isSolid(x, y) && y > gy) sy = gy - cell * 2;
+  sy = Math.min(sy, H - cell * 4);
+  foods.push({ type, x, y: sy, vy: 40, amt: FOODS[type].amt, max: FOODS[type].amt, found: false, seed: foodSeed++, heat: 0 });
+  if (foods.length > 40) foods.shift();
+}
+function updateFood(dt) {
+  for (const f of foods) {
+    if (f.vy) { f.vy = Math.min(f.vy + 900 * dt, 620); f.y += f.vy * dt; if (isSolid(f.x, f.y + cell * .4) || f.y >= H - cell * 2) { f.y = Math.min(f.y, H - cell * 2); f.vy = 0; f.y = Math.max(0, f.y); fieldsDirty = true; } }
+  }
+  const before = foods.length; foods = foods.filter(f => f.amt > 0); if (foods.length !== before) fieldsDirty = true;
+}
+
+// ---- tunnels grow where the diggers work
+function advanceTip(t) {
+  t.wob += .35; t.a += Math.sin(t.wob * 1.3) * .22 + rnd(-.22, .22);
+  const depthHere = t.y - groundPx(t.x), c = t.x / cell | 0, maxD = (maxRow[clamp(c, 0, gw - 1)] - 4) * cell;
+  let tx = Math.cos(t.a), ty = Math.sin(t.a);
+  if (depthHere < cell * 16 && ty < .1) t.a = lerp(t.a, Math.PI * .5, .4);
+  if (t.y > maxD - cell * 10 && ty > -.1) t.a = lerp(t.a, -Math.PI * .1, .5);
+  if (t.x < cell * 12) t.a = 0; if (t.x > W - cell * 12) t.a = Math.PI;
+  tx = Math.cos(t.a); ty = Math.sin(t.a);
+  const step = cell * 2.2; const nx = t.x + tx * step, ny = t.y + ty * step;
+  const ahead = (tunR + 4) * cell, ax = t.x + tx * ahead, ay = t.y + ty * ahead;
+  if (!isSolid(ax, ay) && Math.random() > .05) { t.a += (Math.random() < .5 ? 1 : -1) * rnd(.9, 1.6); t.life -= 8; return 0; }
+  t.x = nx; t.y = ny; t.life--;
+  return carve(t.x, t.y, tunR);
+}
+function endTip(i) {
+  const t = tips[i]; tips.splice(i, 1);
+  if (t.nursery) { chamber(t.x, t.y, tunR * 2.8, tunR * 1.6); nursery = { x: t.x, y: t.y, rx: tunR * cell * 2.4, ry: tunR * cell * 1.3 }; addTip(t.x, t.y, t.a); addTip(home.x, home.y, t.a + Math.PI); return; }
+  if (Math.random() < .42) chamber(t.x, t.y, tunR * rnd(2.2, 3.4), tunR * rnd(1.2, 1.7));
+  if (soilCarvedFrac() < .42) { addTip(t.x, t.y, t.a + rnd(.8, 1.5)); if (Math.random() < .6) addTip(t.x, t.y, t.a - rnd(.8, 1.5)); }
+}
+function soilCarvedFrac() { let a = 0, b = 0; for (let c = 0; c < gw; c += 8) for (let r = ground[c]; r < maxRow[c]; r += 8) { b++; if (!soil[idx(c, r)]) a++; } return b ? a / b : 0; }
+
+// ---- ant behaviour
+const DIRS = Array.from({ length: 16 }, (_, i) => [Math.cos(i * TAU / 16), Math.sin(i * TAU / 16)]);
+function aimAlong(a, f) {
+  const c = a.x / cell | 0, r = a.y / cell | 0; if (!inGrid(c, r)) return false;
+  const here = f[idx(c, r)]; if (here === FAR) return false;
+  let best = here, bx = 0, by = 0, found = false;
+  for (const [dx, dy] of DIRS) { const cc = c + Math.round(dx * 3), rr = r + Math.round(dy * 3); if (!inGrid(cc, rr)) continue; const k = idx(cc, rr); if (!open[k] || f[k] === FAR) continue; const v = f[k] + Math.random() * .9; if (v < best) { best = v; bx = dx; by = dy; found = true; } }
+  if (found) a.aim = Math.atan2(by, bx);
+  return found;
+}
+function wander(a, dt, strength) { if (a.aimT <= 0) a.aim = a.a + rnd(-strength, strength); }
+const fieldAt = (a, f) => { const c = a.x / cell | 0, r = a.y / cell | 0; return inGrid(c, r) ? f[idx(c, r)] : FAR; };
+
+function thinkAnt(a, dt) {
+  const aboveGround = a.y < groundPx(a.x) + cell * .4;
+  if (a.panic > 0) { if (a.aimT <= 0) { a.aim = a.a + rnd(-1.6, 1.6); a.aimT = rnd(.1, .4); } return; }
+  if (a.work > 0) { a.work -= dt; a.mov = 0; return; }
+  if (a.aimT > 0) return;
+  a.aimT = rnd(.10, .24);
+  if (a.job === 'dig' && !S.dig) a.job = 'forage';
+  if (a.job === 'dig') {
+    if (a.carry === 1) {
+      if (aboveGround) { a.dirT -= .2; if (!a.dumpCol) { const off = (Math.random() < .5 ? -1 : 1) * rnd(12, 34); a.dumpCol = clamp((a.x / cell | 0) + off, 3, gw - 4); }
+        const tx = a.dumpCol * cell; if (Math.abs(tx - a.x) < cell * 3) { addSpoil(a.dumpCol); a.carry = 0; a.dumpCol = 0; a.aimT = rnd(.3, .7); a.work = rnd(.25, .5); } else a.aim = tx > a.x ? 0 : Math.PI; }
+      else aimAlong(a, fS);
+      return;
+    }
+    if (!tips.length) { a.job = pickJob(); return; }
+    const d = fieldAt(a, fT);
+    if (d === FAR) { aimAlong(a, fH) || wander(a, dt, 1); if (Math.random() < .02) a.job = pickJob(); return; }
+    if (d <= tunR + 3) {
+      let best = -1, bd = 1e9; for (let i = 0; i < tips.length; i++) { const t = tips[i], dd = Math.hypot(t.x - a.x, t.y - a.y); if (dd < bd) { bd = dd; best = i; } }
+      if (best >= 0) { const t = tips[best]; a.aim = Math.atan2(t.y - a.y, t.x - a.x); a.work = rnd(.9, 2.0); a.pause = 0; a.dig = true; const n = advanceTip(t); if (n > 0) carved += n; a.carry = 1; if (t.life <= 0) endTip(best); if (tips.length > Math.max(4, ants.length / 10) && !tips[0].nursery) tips.splice(0, 1); }
+      return;
+    }
+    aimAlong(a, fT); return;
+  }
+  if (a.job === 'forage') {
+    if (a.carry >= 2) {
+      const d = fieldAt(a, fH);
+      if (d !== FAR && d <= tunR * 2) { store += FOODS[a.foodType] ? FOODS[a.foodType].value : .5; deliveries++; a.first = false; a.carry = 0; a.foodType = null; a.work = rnd(.3, .7); return; }
+      aimAlong(a, fH) || wander(a, dt, 1); return;
+    }
+    const hasFood = foods.some(f => f.found && !f.vy && f.amt > 0);
+    if (hasFood) {
+      const d = fieldAt(a, fF);
+      if (d !== FAR && d <= 4) { for (const f of foods) if (!f.vy && f.amt > 0 && Math.hypot(f.x - a.x, f.y - a.y) < cell * 7.5 + foodRadius(f)) { f.amt--; f.heat = 1; a.aim = Math.atan2(f.y - a.y, f.x - a.x); a.carry = carryCode(f.type); a.foodType = f.type; a.work = rnd(.5, 1.1); if (f.amt <= 0) fieldsDirty = true; return; } }
+      if (d !== FAR) { aimAlong(a, fF); return; }
+    }
+    if (aboveGround) {
+      for (const f of foods) if (!f.found && !f.vy && Math.abs(f.x - a.x) < cell * 30) { f.found = true; fieldsDirty = true; fieldFood(); }
+      a.dirT -= .17; if (a.dirT <= 0 || a.x < cell * 8 || a.x > W - cell * 8) { a.dir = (a.x < cell * 8) ? 1 : (a.x > W - cell * 8) ? -1 : (Math.random() < .45 ? -a.dir : a.dir); a.dirT = rnd(5, 26); }
+      a.aim = a.dir > 0 ? 0 : Math.PI;
+      a.patrol = (a.patrol === undefined ? rnd(12, 40) : a.patrol) - .17;
+      if (a.patrol <= 0 && a.first) a.patrol = undefined;
+      else if (a.patrol <= 0) { a.patrol = undefined; a.scout = undefined; a.job = 'wanderIn'; a.stroll = rnd(18, 50); }
+      return;
+    }
+    if (!hasFood) { if (a.first) a.scout = true; if (a.scout === undefined) a.scout = Math.random() < .3; if (!a.scout) { a.scout = undefined; a.job = 'wanderIn'; a.stroll = rnd(25, 70); return; } }
+    aimAlong(a, fS) || wander(a, dt, 1); return;
+  }
+  if (a.job === 'wanderIn') { a.stroll = (a.stroll || 20) - .17; if (a.stroll <= 0 || foods.some(f => f.found && !f.vy)) { a.job = pickJob(); return; } if (aboveGround) { aimAlong(a, fH); return; } if (Math.random() < .08) a.aim = a.a + rnd(-1.4, 1.4); else if (fieldAt(a, fH) === FAR) aimAlong(a, fH); return; }
+  // nurse
+  const d = fieldAt(a, fH);
+  if (d > tunR * 7) aimAlong(a, fH) || wander(a, dt, 1); else wander(a, dt, 1.5);
+  if (Math.random() < .003) a.job = pickJob();
+}
+function carryCode(t) { return { sugar: 3, seeds: 4, honey: 5, crumb: 6, water: 7 }[t] || 3; }
+const foodRadius = (f) => Math.sqrt(f.amt / f.max) * antLen * .5 + antLen * .25;
+
+function updateAnt(a, dt) {
+  a.aimT -= dt; if (a.pause > 0) a.pause -= dt; if (a.panic > 0) a.panic -= dt;
+  if (a.q) { if (a.lay > 0) a.lay -= dt; a.mov = 0; a.roll += (0 - a.roll) * .05; a.a += Math.sin(simT * .3 + a.antPh) * .0015; if (Math.random() < .002) a.a += rnd(-.15, .15); return; }
+  thinkAnt(a, dt);
+  const stopped = a.work > 0 || a.pause > 0;
+  a.mov = stopped ? 0 : 1;
+  const TURN = a.panic > 0 ? 12 : 7;
+  const d = clamp(angDiff(a.aim, a.a), -TURN * dt, TURN * dt);
+  a.a += d + (stopped ? 0 : Math.sin(simT * 5 + a.antPh * 3) * .9 * dt);
+  if (!stopped) {
+    const v = antLen * (a.panic > 0 ? 5.2 : 2.2) * a.jit * (a.q ? .2 : 1), st = v * dt;
+    const ca = Math.cos(a.a), sa = Math.sin(a.a); let nx = a.x + ca * st, ny = a.y + sa * st;
+    if (!isOpen(nx, ny)) {
+      let ok = false;
+      for (const off of [.5, -.5, 1.0, -1.0, 1.6, -1.6, 2.3, -2.3, Math.PI]) { const na = a.a + off * (a.side || 1), tx = a.x + Math.cos(na) * st * 1.4, ty = a.y + Math.sin(na) * st * 1.4; if (isOpen(tx, ty)) { nx = tx; ny = ty; a.a += off * (a.side || 1) * .55; ok = true; break; } }
+      if (!ok) { const s = nearOpen(a.x, a.y); if (s >= 0) { nx = (s % gw + .5) * cell; ny = ((s / gw | 0) + .5) * cell; } else { nx = a.x; ny = a.y; } a.side = Math.random() < .5 ? -1 : 1; }
+    }
+    a.x = clamp(nx, cell, W - cell); a.y = clamp(ny, cell, H - cell);
+    a.stride += st / (antLen * .34);
+  }
+  const gy = groundPx(a.x);
+  const on = a.y < gy + cell * .5;
+  if (on) {
+    const target = gy - antLen * .13;
+    a.y += (target - a.y) * Math.min(1, dt * 14);
+    const sl = (groundPx(a.x + cell * 2) - groundPx(a.x - cell * 2)) / (cell * 4);
+    if (Math.abs(Math.cos(a.aim)) > .5 && !stopped) { const dirx = Math.cos(a.aim) >= 0 ? 1 : -1; a.a += clamp(angDiff(Math.atan2(sl * dirx, dirx), a.a), -8 * dt, 8 * dt); }
+    a.tnx = lerp(a.tnx, sl * .5, .2); a.tny = lerp(a.tny, 1, .2); a.tRoll = 1; a.lit = lerp(a.lit, 1, .1);
+  } else {
+    const R = antLen * .36; let sx = 0, sy = 0, k = 0;
+    for (const [dx, dy] of DIRS) { if (isSolid(a.x + dx * R, a.y + dy * R)) { sx += dx; sy += dy; k++; } }
+    const mag = Math.hypot(sx, sy);
+    a.tRoll = (k > 0 && mag > 1.8) ? clamp((mag - 1.6) / 2.2, 0, 1) : 0;
+    if (mag > .1) { a.tnx = lerp(a.tnx, sx / mag, .2); a.tny = lerp(a.tny, sy / mag, .2); }
+    const depth = a.y - gy; a.lit = lerp(a.lit, .78 - .34 * Math.min(1, depth / 900), .08);
+  }
+  a.roll += ((a.tRoll || 0) - a.roll) * Math.min(1, dt * 7);
+  const m = Math.hypot(a.tnx, a.tny) || 1; a.nx = a.tnx / m; a.ny = a.tny / m;
+}
+
+// Ants that meet stop and touch antennae, the way they do.
+const hashG = new Map();
+function antennation() {
+  hashG.clear(); const size = antLen * 1.1;
+  for (const a of ants) { if (a.q || a.pause > 0 || a.work > 0) continue; const k = ((a.x / size) | 0) + ((a.y / size) | 0) * 100000; const l = hashG.get(k); if (l) { if (Math.random() < .35) { const b = l[0], dx = b.x - a.x, dy = b.y - a.y; if (dx * dx + dy * dy < antLen * antLen * .9 && (b.carry || 0) >= 0) { const an = Math.atan2(dy, dx); a.aim = an; b.aim = an + Math.PI; a.pause = rnd(.25, .7); b.pause = a.pause; a.aimT = b.aimT = a.pause; } } l.push(a); } else hashG.set(k, [a]); }
+}
+
+let simT = 0, autoT = 40, saveT = 0, flushT = 0, antenT = 0, broodT = 8;
+const sepG = new Map();
+function separate(dt) {
+  sepG.clear(); const size = antLen * .72, K = 100000;
+  const key = (x, y) => (x | 0) + (y | 0) * K;
+  for (const a of ants) { const k = key(a.x / size, a.y / size); const l = sepG.get(k); if (l) l.push(a); else sepG.set(k, [a]); }
+  const R = antLen * .5, R2 = R * R;
+  for (const a of ants) { if (a.q) continue; const cx = a.x / size | 0, cy = a.y / size | 0; let px = 0, py = 0;
+    for (let y = cy - 1; y <= cy + 1; y++) for (let x = cx - 1; x <= cx + 1; x++) { const l = sepG.get(x + y * K); if (!l) continue; for (const b of l) { if (b === a) continue; const dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy; if (d2 > 1 && d2 < R2) { const d = Math.sqrt(d2), f = (R - d) / R; px += dx / d * f; py += dy / d * f; } } }
+    if (px || py) { const v = antLen * 1.5 * dt, nx = a.x + clamp(px, -1, 1) * v, ny = a.y + clamp(py, -1, 1) * v; if (isOpen(nx, ny)) { a.x = nx; a.y = ny; } }
+  }
+}
+function sim(dt) {
+  simT += dt;
+  for (const a of ants) updateAnt(a, dt);
+  separate(dt);
+  updateFood(dt);
+  if ((antenT -= dt) <= 0) { antenT = .22; antennation(); }
+  for (const b of brood) { b.t += dt; if (b.t > STAGE_TIME[b.st]) { b.t = 0; b.st++; } }
+  for (let i = brood.length - 1; i >= 0; i--) if (brood[i].st >= 3) { const b = brood[i]; brood.splice(i, 1); hatch(b); }
+  if ((broodT -= dt) <= 0) { broodT = rnd(5, 10); if (store >= 3 && brood.length < 40 && ants.length - 1 + brood.length < S.colony) { store -= 3; layEgg(); } }
+  if (!nurseryDug && S.dig && ants.length - 1 > FIRST_FORAGERS + 2) { nurseryDug = true; tips.push({ x: home.x, y: home.y, a: Math.random() < .5 ? .15 : Math.PI - .15, life: 16, wob: rnd(TAU), nursery: true }); }
+  fieldTimer -= dt;
+  if ((fieldsDirty || fieldStage) && fieldTimer <= 0) { FIELD_FNS[fieldStage](); fieldStage = (fieldStage + 1) % FIELD_FNS.length; if (fieldStage === 0) fieldsDirty = false; fieldTimer = .03; }
+  if (S.dig && hatched > FIRST_FORAGERS && tips.length < 3 && soilCarvedFrac() < .42) { const s = randomTunnelCell(); if (s >= 0) addTip((s % gw + .5) * cell, ((s / gw | 0) + .5) * cell, (Math.random() < .5 ? 0 : Math.PI) + rnd(-.6, .6)); }
+  if (S.autofeed && (autoT -= dt) <= 0) { autoT = rnd(45, 110); const v = views[(rnd(views.length)) | 0], near = hatched <= FIRST_FORAGERS, types = ['sugar', 'seeds', 'crumb', 'honey']; dropFood(types[rnd(4) | 0], near ? home.x + (Math.random() < .5 ? -1 : 1) * rnd(220, 520) : v.wx + rnd(.12, .88) * v.ww, 40); }
+}
+
+// ---- drawing an ant: 3D ellipsoids posed each frame
+let Px = 0, Py = 0, Pz = 0, Fx = 1, Fy = 0, Fz = 0, Sx = 0, Sy = 1, Sz = 0, Ux = 0, Uy = 0, Uz = 1, SC = 60;
+function part(M, lx, ly, lz, dx, dy, dz, r1, r2, r3, c, mat) {
+  if (M.n >= M.cap) return; const i = M.n++ * FLOATS, d = M.data;
+  let px, py, pz; if (Math.abs(dz) < .9) { const l = Math.hypot(dx, dy) || 1; px = -dy / l; py = dx / l; pz = 0; } else { px = 0; py = 1; pz = 0; }
+  const qx = dy * pz - dz * py, qy = dz * px - dx * pz, qz = dx * py - dy * px;
+  const wx = (x, y, z) => x * Fx + y * Sx + z * Ux, wy = (x, y, z) => x * Fy + y * Sy + z * Uy, wz = (x, y, z) => x * Fz + y * Sz + z * Uz;
+  d[i] = Px + SC * wx(lx, ly, lz); d[i + 1] = Py + SC * wy(lx, ly, lz); d[i + 2] = Pz + SC * wz(lx, ly, lz);
+  const a = r1 * SC, b = r2 * SC, e = r3 * SC;
+  d[i + 3] = a * wx(dx, dy, dz); d[i + 4] = a * wy(dx, dy, dz); d[i + 5] = a * wz(dx, dy, dz);
+  d[i + 6] = b * wx(px, py, pz); d[i + 7] = b * wy(px, py, pz); d[i + 8] = b * wz(px, py, pz);
+  d[i + 9] = e * wx(qx, qy, qz); d[i + 10] = e * wy(qx, qy, qz); d[i + 11] = e * wz(qx, qy, qz);
+  d[i + 12] = c[0]; d[i + 13] = c[1]; d[i + 14] = c[2]; d[i + 15] = mat;
+}
+function seg(M, ax, ay, az, bx, by, bz, w, c, mat) { const dx = bx - ax, dy = by - ay, dz = bz - az, l = Math.hypot(dx, dy, dz) || 1e-4; part(M, (ax + bx) / 2, (ay + by) / 2, (az + bz) / 2, dx / l, dy / l, dz / l, l * .56, w, w, c, mat); }
+const HIPS = [[.205, .205], [.125, .205], [.05, .205]];
+const FEET = [[.40, .34], [.05, .43], [-.32, .44]];
+const HAIRS = Array.from({ length: 12 }, (_, i) => { const a = (i * 2.4) % TAU, t = (i * .618) % 1; return [-.40 + t * .28, Math.cos(a) * .11, .06 + Math.abs(Math.sin(a)) * .10, Math.cos(a) * .5, -.4, .75]; });
+function poseAnt(a, t) {
+  const sp = SPECIES[S.species], q = a.q, k = q ? 1.62 : 1;
+  SC = antLen * a.sz * k * sp.len;
+  const ca = Math.cos(a.a), sa = Math.sin(a.a), r = a.roll;
+  Fx = ca; Fy = sa; Fz = 0;
+  let ux = -a.nx * r, uy = -a.ny * r, uz = 1 - r; const dt = ux * Fx + uy * Fy; ux -= dt * Fx; uy -= dt * Fy; const m = Math.hypot(ux, uy, uz) || 1; Ux = ux / m; Uy = uy / m; Uz = uz / m;
+  Sx = Uy * Fz - Uz * Fy; Sy = Uz * Fx - Ux * Fz; Sz = Ux * Fy - Uy * Fx;
+  Px = a.x; Py = a.y; Pz = SC * .28;
+  const lit = clamp(a.lit, .05, 1) * .99;
+  const body = sp.body, gas = sp.gaster, legs = sp.legs, shade = q ? 1.1 : 1;
+  const jb = [body[0] * shade, body[1] * shade, body[2] * shade];
+  const breathe = q ? 1 + Math.sin(t * .6 + a.antPh) * .02 + (a.lay > 0 ? Math.sin(t * 9) * .05 : 0) : 1;
+  const gx = q ? -.32 : -.27, grx = q ? .30 : .205, gry = q ? .19 : .128;
+  part(HI, gx, 0, .015, -.97, 0, .24, grx * breathe, gry * breathe, (q ? .18 : .118) * breathe, gas, 1 + lit);
+  part(HI, -.055, 0, .03, 1, 0, 0, .036, .038, .062, jb, 0 + lit);
+  part(HI, .025, 0, .05, 1, 0, .1, .075, .056, .058, jb, 0 + lit);
+  part(HI, .105, 0, .068, 1, 0, .05, .062, .062, .056, jb, 0 + lit);
+  part(HI, .185, 0, .08, 1, 0, .16, .074, .073, .071, jb, 0 + lit);
+  part(HI, .335, 0, .085, .97, 0, -.24, .108, .094, .062, jb, 2 + lit);
+  part(HI, .262, .036, .09, 1, 0, 0, .034, .046, .05, jb, 2 + lit); part(HI, .262, -.036, .09, 1, 0, 0, .034, .046, .05, jb, 2 + lit);
+  const eye = [.5, .4, .3];
+  part(LO, .35, .086, .10, 1, 0, 0, .030, .018, .024, eye, 3 + lit); part(LO, .35, -.086, .10, 1, 0, 0, .030, .018, .024, eye, 3 + lit);
+  const mo = a.work > 0 ? .34 + Math.sin(t * 22 + a.antPh) * .2 : a.carry ? .08 : .2;
+  for (const s of [1, -1]) {
+    part(LO, .445, s * .04, .05, Math.cos(mo * s), -Math.sin(mo * s) * .0 + Math.sin(-s * mo), -.12, .06, .017, .012, jb, 2 + lit);
+    // antenna: scape out and back, then the long funiculus forward, elbowed like a real ant's
+    const w = Math.sin(t * 7.3 + a.antPh + s) * .05 + Math.sin(t * 3.1 + a.antPh * 2) * .05, tap = a.pause > 0 ? Math.sin(t * 26 + s) * .06 : 0;
+    const ex = .325, ey = s * (.155 + w * .2), ez = .185, tx = .535 + tap, ty = s * (.20 + w), tz = .135 + w * .5, cx = .635 + tap, cy = s * (.165 + w * 1.5), cz = .05;
+    seg(LO, .405, s * .042, .105, ex, ey, ez, .0098, legs, 0 + lit);
+    seg(LO, ex, ey, ez, tx, ty, tz, .0082, legs, 0 + lit);
+    seg(LO, tx, ty, tz, cx, cy, cz, .0115, legs, 0 + lit);
+  }
+  const mv = a.mov ? 1 : .0;
+  const stepLen = .115 * mv, lift = .07 * mv;
+  for (let i = 0; i < 3; i++) for (const s of [1, -1]) {
+    const grp = (i % 2 === (s > 0 ? 0 : 1)) ? 0 : .5, ph = (a.stride + grp) % 1, swing = ph < .38;
+    const u = swing ? ph / .38 : (ph - .38) / .62, fx = FEET[i][0] + (swing ? lerp(-stepLen, stepLen, u) : lerp(stepLen, -stepLen, u)), fy = s * FEET[i][1], fz = -.15 + (swing ? Math.sin(u * Math.PI) * lift : 0);
+    const hx = HIPS[i][0] - i * .0, hy = s * .052, hz = .03;
+    const kx = lerp(hx, fx, .42), ky = s * (.052 + FEET[i][1] * .46), kz = hz + .115;
+    const tjx = lerp(kx, fx, .62), tjy = lerp(ky, fy, .62), tjz = lerp(kz, fz, .78);
+    seg(LO, hx, hy, hz, kx, ky, kz, .0235, legs, 0 + lit);
+    seg(LO, kx, ky, kz, tjx, tjy, tjz, .0150, legs, 0 + lit);
+    seg(LO, tjx, tjy, tjz, fx, fy, fz, .0092, legs, 0 + lit);
+  }
+  if (SC > 40) { const hair = [.58, .47, .30]; for (const h of HAIRS) part(LO, h[0] * (q ? 1.25 : 1), h[1] * (q ? 1.4 : 1), h[2], h[3], h[4], h[5], .036, .0025, .0025, hair, 4 + lit); }
+  if (a.carry) {
+    const cc = a.carry;
+    const col = cc === 1 ? SOILS[S.soil].b : cc === 3 ? [.86, .84, .8] : cc === 4 ? [.28, .17, .08] : cc === 5 ? [.85, .46, .1] : cc === 6 ? [.64, .46, .24] : [.8, .85, .95];
+    part(LO, .535, 0, .05, 1, 0, 0, cc === 1 ? .062 : .075, cc === 1 ? .055 : .068, cc === 1 ? .052 : .06, col, (cc === 5 ? 6 : 6) + lit);
+  }
+}
+const FOOD_COL = { sugar: [.9, .88, .84], seeds: [.26, .16, .075], honey: [1, .5, .1], crumb: [.70, .50, .27], water: [.9, .95, 1] };
+function poseFood(f) {
+  const k = Math.pow(Math.max(.05, f.amt / f.max), .42), base = antLen, c = FOOD_COL[f.type], lit = .99;
+  Fx = 1; Fy = 0; Fz = 0; Sx = 0; Sy = 1; Sz = 0; Ux = 0; Uy = 0; Uz = 1; SC = base; Pz = SC * .32; Px = f.x; Py = f.y;
+  let s = f.seed * 91.7; const r = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+  if (f.type === 'honey' || f.type === 'water') { const R = (f.type === 'honey' ? .62 : .46) * k + .08; Py = f.y - SC * R * .62; part(HI, 0, 0, .05, 1, 0, .0, R * 1.32, R * .66, R, c, (f.type === 'honey' ? 9 : 10) + lit); return; }
+  const n = f.type === 'sugar' ? 18 : f.type === 'seeds' ? 8 : 7;
+  for (let i = 0; i < Math.ceil(n * Math.pow(f.amt / f.max, .7)); i++) {
+    const a = r() * TAU, rr = r(), sp = (f.type === 'crumb' ? .55 : f.type === 'sugar' ? .52 : .62);
+    const lx = Math.cos(a) * rr * sp, ly = -Math.abs(Math.sin(a)) * rr * sp * .55 - .08;
+    if (f.type === 'sugar') { const v = .05 + r() * .045; part(LO, lx, ly, r() * .08, Math.cos(a), Math.sin(a), 0, v, v * .92, v * .9, c, 8 + lit); }
+    else if (f.type === 'seeds') { const v = .11 + r() * .03; part(HI, lx, ly, r() * .1, Math.cos(a * 2), Math.sin(a * 2), .2, v * 1.5, v * .8, v * .75, c, 7 + lit); }
+    else { const v = .13 + r() * .17; part(HI, lx, ly, r() * .08, Math.cos(a), Math.sin(a), .4, v * 1.3, v, v * .9, c, 11 + lit); }
+  }
+}
+function poseBrood(b, t) {
+  Fx = Math.cos(b.a); Fy = Math.sin(b.a); Fz = 0; Sx = -Fy; Sy = Fx; Sz = 0; Ux = 0; Uy = 0; Uz = 1; SC = antLen; Px = b.x; Py = b.y; Pz = SC * .1;
+  const lit = .78 * .99;
+  if (b.st === 0) part(HI, 0, 0, 0, 1, 0, 0, .075 * b.s, .045 * b.s, .045 * b.s, [.95, .92, .82], 5 + lit);
+  else if (b.st === 1) { const g = .13 + .05 * (b.t / STAGE_TIME[1]); part(HI, 0, Math.sin(t * 1.1 + b.a * 7) * .006, 0, 1, 0, 0, g * b.s, g * .55 * b.s, g * .55 * b.s, [.96, .91, .74], 5 + lit); }
+  else { const p = [.88, .79, .60]; part(HI, 0, 0, 0, 1, 0, 0, .25 * b.s, .092 * b.s, .092 * b.s, p, 5 + lit); }
+}
+function poseStones() {
+  if (!S.stones) return; const lit = .99; Fx = 1; Fy = 0; Fz = 0; Sx = 0; Sy = 1; Sz = 0; Ux = 0; Uy = 0; Uz = 1; SC = antLen;
+  for (const s of stones) {
+    Px = s.x; Py = groundPx(s.x) - SC * s.r * s.sq * .28; Pz = -SC * .9;
+    const c = [.30 * s.tone, .26 * s.tone, .205 * s.tone], R = s.r;
+    part(HI, 0, 0, 0, Math.cos(s.a), Math.sin(s.a), 0, R * 1.08, R * s.sq, R * .8, c, 12 + lit);
+    part(HI, R * .52, -R * .12, .03, Math.cos(s.a + .9), Math.sin(s.a + .9), 0, R * .62, R * .48 * s.sq, R * .6, c, 12 + lit);
+    part(HI, -R * .58, R * .08, -.02, Math.cos(s.a - .7), Math.sin(s.a - .7), 0, R * .66, R * .5 * s.sq, R * .62, c, 12 + lit);
+  }
+}
+
+// ---- frame
+function setView(p, v) { gl.uniform4f(p.u.uView, v.wx, v.ww, v.wh, 0); }
+function viewport(v) { const y = canvas.height - v.cy - v.ch; gl.viewport(v.cx, y, v.cw, v.ch); gl.scissor(v.cx, y, v.cw, v.ch); }
+function render(t) {
+  const sp = SPECIES[S.species], l = LIGHTS[S.light];
+  HI.n = 0; LO.n = 0;
+  const dispAnts = LEADER ? ants : paneAnts;
+  poseStones();
+  for (const f of foods) poseFood(f);
+  for (const b of brood) poseBrood(b, t);
+  for (const a of dispAnts) poseAnt(a, t);
+  for (const M of [HI, LO]) { gl.bindBuffer(gl.ARRAY_BUFFER, M.inst); gl.bufferSubData(gl.ARRAY_BUFFER, 0, M.data.subarray(0, M.n * FLOATS)); }
+  // shadows: the flattened silhouettes of everything, lit from the upper left
+  gl.bindFramebuffer(gl.FRAMEBUFFER, shadowFB); gl.viewport(0, 0, SHW, SHH); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.disable(gl.DEPTH_TEST); gl.disable(gl.SCISSOR_TEST); gl.enable(gl.BLEND); gl.blendEquation(gl.MAX); gl.blendFunc(gl.ONE, gl.ONE);
+  gl.useProgram(P.shadow.p); gl.uniform2f(P.shadow.u.uWorld, W, H);
+  for (const M of [HI, LO]) { gl.bindVertexArray(M.vao); gl.drawElementsInstanced(gl.TRIANGLES, M.count, gl.UNSIGNED_SHORT, 0, M.n); }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.blendEquation(gl.FUNC_ADD); gl.disable(gl.BLEND);
+
+  gl.enable(gl.SCISSOR_TEST); gl.scissor(0, 0, canvas.width, canvas.height); gl.clearColor(0, 0, 0, 1); gl.clearDepth(1); gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  for (const v of views) {
+    viewport(v);
+    gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
+    let p = P.compose; gl.useProgram(p.p); gl.bindVertexArray(emptyVAO); setView(p, v); gl.uniform2f(p.u.uWorld, W, H);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, soilTex); gl.uniform1i(p.u.uSoil, 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shadowTex); gl.uniform1i(p.u.uShadow, 1);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+    p = P.ant; gl.useProgram(p.p); setView(p, v); gl.uniform3fv(p.u.uKey, l.key); gl.uniform3fv(p.u.uFill, l.fill); gl.uniform3fv(p.u.uBounce, l.bounce); gl.uniform1f(p.u.uGloss, sp.gloss); gl.uniform2f(p.u.uWorld, W, H);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, soilTex); gl.uniform1i(p.u.uSoil, 0);
+    for (const M of [HI, LO]) { gl.bindVertexArray(M.vao); gl.drawElementsInstanced(gl.TRIANGLES, M.count, gl.UNSIGNED_SHORT, 0, M.n); }
+    gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    p = P.glass; gl.useProgram(p.p); gl.bindVertexArray(emptyVAO); setView(p, v); gl.uniform1f(p.u.uTime, t % 100); gl.uniform1f(p.u.uHasGlass, S.glass ? 1 : 0); gl.uniform3fv(p.u.uKey, l.key);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.disable(gl.BLEND);
+  }
+  gl.disable(gl.SCISSOR_TEST);
+}
+
+let last = performance.now(), fps = 60, frames = 0, netT = 0, frameCount = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (!RTW) return;
+  let dt = Math.min(.05, (now - last) / 1000); last = now; fps = lerp(fps, 1 / Math.max(.001, dt), .05); frameCount++;
+  if (LEADER) {
+    const steps = Math.max(1, Math.round(S.speed));
+    if (baked) for (let i = 0; i < steps; i++) sim(dt);
+    flushT -= dt; if (flushT <= 0) { flushT = .2; flushDirty(); }
+    saveT -= dt; if (saveT <= 0) { saveT = 20; if (baked) saveColony(); }
+    if (channel) { netT -= dt; if (netT <= 0) { netT = 1 / 30; broadcastFrame(); } }
+  } else { flushT -= dt; if (flushT <= 0) { flushT = .2; flushDirty(); } paneStep(dt); }
+  bakeRects(baked ? 700000 : 1800000);
+  render(now / 1000);
+  if (S.stats && frameCount % 15 === 0) updateStats();
+}
+
+// ---- the colony across browser windows: one window thinks, the others draw what it says
+let channel = null, paneAnts = [], cid = hash.cid || '';
+function encodeAnts() { const n = ants.length, f = new Float32Array(n * 12); for (let i = 0; i < n; i++) { const a = ants[i], k = i * 12; f[k] = a.x; f[k + 1] = a.y; f[k + 2] = a.a; f[k + 3] = a.roll; f[k + 4] = a.nx; f[k + 5] = a.ny; f[k + 6] = a.mov; f[k + 7] = a.stride; f[k + 8] = a.carry; f[k + 9] = a.q ? 1 : 0; f[k + 10] = a.lit; f[k + 11] = a.antPh; } return f; }
+function broadcastFrame() { channel.postMessage({ t: 'f', ants: encodeAnts(), foods: foods.map(f => [f.type, f.x, f.y, f.amt, f.max, f.seed, f.vy]), brood: brood.map(b => [b.x, b.y, b.st, b.t, b.s, b.a]) }); }
+function worldMsg() { return { t: 'world', W, H, cell, antLen, gw, gh, soil, ground, maxRow, S: { ...S } }; }
+function openChannel(id) {
+  if (channel) channel.close(); cid = id; channel = new BroadcastChannel('antfarm-' + id);
+  channel.onmessage = (e) => {
+    const m = e.data;
+    if (LEADER) { if (m.t === 'hello') channel.postMessage(worldMsg()); else if (m.t === 'act') act(m.tool, m.x, m.y); else if (m.t === 'stop') stopSaver(); return; }
+    if (m.t === 'world') paneWorld(m);
+    else if (m.t === 'f') { const f = m.ants, n = f.length / 12; while (paneAnts.length < n) paneAnts.push({ x: f[paneAnts.length * 12], y: f[paneAnts.length * 12 + 1], tx: 0, ty: 0, a: 0, ta: 0, roll: 0, nx: 0, ny: 0, mov: 0, stride: 0, carry: 0, q: false, lit: .7, antPh: 0, sz: 1, pause: 0, work: 0 }); paneAnts.length = n;
+      for (let i = 0; i < n; i++) { const a = paneAnts[i], k = i * 12; a.tx = f[k]; a.ty = f[k + 1]; a.ta = f[k + 2]; a.roll = f[k + 3]; a.nx = f[k + 4]; a.ny = f[k + 5]; a.mov = f[k + 6]; a.tStride = f[k + 7]; a.carry = f[k + 8]; a.q = !!f[k + 9]; a.lit = f[k + 10]; a.antPh = f[k + 11]; if (!a.seen) { a.x = a.tx; a.y = a.ty; a.a = a.ta; a.stride = a.tStride; a.seen = 1; } }
+      foods = m.foods.map(f => ({ type: f[0], x: f[1], y: f[2], amt: f[3], max: f[4], seed: f[5], vy: f[6] })); brood = m.brood.map(b => ({ x: b[0], y: b[1], st: b[2], t: b[3], s: b[4], a: b[5] })); }
+    else if (m.t === 'dig') { for (let r = 0; r < m.h; r++) soil.set(m.sub.subarray(r * m.w, (r + 1) * m.w), idx(m.c0, m.r0 + r)); ground.set(m.g, m.c0); touch(m.c0, m.r0, m.c0 + m.w - 1, m.r0 + m.h - 1); }
+    else if (m.t === 'settings') { const redo = m.S.soil !== S.soil || m.S.light !== S.light; Object.assign(S, m.S); if (redo) bakeAll(); }
+    else if (m.t === 'stop') { try { window.close(); } catch (e) {} }
+  };
+}
+function paneStep(dt) { const k = Math.min(1, dt * 18); for (const a of paneAnts) { a.x += (a.tx - a.x) * k; a.y += (a.ty - a.y) * k; a.a += angDiff(a.ta, a.a) * k; a.stride += (a.tStride - a.stride) * k; } }
+function paneWorld(m) {
+  W = m.W; H = m.H; cell = m.cell; antLen = m.antLen; gw = m.gw; gh = m.gh; soil = m.soil; ground = m.ground; maxRow = m.maxRow; Object.assign(S, m.S);
+  tunR = Math.max(4, Math.round(antLen * .5 / cell));
+  const v = views[0]; v.wx = +hash.wx; v.ww = +hash.ww; v.wh = +hash.wh;
+  maskBytes = new Uint8Array(gw * gh * 2); for (let c = 0; c < gw; c++) for (let r = 0; r < gh; r++) { const i = idx(c, r) * 2; maskBytes[i] = soil[idx(c, r)]; maskBytes[i + 1] = r < ground[c] ? 255 : 0; }
+  if (maskTex) gl.deleteTexture(maskTex); maskTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, maskTex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG8, gw, gh, 0, gl.RG, gl.UNSIGNED_BYTE, maskBytes);
+  for (const [k, val] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, k, val);
+  if (RTW !== W || RTH !== H) { RTW = W; RTH = H; [soilTex, soilFB] = makeRT(W, H, gl.RGBA8, gl.RGBA); SHW = Math.ceil(W / 3); SHH = Math.ceil(H / 3); [shadowTex, shadowFB] = makeRT(SHW, SHH, gl.R8, gl.RED); }
+  bakeAll();
+}
+
+// ---- things you can do to the farm
+function act(tool, x, y) {
+  if (!LEADER) { channel && channel.postMessage({ t: 'act', tool, x, y }); return; }
+  if (FOODS[tool]) dropFood(tool, x, y);
+  else if (tool === 'tap') { const R = antLen * 8; for (const a of ants) { if (a.q) continue; const d = Math.hypot(a.x - x, a.y - y); if (d < R) { a.panic = rnd(1.6, 3.4) * (1 - d / R * .5); a.aim = Math.atan2(a.y - y, a.x - x); a.aimT = .1; a.a = a.aim + rnd(-.6, .6); } } shake = 1; }
+  else if (tool === 'dig') { const gy = groundPx(x); carve(x, Math.max(y, gy), tunR); }
+  else if (tool === 'fill') { if (y > groundPx(x)) fill(x, y, tunR * 1.05); }
+}
+let shake = 0;
+
+// ---- input and controls
+const $ = (id) => document.getElementById(id);
+const toolsEl = $('tools'), panel = $('panel'), menuBtn = $('menuBtn'), toast = $('toast');
+let toastT = 0, idleT = 0;
+function say(msg, ms = 2800) { toast.textContent = msg; toast.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toast.classList.remove('show'), ms); }
+const TOOLS = [['sugar', 'Sugar'], ['seeds', 'Seeds'], ['honey', 'Honey'], ['crumb', 'Crumbs'], ['water', 'Water'], null, ['tap', 'Tap glass'], ['dig', 'Dig'], ['fill', 'Fill in']];
+function buildTools() {
+  toolsEl.innerHTML = '';
+  for (const t of TOOLS) { if (!t) { toolsEl.appendChild(document.createElement('i')); continue; } const b = document.createElement('button'); b.textContent = t[1]; b.dataset.tool = t[0]; if (S.tool === t[0]) b.className = 'on'; b.onclick = () => { S.tool = t[0]; saveSettings(); toolsEl.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.tool === S.tool)); }; toolsEl.appendChild(b); }
+}
+let colonySlider = null, colonyLabel = null;
+function refreshColonySlider() { if (colonySlider && document.activeElement !== colonySlider) colonySlider.value = S.colony; if (colonyLabel) colonyLabel.textContent = S.colony; }
+function buildPanel() {
+  panel.innerHTML = '<h2>Your farm</h2><p class="sub">Click the sand to use the tool below. Saved between visits.</p>';
+  const row = (label) => { const d = document.createElement('div'); d.className = 'row'; const l = document.createElement('label'); l.textContent = label; d.appendChild(l); panel.appendChild(d); return [d, l]; };
+  const sel = (label, key, table, after) => { const [d] = row(label); const s = document.createElement('select'); for (const k in table) { const o = document.createElement('option'); o.value = k; o.textContent = table[k].name; s.appendChild(o); } s.value = S[key]; s.setAttribute('aria-label', label); s.onchange = () => { S[key] = s.value; changed(); after && after(); }; d.appendChild(s); };
+  const seg = (label, key, opts, after) => { const [d] = row(label); const w = document.createElement('div'); w.className = 'seg'; for (const [v, t] of opts) { const b = document.createElement('button'); b.textContent = t; b.className = String(S[key]) === String(v) ? 'on' : ''; b.onclick = () => { S[key] = v; changed(); w.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); after && after(); }; w.appendChild(b); } d.appendChild(w); };
+  const tog = (label, key, after) => { const l = document.createElement('label'); l.className = 'tog'; l.textContent = label; const c = document.createElement('input'); c.type = 'checkbox'; c.checked = !!S[key]; c.onchange = () => { S[key] = c.checked; changed(); after && after(); }; l.appendChild(c); panel.appendChild(l); };
+  sel('Ant species', 'species', SPECIES);
+  const [cd, cl] = row('Colony limit'); colonyLabel = document.createElement('b'); colonyLabel.textContent = S.colony; cl.appendChild(colonyLabel);
+  colonySlider = document.createElement('input'); colonySlider.type = 'range'; colonySlider.min = 5; colonySlider.max = 800; colonySlider.step = 5; colonySlider.value = S.colony; colonySlider.setAttribute('aria-label', 'Colony limit');
+  colonySlider.oninput = () => { S.colony = +colonySlider.value; colonyLabel.textContent = S.colony; syncPopulation(); changed(); }; cd.appendChild(colonySlider);
+  sel('Soil', 'soil', SOILS, () => bakeAll());
+  sel('Lighting', 'light', LIGHTS, () => bakeAll());
+  seg('Ant size (restarts the colony)', 'size', [['small', 'Small'], ['medium', 'Medium'], ['macro', 'Macro']], () => { S.colony = defaultColony(); buildWorld(null); saveColony(); changed(); refreshColonySlider(); broadcastWorld(); });
+  seg('Time-lapse', 'speed', [[1, '1x'], [2, '2x'], [4, '4x'], [8, '8x']]);
+  tog('Ants dig new tunnels', 'dig');
+  tog('Feed them while I\'m away', 'autofeed');
+  tog('Stones on the surface', 'stones');
+  tog('Glass reflections', 'glass');
+  tog('Show colony stats', 'stats', () => $('stats').classList.toggle('on', S.stats));
+  const btns = document.createElement('div'); btns.className = 'btns'; panel.appendChild(btns);
+  const addBtn = (t, fn, cls) => { const b = document.createElement('button'); b.textContent = t; if (cls) b.className = cls; b.onclick = fn; btns.appendChild(b); return b; };
+  if (!HOST) {
+    addBtn('Fullscreen', () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); });
+    addBtn('Every monitor', () => spread());
+    addBtn('Screensaver mode', () => goSaver());
+  } else addBtn('Quit', () => quitHost());
+  addBtn('Start over', () => { if (confirmReset()) { try { localStorage.removeItem('antfarm.colony'); } catch (e) {} S.colony = defaultColony(); buildWorld(null); saveColony(); refreshColonySlider(); broadcastWorld(); say('Fresh colony.'); } }, 'danger');
+  const note = document.createElement('p'); note.className = 'note'; note.textContent = HOST ? 'Esc quits.' : 'Space hides everything. Want it as a real screensaver? There is a Windows download on the Ant Farm page.'; panel.appendChild(note);
+}
+let resetArmed = 0;
+function confirmReset() { if (Date.now() - resetArmed < 3500) { resetArmed = 0; return true; } resetArmed = Date.now(); say('Click Start over again to bury this colony for good.'); return false; }
+function quitHost() { if (baked) saveColony(); hostPost('exit'); }
+function broadcastWorld() { if (channel) channel.postMessage(worldMsg()); }
+function changed() { saveSettings(); if (channel) channel.postMessage({ t: 'settings', S: { ...S } }); }
+menuBtn.onclick = () => { const o = panel.classList.toggle('open'); menuBtn.setAttribute('aria-expanded', o ? 'true' : 'false'); menuBtn.textContent = o ? 'Close' : 'Customize'; };
+
+function worldAt(ev) {
+  const k = canvas.width / (canvas.clientWidth || canvas.width), px = ev.clientX * k, py = ev.clientY * k;
+  for (const v of views) if (px >= v.cx && px < v.cx + v.cw && py >= v.cy && py < v.cy + v.ch) return [v.wx + (px - v.cx) / v.cw * v.ww, (py - v.cy) / v.ch * v.wh];
+  return null;
+}
+let dragging = false, lastDrag = 0;
+canvas.addEventListener('pointerdown', (e) => { if (EMBED || HOST === 'saver' || saverOn) return; if (panel.classList.contains('open') && e.pointerType !== 'mouse') {} const w = worldAt(e); if (!w) return; dragging = true; act(S.tool, w[0], w[1]); canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointermove', (e) => { if (!dragging) return; if (S.tool !== 'dig' && S.tool !== 'fill') return; const now = performance.now(); if (now - lastDrag < 30) return; lastDrag = now; const w = worldAt(e); if (w) act(S.tool, w[0], w[1]); });
+addEventListener('pointerup', () => { dragging = false; });
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+function wake() { document.body.classList.remove('idle'); clearTimeout(idleT); idleT = setTimeout(() => { if (!panel.classList.contains('open')) document.body.classList.add('idle'); }, 3200); }
+addEventListener('pointermove', wake); addEventListener('pointerdown', wake);
+addEventListener('keydown', (e) => {
+  if (HOST === 'saver' || saverOn) return;
+  if (e.key === 'Escape' && HOST) quitHost();
+  if (e.key === ' ' && e.target === document.body) { e.preventDefault(); document.body.classList.toggle('idle'); }
+  const n = +e.key; if (n >= 1 && n <= 5 && TOOLS[n - 1]) toolsEl.querySelector(`[data-tool="${TOOLS[n - 1][0]}"]`).click();
+});
+
+// ---- browser screensaver mode and spreading over monitors (Chrome/Edge; one popup per click)
+let saverOn = false, saverOrigin = null, saverArm = 0, details = null, queue = [], popups = [];
+function goSaver() { document.documentElement.requestFullscreen().catch(() => {}); saverOn = true; saverArm = performance.now() + 1200; saverOrigin = null; document.body.classList.add('saver'); panel.classList.remove('open'); }
+function stopSaver() { saverOn = false; document.body.classList.remove('saver'); if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); for (const w of popups) try { w.close(); } catch (e) {} popups = []; if (channel) channel.postMessage({ t: 'stop' }); }
+addEventListener('mousemove', (e) => { if (!saverOn || performance.now() < saverArm) return; if (!saverOrigin) { saverOrigin = [e.screenX, e.screenY]; return; } if (Math.hypot(e.screenX - saverOrigin[0], e.screenY - saverOrigin[1]) > 14) stopSaver(); });
+for (const ev of ['mousedown', 'keydown', 'wheel']) addEventListener(ev, () => { if (saverOn && performance.now() >= saverArm) stopSaver(); }, { passive: true });
+async function spread() {
+  if (!window.getScreenDetails) { say('This browser can only use one screen. Chrome or Edge can use them all.'); return; }
+  if (!details) {
+    try { details = await window.getScreenDetails(); } catch (e) { say('Permission declined, so just this screen.'); details = null; return; }
+    if (details.screens.length < 2) { say('Only one monitor here.'); details = null; return; }
+    const sorted = [...details.screens].sort((a, b) => a.left - b.left), list = sorted.map(s => { const d = s.devicePixelRatio || 1; return { s, w: Math.round(s.width * d), h: Math.round(s.height * d) }; });
+    let wx = 0; for (const i of list) { i.wx = wx; wx += i.w; }
+    const totalW = wx, totalH = Math.max(...list.map(i => i.h));
+    const mine = list.find(i => i.s === details.currentScreen) || list[0];
+    multi = { W: totalW, H: totalH, wx: mine.wx, ww: mine.w, wh: mine.h };
+    const data = baked ? serializeColony() : loadColonyData();
+    layout(); buildWorld(data);
+    const id = Math.random().toString(36).slice(2, 10); openChannel(id);
+    queue = list.filter(i => i !== mine);
+    say(`${list.length} monitors found. Click Every monitor once per extra screen.`, 5000);
+    return;
+  }
+  if (queue.length) {
+    const i = queue.shift(), s = i.s, url = location.href.replace(/#.*$/, '') + `#pane=1&cid=${cid}&wx=${i.wx}&ww=${i.w}&wh=${i.h}`;
+    const w = window.open(url, '_blank', `popup,left=${s.availLeft},top=${s.availTop},width=${s.availWidth},height=${s.availHeight}`);
+    if (w) popups.push(w);
+    say(queue.length ? `Opened. ${queue.length} more to go.` : 'All open. Click once inside each new window to fill its screen.', 5000);
+  } else say('Every monitor already has its window. Click inside each to fill the screen.', 4000);
+}
+if (IS_PANE) { const card = $('paneCard'); card.style.display = 'grid'; card.onclick = () => { document.documentElement.requestFullscreen().catch(() => {}); card.style.display = 'none'; }; }
+
+function updateStats() { const b = [0, 0, 0]; for (const x of brood) b[x.st]++; const d = antLen / 5, cm2 = carved * cell * cell / (d * d) / 100; $('stats').innerHTML = `queen + ${ants.length - 1} workers<br>eggs ${b[0]} · larvae ${b[1]} · pupae ${b[2]}<br>food store ${store.toFixed(0)}<br>tunnelling ${cm2.toFixed(1)} cm²<br>${fps.toFixed(0)} fps`; }
+
+// ---- go
+function boot() {
+  if (!innerWidth || !innerHeight) { setTimeout(boot, 100); return; }
+  layout();
+  unit = clamp(Math.min(...views.map(v => v.wh)) / 1080, .75, 2.6);
+  if (LEADER) { buildWorld(loadColonyData()); if (hash.demo) { foods.length = 0; } }
+  else { openChannel(cid); channel.postMessage({ t: 'hello' }); }
+  buildTools(); buildPanel();
+  if (S.stats) $('stats').classList.add('on');
+  if (HOST === 'config') { panel.classList.add('open'); menuBtn.textContent = 'Close'; }
+  if (LEADER && !EMBED && HOST !== 'saver' && ants.length <= 1) say('A lone queen, founding a colony. Her first daughters will go out to forage. Drop some food for them.', 6500);
+  else if (HOST === 'app' || HOST === 'config') say('Click the sand to feed them. Esc quits.', 4200);
+  wake();
+  requestAnimationFrame(frame);
+}
+let resizeT = 0;
+addEventListener('resize', () => { if (hostRects) return; if (screenRects) { layout(); return; } clearTimeout(resizeT); resizeT = setTimeout(() => { layout(); if (LEADER && !multi) { unit = clamp(Math.min(...views.map(v => v.wh)) / 1080, .75, 2.6); buildWorld(baked ? serializeColony() : loadColonyData()); } }, 260); });
+addEventListener('beforeunload', () => { if (LEADER && baked) saveColony(); });
+if (navigator.wakeLock && (HOST || EMBED)) navigator.wakeLock.request('screen').catch(() => {});
+window.__af = { openChannel, get hatched() { return hatched; }, get ants() { return ants; }, get views() { return views; }, S, act, get W() { return W; }, get H() { return H; }, get baked() { return baked; }, sim, carve, dropFood, get cell() { return cell; }, get tips() { return tips; }, get store() { return store; }, get foods() { return foods; }, get home() { return home; }, get brood() { return brood; } };
+boot();
+})();
+</script>
+</body>
+</html>

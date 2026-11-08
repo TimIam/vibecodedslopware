@@ -30,7 +30,7 @@ const SESSIONS = {
   craps: ["78700707"], "safe-water": ["00e37866"], "par-for-the-curse": ["47f422c5", "20edeecd"],
   "pit-crew": ["1aea2484"], "boss-hours": ["30bbe722"], "projection-mayhem": ["9aea4264"],
   "binding-order": ["73ca41e4"], shop: ["18796b08"], "park-inspector": ["2108b4e3"],
-  wasteland: ["4c2439ef"],
+  wasteland: ["4c2439ef"], antfarm: ["bb8a5495"],
 };
 // Built in the same session as another game: its prompts and tokens are counted there.
 const SHARED = { "bonsai-idle": "bonsai" };
