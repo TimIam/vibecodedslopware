@@ -1,4 +1,4 @@
-// The Bar: a quiet snooker table in the back room of the crew's local, lit by one lamp.
+// The Team Principal's evening: a snooker table under one lamp, the sponsors, brandy and cigars.
 // Solo and endless. Reds and colours alternate; a foul or a miss ends the break. See judge().
 import { rect, ellipse, poly, shade, mix, dith, canvas, outline, carSprite } from '../gfx.js';
 import { text } from '../font.js';
@@ -27,14 +27,22 @@ const CUSHIONS = [
 const SEGS = [];
 for (const c of CUSHIONS) for (let i = 0; i + 1 < c.length; i++) SEGS.push([c[i][0], c[i][1], c[i + 1][0], c[i + 1][1]]);
 
+const SPONSORS = [
+  { name: 'MERRIVALE BANK', skin: '#e8c4a8', hair: '#c8c8d0', hairStyle: 'neat', jacket: '#23283a', tie: '#b02828' },
+  { name: 'QUILLON WATCHES', skin: '#c89468', hair: '#2a2420', hairStyle: 'slick', glasses: 'round', jacket: '#3a3040', tie: '#d8b040' },
+  { name: 'FENNIMORE OIL', skin: '#f0d0b8', hair: '#7a5a3c', hairStyle: 'bald', moustache: true, jacket: '#4a3a28', tie: '#2a6a4a' },
+  { name: 'DUNMORE CRISPS', skin: '#a8724c', hair: '#141018', hairStyle: 'crop', jacket: '#26363a', tie: '#c86a20' },
+];
 const CHATTER = [
-  'Lou: Toby, the pointy end goes towards the ball.',
-  "Pip: Dev's working out the angles on a beer mat.",
-  'Toby: Mags brought her headset. On holiday.',
-  'Dev: Statistically, that red was always going in.',
-  'Lou: Two whole weeks with no wheel guns. Bliss.',
-  "Pip: Loser's buying the crisps, Toby.",
-  "Dev: Don't tell Mags, but I like it here.",
+  'MERRIVALE BANK: Splendid. We shall renew, subject to the small print.',
+  'QUILLON WATCHES: Our logo was on the sidepod for eleven seconds. I timed it.',
+  'FENNIMORE OIL: Is this the 1912? One does not ask, one pours.',
+  'DUNMORE CRISPS: Could the cars be more crisp-shaped, Hargreaves?',
+  'Hargreaves: Another brandy for the gentleman from the bank.',
+  'Hargreaves: The crew are at the seaside, I believe. Or a car park.',
+  'MERRIVALE BANK: Mind the ash on the baize, old boy.',
+  'QUILLON WATCHES: That shot took nine seconds. Very on brand.',
+  'FENNIMORE OIL: Filthy habit, cigars. Pass the box.',
 ];
 
 let highBreak = 0; // survives leaving the bar and coming back
@@ -54,24 +62,29 @@ function ballSprite(col, spec = '#ffffff') {
 }
 
 // A little off-duty crew member seen from the front, 22x44, feet at the bottom.
-function figure(p, shirt, { sip = false, lean = 0, pint = true } = {}) {
+function figure(p, shirt, { sip = false, lean = 0, tie = '#6a2a2a' } = {}) {
   const [c, b] = canvas(22, 44);
   const cx = 11, top = 2;
   const off = row => Math.round(lean * (1 - row / 13));
   // legs
-  rect(b, cx - 5, top + 22, 4, 13, '#2a3448'); rect(b, cx + 1, top + 22, 4, 13, '#2a3448');
-  rect(b, cx - 1, top + 22, 1, 6, '#2a3448'); rect(b, cx - 5, top + 22, 1, 13, '#3a4660');
+  const legs = shade(shirt, -0.12);
+  rect(b, cx - 5, top + 22, 4, 13, legs); rect(b, cx + 1, top + 22, 4, 13, legs);
+  rect(b, cx - 1, top + 22, 1, 6, legs); rect(b, cx - 5, top + 22, 1, 13, shade(shirt, 0.14));
   rect(b, cx - 6, top + 35, 5, 3, '#1a1414'); rect(b, cx + 1, top + 35, 5, 3, '#1a1414');
   // torso, sheared a row at a time if they are leaning
   for (let r = 0; r < 13; r++) { rect(b, cx - 6 + off(r), top + 9 + r, 12, 1, r > 9 ? shade(shirt, -0.28) : shirt); rect(b, cx - 6 + off(r), top + 9 + r, 1, 1, shade(shirt, 0.25)); }
+  // shirt front and tie
+  rect(b, cx - 2 + off(0), top + 9, 4, 5, '#f0ece0'); rect(b, cx - 1 + off(1), top + 10, 2, 7, tie);
   const lx = lean;
   // arms
   rect(b, cx - 8 + lx, top + 10, 2, 11, shade(shirt, -0.15)); rect(b, cx - 8 + lx, top + 21, 2, 2, p.skin);
   if (sip) { rect(b, cx + 6 + lx, top + 11, 2, 6, shade(shirt, -0.15)); rect(b, cx + 3 + lx, top + 8, 4, 3, p.skin); }
   else { rect(b, cx + 6 + lx, top + 10, 2, 11, shade(shirt, -0.15)); rect(b, cx + 6 + lx, top + 21, 2, 2, p.skin); }
-  if (pint) {
-    const px = sip ? cx + 3 + lx : cx + 7 + lx, py = sip ? top + 3 : top + 17;
-    rect(b, px, py, 4, 6, '#d89a30'); rect(b, px, py, 4, 2, '#f4ecd8'); rect(b, px + 3, py + 2, 1, 4, '#b07820');
+  // a snifter of brandy: a fat bowl on a short stem
+  {
+    const px = sip ? cx + 2 + lx : cx + 6 + lx, py = sip ? top + 3 : top + 15;
+    rect(b, px, py, 6, 4, '#c8d8e8'); rect(b, px + 1, py - 1, 4, 1, '#e8f0f8'); rect(b, px + 1, py + 1, 4, 2, '#c8741e'); rect(b, px + 1, py + 1, 4, 1, '#e8a040');
+    rect(b, px + 2, py + 4, 2, 2, '#d8e4f0'); rect(b, px + 1, py + 6, 4, 1, '#c8d8e8');
   }
   // head
   const hx = cx - 4 + lean, hy = top;
@@ -83,10 +96,14 @@ function figure(p, shirt, { sip = false, lean = 0, pint = true } = {}) {
   if (p.hairStyle === 'mop') { rect(b, hx - 1, hy - 1, 10, 4, hc); rect(b, hx - 1, hy + 3, 2, 2, hc); rect(b, hx + 7, hy + 3, 2, 2, hc); }
   if (p.hairStyle === 'bald') { rect(b, hx, hy + 3, 1, 2, hc); rect(b, hx + 7, hy + 3, 1, 2, hc); rect(b, hx + 2, hy, 3, 1, shade(p.skin, 0.3)); }
   if (p.hairStyle === 'neat') { rect(b, hx, hy, 8, 2, hc); rect(b, hx, hy + 2, 2, 1, hc); }
+  if (p.hairStyle === 'slick') { rect(b, hx, hy, 8, 3, hc); rect(b, hx, hy + 3, 1, 3, hc); rect(b, hx + 7, hy + 3, 1, 3, hc); rect(b, hx + 2, hy, 3, 1, shade(hc, 0.3)); }
   if (p.hairStyle === 'bob') { rect(b, hx - 1, hy - 1, 10, 3, hc); rect(b, hx - 1, hy + 2, 2, 6, hc); rect(b, hx + 7, hy + 2, 2, 6, hc); }
   if (p.glasses === 'round') { rect(b, hx + 1, hy + 3, 3, 1, '#14141a'); rect(b, hx + 4, hy + 3, 3, 1, '#14141a'); }
   if (p.glasses === 'safety') rect(b, hx + 1, hy + 3, 6, 1, '#8ac0e0');
   if (p.moustache) rect(b, hx + 1, hy + 6, 6, 1, hc);
+  if (p.shades) rect(b, hx + 1, hy + 3, 6, 2, '#101014');
+  // the cigar
+  if (!sip) { rect(b, hx + 6, hy + 7, 4, 1, '#6a4226'); rect(b, hx + 10, hy + 7, 1, 1, '#ff6a2a'); }
   outline(c, '#120a08');
   return c;
 }
@@ -117,9 +134,9 @@ function bakeBack(tm) {
   rect(b, 100, 38, 304, 24, '#4a2a18'); rect(b, 100, 38, 304, 4, '#a06a3a'); rect(b, 100, 38, 304, 1, '#d8a060'); rect(b, 100, 42, 304, 1, '#2a160c');
   for (let x = 106; x < 400; x += 24) { rect(b, x, 45, 19, 12, '#3a2012'); rect(b, x, 45, 19, 1, '#2a160c'); rect(b, x, 56, 19, 1, '#5e3a22'); }
   rect(b, 100, 59, 304, 2, '#c8a050'); rect(b, 100, 59, 304, 1, '#ecd080');
-  for (const x of [240, 252, 264]) { rect(b, x, 29, 3, 9, '#c8c8cc'); rect(b, x - 1, 25, 5, 5, ['#d42a24', '#16b3a3', '#f2c218'][(x - 240) / 12]); }
+  for (const x of [240, 252, 264]) { rect(b, x, 26, 8, 12, '#a86a24'); rect(b, x, 26, 8, 3, '#d8e4f0'); rect(b, x + 3, 22, 2, 4, '#d8e4f0'); rect(b, x + 1, 30, 1, 7, '#e8a040'); } // decanters
   rect(b, 342, 28, 18, 10, '#2a2a30'); rect(b, 344, 30, 14, 4, '#7ac08a');
-  for (const x of [130, 160, 318, 376]) { rect(b, x, 32, 5, 6, '#d89a30'); rect(b, x, 32, 5, 2, '#f4ecd8'); }
+  for (const x of [130, 160, 318, 376]) { rect(b, x, 32, 6, 4, '#c8d8e8'); rect(b, x + 1, 33, 4, 2, '#c8741e'); rect(b, x + 2, 36, 2, 2, '#d8e4f0'); }
   // stools in front of the counter, the table hides their feet
   for (const x of [146, 214, 298, 366]) { rect(b, x - 1, 62, 3, 8, '#7a7a84'); ellipse(b, x, 60, 10, 3.5, '#120a08'); ellipse(b, x, 59.5, 9, 2.5, '#8a2a20'); rect(b, x - 6, 59, 8, 1, '#c84a38'); }
   // chalkboard (the score is chalked on it live)
@@ -154,9 +171,10 @@ function bakeBack(tm) {
   rect(b, 462, 62, 40, 58, '#120a08'); rect(b, 464, 64, 36, 54, '#5a2a18'); poly(b, [[464, 76], [470, 64], [494, 64], [500, 76]], '#c8a050');
   rect(b, 468, 78, 28, 14, '#2a1a30'); rect(b, 468, 96, 28, 2, '#c8a050'); rect(b, 470, 100, 24, 14, '#1a0f0a');
   for (let i = 0; i < 6; i++) rect(b, 472 + i * 4, 102, 2, 10, '#3a2412');
-  // side table of pints in the left-hand corner
+  // side table with the cigar box and a snifter
   ellipse(b, 32, 240, 18, 7, '#120a08'); ellipse(b, 32, 239, 17, 6, '#6a4226'); ellipse(b, 32, 238, 16, 5, '#8a5a30'); rect(b, 30, 244, 4, 20, '#3a2012');
-  for (const [x, y] of [[26, 231], [36, 233]]) { rect(b, x, y, 5, 7, '#d89a30'); rect(b, x, y, 5, 2, '#f4ecd8'); }
+  rect(b, 22, 231, 12, 7, '#5a3418'); rect(b, 22, 231, 12, 2, '#a06a3a'); rect(b, 25, 234, 6, 2, '#e8d8a8');
+  rect(b, 37, 232, 6, 4, '#c8d8e8'); rect(b, 38, 233, 4, 2, '#c8741e'); rect(b, 39, 236, 2, 2, '#d8e4f0');
   // the table
   const tx = X0 - 12, ty = Y0 - 12, tw = TW + 24, th = TH + 24;
   rect(b, tx - 1, ty + 4, tw + 2, th, 'rgba(0,0,0,0.5)');
@@ -426,12 +444,13 @@ export default function make(ctx) {
       back = bakeBack(tm);
       sprites = { red: ballSprite('#c8242c'), white: ballSprite('#f4f0e0'), black: ballSprite('#22222a', '#d8d8e8') };
       for (const k of COLOURS) if (!sprites[k]) sprites[k] = ballSprite(SPOTS[k][3]);
-      const mk = (who, shirt, x, y, opts) => ({ who, x, y, frames: [figure(PEOPLE[who], shirt, opts), figure(PEOPLE[who], shirt, { ...opts, sip: true })], sipAt: 3 + Math.random() * 8, sip: 0 });
+      const mk = (p, x, y, opts = {}, extra = {}) => ({ x, y, ...extra, frames: [figure(p, p.jacket, { tie: p.tie, ...opts }), figure(p, p.jacket, { tie: p.tie, ...opts, sip: true })], sipAt: 3 + Math.random() * 8, sip: 0 });
       figs = [
-        mk('pip', '#b8345a', 176, 28, { lean: 2 }),
-        mk('lou', '#3a4a6a', 334, 28, { lean: -2 }),
-        mk('toby', '#d8a030', 18, 118, { pint: false }),
-        mk('dev', '#4a7a5a', 488, 158, { lean: -1 }),
+        mk(SPONSORS[0], 176, 28, { lean: 2 }),
+        mk(SPONSORS[1], 334, 28, { lean: -2 }),
+        mk({ ...PEOPLE.boss, jacket: '#1c1c24', tie: tm.c1 }, 18, 118, {}, { cue: true }),
+        mk(SPONSORS[2], 488, 158, { lean: -1 }),
+        mk(SPONSORS[3], 22, 176, { lean: 1 }),
       ];
       white = { k: 'white', v: 0, x: 0, y: 0, vx: 0, vy: 0, on: true, spr: sprites.white };
       balls = [white];
@@ -475,12 +494,18 @@ export default function make(ctx) {
       g.drawImage(back, 0, 0);
       // jukebox lights chase while it plays
       for (let i = 0; i < 6; i++) { const on2 = (T * 2.4 + i) % 3 < 1.5; rect(g, 470 + i * 4, 80, 2, 10, on2 ? ['#ff5a48', '#ffd23a', '#48d8a8'][i % 3] : '#3a2a40'); }
-      // the crew
+      // the Team Principal and the sponsors
       for (const f of figs) {
         const fy = Math.round(f.y + Math.sin(T * 1.3 + f.x) * 0.6);
         if (f.y > 80) ellipse(g, f.x, f.y + 40, 11, 3, 'rgba(0,0,0,0.4)');
-        if (f.who === 'toby') { rect(g, f.x + 12, f.y - 12, 2, 54, '#1a0c06'); rect(g, f.x + 12, f.y - 11, 1, 30, '#e0c088'); rect(g, f.x + 12, f.y + 18, 1, 23, '#6a3218'); rect(g, f.x + 12, f.y - 13, 2, 2, '#3a78d8'); }
+        if (f.cue) { rect(g, f.x + 12, f.y - 12, 2, 54, '#1a0c06'); rect(g, f.x + 12, f.y - 11, 1, 30, '#e0c088'); rect(g, f.x + 12, f.y + 18, 1, 23, '#6a3218'); rect(g, f.x + 12, f.y - 13, 2, 2, '#3a78d8'); }
         g.drawImage(f.frames[f.sip > 0 ? 1 : 0], f.x - 11, fy);
+        // cigar smoke, curling up out of the lamp
+        if (f.sip <= 0) for (let i = 0; i < 5; i++) {
+          const k = ((T * 0.45 + i * 0.2 + f.x * 0.013) % 1), sx = f.x + 7 + Math.sin(T * 1.6 + i * 1.3 + f.x) * (1 + k * 5), sy = fy + 7 - k * 26;
+          g.globalAlpha = (1 - k) * 0.5; rect(g, sx, sy, k > 0.5 ? 2 : 1, 1, '#c8c4b8');
+        }
+        g.globalAlpha = 1;
       }
       // balls: shadows first so none falls across a neighbour
       for (const b of balls) if (b.on) ellipse(g, b.x + 1, b.y + 2, 4, 3, 'rgba(0,0,0,0.38)');

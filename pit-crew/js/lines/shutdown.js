@@ -9,7 +9,7 @@ export const TRACK_START = [
   [["lou", "My mother has booked us a caravan for the break. Barbara is coming."], ["pip", "Does Barbara like caravans?"], ["lou", "She likes anything with a level floor."]],
   [["pip", "I packed my holiday bag this morning."], ["mags", "It stays in the truck until the flag."], ["pip", "It is in the truck. It is just very ready."]],
   [["dev", "Squall due mid-race, both cars on the same lap, and the sunset in every visor."], ["lou", "So a normal Sunday."], ["dev", "A normal Sunday with everything turned up."]],
-  [["sanna", "Two weeks off after today. I intend to earn every one of them."], ["dev", "Copy, Sanna. Fourteen days for eleven laps. Good exchange rate."]],
+  [["sanna", "Two weeks off after today. I intend to earn every one of them."], ["dev", "Copy, Sanna. Fourteen days for {L} laps. Good exchange rate."]],
   [["nico", "Everyone on this radio is talking about holidays. I am still racing, you know."], ["dev", "We know, Nico. We are still stopping you."]],
   [["mags", "Listen up. The holiday starts at the flag, not at lights out."], ["toby", "Not even a little bit switched off?"], ["mags", "Not a single bulb, Toby."]],
   [["toby", "There are thousands of people on the hill above turn one. Flags and umbrellas."], ["pip", "The umbrellas know something we do not."]],

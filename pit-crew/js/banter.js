@@ -191,6 +191,14 @@ export const LINES = {
   DRY_VISIT,
 };
 
+// Race lengths change with the season, so lines say {L} (or {LL} to open a sentence) for this
+// race's distance and {done} for the laps run so far.
+const NUM = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' ');
+const lapWord = n => NUM[n] || String(n);
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+let lapsNow = 11, lapsDone = 2;
+export function setLapsDone(n) { lapsDone = Math.max(2, n); }
+
 // Player-chosen names: every line is written with the defaults and swapped on the way out.
 let renames = [];
 export function setNames(pairs) {
@@ -202,6 +210,7 @@ export function setNames(pairs) {
   }
 }
 export function rename(text) {
+  text = text.replace(/{(L|LL|done)}/g, (_, k) => k === 'done' ? lapWord(lapsDone) : k === 'L' ? lapWord(lapsNow) : cap(lapWord(lapsNow)));
   // Park each new name behind a marker so one swap can't be swapped again
   // (say the mechanic is renamed "Nico").
   const hold = [];
@@ -251,7 +260,7 @@ const DRY_JOKES = new Set(Object.values(DRY_VISIT).flatMap(v => [...v.start, ...
 export const fits = (item, time, wet) => textsOf(item).every(t => textFits(t, time) && (DRY_JOKES.has(item) || textFitsSky(t, wet)));
 let timeNow = null, wetNow = false;
 // The race being talked about; pickFresh only offers lines that fit its time of day and forecast.
-export function setConditions(track) { timeNow = track.time || null; wetNow = track.weather.some(w => w.wet); }
+export function setConditions(track) { timeNow = track.time || null; wetNow = track.weather.some(w => w.wet); lapsNow = track.laps; lapsDone = 2; }
 
 const keyOf = item => typeof item === 'string' ? item : Array.isArray(item[0]) ? item[0][1] : item[1];
 

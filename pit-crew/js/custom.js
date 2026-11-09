@@ -35,6 +35,29 @@ export const FIELDS = [
 ];
 
 const clone = o => JSON.parse(JSON.stringify(o));
+
+// The other four teams, editable in the debug screen. Defaults are what data.js shipped with.
+const RIVAL_KEY = 'pitcrew26.rivals.v1';
+const STAFF = { krn: ['Ulrike Brandt', 'Otto Weiss'], ros: ['Gianni Ferrante', 'Chiara Bassi'], azv: ['Camille Roux', 'Bastien Leroy'], grh: ['Alastair Moss', 'Fiona Reid'] };
+const splitName = n => { const i = n.indexOf(' '); return [n.slice(0, i), n.slice(i + 1)]; };
+export const RIVAL_DEFAULT = {};
+TEAMS.forEach((t, i) => {
+  if (!i) return;
+  RIVAL_DEFAULT[t.id] = { name: t.name, short: t.short, c1: t.c1, c2: t.c2, c3: t.c3, helmet: t.helmet, d: DRIVERS.filter(d => d.team === i).map(d => splitName(d.name)), boss: STAFF[t.id][0], chief: STAFF[t.id][1] };
+});
+export const RIVAL_FIELDS = [['TEAM NAME', 'name'], ['DRIVER 1 FIRST', 'd.0.0'], ['DRIVER 1 SURNAME', 'd.0.1'], ['DRIVER 2 FIRST', 'd.1.0'], ['DRIVER 2 SURNAME', 'd.1.1'], ['TEAM PRINCIPAL', 'boss'], ['CREW CHIEF', 'chief']];
+export let rivals = clone(RIVAL_DEFAULT);
+try {
+  const s = JSON.parse(localStorage.getItem(RIVAL_KEY));
+  if (s && typeof s === 'object') for (const id in rivals) if (s[id]) for (const k in rivals[id]) if (s[id][k] != null && typeof s[id][k] === typeof rivals[id][k]) rivals[id][k] = s[id][k];
+} catch (e) {}
+const dig = (o, key) => key.split('.').reduce((a, k) => a[k], o);
+export const rivalGet = (id, key) => dig(rivals[id], key);
+export const rivalDefaultOf = (id, key) => dig(RIVAL_DEFAULT[id], key);
+export function rivalSet(id, key, v) { const parts = key.split('.'), last = parts.pop(); parts.reduce((a, k) => a[k], rivals[id])[last] = v; }
+export function resetRival(id) { rivals[id] = clone(RIVAL_DEFAULT[id]); }
+export function resetRivals() { rivals = clone(RIVAL_DEFAULT); }
+
 export let team = clone(DEFAULT);
 try {
   const s = JSON.parse(localStorage.getItem(KEY));
@@ -45,7 +68,7 @@ export function get(key) { const [a, b] = key.split('.'); return b == null ? tea
 export function set(key, v) { const [a, b] = key.split('.'); if (b == null) team[a] = v; else team[a][+b] = v; }
 export function defaultOf(key) { const [a, b] = key.split('.'); return b == null ? DEFAULT[a] : DEFAULT[a][+b]; }
 
-export function persist() { try { localStorage.setItem(KEY, JSON.stringify(team)); } catch (e) {} }
+export function persist() { try { localStorage.setItem(KEY, JSON.stringify(team)); localStorage.setItem(RIVAL_KEY, JSON.stringify(rivals)); } catch (e) {} }
 export function reset() { team = clone(DEFAULT); apply(); persist(); }
 
 // "Brightwater Racing" -> "BRIGHTWATER" for banners and boards.
@@ -71,7 +94,23 @@ export function apply() {
   for (const k of ['mags', 'toby', 'dev', 'pip']) PEOPLE[k].name = team[k].toUpperCase();
   PEOPLE.lou.name = team.lou === 'Lou' ? 'BIG LOU' : team.lou.toUpperCase();
   // Lines are written with the default names; swap in the player's on the way out.
+  // the rivals, and any lines that mention them
+  const rivalNames = [];
+  TEAMS.forEach((t, i) => {
+    if (!i) return;
+    const r = rivals[t.id], def = RIVAL_DEFAULT[t.id], renamed = r.name !== def.name;
+    t.name = r.name; t.short = renamed ? shortName(r.name) : def.short;
+    t.c1 = r.c1; t.c2 = r.c2; t.helmet = r.helmet; t.c3 = r.c1 === def.c1 ? def.c3 : shade(r.c1, -0.6);
+    if (renamed) rivalNames.push([def.name, r.name], [def.name.split(' ')[0], short(r.name)]);
+    DRIVERS.filter(d => d.team === i).forEach((d, k) => {
+      const [first, last] = r.d[k], [f0, l0] = def.d[k];
+      d.name = `${first} ${last}`;
+      d.code = (last.replace(/[^A-Za-z]/g, '') || first).slice(0, 3).toUpperCase().padEnd(3, 'X');
+      rivalNames.push([l0, last], [f0, first]);
+    });
+  });
   setNames([
+    ...rivalNames,
     ['Brightwater Racing', team.team], ['Brightwater', short(team.team)],
     ['Okafor', team.d1[1]], ['Lindqvist', team.d2[1]], ['Nico', team.d1[0]], ['Sanna', team.d2[0]],
     ['Hargreaves', team.boss], ['Mags', team.mags], ['Toby', team.toby], ['Lou', team.lou], ['Dev', team.dev], ['Pip', team.pip],

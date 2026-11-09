@@ -36,7 +36,7 @@ export const TRACK_IDLE = {
     [["pip", "Mud on my boots, pine needles in my hair, fuel on my gloves."], ["lou", "You smell like a camping trip."], ["pip", "A camping trip that went very wrong."]],
     [["toby", "I slipped on the wet lane and slid all the way to the garage."], ["dev", "The pit lane limit is sixty, Toby."], ["toby", "I was doing about fifty-five."]],
     [["lou", "Barbara does not like the rain."], ["mags", "It is a jack, Lou."], ["lou", "She is a jack who does not like the rain."]],
-    [["nico", "Dev, is the pit entry on the left or the right?"], ["dev", "Left, Nico. Same as the last eight laps."], ["nico", "It looks different when it is wet."]],
+    [["nico", "Dev, is the pit entry on the left or the right?"], ["dev", "Left, Nico. Same as the last {done} laps."], ["nico", "It looks different when it is wet."]],
     [["mags", "Wet gloves, wet guns, wet nuts. Squeeze harder."], ["toby", "Can I put that on a t-shirt?"], ["mags", "Absolutely not."], ["toby", "I already did."]],
     [["sanna", "Puddle at turn four. Big."], ["dev", "How big?"], ["sanna", "A duck is using it."]],
     [["pip", "Rain on the fuel rig is actually good news."], ["dev", "How?"], ["pip", "Anything that catches fire will catch it less."]],

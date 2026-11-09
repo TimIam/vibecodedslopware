@@ -5,12 +5,13 @@ import { TEAMS, DRIVERS, TRACKS, COMPOUNDS, COMPOUND_ORDER, PEOPLE, POINTS, MOD_
 import { Race, rng, IN_T, OUT_T, TANK } from './race.js';
 import { PitStop } from './stop.js';
 import { bake, bakeMap, Y, BOX_X, theme, straightCar } from './scene.js';
-import { Director, LINES, rename, pepTalk, pickFresh, saveHeard, setConditions } from './banter.js';
+import { Director, LINES, rename, pepTalk, pickFresh, saveHeard, setConditions, setLapsDone } from './banter.js';
 import { calendar, MODES, TIME_NAME } from './season.js';
 import * as C from './custom.js';
 import * as A from './audio.js';
 import * as O from './options.js';
 import { makeBreak } from './break.js';
+import { makeDebug } from './debug.js';
 
 // The game draws at 512x288 into an offscreen canvas; present() scales it to fill the window.
 const cv = document.getElementById('game');
@@ -102,7 +103,26 @@ const typer = document.getElementById('typer');
 typer.addEventListener('input', () => scene.typed && scene.typed());
 typer.addEventListener('blur', () => scene.typeEnd && scene.typeEnd(true));
 
+// Shift+Ctrl+Comma+Period, from anywhere.
+const chord = new Set();
+function toggleDebug() {
+  if (scene === debugScene) return debugScene.key('esc');
+  const st = scene && (scene.S ? scene.S.stop : scene.stop);
+  if (st) for (const k of [...st.held]) st.releaseKey(k);
+  debugScene.from = scene;
+  scene = debugScene;
+  debugScene.enter();
+}
+
 addEventListener('keydown', e => {
+  if (e.code === 'Comma' || e.code === 'Period') {
+    chord.add(e.code);
+    if (e.ctrlKey && e.shiftKey) {
+      e.preventDefault();
+      if (!e.repeat && chord.size === 2) toggleDebug();
+      return;
+    }
+  }
   if (e.target.closest && e.target.closest('.site-topbar')) return;
   if (document.activeElement === typer) {
     if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); scene.typeEnd && scene.typeEnd(true); }
@@ -122,6 +142,7 @@ addEventListener('keydown', e => {
   if (nav && scene.key) scene.key(nav);
 });
 addEventListener('keyup', e => {
+  chord.delete(e.code);
   if (scene.raw) scene.raw(e, false);
   const acts = O.actionsFor(e.code);
   if (acts.length && scene.actionsUp) scene.actionsUp(acts);
@@ -132,6 +153,7 @@ const STOP_KEYS = new Set(['space', 'a', 'd', 'q', 'e', 'z', 'c', 's', 'x', 'w',
 const stopActs = acts => acts.filter(a => STOP_KEYS.has(a));
 // Losing focus mid-stop must not leave a key (the fuel hose) held down.
 addEventListener('blur', () => {
+  chord.clear();
   const st = scene && (scene.S ? scene.S.stop : scene.stop);
   if (st) for (const k of [...st.held]) st.releaseKey(k);
 });
@@ -645,6 +667,8 @@ function raceScene(track, round, { practice = false } = {}) {
       for (const c of res) { save.team[c.team.id] = (save.team[c.team.id] || 0) + pts[c.i]; save.drv[c.code] = (save.drv[c.code] || 0) + pts[c.i]; }
       const a = race.cars[0].final, b = race.cars[1].final;
       save.results[round] = { a, b, pts: pts[0] + pts[1], best: Math.min(...S.log.filter(l => l.full).map(l => l.tv), 99) };
+      // every car's finish, kept per round for the debug tables
+      (save.log = save.log || [])[round] = res.map((c, k) => ({ i: c.i, t: c.team.id, pos: k + 1, pts: pts[c.i], dnf: !!c.dnf }));
       save.round = round + 1;
       persist();
     }
@@ -886,6 +910,7 @@ function raceScene(track, round, { practice = false } = {}) {
       }
       if (S.leaving) { S.leaving.update(dt); if (S.leaving.done) S.leaving = null; }
       if (S.stop && S.stop.fuel.st === 'fill') A.fuelPitch(S.stop.fuel.level / (TANK + 1));
+      setLapsDone(Math.floor(race.order[0].dist));
       dir.update(dt, !!S.stop && S.stop.phase !== 'arrive', S.go ? idlePool : null);
       A.setRain(race.wet);
       if (race.over) { S.overT += dt; if (S.overT > 2.4) { saveHeard(); endRace(); } }
@@ -1325,8 +1350,10 @@ const optionsScene = (() => {
 })();
 
 // ===== season end
+const LAUREL_T = 10;
+function openLaurels() { laurelsBack = seasonScene; go(laurelsScene); }
 const seasonScene = {
-  enter() { A.music('title'); this.t = 0; const s = standings(); this.champ = s[0].i === 0; this.pos = s.findIndex(x => x.i === 0) + 1; if (this.champ) A.sfx('cheer'); },
+  enter() { A.music('title'); this.t = 0; this.sel = 0; const s = standings(); this.champ = s[0].i === 0; this.pos = s.findIndex(x => x.i === 0) + 1; if (this.champ) A.sfx('cheer'); },
   update(dt) { this.t += dt; },
   draw() {
     rect(g, 0, 0, W, H, '#0a0c14');
@@ -1351,8 +1378,17 @@ const seasonScene = {
     text(g, q, W / 2, 230, '#9ad8ff', { align: 'center' });
     button(W / 2 - 150, 250, 140, 20, 'NEW SHORT SEASON', () => newSeason('short'), { hot: true });
     button(W / 2 + 10, 250, 140, 20, 'NEW LONG SEASON', () => newSeason('long'));
+    // ten seconds of looking at the table, then this fades up
+    if (this.t > LAUREL_T) {
+      g.globalAlpha = Math.min(1, (this.t - LAUREL_T) / 1.5);
+      button(W / 2 - 90, 272, 180, 15, 'REST ON YOUR LAURELS', openLaurels, { hot: this.sel === 1, color: '#b8902a' });
+      g.globalAlpha = 1;
+    }
   },
-  key(k) { if (k === 'enter' || k === 'space') go(titleScene); },
+  key(k) {
+    if (this.t > LAUREL_T && (k === 'down' || k === 'up')) { this.sel = k === 'down' ? 1 : 0; A.sfx('move'); return; }
+    if (k === 'enter' || k === 'space') { if (this.sel === 1) openLaurels(); else go(titleScene); }
+  },
 };
 
 // ===== practice: endless stops on a quiet lane
@@ -1448,6 +1484,51 @@ const practiceScene = (() => {
 // ===== the Summer Shutdown, between rounds 6 and 7 of a long season
 const breakScene = makeBreak({ g, button, mouse: () => mouse, onContinue: () => { save.breakDone = true; persist(); go(briefingScene); } });
 
+// ===== Rest On Your Laurels, after the season review (or from the debug screen)
+// One trophy for each race with a car on the podium, and the big cup for the constructors' title.
+function trophies() {
+  const tiers = save.results.filter(Boolean).map(r => Math.min(r.a, r.b)).filter(p => p <= 3);
+  const top = standings()[0];
+  const champ = top.i === 0 && top.pts > 0;
+  // the debug screen can come here before any racing: dress the case so there is something to see
+  if (laurelsBack === debugScene && !tiers.length) return { tiers: [1, 3, 2, 1, 2, 3, 1, 1], champ: true };
+  return { tiers, champ };
+}
+let laurelsBack = null;
+const laurelsScene = makeBreak({
+  g, button, mouse: () => mouse, only: ['laurels'], splash: false, label: 'CALL IT A NIGHT', song: 'laurels', reserved: ['KeyL'], data: trophies,
+  onContinue: () => { A.music('title'); scene = laurelsBack; },
+});
+
+// ===== the debug screen
+const debugBreak = makeBreak({ g, button, mouse: () => mouse, label: 'BACK TO DEBUG', onContinue: () => { A.music('title'); scene = debugScene; } });
+function jumpTo(mode, i) {
+  if ((save.mode || 'short') !== mode) save = { ...freshSave(mode), muted: save.muted, best: save.best, practiceBest: save.practiceBest };
+  else {
+    // going back: those rounds never happened
+    (save.log || []).forEach((rows, r) => { if (r >= i && rows) for (const e of rows) { save.team[e.t] = Math.max(0, (save.team[e.t] || 0) - e.pts); const code = DRIVERS[e.i].code; save.drv[code] = Math.max(0, (save.drv[code] || 0) - e.pts); } });
+    if (save.log) save.log.length = Math.min(save.log.length, i);
+    save.results.length = Math.min(save.results.length, i);
+  }
+  save.round = i;
+  save.breakDone = i > 5;
+  persist();
+  go(briefingScene);
+}
+const debugScene = makeDebug({
+  g, button, ui, typer, cv, mouse: () => mouse,
+  save: () => save,
+  setScene: s => { scene = s; },
+  jumpTo,
+  changed() { C.apply(); C.persist(); bgCache.clear(); },
+  openGame(id) {
+    if (id === 'splash') go(debugBreak);
+    else if (id === 'laurels') { laurelsBack = debugScene; go(laurelsScene); }
+    else if (id === 'season') go(seasonScene);
+    else { go(debugBreak); debugBreak.jump(id); }
+  },
+});
+
 // ------------------------------------------------------------ loop
 let last = performance.now(), acc = 0;
 const STEP = 1 / 60;
@@ -1470,6 +1551,7 @@ if (DEV) {
     speed: 1, bot: false,
     get scene() { return scene; },
     breakScene, brk: id => { go(breakScene); return breakScene.jump(id); },
+    debugScene, toggleDebug, laurelsScene, debugBreak, trophies,
     go: name => go({ setup: setupScene, title: titleScene, calendar: calendarScene, briefing: briefingScene, practice: practiceScene, how: howScene, season: seasonScene }[name]),
     race: (i, mode) => go(raceScene(calendar(mode || save.mode || 'short')[i] || TRACKS[i], i)),
     step(n = 1) { for (let i = 0; i < n; i++) { scene.update(STEP); T += STEP; } ui.length = 0; scene.draw(); present(); },

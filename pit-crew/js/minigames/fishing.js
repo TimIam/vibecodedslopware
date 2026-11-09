@@ -184,7 +184,7 @@ function curve(g, ax, ay, cx, cy, bx, by, c, w = 1) {
 
 export default function make(ctx) {
   const { g, W, H, A } = ctx;
-  const who = pick(['mags', 'toby', 'lou', 'dev', 'pip']), me = PEOPLE[who];
+  const me = PEOPLE.mags; // the Crew Chief's river
   let art = null, phase = 'ready', pt = 0, clock = 0;
   let u = 0, pow = 0, acc = 0, lx = 0, ly = 0, fx = 0, fy = 0, flightDur = 1, rodA = 0.7, snag = false;
   let take = null, takeAt = 0, nearMiss = false, spawnIn = 0.3, hook = null, hx = 0, hy = 0;

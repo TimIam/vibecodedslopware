@@ -1,5 +1,6 @@
-// The arcade: Toby off duty in a one-screen video arcade. Five cabinets run the little games from
-// micro.js, full-screen behind a chunky bezel; the claw machine is its own view, from over his shoulder.
+// The arcade: the Tyre Carrier, Front Jack and Refueller off duty in a one-screen video arcade, one of
+// them under your control. Five cabinets run the little games from micro.js behind a chunky bezel,
+// and the claw machine is a cabinet game too, with prizes that stack, ride the claw and fall.
 import { W, H, rect, ellipse, poly, shade, mix, canvas, dith, ditherRect } from '../gfx.js';
 import { text, measure, wrap } from '../font.js';
 import { PEOPLE } from '../data.js';
@@ -55,18 +56,44 @@ function plushSpr(d, tone = 0) {
   return c;
 }
 
-// Depth in the claw machine: rows run back (0) to front (4), and the pile humps up in the middle.
-const rowY = r => 136 + r * 17;
-const mound = x => Math.max(0, 13 * (1 - ((x - 236) / 104) ** 2));
-const plushY = p => rowY(p.row) - mound(p.x) - p.layer * 11;
-const sortHeap = h => h.sort((a, b) => a.row - b.row || a.layer - b.layer || a.x - b.x);
+// Inside the claw machine, in its own low-res pixels (shown 3x, as the cabinets show theirs 5x).
+// Prizes are round for physics: they settle into a heap, follow the claw and fall when let go.
+const KW = 107, KH = 80, K_FLOOR = 75, K_WALL = 83, K_WALL_TOP = 44, K_L = 3, K_R = 104, PR = 4.8, K_G = 250;
+const K_RAIL = 6, K_HOVER = 16, K_HOME = 94, K_GRIP = 9;
+function stepPrizes(list, h) {
+  for (const p of list) { p.ox = p.x; p.oy = p.y; p.vy += K_G * h; p.x += p.vx * h; p.y += p.vy * h; p.touch = false; }
+  for (let it = 0; it < 5; it++) for (let i = 0; i < list.length; i++) {
+    const a = list[i];
+    for (let j = i + 1; j < list.length; j++) {
+      const b = list[j], dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy;
+      if (d2 >= 4 * PR * PR) continue;
+      const d = Math.sqrt(d2) || 0.01, push = (2 * PR - d) / 2, nx = dx / d, ny = dy / d;
+      a.x -= nx * push; a.y -= ny * push; b.x += nx * push; b.y += ny * push;
+      a.touch = b.touch = true;
+    }
+    if (a.x < K_L + PR) { a.x = K_L + PR; a.touch = true; }
+    if (a.x > K_R - PR) { a.x = K_R - PR; a.touch = true; }
+    if (a.y > K_FLOOR - PR) { a.y = K_FLOOR - PR; a.touch = true; }
+    // the wall between the heap and the prize chute, with a rounded top
+    if (a.y > K_WALL_TOP && Math.abs(a.x - K_WALL) < PR + 1) { a.x = K_WALL + (a.ox < K_WALL ? -1 : 1) * (PR + 1); a.touch = true; }
+    else { const dx = a.x - K_WALL, dy = a.y - K_WALL_TOP, d = Math.hypot(dx, dy); if (d < PR && d > 0) { a.x = K_WALL + dx / d * PR; a.y = K_WALL_TOP + dy / d * PR; a.touch = true; } }
+  }
+  let fast = 0;
+  for (const p of list) {
+    p.vx = (p.x - p.ox) / h; p.vy = (p.y - p.oy) / h;
+    if (p.touch) p.vx *= 0.7;
+    fast = Math.max(fast, Math.abs(p.vx), Math.abs(p.vy));
+  }
+  return fast;
+}
 function makeHeap() {
   let s = 4111;
   const r = n => { s = (s * 16807) % 2147483647; return s / 2147483647 * n; };
   const out = [];
-  for (let row = 0; row < 5; row++) for (let x = 152 + row * 3; x < 328; x += 19 + r(4)) out.push({ x: Math.round(x + r(6) - 3), row, layer: 0, d: Math.floor(r(PLUSH.length)) });
-  for (let i = 0; i < 24; i++) out.push({ x: Math.round(176 + r(120)), row: Math.floor(r(5)), layer: 1, d: Math.floor(r(PLUSH.length)) });
-  return sortHeap(out);
+  for (let row = 0; row < 4; row++) for (let x = K_L + 6 + (row % 2) * 4; x < K_WALL - 6; x += 10.2) out.push({ x: x + r(1.2), y: K_FLOOR - PR - row * 9.4, vx: 0, vy: 0, d: Math.floor(r(PLUSH.length)) });
+  for (let i = 0; i < 300; i++) stepPrizes(out, 1 / 60);
+  for (const p of out) p.vx = p.vy = 0;
+  return out;
 }
 
 // ---------------------------------------------------------------- sprites and backdrops (baked once)
@@ -181,126 +208,6 @@ function bakeRoom(machines) {
   return c;
 }
 
-// The over-the-shoulder view: a one-point hall of cabinets running off behind the claw machine.
-const BTN = { x: 212, y: 228, w: 26, h: 22 };
-function bakeClawView(hallDots) {
-  const [c, b] = canvas(W, H);
-  rect(b, 0, 0, W, H, '#070814');
-  const VX = 56, VY = 106, F = 220;
-  const P = (X, Y, z) => [VX + X * F / z, VY + Y * F / z];
-  const fog = (col, z, k = 1) => mix(col, '#070814', Math.min(0.9, k * z / 46));
-  const quad = (pts, col) => poly(b, pts.map(p => [Math.round(p[0]), Math.round(p[1])]), col);
-  // carpet in big receding checks
-  for (let z = 44; z >= 1.4; z -= 2) for (let X = -66; X < 66; X += 3) {
-    const n = Math.round(z / 2) + Math.round(X / 3);
-    const zn = Math.max(0.9, z - 2); // never reaches the camera: at z = 0 the row would be infinitely tall
-    quad([P(X, 1, z), P(X + 3, 1, z), P(X + 3, 1, zn), P(X, 1, zn)], fog(n % 2 ? '#2c1c58' : '#1c1440', z));
-  }
-  // ceiling tiles of light, in long rows
-  for (let z = 44; z >= 2.5; z -= 2.5) for (let X = -60; X <= 60; X += 7.5) {
-    const col = fog('#fff2c8', z, 0.85);
-    quad([P(X - 1, -3.4, z), P(X + 1, -3.4, z), P(X + 1, -3.4, z - 1.4), P(X - 1, -3.4, z - 1.4)], col);
-  }
-  const SCREENS = ['#18c8d8', '#e8348c', '#7dff9a', '#ffd23a', '#c8a0ff'];
-  const rows = Array.from({ length: 18 }, (_, i) => 1.6 + i * 2.6);
-  let n = 0;
-  for (let z = 39; z >= 4.6; z -= 1.4) { // nothing nearer, or one cabinet would fill the side strip
-    n++;
-    if (n % 7 === 0) continue; // a cross aisle now and then
-    for (const R of rows) for (const sd of [-1, 1]) {
-      if (sd > 0 && z < 8.5) continue; // the strip right of the machine stays far away and busy
-      const X0 = sd > 0 ? R : -R - 1, X1 = X0 + 1, near = sd > 0 ? X0 : X1, z1 = z + 1.2, top = -0.75, ft = 1;
-      const body = sd > 0 ? '#2a2448' : '#332a58', screen = SCREENS[(n * 2 + Math.round(R) * 3 + (sd > 0 ? 1 : 0)) % 5], mq = ACCENT[(n + Math.round(R)) % 5];
-      quad([P(near, top, z), P(near, top, z1), P(near, ft, z1), P(near, ft, z)], fog(body, z));
-      quad([P(near, top, z), P(near, top, z1), P(near, -0.5, z1), P(near, -0.5, z)], fog(mq, z, 0.7));
-      quad([P(near, -0.3, z + 0.2), P(near, -0.3, z1 - 0.2), P(near, 0.3, z1 - 0.2), P(near, 0.3, z + 0.2)], fog(screen, z, 0.55));
-      const [lx, ty] = P(X0, top, z), [rx, by] = P(X1, ft, z);
-      if (rx - lx >= 1) rect(b, lx, ty, rx - lx, by - ty, fog(shade(body, 0.16), z));
-      const [mx, my] = P(near, 0, z + 0.6);
-      if (z < 22 && mx >= 0 && mx < W && (mx < 100 || mx > 412)) hallDots.push({ x: Math.round(mx), y: Math.round(my), col: screen });
-    }
-  }
-  // far-off signs and silhouettes down the aisle
-  [[30, '#e8348c'], [20, '#18c8d8'], [12, '#ffd23a']].forEach(([z, col]) => {
-    const [x0, y0] = P(-1.2, -2.6, z), [x1, y1] = P(1.2, -1.9, z);
-    rect(b, x0, y0, x1 - x0, y1 - y0, col); rect(b, x0 + 1, y0 + 1, x1 - x0 - 2, 1, '#ffffff');
-  });
-  [[-0.5, 16], [0.4, 9], [-0.2, 6]].forEach(([X, z]) => {
-    const [x, y] = P(X, 1, z), s = F / z;
-    rect(b, x - s * 0.2, y - s * 1.45, s * 0.4, s * 1.45, '#04050c');
-    ellipse(b, x, y - s * 1.6, s * 0.2, s * 0.22, '#04050c');
-  });
-  // cabinet glow spilling on the hall
-  ditherRect(b, 88, 32, 16, 256, '#6a3ad8', 0.45); ditherRect(b, 408, 32, 16, 256, '#6a3ad8', 0.45);
-  ditherRect(b, 112, 0, 288, 6, '#ffd23a', 0.3);
-  // the machine itself
-  rect(b, 102, 30, 308, 258, INK);
-  rect(b, 104, 32, 304, 256, '#3a1a68');
-  rect(b, 104, 32, 304, 2, '#6a3aa8');
-  for (let y = 40; y < 288; y += 4) rect(b, 106, y, 2, 2, '#5a2a98'), rect(b, 404, y, 2, 2, '#5a2a98');
-  // marquee
-  rect(b, 118, 4, 276, 30, INK);
-  rect(b, 120, 6, 272, 26, '#c81e3a'); rect(b, 120, 6, 272, 2, '#ff6a7a'); rect(b, 120, 30, 272, 2, '#7a1020');
-  text(b, 'CLAW & ORDER', 256, 12, '#fff4c0', { align: 'center', scale: 2, shadow: '#5a0a18' });
-  // the glass well, in perspective
-  rect(b, 124, 40, 264, 172, '#0a0614');
-  poly(b, [[126, 42], [386, 42], [364, 64], [148, 64]], '#1c1038');
-  poly(b, [[126, 42], [148, 64], [148, 134], [126, 212]], '#2a1a50');
-  poly(b, [[386, 42], [364, 64], [364, 134], [386, 212]], '#221444');
-  rect(b, 148, 64, 216, 70, '#3a2a78');
-  for (let i = 0; i < 26; i++) { const x = 154 + (i * 53) % 204, y = 68 + (i * 29) % 60; rect(b, x, y, 2, 2, i % 3 ? '#6a58b0' : '#ffd23a'); }
-  poly(b, [[148, 134], [364, 134], [386, 212], [126, 212]], '#2c1c50');
-  // the rails the gantry runs on
-  poly(b, [[130, 46], [136, 46], [152, 62], [148, 62]], '#7a8290'); poly(b, [[382, 46], [376, 46], [360, 62], [364, 62]], '#7a8290');
-  // the prize chute's far side
-  rect(b, 344, 150, 40, 60, '#1a1038'); rect(b, 346, 152, 36, 56, '#0e0820');
-  // lower front: control panel and base
-  rect(b, 110, 214, 292, 46, '#5a3a98'); rect(b, 110, 214, 292, 2, '#8a68c8'); rect(b, 110, 258, 292, 2, '#2a1458');
-  rect(b, 110, 260, 292, 28, '#2c1458');
-  for (let i = 0; i < 18; i++) rect(b, 200 + i * 11, 283, 7, 2, '#3a1a68');
-  rect(b, 160, 224, 26, 24, '#2a1458'); rect(b, 163, 241, 20, 4, INK);
-  rect(b, BTN.x - 1, BTN.y - 1, BTN.w + 2, BTN.h + 2, INK); rect(b, BTN.x, BTN.y, BTN.w, BTN.h, '#2a1458');
-  rect(b, 248, 222, 76, 30, INK); rect(b, 249, 223, 74, 28, '#180a06');
-  rect(b, 332, 218, 62, 38, INK); rect(b, 333, 219, 60, 36, '#120a1c');
-  text(b, 'PRIZE', 363, 208, '#ffd23a', { align: 'center' });
-  return c;
-}
-function bakeGlass() {
-  const [c, b] = canvas(W, H);
-  // the chute's near side, then streaks across the whole front
-  rect(b, 342, 148, 44, 4, '#ffd23a'); rect(b, 342, 148, 44, 1, '#fff0a8');
-  rect(b, 342, 152, 2, 60, 'rgba(200,220,255,.55)'); rect(b, 384, 152, 2, 60, 'rgba(200,220,255,.55)');
-  rect(b, 344, 152, 40, 56, 'rgba(160,200,255,.14)');
-  rect(b, 350, 156, 2, 44, 'rgba(255,255,255,.3)');
-  poly(b, [[150, 40], [186, 40], [130, 212], [124, 212], [124, 124]], 'rgba(255,255,255,.07)');
-  poly(b, [[204, 40], [214, 40], [158, 212], [148, 212]], 'rgba(255,255,255,.06)');
-  poly(b, [[340, 40], [388, 40], [388, 96]], 'rgba(255,255,255,.05)');
-  return c;
-}
-// Toby from behind: the big shape in the corner. The joystick arm is drawn live.
-function bakeForeground() {
-  const [c, b] = canvas(W, H);
-  const skin = PEOPLE.toby.skin, hair = PEOPLE.toby.hair, shirt = '#f2efe0', sd = '#c8c2a8';
-  const body = [[-12, 288], [-12, 264], [26, 248], [100, 248], [150, 264], [196, 288]];
-  poly(b, body.map(([x, y], i) => [x + (i < 2 ? -1 : 1), y - 1]), INK);
-  poly(b, body, shirt);
-  poly(b, [[-12, 276], [60, 268], [190, 288], [-12, 288]], sd);
-  rect(b, 10, 268, 100, 5, '#ff8a1e'); rect(b, 10, 273, 100, 2, '#b85a10');
-  poly(b, [[112, 250], [156, 264], [168, 288], [120, 288]], shirt);
-  poly(b, [[112, 250], [156, 264], [168, 288], [158, 288], [140, 268]], sd);
-  rect(b, 42, 236, 44, 14, shade(skin, -0.18)); rect(b, 34, 247, 60, 4, '#a8a288'); rect(b, 40, 246, 48, 3, shade(skin, -0.3));
-  ellipse(b, 16, 208, 9, 13, INK); ellipse(b, 16, 208, 7, 11, skin); ellipse(b, 110, 208, 9, 13, INK); ellipse(b, 110, 208, 7, 11, skin);
-  ellipse(b, 63, 198, 46, 49, INK);
-  ellipse(b, 66, 197, 44, 47, mix(hair, '#ff70c8', 0.55));
-  ellipse(b, 60, 200, 43, 46, hair);
-  for (let i = 0; i < 34; i++) {
-    const x = 24 + (i * 37) % 76, y = 162 + (i * 23) % 72;
-    if (((x + 5 - 60) / 36) ** 2 + ((y - 200) / 40) ** 2 > 1) continue; // tufts stay on his head
-    rect(b, x, y, 9, 2, shade(hair, i % 2 ? -0.18 : 0.14)); rect(b, x + 3, y + 2, 5, 2, shade(hair, -0.26));
-  }
-  for (let i = 0; i < 6; i++) rect(b, 38 + i * 8, 240 + (i % 3) * 2, 7, 3 + (i % 2) * 2, hair);
-  return c;
-}
 function bakeBezel(col) {
   const [c, b] = canvas(W, H);
   rect(b, 0, 0, W, H, '#14111f');
@@ -378,11 +285,23 @@ function attract(g, x, y, w, h, i, T, col) {
   rect(g, x, y + (Math.floor(T * 11) % h), w, 1, 'rgba(255,255,255,.14)');
 }
 
+// Who's in, and what the other two say when you wander past. Names come from Team Setup.
+const REGULARS = {
+  toby: { head: () => rename('TOBY'), says: () => rename("I've carried four thousand tyres this year and I can't carry this high score.") },
+  lou: { head: () => rename('BIG LOU'), says: me => `${PEOPLE[me].name}! Two weeks off and you came to a room full of things to carry on with.` },
+  pip: { head: () => rename('PIP'), says: () => rename("It says out of order. It's lying. If Mags asks, I was at the gym.") },
+};
+const TELLY = { toby: 'You dropped that wheel on telly.', lou: 'You dropped that car on telly.', pip: 'You set that car on fire on telly.' };
+
 export default function make({ g, W: SW, H: SH, A }) {
   const sfx = (n, p) => { try { A.sfx(n, p); } catch (e) {} };
   const [mc, mg] = canvas(64, 48);
   mg.imageSmoothingEnabled = false;
-  const hallDots = [];
+  const [kc, km] = canvas(KW, KH);
+  // tonight's hero is one of the three, the other two are already here
+  const me = ['toby', 'lou', 'pip'][Math.floor(Math.random() * 3)];
+  const myName = () => PEOPLE[me].name;
+  const others = ['lou', 'toby', 'pip'].filter(k => k !== me);
   const cabSpr = ACCENT.map(c => bakeCab(c, false)), deadSpr = bakeCab('#555566', true);
   const clawSpr = bakeClawSprite(), fridgeSpr = bakeFridge(), changeSpr = bakeChange();
   const M = [
@@ -397,14 +316,13 @@ export default function make({ g, W: SW, H: SH, A }) {
     { kind: 'cab', i: 4, x: 256, y: 186, spr: cabSpr[4], hw: 15, hh: 12, col: ACCENT[4] },
   ];
   const NPC = [
-    { x: 92, y: 138, dir: 1, look: LOOK.lou(), head: () => rename('BIG LOU'), says: () => `${PEOPLE.toby.name}! Two weeks off and you came to a room full of things to carry on with.`, phase: 0 },
-    { x: 216, y: 102, dir: 0, look: LOOK.pip(), head: () => rename('PIP'), says: () => rename("It says out of order. It's lying. If Mags asks, I was at the gym."), phase: 2 },
-    { x: 408, y: 176, dir: 3, look: LOOK.kid(), head: () => 'LOCAL KID', says: () => `Hey, are you ${PEOPLE.toby.name}? You dropped that wheel on telly.`, phase: 4 },
+    ...others.map((k, i) => ({ x: i ? 216 : 92, y: i ? 102 : 138, dir: i ? 0 : 1, look: LOOK[k](), head: REGULARS[k].head, says: () => REGULARS[k].says(me), phase: i * 2 })),
+    { x: 408, y: 176, dir: 3, look: LOOK.kid(), head: () => 'LOCAL KID', says: () => `Hey, are you ${myName()}? ${TELLY[me]}`, phase: 4 },
   ];
   const room = bakeRoom(M), bezels = ACCENT.map(bakeBezel), crt = bakeCrt();
-  const clawBg = bakeClawView(hallDots), glass = bakeGlass(), fg = bakeForeground();
-  const shelfT = PEOPLE.toby.name + "'S SHELF";
-  const toby = { x: 256, y: 240, dir: 0, walk: 0, moved: false };
+  const clawBezel = bakeBezel('#c858ff');
+  const shelfT = 'CREW PRIZE SHELF';
+  const hero = { x: 256, y: 240, dir: 0, walk: 0, moved: false };
   let view = 'room', wipe = 0, near = null, say = null, coins = [], shake = 0;
   let cab = null, claw = null, wonVisit = 0;
   const label = m => (m.kind === 'cab' ? cabinet(m.i).title : m.label).toUpperCase();
@@ -430,7 +348,7 @@ export default function make({ g, W: SW, H: SH, A }) {
       else {
         SESSION.change = 0; SESSION.tokens += 6; shake = 0.35; sfx('thud'); sfx('good');
         for (let i = 0; i < 18; i++) coins.push({ x: m.x + 2, y: m.y - 16, vx: -80 + Math.random() * 160, vy: -90 - Math.random() * 90, t: 1.1 + Math.random() * 0.5 });
-        speak(`A light thump. Six tokens. ${PEOPLE.toby.name} is good at this.`);
+        speak(`A light thump. Six tokens. ${myName()} is good at this.`);
       }
     }
   }
@@ -439,18 +357,18 @@ export default function make({ g, W: SW, H: SH, A }) {
     const my = (io.held('KeyS') || io.held('ArrowDown') ? 1 : 0) - (io.held('KeyW') || io.held('ArrowUp') ? 1 : 0);
     if (mx || my) {
       const k = (mx && my ? 0.72 : 1) * 104 * dt;
-      if (mx && !solid(toby.x + mx * k, toby.y)) toby.x += mx * k;
-      if (my && !solid(toby.x, toby.y + my * k)) toby.y += my * k;
-      toby.dir = mx ? (mx > 0 ? 1 : 3) : my > 0 ? 2 : 0;
-      toby.walk += dt * 9;
-      toby.moved = true;
-    } else toby.walk = 0;
+      if (mx && !solid(hero.x + mx * k, hero.y)) hero.x += mx * k;
+      if (my && !solid(hero.x, hero.y + my * k)) hero.y += my * k;
+      hero.dir = mx ? (mx > 0 ? 1 : 3) : my > 0 ? 2 : 0;
+      hero.walk += dt * 9;
+      hero.moved = true;
+    } else hero.walk = 0;
     near = null;
     let best = 1e9;
     for (const m of M) {
       if (m.kind === 'dead') continue;
-      if (Math.abs(toby.x - m.x) > m.hw + 6 || toby.y < m.y - 2 || toby.y > m.y + 28) continue;
-      const d = Math.abs(toby.x - m.x) + Math.abs(toby.y - m.y);
+      if (Math.abs(hero.x - m.x) > m.hw + 6 || hero.y < m.y - 2 || hero.y > m.y + 28) continue;
+      const d = Math.abs(hero.x - m.x) + Math.abs(hero.y - m.y);
       if (d < best) { best = d; near = m; }
     }
     if (near) {
@@ -474,17 +392,17 @@ export default function make({ g, W: SW, H: SH, A }) {
     text(g, shelfT, 456, 22, '#a898c8', { align: 'center' });
     SESSION.won.slice(0, 16).forEach((d, i) => g.drawImage(plushSpr(d), 414 + (i % 8) * 11, i < 8 ? 28 : 46));
     if (SESSION.won.length > 16) text(g, '+' + (SESSION.won.length - 16), 500, 48, '#ffd23a', { align: 'right', shadow: INK });
-    const all = [...M.map(m => ({ y: m.y, m })), ...NPC.map(n => ({ y: n.y, n })), { y: toby.y, toby: true }].sort((a, b) => a.y - b.y);
+    const all = [...M.map(m => ({ y: m.y, m })), ...NPC.map(n => ({ y: n.y, n })), { y: hero.y, hero: true }].sort((a, b) => a.y - b.y);
     for (const a of all) {
       if (a.m) {
         const m = a.m, sx = m.x - m.spr.width / 2 + (m.kind === 'change' && shake ? (Math.sin(T * 60) * 2 | 0) : 0), sy = m.y - m.spr.height;
         g.drawImage(m.spr, Math.round(sx), sy);
         if (m.kind === 'cab') { attract(g, sx + 7, sy + 18, 18, 14, m.i, T, ACCENT[m.i]); if (T * 1.2 % 1 < 0.5) rect(g, sx + 6, sy + 8, 2, 2, '#ffffff'); }
       } else if (a.n) person(g, a.n.x, a.n.y + (Math.sin(T * 2 + a.n.phase) > 0.6 ? -1 : 0), a.n.dir, 0, a.n.look);
-      else person(g, toby.x, toby.y, toby.dir, toby.walk, LOOK.toby());
+      else person(g, hero.x, hero.y, hero.dir, hero.walk, LOOK[me]());
     }
     for (const c of coins) rect(g, c.x, c.y, 3, 3, '#ffd23a');
-    const talker = NPC.find(n => Math.hypot(n.x - toby.x, n.y - toby.y) < 30);
+    const talker = NPC.find(n => Math.hypot(n.x - hero.x, n.y - hero.y) < 30);
     if (near) {
       const r = plate(near), t = label(near);
       rect(g, r.x - 1, r.y - 1, r.w + 2, r.h + 2, INK); rect(g, r.x, r.y, r.w, r.h, '#14182a');
@@ -493,12 +411,12 @@ export default function make({ g, W: SW, H: SH, A }) {
       rect(g, kx, r.y + 2, 33, 9, T * 2 % 1 < 0.6 ? '#ffd23a' : '#c89418');
       text(g, 'SPACE', kx + 2, r.y + 3, '#14182a');
     }
-    if (say) bubble(g, toby.x, toby.y - 30, say.line);
+    if (say) bubble(g, hero.x, hero.y - 30, say.line);
     else if (talker) bubble(g, talker.x, talker.y - 30, talker.says(), talker.head());
     rect(g, 4, 4, 110, 11, INK); rect(g, 5, 5, 108, 9, '#14182a');
     text(g, 'TOKENS ' + SESSION.tokens, 8, 6, '#ffd23a');
     text(g, 'WON ' + SESSION.won.length, 110, 6, '#c858ff', { align: 'right' });
-    if (!toby.moved) text(g, 'WASD OR ARROWS TO WALK', SW / 2, 259, '#ffffff', { align: 'center', outline: INK });
+    if (!hero.moved) text(g, 'WASD OR ARROWS TO WALK', SW / 2, 259, '#ffffff', { align: 'center', outline: INK });
   }
 
   // ---------------------------------------------------------------- a video cabinet
@@ -536,165 +454,167 @@ export default function make({ g, W: SW, H: SH, A }) {
   }
 
   // ---------------------------------------------------------------- the claw machine
-  const HOME = { x: 364, d: 0.92 }, HOVER = 82;
-  const railY = d => 62 - d * 16;
-  const surface = (x, d) => rowY(d * 4) - mound(x) - 8;
+  const BTN = { x: 440, y: 160, w: 48, h: 48 };
   function openClaw() {
     if (!SESSION.heap) SESSION.heap = makeHeap();
-    claw = { st: 'idle', x: HOME.x, d: HOME.d, y: HOVER, open: 1, t: 0, target: HOVER, held: null, heldT: 0, slips: false, slipAt: 9, q: 0, sway: 0, mx: 0, mz: 0, msg: 'DROP WHEN READY', msgT: 2.4, prize: null, pop: 0, popD: 0, falls: [], tick: 0, shake: 0 };
+    claw = { st: 'idle', x: K_HOME, y: K_HOVER, vx: 0, vy: 0, open: 1, t: 0, target: K_HOVER, held: null, heldT: 0, slips: false, slipAt: 9, q: 0, sway: 0, mx: 0, msg: 'DROP WHEN READY', msgT: 2.4, pop: 0, popD: 0, tick: 0, shake: 0, awake: true, calm: 0 };
     wonVisit = 0;
     sfx('whoosh'); go('claw');
   }
   function closeClaw() {
-    if (claw.held) SESSION.heap.push({ x: clamp(Math.round(claw.x), 152, 328), row: clamp(Math.round(claw.d * 4), 0, 4), layer: 1, d: claw.held.d });
-    for (const f of claw.falls) SESSION.heap.push({ x: f.tx, row: f.row, layer: 1, d: f.d });
-    sortHeap(SESSION.heap);
+    if (claw.held) { claw.held.vx = claw.held.vy = 0; SESSION.heap.push(claw.held); }
     if (wonVisit) speak(wonVisit > 1 ? `${wonVisit} plushies. Worth every token.` : 'Worth every token.', 3.2);
     claw = null; sfx('whoosh'); go('room');
   }
   const note = (msg, t = 1.8) => { claw.msg = msg; claw.msgT = t; };
+  // Let go: the prize keeps the claw's speed, then gravity has it.
   function letGo(fromSlip) {
-    const row = clamp(Math.round(claw.d * 4), 0, 4), tx = clamp(Math.round(claw.x), 152, 328);
-    claw.falls.push({ x: claw.x, y: claw.y + 18, vy: 0, d: claw.held.d, row, tx, ty: rowY(row) - mound(tx) - 11 });
-    claw.held = null;
+    const C = claw, p = C.held;
+    p.vx = C.vx; p.vy = C.vy; p.falling = true;
+    SESSION.heap.push(p);
+    C.held = null; C.awake = true; C.calm = 0;
     if (fromSlip) { sfx('miss'); note(['SO CLOSE.', 'THE CLAW GIVETH.', 'IT WAS NEVER YOURS.'][Math.floor(Math.random() * 3)]); }
   }
   function grab() {
-    const rowF = claw.d * 4;
-    let best = null, bestD = 18;
+    const C = claw, gy = C.y + K_GRIP;
+    let best = null, bestD = 9;
     for (const p of SESSION.heap) {
-      const d = Math.hypot(p.x - claw.x, (p.row - rowF) * 15) - p.layer * 3;
+      const d = Math.hypot(p.x - C.x, p.y - gy);
       if (d < bestD) { best = p; bestD = d; }
     }
     if (!best) { note('CLOSED ON AIR.'); sfx('miss'); return; }
     SESSION.heap.splice(SESSION.heap.indexOf(best), 1);
-    claw.held = best; claw.heldT = 0;
-    claw.q = clamp(1 - bestD / 18, 0, 1);
-    claw.slips = Math.random() < 0.6 - 0.5 * claw.q;
-    claw.slipAt = 0.25 + Math.random() * 1.9;
+    C.held = best; C.heldT = 0; C.awake = true; C.calm = 0; // the heap slumps into the gap
+    C.q = clamp(1 - bestD / 9, 0, 1);
+    C.slips = Math.random() < 0.6 - 0.5 * C.q;
+    C.slipAt = 0.25 + Math.random() * 1.9;
     sfx('clunk');
   }
+  function surfaceAt(x) {
+    let top = K_FLOOR;
+    for (const p of SESSION.heap) { const dx = Math.abs(p.x - x); if (dx < PR + 1) top = Math.min(top, p.y - Math.sqrt((PR + 1) ** 2 - dx * dx)); }
+    return top;
+  }
   function drop() {
-    if (SESSION.tokens <= 0) { sfx('miss'); note('OUT OF TOKENS. THE CHANGE MACHINE MIGHT HELP.', 2.6); return; }
+    if (SESSION.tokens <= 0) { sfx('miss'); note('OUT OF TOKENS. TRY THE CHANGE MACHINE.', 2.6); return; }
     SESSION.tokens--;
-    claw.st = 'down'; claw.target = Math.max(HOVER + 6, surface(claw.x, claw.d) - 20);
+    claw.st = 'down'; claw.target = clamp(surfaceAt(claw.x) - K_GRIP + 3, K_HOVER + 2, K_FLOOR - K_GRIP - 2);
     claw.msgT = 0;
     sfx('select'); sfx('whoosh');
   }
   function updateClaw(dt, io) {
     if (io.pressed('Escape')) { closeClaw(); return; }
-    const C = claw;
+    const C = claw, ox = C.x, oy = C.y;
     C.msgT = Math.max(0, C.msgT - dt); C.pop = Math.max(0, C.pop - dt); C.shake = Math.max(0, C.shake - dt);
     C.mx = (io.held('KeyD') || io.held('ArrowRight') ? 1 : 0) - (io.held('KeyA') || io.held('ArrowLeft') ? 1 : 0);
-    C.mz = (io.held('KeyS') || io.held('ArrowDown') ? 1 : 0) - (io.held('KeyW') || io.held('ArrowUp') ? 1 : 0);
-    let vx = 0;
-    if (C.held) {
-      C.heldT += dt;
-      if (C.slips && C.heldT >= C.slipAt) { letGo(true); C.shake = 0.3; }
-    }
     if (C.st === 'idle') {
-      vx = C.mx * 118;
-      C.x = clamp(C.x + vx * dt, 150, 372);
-      C.d = clamp(C.d + C.mz * 0.85 * dt, 0, 1);
-      if (C.mx || C.mz) { C.tick -= dt; if (C.tick <= 0) { C.tick = 0.14; sfx('tick', 0.2); } }
+      C.x = clamp(C.x + C.mx * 40 * dt, K_L + 6, K_HOME + 2);
+      if (C.mx) { C.tick -= dt; if (C.tick <= 0) { C.tick = 0.14; sfx('tick', 0.2); } }
       if (io.pressed('Space') || (io.mouse.clicked && inR(io.mouse, BTN))) drop();
     } else if (C.st === 'down') {
-      C.y += 138 * dt;
+      C.y += 46 * dt;
       if (C.y >= C.target) { C.y = C.target; C.st = 'close'; C.t = 0; sfx('thud'); }
     } else if (C.st === 'close') {
       C.t += dt; C.open = Math.max(0, 1 - C.t / 0.34);
       if (C.t >= 0.42) { grab(); C.st = 'up'; }
     } else if (C.st === 'up') {
-      C.y -= 96 * dt;
-      if (C.y <= HOVER) { C.y = HOVER; C.st = 'carry'; }
+      C.y -= 32 * dt;
+      if (C.y <= K_HOVER) { C.y = K_HOVER; C.st = 'carry'; }
     } else if (C.st === 'carry') {
-      const dx = HOME.x - C.x, step = 128 * dt;
-      vx = Math.abs(dx) < step ? dx / dt : Math.sign(dx) * 128;
-      C.x += vx * dt;
-      const dd = HOME.d - C.d;
-      C.d += clamp(dd, -0.95 * dt, 0.95 * dt);
-      if (Math.abs(C.x - HOME.x) < 0.5 && Math.abs(C.d - HOME.d) < 0.01) { C.x = HOME.x; C.d = HOME.d; C.st = 'release'; C.t = 0; }
+      const dx = K_HOME - C.x, step = 43 * dt;
+      C.x += Math.abs(dx) < step ? dx : Math.sign(dx) * step;
+      if (Math.abs(C.x - K_HOME) < 0.2) { C.x = K_HOME; C.st = 'release'; C.t = 0; }
     } else if (C.st === 'release') {
       C.t += dt; C.open = Math.min(1, C.t / 0.3);
-      if (C.held) {
-        C.prize = { x: C.x, y: C.y + 18, vy: 0, d: C.held.d };
-        SESSION.won.push(C.held.d); wonVisit++;
-        C.held = null; sfx('good');
+      if (C.held && C.t > 0.12) letGo(false);
+      if (C.t > 0.5 && !SESSION.heap.some(p => p.x > K_WALL)) { C.st = 'idle'; C.open = 1; }
+    }
+    C.vx = (C.x - ox) / dt; C.vy = (C.y - oy) / dt;
+    C.sway += (clamp(C.vx * 0.05, -2, 2) - C.sway) * Math.min(1, 7 * dt);
+    if (C.held) {
+      C.heldT += dt;
+      // the prize goes wherever the claw goes
+      C.held.x = C.x + C.sway; C.held.y = C.y + K_GRIP + 1;
+      if (C.slips && C.heldT >= C.slipAt) { letGo(true); C.shake = 0.3; }
+    }
+    if (C.awake) {
+      const fast = stepPrizes(SESSION.heap, Math.min(dt, 1 / 50));
+      C.calm = fast < 7 ? C.calm + dt : 0;
+      if (C.calm > 0.4) { C.awake = false; for (const p of SESSION.heap) p.vx = p.vy = 0; }
+      for (const p of SESSION.heap) if (p.falling && p.touch && p.y > K_WALL_TOP) { p.falling = false; sfx('thud'); }
+    }
+    for (let i = SESSION.heap.length - 1; i >= 0; i--) {
+      const p = SESSION.heap[i];
+      if (p.x > K_WALL + 1 && p.y >= K_FLOOR - PR - 1.5) {
+        SESSION.heap.splice(i, 1);
+        SESSION.won.push(p.d); wonVisit++;
+        C.popD = p.d; C.pop = 2.4; sfx('good'); sfx('perfect');
+        note('GOT THE ' + PLUSH[p.d].name + '!', 2.4);
       }
-      if (C.t > 0.5 && !C.prize) C.st = 'idle';
     }
-    C.sway += (clamp(vx * 0.05, -6, 6) - C.sway) * Math.min(1, 7 * dt);
-    if (C.prize) {
-      const p = C.prize;
-      p.vy += 760 * dt; p.y += p.vy * dt;
-      if (p.y > 204) { C.popD = p.d; C.pop = 2.4; C.prize = null; sfx('perfect'); note('GOT THE ' + PLUSH[p.d].name + '!', 2.4); }
+  }
+  const pix = (m, x0, y0, x1, y1, col) => { const n = Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1)); for (let i = 0; i <= n; i++) rect(m, x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, 1, 1, col); };
+  function drawClawGame(T) {
+    const C = claw, m = km;
+    rect(m, 0, 0, KW, KH, '#1c0f3c');
+    for (let i = 0; i < 46; i++) { const a = Math.sin(i * 12.9898) * 43758.5453, b = Math.sin(i * 78.233) * 12543.123; rect(m, 4 + Math.floor((a - Math.floor(a)) * 98), 9 + Math.floor((b - Math.floor(b)) * 62), 1, 1, i % 4 ? '#3a2a78' : '#ffd23a'); }
+    // the chute behind its wall
+    rect(m, K_WALL + 1, K_WALL_TOP, K_R - K_WALL - 1, K_FLOOR - K_WALL_TOP, '#0e0820');
+    for (let i = 0; i < 3; i++) rect(m, K_HOME - 3 + i, 30 + i + Math.round((T * 3) % 2), 7 - i * 2, 1, '#ffd23a'); // "drops here" arrow
+    rect(m, 0, K_FLOOR, KW, KH - K_FLOOR, '#3a1a68'); rect(m, 0, K_FLOOR, KW, 1, '#7a48c0');
+    rect(m, 0, 0, K_L, KH, '#2a1458'); rect(m, K_R, 0, KW - K_R, KH, '#2a1458');
+    // the rail along the top, with the carriage on it
+    rect(m, K_L, 0, K_R - K_L, K_RAIL - 1, '#2a1458');
+    rect(m, K_L, K_RAIL, K_R - K_L, 2, '#9aa2b0'); rect(m, K_L, K_RAIL, K_R - K_L, 1, '#d8dee8');
+    for (const p of SESSION.heap) m.drawImage(plushSpr(p.d), Math.round(p.x - 5), Math.round(p.y - 5));
+    const cx = Math.round(C.x), hx = Math.round(C.x + C.sway + (C.held && C.q < 0.45 ? Math.sin(T * 44) * 0.6 : 0) + (C.shake ? Math.sin(T * 70) : 0)), hy = Math.round(C.y);
+    if (C.held) m.drawImage(plushSpr(C.held.d), Math.round(C.held.x - 5), Math.round(C.held.y - 5));
+    pix(m, cx, K_RAIL + 2, hx, hy - 3, '#c8ccd4');
+    rect(m, cx - 3, K_RAIL - 2, 7, 4, '#e8342c'); rect(m, cx - 3, K_RAIL - 2, 7, 1, '#ff8a7a');
+    rect(m, hx - 3, hy - 3, 7, 4, '#d0d6e0'); rect(m, hx - 3, hy - 3, 7, 1, '#f4f6fa'); rect(m, hx - 3, hy, 7, 1, '#7a8290'); rect(m, hx, hy - 2, 1, 1, '#e8342c');
+    const o = Math.max(C.open, C.held ? 0.55 : 0);
+    for (const sd of [-1, 1]) {
+      const jx = hx + sd * (3 + o * 3), jy = hy + 4, tx = hx + sd * (1 + o * 4), ty = hy + K_GRIP;
+      pix(m, hx + sd * 2, hy + 1, jx, jy, '#b4bac6'); pix(m, jx, jy, tx, ty, '#e0e4ec');
     }
-    for (const f of C.falls) {
-      f.vy += 760 * dt; f.y += f.vy * dt; f.x += (f.tx - f.x) * Math.min(1, 9 * dt);
-      if (f.y >= f.ty) { f.done = true; SESSION.heap.push({ x: f.tx, row: f.row, layer: 1, d: f.d }); sortHeap(SESSION.heap); sfx('thud'); }
-    }
-    C.falls = C.falls.filter(f => !f.done);
+    // the glass wall of the chute, in front of everything
+    rect(m, K_WALL - 1, K_WALL_TOP, 2, K_FLOOR - K_WALL_TOP, '#a8c0e8'); rect(m, K_WALL - 1, K_WALL_TOP, 2, 1, '#ffd23a');
+    // streaks on the front glass
+    for (let i = 0; i < 14; i++) { rect(m, 18 + i, 62 - i * 4, 1, 3, 'rgba(255,255,255,.08)'); rect(m, 66 + i, 46 - i * 3, 1, 2, 'rgba(255,255,255,.06)'); }
   }
-  function drawPlush(p, y) {
-    const tone = 4 - clamp(Math.round(p.row), 0, 4);
-    g.drawImage(plushSpr(p.d, tone), Math.round(p.x - 10), Math.round(y - 20), 20, 20);
-  }
-  const seg = (ax, ay, bx, by, w, col) => poly(g, [[ax - w / 2, ay], [ax + w / 2, ay], [bx + w / 2, by], [bx - w / 2, by]], col);
-  function clawHead(x, y, o, held) {
-    const prong = (s, col, w) => { const kx = x + s * (7 + o * 10), tx = x + s * (2 + o * 9); seg(x + s * 5, y + 2, kx, y + 11, w, col); seg(kx, y + 11, tx, y + 21, w, col); };
-    rect(g, x - 2, y + 2, 4, 14, INK);
-    if (held) drawPlush({ ...held, row: 4 }, y + 26);
-    for (const s of [-1, 1]) { prong(s, INK, 5); prong(s, '#b4bac6', 3); }
-    rect(g, x - 1, y + 3, 2, 12, '#7a8290');
-    rect(g, x - 8, y - 7, 16, 10, INK); rect(g, x - 7, y - 6, 14, 8, '#d0d6e0'); rect(g, x - 7, y - 6, 14, 2, '#f4f6fa'); rect(g, x - 7, y, 14, 2, '#7a8290');
-    rect(g, x - 2, y - 3, 4, 3, '#e8342c');
-  }
-  function drawClaw(T, io) {
-    const C = claw, rowF = C.d * 4;
-    g.drawImage(clawBg, 0, 0);
-    hallDots.forEach((d, i) => { if ((T * (1 + i % 3) + i * 0.7) % 1.7 < 0.8) rect(g, d.x, d.y, 2, 2, d.col); });
-    for (let x = 124; x < 392; x += 11) rect(g, x, 8, 3, 3, Math.floor(T * 4 + x / 11) % 2 ? '#fff4c0' : '#7a1020');
-    for (let x = 124; x < 392; x += 11) rect(g, x, 27, 3, 3, Math.floor(T * 4 + x / 11) % 2 ? '#7a1020' : '#fff4c0');
-    const ry = Math.round(railY(C.d));
-    rect(g, 132, ry - 2, 248, 5, INK); rect(g, 133, ry - 1, 246, 3, '#9aa2b0'); rect(g, 133, ry - 1, 246, 1, '#d0d6e0');
-    for (const p of SESSION.heap) if (p.row <= rowF) drawPlush(p, plushY(p));
-    const hx = Math.round(C.x + C.sway + (C.held && C.q < 0.45 ? Math.sin(T * 44) * 1.5 : 0) + (C.shake ? Math.sin(T * 70) * 2 : 0)), floor = rowY(rowF) - mound(C.x);
-    ellipse(g, Math.round(C.x), Math.round(floor - 4), 12, 5, 'rgba(0,0,0,.5)');
-    rect(g, Math.round(C.x) - 9, ry - 5, 18, 8, INK); rect(g, Math.round(C.x) - 8, ry - 4, 16, 6, '#e8342c'); rect(g, Math.round(C.x) - 8, ry - 4, 16, 2, '#ff8a7a');
-    poly(g, [[C.x - 1, ry + 2], [C.x + 1, ry + 2], [hx + 1, C.y - 6], [hx - 1, C.y - 6]], '#c8ccd4');
-    clawHead(hx, Math.round(C.y), C.open, C.held);
-    for (const p of SESSION.heap) if (p.row > rowF) drawPlush(p, plushY(p));
-    for (const f of C.falls) drawPlush({ d: f.d, row: 4 }, f.y + 12);
-    if (C.prize) drawPlush({ d: C.prize.d, row: 4 }, C.prize.y + 12);
-    g.drawImage(glass, 0, 0);
-    if (C.msgT > 0) text(g, C.msg, 256, 192, C.msg.startsWith('GOT') ? '#ffd23a' : '#ffffff', { align: 'center', outline: INK });
-    // the prize door swings up as it comes out
-    if (C.pop > 0) {
-      const up = clamp((2.4 - C.pop) * 8, 0, 1) * clamp(C.pop * 4, 0, 1);
-      g.drawImage(plushSpr(C.popD), 348, 226 + (1 - up) * 16, 30, 30);
-      rect(g, 333, 219, 60, 6 + (1 - up) * 30, '#3a2a58');
-    } else { rect(g, 333, 219, 60, 36, '#3a2a58'); text(g, 'PUSH', 363, 233, '#8a78b0', { align: 'center' }); }
-    rect(g, 333, 219, 60, 1, '#6a5a88');
-    // tokens, won, joystick, button
-    text(g, 'TOKENS', 254, 226, '#ffb000'); text(g, String(SESSION.tokens), 318, 226, '#ffd23a', { align: 'right' });
-    text(g, 'WON', 254, 239, '#ff5a3a'); text(g, String(SESSION.won.length), 318, 239, '#ffd23a', { align: 'right' });
+  function drawClaw(T) {
+    const C = claw;
+    g.drawImage(clawBezel, 0, 0);
+    drawClawGame(T);
+    const smooth = g.imageSmoothingEnabled;
+    g.imageSmoothingEnabled = false;
+    g.drawImage(kc, 0, 0, 320 / 3, 80, 96, 40, 320, 240);
+    g.imageSmoothingEnabled = smooth;
+    g.drawImage(crt, 96, 40);
+    text(g, 'CLAW & ORDER', 256, 11, '#ffffff', { align: 'center', scale: 2, shadow: shade('#c858ff', -0.55) });
+    text(g, 'TOKENS ' + SESSION.tokens, 118, 15, SESSION.tokens ? '#ffb000' : '#ff5a3a', { align: 'right' });
+    text(g, 'WON ' + SESSION.won.length, 494, 28, '#ffb000', { align: 'right' });
+    if (C.msgT > 0) text(g, C.msg, 256, 62, C.msg.startsWith('GOT') ? '#ffd23a' : '#ffffff', { align: 'center', outline: INK });
+    // the controls, on the cabinet either side of the screen
     const idle = C.st === 'idle', ready = idle && SESSION.tokens > 0;
-    rect(g, BTN.x + 2, BTN.y + 2, BTN.w - 4, BTN.h - 4, ready && T * 2 % 1 < 0.55 ? '#ff5a4a' : '#a02018');
-    rect(g, BTN.x + 3, BTN.y + 3, BTN.w - 6, 3, '#ff9a8a');
-    const bx = 173 + (idle ? C.mx : 0) * 6, by = 230 + (idle ? C.mz : 0) * 3;
-    poly(g, [[172, 243], [175, 243], [bx + 1.5, by], [bx - 1.5, by]], '#9aa0aa');
-    ellipse(g, bx, by, 6, 6, INK); ellipse(g, bx, by, 5, 5, '#e8342c');
-    text(g, 'ARROWS OR WASD: MOVE', 298, 263, '#d0c0f0', { align: 'center', outline: '#1a0838' });
-    text(g, 'SPACE: DROP   ESC: BACK', 298, 274, '#d0c0f0', { align: 'center', outline: '#1a0838' });
-    // Toby, then his arm reaching up to the stick
-    const breath = Math.sin(T * 1.8) > 0.4 ? 1 : 0;
-    g.drawImage(fg, 0, breath);
-    const skin = PEOPLE.toby.skin;
-    poly(g, [[119, 284], [163, 266], [bx + 11, by + 11], [bx - 10, by + 11]], INK);
-    poly(g, [[121, 284], [161, 267], [bx + 10, by + 11], [bx - 9, by + 11]], skin);
-    poly(g, [[121, 284], [138, 278], [bx - 2, by + 11], [bx - 9, by + 11]], shade(skin, -0.2));
-    rect(g, bx - 11, by, 22, 13, INK); rect(g, bx - 10, by + 1, 20, 11, skin); rect(g, bx - 10, by + 1, 20, 2, shade(skin, 0.2));
-    for (let i = 1; i < 4; i++) rect(g, bx - 10 + i * 5, by + 1, 1, 6, shade(skin, -0.3));
+    const stick = idle ? C.mx : 0, sx = 48 + stick * 13;
+    ellipse(g, 48, 212, 25, 9, INK); ellipse(g, 48, 211, 23, 8, '#3a345a'); ellipse(g, 48, 210, 16, 5, '#14121f');
+    poly(g, [[45, 211], [51, 211], [sx + 2, 182], [sx - 2, 182]], '#b4bac6');
+    ellipse(g, sx, 177, 11, 11, INK); ellipse(g, sx, 177, 10, 10, '#e8342c'); ellipse(g, sx - 3, 173, 3, 3, '#ff9a8a');
+    text(g, 'ARROWS OR', 48, 226, '#ffffff', { align: 'center' });
+    text(g, 'WASD: MOVE', 48, 236, '#ffffff', { align: 'center' });
+    const bcx = BTN.x + BTN.w / 2, bcy = BTN.y + BTN.h / 2;
+    ellipse(g, bcx, bcy + 3, 24, 24, INK); ellipse(g, bcx, bcy + 2, 22, 22, '#6a1810');
+    ellipse(g, bcx, bcy, 20, 20, ready && T * 2 % 1 < 0.55 ? '#ff5a4a' : '#b02818'); ellipse(g, bcx - 6, bcy - 7, 6, 4, '#ff9a8a');
+    text(g, 'SPACE', bcx, 212, '#ffffff', { align: 'center' });
+    text(g, 'DROP', bcx, 222, '#ffd23a', { align: 'center' });
+    // the prize door
+    rect(g, 437, 236, 54, 44, INK); rect(g, 438, 237, 52, 42, '#14101f');
+    if (C.pop > 0) g.drawImage(plushSpr(C.popD), 449, 243, 30, 30);
+    const up = C.pop > 0 ? clamp((2.4 - C.pop) * 8, 0, 1) * clamp(C.pop * 4, 0, 1) : 0;
+    if (up < 1) { const dh = Math.round(42 * (1 - up)); rect(g, 438, 237, 52, dh, '#3a2a58'); rect(g, 438, 237 + dh - 1, 52, 1, '#6a5a88'); if (up === 0) text(g, 'PRIZE', 464, 254, '#a898c8', { align: 'center' }); }
+    text(g, 'ESC', 46, 256, '#ffd23a', { align: 'center' });
+    text(g, 'LEAVE', 46, 266, '#ffffff', { align: 'center' });
   }
 
   return {
@@ -708,7 +628,7 @@ export default function make({ g, W: SW, H: SH, A }) {
     draw(T, io) {
       if (view === 'room') drawRoom(T);
       else if (view === 'cab') drawCab(T);
-      else drawClaw(T, io);
+      else drawClaw(T);
       if (wipe > 0) { const h = Math.round(wipe * SH / 2); rect(g, 0, 0, SW, h, '#05060a'); rect(g, 0, SH - h, SW, h, '#05060a'); }
     },
     leave() { cab = null; if (claw) { closeClaw(); say = null; } },

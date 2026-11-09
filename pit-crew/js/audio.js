@@ -115,6 +115,8 @@ export function sfx(name, p = 0) {
     case 'crash': noise(t, 0.35, 'lowpass', 1600, 1, 0.8); tone(t, 0.2, 'square', 110, 0.2, 50); break;
     case 'brake': tone(t, 0.22, 'sine', 1900, 0.06, 1500); noise(t, 0.2, 'highpass', 3000, 1, 0.15); break;
     case 'clunk': tone(t, 0.07, 'square', 320, 0.12, 160); break;
+    case 'mew': { const f = p || 720; tone(t, 0.16, 'triangle', f, 0.12, f * 1.4); tone(t + 0.12, 0.2, 'triangle', f * 1.35, 0.1, f * 0.75); break; }
+    case 'purr': noise(t, 0.09, 'lowpass', 170, 1, 0.5); tone(t, 0.08, 'sawtooth', 46, 0.06); break;
     case 'ding': tone(t, 0.3, 'sine', 1318, 0.2); break;
     case 'tick': tone(t, 0.05, 'square', 600 + p * 700, 0.1); break;
     case 'blip': tone(t, 0.035, 'square', p || 220, 0.035); break;
@@ -189,6 +191,14 @@ const SONGS = {
     bass: bars(`C3 . . . G3 . . . C3 . . . G3 . . .  A2 . . . E3 . . . A2 . . . E3 . . .  D3 . . . A3 . . . D3 . . . A3 . . .  G2 . . . D3 . . . G2 . . . D3 . . .`),
     drums: 'k.....h.s.....h.',
     leadVol: 0.45,
+  },
+  // a slow one for an empty office
+  laurels: {
+    bpm: 56,
+    lead: bars(`E4 . . . G4 . . . B4 . . . A4 . . .  G4 . . . E4 . . . D4 . . . . . . .  C4 . . . E4 . . . G4 . . . F#4 . . .  E4 . . . . . . . . . . . . . . .`),
+    bass: bars(`E2 . . . . . . . B2 . . . . . . .  C3 . . . . . . . G2 . . . . . . .  A2 . . . . . . . D3 . . . . . . .  E2 . . . . . . . B1 . . . . . . .`),
+    drums: '................',
+    leadVol: 0.3,
   },
   results: {
     bpm: 120,

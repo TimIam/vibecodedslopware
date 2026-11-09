@@ -41,12 +41,14 @@ function colours(d) {
 }
 
 const SHOUTS = [
-  'PIP: Water is lovely. Shame about the garage.',
-  "PIP: Try and keep up, Toby!",
-  "PIP: Mags says if you sink it, you carry it.",
-  "PIP: Look at that light. No tyres in sight.",
-  "PIP: I'm jumping your wake, hold still.",
-  "PIP: Big Lou would sink one of these.",
+  'SANNA: Water is lovely. Shame about the garage.',
+  "SANNA: Try and keep up, Nico!",
+  "SANNA: Mags says if you sink it, you carry it.",
+  "SANNA: Look at that light. No tyres in sight.",
+  "SANNA: I'm jumping your wake, hold still.",
+  "SANNA: Big Lou would sink one of these.",
+  "SANNA: No pit window out here, Nico.",
+  "SANNA: Dev can't radio you on this thing. I checked.",
 ];
 
 function skiSprites(hull, stripe, hair, jacket, skin) {
@@ -199,15 +201,6 @@ export default function make(ctx) {
     for (let i = 0; i < 150; i++) { const y = Math.floor(hash(i * 2.3) * 120), x = Math.floor(hash(i * 5.1) * 160), l = 4 + Math.floor(hash(i) * 14); for (let k = 0; k < l; k++) rect(ab, (x + k) % 160, y, 1, 1, col.trough); }
     for (let i = 0; i < 90; i++) { const y = Math.floor(hash(i * 7.9 + 2) * 120), x = Math.floor(hash(i * 3.7 + 1) * 160), l = 3 + Math.floor(hash(i + 4) * 9); for (let k = 0; k < l; k++) rect(cb, (x + k) % 160, y, 1, 1, col.crest); }
     waterA = a; waterB = c;
-    // the sun's reflection and its halo, re-baked as the colours change
-    const [g2, gb] = canvas(200, 200);
-    const fade = d > 0.9 ? clamp((1 - d) / 0.1, 0, 1) : 1;
-    const low = Math.min(1, d / 0.7), rs = 0.55 + 0.45 * low; // a high sun is a small, faint patch; a low one a broad blaze
-    for (const [r0, den0, c2] of [[92, 0.14, col.crest], [66, 0.28, col.crest], [42, 0.46, col.glitter]]) {
-      const r = Math.round(r0 * rs), den = den0 * (0.32 + 0.68 * low);
-      for (let y = 100 - r; y < 100 + r; y++) { const hw = Math.sqrt(Math.max(0, r * r - (y - 100) * (y - 100))); for (let x = Math.round(100 - hw); x < 100 + hw; x++) if (dith(x, y, den * fade)) rect(gb, x, y, 1, 1, c2); }
-    }
-    glow = g2;
   }
   const tile = (c, ox, oy) => { const w = c.width, h = c.height, x0 = -(((ox % w) + w) % w), y0 = -(((oy % h) + h) % h); for (let y = y0; y < H; y += h) for (let x = x0; x < W; x += w) g.drawImage(c, x, y); };
 
@@ -329,7 +322,7 @@ export default function make(ctx) {
     drive(f, thr, turn, !ended && fv > want + 40, dt);
   }
 
-  // The reflected sun rides with the camera, as a reflection does, and sinks across the view.
+  // Where the low sun would sit: the glitter rides with the camera and sinks across the view.
   const sunAt = d => {
     const k = clamp(d, 0, 1);
     return { x: 340 - k * 300, y: 34 + Math.pow(k, 1.4) * 112, r: k > 0.9 ? 24 * (1 - k) / 0.1 : 8 + 18 * k };
@@ -339,8 +332,8 @@ export default function make(ctx) {
     enter() {
       const tm = TEAMS[0];
       [objC, o] = canvas(512, 288);
-      skiA = skiSprites(tm.c1, tm.c2, PEOPLE.toby.hair, '#ffb020', PEOPLE.toby.skin);
-      skiB = skiSprites(tm.c2, tm.c1, PEOPLE.pip.hair, '#e03070', PEOPLE.pip.skin);
+      skiA = skiSprites(tm.c1, tm.c2, '#1a1410', '#ffb020', PEOPLE.nico.skin);
+      skiB = skiSprites(tm.c2, tm.c1, '#e8cc7a', '#e03070', PEOPLE.sanna.skin);
       boatC = boatSprites();
       sailC = [bakeSail('#d84a38'), bakeSail('#3a78d8')];
       pines = [bakePine(1), bakePine(2)];
@@ -413,9 +406,8 @@ export default function make(ctx) {
       g.globalAlpha = 0.34 * (1 - day * 0.72);
       for (const s of ISLANDS) { const c = shal[s.i], x = s.x - c.cx - L, y = s.y - c.cy - Tp; if (x < W && y < H && x + c.c.width > 0 && y + c.c.height > 0) g.drawImage(c.c, Math.round(x), Math.round(y)); }
       g.globalAlpha = 1;
-      // the sun's reflection and its path of glitter
+      // the path of glitter on the ripples
       const q = sunAt(day);
-      if (q.r > 0.5) { g.drawImage(glow, Math.round(q.x - 100), Math.round(q.y - 100)); }
       const bright = day > 0.92 ? clamp((1 - day) / 0.08, 0, 1) : 1;
       for (let i = 0; i < 220; i++) {
         const k = Math.pow(hash(i * 7.1), 0.6), side = hash(i * 3.3) - 0.5, x0 = q.x + k * (W * 0.5 - q.x) * 0.15;
@@ -423,7 +415,6 @@ export default function make(ctx) {
         if (Math.sin(T * (3 + hash(i) * 5) + i * 1.7) < (0.55 - day * 0.5) || hash(i * 2.1) > 0.85 * bright) continue;
         rect(g, x, y, 1 + Math.floor(hash(i * 1.3) * (2 + day * 4)), 1, hash(i * 9) > 0.7 ? '#ffffff' : col.glitter);
       }
-      if (q.r > 0.5) { ellipse(g, q.x, q.y, q.r + 2, (q.r + 2) * 0.9, col.crest); ellipse(g, q.x, q.y, q.r, q.r * 0.9, day > 0.8 ? '#ffb050' : '#fff6d0'); }
       // the first stars, reflected
       if (day > 0.93) for (let i = 0; i < 44; i++) { const a = clamp((day - 0.93) / 0.07, 0, 1); if (hash(i * 4.4) < a && Math.sin(T * (1.5 + hash(i) * 2) + i) > -0.3) rect(g, hash(i * 2.7) * W | 0, hash(i * 8.2) * H | 0, 1, 1, '#d8d4f0'); }
       // wakes

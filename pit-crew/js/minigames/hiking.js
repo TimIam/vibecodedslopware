@@ -55,8 +55,10 @@ function lightAt(t) {
 // ---------------------------------------------------------------- sprites
 function conifer(h, pal) {
   const w = Math.round(h * 0.62), [c, b] = canvas(w + 4, h + 4), cx = (w + 4) / 2;
-  rect(b, cx - 2, h - 7, 4, 9, '#3f2c1c'); rect(b, cx - 2, h - 7, 1, 9, '#6a4c30');
   const tiers = Math.round(h / 11);
+  // the trunk starts inside the lowest skirt of branches, which is painted over it
+  const skirt = Math.round(2 + (h - 12) * (tiers - 1) / tiers * 0.86 + (h - 8) / tiers * 1.5);
+  rect(b, cx - 2, skirt - 4, 4, h + 2 - (skirt - 4), '#3f2c1c'); rect(b, cx - 2, skirt - 4, 1, h + 2 - (skirt - 4), '#6a4c30');
   for (let i = 0; i < tiers; i++) {
     const t0 = 2 + (h - 12) * i / tiers * 0.86, t1 = t0 + (h - 8) / tiers * 1.5, hw = (w / 2) * (i + 1.5) / (tiers + 0.5);
     poly(b, [[cx, t0], [cx + hw, t1], [cx - hw, t1]], pal[0]);
@@ -70,7 +72,8 @@ function leafy(h, pal, trunk, r) {
   const w = Math.round(h * 0.82), [c, b] = canvas(w + 6, h + 4), cx = (w + 6) / 2;
   rect(b, cx - 2, h * 0.5, 5, h * 0.5 + 2, trunk); rect(b, cx - 2, h * 0.5, 1, h * 0.5 + 2, shade(trunk, 0.35));
   if (trunk === '#d8d4c4') for (let y = h * 0.55; y < h; y += 5) rect(b, cx - 2 + r() * 3, y, 3, 1, '#35322a');
-  const blobs = [];
+  // one blob always sits over the top of the trunk, so the crown can't float off it
+  const blobs = [[cx, h * 0.42, w * 0.24]];
   for (let i = 0; i < 9; i++) { const a = r() * 6.28, d = r() * 0.62; blobs.push([cx + Math.cos(a) * d * w * 0.38, h * 0.36 + Math.sin(a) * d * h * 0.26, w * (0.2 + r() * 0.08)]); }
   for (const [x, y, q] of blobs) ellipse(b, x, y, q, q * 0.88, pal[0]);
   for (const [x, y, q] of blobs) ellipse(b, x - 2, y - 2, q * 0.78, q * 0.68, pal[1]);
@@ -87,9 +90,15 @@ function boulder(rx, ry, moss) {
   outline(c);
   return { c, ax: x, ay: y + ry - 2, w: rx * 2, h: ry * 2, r: rx - 1, rock: true };
 }
+// Mirror a finished sprite, outline and all.
+function mirrored(src) {
+  const [c, b] = canvas(src.width, src.height);
+  b.translate(src.width, 0); b.scale(-1, 1);
+  b.drawImage(src, 0, 0);
+  return c;
+}
 function deerSprite(flip, head) {
   const [c, b] = canvas(30, 24);
-  if (flip) { b.translate(30, 0); b.scale(-1, 1); }
   const hide = '#a8784a', dk = '#7a5230', pale = '#e0c8a0';
   rect(b, 7, 10, 15, 7, hide); rect(b, 7, 15, 15, 2, pale); rect(b, 8, 10, 12, 1, shade(hide, 0.2));
   for (const x of [8, 11, 18, 21]) { rect(b, x, 16, 2, 7, dk); }
@@ -99,6 +108,38 @@ function deerSprite(flip, head) {
   rect(b, 22, hy, 6, 4, hide); rect(b, 27, hy + 1, 2, 2, dk); rect(b, 24, hy + 1, 1, 1, INK);
   rect(b, 22, hy - 2, 2, 2, dk);
   outline(c);
+  return flip ? mirrored(c) : c;
+}
+// Small things in the undergrowth, drawn facing right.
+const SMALL = {
+  g: '#8d9099', G: '#aeb1b9', d: '#5e616a', e: '#7a7d86', p: '#e3a6ae', w: '#f4f4f4', k: '#101014',
+  r: '#a8481f', R: '#cf7234', t: '#6a2a12', c: '#f0dcb8',
+};
+const BUNNY = [
+  '......ep..',
+  '......ep..',
+  '.....gggg.',
+  'w...ggkggp',
+  'wgggggggg.',
+  'dggGGgggg.',
+  '.gggGggg..',
+  '..dd..dd..',
+];
+const SQUIRREL = [
+  '.rrr........',
+  'rRRRr....t.t',
+  'rRRRr....rrr',
+  '.rRRr...rrkr',
+  '..rRr..rrrrc',
+  '..rRrrrrrcc.',
+  '...rrrrrrcc.',
+  '...rrRrrrc..',
+  '....rrrrr...',
+  '....tt.tt...',
+];
+function pixelSprite(art) {
+  const [c, b] = canvas(art[0].length, art.length);
+  art.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') rect(b, x, y, 1, 1, SMALL[ch]); }));
   return c;
 }
 function bake() {
@@ -196,6 +237,7 @@ function bake() {
     rock: [boulder(9, 6, true), boulder(13, 9, false), boulder(18, 12, true), boulder(7, 5, false)],
     deer: [deerSprite(false, false), deerSprite(false, true), deerSprite(true, false), deerSprite(true, true)],
   };
+  { const bun = pixelSprite(BUNNY), squ = pixelSprite(SQUIRREL); SPR.bunny = [bun, mirrored(bun)]; SPR.squirrel = [squ, mirrored(squ)]; }
   const [bench, bb] = canvas(30, 14);
   rect(bb, 2, 2, 26, 4, '#8a6238'); rect(bb, 2, 2, 26, 1, '#b08a58'); rect(bb, 2, 7, 26, 4, '#a07448'); rect(bb, 2, 7, 26, 1, '#c09a64'); rect(bb, 4, 10, 3, 4, '#5e4226'); rect(bb, 23, 10, 3, 4, '#5e4226'); outline(bench);
   const [sign, sb] = canvas(16, 26);
@@ -230,7 +272,7 @@ let world = null; // baked once and kept: stepping through the scenes does not b
 
 export default function make(ctx) {
   const { g, W, H, A } = ctx;
-  const who = ['mags', 'toby', 'lou', 'dev', 'pip'][Math.floor(Math.random() * 5)], me = PEOPLE[who];
+  const me = PEOPLE.dev; // the Chief Engineer, alone at last
   const shortName = rename(me.name.charAt(0) + me.name.slice(1).toLowerCase().replace(/ l/, ' L'));
   let w = null, clock = 0, t = 0, ended = false, endT = 0, moved = 0, hint = 1;
   let px = START[0], py = START[1], vx = 0, vy = 0, dir = 0, dist = 0, camX = 0, camY = 0, wet = false;
@@ -241,7 +283,7 @@ export default function make(ctx) {
     { x: GLADES[1].x, y: GLADES[1].y, r: 90, s: 'Grass, flowers, no radio. Bliss.' },
     { x: GLADES[2].x, y: GLADES[2].y, r: 100, s: `${shortName} sits down for a minute. Then a few more.` },
   ];
-  const deer = [], birds = [], flies = [], ripples = [];
+  const deer = [], birds = [], flies = [], ripples = [], small = [];
   const [shade0, sg] = canvas(W, H);
 
   function spot(far) {
@@ -302,6 +344,14 @@ export default function make(ctx) {
       for (let i = 0; i < 9; i++) { const [x, y] = spot(i > 3); deer.push({ x, y, s: 'graze', t: Math.random() * 4, flip: Math.random() < 0.5, vx: 0, vy: 0, gone: 0 }); }
       deer[0].x = START[0] + 150; deer[0].y = START[1] - 150;
       for (let i = 0; i < 16; i++) { const [x, y] = spot(false); birds.push({ x, y, z: 0, s: 'peck', t: Math.random() * 2, vx: 0, vy: 0, c: ['#6a4a30', '#3a4a6a', '#a04030'][i % 3] }); }
+      // grey rabbits out in the open, red squirrels never far from a trunk
+      for (let i = 0; i < 26; i++) {
+        const squirrel = i % 2 === 1;
+        let x, y;
+        if (i < 6) { x = START[0] + (i - 3) * 46 + Math.random() * 20; y = START[1] - 90 - Math.random() * 110; } // a few where the walk begins
+        else [x, y] = spot(false);
+        small.push({ squirrel, x, y, s: 'idle', t: Math.random() * 3, flip: Math.random() < 0.5, vx: 0, vy: 0 });
+      }
       for (let i = 0; i < 90; i++) flies.push({ x: Math.random() * W, y: Math.random() * H, p: Math.random() * 6.28, s: 1 + Math.random() * 1.6 });
       camX = clamp(px - W / 2, 0, WW - W); camY = clamp(py - H / 2, 0, WH - H);
     },
@@ -341,6 +391,15 @@ export default function make(ctx) {
         else if (d.s === 'flee' && d.t <= 0 && pd > 340) { const [x, y] = spot(true); d.x = x; d.y = y; d.s = 'graze'; d.vx = d.vy = 0; d.t = 3; }
         else if (d.s === 'flee' && d.t <= 0) { d.vx *= 0.97; d.vy *= 0.97; d.t = 0.2; }
         d.x = clamp(d.x + d.vx * dt, 30, WW - 30); d.y = clamp(d.y + d.vy * dt, edgeY(d.x) + 30, WH - 30);
+      }
+      for (const q of small) {
+        const pd = Math.hypot(px - q.x, py - q.y), fast = q.squirrel ? 165 : 140;
+        q.t -= dt;
+        if (q.s !== 'flee' && pd < (q.squirrel ? 58 : 70)) { q.s = 'flee'; const n = pd || 1, a = (Math.random() - 0.5) * 0.9, ax = (q.x - px) / n, ay = (q.y - py) / n; q.vx = (ax * Math.cos(a) - ay * Math.sin(a)) * fast; q.vy = (ax * Math.sin(a) + ay * Math.cos(a)) * fast; q.flip = q.vx < 0; q.t = 1.5; }
+        else if (q.s === 'idle' && q.t <= 0) { q.s = 'move'; const a = Math.random() * 6.28, v = q.squirrel ? 62 : 38; q.vx = Math.cos(a) * v; q.vy = Math.sin(a) * v; q.flip = q.vx < 0; q.t = 0.3 + Math.random() * 0.6; }
+        else if (q.s === 'move' && q.t <= 0) { q.s = 'idle'; q.vx = q.vy = 0; q.t = 0.8 + Math.random() * 3.5; }
+        else if (q.s === 'flee' && q.t <= 0) { if (pd > 300) { const [x, y] = spot(true); q.x = x; q.y = y; } q.s = 'idle'; q.vx = q.vy = 0; q.t = 1 + Math.random() * 3; }
+        q.x = clamp(q.x + q.vx * dt, 24, WW - 24); q.y = clamp(q.y + q.vy * dt, edgeY(q.x) + 24, WH - 24);
       }
       for (const q of birds) {
         q.t -= dt;
@@ -397,6 +456,7 @@ export default function make(ctx) {
       const list = vis.map(o => ({ y: o.y, o }));
       list.push({ y: py, me: true });
       for (const d of deer) if (d.x > cx - 40 && d.x < cx + W + 40 && d.y > cy - 30 && d.y < cy + H + 30) list.push({ y: d.y, d });
+      for (const q of small) if (q.x > cx - 20 && q.x < cx + W + 20 && q.y > cy - 20 && q.y < cy + H + 20) list.push({ y: q.y, small: q });
       for (const q of birds) if (q.x > cx - 20 && q.x < cx + W + 20 && q.y > cy - 20 && q.y < cy + H + 20) list.push({ y: q.y, q });
       list.sort((a, b) => a.y - b.y);
       for (const it of list) {
@@ -407,6 +467,13 @@ export default function make(ctx) {
           const hop = d.s === 'flee' ? Math.abs(Math.sin(T * 12)) * 6 : 0;
           g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(Math.round(d.x - cx) - 10, Math.round(d.y - cy) - 1, 20, 3);
           g.drawImage(w.SPR.deer[fr], Math.round(d.x - cx - 15), Math.round(d.y - cy - 23 - hop));
+          continue;
+        }
+        if (it.small) {
+          const q = it.small, x = Math.round(q.x - cx), y = Math.round(q.y - cy), set = q.squirrel ? w.SPR.squirrel : w.SPR.bunny, spr = set[q.flip ? 1 : 0];
+          const hop = q.s === 'idle' ? (q.squirrel && (T * 4 + q.x) % 3 < 0.2 ? 1 : 0) : Math.round(Math.abs(Math.sin(T * (q.squirrel ? 20 : 15) + q.x)) * (q.squirrel ? 2 : 4));
+          rect(g, x - 4, y, 9, 1, 'rgba(0,0,0,0.3)');
+          g.drawImage(spr, x - (spr.width >> 1), y - spr.height - hop);
           continue;
         }
         if (it.q) {
