@@ -1047,8 +1047,8 @@ window.SLOPWARE = {
   },
   "par-for-the-curse": {
    "visits": 31,
-   "prompts": 24,
-   "tokens": 3899958,
+   "prompts": 26,
+   "tokens": 4103371,
    "sharedWith": null,
    "versions": [
     {
@@ -1119,7 +1119,14 @@ window.SLOPWARE = {
      "date": "2026-11-09T11:37:49-07:00",
      "note": "real club and ball hit boxes, strike guide while gripping",
      "prompts": 2,
-     "tokens": 373016
+     "tokens": 371523
+    },
+    {
+     "n": 11,
+     "date": "2026-11-09T12:46:24-07:00",
+     "note": "everything drawn is solid, more shot power",
+     "prompts": 2,
+     "tokens": 204906
     }
    ]
   },
