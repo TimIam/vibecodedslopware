@@ -10,6 +10,7 @@ Plain static site, no build step. Each project lives in its own folder and gets 
 | `bonsai/` | Desk Bonsai |
 | `bonsai-idle/` | Bonsai Idle |
 | `strange-weather/` | Strange Weather, a Godot 4.7 web export. Source lives in `C:\Projects\NewerGameIdeas\strange-weather`; rebuild with its `tools/publish_web.sh`, then copy `build/web/*` here |
+| `arcade/` | VibeArcade: six drop-in 8-bit games with an embed API (see `arcade/README.md`). Strange Weather opens them from a room in Pinecrest |
 | `desktop-bag/` | Desktop Bag: landing page, browser demo, Windows download |
 | `matrix/` | Matrix Rain, a screensaver for every monitor. `rain.html` is the whole web version (one file; `#saver`, `#embed`, `#backdrop` modes in its header comment). `MatrixRain.scr` is the native Windows one, built from `src/MatrixRain.cs` with `powershell -File matrix/src/build.ps1` (uses the C# compiler inside Windows, no SDK). `mac/` is the native macOS screensaver, built and signed on a Mac with `build.sh` and `signing/*.sh`; `mac/SIGNING.md` walks through Developer ID signing and notarization |
 | `antfarm/` | Ant Farm: a photoreal colony across every monitor. `farm.html` is the whole app (one file, plain WebGL2); it always founds from a lone queen, and the first hatchlings forage. `src/` builds a Windows `.scr`/`.exe` with no SDK; those binaries are not published because they have not been run yet |
