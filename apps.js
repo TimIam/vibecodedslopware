@@ -970,7 +970,14 @@ window.SLOPWARE = {
      "date": "2026-11-07T19:12:55-07:00",
      "note": "options, sky, Mags' pep talks, season menu, title music",
      "prompts": 1,
-     "tokens": 964128
+     "tokens": 957068
+    },
+    {
+     "n": 7,
+     "date": "2026-11-09T05:59:29-07:00",
+     "note": "the studio splash on every launch, then the title",
+     "prompts": 0,
+     "tokens": 7060
     }
    ]
   },
@@ -1177,6 +1184,13 @@ window.SLOPWARE = {
      "n": 12,
      "date": "2026-11-09T05:41:44-07:00",
      "note": "the studio splash plays on every launch",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 13,
+     "date": "2026-11-09T05:59:29-07:00",
+     "note": "the splash loads with the page and plays after the sound screen",
      "prompts": 0,
      "tokens": 0
     }
