@@ -4,7 +4,9 @@
 import * as THREE from 'three';
 
 export const G = 11;          // a touch more than Earth so the cartoon world feels snappy
-export const BALL_R = 0.09;
+export const ACTOR = 0.62;      // size of the golfer, ball and cart relative to the world they were built for
+export const POWER = 0.8;       // full-shot ball speed scale: smaller golfers, shorter shots, longer holes
+export const BALL_R = 0.09 * ACTOR;
 
 // roll: rolling resistance as a fraction of g. e: restitution. slide: Coulomb friction on impact.
 export const SURF = {
@@ -161,7 +163,7 @@ export class World {
   }
   add(c) { this.cols.push(c); if (c.motion) this.movers.push(c); return c; }
   // First collider hit straight down from (x, y, z). Returns {y, col} or null.
-  groundAt(x, y, z, maxDrop = 200) {
+  groundAt(x, y, z, maxDrop = 200, skipInside = false) {
     _c.set(x, y, z); _v.set(0, -1, 0);
     let best = Infinity, col = null;
     for (const c of this.cols) {
@@ -169,6 +171,7 @@ export class World {
       const a = c.aabb;
       if (x < a.min.x || x > a.max.x || z < a.min.z || z > a.max.z || a.min.y > y) continue;
       const t = c.ray(_c, _v, maxDrop);
+      if (skipInside && t <= 1e-6) continue;
       if (t < best) { best = t; col = c; }
     }
     return col ? { y: y - best, col } : null;

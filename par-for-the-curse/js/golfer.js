@@ -5,7 +5,9 @@
 // come from where the head is and how it is moving when it meets the ball.
 import * as THREE from 'three';
 import { make, tint, addOutline, manifest, lib } from './assets.js';
-import { BALL_R, G } from './physics.js';
+import { BALL_R, G, ACTOR } from './physics.js';
+// The swing runs in the golfer's own units; only the root is scaled into the world.
+const LOCAL_BALL_R = BALL_R / ACTOR;
 
 export const CLUBS = [
   { id: 'putter', name: 'Putter', mesh: 'club_putter', len: 0.6, loft: 2.5, smash: 1.0, vMax: 1.6, aMax: 30, sens: 0.5, k: 1600, cock: 0 },
@@ -97,7 +99,7 @@ function aim(mesh, from, to, len) {
 export class Golfer {
   constructor(look) {
     this.R = rig();
-    this.root = new THREE.Group();
+    this.root = new THREE.Group(); this.root.scale.setScalar(ACTOR);
     this.body = new THREE.Group(); this.root.add(this.body);
     const P = n => { const m = make(n, { unique: true, outline: 0.012 }); m.traverse(o => { if (o.isMesh) o.castShadow = true; }); this.body.add(m); return m; };
     this.p = {
@@ -281,7 +283,7 @@ export class Swing {
     this.reachZ = this.gripAddr.z + Math.sqrt(Math.max(0.01, L * L - drop * drop));
     this.d0 = V(0, -drop, this.reachZ - this.gripAddr.z).normalize();
     this.planeN = V().crossVectors(this.d0, XV).normalize();
-    this.ball = V(0.05, BALL_R, this.reachZ);
+    this.ball = V(0.05, LOCAL_BALL_R, this.reachZ);
     this.reset();
   }
   reset() {
@@ -351,14 +353,18 @@ export class Swing {
     return this.headV;
   }
   // Did the head strike the ball this step? Returns launch info in local coords or null.
-  strike(ballLocal) {
+  // free: the golfer is not lined up for them, so the head has real width and a shot off the toe or heel
+  // is weaker and goes crooked.
+  strike(ballLocal, free = false) {
     if (!this.armed) return null;
-    const Rr = BALL_R + HEAD_R;
+    const Rr = LOCAL_BALL_R + HEAD_R;
     const a = this.prevHead, b = this.head;
     const ab = _a.subVectors(b, a), len2 = ab.lengthSq();
     const t = len2 > 1e-10 ? THREE.MathUtils.clamp(_b.subVectors(ballLocal, a).dot(ab) / len2, 0, 1) : 0;
     const P = _c.copy(a).addScaledVector(ab, t);
-    const dist = P.distanceTo(ballLocal);
+    // The head swings in about 0.13 from where it rests, so a ball sat at the resting head is struck centrally.
+    const off = free ? ballLocal.z - P.z - 0.13 : 0;
+    const dist = free ? Math.hypot(P.x - ballLocal.x, P.y - ballLocal.y, Math.max(0, Math.abs(off) - 0.09)) : P.distanceTo(ballLocal);
     if (dist > Rr) return null;
     const vh = this.headV.clone();
     const vf = vh.x;
@@ -366,23 +372,25 @@ export class Swing {
     // or nudged while waiting) is eased back out instead of costing a stroke.
     if (vf < 0.4 || a.distanceTo(ballLocal) < Rr) {
       // Resting against the ball or moving away: push the head back out, no shot.
-      if (dist < Rr) { const n = _d.subVectors(this.head, ballLocal).normalize(); this.head.copy(ballLocal).addScaledVector(n, Rr + 0.002); }
+      if (dist < Rr && !free) { const n = _d.subVectors(this.head, ballLocal).normalize(); this.head.copy(ballLocal).addScaledVector(n, Rr + 0.002); }
       return null;
     }
     this.armed = false;
     const C = this.club;
     const hs = Math.hypot(vh.x, vh.z);
-    const path = Math.atan2(vh.z, vh.x);                 // + means toward the ball line (in-to-out)
+    // + means toward the ball line (in-to-out). A free swing naturally arcs out about 9 degrees; call that straight.
+    const path = Math.atan2(vh.z, vh.x) - (free ? 0.16 : 0);
     const attack = Math.atan2(vh.y, hs);
     const dyN = THREE.MathUtils.clamp((ballLocal.y - P.y) / Rr, -1, 1);   // + head below ball centre
     let launch = C.loft * Math.PI / 180 * (0.95 + 0.2 * dyN) + attack * 0.15;
-    let q = 1 - Math.min(1, Math.abs(dyN - 0.35) * 0.9);
+    const toe = THREE.MathUtils.clamp(off / 0.2, -1, 1);
+    let q = (1 - Math.min(1, Math.abs(dyN - 0.35) * 0.9)) * (1 - 0.45 * Math.abs(toe));
     let speed = hs * C.smash * (0.72 + 0.28 * q);
     let kind = q > 0.88 ? 'pure' : 'ok';
     if (dyN < -0.25 && C.id !== 'putter') { launch = Math.min(launch, 0.04); speed *= 0.62; kind = 'topped'; }
     if (C.id === 'putter') { launch = Math.max(0.0, Math.min(launch, 0.09)); speed = hs * C.smash; kind = 'putt'; }
     launch = THREE.MathUtils.clamp(launch, -0.05, 1.25);
-    const start = path * 0.7;
+    const start = path * 0.7 + toe * 0.3;
     const dir = V(Math.cos(start), 0, Math.sin(start));
     const v = dir.multiplyScalar(Math.cos(launch) * speed); v.y = Math.sin(launch) * speed;
     const spin = C.id === 'putter' ? 0 : THREE.MathUtils.clamp(-path * 22 * (speed / 30), -9, 9);

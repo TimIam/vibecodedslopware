@@ -8,7 +8,7 @@ import { Collider, BALL_R } from './physics.js';
 import { make, toon, addOutline, gradientMap, manifest } from './assets.js';
 const pm = n => manifest.props?.objects?.[n] || {};
 
-export const SIDE = 80, PAD = 9, RISE = 7, NHOLES = 9, CUP_R = 0.24, SEA_Y = -40;
+export const SIDE = 80, PAD = 9, RISE = 7, NHOLES = 9, CUP_R = 0.16, SEA_Y = -40;
 const CORNERS = [[40, 40], [-40, 40], [-40, -40], [40, -40]];
 const DIRS = [[-1, 0], [0, -1], [1, 0], [0, 1]];
 const UP = new THREE.Vector3(0, 1, 0);
@@ -328,7 +328,7 @@ export class Course {
       const ox = summit ? SIDE : 0, oy = summit ? RISE : 0;
       const P = { i: summit ? NHOLES : k + 1, frame: Hn.frame, group: Hn.group };
       this.block(P, ox - PAD, ox + PAD, -PAD, PAD, oy, oy, { thick: 4, rockDepth: 9 + Math.random() * 4 });
-      if (!summit) this.cartSpots.push({ p: Hn.frame.w(-5.2, 0, -5.6), yaw: Hn.frame.yaw });
+      if (k === 0) this.cartSpots.push({ p: Hn.frame.w(-5.2, 0, -5.6), yaw: Hn.frame.yaw });
       if (!summit) {
         // Tee box for hole k+1.
         const tee = { x: 5.5, z: -3.2 };
@@ -368,7 +368,7 @@ export class Course {
     const cup = new THREE.Group(); cup.position.copy(p);
     const hole = new THREE.Mesh(new THREE.CircleGeometry(CUP_R, 28).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x1b1420, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
     hole.position.y = 0.012; cup.add(hole);
-    const rim = make('cup_rim'); rim.position.y = 0.01; cup.add(rim);
+    const rim = make('cup_rim'); rim.position.y = 0.01; rim.scale.setScalar(CUP_R / 0.25); cup.add(rim);
     const pole = make('flagpole', { outline: 0.012 }); cup.add(pole);
     const cloth = make('flag_cloth', { outline: 0.01 });
     const at = pm('flagpole').flag_attach || [0.03, 2.12, 0];
@@ -445,7 +445,7 @@ export class Course {
   }
 
   hole1(H) {
-    this.holeInfo(H, 'Warm-Up Wobble', 3, 'Hit it up the hill. Gently. Or not.');
+    this.holeInfo(H, 'Warm-Up Wobble', 4, 'Hit it up the hill. Gently. Or not.');
     this.block(H, 9, 30, -7, 7, 0);
     this.block(H, 30, 52, -7, 7, 0, 7, { noRock: true });
     this.underRocks(H.group, 30, 52, -7, 7, -2.5);
@@ -464,7 +464,7 @@ export class Course {
     this.sign(H, 31, 6.4, 0.2, ['THIS IS THE', 'EASY ONE'], -Math.PI / 2 + 0.3);
   }
   hole2(H) {
-    this.holeInfo(H, 'Windmill Steps', 4, 'Chip up the steps, then roll through the windmill.');
+    this.holeInfo(H, 'Windmill Steps', 5, 'Chip up the steps, then roll through the windmill.');
     this.block(H, 9, 26, -7, 7, 0);
     this.block(H, 26, 42, -6, 6, 3.5);
     this.block(H, 42, 71, -6, 6, 7);
@@ -507,7 +507,7 @@ export class Course {
     this.sign(H, 24.6, -6.2, 0, ['STEP UP.', 'USE A WEDGE'], 0.4);
   }
   hole3(H) {
-    this.holeInfo(H, 'Mushroom Gorge', 3, 'Fly the gorge, or trust the mushrooms.');
+    this.holeInfo(H, 'Mushroom Gorge', 4, 'Fly the gorge, or trust the mushrooms.');
     this.block(H, 9, 30, -7, 7, 0);
     this.block(H, 56, 71, -7, 7, 7, 7, { rockDepth: 12 });
     this.shoulders(H, 9, 30, 7, 0); this.shoulders(H, 56, 71, 7, 7);
@@ -533,7 +533,7 @@ export class Course {
     this.sign(H, 28.5, -6.3, 0, ['MIND THE', 'GAP'], 0.5);
   }
   hole4(H) {
-    this.holeInfo(H, 'Goose Lane', 4, 'The treadmill runs backwards. The geese bite.');
+    this.holeInfo(H, 'Goose Lane', 5, 'The treadmill runs backwards. The geese bite.');
     this.block(H, 9, 30, -4, 4, 0);
     const ang = Math.atan2(7, 20);
     const beltV = new THREE.Vector3(-Math.cos(ang), -Math.sin(ang), 0).multiplyScalar(3.2);
@@ -571,7 +571,7 @@ export class Course {
     this.sign(H, 28, 3.6, 0, ['CAUTION:', 'GEESE'], -0.4);
   }
   hole5(H) {
-    this.holeInfo(H, 'Pinball Palace', 4, 'Bumpers, a sweeper, and a gutter of doom.');
+    this.holeInfo(H, 'Pinball Palace', 5, 'Bumpers, a sweeper, and a gutter of doom.');
     this.block(H, 9, 46, -10, 10, 0, 0, { rockDepth: 10 });
     this.block(H, 46, 60, -2.5, 2.5, 0, 7, { noRock: true, surf: 'metal', mat: toon(0x9db4cf) });
     this.underRocks(H.group, 46, 60, -2.5, 2.5, -2, 4);
@@ -615,7 +615,7 @@ export class Course {
     this.prop(H, 'tree_palm', 64, 5.5, { trunk: 0.3 }); this.prop(H, 'tree_palm', 66, -5.5, { trunk: 0.3 });
   }
   hole6(H) {
-    this.holeInfo(H, 'Walk the Plank', 4, 'Two planks, a gusty wind, and railings with gaps in.');
+    this.holeInfo(H, 'Walk the Plank', 5, 'Two planks, a gusty wind, and railings with gaps in.');
     const W1 = 2.6, W2 = 2.2;   // plank half-widths
     this.block(H, 9, 20, -6, 6, 0);
     this.block(H, 20, 37.2, -W1, W1, 0, 3, { surf: 'wood', thick: 0.4, noRock: true, outline: true, radius: 0.08 });
@@ -645,7 +645,7 @@ export class Course {
     this.sign(H, 18.5, 3.5, 0, ['MIND THE', 'GAPS.'], -0.3);
   }
   hole7(H) {
-    this.holeInfo(H, 'Fire in the Hole', 3, 'Roll into the ring, then fire when the cannon swings through the red.');
+    this.holeInfo(H, 'Fire in the Hole', 4, 'Roll into the ring, then fire when the cannon swings through the red.');
     this.block(H, 9, 40, -7, 7, 0);
     this.block(H, 63, 71, -7, 7, 7, 7, { rockDepth: 10 });
     const cx = 35, cz = 4.2;
@@ -665,11 +665,11 @@ export class Course {
     this.animators.push(t => { ring.material.opacity = 0.55 + Math.sin(t * 6) * 0.3; arrow.position.y = 0.7 + Math.sin(t * 4) * 0.15; arrow.rotation.y = t * 2; });
     this.sensors.push({ kind: 'cannon', hole: 7, p: H.frame.w(rx, 0, rz), r: 1.6, barrel, pivot: bp, frame: H.frame, mouth: () => { barrel.updateWorldMatrix(true, false); const m = pm('cannon_barrel').muzzle || [0, 0, 1.4]; return new THREE.Vector3(m[0], m[1], m[2] + 0.3).applyMatrix4(barrel.matrixWorld); } });
     this.sign(H, 30.5, 6.6, 0, ['CANNON →', 'roll in, then time it'], -0.5);
-    this.prop(H, 'tree_round', 13, 5.6, { trunk: 0.35 }); this.prop(H, 'tree_round', 16, -5.8, { trunk: 0.35 });
+    this.prop(H, 'tree_round', 13, 5.6, { trunk: 0.35 }); this.prop(H, 'tree_round', 19, 6.2, { trunk: 0.35 });
     this.prop(H, 'rock_b', 38.6, 6.2, { scale: 0.8 }); this.prop(H, 'flowers', 66, 5.8, {});
   }
   hole8(H) {
-    this.holeInfo(H, 'Moving Day', 4, 'Platforms that will not sit still. Neither will you.');
+    this.holeInfo(H, 'Moving Day', 5, 'Platforms that will not sit still. Neither will you.');
     this.block(H, 9, 22, -6, 6, 0);
     this.block(H, 60, 71, -6, 6, 7);
     const F = H.frame, flat = new THREE.Quaternion();
@@ -681,7 +681,7 @@ export class Course {
     this.zone(H, 'sand', 65, 4, 1.6);
   }
   hole9(H) {
-    this.holeInfo(H, 'The Summit', 5, 'Pegs, gusts, and a green that will not stop spinning.');
+    this.holeInfo(H, 'The Summit', 6, 'Pegs, gusts, and a green that will not stop spinning.');
     this.block(H, 9, 24, -7, 7, 0);
     this.block(H, 24, 50, -4, 4, 0, 7, { noRock: true });
     this.underRocks(H.group, 24, 50, -4, 4, -2.5, 6);
@@ -726,9 +726,11 @@ export class Course {
   }
 
   // Background: the spire, distant islands. (Sky, sea, clouds and balloons live in sky.js.)
-  // A narrow road through hole-local points [x, y, z]: tilted slabs joined by round landings, no rails.
-  road(H, pts, w) {
-    const F = H.frame, thick = 0.5;
+  // A narrow road through hole-local points [x, y, z]: flat round landings at the points, joined by tilted
+  // slabs that start and end at the landings' rims, so there is no lip anywhere. o.kicker leaves the last
+  // landing off and ends in the open on the slope, as a ramp to jump from. o.cones: [segment, 0..1, side].
+  road(H, pts, w, o = {}) {
+    const F = H.frame, thick = 0.5, r = w * 0.46, last = pts.length - 1;
     const roadMat = this._roadMat || (this._roadMat = toon(0xffffff, { params: { map: canvasTex(128, 128, (g, cw, ch) => {
       g.fillStyle = '#c9a26b'; g.fillRect(0, 0, cw, ch);
       for (let i = 0; i < 260; i++) { g.fillStyle = Math.random() < 0.5 ? 'rgba(120,85,45,.3)' : 'rgba(240,215,165,.35)'; g.fillRect(Math.random() * cw, Math.random() * ch, 2 + Math.random() * 9, 1 + Math.random() * 3); }
@@ -736,45 +738,59 @@ export class Course {
       g.fillStyle = '#ff5d73'; for (let i = 0; i < 2; i++) { g.fillRect(i * 64, 0, 30, 9); g.fillRect(i * 64, ch - 9, 30, 9); }
     }) } }));
     const nodeMat = toon(0xc9a26b);
-    // Round landings fill the corners. They sit just low enough not to poke up through a slab that climbs into them.
-    const node = ([x, y, z], i) => {
-      const r = w * 0.56;
-      let tan = 0;
-      for (const j of [i - 1, i + 1]) if (pts[j]) tan = Math.max(tan, Math.abs(pts[j][1] - y) / Math.hypot(pts[j][0] - x, pts[j][2] - z));
-      const top = y - r * tan - 0.01;
-      this.world.add(new Collider('cyl', { pos: F.w(x, top - thick / 2, z), r, hh: thick / 2, surf: 'fairway', hole: H.i, tag: 'road' }));
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, thick, 24), nodeMat);
-      m.position.set(x, top - thick / 2, z); m.receiveShadow = true; addOutline(m, 0.05); H.group.add(m);
-      const rock = make('under_rock'); rock.position.set(x, top - thick + 0.05, z); rock.scale.set(r * 2, 3.5, r * 2); H.group.add(rock);
-    };
-    pts.forEach(node);
-    for (let i = 0; i + 1 < pts.length; i++) {
-      const [ax, ay, az] = pts[i], [bx, by, bz] = pts[i + 1];
-      const run = Math.hypot(bx - ax, bz - az), rise = by - ay, L = Math.hypot(run, rise);
-      const lq = new THREE.Quaternion().setFromAxisAngle(UP, -Math.atan2(bz - az, bx - ax)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.atan2(rise, run)));
-      const cl = new THREE.Vector3((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2).add(new THREE.Vector3(0, -thick / 2, 0).applyQuaternion(lq));
+    pts.forEach(([x, y, z], i) => {
+      if (o.kicker && i === last) return;
+      this.world.add(new Collider('cyl', { pos: F.w(x, y - thick / 2, z), r, hh: thick / 2, surf: 'fairway', hole: H.i, tag: 'road' }));
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, thick, 28), nodeMat);
+      m.position.set(x, y - thick / 2, z); m.receiveShadow = true; addOutline(m, 0.05); H.group.add(m);
+      const rock = make('under_rock'); rock.position.set(x, y - thick + 0.05, z); rock.scale.set(r * 2, 3.5, r * 2); H.group.add(rock);
+    });
+    for (let i = 0; i < last; i++) {
+      const [ax, ay, az] = pts[i], [bx, by, bz] = pts[i + 1], run0 = Math.hypot(bx - ax, bz - az);
+      const dx = (bx - ax) / run0, dz = (bz - az) / run0, inA = r * 0.92, inB = o.kicker && i + 1 === last ? 0 : r * 0.92;
+      const x0 = ax + dx * inA, z0 = az + dz * inA, x1 = bx - dx * inB, z1 = bz - dz * inB;
+      const run = Math.hypot(x1 - x0, z1 - z0), rise = by - ay, L = Math.hypot(run, rise);
+      const lq = new THREE.Quaternion().setFromAxisAngle(UP, -Math.atan2(dz, dx)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.atan2(rise, run)));
+      const cl = new THREE.Vector3((x0 + x1) / 2, (ay + by) / 2, (z0 + z1) / 2).add(new THREE.Vector3(0, -thick / 2, 0).applyQuaternion(lq));
       this.world.add(new Collider('box', { pos: F.w(cl.x, cl.y, cl.z), quat: F.q.clone().multiply(lq), half: new THREE.Vector3(L / 2, thick / 2, w / 2), surf: 'fairway', hole: H.i, tag: 'road' }));
       const geo = new RoundedBoxGeometry(L, thick, w, 2, 0.08), uv = geo.attributes.uv;
       for (let k = 0; k < uv.count; k++) uv.setX(k, uv.getX(k) * L / 2.5);
       const m = new THREE.Mesh(geo, roadMat);
       m.position.copy(cl); m.quaternion.copy(lq); m.receiveShadow = true; addOutline(m, 0.05); H.group.add(m);
+      for (const [seg, t, side] of o.cones || []) {
+        if (seg !== i) continue;
+        const cx = x0 + (x1 - x0) * t - dz * side * (w / 2 - 0.3), cz = z0 + (z1 - z0) * t + dx * side * (w / 2 - 0.3), cy = ay + (by - ay) * t;
+        this.cone(H, cx, cy, cz);
+      }
     }
   }
-  // The hard way up by cart (or on foot): skinny unfenced roads round every hole you can't otherwise cross.
+  // A big fat traffic cone you have to steer round.
+  cone(H, x, y, z) {
+    const g = new THREE.Group(); g.position.set(x, y, z); g.scale.setScalar(0.72);
+    const body = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.95, 16), toon(0xff7a2e)); body.position.y = 0.5; body.castShadow = true; addOutline(body, 0.025); g.add(body);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.175, 0.16, 16), toon(0xffffff)); band.position.y = 0.55; g.add(band);
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.06, 0.72), toon(0xff7a2e)); foot.position.y = 0.03; g.add(foot);
+    H.group.add(g);
+    this.world.add(new Collider('cyl', { pos: H.frame.w(x, y + 0.45, z), r: 0.22, hh: 0.45, surf: 'stone', hole: H.i, tag: 'cone' }));
+  }
+  // The hard way up: skinny unfenced roads round every hole you can't otherwise cross. The caverns need a
+  // run-up: hit the kicker fast enough to clear the gap, then swerve up the far side.
   cartPaths() {
     const [, H2, H3, , , , H7, H8, H9] = this.H;
-    this.road(H2, [[13, -0.35, -9], [18, -0.35, -13], [28.5, 3.15, -13], [33, 3.15, -9]], 2.3);
-    this.road(H2, [[35, 3.15, -9], [39.5, 3.15, -13], [50, 6.65, -13], [54, 6.65, -9]], 2.3);
+    this.road(H2, [[13, -0.35, -9], [18, -0.35, -13], [28.5, 3.15, -13], [33, 3.15, -9]], 1.8);
+    this.road(H2, [[35, 3.15, -9], [39.5, 3.15, -13], [50, 6.65, -13], [54, 6.65, -9]], 1.8);
     this.sign(H2, 12, -10.2, -0.35, ['CART PATH', 'keep left. or right.'], 0.5);
-    this.road(H3, [[28, -0.35, -9], [36, 1.2, -13], [44, 3.2, -8.5], [50, 5, -13], [57, 6.65, -9]], 2.2);
-    this.sign(H3, 26, -10.2, -0.35, ['CART PATH', 'do not look down'], 0.5);
-    this.road(H7, [[38, 0, -5], [44, 2, -11], [50, 3.4, -4], [56, 5, -11], [64, 7, -5]], 2.1);
-    this.sign(H7, 35.5, -6.5, 0, ['CART PATH', 'hairpins ahead'], 0.5);
+    this.road(H3, [[20, -0.35, -9], [31, 2.2, -9]], 1.9, { kicker: true });
+    this.road(H3, [[38.5, 1.6, -9], [44, 2.6, -9], [48, 3.9, -12.5], [51.5, 5.5, -8.5], [55.4, 6.65, -10]], 2, { cones: [[1, 0.5, 1], [2, 0.5, -1]] });
+    this.sign(H3, 18, -6.6, -0.05, ['BUILD SPEED', 'do not look down'], 0.5);
+    this.road(H7, [[29, 0, -5], [39.5, 2, -5]], 1.9, { kicker: true });
+    this.road(H7, [[46.5, 1.2, -5], [52.5, 3.2, -5], [56, 4.8, -8.7], [59, 6.05, -5.6], [62.7, 7, -5.4]], 2, { cones: [[1, 0.5, -1], [2, 0.5, 1]] });
+    this.sign(H7, 27, -6.6, 0, ['FULL THROTTLE', 'then hairpins'], 0.5);
     // Hole 8's road has a hole in it: hit the kicker with some speed.
-    this.road(H8, [[21, 0, -5], [27, 1.2, -11], [36, 3.6, -11]], 2.2);
-    this.road(H8, [[41, 3.3, -11], [52, 5.5, -11], [61, 7, -5]], 2.2);
-    this.sign(H8, 19, -3.6, 0, ['ROAD OUT', 'floor it'], 0.5);
-    this.road(H9, [[22, 0, -5.5], [30, 2.2, -9], [38, 3.6, -5.5], [46, 5.8, -9], [51.5, 7, -7.4], [52.5, 7, -5]], 2);
+    this.road(H8, [[14, 0, -4], [26, 1.2, -10.5], [36, 3.6, -11]], 1.8, { kicker: true });
+    this.road(H8, [[41.5, 3, -11], [52, 5.5, -11], [61, 7, -5]], 2, { cones: [[0, 0.5, 1]] });
+    this.sign(H8, 12, -5.6, 0, ['ROAD OUT', 'floor it'], 0.5);
+    this.road(H9, [[22, 0, -5.5], [30, 2.2, -9], [38, 3.6, -5.5], [46, 5.8, -9], [51.5, 7, -7.4], [52.5, 7, -5]], 1.7, { cones: [[1, 0.5, 1], [2, 0.55, -1]] });
     this.sign(H9, 20, -6.2, 0, ['LAST ROAD', 'no pressure'], 0.5);
   }
   decorate() {

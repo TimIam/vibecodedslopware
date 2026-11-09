@@ -137,7 +137,7 @@ export class Confetti {
 // A camera-facing ribbon that follows a ball.
 export class Trail {
   constructor(scene, color = '#ffffff', n = 36) {
-    this.n = n; this.pts = []; this.width = 0.11;
+    this.n = n; this.pts = []; this.width = 0.07;
     const g = new THREE.BufferGeometry();
     this.posA = new Float32Array(n * 2 * 3); this.alphaA = new Float32Array(n * 2);
     g.setAttribute('position', new THREE.BufferAttribute(this.posA, 3).setUsage(THREE.DynamicDrawUsage));
