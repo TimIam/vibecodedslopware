@@ -255,7 +255,40 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
   </div>
 </div>
 
-<div class="overlay" id="loading"><div class="box"><h1 class="lil">Par for the Curse</h1><div class="lbar"><i id="loadbar"></i></div><p id="loadmsg" style="font-weight:900">Building the mountain…</p></div></div>
+<div class="overlay" id="loading"><div class="box"><h1 class="lil">Par for the Curse</h1><div class="lbar"><i id="loadbar"></i></div><p id="loadmsg" style="font-weight:900">Fetching the game…</p></div></div>
+<script>
+  // Loading watchdog. The game module reports its stage here, and anything that breaks before the
+  // title screen (a file that did not arrive, no WebGL, a bad save) is shown instead of a frozen bar.
+  // A first failure reloads once by itself, which is all a half-finished deploy needs.
+  (function () {
+    var msg = document.getElementById('loadmsg'), box = msg.parentNode, slow = 0, btn = null, KEY = 'pftc-retry';
+    var L = window.__load = { stage: 'Fetching the game', done: false, failed: false };
+    function reloadBtn() {
+      if (btn) return;
+      btn = document.createElement('button'); btn.className = 'btn small'; btn.textContent = 'Reload';
+      btn.style.marginTop = '10px'; btn.onclick = function () { location.reload(); }; box.appendChild(btn);
+    }
+    L.set = function (stage) { L.stage = stage; if (!L.failed) msg.textContent = stage + '…'; };
+    L.ok = function () { L.done = true; clearTimeout(slow); try { sessionStorage.removeItem(KEY); } catch (e) {} };
+    L.fail = function (why) {
+      if (L.done || L.failed) return;
+      L.failed = true; clearTimeout(slow);
+      var tried = true;
+      try { tried = Date.now() - (+sessionStorage.getItem(KEY) || 0) < 60000; if (!tried) sessionStorage.setItem(KEY, Date.now()); } catch (e) {}
+      if (!tried) { msg.textContent = 'Hit a snag, trying again…'; setTimeout(function () { location.reload(); }, 900); return; }
+      msg.textContent = 'Could not load: ' + why; reloadBtn();
+    };
+    addEventListener('error', function (e) {
+      var t = e.target;
+      if (t && t.tagName === 'SCRIPT') L.fail('part of the game did not arrive. Check your connection.');
+      else if (t === window && !/^ResizeObserver/.test(e.message || '')) L.fail((e.message || 'script error').replace(/^Uncaught (\w*Error: )?/, ''));
+    }, true);
+    slow = setTimeout(function () {
+      if (L.done || L.failed) return;
+      msg.textContent = L.stage + ' is taking a while. Check your connection, or reload.'; reloadBtn();
+    }, 15000);
+  })();
+</script>
 
 <div class="overlay" id="title" hidden>
   <div class="panel">

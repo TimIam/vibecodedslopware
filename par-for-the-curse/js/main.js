@@ -21,7 +21,14 @@ let QV = {};
 
 /* ---------------- renderer, scene ---------------- */
 const canvas = $('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+// The loading watchdog lives in index.html; these are no-ops if it is missing.
+const LD = window.__load || { set() {}, ok() {}, fail() {} };
+// Let the loading message paint before a heavy synchronous stage (a hidden tab gets no frames, so skip).
+const paint = () => document.hidden ? Promise.resolve() : new Promise(r => { const t = setTimeout(r, 80); requestAnimationFrame(() => { clearTimeout(t); setTimeout(r, 0); }); });
+const renderer = (() => {
+  try { return new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' }); }
+  catch (e) { throw new Error('this browser would not start 3D graphics (WebGL). Close other 3D tabs or turn on hardware acceleration, then reload.'); }
+})();
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -139,7 +146,9 @@ const myName = () => look.name || 'Golfer';
 /* ---------------- boot ---------------- */
 async function boot() {
   resize();
+  LD.set('Loading the models');
   await loadAssets('assets', p => { $('loadbar').style.width = Math.round(p * 100) + '%'; });
+  LD.set('Building the mountain'); await paint();
   world = new World();
   course = new Course(scene, world);
   sky = new Sky(scene);
@@ -150,6 +159,7 @@ async function boot() {
   me = new Golfer(look); scene.add(me.root); me.setClub(3);
   for (const part of [me.p.head, me.p.eyes, me.p.stache, me.crown, ...Object.values(me.hats)]) part.traverse(o => o.layers.set(1));
   camera.layers.enable(1); sun.shadow.camera.layers.enable(1);
+  LD.set('Warming up the swing'); await paint();
   swing = new Swing();
   swing.calibrate();
   carts = [new Cart(scene, course.cartSpots[0])];
@@ -165,19 +175,32 @@ async function boot() {
   for (let i = 0; i < 26; i++) { const d = new THREE.Mesh(new THREE.SphereGeometry(i < 8 ? 0.04 : 0.06 + i * 0.004, 8, 6), new THREE.MeshBasicMaterial({ color: i % 2 ? 0xfff3a0 : 0xffffff, transparent: true, opacity: Math.max(0.15, 0.9 - i * 0.03), depthWrite: false })); d.renderOrder = 3; aimDots.add(d); }
   scene.add(aimDots);
   // Start position: saved progress, or the first tee.
+  // A save that cannot be restored must never brick the game: keep a copy and start from the tee.
   const sv = loadSave();
-  if (sv && Array.isArray(sv.ball)) {
-    Object.assign(S, { hole: sv.hole || 1, strokes: sv.strokes || 0, holeStrokes: sv.holeStrokes || 0, falls: sv.falls || 0, lost: sv.lost || 0, best: sv.best || 0, finished: !!sv.finished, crown: !!sv.crown, aim: sv.aim || 0, startedAt: sv.startedAt || 0 });
-    ball.p.fromArray(sv.ball);
-    if (Array.isArray(sv.g)) S.savedG = sv.g;
-    if (Array.isArray(sv.cart)) { carts[0].pos.set(sv.cart[0], sv.cart[1], sv.cart[2]); carts[0].yaw = sv.cart[3]; carts[0].sync(); } else S.cartToBall = true;
-    $('continueNote').hidden = false;
-    $('continueNote').textContent = `Picking up on hole ${S.hole}, ${S.strokes} strokes in.`;
-  } else placeOnTee(1);
-  if (S.crown) me.setCrown(true);
-  settleGolfer(true);
+  const num = a => Array.isArray(a) && a.length >= 3 && a.every(Number.isFinite);
+  let restored = false;
+  if (sv && num(sv.ball)) {
+    try {
+      Object.assign(S, { hole: clamp(Math.round(+sv.hole) || 1, 1, NHOLES), strokes: +sv.strokes || 0, holeStrokes: +sv.holeStrokes || 0, falls: +sv.falls || 0, lost: +sv.lost || 0, best: +sv.best || 0, finished: !!sv.finished, crown: !!sv.crown, aim: +sv.aim || 0, startedAt: +sv.startedAt || 0 });
+      ball.p.fromArray(sv.ball);
+      if (num(sv.g)) S.savedG = sv.g;
+      if (num(sv.cart)) { carts[0].pos.set(sv.cart[0], sv.cart[1], sv.cart[2]); carts[0].yaw = +sv.cart[3] || 0; carts[0].sync(); } else S.cartToBall = true;
+      if (S.crown) me.setCrown(true);
+      settleGolfer(true);
+      $('continueNote').hidden = false;
+      $('continueNote').textContent = `Picking up on hole ${S.hole}, ${S.strokes} strokes in.`;
+      restored = true;
+    } catch (e) {
+      console.error('save could not be restored', e);
+      try { localStorage.setItem('pftc-save-bad', JSON.stringify(sv)); } catch (e2) {}
+      Object.assign(S, { hole: 1, strokes: 0, holeStrokes: 0, falls: 0, lost: 0, finished: false, crown: false, aim: 0, startedAt: 0, savedG: null, cartToBall: false });
+      me.setCrown(false);
+    }
+  }
+  if (!restored) { placeOnTee(1); settleGolfer(true); }
   setupTitle();
   setMode('title');
+  LD.ok();
   $('loading').hidden = true; $('title').hidden = false;
   requestAnimationFrame(frame);
 }
@@ -1569,4 +1592,4 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
   };
 }
 
-boot().catch(e => { console.error(e); $('loadmsg').textContent = 'Something broke while loading: ' + e.message; });
+boot().catch(e => { console.error(e); if (window.__load) LD.fail(e.message); else $('loadmsg').textContent = 'Something broke while loading: ' + e.message; });
