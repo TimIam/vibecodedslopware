@@ -882,7 +882,7 @@ window.SLOPWARE = {
   "wasteland": {
    "visits": 0,
    "prompts": 7,
-   "tokens": 1737752,
+   "tokens": 1747797,
    "sharedWith": null,
    "versions": [
     {
@@ -903,8 +903,15 @@ window.SLOPWARE = {
      "n": 3,
      "date": "2026-11-09T08:23:04-07:00",
      "note": "rotation, plots, bridges, snipers, camps, market, Gazette",
-     "prompts": 4,
-     "tokens": 1107833
+     "prompts": 2,
+     "tokens": 940078
+    },
+    {
+     "n": 4,
+     "date": "2026-11-09T15:10:40-07:00",
+     "note": "a proper shovel in the action bar",
+     "prompts": 2,
+     "tokens": 177800
     }
    ]
   },
@@ -1335,7 +1342,7 @@ window.SLOPWARE = {
   "hostile-fauna": {
    "visits": 0,
    "prompts": 10,
-   "tokens": 866135,
+   "tokens": 868812,
    "sharedWith": null,
    "versions": [
     {
@@ -1357,7 +1364,7 @@ window.SLOPWARE = {
      "date": "2026-11-09T15:10:26-07:00",
      "note": "stop the screen flashing black on real GPUs",
      "prompts": 2,
-     "tokens": 33720
+     "tokens": 36397
     }
    ]
   }
