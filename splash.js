@@ -3,6 +3,7 @@
 // Opt-in, one game at a time. Put it before the game's own scripts so it covers the first frame:
 //   <script src="/splash.js"></script>                 plays on load
 //   <script src="/splash.js" data-manual></script>     waits for SlopwareSplash.play()
+//   <script src="/splash.js" data-always></script>     plays on every load, not once per tab
 //   await SlopwareSplash.ready                         resolves when it is gone
 //
 // It plays once per tab per page, any key or tap skips it, and input never
@@ -674,7 +675,7 @@
     if (navigator.webdriver) return false;
     if (window.top !== window) return false;
     if (location.pathname === '/' || location.pathname === '/shop/' || location.pathname === '/shop') return false;
-    return !seen();
+    return !!(script && script.hasAttribute('data-always')) || !seen();
   }
 
   const freezeAt = param !== null && param !== '' && param !== '1' && param !== '0' && !isNaN(+param) ? +param : null;

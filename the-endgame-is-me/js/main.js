@@ -71,6 +71,7 @@ function loadSplash() {
   return new Promise(done => {
     const s = document.createElement('script');
     s.src = '/splash.js';
+    s.setAttribute('data-always', '');   // every launch, not just the first in a tab
     s.onload = s.onerror = done;
     document.head.appendChild(s);
   });
