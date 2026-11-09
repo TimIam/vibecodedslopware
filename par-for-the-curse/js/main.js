@@ -302,8 +302,8 @@ addEventListener('keydown', e => {
   if (S.mode === 'title') return;
   keys.add(k);
   if (k >= '1' && k <= '5') setSlot(+k - 1);
-  if (k === 'q') cycleClub(-1);
-  if (k === 'e' && !e.repeat) interact();
+  if (k === 'q' && !S.grip) cycleClub(-1);
+  if (k === 'e' && !e.repeat && !S.grip) interact();
   if ((k === 'w' || k === 's') && S.mode === 'address' && !e.repeat) leaveAddress();
   if (k === 'm') { A.setMuted(!A.isMuted()); updateHud(); }
   if (k === 'n') { A.setMusic(!A.musicIsOn()); toast(A.musicIsOn() ? 'Music on' : 'Music off'); }
@@ -639,6 +639,11 @@ function step(dt) {
   const wantGrip = !!S.lmb && S.mode === 'walk' && !S.noClub && !S.emote && !S.intro;
   if (wantGrip && !S.grip) { S.grip = true; S.aim = S.camYaw; swing.reset(); S.whiffArmed = false; S.fat = false; }
   else if (!wantGrip && S.grip) { S.grip = false; S.walkYaw = S.aim; }
+  if (S.grip) {
+    // Q and E pivot the golfer on the spot, and the shot direction with them.
+    const spin = (keys.has('q') ? 1 : 0) - (keys.has('e') ? 1 : 0);
+    if (spin) { S.aim += spin * dt * 1.3; S.camYaw = S.aim; }
+  }
   // Aim.
   const aimKeys = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0);
   if (S.mode === 'address' && !S.emote) {
@@ -1212,7 +1217,7 @@ function ballMarker() {
 }
 function promptText() {
   if (S.mode === 'walk') {
-    if (S.grip) return 'Swing the mouse through the ball · <kbd>WASD</kbd> shuffle · let go to look around';
+    if (S.grip) return 'Swing the mouse through the ball · <kbd>Q</kbd><kbd>E</kbd> turn · <kbd>WASD</kbd> shuffle · let go to look around';
     if (nearCart()) return '<kbd>E</kbd>: hop in the cart';
     return (S.noClub ? '<kbd>2</kbd>–<kbd>5</kbd> pick a club' : '<b>Hold left mouse</b> to grip the club') + ' · <kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump';
   }
