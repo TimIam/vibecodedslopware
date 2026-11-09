@@ -3,12 +3,13 @@
 // its speed and flies.
 import * as THREE from 'three';
 import { make } from './assets.js';
-import { G as GRAV, SURF, ACTOR } from './physics.js';
+import { G as GRAV, SURF, ACTOR, Collider } from './physics.js';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const _p = V(), _n = V(), _c = V(), _h = V(), _v = V();
 export const CART = { accel: 7.5, brake: 18, reverse: 5, max: 14, coast: 2.2, step: 0.55 };
 export const SEAT = V(0.28, 0.69, 0.05);
+const NOT_FOR_BODIES = new Set(['pin', 'road', 'cliff', 'cartbody', 'post']);
 
 // Push a body out of anything its sample spheres touch, horizontally. Things lower than stepH above
 // the feet are ignored, because the ground check simply steps up onto them.
@@ -16,7 +17,8 @@ export function collideBody(world, pos, offsets, R, stepH, onHit) {
   for (const o of offsets) {
     _p.copy(pos).add(o);
     for (const c of world.cols) {
-      if (!c.enabled || c.tag === 'pin' || c.tag === 'road') continue;
+      // The drawn-shape colliders are for the ball; only the windmill stops a body.
+      if (!c.enabled || c.soft || (c.kind === 'mesh' && c.tag !== 'building') || NOT_FOR_BODIES.has(c.tag)) continue;
       const a = c.aabb;
       if (a.max.y < pos.y + stepH) continue;
       if (_p.x + R < a.min.x || _p.x - R > a.max.x || _p.y + R < a.min.y || _p.y - R > a.max.y || _p.z + R < a.min.z || _p.z - R > a.max.z) continue;
@@ -48,6 +50,20 @@ export class Cart {
     this.pos.copy(this.home.p); this.yaw = this.home.yaw;
     this.speed = 0; this.vy = 0; this.rise = 0; this.grounded = true; this.pitch = 0; this.roll = 0; this.carry.set(0, 0, 0);
     this.sync();
+  }
+  // While parked the cart is something a ball can hit. It is switched off while moving, so nobody can
+  // bulldoze their ball up the mountain for free.
+  addCollider(world) {
+    // The box starts above the wheels: a ball can sit under the chassis without being crushed into the turf.
+    const up = V(0, 1.18 * ACTOR, 0), H = V();
+    world.add(new Collider('box', {
+      half: V(0.68 * ACTOR, 0.86 * ACTOR, 1.31 * ACTOR), surf: 'metal', tag: 'cartbody', offCourse: true,
+      motion: (t, c) => {
+        c.enabled = Math.abs(this.speed) < 0.2;
+        c.pos.copy(this.pos).add(up).addScaledVector(this.heading(H), -0.064 * ACTOR);
+        c.quat.copy(this.mesh.quaternion);
+      },
+    }));
   }
   sync() {
     this.mesh.position.copy(this.pos);

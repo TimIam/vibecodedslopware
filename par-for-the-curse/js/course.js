@@ -13,6 +13,9 @@ const CORNERS = [[40, 40], [-40, 40], [-40, -40], [40, -40]];
 const DIRS = [[-1, 0], [0, -1], [1, 0], [0, 1]];
 const UP = new THREE.Vector3(0, 1, 0);
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
+const ROCK_HALF = 0.57;    // the under_rock model's half width at scale 1
+// Soft spheres for leaves, as [x, y, z, radius] from the prop's origin at scale 1.
+const FOLIAGE = { tree_round: [[0, 3.3, 0, 1.95]], tree_pine: [[0, 2.6, 0, 2], [0, 4.4, 0, 1.2]], tree_palm: [[1.15, 5, 0, 2.7]], bush: [[0, 0.42, 0, 0.75]] };
 
 export function padPos(k) { const c = CORNERS[k % 4]; return new THREE.Vector3(c[0], k * RISE, c[1]); }
 
@@ -170,29 +173,46 @@ export class Course {
     mesh.position.copy(cl); mesh.quaternion.copy(lq); mesh.receiveShadow = true;
     H.group.add(mesh);
     if (o.outline !== false) addOutline(mesh, 0.06);
-    if (!o.noRock) this.underRocks(H.group, x0, x1, z0, z1, Math.min(y0, y1) - thick + 0.3, o.rockDepth);
+    if (!o.noRock) { const under = thick / Math.cos(ang) - 0.3; this.underRocks(H, x0, x1, z0, z1, y0 - under, o.rockDepth, y1 - under); }
     return col;
   }
-  underRocks(group, x0, x1, z0, z1, y, depth) {
-    const len = x1 - x0, n = Math.max(1, Math.round(len / 11));
+  // Make a drawn object solid using its own triangles. o.motion moves it with a platform; the object is then
+  // given in the platform's space.
+  solidify(obj, o = {}) {
+    obj.updateWorldMatrix(true, true);
+    const out = [], v = new THREE.Vector3();
+    obj.traverse(m => {
+      if (!m.isMesh || m.userData.isOutline) return;
+      const p = m.geometry.attributes.position, idx = m.geometry.index, n = idx ? idx.count : p.count;
+      for (let i = 0; i < n; i++) { v.fromBufferAttribute(p, idx ? idx.getX(i) : i).applyMatrix4(m.matrixWorld); out.push(v.x, v.y, v.z); }
+    });
+    const c = this.world.add(new Collider('mesh', { tris: new Float32Array(out), surf: o.surf || 'rock', tag: o.tag, hole: o.hole ?? -1, cell: o.cell, motion: o.motion, offCourse: true }));
+    if (o.motion) c.step(0, 1 / 60);
+    return c;
+  }
+  // Rock hanging under a platform. It stays inside the platform's footprint and follows a ramp's slope.
+  underRocks(H, x0, x1, z0, z1, y0, depth, y1 = y0) {
+    const len = x1 - x0, n = Math.max(1, Math.round(len / 11)), seg = len / n, slope = Math.atan2(y1 - y0, len);
+    const sx = (n === 1 ? seg * 0.88 : seg * 1.08) * Math.cos(slope), half = sx * ROCK_HALF;
     for (let k = 0; k < n; k++) {
       const r = make('under_rock');
-      const seg = len / n;
-      r.position.set(x0 + seg * (k + 0.5), y, (z0 + z1) / 2);
+      const cx = THREE.MathUtils.clamp(x0 + seg * (k + 0.5), x0 + half, x1 - half);
+      r.position.set(cx, y0 + (y1 - y0) * (cx - x0) / len, (z0 + z1) / 2);
       const d = depth ?? (4 + Math.random() * 5) * Math.min(1.4, (z1 - z0) / 10 + 0.4);
-      r.scale.set(seg * 1.08, d, (z1 - z0) * 1.02);
-      r.rotation.y = Math.random() < 0.5 ? 0 : Math.PI;
+      r.scale.set(sx, d, (z1 - z0) * 0.88);
+      r.rotation.order = 'ZYX'; r.rotation.set(0, Math.random() < 0.5 ? 0 : Math.PI, slope);
       r.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = true; } });
-      group.add(r);
+      H.group.add(r);
+      this.solidify(r, { surf: 'rock', tag: 'cliff', hole: H.i });
     }
   }
   // A low wall from (x0,z0) to (x1,z1); o.y1 makes it climb a ramp (base height y at the start, y1 at the end).
   // Rough terraces either side of a fairway on the lower holes, so balls falling off the hole
   // four above land here instead of in the sea.
-  shoulders(H, x0, x1, w, y0, y1 = y0, out = 11, sides = [-1, 1]) {
+  shoulders(H, x0, x1, w, y0, y1 = y0, out = 11, sides = [-1, 1], thick = 2.6) {
     for (const s of sides) {
       const za = s * w, zb = s * out;
-      this.block(H, x0, x1, Math.min(za, zb), Math.max(za, zb), y0 - 0.35, y1 - 0.35, { surf: 'rough', mat: roughMat, thick: 2.6, rockDepth: 4 + Math.random() * 3 });
+      this.block(H, x0, x1, Math.min(za, zb), Math.max(za, zb), y0 - 0.35, y1 - 0.35, { surf: 'rough', mat: roughMat, thick, rockDepth: 4 + Math.random() * 3 });
     }
   }
   wall(H, x0, z0, x1, z1, y, o = {}) {
@@ -228,6 +248,10 @@ export class Course {
       const w = H.frame.w(x, y + 1.5, z);
       this.world.add(new Collider('cyl', { pos: w, r: o.trunk * s, hh: 1.5, surf: 'wood', hole: H.i, tag: 'tree' }));
     }
+    // Foliage slows a ball down and lets it drop; rocks, lamps, poles and markers are solid.
+    const c = Math.cos(p.rotation.y), sn = Math.sin(p.rotation.y);
+    for (const [lx, ly, lz, r] of FOLIAGE[name] || []) this.world.add(new Collider('sph', { pos: H.frame.w(x + (lx * c + lz * sn) * s, y + ly * s, z + (-lx * sn + lz * c) * s), r: r * s, surf: 'rough', soft: 7, tag: 'leaf', hole: H.i }));
+    if (/^(rock_|lamp|tee_marker|windsock)/.test(name)) this.solidify(p, { surf: /^rock/.test(name) ? 'rock' : 'metal', hole: H.i });
     return p;
   }
   // Ground decals for greens, bunkers, ponds and tees, plus the zones the physics reads.
@@ -284,7 +308,8 @@ export class Course {
       const body = new THREE.Mesh(new RoundedBoxGeometry(size[0], size[1], size[2], 2, Math.min(0.25, size[1] / 2 - 0.01)), mat || terrainMat);
       body.receiveShadow = true; body.castShadow = true; addOutline(body, 0.05); mesh.add(body);
       if (under) {
-        const r = make('under_rock'); r.position.y = -size[1] / 2 + 0.2; r.scale.set(size[0], 3 + size[0] * 0.3, size[2]); mesh.add(r);
+        const r = make('under_rock'); r.position.y = -size[1] / 2 + 0.2; r.scale.set(size[0] * 0.88, 3 + size[0] * 0.3, size[2] * 0.88); mesh.add(r);
+        this.solidify(r, { surf: 'rock', tag: 'cliff', hole: H.i, motion });
       }
       const edge = new THREE.Mesh(new THREE.BoxGeometry(size[0] + 0.04, 0.18, size[2] + 0.04), toon(0xffffff, { params: { map: hazardTex } }));
       edge.position.y = size[1] / 2 - 0.35; mesh.add(edge);
@@ -303,6 +328,7 @@ export class Course {
   /* ----- the holes ----- */
   build() {
     this.hits = new Map();
+    this.hits.set('leaf', (c, vn, p) => { if (vn > 2) this.fx.sound('sand', 0.5, p); });
     const H = [];
     for (let i = 1; i <= NHOLES; i++) H.push({ i, frame: frames[i], group: this.frameGroup(frames[i]) });
     this.H = H;
@@ -422,6 +448,7 @@ export class Course {
     board.traverse(o => { if (o.isMesh && !o.userData.isOutline && /face/i.test(o.material.name || '')) { o.material = face; found = true; } });
     post.traverse(m => { m.raycast = () => {}; });
     if (!found) board.traverse(o => { if (o.isMesh && !o.userData.isOutline) o.material = face; });
+    this.solidify(post, { surf: 'wood', hole: H.i });
     return post;
   }
   windsock(H, x, z, w) {
@@ -448,7 +475,7 @@ export class Course {
     this.holeInfo(H, 'Warm-Up Wobble', 4, 'Hit it up the hill. Gently. Or not.');
     this.block(H, 9, 30, -7, 7, 0);
     this.block(H, 30, 52, -7, 7, 0, 7, { noRock: true });
-    this.underRocks(H.group, 30, 52, -7, 7, -2.5);
+    this.underRocks(H, 30, 52, -7, 7, -2.85, undefined, 4.15);
     this.block(H, 52, 71, -7, 7, 7);
     // The sea-side terrace is extra wide: it catches balls dropping out of the Pinball Palace gutter 28 m above.
     for (const [x0, x1, y0, y1] of [[9, 30, 0, 0], [30, 52, 0, 7], [52, 71, 7, 7]]) { this.shoulders(H, x0, x1, 7, y0, y1, 11, [1]); this.shoulders(H, x0, x1, 7, y0, y1, 15, [-1]); }
@@ -466,20 +493,18 @@ export class Course {
   hole2(H) {
     this.holeInfo(H, 'Windmill Steps', 5, 'Chip up the steps, then roll through the windmill.');
     this.block(H, 9, 26, -7, 7, 0);
-    this.block(H, 26, 42, -6, 6, 3.5);
-    this.block(H, 42, 71, -6, 6, 7);
-    this.shoulders(H, 9, 26, 7, 0); this.shoulders(H, 26, 42, 6, 3.5); this.shoulders(H, 42, 71, 6, 7);
+    // Each step reaches down past the level below, so nothing can roll in under it.
+    this.block(H, 26, 42, -6, 6, 3.5, 3.5, { thick: 6.5 });
+    this.block(H, 42, 71, -6, 6, 7, 7, { thick: 6.5 });
+    this.shoulders(H, 9, 26, 7, 0); this.shoulders(H, 26, 42, 6, 3.5, 3.5, 11, [-1, 1], 6.1); this.shoulders(H, 42, 71, 6, 7, 7, 11, [-1, 1], 6.1);
     this.zone(H, 'sand', 20, -4, 1.6);
     this.zone(H, 'water', 34, 3, 1.8, { rz: 1.3 });
     // The windmill: a tunnel through the base, sails sweeping anything lofted over it.
     const wx = 57;
     const base = make('windmill_base', { outline: 0.05 });
     base.position.set(wx, 7, 0); base.rotation.y = -Math.PI / 2; H.group.add(base);
-    for (const s of [-1, 1]) {
-      this.world.add(new Collider('box', { pos: H.frame.w(wx, 11, s * 1.45), quat: H.frame.q, half: new THREE.Vector3(1.9, 4, 0.62), surf: 'wood', hole: 2 }));
-      this.wall(H, wx, s * 2.1, wx, s * 5.9, 7, { h: 1, wood: true });
-    }
-    this.world.add(new Collider('box', { pos: H.frame.w(wx, 11.6, 0), quat: H.frame.q, half: new THREE.Vector3(1.9, 3.4, 0.9), surf: 'wood', hole: 2 }));
+    this.solidify(base, { surf: 'wood', tag: 'building', hole: 2 });
+    for (const s of [-1, 1]) this.wall(H, wx, s * 2.1, wx, s * 5.9, 7, { h: 1, wood: true });
     const hub = pm('windmill_base').hub || [0, 6.5, 2.2];
     const hubL = new THREE.Vector3(wx - hub[2], 7 + hub[1], hub[0]);
     const sails = make('windmill_blades', { outline: 0.04 });
@@ -516,8 +541,12 @@ export class Course {
       const m = make('mushroom', { outline: 0.04 });
       const capTop = pm('mushroom').cap_top ?? 1.2;
       m.position.set(x, top - capTop, z); H.group.add(m);
-      const isl = make('under_rock'); isl.position.set(x, top - capTop + 0.1, z); isl.scale.set(2.6, 5, 2.6); H.group.add(isl);
+      const isl = make('under_rock'); isl.position.set(x, top - capTop + 0.1, z); isl.scale.set(2.2, 5, 2.2); H.group.add(isl);
+      this.solidify(isl, { surf: 'rock', tag: 'cliff', hole: 3 });
       const disk = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.35, 0.3, 20), terrainMat); disk.position.set(x, top - capTop + 0.05, z); H.group.add(disk);
+      const stemR = pm('mushroom').stem_radius ?? 0.4, foot = top - capTop;
+      this.world.add(new Collider('cyl', { pos: H.frame.w(x, (foot + top - 0.5) / 2, z), r: stemR, hh: (capTop - 0.5) / 2, surf: 'wood', hole: 3 }));
+      this.world.add(new Collider('cyl', { pos: H.frame.w(x, foot + 0.05, z), r: 1.35, hh: 0.15, surf: 'rough', tag: 'cliff', offCourse: true, hole: 3 }));
       const col = this.world.add(new Collider('cyl', { pos: H.frame.w(x, top - 0.25, z), r: 1.45, hh: 0.25, surf: 'mushroom', tag: 'shroom', hole: 3 }));
       col.mesh = m;
       this.animators.push((t, dt) => {
@@ -539,7 +568,7 @@ export class Course {
     const beltV = new THREE.Vector3(-Math.cos(ang), -Math.sin(ang), 0).multiplyScalar(3.2);
     const bw = beltV.clone().transformDirection(H.frame.m).multiplyScalar(3.2);
     this.block(H, 30, 50, -3, 3, 0, 7, { surf: 'belt', belt: bw, noRock: true, thick: 1.2 });
-    this.underRocks(H.group, 30, 50, -3, 3, -1.5, 5);
+    this.underRocks(H, 30, 50, -3, 3, -1, 5, 6);
     this.block(H, 50, 71, -4, 4, 7);
     this.shoulders(H, 9, 30, 4, 0); this.shoulders(H, 30, 50, 3.45, 0, 7); this.shoulders(H, 50, 71, 4, 7);
     for (const s of [-1, 1]) this.wall(H, 30, s * 3.25, 50, s * 3.25, 0, { y1: 7, h: 0.5, mat: toon(0x8a93a6) });
@@ -574,7 +603,7 @@ export class Course {
     this.holeInfo(H, 'Pinball Palace', 5, 'Bumpers, a sweeper, and a gutter of doom.');
     this.block(H, 9, 46, -10, 10, 0, 0, { rockDepth: 10 });
     this.block(H, 46, 60, -2.5, 2.5, 0, 7, { noRock: true, surf: 'metal', mat: toon(0x9db4cf) });
-    this.underRocks(H.group, 46, 60, -2.5, 2.5, -2, 4);
+    this.underRocks(H, 46, 60, -2.5, 2.5, -3.05, 4, 3.95);
     this.block(H, 60, 71, -7, 7, 7);
     this.shoulders(H, 9, 46, 10, 0, 0, 12.5, [1]); this.shoulders(H, 60, 71, 7, 7);
     const neon = toon(0x7c4dff, { emissive: 0x7c4dff, emissiveIntensity: 0.35 });
@@ -638,6 +667,7 @@ export class Course {
       const y = x < 38 ? y1(x) : y2(x);
       for (const s of [-1, 1]) {
         const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.6, 6), toon(0x8b5a2b)); p.position.set(x, y + 0.3, s * ((x < 38 ? W1 : W2) - 0.05)); p.raycast = () => {}; H.group.add(p);
+        this.world.add(new Collider('cyl', { pos: H.frame.w(x, y + 0.3, p.position.z), r: 0.06, hh: 0.3, surf: 'wood', tag: 'post', hole: 6 }));
       }
     }
     this.prop(H, 'tree_pine', 11, 4.5, { trunk: 0.35 }); this.prop(H, 'rock_a', 13, -4.8, { scale: 0.6 });
@@ -656,6 +686,7 @@ export class Course {
     barrel.rotation.x = -0.6;
     this.cannonParts = { base, bp, barrel };
     this.world.add(new Collider('cyl', { pos: H.frame.w(cx, 0.6, cz), r: 0.9, hh: 0.6, surf: 'metal', hole: 7 }));
+    this.solidify(base, { surf: 'metal', hole: 7 });   // the carriage sticks out past the round collider
     // The catch ring in front of the cannon.
     const rx = cx - 3, rz = cz;
     const ring = new THREE.Mesh(new THREE.RingGeometry(1.15, 1.6, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff5a36, transparent: true, opacity: 0.85, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
@@ -684,7 +715,7 @@ export class Course {
     this.holeInfo(H, 'The Summit', 6, 'Pegs, gusts, and a green that will not stop spinning.');
     this.block(H, 9, 24, -7, 7, 0);
     this.block(H, 24, 50, -4, 4, 0, 7, { noRock: true });
-    this.underRocks(H.group, 24, 50, -4, 4, -2.5, 6);
+    this.underRocks(H, 24, 50, -4, 4, -2.8, 6, 4.2);
     this.block(H, 50, 71, -6, 6, 7);
     const ang = Math.atan2(7, 26);
     let row = 0;
@@ -743,7 +774,8 @@ export class Course {
       this.world.add(new Collider('cyl', { pos: F.w(x, y - thick / 2, z), r, hh: thick / 2, surf: 'fairway', hole: H.i, tag: 'road' }));
       const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, thick, 28), nodeMat);
       m.position.set(x, y - thick / 2, z); m.receiveShadow = true; addOutline(m, 0.05); H.group.add(m);
-      const rock = make('under_rock'); rock.position.set(x, y - thick + 0.05, z); rock.scale.set(r * 2, 3.5, r * 2); H.group.add(rock);
+      const rock = make('under_rock'); rock.position.set(x, y - thick + 0.05, z); rock.scale.set(r * 1.25, 3.5, r * 1.25); H.group.add(rock);
+      this.solidify(rock, { surf: 'rock', tag: 'cliff', hole: H.i });
     });
     for (let i = 0; i < last; i++) {
       const [ax, ay, az] = pts[i], [bx, by, bz] = pts[i + 1], run0 = Math.hypot(bx - ax, bz - az);
@@ -797,6 +829,7 @@ export class Course {
     const sp = make('spire', { outline: 0.15 });
     sp.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = true; } });
     this.scene.add(sp); this.camBlockers.push(sp);
+    this.solidify(sp, { surf: 'rock', tag: 'cliff', cell: 4 });
   }
 
   // Which hole is the ball playing? Strips and green pads belong to their hole; on a tee pad the

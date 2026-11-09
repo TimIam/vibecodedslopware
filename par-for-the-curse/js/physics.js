@@ -1,11 +1,11 @@
 // Ball physics. The ball is the only dynamic body, so this is a small hand-rolled solver: a sphere
-// against oriented boxes, vertical cylinders and spheres, some of them kinematic (windmill sails,
-// sweepers, geese, lifts). Substeps scale with ball speed so a 40 m/s drive can't tunnel.
+// against oriented boxes, vertical cylinders, spheres and triangle meshes taken from the drawn models,
+// some of them kinematic (windmill sails, sweepers, geese, lifts). Substeps scale with ball speed so a 40 m/s drive can't tunnel.
 import * as THREE from 'three';
 
 export const G = 11;          // a touch more than Earth so the cartoon world feels snappy
 export const ACTOR = 0.62;      // size of the golfer, ball and cart relative to the world they were built for
-export const POWER = 0.8;       // full-shot ball speed scale: smaller golfers, shorter shots, longer holes
+export const POWER = 1;         // full-shot ball speed scale
 export const BALL_R = 0.09 * ACTOR;
 
 // roll: rolling resistance as a fraction of g. e: restitution. slide: Coulomb friction on impact.
@@ -44,6 +44,9 @@ export class Collider {
     this.motion = o.motion || null;      // (t, collider) => sets pos/quat
     this.hole = o.hole ?? -1;
     this.enabled = true;
+    this.soft = o.soft || 0;             // no bounce: slows the ball while it is inside (foliage)
+    this.offCourse = !!o.offCourse;      // nobody can stand here, so a ball that stops on it is unplayable
+    if (kind === 'mesh') this.initMesh(o);
     this.mat = new THREE.Matrix4(); this.inv = new THREE.Matrix4();
     this.prevInv = new THREE.Matrix4(); this.delta = new THREE.Matrix4(); this.h = 1 / 240;
     this.aabb = new THREE.Box3();
@@ -60,6 +63,9 @@ export class Collider {
       const ez = Math.abs(e[2]) * h.x + Math.abs(e[5]) * h.y + Math.abs(e[8]) * h.z;
       this.aabb.min.set(this.pos.x - ex, this.pos.y - ey, this.pos.z - ez);
       this.aabb.max.set(this.pos.x + ex, this.pos.y + ey, this.pos.z + ez);
+    } else if (this.kind === 'mesh') {
+      this.aabb.makeEmpty();
+      for (let i = 0; i < 8; i++) this.aabb.expandByPoint(_box.set(i & 1 ? this.hi.x : this.lo.x, i & 2 ? this.hi.y : this.lo.y, i & 4 ? this.hi.z : this.lo.z).applyMatrix4(this.mat));
     } else if (this.kind === 'cyl') {
       this.aabb.min.set(this.pos.x - this.r, this.pos.y - this.hh, this.pos.z - this.r);
       this.aabb.max.set(this.pos.x + this.r, this.pos.y + this.hh, this.pos.z + this.r);
@@ -82,8 +88,56 @@ export class Collider {
     if (this.belt) out.add(this.belt);
     return out;
   }
+  // A triangle soup in the collider's own space. The lookup grid is built the first time a ball comes near.
+  initMesh(o) {
+    this.tris = o.tris; this.cell = o.cell || 2; this.grid = null;
+    this.lo = new THREE.Vector3(Infinity, Infinity, Infinity); this.hi = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+    for (let i = 0; i < this.tris.length; i += 3) { _box.fromArray(this.tris, i); this.lo.min(_box); this.hi.max(_box); }
+  }
+  buildGrid() {
+    const t = this.tris, s = this.cell, n = t.length / 9;
+    this.grid = new Map(); this.marks = new Int32Array(n); this.stamp = 0;
+    const key = (a, b, c) => (a & 2047) * 4194304 + (b & 2047) * 2048 + (c & 2047);
+    for (let i = 0; i < n; i++) {
+      const k = i * 9, lo = [0, 1, 2].map(a => Math.floor(Math.min(t[k + a], t[k + 3 + a], t[k + 6 + a]) / s)), hi = [0, 1, 2].map(a => Math.floor(Math.max(t[k + a], t[k + 3 + a], t[k + 6 + a]) / s));
+      for (let x = lo[0]; x <= hi[0]; x++) for (let y = lo[1]; y <= hi[1]; y++) for (let z = lo[2]; z <= hi[2]; z++) {
+        const c = key(x, y, z); let l = this.grid.get(c);
+        if (!l) this.grid.set(c, l = []);
+        l.push(i);
+      }
+    }
+  }
+  contactMesh(p, R, nOut, cOut) {
+    if (!this.grid) this.buildGrid();
+    _box.copy(p).applyMatrix4(this.inv);
+    const px = _box.x, py = _box.y, pz = _box.z, s = this.cell, t = this.tris, stamp = ++this.stamp;
+    let best = R * R, found = false, bx = 0, by = 0, bz = 0;
+    for (let x = Math.floor((px - R) / s); x <= Math.floor((px + R) / s); x++) for (let y = Math.floor((py - R) / s); y <= Math.floor((py + R) / s); y++) for (let z = Math.floor((pz - R) / s); z <= Math.floor((pz + R) / s); z++) {
+      const list = this.grid.get((x & 2047) * 4194304 + (y & 2047) * 2048 + (z & 2047));
+      if (!list) continue;
+      for (const i of list) {
+        if (this.marks[i] === stamp) continue;
+        this.marks[i] = stamp;
+        const k = i * 9;
+        closestOnTri(px, py, pz, t[k], t[k + 1], t[k + 2], t[k + 3], t[k + 4], t[k + 5], t[k + 6], t[k + 7], t[k + 8]);
+        const dx = px - _cp[0], dy = py - _cp[1], dz = pz - _cp[2], d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 >= best) continue;
+        // Only the outside of a surface pushes: a ball can never get stuck inside a shell.
+        const ax = t[k + 3] - t[k], ay = t[k + 4] - t[k + 1], az = t[k + 5] - t[k + 2], cx = t[k + 6] - t[k], cy = t[k + 7] - t[k + 1], cz = t[k + 8] - t[k + 2];
+        if (dx * (ay * cz - az * cy) + dy * (az * cx - ax * cz) + dz * (ax * cy - ay * cx) < 0) continue;
+        best = d2; found = true; bx = _cp[0]; by = _cp[1]; bz = _cp[2];
+      }
+    }
+    if (!found) return 0;
+    const d = Math.sqrt(best);
+    if (d < 1e-7) return 0;
+    nOut.set((px - bx) / d, (py - by) / d, (pz - bz) / d).applyQuaternion(this.quat);
+    cOut.set(bx, by, bz).applyMatrix4(this.mat);
+    return R - d;
+  }
   // Closest-feature contact with a sphere. Returns depth (>0) and writes normal + contact point.
   contact(p, R, nOut, cOut) {
+    if (this.kind === 'mesh') return this.contactMesh(p, R, nOut, cOut);
     if (this.kind === 'box') {
       _l.copy(p).applyMatrix4(this.inv);
       const h = this.half;
@@ -154,7 +208,29 @@ export class Collider {
     return Infinity;
   }
 }
-const _qi = new THREE.Quaternion();
+const _qi = new THREE.Quaternion(), _box = new THREE.Vector3(), _cp = [0, 0, 0];
+// Closest point on triangle abc to p, into _cp.
+function closestOnTri(px, py, pz, ax, ay, az, bx, by, bz, cx, cy, cz) {
+  const abx = bx - ax, aby = by - ay, abz = bz - az, acx = cx - ax, acy = cy - ay, acz = cz - az;
+  const apx = px - ax, apy = py - ay, apz = pz - az;
+  const d1 = abx * apx + aby * apy + abz * apz, d2 = acx * apx + acy * apy + acz * apz;
+  const set = (x, y, z) => { _cp[0] = x; _cp[1] = y; _cp[2] = z; };
+  if (d1 <= 0 && d2 <= 0) return set(ax, ay, az);
+  const bpx = px - bx, bpy = py - by, bpz = pz - bz;
+  const d3 = abx * bpx + aby * bpy + abz * bpz, d4 = acx * bpx + acy * bpy + acz * bpz;
+  if (d3 >= 0 && d4 <= d3) return set(bx, by, bz);
+  const vc = d1 * d4 - d3 * d2;
+  if (vc <= 0 && d1 >= 0 && d3 <= 0) { const v = d1 / (d1 - d3); return set(ax + abx * v, ay + aby * v, az + abz * v); }
+  const cpx = px - cx, cpy = py - cy, cpz = pz - cz;
+  const d5 = abx * cpx + aby * cpy + abz * cpz, d6 = acx * cpx + acy * cpy + acz * cpz;
+  if (d6 >= 0 && d5 <= d6) return set(cx, cy, cz);
+  const vb = d5 * d2 - d1 * d6;
+  if (vb <= 0 && d2 >= 0 && d6 <= 0) { const w = d2 / (d2 - d6); return set(ax + acx * w, ay + acy * w, az + acz * w); }
+  const va = d3 * d6 - d5 * d4;
+  if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) { const w = (d4 - d3) / (d4 - d3 + d5 - d6); return set(bx + (cx - bx) * w, by + (cy - by) * w, bz + (cz - bz) * w); }
+  const den = 1 / (va + vb + vc), v = vb * den, w = vc * den;
+  return set(ax + abx * v + acx * w, ay + aby * v + acy * w, az + abz * v + acz * w);
+}
 
 export class World {
   constructor() {
@@ -167,7 +243,7 @@ export class World {
     _c.set(x, y, z); _v.set(0, -1, 0);
     let best = Infinity, col = null;
     for (const c of this.cols) {
-      if (!c.enabled || c.tag === 'pin') continue;
+      if (!c.enabled || c.tag === 'pin' || c.tag === 'cartbody' || c.tag === 'post') continue;
       const a = c.aabb;
       if (x < a.min.x || x > a.max.x || z < a.min.z || z > a.max.z || a.min.y > y) continue;
       const t = c.ray(_c, _v, maxDrop);
@@ -210,6 +286,11 @@ export class World {
         if (p.x + R < a.min.x || p.x - R > a.max.x || p.y + R < a.min.y || p.y - R > a.max.y || p.z + R < a.min.z || p.z - R > a.max.z) continue;
         const depth = c.contact(p, R, _n, _c);
         if (depth <= 0) continue;
+        if (c.soft) {
+          // Foliage only drags, once per physics step however many solver passes run.
+          if (iter === 0) { ball.v.multiplyScalar(Math.exp(-c.soft * h)); if (ball.inSoft !== c) { ball.inSoft = c; if (this.onContact) this.onContact(c, ball.v.length(), p, _n); } }
+          continue;
+        }
         any = true;
         p.addScaledVector(_n, depth);
         c.pointVel(_c, _vc);

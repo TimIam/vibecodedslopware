@@ -76,6 +76,7 @@ const Q = {
   fall: ['Gravity remains undefeated.', 'And that is {m} metres of progress, gone.', 'The mountain giveth. The mountain taketh away.', 'Bold strategy. It did not pay off.', 'Have you considered hitting it less?', 'Weeeeee.', 'Back to hole {h}. Lovely this time of year.'],
   bigfall: ['That is a long way down. {m} metres, to be precise.', 'Oh no. Oh no no no.', 'And the crowd goes silent.'],
   sea: ['Into the sea. Magnificent.', 'Ball overboard!', 'That one is going to Portugal.', 'The fish thank you for your donation.'],
+  stuck: ['Unplayable. Even the mountain does not want it.', 'Nobody is climbing up there for that.', 'Stuck. One stroke, back you go.'],
   splash: ['Splish splash. One stroke penalty.', 'Plop.', 'That is wet, and also a penalty.'],
   sand: ['Beach day!', 'Welcome to the sandbox.', 'It is coarse, and it gets everywhere.'],
   lip: ['Lipped out! Oh, the humanity.', 'So close. So very close.', 'The cup said no.', 'Around the rim and out. Cruel.'],
@@ -152,6 +153,7 @@ async function boot() {
   swing = new Swing();
   swing.calibrate();
   carts = [new Cart(scene, course.cartSpots[0])];
+  carts[0].addCollider(world);
   ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 24, 16), toon(0xffffff));
   ballMesh.castShadow = true; addOutline(ballMesh, 0.012); scene.add(ballMesh);
   ballShadow = new THREE.Mesh(new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x1b2a1a, transparent: true, opacity: 0.25, depthWrite: false }));
@@ -537,6 +539,7 @@ function launch(r) {
 
 function ballRested() {
   // Called once the ball has settled. Decide what happened.
+  if (ball.grounded && ball.lastGround && ball.lastGround.offCourse) return penalty('stuck');
   const h = course.holeAt(ball.p, S.hole) ?? S.hole;
   const dropped = S.shotY - ball.p.y;
   if (h < S.shotHole && dropped > 8) {
@@ -572,7 +575,7 @@ function penalty(kind) {
   ball.frozen = true;
   S.strokes++; S.holeStrokes++;
   addRage(kind === 'sea' ? 20 : 12);
-  quip(kind === 'sea' ? 'sea' : 'splash');
+  quip(kind === 'sea' || kind === 'stuck' ? kind : 'splash');
   sendEv({ k: kind });
   setTimeout(() => {
     ball.p.copy(S.shotFrom); ball.v.set(0, 0, 0); ball.frozen = false;
@@ -1519,7 +1522,7 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     setClub,
     fire: () => fireCannon(), get cannon() { return S.cannon; },
     tick: n => { for (let i = 0; i < n; i++) { S.realDt = 1 / 60; step(S.slowmo ? S.slowmo / 60 : 1 / 60); } },
-    get guide() { return guide; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
+    THREE, get guide() { return guide; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
     // Deterministic swing at 60 fps: back for `back` frames, pause, then through; runs until the ball rests.
     swingTest: (power = 1, back = 24, down = 10, club) => {
       if (club != null) setClub(club);
