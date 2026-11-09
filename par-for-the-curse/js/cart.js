@@ -7,7 +7,7 @@ import { G as GRAV, SURF, ACTOR, Collider } from './physics.js';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const _p = V(), _n = V(), _c = V(), _h = V(), _v = V();
-export const CART = { accel: 7.5, brake: 18, reverse: 5, max: 14, coast: 2.2, step: 0.55 };
+export const CART = { accel: 7.5, brake: 18, reverse: 5, max: 14, coast: 2.2, step: 0.55, empty: 6 };   // empty: how hard a cart with nobody in it slows to a stop
 export const SEAT = V(0.28, 0.69, 0.05);
 const NOT_FOR_BODIES = new Set(['pin', 'road', 'cliff', 'cartbody', 'post']);
 
@@ -91,7 +91,7 @@ export class Cart {
         if (input.brake) a = -Math.sign(this.speed) * Math.min(CART.brake, Math.abs(this.speed) / h);
         else if (input.throttle > 0) a = this.speed < 0 ? CART.brake : CART.accel;
         else if (input.throttle < 0) a = this.speed > 0 ? -CART.brake : -CART.accel;
-        else a = -Math.sign(this.speed) * Math.min(CART.coast, Math.abs(this.speed) / h);
+        else a = -Math.sign(this.speed) * Math.min(input.coast ?? CART.coast, Math.abs(this.speed) / h);
         const surf = SURF[this.surf] || SURF.fairway;
         this.speed += (a - GRAV * Math.sin(this.pitch)) * h;
         if (surf === SURF.sand) this.speed *= Math.exp(-h * 2.2); else if (surf === SURF.rough) this.speed *= Math.exp(-h * 0.5);
@@ -134,6 +134,15 @@ export class Cart {
       }
     }
     this.sync();
+  }
+  // Nobody at the wheel: it carries on under its own momentum, flies, lands and coasts to a stop. Once it
+  // has stopped on solid ground it stays parked, even on a ramp. On a moving platform it rides along.
+  idle(dt, world, ev) {
+    if (this.grounded && Math.abs(this.speed) < 0.25) {
+      const g = world.groundAt(this.pos.x, this.pos.y + 0.7, this.pos.z, 1.1, true);
+      if (g && !g.col.motion && Math.abs(g.y - this.pos.y) < 0.05) { this.speed = 0; this.carry.set(0, 0, 0); return; }
+    }
+    this.update(dt, { throttle: 0, steer: 0, brake: false, coast: CART.empty }, world, ev);
   }
   seat(out = V()) { return out.copy(SEAT).applyMatrix4(this.mesh.matrixWorld); }
 }

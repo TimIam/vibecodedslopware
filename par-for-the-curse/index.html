@@ -225,7 +225,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 <div class="hud" id="holeCard"><span class="num" id="hcNum">Hole 1</span><h2 id="hcName">Warm-Up Wobble</h2><div class="par" id="hcPar">Par 3</div><p id="hcBlurb"></p></div>
 <div class="hud chunk" id="shot"></div>
 <div class="hud chunk" id="prompt" hidden></div>
-<div class="hud chunk" id="cannonUI" hidden><b>🎯 Time the cannon!</b><div class="ctrack"><i class="sweet"></i><i id="cneedle"></i></div><small>Click or <kbd>Space</kbd> to fire when the needle is in the red</small></div>
+<div class="hud chunk" id="cannonUI" hidden><b>🎯 Time the cannon!</b><div class="ctrack"><i class="sweet"></i><i id="cneedle"></i></div><small>Press <kbd>E</kbd> to fire when the needle is in the red</small></div>
 <div class="hud" id="tip"><div class="tipcard chunk"><b>Your mouse is your hands.</b><span id="tipText"></span></div></div>
 <div class="hud" id="clubs">
   <div><b>Hands</b><kbd>1</kbd></div><div><b>Driver</b><kbd>2</kbd></div><div><b>Wedge</b><kbd>3</kbd></div><div><b>Putter</b><kbd>4</kbd></div><div><b>Iron</b><kbd>5</kbd></div>
@@ -236,12 +236,13 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 <div class="hud chunk" id="help" hidden>
   <h3>How to swing</h3>
   <div class="keys">
-    <span class="k">hold left mouse</span><span>grip the club: side-on to where you are looking, mouse is your hands. Stand in the right spot yourself</span>
+    <span class="k">hold left mouse</span><span>grip the club: side-on to where you are looking, mouse is your hands. Left and right sweep, up lifts, anything between is a cut. Hits the ball and your friends</span>
     <span class="k"><kbd>A</kbd><kbd>D</kbd></span><span>aim (<kbd>Shift</kbd> for fine)</span>
     <span class="k">right mouse</span><span>look down the line, mouse aims</span>
     <span class="k"><kbd>WASD</kbd></span><span>run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump</span>
     <span class="k"><kbd>E</kbd></span><span>get in or out of the cart</span>
     <span class="k"><kbd>Q</kbd> <kbd>E</kbd></span><span>while gripping: turn on the spot</span>
+    <span class="k">right mouse</span><span>while gripping: pull back and push forward to thrust</span>
     <span class="k"><kbd>H</kbd></span><span>show the real hit boxes</span>
     <span class="k"><kbd>1</kbd>–<kbd>5</kbd> wheel</span><span>hands, driver, wedge, putter, iron</span>
     <span class="k"><kbd>F</kbd></span><span>hold to look at the flag</span>
@@ -270,7 +271,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
     <div class="room"><b id="roomName">Public mountain</b>Everyone on this page climbs the same mountain live. Make a private one for just your friends.<div class="btns"><button class="btn small" id="copyInvite">Copy invite link</button><button class="btn small" id="newRoom">New private mountain</button><button class="btn small" id="restartClimb">Restart climb</button></div></div>
     <button class="btn go" id="play">Tee off ⛳</button>
     <div class="keys">
-      <span class="k">mouse</span><span><b>Hold left mouse</b> to grip, then the mouse is your hands. Pull back, swing through. Nothing lines you up: walk up to the ball and hit it.</span>
+      <span class="k">mouse</span><span><b>Hold left mouse</b> to grip, then the mouse is your hands. Wind up one way, sweep through the other, lift to change the angle. Nothing lines you up: walk up to the ball, or your friend, and hit it.</span>
       <span class="k"><kbd>A</kbd><kbd>D</kbd></span><span>aim · right mouse to look down the line</span>
       <span class="k"><kbd>WASD</kbd></span><span>run anywhere</span>
       <span class="k"><kbd>1</kbd>–<kbd>5</kbd></span><span>hands, driver, wedge, putter, iron</span>

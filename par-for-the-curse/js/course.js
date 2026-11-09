@@ -762,13 +762,15 @@ export class Course {
   // landing off and ends in the open on the slope, as a ramp to jump from. o.cones: [segment, 0..1, side].
   road(H, pts, w, o = {}) {
     const F = H.frame, thick = 0.5, r = w * 0.46, last = pts.length - 1;
-    const roadMat = this._roadMat || (this._roadMat = toon(0xffffff, { params: { map: canvasTex(128, 128, (g, cw, ch) => {
+    // Roads sit flush with the terrain they start and end on; polygon offset stops the two flickering, and
+    // the slabs are pushed further forward than the round landings they overlap.
+    const roadMat = this._roadMat || (this._roadMat = toon(0xffffff, { params: { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, map: canvasTex(128, 128, (g, cw, ch) => {
       g.fillStyle = '#c9a26b'; g.fillRect(0, 0, cw, ch);
       for (let i = 0; i < 260; i++) { g.fillStyle = Math.random() < 0.5 ? 'rgba(120,85,45,.3)' : 'rgba(240,215,165,.35)'; g.fillRect(Math.random() * cw, Math.random() * ch, 2 + Math.random() * 9, 1 + Math.random() * 3); }
       g.fillStyle = '#efe2c2'; g.fillRect(0, 0, cw, 9); g.fillRect(0, ch - 9, cw, 9);
       g.fillStyle = '#ff5d73'; for (let i = 0; i < 2; i++) { g.fillRect(i * 64, 0, 30, 9); g.fillRect(i * 64, ch - 9, 30, 9); }
     }) } }));
-    const nodeMat = toon(0xc9a26b);
+    const nodeMat = toon(0xc9a26b, { params: { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 } });
     pts.forEach(([x, y, z], i) => {
       if (o.kicker && i === last) return;
       this.world.add(new Collider('cyl', { pos: F.w(x, y - thick / 2, z), r, hh: thick / 2, surf: 'fairway', hole: H.i, tag: 'road' }));

@@ -82,11 +82,11 @@ function fitClub(i) {
   return fit;
 }
 // The club's orientation in the golfer's frame. y runs up the shaft, z is the way the face looks.
-function clubBasis(club, planeN, x, y, z) {
+function clubBasis(club, faceRef, x, y, z) {
   y.copy(club).negate();
-  z.crossVectors(planeN, club);
+  z.copy(faceRef).addScaledVector(y, -faceRef.dot(y));
   if (z.lengthSq() < 1e-4) z.set(1, 0, 0);
-  z.addScaledVector(y, -z.dot(y)).normalize();
+  z.normalize();
   x.crossVectors(y, z).normalize();
 }
 
@@ -96,7 +96,7 @@ export const PANTS = ['#f4f1e8', '#2b2d42', '#8d6e63', '#3fa7ff', '#ff5d73', '#5
 export const HATS = ['cap', 'bucket', 'beanie', 'visor', 'tophat', 'viking', 'none'];
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
-const _a = V(), _b = V(), _c = V(), _d = V(), _e = V(), _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
+const _f3 = V(), _a = V(), _b = V(), _c = V(), _d = V(), _e = V(), _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
 const DOWN = V(0, -1, 0), UPV = V(0, 1, 0), XV = V(1, 0, 0), PLANE_N = V(0, 0.89, 0.46);
 
 // Body geometry (overridden by the Blender manifest when present).
@@ -250,7 +250,7 @@ export class Golfer {
       cm.position.copy(s.hands[0]).addScaledVector(s.club, -0.03);
       // The face turns with the swing plane: it is square to the target at address, faces up the
       // line on the backswing and closes through impact, the way a real clubface rotates.
-      clubBasis(s.club, s.planeN || PLANE_N, _e, _c, _d);
+      clubBasis(s.club, s.faceRef || _f3.crossVectors(PLANE_N, s.club), _e, _c, _d);
       _m4.makeBasis(_e, _c, _d); cm.quaternion.setFromRotationMatrix(_m4);
     }
   }
@@ -296,6 +296,14 @@ export function sitPose(s, steer = 0) {
 
 /* ---------------- the swing ---------------- */
 // All swing state is in the golfer's local frame: x toward the target, y up, z toward the ball line.
+//
+// The Half Sword idea: you don't press attack, the mouse IS your hands. Moving it steers the hands over a
+// shell around the shoulders in any direction: left and right sweep across the body, up lifts in front and
+// overhead, and anything between is a diagonal cut. The hands chase that point with a capped force, the
+// follow used by active ragdolls (see ashleve/ActiveRagdoll, MIT: PD error, then ClampMagnitude), so the
+// club's weight is what you feel. The head is a mass on a wrist spring, so it lags and whips. Wind up the
+// other way first or you get no speed. The same swing strikes a ball or a friend.
+const V_DEAD = 0.14, VERT_SENS = 0.75, MAX_ARC = 2.3, MOUSE = 0.0048, MIN_LIFT = -V_DEAD;   // the hands can't go below the level of a normal swing
 export class Swing {
   constructor() {
     this.R = rig();
@@ -306,8 +314,9 @@ export class Swing {
     this.gripAddr = V(0, GRIP_Y, 0.29);
     this.rA = this.S.distanceTo(this.gripAddr);
     this.a0 = V().subVectors(this.gripAddr, this.S).normalize();  // arm direction at address
-    this.up2 = V().copy(this.a0).negate();                          // "up" in the arm plane
-    this.hand = V(); this.handV = V(); this.target = new THREE.Vector2();  // target in plane coords (s along x, r along up2)
+    this.e2 = V(0, this.a0.z, -this.a0.y).normalize();              // lifting: up and away, square to the arms
+    this.hand = V(); this.handV = V(); this.reach = 0.995;
+    this.target = new THREE.Vector2();  // where the hands are headed: x sweeps toward the target, y lifts (radians from address)
     this.head = V(); this.headV = V(); this.prevHead = V(); this.prevHand = V(); this.lastDt = 1 / 360;
     this.zero = CLUBS.map(() => ({ z: null, path: 0, face: 0, v: 0 }));   // what a clean full swing does, per club
     this.club = CLUBS[3];
@@ -321,7 +330,7 @@ export class Swing {
     const drop = this.gripAddr.y - HEAD_R - 0.012 - G * 0.6 / this.club.k;
     this.reachZ = this.gripAddr.z + Math.sqrt(Math.max(0.01, L * L - drop * drop));
     this.d0 = V(0, -drop, this.reachZ - this.gripAddr.z).normalize();
-    this.planeN = V().crossVectors(this.d0, XV).normalize();
+    this.e2c = V(0, this.d0.z, -this.d0.y).normalize();
     this.ball = V(0.05, LOCAL_BALL_R, this.zero[i].z ?? this.reachZ);
     this.reset();
   }
@@ -331,7 +340,7 @@ export class Swing {
   calibrate() {
     const swingOnce = (power, onStep) => {
       this.reset();
-      const dt = 1 / 360, frames = [[24, -14, -11], [14, 0, 0], [10, 60 * power, 46 * power], [6, 10, -14]];
+      const dt = 1 / 360, frames = [[24, -14, 0], [14, 0, 0], [10, 60 * power, 0], [6, 10, 0]];
       for (const [n, dx, dy] of frames) for (let f = 0; f < n; f++) {
         this.input(dx, dy);
         for (let i = 0; i < 6; i++) { this.step(dt, true); if (onStep() === false) return; }
@@ -373,7 +382,7 @@ export class Swing {
     f.hand.lerpVectors(this.prevHand, this.hand, t);
     f.head.lerpVectors(this.prevHead, this.head, t);
     _s.subVectors(f.head, f.hand).normalize();
-    clubBasis(_s, this.planeN, f.x, f.y, f.z);
+    clubBasis(_s, this.faceAt(f.hand, _f3), f.x, f.y, f.z);
     f.o.copy(f.hand).addScaledVector(_s, -0.03);
     return f;
   }
@@ -413,16 +422,15 @@ export class Swing {
     return null;
   }
   // First contact with the ball during the last physics step, swept through the motion so nothing tunnels.
-  probe(ball) {
+  probe(ball, R = LOCAL_BALL_R) {
     const STEPS = 8;
     for (let k = 0; k <= STEPS; k++) {
-      const t = k / STEPS, hit = this.touch(this.frameAt(t, _f0), ball);
+      const t = k / STEPS, hit = this.touch(this.frameAt(t, _f0), ball, R);
       if (!hit) continue;
       hit.overlap = k === 0;
       hit.t = t; hit.headAt = _f0.head.clone();
       // The contact point's own velocity: how the club moved that point over the step.
-      _f1.hand.copy(this.prevHand); _f1.head.copy(this.prevHead); this.frameAt(0, _f1);
-      _f2.hand.copy(this.hand); _f2.head.copy(this.head); this.frameAt(1, _f2);
+      this.frameAt(0, _f1); this.frameAt(1, _f2);
       const toCoords = (f, out) => out.set(_r.subVectors(hit.q, _f0.o).dot(_f0.x), _r.dot(_f0.y), _r.dot(_f0.z));
       toCoords(_f0, _c0);
       hit.vel = wrapPoint(_f2, _c0, V()).sub(wrapPoint(_f1, _c0, V())).divideScalar(this.lastDt);
@@ -440,51 +448,71 @@ export class Swing {
   }
   reset() {
     // Address with the head a little behind the ball (the putter, with locked wrists, needs more room).
-    this.target.set(this.club.cock ? -0.02 : -0.05, this.rA * 0.995);
-    this.planePoint(this.target.x, this.target.y, this.hand);
+    this.target.set((this.club.cock ? -0.02 : -0.05) / this.rA, 0);
+    this.reach = 0.995;
+    this.handAt(this.target.x, this.target.y, this.reach, this.hand);
     this.handV.set(0, 0, 0);
     this.prefDir(_a);
     this.head.copy(this.hand).addScaledVector(_a, this.club.len);
     this.prevHead.copy(this.head); this.headV.set(0, 0, 0);
     this.hit = false; this.armed = true; this.maxHeadSpeed = 0;
   }
-  // (s, r): s toward the target, r along the address arm direction (down-ish). Address is (0, rA).
-  planePoint(s, r, out) { return out.copy(this.S).addScaledVector(XV, s).addScaledVector(this.a0, r); }
-  // Preferred club direction from the hand angle, with the wrists cocking on the backswing.
-  prefDir(out) {
-    const rel = _b.subVectors(this.hand, this.S);
-    const s = rel.dot(XV), r = rel.dot(this.a0);
-    const alpha = Math.atan2(s, r);           // 0 at the bottom, negative going back
-    let cock = 0;
-    const cg = this.club.cock;
-    if (alpha < 0) cock = -THREE.MathUtils.clamp(-alpha / 1.6, 0, 1) * cg;
-    else cock = THREE.MathUtils.clamp(alpha / 1.8, 0, 1) * cg * 0.75;
-    // Never let the club wrap round behind the golfer's back.
-    const beta = THREE.MathUtils.clamp(alpha + cock, -1.9, 2.3);
-    this.alpha = alpha;
-    return out.copy(this.d0).multiplyScalar(Math.cos(beta)).addScaledVector(XV, Math.sin(beta)).normalize();
+  // Where the hands are for a sweep angle u and lift v. The lift has a small dead band and comes in gently, so
+  // mouse wobble can't change the bottom of a level swing and a diagonal swing flattens out as it reaches the ball.
+  handAt(u, v, reach, out) {
+    const x = Math.max(0, Math.abs(v) - V_DEAD), lift = Math.sign(v) * x * x / (x + 0.5), th = Math.hypot(u, lift), r = this.rA * reach;
+    if (th < 1e-6) return out.copy(this.S).addScaledVector(this.a0, r);
+    const k = Math.sin(th) / th;
+    return out.copy(this.S).addScaledVector(this.a0, r * Math.cos(th)).addScaledVector(XV, r * k * u).addScaledVector(this.e2, r * k * lift);
   }
-  // Mouse deltas in pixels (dx right, dy down).
-  input(dx, dy) {
-    const k = 0.0013 * this.club.sens;
+  // Where the wrists want the club for given hands, and which way its face looks. The club turns the same way
+  // the arms have, a bit further because the wrists cock, and never wraps round behind the golfer's back.
+  wrist(hand) {
+    const rel = _b.subVectors(hand, this.S);
+    const s = rel.dot(XV), up = rel.dot(this.e2), r = rel.dot(this.a0), side = Math.hypot(s, up);
+    const th = Math.atan2(side, r), us = side > 1e-6 ? s / side : 0, vs = side > 1e-6 ? up / side : 0;
+    const back = s < 0 || up > Math.abs(s), cg = this.club.cock;
+    const cock = cg * (back ? THREE.MathUtils.clamp(th / 1.6, 0, 1) : THREE.MathUtils.clamp(th / 1.8, 0, 1) * 0.75);
+    return { phi: Math.min(th + cock, 2.6), us, vs, alpha: Math.atan2(s, r) };
+  }
+  prefDir(out) {
+    const w = this.wrist(this.hand);
+    this.alpha = w.alpha;
+    const c = Math.cos(w.phi), sn = Math.sin(w.phi);
+    return out.copy(this.d0).multiplyScalar(c).addScaledVector(XV, sn * w.us).addScaledVector(this.e2c, sn * w.vs).normalize();
+  }
+  // Square at address; turns rigidly with the arms and wrists after that.
+  faceAt(hand, out) {
+    const w = this.wrist(hand), c = Math.cos(w.phi), sn = Math.sin(w.phi);
+    // The tangent of the arc, plus whatever part of "toward the target" lies across it.
+    return out.set(0, 0, 0)
+      .addScaledVector(this.d0, -sn * w.us).addScaledVector(XV, c * w.us * w.us + w.vs * w.vs).addScaledVector(this.e2c, c * w.vs * w.us - w.us * w.vs);
+  }
+  // Mouse deltas in pixels (dx right, dy down). thrust: pull back and push to jab instead of lifting.
+  input(dx, dy, thrust = false) {
+    const k = MOUSE * this.club.sens;
     this.target.x += dx * k;
-    this.target.y += dy * k;   // r grows downward (a0 points down-ish); mouse down = hands down
+    if (thrust) this.reach = THREE.MathUtils.clamp(this.reach - dy * 0.0016, 0.5, 0.995);
+    else this.target.y = Math.max(MIN_LIFT, this.target.y - dy * k * VERT_SENS);
+    this.thrusting = thrust;
     const l = this.target.length();
-    if (l > this.rA) this.target.multiplyScalar(this.rA / l);
+    if (l > MAX_ARC) this.target.multiplyScalar(MAX_ARC / l);
   }
   step(dt, ground) {
     const C = this.club;
     this.lastDt = dt; this.prevHand.copy(this.hand);
     // Hands: spring toward the target with capped acceleration and speed (the weight of the club).
-    const T = this.planePoint(this.target.x, this.target.y, _c);
+    if (!this.thrusting) this.reach += (0.995 - this.reach) * (1 - Math.exp(-dt * 8));
+    const T = this.handAt(this.target.x, this.target.y, this.reach, _c);
     const acc = _d.subVectors(T, this.hand).multiplyScalar(900).addScaledVector(this.handV, -55);
     if (acc.length() > C.aMax) acc.setLength(C.aMax);
     this.handV.addScaledVector(acc, dt);
     if (this.handV.length() > C.vMax) this.handV.setLength(C.vMax);
     this.hand.addScaledVector(this.handV, dt);
-    // Keep the hands on or inside the reach sphere.
+    // The arms stay extended: the hands slide round the shell instead of cutting a chord through it, so a
+    // diagonal swing reaches the same bottom as a level one.
     const rel = _a.subVectors(this.hand, this.S); const rl = rel.length();
-    if (rl > this.rA) { rel.multiplyScalar(this.rA / rl); this.hand.copy(this.S).add(rel); const out = rel.normalize(); const vn = this.handV.dot(out); if (vn > 0) this.handV.addScaledVector(out, -vn); }
+    if (rl > 1e-6) { rel.multiplyScalar(this.rA * this.reach / rl); this.hand.copy(this.S).add(rel); const out = rel.normalize(); this.handV.addScaledVector(out, -this.handV.dot(out)); }
     // Club head: wrist spring toward the preferred direction, gravity, rigid shaft length.
     this.prevHead.copy(this.head);
     const want = this.prefDir(_e).multiplyScalar(C.len).add(this.hand);
@@ -513,9 +541,9 @@ export class Swing {
     const hit = this.probe(ball);
     if (!hit) return null;
     const vp = hit.vel, arrive = vp.dot(hit.n);
-    // A club already resting on the ball, easing up to it, or coming back from the far side doesn't play
-    // a shot: the ball stays put and the club stops against it instead of passing through.
-    if (hit.overlap || arrive < 0.4 || vp.x < 0.4) {
+    // A club already resting on the ball or easing up to it doesn't play a shot: the ball stays put and the
+    // club stops against it instead of passing through.
+    if (hit.overlap || arrive < 0.4) {
       if (hit.overlap) this.head.addScaledVector(hit.n, -(hit.depth + 0.002));
       else this.head.copy(hit.headAt).addScaledVector(hit.n, -0.002);
       this.headV.set(0, 0, 0);
@@ -530,8 +558,8 @@ export class Swing {
     const dyN = THREE.MathUtils.clamp(low / 0.1, -1, 1);
     const putter = C.id === 'putter', info = { path, club: C.id, contact: hit.q.clone(), headSpeed: vp.length() };
     // The shaft or the very end of the head: the ball goes the way the geometry pushes it, and not fast.
-    if (hit.part === 'shaft' || Math.abs(hit.du) > 0.72) {
-      const kind = hit.part === 'shaft' ? 'shank' : hit.du > 0 ? 'toe' : 'heel';
+    if (hit.part === 'shaft' || Math.abs(hit.du) > 0.72 || hit.dw < 0.2) {
+      const kind = hit.part === 'shaft' ? 'shank' : Math.abs(hit.du) > 0.72 ? (hit.du > 0 ? 'toe' : 'heel') : hit.dw < -0.2 ? 'backhand' : hit.dv < 0 ? 'topped' : 'skied';
       const v = hit.n.clone().multiplyScalar(Math.max(arrive, 0) * (kind === 'shank' ? 0.55 : 0.75) * C.smash);
       if (v.y < 0) v.y = 0.3;
       return { ...info, v, spin: 0, quality: 0, kind: putter ? 'putt' : kind, launch: Math.atan2(v.y, Math.hypot(v.x, v.z)), bite: false, where: kind };
@@ -550,6 +578,4 @@ export class Swing {
     const spin = putter ? 0 : THREE.MathUtils.clamp(-(path - faceYaw) * 22 * (speed / 30), -9, 9);
     return { ...info, v, spin, quality: q, kind, launch, bite: !!C.bite, where: Math.abs(toe) < 0.4 ? 'middle' : toe > 0 ? 'toe' : 'heel' };
   }
-  // Plane coordinates of the hands for networking.
-  handPlane() { const rel = _a.subVectors(this.hand, this.S); return [rel.dot(XV), rel.dot(this.a0)]; }
 }
