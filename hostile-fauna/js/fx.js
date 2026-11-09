@@ -41,7 +41,9 @@ export function initFx(sc) {
   }
   const sph = new THREE.SphereGeometry(1, 20, 14);
   for (let i = 0; i < 10; i++) {
-    const m = new THREE.Mesh(sph, new THREE.MeshBasicMaterial({ color: 0x7ffff0, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending }));
+    const m = new THREE.Mesh(sph, new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, uniforms: { uA: { value: 1 }, uT: { value: 0 } },
+      vertexShader: 'varying vec3 vN, vV; varying vec3 vP; void main(){ vP=position; vec4 mv=modelViewMatrix*vec4(position,1.0); vN=normalize(normalMatrix*normal); vV=normalize(-mv.xyz); gl_Position=projectionMatrix*mv; }',
+      fragmentShader: 'uniform float uA,uT; varying vec3 vN, vV; varying vec3 vP; void main(){ float f=pow(1.0-abs(dot(normalize(vN),normalize(vV))),2.2); float band=0.5+0.5*sin(vP.y*14.0-uT*9.0+sin(atan(vP.z,vP.x)*3.0)*1.5); vec3 c=mix(vec3(0.25,1.0,0.9),vec3(0.75,0.5,1.0),band); gl_FragColor=vec4(c*(f*1.6+band*0.12+0.05)*uA,1.0); }' }));
     m.visible = false; scene.add(m); bubbles.push({ m, t: 0, on: false });
   }
   const cyl = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true).rotateX(Math.PI / 2);
@@ -83,7 +85,8 @@ export function ring(x, y, z, r0, r1, color, dur, fill = 0) {
 // The Returner's bubble: closes round a visitor, then leaves for orbit. h is how tall the visitor is.
 export function returnFx(x, y, z, h = 1.8) {
   const b = bubbles.find(q => !q.on) || bubbles[0];
-  b.on = true; b.t = 0; b.x = x; b.y = y + h * 0.5; b.z = z; b.h = h; b.m.visible = true;
+  b.on = true; b.t = 0; b.x = x; b.y = y + h * 0.5; b.z = z; b.h = h; b.m.visible = true; b.lift = false;
+  ring(x, y, z, h * 0.2, h * 1.1, 0x7ffff0, 0.5);
   burst(x, b.y, z, { n: 14, color: 0x7ffff0, speed: 3, size: 0.3, life: 0.5 });
 }
 
@@ -153,7 +156,8 @@ export function updateFx(dt, camera, vw, vh) {
     const y = b.y + rise * rise * 160;
     b.m.position.set(b.x, y, b.z);
     b.m.scale.set(r * (1 - Math.min(0.6, rise * 1.4)), r * (1 + rise * 14), r * (1 - Math.min(0.6, rise * 1.4)));
-    b.m.material.opacity = 0.55 * (1 - clamp((rise - 0.5) / 0.4, 0, 1));
+    b.m.material.uniforms.uA.value = 1 - clamp((rise - 0.5) / 0.4, 0, 1); b.m.material.uniforms.uT.value = b.t;
+    if (rise > 0 && !b.lift) { b.lift = true; beam(b.x, b.y, b.z, b.x, b.y + 140, b.z, 0x7ffff0, 0.22 + b.h * 0.06, 0.55); burst(b.x, b.y - b.h * 0.4, b.z, { n: 16, color: 0xc8fff6, speed: 4, up: 1, size: 0.3, life: 0.6, g: 4 }); }
     if (rise > 0 && rise < 0.5) burst(b.x, y - r, b.z, { n: 2, color: 0x7ffff0, speed: 0.6, size: 0.3, life: 0.5, drag: 0.5 });
     if (rise > 0.9) { b.on = false; b.m.visible = false; }
   }

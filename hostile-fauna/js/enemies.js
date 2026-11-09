@@ -11,6 +11,7 @@ import { sfx, setKey } from './audio.js';
 import { damagePlayer } from './player.js';
 import { bark, onReturned, say } from './mission.js';
 import { hitMark, bossBar } from './ui.js';
+import { humanModel, droneModel, turretModel, mechModel, shipModel } from './models.js';
 
 export const DEFS = {
   marine: { h: 1.8, r: 0.55, headR: 0.3, hp: 55, speed: 4.2, sight: 44, range: 40, rmin: 9, rmax: 22, xp: 20, noun: 'marine' },
@@ -29,7 +30,7 @@ const v3 = new THREE.Vector3();
 
 function mats() {
   if (MM) return MM;
-  const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.25, flatShading: true, ...o });
+  const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.2, ...o });
   MM = {
     suit: std(0x2c3340), armor: std(0xd8d4c8), navy: std(0x24365c), olive: std(0x5c6844), gold: std(0xd9a93a, { metalness: 0.7, roughness: 0.35 }),
     trim: std(0xe8641c), gun: std(0x1c1f26, { metalness: 0.6 }), skin: std(0xd9a07a, { roughness: 0.8 }), hair: std(0xe8c860), cape: std(0xb8221c, { side: THREE.DoubleSide, roughness: 0.9 }),
@@ -43,88 +44,6 @@ function mats() {
   };
   return MM;
 }
-const sph = (r, mat, x, y, z, parent, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.castShadow = true; parent.add(m); return m; };
-
-function humanModel(type, armor) {
-  const m = mats(), g = new THREE.Group(), u = g.userData;
-  const hero = type === 'hero', heavy = type === 'heavy', sniper = type === 'sniper';
-  for (const s of [-1, 1]) {
-    const leg = new THREE.Group(); leg.position.set(s * 0.17, 0.92, 0); g.add(leg);
-    box(0.22, 0.5, 0.26, m.suit, 0, -0.25, 0, leg); box(0.25, 0.42, 0.3, armor, 0, -0.66, 0.02, leg); box(0.25, 0.14, 0.38, m.gun, 0, -0.86, 0.06, leg);
-    u[s < 0 ? 'legL' : 'legR'] = leg;
-  }
-  const top = new THREE.Group(); top.position.y = 0.92; g.add(top); u.top = top;
-  box(0.6, 0.62, 0.36, armor, 0, 0.38, 0, top); box(0.5, 0.2, 0.3, m.suit, 0, 0.02, 0, top);
-  box(0.62, 0.1, 0.38, m.trim, 0, 0.5, 0, top); box(0.44, 0.5, 0.2, m.suit, 0, 0.4, -0.27, top);
-  for (const s of [-1, 1]) { box(0.26, 0.2, 0.34, hero ? m.gold : armor, s * 0.4, 0.66, 0, top); const arm = box(0.16, 0.5, 0.18, m.suit, s * 0.38, 0.4, 0.14, top); arm.rotation.x = -0.9; }
-  const head = new THREE.Group(); head.position.y = 0.92; top.add(head); u.head = head;
-  if (hero) {
-    sph(0.19, m.skin, 0, 0, 0, head, 0.9, 1.05, 0.95); box(0.36, 0.14, 0.34, m.hair, 0, 0.17, -0.02, head); box(0.3, 0.12, 0.2, m.hair, 0.02, 0.25, 0.1, head).rotation.x = -0.4;
-    box(0.22, 0.09, 0.08, m.skin, 0, -0.13, 0.13, head);
-    const cape = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 1.3, 1, 4).translate(0, -0.65, 0), m.cape); cape.position.set(0, 0.72, -0.38); cape.rotation.x = 0.25; top.add(cape); u.cape = cape;
-    for (const s of [-1, 1]) { const j = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.55, 8), m.gun); j.position.set(s * 0.16, 0.35, -0.42); top.add(j); const f = sph(0.09, m.jet, s * 0.16, 0.05, -0.42, top); f.visible = false; (u.jets ||= []).push(f); }
-  } else {
-    sph(0.21, armor, 0, 0, 0, head); box(0.3, 0.1, 0.12, m.visor, 0, 0.01, 0.16, head);
-    if (sniper) { box(0.44, 0.04, 0.5, m.olive, 0, 0.14, 0.04, head); }
-  }
-  const gun = new THREE.Group(); gun.position.set(0.14, 0.34, 0.42); top.add(gun); u.gun = gun;
-  const L = sniper ? 1.5 : heavy ? 0.7 : 0.95;
-  box(0.09, 0.14, L, m.gun, 0, 0, L / 2 - 0.3, gun); box(0.07, 0.2, 0.12, m.gun, 0, -0.14, 0, gun);
-  box(0.1, 0.05, 0.2, m.trim, 0, 0.08, 0.1, gun);
-  if (heavy) { const sh = new THREE.Mesh(new THREE.BoxGeometry(0.95, 1.5, 0.07), m.shield); sh.position.set(-0.3, 0.2, 0.56); sh.castShadow = true; top.add(sh); u.shield = sh; }
-  u.muzzleZ = L + 0.2;
-  if (DEFS[type].scale) g.scale.setScalar(DEFS[type].scale);
-  return g;
-}
-
-function droneModel() {
-  const m = mats(), g = new THREE.Group(), u = g.userData;
-  sph(0.42, m.navy, 0, 0.45, 0, g, 1, 0.55, 1); sph(0.12, m.eye, 0, 0.4, 0.38, g);
-  box(0.9, 0.05, 0.1, m.gun, 0, 0.55, 0, g).rotation.y = 0.78; box(0.9, 0.05, 0.1, m.gun, 0, 0.55, 0, g).rotation.y = -0.78;
-  u.rotors = [];
-  for (const [x, z] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const r = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.02, 10), m.rotor); r.position.set(x * 0.34, 0.62, z * 0.34); g.add(r); u.rotors.push(r); }
-  const horn = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.3, 8, 1, true), m.armor); horn.position.set(0, 0.2, 0.2); horn.rotation.x = -1.2; g.add(horn);
-  box(0.36, 0.05, 0.02, m.trim, 0, 0.45, 0.415, g);
-  u.muzzleZ = 0.5;
-  return g;
-}
-
-function turretModel() {
-  const m = mats(), g = new THREE.Group(), u = g.userData;
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.75, 0.9, 8), m.gun); base.position.y = 0.45; base.castShadow = true; g.add(base);
-  const head = new THREE.Group(); head.position.y = 1.2; g.add(head); u.turret = head;
-  box(0.8, 0.55, 0.9, m.armor, 0, 0, 0, head); box(0.82, 0.1, 0.92, m.trim, 0, 0.18, 0, head);
-  for (const s of [-1, 1]) box(0.1, 0.1, 0.9, m.gun, s * 0.22, -0.05, 0.75, head);
-  sph(0.1, m.eye, 0, 0.1, 0.46, head);
-  u.muzzleZ = 1.3;
-  return g;
-}
-
-function mechModel(armor) {
-  const m = mats(), g = new THREE.Group(), u = g.userData;
-  for (const s of [-1, 1]) {
-    const leg = new THREE.Group(); leg.position.set(s * 1.25, 2.9, 0); g.add(leg);
-    box(0.6, 1.6, 0.7, m.navy, 0, -0.7, 0.3, leg).rotation.x = -0.5; box(0.55, 1.7, 0.6, armor, 0, -2.0, 0.2, leg).rotation.x = 0.35; box(0.95, 0.35, 1.5, m.gun, 0, -2.75, 0.2, leg);
-    u[s < 0 ? 'legL' : 'legR'] = leg;
-  }
-  const top = new THREE.Group(); top.position.y = 3.1; g.add(top); u.top = top;
-  box(2.6, 1.8, 2.2, armor, 0, 0.9, 0, top); box(2.7, 0.3, 2.3, m.trim, 0, 1.5, 0, top); box(1.6, 0.7, 0.2, m.visor, 0, 1.1, 1.05, top);
-  for (const s of [-1, 1]) { box(0.9, 1.0, 1.4, m.navy, s * 1.85, 1.3, 0, top); for (let i = 0; i < 4; i++) sph(0.13, m.eye, s * 1.85 + (i % 2 ? 0.2 : -0.2), 1.3 + (i < 2 ? 0.2 : -0.2), 0.72, top); }
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.6, 5), m.gun); pole.position.set(-0.9, 3, -0.9); top.add(pole);
-  box(1.3, 0.8, 0.03, m.trim, -0.2, 3.8, -0.9, top);
-  sph(0.22, m.muzzle, 0.9, 0.4, 1.1, top);
-  u.muzzleZ = 1.2;
-  return g;
-}
-
-function shipModel() {
-  const m = mats(), g = new THREE.Group();
-  box(9, 2.4, 4.6, m.armor, 0, 0, 0, g); box(9.1, 0.4, 4.7, m.trim, 0, 0.5, 0, g); box(3, 1.4, 3.6, m.visor, 3.6, 0.5, 0, g); box(4, 1, 5.6, m.navy, -1, -0.9, 0, g);
-  for (const s of [-1, 1]) { box(3.4, 0.3, 3.2, m.navy, -0.5, 0.6, s * 3.6, g); const n = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.9, 1.6, 10), m.gun); n.position.set(-0.5, 0.2, s * 4.6); g.add(n); const j = sph(0.6, m.jet, -0.5, -0.7, s * 4.6, g); j.scale.y = 1.6; }
-  sph(0.3, m.muzzle, 0, -1.4, 0, g);
-  return g;
-}
-
 function nameFor(type) {
   if (type === 'hero') return { rank: 'Capt.', name: 'Buck Sterling', reason: 'The hero. Has been told so since birth.' };
   if (type === 'drone') return { rank: '', name: 'PeaceKeeper drone', reason: 'Speaker volume: maximum. Self-doubt: not installed.' };
@@ -136,7 +55,7 @@ function nameFor(type) {
 export function spawnEnemy(type, x, z, o = {}) {
   const def = DEFS[type], m = mats();
   const armor = (type === 'heavy' ? m.navy : type === 'sniper' ? m.olive : type === 'hero' ? m.armor : type === 'drone' ? m.navy : m.armor).clone();
-  const model = type === 'drone' ? droneModel() : type === 'turret' ? turretModel() : type === 'mech' ? mechModel(armor) : humanModel(type, armor);
+  const model = type === 'drone' ? droneModel() : type === 'turret' ? turretModel() : type === 'mech' ? mechModel(armor) : humanModel(type, armor, def.scale || 1);
   const y = o.y ?? S.W.ground(x, z, S.W.height(x, z) + 0.5);
   const e = {
     type, def, mesh: model, armor, pos: new THREE.Vector3(x, y, z), vy: 0, kx: 0, kz: 0, yaw: o.yaw ?? rand(TAU),
@@ -419,7 +338,8 @@ function updateShips(dt) {
         if (e.def.fly) e.pos.y = s.y - 1;
         s.dropped++;
       }
-      for (const sz of [-1, 1]) burst(s.x - 0.5 * Math.cos(-s.a + Math.PI) + sz * 4.6 * Math.sin(-s.a + Math.PI), s.y - 1.4, s.z + sz * 4.6 * Math.cos(-s.a + Math.PI), { n: 1, color: 0x70b8ff, speed: 1, up: -8, size: 0.6, life: 0.4 });
+      for (const f of m.userData.flames) f.scale.y = 0.8 + Math.random() * 0.5;
+      for (const sz of [-1, 1]) if (Math.random() < 0.5) burst(s.x - 0.5 * Math.cos(-s.a + Math.PI) + sz * 4.6 * Math.sin(-s.a + Math.PI), s.y - 1.4, s.z + sz * 4.6 * Math.cos(-s.a + Math.PI), { n: 1, color: 0x70b8ff, speed: 1, up: -8, size: 0.6, life: 0.4 });
     } else {
       const k = s.t - (4 + s.list.length * 0.35 + 0.8);
       m.position.y = s.y + k * k * 9; m.position.x -= Math.cos(s.a + 2) * k * 30 * dt; m.position.z -= Math.sin(s.a + 2) * k * 30 * dt; m.rotation.z = -Math.min(0.3, k * 0.1);
@@ -511,7 +431,9 @@ export function updateEnemies(dt, camera) {
     // Pose.
     e.mesh.position.copy(e.pos);
     if (e.type === 'turret') u.turret.rotation.y = e.yaw; else e.mesh.rotation.y = e.yaw;
-    if (u.legL) { e.walk += moving * dt * (d.big ? 0.9 : 2.2); const sw = Math.sin(e.walk) * clamp(moving / 3, 0, 1) * (d.big ? 0.35 : 0.7); u.legL.rotation.x = sw; u.legR.rotation.x = -sw; if (d.big && moving > 0.5 && Math.abs(Math.sin(e.walk)) > 0.98 && !e.stepLatch) { e.stepLatch = true; if (dist < 45) { sfx('stomp'); shake(clamp(0.5 - dist / 90, 0, 0.3)); } } else if (Math.abs(Math.sin(e.walk)) < 0.5) e.stepLatch = false; }
+    if (u.legL) { e.walk += moving * dt * (d.big ? 0.9 : 2.2); const sw = Math.sin(e.walk) * clamp(moving / 3, 0, 1) * (d.big ? 0.35 : 0.7); u.legL.rotation.x = sw; u.legR.rotation.x = -sw; const amp = clamp(moving / 3, 0, 1) * (d.big ? 0.35 : 1.1); u.kneeL.rotation.x = Math.max(0, Math.sin(e.walk + 1.1)) * amp; u.kneeR.rotation.x = Math.max(0, -Math.sin(e.walk + 1.1)) * amp; if (d.big && moving > 0.5 && Math.abs(Math.sin(e.walk)) > 0.98 && !e.stepLatch) { e.stepLatch = true; if (dist < 45) { sfx('stomp'); shake(clamp(0.5 - dist / 90, 0, 0.3)); } } else if (Math.abs(Math.sin(e.walk)) < 0.5) e.stepLatch = false; }
+    if (u.gun && u.head && e.mode !== 'speech') { const pit = e.alert && e.stun <= 0 ? clamp(Math.atan2(P.pos.y - e.pos.y, dist), -0.5, 0.6) : 0; u.gun.rotation.x += (-pit - u.gun.rotation.x) * Math.min(1, dt * 8); u.head.rotation.x = u.gun.rotation.x * 0.6; u.head.rotation.y = e.alert ? 0 : Math.sin(e.t * 0.5 + e.walk) * 0.5; }
+    if (u.cape0) { const a = u.cape.geometry.attributes.position, c0 = u.cape0; for (let k = 0; k < a.count; k++) { const y = c0[k * 3 + 1]; a.setZ(k, Math.sin(y * 5 + e.t * 7 + c0[k * 3] * 2) * 0.07 * -y - moving * 0.03 * y * y); } a.needsUpdate = true; }
     if (u.rotors) { for (const r of u.rotors) r.rotation.y += dt * 40; e.mesh.rotation.z = Math.sin(e.t * 2) * 0.08; }
     if (e.hp < e.max || e.stun > 0) {
       e.bar.visible = !d.boss; e.bar.position.set(e.pos.x, e.pos.y + d.h * (d.scale || 1) + (d.fly ? 0.5 : 0.25), e.pos.z); e.bar.quaternion.copy(camera.quaternion);
