@@ -51,7 +51,10 @@ a.card:hover~.star,.star:hover{transform:translateY(-2px)}
 .favs-list{position:relative;display:grid;grid-auto-rows:max-content;gap:6px;min-height:0;margin:0;padding:0;list-style:none;overflow-y:auto;overscroll-behavior:contain}
 .fav{display:flex;align-items:center;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:10px;transition:border-color .15s}
 .fav:hover{border-color:var(--accent)}
-.fav.dragging{position:relative;z-index:1;border-color:var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.22)}
+.fav.dragging{opacity:.35}
+.fav.ghost{position:fixed;left:0;top:0;z-index:50;border-color:var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.22);pointer-events:none}
+.fav.ghost.removing{border-color:#d0492f}
+.fav.ghost.removing::after{content:"Release to remove";position:absolute;top:calc(100% + 5px);left:var(--label-x,50%);transform:translateX(-50%);padding:2px 9px;border-radius:999px;background:#d0492f;color:#fff;font-size:12px;font-weight:600;white-space:nowrap}
 .grip{flex:none;align-self:stretch;width:30px;padding:0;border:0;background:none;color:var(--dim);font:inherit;font-size:13px;letter-spacing:-1px;white-space:nowrap;cursor:grab;touch-action:none;user-select:none}
 .grip:active{cursor:grabbing}
 .fav a{flex:1;min-width:0;display:flex;align-items:center;gap:8px;padding:6px 10px 6px 0;color:inherit;text-decoration:none}
@@ -373,15 +376,28 @@ a.card:hover~.star,.star:hover{transform:translateY(-2px)}
   };
 
   // Rows are all one height (names don't wrap), so a slot is just top / step.
+  // The row stays in the list as the drop slot; a floating copy follows the pointer
+  // so it isn't clipped by the list. Released past either side of the box, it's un-starred.
   const startDrag = (e, li, grip) => {
-    if (e.button !== 0 || favs.length < 2) return;
+    if (e.button !== 0) return;
     e.preventDefault();
-    const step = rows()[1].offsetTop - rows()[0].offsetTop;
-    const listY = (y) => y - favList.getBoundingClientRect().top + favList.scrollTop;
-    const grab = listY(e.clientY) - li.offsetTop;
-    let y = e.clientY, frame = 0;
+    const list = rows(), step = list.length > 1 ? list[1].offsetTop - list[0].offsetTop : 1;
+    const start = li.getBoundingClientRect(), grabX = e.clientX - start.left, grabY = e.clientY - start.top;
+    const ghost = li.cloneNode(true);
+    ghost.classList.add("ghost");
+    ghost.style.width = start.width + "px";
+    ghost.setAttribute("aria-hidden", "true");
+    document.body.append(ghost);
+    let x = e.clientX, y = e.clientY, frame = 0, out = false, cancelled = false;
     const place = () => {
-      const last = rows().length - 1, top = Math.max(0, Math.min(last * step, listY(y) - grab));
+      const box = favBox.getBoundingClientRect();
+      out = x < box.left - 6 || x > box.right + 6;
+      ghost.classList.toggle("removing", out);
+      ghost.style.transform = `translate(${x - grabX}px,${y - grabY}px)`;
+      ghost.style.setProperty("--label-x", Math.max(70, Math.min(innerWidth - 70, x)) - (x - grabX) + "px");
+      if (out) return;
+      const last = rows().length - 1, listTop = favList.getBoundingClientRect().top;
+      const top = Math.max(0, Math.min(last * step, y - grabY - listTop + favList.scrollTop));
       const to = Math.round(top / step), from = rows().indexOf(li);
       if (to !== from) {
         const others = rows().filter((r) => r !== li), before = others.map((r) => r.offsetTop);
@@ -391,29 +407,42 @@ a.card:hover~.star,.star:hover{transform:translateY(-2px)}
           if (d) r.animate([{ transform: `translateY(${d}px)` }, { transform: "none" }], { duration: 120, easing: "ease-out" });
         });
       }
-      li.style.transform = `translateY(${top - li.offsetTop}px)`;
     };
     const tick = () => {
       const r = favList.getBoundingClientRect();
-      const d = y < r.top + 28 ? -8 : y > r.bottom - 28 ? 8 : 0;
+      const d = out ? 0 : y < r.top + 28 ? -8 : y > r.bottom - 28 ? 8 : 0;
       if (d && favList.scrollHeight > favList.clientHeight) { favList.scrollTop += d; place(); }
       frame = requestAnimationFrame(tick);
     };
-    const move = (ev) => { y = ev.clientY; place(); };
+    const move = (ev) => { x = ev.clientX; y = ev.clientY; place(); };
+    const cancel = () => { cancelled = true; };
     const end = () => {
       cancelAnimationFrame(frame);
       grip.removeEventListener("pointermove", move);
+      grip.removeEventListener("pointercancel", cancel);
       grip.removeEventListener("lostpointercapture", end);
-      const from = li.style.transform;
-      li.style.transform = "";
-      li.classList.remove("dragging");
-      if (from) li.animate([{ transform: from }, { transform: "none" }], { duration: 120, easing: "ease-out" });
+      if (out && !cancelled) {
+        favs = rows().map((r) => r.dataset.slug).filter((s) => s !== li.dataset.slug);
+        saveFavs();
+        paintFavs();
+        ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, easing: "ease-out" }).onfinish = () => ghost.remove();
+        return;
+      }
       readOrder();
+      const from = ghost.style.transform, land = li.getBoundingClientRect(), to = `translate(${land.left}px,${land.top}px)`;
+      ghost.style.transform = to;
+      ghost.classList.remove("removing");
+      ghost.animate([{ transform: from }, { transform: to }], { duration: 120, easing: "ease-out" }).onfinish = () => {
+        ghost.remove();
+        li.classList.remove("dragging");
+      };
     };
     grip.setPointerCapture(e.pointerId);
     grip.addEventListener("pointermove", move);
+    grip.addEventListener("pointercancel", cancel);
     grip.addEventListener("lostpointercapture", end);
     li.classList.add("dragging");
+    place();
     frame = requestAnimationFrame(tick);
   };
 
@@ -428,7 +457,7 @@ a.card:hover~.star,.star:hover{transform:translateY(-2px)}
     const a = bySlug.get(slug), li = el("li", "fav"), grip = el("button", "grip", "⋮ ⋮"), link = el("a");
     li.dataset.slug = slug;
     grip.type = "button";
-    grip.title = "Drag to reorder";
+    grip.title = "Drag to reorder, or drag out of the box to remove";
     grip.setAttribute("aria-label", "Reorder " + a.name + ". Use the up and down arrow keys.");
     grip.addEventListener("pointerdown", (e) => startDrag(e, li, grip));
     grip.addEventListener("keydown", (e) => {
