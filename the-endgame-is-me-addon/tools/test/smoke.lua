@@ -136,6 +136,36 @@ local function plain(v, depth)
   else assert(tv == "string" or tv == "boolean", "a " .. tv .. " in the save") end
 end
 plain(TheEndgameIsMeDB, 0)
+-- and it must come back the same after the client writes it out as Lua source and reads it in again (a /reload)
+local function dump(v, out, depth)
+  assert(depth < 40, "the save is nested too deep (a cycle?)")
+  local tv = type(v)
+  if tv == "table" then
+    out[#out + 1] = "{"
+    for k, x in pairs(v) do
+      out[#out + 1] = type(k) == "number" and ("[" .. string.format("%.17g", k) .. "]=") or ("[" .. string.format("%q", k) .. "]=")
+      dump(x, out, depth + 1)
+      out[#out + 1] = ","
+    end
+    out[#out + 1] = "}"
+  elseif tv == "number" then out[#out + 1] = string.format("%.17g", v)
+  elseif tv == "string" then out[#out + 1] = string.format("%q", v)
+  else out[#out + 1] = tostring(v) end
+end
+local function same(a, b)
+  if type(a) ~= type(b) then return false end
+  if type(a) ~= "table" then return a == b end
+  for k, x in pairs(a) do if not same(x, b[k]) then return false end end
+  for k in pairs(b) do if a[k] == nil then return false end end
+  return true
+end
+local text = {}
+dump(TheEndgameIsMeDB.save, text, 0)
+text = table.concat(text)
+local back = assert(loadstring("return " .. text))()
+assert(same(back, TheEndgameIsMeDB.save), "the save changed on its way through the saved-variables file")
+TheEndgameIsMeDB.save = back
+say(string.format("save: %d KB as saved-variables text", #text / 1024))
 Stub.click("Continue")
 settle("loading the save")
 assert(A.mode == "paused", "a loaded run should start on break")
@@ -178,6 +208,8 @@ for lv = 2, 7 do
   local took = os.clock() - t
   assert(A.mode == "play" and g.map.n == lv, "expected level " .. lv)
   g.boss.maxhp = 1e9; g.boss.hp = 1e9
+  -- put the boss mid-map on the sideways levels, so the camera has to scroll both ways while it walks
+  if g.map.scroll == "x" then g.boss.x = math.min(g.map.w - 200, 430) end
   local keys = lv % 2 == 0 and { "D", "W" } or { "A", "S" }
   if lv >= 6 then keys = { "W" } end
   for _, k in ipairs(keys) do Stub.key(view, k, true) end
@@ -193,7 +225,10 @@ for lv = 2, 7 do
   local per = (os.clock() - c0) / perLevel * 1000
   for _, k in ipairs(keys) do Stub.key(view, k, false) end
   view.scripts.OnMouseUp(view, "LeftButton")
-  if A.mode == "play" then checkPicture("level " .. lv) end
+  if A.mode == "play" then
+    checkPicture("level " .. lv)
+    if g.map.scroll == "x" then assert(RT.Screen.vx > 0, "level " .. lv .. " never scrolled") end
+  end
   say(string.format("level %d (%s): loaded in %d frames (%.2f s), then %.1f ms a frame, camera at %d,%d", lv, tostring(g.map.name), n, took, per, RT.Screen.vx, RT.Screen.vy))
   if lv < 7 then
     if A.mode == "play" then g.store = true; RT.push(g.events, "store"); frames(2) end
@@ -229,13 +264,24 @@ Stub.click("Respawn")
 settle("respawning")
 assert(A.mode == "paused", "respawn should load the last save")
 
+-- sound: effects were asked for by name, and the level music started
+local sfx, music = 0, 0
+for _, path in ipairs(Stub.sounds) do
+  assert(path:find("Interface\\AddOns\\TheEndgameIsMe\\Sounds\\", 1, true) == 1 and path:find("^[%w_]+%.ogg$", 40), "odd sound path " .. path)
+  local file = io.open(dir .. "/Sounds/" .. path:match("([%w_]+%.ogg)$"), "rb")
+  assert(file, "the addon asked for a sound file that is not in the folder: " .. path)
+  file:close()
+  if path:find("_calm") or path:find("_fight") then music = music + 1 else sfx = sfx + 1 end
+end
+say(string.format("sound: %d effects and %d music starts requested, every file present", sfx, music))
+
 -- close and reopen, logout
 SlashCmdList["THEENDGAMEISME"]("")
 assert(not f:IsShown() and A.mode == "closed")
 frames(5)
 SlashCmdList["THEENDGAMEISME"]("")
 assert(f:IsShown() and A.mode == "paused", "reopening should come back to the paused run")
-for _, cmd in ipairs({ "perf", "calm", "calm", "mute", "mute", "scale 2", "scale auto", "reset", "help" }) do SlashCmdList["THEENDGAMEISME"](cmd) end
+for _, cmd in ipairs({ "perf", "calm", "calm", "mute", "mute", "scale 2", "scale auto", "fps 30", "fps", "reset", "help" }) do SlashCmdList["THEENDGAMEISME"](cmd) end
 Stub.click("Resume")
 frames(90)
 checkPicture("after reopening")

@@ -162,13 +162,13 @@ function Ctx:fillRect(x, y, w, h)
     end
     return
   end
-  for yy = y0, y1 do
-    for xx = x0, x1 do
+  for xx = x0, x1 do
+    local a = sa
+    if grad then rgb, a = gradAt(grad, xx) end
+    a = a * ga
+    for yy = y0, y1 do
       local i = yy * CW + xx + 1
       local d = px[i]
-      local a = sa
-      if grad then rgb, a = gradAt(grad, xx) end
-      a = a * ga
       if op == "source-in" then
         -- keep the shape that is there, in the new colour
         if d ~= nil then
@@ -217,6 +217,29 @@ function Ctx:drawImage(img, a1, a2, a3, a4, a5, a6)
   local ga = self.globalAlpha
   cv.ver = cv.ver + 1
   if cv.log then logRect(cv, dx, dy, dx + sw - 1, dy + sh - 1) end
+  if ga >= 0.998 and self.globalCompositeOperation == "source-over" then
+    -- clip once, then copy runs
+    local c0, c1, r0, r1 = 0, sw - 1, 0, sh - 1
+    if dx < 0 then c0 = -dx end
+    if sx + c0 < 0 then c0 = -sx end
+    if dx + c1 >= CW then c1 = CW - 1 - dx end
+    if sx + c1 >= SW then c1 = SW - 1 - sx end
+    if dy < 0 then r0 = -dy end
+    if sy + r0 < 0 then r0 = -sy end
+    if dy + r1 >= CH then r1 = CH - 1 - dy end
+    if sy + r1 >= SH then r1 = SH - 1 - sy end
+    for row = r0, r1 do
+      local di, si = (dy + row) * CW + dx + 1, (sy + row) * SW + sx + 1
+      for col = c0, c1 do
+        local v = spx[si + col]
+        if v ~= nil then
+          if v < A1 then px[di + col] = v
+          else local va = floor(v / A1); px[di + col] = over(px[di + col], v - va * A1, va / 255) end
+        end
+      end
+    end
+    return
+  end
   for row = 0, sh - 1 do
     local yy, syy = dy + row, sy + row
     if yy >= 0 and yy < CH and syy >= 0 and syy < SH then

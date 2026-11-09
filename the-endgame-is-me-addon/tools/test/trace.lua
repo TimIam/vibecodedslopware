@@ -1,6 +1,7 @@
 -- Plays a fixed script of inputs and prints the state every few steps. tools/test/trace.mjs does the same with the
 -- browser game's own modules; the two outputs should match line for line.
 local seed, level, steps, every, kit = tonumber(arg[1] or 1), tonumber(arg[2] or 1), tonumber(arg[3] or 600), tonumber(arg[4] or 20), tonumber(arg[5] or 0)
+local hop = tonumber(arg[6] or 0)   -- hop > 0: the level ends every hop steps, so a short run crosses every level change
 local ns = dofile("tools/test/host.lua")
 ns.loadGame(ns.SIM)
 local W = ns.RT.modules.world
@@ -43,6 +44,7 @@ for i = 0, steps - 1 do
   end
   W.step(g, { mx = b.x + ax * 30 + i % 7, my = b.y + ay * 30 + 1, ax = ax, ay = ay, press = press, hold = { slot0 = true } }, DT)
   ns.RT.setlen(g.events, 0)
+  if hop > 0 and i % hop == hop - 1 and g.map.n < 7 and not g.boss.dead then g.clear = { t = 99 } end
   if g.store then W.nextMap(g) end
   if i % every == 0 or i == steps - 1 then
     print(string.format("%.0f %s %s %s %s %s %.0f %.0f %.0f %.0f %.0f %.0f", i, r(g.t), r(g.score), r(b.hp), r(b.x), r(b.y), g.units.length, g.parties.length, g.props.length, g.critters.length, g.parts.length, g.rng.rngState()))

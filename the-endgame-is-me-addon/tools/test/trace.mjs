@@ -1,7 +1,7 @@
 // The reference run: the browser game's own modules under Node, same inputs as tools/test/trace.lua.
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
-const [seed = 1, level = 1, steps = 600, every = 20, kit = 0] = process.argv.slice(2).map(Number);
+const [seed = 1, level = 1, steps = 600, every = 20, kit = 0, hop = 0] = process.argv.slice(2).map(Number);
 const here = path.dirname(fileURLToPath(import.meta.url));
 // the Lua side keeps path distances as doubles and has no fused hypot, so the reference does the same
 globalThis.Float32Array = Float64Array;
@@ -38,6 +38,7 @@ for (let i = 0; i < steps; i++) {
   }
   W.step(g, { mx: b.x + ax * 30 + i % 7, my: b.y + ay * 30 + 1, ax, ay, press, hold: { slot0: true } }, DT);
   g.events.length = 0;
+  if (hop > 0 && i % hop === hop - 1 && g.map.n < 7 && !g.boss.dead) g.clear = { t: 99 };
   if (g.store) W.nextMap(g);
   if (i % every === 0 || i === steps - 1) out.push([i, r(g.t), r(g.score), r(b.hp), r(b.x), r(b.y), g.units.length, g.parties.length, g.props.length, g.critters.length, g.parts.length, g.rng.rngState()].join(' '));
 }

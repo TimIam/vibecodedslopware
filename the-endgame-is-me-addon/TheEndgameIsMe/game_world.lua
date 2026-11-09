@@ -5,7 +5,7 @@ local M = RT.module("world");
 local __I0 = RT.module("props");
 local __I1 = RT.module("smoke");
 local __I2 = RT.module("levels/index");
-local __Set, __T, __add, __assign, __band, __every, __filter, __find, __findIndex, __forEach, __fromEntries, __has, __hypot, __indexOf, __it, __map, __objKeys, __orv, __pairs, __push, __reduce, __sarr, __setlen, __shift, __shr, __sign, __slice, __some, __sort, __splice, __startsWith, __str, __toFixed, __u32 = RT["Set"], RT["T"], RT["add"], RT["assign"], RT["band"], RT["every"], RT["filter"], RT["find"], RT["findIndex"], RT["forEach"], RT["fromEntries"], RT["has"], RT["hypot"], RT["indexOf"], RT["it"], RT["map"], RT["objKeys"], RT.orv, pairs, RT["push"], RT["reduce"], RT["sarr"], RT["setlen"], RT["shift"], RT["shr"], RT["sign"], RT["slice"], RT["some"], RT["sort"], RT["splice"], RT["startsWith"], RT["str"], RT["toFixed"], RT["u32"];
+local __Set, __T, __add, __assign, __assignKV, __band, __every, __filter, __find, __findIndex, __forEach, __fromEntries, __has, __hypot, __indexOf, __it, __map, __objKeys, __orv, __pairs, __push, __reduce, __sarr, __setlen, __shift, __shr, __sign, __slice, __some, __sort, __splice, __startsWith, __str, __toFixed, __u32 = RT["Set"], RT["T"], RT["add"], RT["assign"], RT["assignKV"], RT["band"], RT["every"], RT["filter"], RT["find"], RT["findIndex"], RT["forEach"], RT["fromEntries"], RT["has"], RT["hypot"], RT["indexOf"], RT["it"], RT["map"], RT["objKeys"], RT.orv, pairs, RT["push"], RT["reduce"], RT["sarr"], RT["setlen"], RT["shift"], RT["shr"], RT["sign"], RT["slice"], RT["some"], RT["sort"], RT["splice"], RT["startsWith"], RT["str"], RT["toFixed"], RT["u32"];
 local __NaN = 0 / 0;
 local __mabs, __matan2, __mceil, __mcos, __mexp, __mfloor, __mfmod, __mmax, __mmin, __mrandom, __msin, __msqrt = math.abs, math.atan2, math.ceil, math.cos, math.exp, math.floor, math.fmod, math.max, math.min, math.random, math.sin, math.sqrt;
 
@@ -129,7 +129,7 @@ end;
 M.placeBoss = function(g) 
 local m = g.map;
 local p = ((m.mode == "patrol") and M.pathAt(m, __mmin(26, ((m.len or __NaN) * 0.15))) or m.start);
-__assign(g.boss, {x=p.x, y=p.y, face=(__T(p.face) and p.face or 0)});
+__assignKV(g.boss, "x", p.x, "y", p.y, "face", (__T(p.face) and p.face or 0));
 end;
 -- world:271
 M.loadLevel = function(g, n) 
@@ -146,7 +146,7 @@ g.pgrid = nil;
 g.chaos = 0;
 g.vengeT = 0;
 local m = ((L.mode == "patrol") and M.makeMap(n, g.rng) or __assign({w=M.W, h=M.H, scroll="none"}, L.build(g, g.rng, __I0)));
-__assign(m, {n=n, level=L, mode=L.mode, name=L.name, theme={id=L.id, name=L.name}});
+__assignKV(m, "n", n, "level", L, "mode", L.mode, "name", L.name, "theme", {id=L.id, name=L.name});
 if not __T(m.w) then m.w = M.W end;
 if not __T(m.h) then m.h = M.H end;
 if not __T(m.scroll) then m.scroll = "none" end;
@@ -192,12 +192,12 @@ end;
 M.nextMap = function(g) 
 local n = ((g.map.n or __NaN) + 1);
 local b = g.boss;
-__assign(b, {act=nil, queue=nil, evade=nil, taunt=nil, haste=0, flash=0, hp=b.maxhp, calmT=99});
+__assignKV(b, "act", nil, "queue", nil, "evade", nil, "taunt", nil, "haste", 0, "flash", 0, "hp", b.maxhp, "calmT", 99);
 for __t21 in __pairs(b.cd) do
 local k = __t21;
 b.cd[k] = 0;
 end;
-__assign(g, {lastMark="A", legDist=0, lapsMap=0, clear=nil, store=false, offLane=0, mult=1, walkoff=nil});
+__assignKV(g, "lastMark", "A", "legDist", 0, "lapsMap", 0, "clear", nil, "store", false, "offLane", 0, "mult", 1, "walkoff", nil);
 M.loadLevel(g, n);
 g.dir = {next=((g.t or __NaN) + 8), n=0, lastRaid=g.t, raids=0, final=false};
 M.banner(g, ("LEVEL " .. __str(n) .. ": " .. __str(g.map.level.name)), (__T(g.map.level.sub) and g.map.level.sub or ""), 4);
@@ -566,7 +566,7 @@ if (((__T(g.walkoff) or __T(g.clear)) or __T(g.won)) or __T(b.dead)) then
 do return end;
 end;
 g.walkoff = {x=(o.x == nil and b.x or o.x), t=0, off=false};
-__assign(b, {act=nil, queue=nil, evade=nil, taunt=nil, haste=0});
+__assignKV(b, "act", nil, "queue", nil, "evade", nil, "taunt", nil, "haste", 0);
 M.levelCleared(g, o.title, o.sub);
 end;
 -- world:555
@@ -2820,7 +2820,7 @@ end;
 M.createDemo = function(look) 
 local d = M.createGame(7, look);
 d.dir.final = true;
-__assign(d.map, {plain=true, A={x=(-400), y=(-400)}, B={x=(-300), y=(-400)}});
+__assignKV(d.map, "plain", true, "A", {x=(-400), y=(-400)}, "B", {x=(-300), y=(-400)});
 d.demo = {id="swipe", t=0, cycle=0};
 do return d end;
 end;
@@ -2845,7 +2845,7 @@ end;
 local b = d.boss;
 b.hp = b.maxhp;
 M.applyLevels(d);
-__assign(b, {x=M.DEMO_AT.x, y=M.DEMO_AT.y, face=0, act=nil, queue=nil, haste=0, taunt=nil, evade=nil, dead=false, hp=b.maxhp});
+__assignKV(b, "x", M.DEMO_AT.x, "y", M.DEMO_AT.y, "face", 0, "act", nil, "queue", nil, "haste", 0, "taunt", nil, "evade", nil, "dead", false, "hp", b.maxhp);
 for __t190 in __pairs(b.cd) do
 local k = __t190;
 b.cd[k] = 0;
@@ -2985,7 +2985,7 @@ local e = M.createGame(11, look);
 e.dir.final = true;
 local A, B;
 local __t191 = e.map; A = __t191.A; B = __t191.B;
-__assign(e.boss, {x=(M.W - 8), y=(M.H - 26), face=(math.pi * 1.2)});
+__assignKV(e.boss, "x", (M.W - 8), "y", (M.H - 26), "face", (math.pi * 1.2));
 e.lastMark = "A";
 e["end"] = {wp={[0]={x=(M.W - 70), y=(M.H - 46)}, {x=((B.x or __NaN) + 40), y=((B.y or __NaN) + 22)}, length=2}, t=0, phase="walk", caption=M.ENDING_LINES[0][1], capT=0, hearts={length=0}, at=nil, done=false};
 do return e end;

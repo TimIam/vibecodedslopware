@@ -6,7 +6,7 @@ local __I0 = RT.module("art");
 local __I1 = RT.module("world");
 local __I2 = RT.module("levels/index");
 local __I3 = RT.module("props");
-local __Map, __Set, __T, __assign, __band, __ch, __fill, __find, __forEach, __get, __has, __hypot, __i32, __it, __join, __map, __orv, __pack, __padStart, __parseInt, __push, __sarr, __set, __setlen, __slice, __some, __sort, __split, __str, __toFixed, __typed, __unpack = RT["Map"], RT["Set"], RT["T"], RT["assign"], RT["band"], RT["ch"], RT["fill"], RT["find"], RT["forEach"], RT["get"], RT["has"], RT["hypot"], RT["i32"], RT["it"], RT["join"], RT["map"], RT.orv, RT["pack"], RT["padStart"], RT["parseInt"], RT["push"], RT["sarr"], RT["set"], RT["setlen"], RT["slice"], RT["some"], RT["sort"], RT["split"], RT["str"], RT["toFixed"], RT["typed"], RT["unpack"];
+local __Map, __Set, __T, __assign, __band, __ch, __charAt, __fill, __find, __forEach, __get, __has, __hypot, __i32, __it, __join, __map, __orv, __pack, __padStart, __parseInt, __push, __sarr, __set, __setlen, __slice, __some, __sort, __split, __str, __toFixed, __typed, __unpack = RT["Map"], RT["Set"], RT["T"], RT["assign"], RT["band"], RT["ch"], RT["charAt"], RT["fill"], RT["find"], RT["forEach"], RT["get"], RT["has"], RT["hypot"], RT["i32"], RT["it"], RT["join"], RT["map"], RT.orv, RT["pack"], RT["padStart"], RT["parseInt"], RT["push"], RT["sarr"], RT["set"], RT["setlen"], RT["slice"], RT["some"], RT["sort"], RT["split"], RT["str"], RT["toFixed"], RT["typed"], RT["unpack"];
 local __NaN = 0 / 0;
 local __mabs, __matan2, __mceil, __mcos, __mfloor, __mfmod, __mmax, __mmin, __msin = math.abs, math.atan2, math.ceil, math.cos, math.floor, math.fmod, math.max, math.min, math.sin;
 
@@ -1509,7 +1509,7 @@ local ox = (x - __mfloor((w / 2)));
 local oy = (((y - h) + 1) - (((a.kind == "gnasher") and ((a.swing or __NaN) > 0)) and 1 or 0));
 __forEach(map, function(row, ry) 
 for rx = 0, w - 1 do
-local ch = row[(flip and ((w - 1) - rx) or rx)];
+local ch = __charAt(row, (flip and ((w - 1) - rx) or rx));
 if (ch ~= ".") then
 M.px(ctx, (ox + rx), (oy + ry), (flash and "#ffffff" or M.ADD_COL[ch]));
 end;

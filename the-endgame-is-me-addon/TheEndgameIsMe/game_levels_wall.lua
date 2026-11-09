@@ -4,7 +4,7 @@ local RT = ns.RT;
 local M = RT.module("levels/wall");
 local __I0 = RT.module("levels/forest");
 local __I1 = RT.module("props");
-local __T, __assign, __band, __filter, __forEach, __hypot, __it, __join, __map, __padStart, __parseInt, __push, __sarr, __shr, __slice, __some, __str, __toFixed, __toString = RT["T"], RT["assign"], RT["band"], RT["filter"], RT["forEach"], RT["hypot"], RT["it"], RT["join"], RT["map"], RT["padStart"], RT["parseInt"], RT["push"], RT["sarr"], RT["shr"], RT["slice"], RT["some"], RT["str"], RT["toFixed"], RT["toString"];
+local __T, __assign, __assignKV, __band, __filter, __forEach, __hypot, __it, __join, __map, __padStart, __parseInt, __push, __sarr, __shr, __slice, __some, __str, __toFixed, __toString = RT["T"], RT["assign"], RT["assignKV"], RT["band"], RT["filter"], RT["forEach"], RT["hypot"], RT["it"], RT["join"], RT["map"], RT["padStart"], RT["parseInt"], RT["push"], RT["sarr"], RT["shr"], RT["slice"], RT["some"], RT["str"], RT["toFixed"], RT["toString"];
 local __NaN = 0 / 0;
 local __mabs, __masin, __matan2, __mceil, __mcos, __mfloor, __mfmod, __mmax, __mmin, __msin, __msqrt = math.abs, math.asin, math.atan2, math.ceil, math.cos, math.floor, math.fmod, math.max, math.min, math.sin, math.sqrt;
 
@@ -874,11 +874,17 @@ local off = h.sprite("wl-off", W, M.TH, function()
 
 end);
 local oc = off:getContext("2d");
-oc.globalCompositeOperation = "source-over";
-oc:clearRect(0, 0, W, M.TH);
 local piv = ((W / 2) + __mmax((-38), __mmin(38, __mfloor((((g.boss.x or __NaN) - (V.x or __NaN)) - (W / 2)) + 0.5))));
 local C = ((V.x or __NaN) + piv);
 local CR = ((V.x or __NaN) + (W / 2));
+local drumKey = ((((__str(piv) .. "|") .. __str(C)) .. "|") .. __join(__map(m.wall, function(s) 
+return (__str(s.drawn) .. (((__T(s.prop) and ((s.prop.hitT or __NaN) > 0)) and (s.prop.state == "up")) and ("h" .. __str(__mceil(((s.prop.hitT or __NaN) / 0.03)))) or ""));
+end), ","));
+local stale = (off.drumKey ~= drumKey);
+off.drumKey = drumKey;
+if stale then
+oc.globalCompositeOperation = "source-over";
+oc:clearRect(0, 0, W, M.TH);
 for sx = 0, __mceil(W) - 1 do
 local q = (((sx + 0.5) - (W / 2)) / M.R2);
 local th = __masin(q);
@@ -990,6 +996,7 @@ until true;
 end;
 end;
 oc.globalCompositeOperation = "source-over";
+end;
 ctx.fillStyle = "rgba(6,10,14,0.28)";
 ctx:fillRect(V.x, (M.MOAT0 + 2), W, 4);
 ctx.fillStyle = "rgba(6,10,14,0.14)";
@@ -1045,7 +1052,7 @@ until true;
 end;
 ctx:drawImage(off, V.x, 0);
 end;
--- levels/wall:608
+-- levels/wall:613
 M.ground = function(ctx, m, h) 
 local hash, vnoise;
 local __t115 = h; hash = __t115.hash; vnoise = __t115.vnoise;
@@ -1184,7 +1191,7 @@ ctx.fillStyle = ((t < 0.1) and "#8f8f84" or ((t < 0.16) and "#c8b85a" or ((t < 0
 ctx:fillRect(x, y, 1, 1);
 end;
 end;
--- levels/wall:665
+-- levels/wall:670
 M.paintHouse = function(c, kind, W, D, v, h) 
 local wallH = ((kind == "wl_barn") and 7 or 6);
 local pal = ((kind == "wl_cottage") and M.THATCH or ((kind == "wl_house") and M.SLATE or M.SHINGLE));
@@ -1308,7 +1315,7 @@ M.dot(c, x, mid, "#2a1a10");
 end;
 end;
 end;
--- levels/wall:728
+-- levels/wall:733
 M.paintWatch = function(c, v, h) 
 local cx = 9;
 local roofB = 11;
@@ -1356,7 +1363,7 @@ end;
 M.dot(c, cx, 0, "#e8c050");
 M.dot(c, cx, 1, M.IRON[2]);
 end;
--- levels/wall:758
+-- levels/wall:763
 M.drawBuilding = function(ctx, p, g, h) 
 local d = M.kinds[p.kind];
 local v = __mfmod((p.seed or __NaN), 4);
@@ -1410,7 +1417,7 @@ ctx:drawImage(h.tinted(spr, "#ffffff"), sx, sy);
 ctx.globalAlpha = 1;
 end;
 end;
--- levels/wall:787
+-- levels/wall:792
 M.drawRuin = function(ctx, p, g, h) 
 local d = M.kinds[p.kind];
 local v = __mfmod((p.seed or __NaN), 3);
@@ -1464,7 +1471,7 @@ ctx:drawImage(h.tinted(spr, "#120c08"), sx, sy);
 ctx.globalAlpha = 1;
 end;
 end;
--- levels/wall:807
+-- levels/wall:812
 M.drawCart = function(ctx, p, g, h) 
 if (p.state == "down") then
 do return M.drawRuin(ctx, p, g, h) end;
@@ -1512,7 +1519,7 @@ ctx:drawImage(h.tinted(spr, "#ffffff"), sx, sy);
 ctx.globalAlpha = 1;
 end;
 end;
--- levels/wall:824
+-- levels/wall:829
 M.drawStall = function(ctx, p, g, h) 
 if (p.state == "down") then
 do return M.drawRuin(ctx, p, g, h) end;
@@ -1557,7 +1564,7 @@ ctx:drawImage(h.tinted(spr, "#ffffff"), sx, sy);
 ctx.globalAlpha = 1;
 end;
 end;
--- levels/wall:845
+-- levels/wall:850
 M.drawRubble = function(ctx, p, g, h) 
 local v = __mfmod((p.seed or __NaN), 3);
 local k = p.kind;
@@ -1673,7 +1680,7 @@ M.RH = 24;
 -- levels/wall:32
 M.WALLK = {solid=true, breaks=true, value={pts=0, venge=0, chaos=0}};
 -- levels/wall:33
-M.kinds = {wl_curtain=__assign({}, M.WALLK, {w=40, h=M.WALL_B, hp=((M.HITS.wl_curtain or __NaN) * M.BASH)}), wl_tower=__assign({}, M.WALLK, {w=24, h=M.WALL_B, hp=((M.HITS.wl_tower or __NaN) * M.BASH)}), wl_gate=__assign({}, M.WALLK, {w=26, h=M.WALL_B, hp=((M.HITS.wl_gate or __NaN) * M.BASH)}), wl_cottage={w=18, h=12, hp=135, solid=true, flammable=true, burnTime=8, spread=0.25, crushShare=0.5, rubble="wl_timber", rubbleN=2, value={pts=320, venge=0.3}}, wl_house={w=20, h=14, hp=270, solid=true, rubble="wl_stones", rubbleN=3, value={pts=480, venge=0.42}}, wl_barn={w=28, h=16, hp=225, solid=true, flammable=true, burnTime=10, spread=0.3, crushShare=0.5, rubble="wl_timber", rubbleN=3, value={pts=520, venge=0.45}}, wl_watch={r=7, hp=360, solid=true, rubble="wl_block", rubbleN=3, value={pts=650, venge=0.55}}, wl_cart={r=4, hp=1, flammable=true, burnTime=4, rubble="wl_timber", rubbleN=1, value={pts=60, venge=0.06}}, wl_stall={w=12, h=8, hp=1, flammable=true, burnTime=4, rubble="wl_timber", rubbleN=1, value={pts=90, venge=0.08}}, wl_stones={r=3, push=true, fill=1}, wl_timber={r=3, push=true, fill=1}, wl_block={r=3.5, push=true, fill=2}};
+M.kinds = {wl_curtain=__assignKV(__assign({}, M.WALLK), "w", 40, "h", M.WALL_B, "hp", ((M.HITS.wl_curtain or __NaN) * M.BASH)), wl_tower=__assignKV(__assign({}, M.WALLK), "w", 24, "h", M.WALL_B, "hp", ((M.HITS.wl_tower or __NaN) * M.BASH)), wl_gate=__assignKV(__assign({}, M.WALLK), "w", 26, "h", M.WALL_B, "hp", ((M.HITS.wl_gate or __NaN) * M.BASH)), wl_cottage={w=18, h=12, hp=135, solid=true, flammable=true, burnTime=8, spread=0.25, crushShare=0.5, rubble="wl_timber", rubbleN=2, value={pts=320, venge=0.3}}, wl_house={w=20, h=14, hp=270, solid=true, rubble="wl_stones", rubbleN=3, value={pts=480, venge=0.42}}, wl_barn={w=28, h=16, hp=225, solid=true, flammable=true, burnTime=10, spread=0.3, crushShare=0.5, rubble="wl_timber", rubbleN=3, value={pts=520, venge=0.45}}, wl_watch={r=7, hp=360, solid=true, rubble="wl_block", rubbleN=3, value={pts=650, venge=0.55}}, wl_cart={r=4, hp=1, flammable=true, burnTime=4, rubble="wl_timber", rubbleN=1, value={pts=60, venge=0.06}}, wl_stall={w=12, h=8, hp=1, flammable=true, burnTime=4, rubble="wl_timber", rubbleN=1, value={pts=90, venge=0.08}}, wl_stones={r=3, push=true, fill=1}, wl_timber={r=3, push=true, fill=1}, wl_block={r=3.5, push=true, fill=2}};
 -- levels/wall:129
 M.gateLaneX = function(y) 
 return (((M.GATE_X0 + M.GATE_X1) / 2) + (__msin((y / 15)) * 3));
@@ -1708,22 +1715,22 @@ end;
 local f = ((p.hp or __NaN) / (p.maxhp or __NaN));
 do return ((f > 0.8) and 0 or ((f > 0.55) and 1 or ((f > 0.3) and 2 or 3))) end;
 end;
--- levels/wall:602
+-- levels/wall:607
 M.toScreen = function(x, C, W, piv) 
 local th = ((x - C) / M.R);
 do return ((__mabs(th) >= (math.pi / 2)) and ((th < 0) and (-1) or (W + 1)) or (piv + (M.R * __msin(th)))) end;
 end;
--- levels/wall:606
+-- levels/wall:611
 M.GR = {[0]="#28381e", "#2f4224", "#374c2a", "#415833", length=4};
--- levels/wall:607
+-- levels/wall:612
 M.DIRT = {[0]="#3f3222", "#4e3f2a", "#5e4c32", "#6e5a3a", length=4};
--- levels/wall:660
+-- levels/wall:665
 M.THATCH = {[0]="#4a3a1e", "#64502a", "#7e6834", "#9a8244", "#b49a56", length=5};
--- levels/wall:661
+-- levels/wall:666
 M.SLATE = {[0]="#262b34", "#343b48", "#454e5e", "#5a6476", "#727c90", length=5};
--- levels/wall:662
+-- levels/wall:667
 M.SHINGLE = {[0]="#3a2016", "#55301e", "#6e4028", "#875234", "#9e6440", length=5};
--- levels/wall:842
+-- levels/wall:847
 M.shadeHex = function(c) 
 return ("#" .. __join(__map({[0]=1, 3, 5, length=3}, function(i) 
 return __padStart(__toString(__mfloor((__parseInt(__slice(c, i, (i + 2)), 16) * 0.72)), 16), 2, "0");

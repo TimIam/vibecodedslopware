@@ -78,8 +78,13 @@ function Store.read()
     return nil
   end
   g.events = { length = 0 }
-  if g.map.pts and (not g.map.df or g.map.df.__rebuild) then g.map.df = W.pathField(g.map.pts) end
-  return g, s.phase
+  return g, s.phase   -- the caller finishes the job with Store.mend(g), somewhere it is allowed to take its time
+end
+
+-- puts back what a save leaves out: the Clearing's path distances (two million sums, so call it from the loader)
+function Store.mend(g)
+  local m = g.map
+  if m.pts and (not m.df or m.df.__rebuild) then m.df = W.pathField(m.pts) end
 end
 
 function Store.clear() if ns.DB then ns.DB.save = nil end end

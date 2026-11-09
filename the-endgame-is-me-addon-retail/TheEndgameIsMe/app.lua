@@ -46,7 +46,7 @@ local function button(parent, text, w, h, fn)
   function b.able(self, on) self.on = on and true or false; self:paint(false) end
   b:SetScript("OnEnter", function(self) self:paint(true) end)
   b:SetScript("OnLeave", function(self) self:paint(false) end)
-  b:SetScript("OnClick", function(self) if self.on and fn then ns.Sound.play("ui"); fn(self) end end)
+  b:SetScript("OnClick", function(self) if self.on and fn then ns.Sound.play("menuGo"); fn(self) end end)
   return b
 end
 
@@ -82,7 +82,7 @@ function A.setMode(mode)
   local shown = ({ menu = "menu", paused = "pause", over = "over", won = "won", store = "store", look = "look", loading = "loading", error = "error" })[mode]
   if shown and not ui[shown] then build[shown]() end
   for _, n in ipairs(PANELS) do if ui[n] then if n == shown then ui[n]:Show() else ui[n]:Hide() end end end
-  if ui.dim then if shown and shown ~= "loading" then ui.dim:Show() else ui.dim:Hide() end end
+  if ui.dim then if shown and shown ~= "loading" and shown ~= "look" then ui.dim:Show() else ui.dim:Hide() end end
   local playing = mode == "play" or mode == "ending"
   A.keys, A.press, A.mouseL = {}, {}, false
   local view = D.view
@@ -125,6 +125,7 @@ local function background()
 end
 
 local function firstFrame(g, bare)
+  Store.mend(g)
   RT.fillSheets = true
   A.R.render(g, { bare = bare, mx = 160, my = 90 })
   RT.fillSheets = false
@@ -414,7 +415,8 @@ local function onUpdate(self, elapsed)
   A.sinceDraw = A.sinceDraw + elapsed
   local mode = A.mode
   if mode == "play" or mode == "ending" or mode == "look" then
-    if A.sinceDraw >= 1 / 62 then
+    -- at most DB.fps pictures a second (the simulation always runs at 60 steps a second, whatever this is)
+    if A.sinceDraw >= 1 / ((ns.DB.fps or 60) * 1.5) then
       local ok, err = pcall(mode == "play" and playFrame or mode == "ending" and endingFrame or lookFrame, A.sinceDraw)
       A.sinceDraw = 0
       if not ok then fail(err) return end
@@ -741,11 +743,15 @@ local ev = _G.CreateFrame("Frame")
 ev:RegisterEvent("ADDON_LOADED")
 ev:RegisterEvent("PLAYER_LOGOUT")
 ev:RegisterEvent("PLAYER_REGEN_DISABLED")
+ev:RegisterEvent("UI_SCALE_CHANGED")
+ev:RegisterEvent("DISPLAY_SIZE_CHANGED")
 ev:SetScript("OnEvent", function(self, event, arg1)
   if event == "ADDON_LOADED" then
     if arg1 == ADDON then Store.init(); ns.Sound.init() end
   elseif event == "PLAYER_LOGOUT" then
     A.saveNow()
+  elseif event == "UI_SCALE_CHANGED" or event == "DISPLAY_SIZE_CHANGED" then
+    if D.frame then D.applyScale() end   -- keep one game pixel on a whole number of screen pixels
   elseif event == "PLAYER_REGEN_DISABLED" then
     -- a real fight has started: hand the keyboard back at once
     if A.mode == "play" then
@@ -767,6 +773,10 @@ _G.SlashCmdList["THEENDGAMEISME"] = function(msg)
   elseif cmd == "perf" then
     ns.DB.perf = not ns.DB.perf
     RT.print("timings in the title bar: " .. (ns.DB.perf and "on" or "off"))
+  elseif cmd == "fps" then
+    local n = tonumber(arg)
+    ns.DB.fps = (n and n >= 10 and n <= 240) and floor(n) or 60
+    RT.print("drawing at most about " .. ns.DB.fps .. " frames a second. Lower it if the game drags your frame rate down.")
   elseif cmd == "calm" then
     ns.DB.calm = not ns.DB.calm
     RT.print("screen shake: " .. (ns.DB.calm and "off" or "on"))
@@ -778,7 +788,7 @@ _G.SlashCmdList["THEENDGAMEISME"] = function(msg)
     if D.frame then D.frame:ClearAllPoints(); D.frame:SetPoint("CENTER", _G.UIParent, "CENTER", 0, 20); D.snap() end
     RT.print("window moved back to the middle.")
   elseif cmd == "help" or cmd == "?" then
-    RT.print("/endgame opens and closes the game.  /endgame scale <1-8 or auto>,  perf,  calm,  mute,  reset")
+    RT.print("/endgame opens and closes the game.  /endgame scale <1-8 or auto>,  fps <10-240>,  perf,  calm,  mute,  reset")
   else
     A.toggle()
   end

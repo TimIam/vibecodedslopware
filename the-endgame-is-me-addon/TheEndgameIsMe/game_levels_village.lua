@@ -4,7 +4,7 @@ local RT = ns.RT;
 local M = RT.module("levels/village");
 local __I0 = RT.module("levels/forest");
 local __I1 = RT.module("levels/farms");
-local __Map, __T, __assign, __band, __delete, __filter, __forEach, __hypot, __i32, __it, __map, __orv, __padEnd, __push, __set, __shr, __some, __str = RT["Map"], RT["T"], RT["assign"], RT["band"], RT["delete"], RT["filter"], RT["forEach"], RT["hypot"], RT["i32"], RT["it"], RT["map"], RT.orv, RT["padEnd"], RT["push"], RT["set"], RT["shr"], RT["some"], RT["str"];
+local __Map, __T, __assign, __assignKV, __band, __delete, __filter, __forEach, __hypot, __i32, __it, __map, __orv, __padEnd, __push, __set, __shr, __some, __str = RT["Map"], RT["T"], RT["assign"], RT["assignKV"], RT["band"], RT["delete"], RT["filter"], RT["forEach"], RT["hypot"], RT["i32"], RT["it"], RT["map"], RT.orv, RT["padEnd"], RT["push"], RT["set"], RT["shr"], RT["some"], RT["str"];
 local __NaN = 0 / 0;
 local __mabs, __mceil, __mcos, __mfloor, __mfmod, __mmax, __mmin, __msin = math.abs, math.ceil, math.cos, math.floor, math.fmod, math.max, math.min, math.sin;
 
@@ -654,7 +654,7 @@ M.BUILDING = {solid=true, flammable=true, crushShare=0.5, spread=0.3};
 -- levels/village:15
 M.SMALL = {flammable=true, crushShare=0.5, burnTime=4, spread=0.3};
 -- levels/village:16
-M.kinds = {cottage=__assign({}, M.BUILDING, {w=20, h=12, hp=160, burnTime=9, leaves="#c4a858", value={pts=200, venge=0.16, chaos=1.8}}), inn=__assign({}, M.BUILDING, {w=32, h=18, hp=360, burnTime=13, leaves="#8a5a36", value={pts=450, venge=0.3, chaos=3.5}}), well=__assign({}, M.BUILDING, {r=4, hp=140, burnTime=5, spread=0.1, leaves="#aeac9b", value={pts=120, venge=0.1, chaos=0.6}}), stall=__assign({}, M.SMALL, {w=12, h=6, slow=0.3, slowR=7, leaves="#d8473a", value={pts=40, venge=0.04, chaos=0.35}}), barrel=__assign({}, M.SMALL, {r=2, leaves="#8a5a36", value={pts=15, venge=0.01, chaos=0.1}}), crate=__assign({}, M.SMALL, {r=2, leaves="#b08a5a", value={pts=15, venge=0.01, chaos=0.1}})};
+M.kinds = {cottage=__assignKV(__assign({}, M.BUILDING), "w", 20, "h", 12, "hp", 160, "burnTime", 9, "leaves", "#c4a858", "value", {pts=200, venge=0.16, chaos=1.8}), inn=__assignKV(__assign({}, M.BUILDING), "w", 32, "h", 18, "hp", 360, "burnTime", 13, "leaves", "#8a5a36", "value", {pts=450, venge=0.3, chaos=3.5}), well=__assignKV(__assign({}, M.BUILDING), "r", 4, "hp", 140, "burnTime", 5, "spread", 0.1, "leaves", "#aeac9b", "value", {pts=120, venge=0.1, chaos=0.6}), stall=__assignKV(__assign({}, M.SMALL), "w", 12, "h", 6, "slow", 0.3, "slowR", 7, "leaves", "#d8473a", "value", {pts=40, venge=0.04, chaos=0.35}), barrel=__assignKV(__assign({}, M.SMALL), "r", 2, "leaves", "#8a5a36", "value", {pts=15, venge=0.01, chaos=0.1}), crate=__assignKV(__assign({}, M.SMALL), "r", 2, "leaves", "#b08a5a", "value", {pts=15, venge=0.01, chaos=0.1})};
 -- levels/village:25
 M.critters = {cart={r=4, hp=60, spd=2, flee=24, fear=55, leaves=true, bits="#8a5a36", cry="neigh", value={pts=300, venge=0.15, chaos=0.6}}, horse={r=3, hp=45, spd=5, flee=30, fear=50, leaves=true, bits="blood", cry="neigh", value={pts=250, venge=0.12, chaos=0.5}}, villager={r=1.5, hp=15, spd=7, flee=20, fear=40, raise="skeleton", value={pts=80, venge=0.06, chaos=0.2}}};
 -- levels/village:33
@@ -684,11 +684,11 @@ M.GOODS = {[0]="#d8473a", "#e8b83a", "#6e9a44", "#c8a064", "#a463e0", length=5};
 -- levels/village:292
 M.HORSE_PAL = {H="#7a5236", h="#5a3d29", m="#1a120c", d="#3a281b", L="#3a281b", t="#1a120c", e=__I1.INK};
 -- levels/village:293
-M.HORSE_PAL2 = __assign({}, M.HORSE_PAL, {H="#c8b8a0", h="#9a8a74", L="#6a5e50"});
+M.HORSE_PAL2 = __assignKV(__assign({}, M.HORSE_PAL), "H", "#c8b8a0", "h", "#9a8a74", "L", "#6a5e50");
 -- levels/village:294
 M.HORSE = {[0]={[0]="......mm..", "t.....mHH.", "tHHHHHHHed", ".hHHHHh...", ".L.L..L.L.", ".L.L..L.L.", length=6}, {[0]="......mm..", "t.....mHH.", "tHHHHHHHed", ".hHHHHh...", "..L.L..L.L", ".L..L.L..L", length=6}, length=2};
 -- levels/village:299
-M.CART_PAL = __assign({}, M.HORSE_PAL, {P="#74492c", p="#4a2e1c", W="#2a1c12", w="#a08a6a", S="#c8b48a", s="#a08a64", Y="#d8c068", y="#b49c48", B="#835233", b="#5e3b24", ["-"]="#4a2e1c"});
+M.CART_PAL = __assignKV(__assign({}, M.HORSE_PAL), "P", "#74492c", "p", "#4a2e1c", "W", "#2a1c12", "w", "#a08a6a", "S", "#c8b48a", "s", "#a08a64", "Y", "#d8c068", "y", "#b49c48", "B", "#835233", "b", "#5e3b24", "-", "#4a2e1c");
 -- levels/village:300
 M.CART_LOADS = {[0]={[0]=".SsSs..", "SsSsSs.", length=2}, {[0]=".YyYY..", "YYyYyY.", length=2}, {[0]=".Bb.Bb.", "BbBbBb.", length=2}, length=3};
 -- levels/village:324
@@ -700,7 +700,7 @@ M.HORSE_DEAD = {[0]=".L.L.L.L..", ".L.L.L.L..", "tHHHHHHHH.", ".hHHHHhHed", "..r
 -- levels/village:342
 M.CART_WRECK = {[0]="..S.s..Y.", ".PPp.sPP.", "P.pPP.pPw", ".W.PP.W..", "rWw...Ww.", length=5};
 -- levels/village:343
-M.DEAD_PAL = __assign({}, M.CART_PAL, {r="#a3201a"});
+M.DEAD_PAL = __assignKV(__assign({}, M.CART_PAL), "r", "#a3201a");
 -- levels/village:350
 M.cartCorpse = M.corpse("vl-cartd", M.CART_WRECK);
 M.horseCorpse = M.corpse("vl-horsed", M.HORSE_DEAD);

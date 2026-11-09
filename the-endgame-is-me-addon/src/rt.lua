@@ -603,6 +603,14 @@ function RT.fromEntries(src)
   for i = 0, a.length - 1 do o[a[i][0]] = a[i][1] end
   return o
 end
+-- assignKV(o, k1, v1, k2, v2, ...): sets each, including to nil (which is how a field gets cleared)
+function RT.assignKV(o, ...)
+  for i = 1, select("#", ...), 2 do
+    local k, v = select(i, ...)
+    o[k] = v
+  end
+  return o
+end
 function RT.assign(o, ...)
   for i = 1, select("#", ...) do
     local s = (select(i, ...))

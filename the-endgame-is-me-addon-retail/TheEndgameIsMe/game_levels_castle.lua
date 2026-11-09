@@ -4,7 +4,7 @@ local RT = ns.RT;
 local M = RT.module("levels/castle");
 local __I0 = RT.module("props");
 local __I1 = RT.module("levels/city");
-local __Array, __Set, __T, __add, __assign, __band, __fill, __filter, __has, __hypot, __includes, __it, __join, __orv, __parseInt, __push, __reduce, __shift, __shr, __slice, __some, __sort, __str, __typed, __unpack = RT["Array"], RT["Set"], RT["T"], RT["add"], RT["assign"], RT["band"], RT["fill"], RT["filter"], RT["has"], RT["hypot"], RT["includes"], RT["it"], RT["join"], RT.orv, RT["parseInt"], RT["push"], RT["reduce"], RT["shift"], RT["shr"], RT["slice"], RT["some"], RT["sort"], RT["str"], RT["typed"], RT["unpack"];
+local __Array, __Set, __T, __add, __assign, __assignKV, __band, __fill, __filter, __has, __hypot, __includes, __it, __join, __orv, __parseInt, __push, __reduce, __shift, __shr, __slice, __some, __sort, __str, __typed, __unpack = RT["Array"], RT["Set"], RT["T"], RT["add"], RT["assign"], RT["assignKV"], RT["band"], RT["fill"], RT["filter"], RT["has"], RT["hypot"], RT["includes"], RT["it"], RT["join"], RT.orv, RT["parseInt"], RT["push"], RT["reduce"], RT["shift"], RT["shr"], RT["slice"], RT["some"], RT["sort"], RT["str"], RT["typed"], RT["unpack"];
 local __NaN = 0 / 0;
 local __mabs, __matan2, __mceil, __mcos, __mfloor, __mfmod, __mmax, __mmin, __msin, __msqrt = math.abs, math.atan2, math.ceil, math.cos, math.floor, math.fmod, math.max, math.min, math.sin, math.sqrt;
 
@@ -283,7 +283,7 @@ run = run + 1;
 do break end;
 end;
 if __T(run) then
-__push(out, __assign({}, mk((i - (run / 2))), {hw=((run * M.C) / 2)}));
+__push(out, __assignKV(__assign({}, mk((i - (run / 2)))), "hw", ((run * M.C) / 2)));
 end;
 run = 0;
 until true;
@@ -1145,7 +1145,7 @@ M.GATE = {c=11, r=26, n=2};
 -- levels/castle:35
 M.BLOCK = {solid=true, rubble="castle_rubble", rubbleN=1, w=M.C, h=M.C, onDown=M.blockDown};
 -- levels/castle:36
-M.kinds = {castle_wall=__assign({}, M.BLOCK, {hp=170, value={pts=110, venge=0.05, chaos=1}}), castle_keep=__assign({}, M.BLOCK, {hp=210, value={pts=140, venge=0.06, chaos=1}}), castle_tower=__assign({}, M.BLOCK, {w=30, h=30, hp=1000, rubbleN=4, value={pts=900, venge=0.35, chaos=4}, onDown=M.towerDown}), castle_gate=__assign({}, M.BLOCK, {w=20, h=20, hp=520, flammable=true, burnTime=10, crushShare=0.6, value={pts=600, venge=0.3, chaos=2}}), castle_rubble={r=3, push=true, fill=2, value={pts=0, venge=0, chaos=0}}};
+M.kinds = {castle_wall=__assignKV(__assign({}, M.BLOCK), "hp", 170, "value", {pts=110, venge=0.05, chaos=1}), castle_keep=__assignKV(__assign({}, M.BLOCK), "hp", 210, "value", {pts=140, venge=0.06, chaos=1}), castle_tower=__assignKV(__assign({}, M.BLOCK), "w", 30, "h", 30, "hp", 1000, "rubbleN", 4, "value", {pts=900, venge=0.35, chaos=4}, "onDown", M.towerDown), castle_gate=__assignKV(__assign({}, M.BLOCK), "w", 20, "h", 20, "hp", 520, "flammable", true, "burnTime", 10, "crushShare", 0.6, "value", {pts=600, venge=0.3, chaos=2}), castle_rubble={r=3, push=true, fill=2, value={pts=0, venge=0, chaos=0}}};
 -- levels/castle:43
 M.LIFT = {castle_wall=7, castle_keep=12, castle_gate=7, castle_tower=16};
 -- levels/castle:113

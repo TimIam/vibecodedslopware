@@ -1,0 +1,102 @@
+{
+ "sfx": [
+  "wind_swipe",
+  "swipe",
+  "wind_stomp",
+  "stomp",
+  "wind_breath",
+  "breath",
+  "wind_roar",
+  "roar",
+  "shake",
+  "wind_tail",
+  "tail",
+  "wind_charge",
+  "charge",
+  "buy",
+  "menuMove",
+  "menuGo",
+  "crunch",
+  "collapse",
+  "thump",
+  "whoosh",
+  "splash",
+  "wind_summon",
+  "wind_beam",
+  "beam",
+  "wind_ice",
+  "ice",
+  "haste",
+  "rise",
+  "clear",
+  "newmap",
+  "summon",
+  "bite",
+  "spit",
+  "thud",
+  "adddie",
+  "kill",
+  "riderdie",
+  "lap",
+  "stab",
+  "climb",
+  "fling",
+  "neigh",
+  "whistle",
+  "horn",
+  "raidhorn",
+  "tick",
+  "engage",
+  "taunt",
+  "evade",
+  "wipe",
+  "rez",
+  "titleThud",
+  "titleBoom",
+  "bossdie"
+ ],
+ "music": [
+  {
+   "id": "rock",
+   "name": "Rock, Other Rock",
+   "stage": 1,
+   "seconds": 44.308
+  },
+  {
+   "id": "hug",
+   "name": "Tree Hugging (Aggressive)",
+   "stage": 2,
+   "seconds": 40
+  },
+  {
+   "id": "farm",
+   "name": "Ee-I-Ee-I-Oh No",
+   "stage": 3,
+   "seconds": 35.2
+  },
+  {
+   "id": "value",
+   "name": "Property Values",
+   "stage": 4,
+   "seconds": 30
+  },
+  {
+   "id": "knock",
+   "name": "Knock Knock (It's Me)",
+   "stage": 5,
+   "seconds": 25
+  },
+  {
+   "id": "urban",
+   "name": "Urban Renewal",
+   "stage": 6,
+   "seconds": 20.645
+  },
+  {
+   "id": "king",
+   "name": "Long Live the King (Briefly)",
+   "stage": 7,
+   "seconds": 16
+  }
+ ]
+}

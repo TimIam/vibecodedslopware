@@ -301,7 +301,24 @@ export function transpile(src, opts) {
     const lit = g => `{${g.join(', ')}}`;
     if (groups.length === 0) return '{}';
     if (groups.length === 1 && Array.isArray(groups[0])) return lit(groups[0]);
-    return `${rt('assign')}(${[Array.isArray(groups[0]) ? lit(groups[0]) : '{}', ...groups.slice(Array.isArray(groups[0]) ? 1 : 0).map(g => Array.isArray(g) ? lit(g) : g)].join(', ')})`;
+    return mergeInto(Array.isArray(groups[0]) ? lit(groups[0]) : '{}', groups.slice(Array.isArray(groups[0]) ? 1 : 0), sc);
+  }
+  // target, then each source in turn: a spread (Lua text) is copied, a run of properties ("key=value" texts) is set
+  function mergeInto(target, groups, sc) {
+    let out = target;
+    for (const g of groups) {
+      if (!Array.isArray(g)) { out = `${rt('assign')}(${out}, ${g})`; continue; }
+      for (let i = 0; i < g.length; i += 40) {
+        const kv = g.slice(i, i + 40).map(e => { const at = e.indexOf('='); const k = e.slice(0, at), v = e.slice(at + 1); return `${k.startsWith('[') ? k.slice(1, -1) : q(k)}, ${v}`; });
+        out = `${rt('assignKV')}(${out}, ${kv.join(', ')})`;
+      }
+    }
+    return out;
+  }
+  // the properties of an object literal as "key=value" texts, or null if it has spreads in it
+  function litProps(n, sc) {
+    if (n.type !== 'ObjectExpression' || n.properties.some(p => p.type === 'SpreadElement' || p.kind === 'get' || p.kind === 'set')) return null;
+    return n.properties.map(p => `${p.computed ? `[${E(p.key, sc)}]` : p.key.type === 'Identifier' ? (isName(p.key.name) ? p.key.name : `[${q(p.key.name)}]`) : `[${q(String(p.key.value))}]`}=${E(p.value, sc)}`);
   }
 
   function fnExpr(n, sc, selfName) {
@@ -374,6 +391,10 @@ export function transpile(src, opts) {
           fail(n, `Math.${m}`);
         }
         if (o.name === 'Object') {
+          if (m === 'assign' && n.arguments.length >= 2 && n.arguments.every(a => a.type !== 'SpreadElement')) {
+            const groups = n.arguments.slice(1).map(a => litProps(a, sc) || E(a, sc));
+            if (groups.some(Array.isArray)) return mergeInto(E(n.arguments[0], sc), groups, sc);
+          }
           const f = { __proto__: null, assign: 'assign', keys: 'objKeys', values: 'objValues', entries: 'objEntries', fromEntries: 'fromEntries' }[m];
           if (!f) fail(n, `Object.${m}`);
           return `${rt(f)}(${args(n.arguments, sc)})`;

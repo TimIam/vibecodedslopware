@@ -3,7 +3,7 @@ local ADDON, ns = ...;
 local RT = ns.RT;
 local M = RT.module("levels/farms");
 local __I0 = RT.module("levels/forest");
-local __Array, __T, __assign, __band, __charAt, __filter, __hypot, __includes, __it, __map, __orv, __push, __shr, __slice, __some, __str, __unpack = RT["Array"], RT["T"], RT["assign"], RT["band"], RT["charAt"], RT["filter"], RT["hypot"], RT["includes"], RT["it"], RT["map"], RT.orv, RT["push"], RT["shr"], RT["slice"], RT["some"], RT["str"], RT["unpack"];
+local __Array, __T, __assign, __assignKV, __band, __charAt, __filter, __hypot, __includes, __it, __map, __orv, __push, __shr, __slice, __some, __str, __unpack = RT["Array"], RT["T"], RT["assign"], RT["assignKV"], RT["band"], RT["charAt"], RT["filter"], RT["hypot"], RT["includes"], RT["it"], RT["map"], RT.orv, RT["push"], RT["shr"], RT["slice"], RT["some"], RT["str"], RT["unpack"];
 local __NaN = 0 / 0;
 local __mabs, __matan2, __mceil, __mcos, __mfloor, __mfmod, __mmax, __mmin, __msin = math.abs, math.atan2, math.ceil, math.cos, math.floor, math.fmod, math.max, math.min, math.sin;
 
@@ -759,7 +759,7 @@ end;
 -- levels/farms:465
 M.corpse = function(key, rows, pal) 
 do return function(ctx, c, h) 
-local spr = M.mapSprite(h, key, rows, __assign({}, pal, M.DEAD_PAL), ((c.fx or __NaN) < 0));
+local spr = M.mapSprite(h, key, rows, __assign(__assign({}, pal), M.DEAD_PAL), ((c.fx or __NaN) < 0));
 ctx:drawImage(spr, (__mfloor((c.x or __NaN) + 0.5) - __shr(spr.width, 1)), ((__mfloor((c.y or __NaN) + 0.5) - (spr.height or __NaN)) + 3));
 end end;
 end;
@@ -912,7 +912,7 @@ M.CROP = {r=2, flammable=true, burnTime=3, spread=0.45, crushShare=0.5, slow=0.3
 -- levels/farms:16
 M.BUILDING = {solid=true, flammable=true, crushShare=0.5, spread=0.3};
 -- levels/farms:17
-M.kinds = {wheat=__assign({}, M.CROP, {leaves="#c8a64a", value={pts=8, venge=0.005, chaos=0.07}}), cabbage=__assign({}, M.CROP, {burnTime=4, spread=0.3, leaves="#6e9a44", value={pts=10, venge=0.005, chaos=0.07}}), hay={r=4, flammable=true, burnTime=5, spread=0.6, crushShare=0.5, slow=0.4, slowR=6, leaves="#c4a858", value={pts=40, venge=0.03, chaos=0.4}}, fence={r=1, w=8, h=2, flammable=true, burnTime=3, spread=0.3, crushShare=0.5, leaves="#8a5a36", value={pts=5, venge=0.004, chaos=0.04}}, barn=__assign({}, M.BUILDING, {w=34, h=18, hp=300, burnTime=11, leaves="#8a5a36", value={pts=260, venge=0.2, chaos=2.4}}), hut=__assign({}, M.BUILDING, {r=8, hp=180, burnTime=9, leaves="#a4845a", value={pts=180, venge=0.15, chaos=1.6}})};
+M.kinds = {wheat=__assignKV(__assign({}, M.CROP), "leaves", "#c8a64a", "value", {pts=8, venge=0.005, chaos=0.07}), cabbage=__assignKV(__assign({}, M.CROP), "burnTime", 4, "spread", 0.3, "leaves", "#6e9a44", "value", {pts=10, venge=0.005, chaos=0.07}), hay={r=4, flammable=true, burnTime=5, spread=0.6, crushShare=0.5, slow=0.4, slowR=6, leaves="#c4a858", value={pts=40, venge=0.03, chaos=0.4}}, fence={r=1, w=8, h=2, flammable=true, burnTime=3, spread=0.3, crushShare=0.5, leaves="#8a5a36", value={pts=5, venge=0.004, chaos=0.04}}, barn=__assignKV(__assign({}, M.BUILDING), "w", 34, "h", 18, "hp", 300, "burnTime", 11, "leaves", "#8a5a36", "value", {pts=260, venge=0.2, chaos=2.4}), hut=__assignKV(__assign({}, M.BUILDING), "r", 8, "hp", 180, "burnTime", 9, "leaves", "#a4845a", "value", {pts=180, venge=0.15, chaos=1.6})};
 -- levels/farms:26
 M.critters = {cow={r=3.5, hp=60, spd=6, flee=17, fear=42, raise="skel_cow", cry="kill", value={pts=200, venge=0.15, chaos=0.6}}, pig={r=2.5, hp=40, spd=8, flee=21, fear=40, raise="skel_pig", value={pts=150, venge=0.1, chaos=0.4}}, chicken={r=1.5, hp=10, spd=10, flee=30, fear=34, bits="cream", value={pts=60, venge=0.05, chaos=0.12}}};
 -- levels/farms:33
@@ -946,7 +946,7 @@ M.CABB = {[0]="#1e3216", "#2e4a22", "#4f7a34", "#6e9a44", "#9cc46a", length=5};
 -- levels/farms:429
 M.COW_PAL = {h="#e6d9b8", L="#a06a43", B="#835233", D="#5a3622", W="#e8e0cc", H="#835233", e=M.INK, n="#d89a84", l="#3a2418", t="#4a2c1c"};
 -- levels/farms:430
-M.COW_PAL2 = __assign({}, M.COW_PAL, {L="#ece6d6", B="#d4ccba", D="#9a9284", W="#2a2420", H="#2a2420", n="#e0a8a0"});
+M.COW_PAL2 = __assignKV(__assign({}, M.COW_PAL), "L", "#ece6d6", "B", "#d4ccba", "D", "#9a9284", "W", "#2a2420", "H", "#2a2420", "n", "#e0a8a0");
 -- levels/farms:431
 M.COW = {[0]={[0]=".........h.h.", ".LLLLLLLLHHH.", "tBWWBBBBWHeHn", "t.BWBBBBBDHnn", "..DDBBBDD....", "..l.l..l.l...", length=6}, {[0]=".........h.h.", ".LLLLLLLLHHH.", "tBWWBBBBWHeHn", "t.BWBBBBBDHnn", "..DDBBBDD....", "...l.l..l.l..", length=6}, length=2};
 -- levels/farms:435

@@ -58,11 +58,19 @@ end
 
 -- 0 is silence (the window is shut or on the menu); 1 to 7 is the level
 function S.setStage(n) S.stage = n or 0; refresh() end
+-- The fight mix comes in the moment someone engages. Going back waits ten quiet seconds, because changing the mix
+-- starts the loop again and a 5-man arrives every half minute.
 function S.setCombat(on)
   on = on and true or false
+  S.wantCombat = on
   if on == S.combat then return end
-  S.combat = on
-  refresh()
+  if on then S.combat = true; refresh() return end
+  if S.calming or not _G.C_Timer then return end
+  S.calming = true
+  _G.C_Timer.After(10, function()
+    S.calming = false
+    if not S.wantCombat and S.combat then S.combat = false; refresh() end
+  end)
 end
 function S.toggle()
   ns.DB.mute = not ns.DB.mute

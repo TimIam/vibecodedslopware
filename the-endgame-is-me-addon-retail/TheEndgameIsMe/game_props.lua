@@ -2,7 +2,7 @@
 local ADDON, ns = ...;
 local RT = ns.RT;
 local M = RT.module("props");
-local __Error, __Map, __Set, __T, __add, __assign, __filter, __get, __hypot, __it, __orv, __pairs, __push, __set, __sign, __some, __str, __throw, __typed = RT["Error"], RT["Map"], RT["Set"], RT["T"], RT["add"], RT["assign"], RT["filter"], RT["get"], RT["hypot"], RT["it"], RT.orv, pairs, RT["push"], RT["set"], RT["sign"], RT["some"], RT["str"], RT["throw"], RT["typed"];
+local __Error, __Map, __Set, __T, __add, __assign, __assignKV, __filter, __get, __hypot, __it, __orv, __pairs, __push, __set, __sign, __some, __str, __throw, __typed = RT["Error"], RT["Map"], RT["Set"], RT["T"], RT["add"], RT["assign"], RT["assignKV"], RT["filter"], RT["get"], RT["hypot"], RT["it"], RT.orv, pairs, RT["push"], RT["set"], RT["sign"], RT["some"], RT["str"], RT["throw"], RT["typed"];
 local __NaN = 0 / 0;
 local __mabs, __matan2, __mceil, __mcos, __mexp, __mfloor, __mmax, __mmin, __msin = math.abs, math.atan2, math.ceil, math.cos, math.exp, math.floor, math.max, math.min, math.sin;
 
@@ -14,11 +14,11 @@ end;
 M.registerKinds = function(kinds, critters) if kinds == nil then kinds = {} end; if critters == nil then critters = {} end;
 for __t2 in __pairs(kinds) do
 local k = __t2;
-M.KINDS[k] = __assign({}, M.PROP_DEFAULTS, kinds[k], {value=__assign({}, M.PROP_DEFAULTS.value, (__T(kinds[k].value) and kinds[k].value or {}))});
+M.KINDS[k] = __assignKV(__assign(__assign({}, M.PROP_DEFAULTS), kinds[k]), "value", __assign(__assign({}, M.PROP_DEFAULTS.value), (__T(kinds[k].value) and kinds[k].value or {})));
 end;
 for __t4 in __pairs(critters) do
 local k = __t4;
-M.CRITTERS[k] = __assign({}, M.CRITTER_DEFAULTS, critters[k], {value=__assign({}, M.CRITTER_DEFAULTS.value, (__T(critters[k].value) and critters[k].value or {}))});
+M.CRITTERS[k] = __assignKV(__assign(__assign({}, M.CRITTER_DEFAULTS), critters[k]), "value", __assign(__assign({}, M.CRITTER_DEFAULTS.value), (__T(critters[k].value) and critters[k].value or {})));
 end;
 end;
 -- props:29

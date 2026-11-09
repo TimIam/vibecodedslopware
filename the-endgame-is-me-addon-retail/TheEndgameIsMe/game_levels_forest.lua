@@ -2,7 +2,7 @@
 local ADDON, ns = ...;
 local RT = ns.RT;
 local M = RT.module("levels/forest");
-local __T, __assign, __band, __concat, __hypot, __it, __map, __orv, __push, __slice, __some, __str = RT["T"], RT["assign"], RT["band"], RT["concat"], RT["hypot"], RT["it"], RT["map"], RT.orv, RT["push"], RT["slice"], RT["some"], RT["str"];
+local __T, __assign, __assignKV, __band, __concat, __hypot, __it, __map, __orv, __push, __slice, __some, __str = RT["T"], RT["assign"], RT["assignKV"], RT["band"], RT["concat"], RT["hypot"], RT["it"], RT["map"], RT.orv, RT["push"], RT["slice"], RT["some"], RT["str"];
 local __NaN = 0 / 0;
 local __mabs, __matan2, __mceil, __mcos, __mfloor, __mfmod, __mmin, __msin = math.abs, math.atan2, math.ceil, math.cos, math.floor, math.fmod, math.min, math.sin;
 
@@ -51,7 +51,7 @@ end;
 end;
 do
 local __t6, __t7 = __it(M.scatter(rng, 70, 12, 22, (w - 12), (h - 22), 7, __concat(__slice(glade, 0, 1), __map(trees, function(t) 
-return __assign({}, t, {r=6});
+return __assignKV(__assign({}, t), "r", 6);
 end)))), 0;
 while __t7 < __t6.length do
 local t = __t6[__t7]; __t7 = __t7 + 1;
@@ -207,7 +207,7 @@ M.TAU = (math.pi * 2);
 -- levels/forest:6
 M.TREE = {flammable=true, burnTime=7, spread=0.25, crushShare=0.5};
 -- levels/forest:7
-M.kinds = {pine=__assign({}, M.TREE, {r=3, slow=0.45, slowR=9, leaves="needle", value={pts=120, venge=0.12, chaos=1}}), oak=__assign({}, M.TREE, {r=4, slow=0.45, slowR=10, burnTime=8, leaves="leaf", value={pts=150, venge=0.14, chaos=1.2}}), bush=__assign({}, M.TREE, {r=2, slow=0.25, slowR=5, burnTime=3, leaves="leaf", value={pts=30, venge=0.04, chaos=0.25}})};
+M.kinds = {pine=__assignKV(__assign({}, M.TREE), "r", 3, "slow", 0.45, "slowR", 9, "leaves", "needle", "value", {pts=120, venge=0.12, chaos=1}), oak=__assignKV(__assign({}, M.TREE), "r", 4, "slow", 0.45, "slowR", 10, "burnTime", 8, "leaves", "leaf", "value", {pts=150, venge=0.14, chaos=1.2}), bush=__assignKV(__assign({}, M.TREE), "r", 2, "slow", 0.25, "slowR", 5, "burnTime", 3, "leaves", "leaf", "value", {pts=30, venge=0.04, chaos=0.25})};
 -- levels/forest:38
 M.GROUND = {a="#22301b", b="#2a3a20", c="#334526", d="#3e5230", litter={[0]="#5a4a2a", "#6e5a32", "#4a3a22", "#7a6a3a", length=4}, moss="#4e6a2e", trail={[0]="#4a3d29", "#5a4a32", length=2}};
 -- levels/forest:79

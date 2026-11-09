@@ -57,6 +57,8 @@ export function pathDist(`],
     ctx.translate(-VIEW.x, -VIEW.y);
 `],
     [`    if (fg) ctx.drawImage(fg, VIEW.x, VIEW.y);`, `    buf.maskOff();`],
+    // the boss's adds are drawn from rows of characters: strings, which Lua cannot index
+    [`const ch = row[flip ? w - 1 - rx : rx];`, `const ch = row.charAt(flip ? w - 1 - rx : rx);`],
     // smoke is dithered rather than blended: a burning city is a lot of see-through pixels for interpreted Lua
     [`    ctx.globalAlpha = Math.min(0.9, 0.28 + 0.64 * dn ** 1.3) * born;
     ctx.drawImage(spr, Math.round(c.x) - R - 2, Math.round(c.y) - R - 2);`, `    ctx.drawDithered(spr, Math.round(c.x) - R - 2, Math.round(c.y) - R - 2, Math.min(0.9, 0.28 + 0.64 * dn ** 1.3) * born);`],
@@ -66,6 +68,29 @@ export function pathDist(`],
   'levels/farms': [
     // rows of a sprite map are strings; say so, since Lua cannot index a string
     [`const ch = r[flip ? w - x : x - 1];`, `const ch = r.charAt(flip ? w - x : x - 1);`],
+  ],
+  'levels/wall': [
+    // The wall is a drum recomposed column by column and shaded with two gradients, every frame: three quarters of
+    // this level's frame time in Lua. The picture only changes when the camera moves or a piece is hit, so it is
+    // only recomposed then.
+    [`  oc.globalCompositeOperation = 'source-over';
+  oc.clearRect(0, 0, W, TH);
+  // the wall turns about the boss`, `  // the wall turns about the boss`],
+    [`, C = V.x + piv, CR = V.x + W / 2;
+`, `, C = V.x + piv, CR = V.x + W / 2;
+  const drumKey = piv + '|' + C + '|' + m.wall.map(s => s.drawn + (s.prop && s.prop.hitT > 0 && s.prop.state === 'up' ? 'h' + Math.ceil(s.prop.hitT / 0.03) : '')).join(',');
+  const stale = off.drumKey !== drumKey;
+  off.drumKey = drumKey;
+  if (stale) {
+  oc.globalCompositeOperation = 'source-over';
+  oc.clearRect(0, 0, W, TH);
+`],
+    [`  oc.globalCompositeOperation = 'source-over';
+
+  // the wall's shadow on the water`, `  oc.globalCompositeOperation = 'source-over';
+  }
+
+  // the wall's shadow on the water`],
   ],
   save: [
     // typed arrays are tagged tables here, and nothing in a Lua graph has a constructor
@@ -155,7 +180,10 @@ Install: put this TheEndgameIsMe folder in Interface\\AddOns and /reload.
 Play:    /endgame   (also /teim)
          WASD or the arrows walk, the mouse aims, left and right click, Q, E and R are your abilities,
          Space shakes your fur, Esc pauses and gives the keyboard back to WoW.
-Options: /endgame scale 1-8 (or auto), /endgame perf, /endgame calm, /endgame mute, /endgame reset
+Options: /endgame scale 1-8 (or auto)   how many screen pixels per game pixel
+         /endgame fps 30               draw less often, if it drags your frame rate down
+         /endgame perf                 show timings in the title bar
+         /endgame calm, /endgame mute, /endgame reset (moves the window back to the middle)
 
 The game_*.lua files are generated from the game's JavaScript. Do not edit them by hand.
 `);

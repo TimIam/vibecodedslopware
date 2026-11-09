@@ -17,3 +17,8 @@ wasteland/tools/
 
 # Development tools (the local dev server and balance scripts); not part of the public site
 tools/
+
+# The Endgame is Me as a WoW addon: build tools, hand-written Lua and the two built addon folders.
+# Not part of the public site (a download page, if there is one, would ship a zip, as Party Health Pie does).
+the-endgame-is-me-addon/
+the-endgame-is-me-addon-retail/
