@@ -5,7 +5,7 @@ import { TEAMS, DRIVERS, TRACKS, COMPOUNDS, COMPOUND_ORDER, PEOPLE, POINTS, MOD_
 import { Race, rng, IN_T, OUT_T, TANK } from './race.js';
 import { PitStop } from './stop.js';
 import { bake, bakeMap, Y, BOX_X, theme, straightCar } from './scene.js';
-import { Director, LINES, rename, pepTalk, pickFresh, saveHeard, setTimeOfDay } from './banter.js';
+import { Director, LINES, rename, pepTalk, pickFresh, saveHeard, setConditions } from './banter.js';
 import { calendar, MODES, TIME_NAME } from './season.js';
 import * as C from './custom.js';
 import * as A from './audio.js';
@@ -27,6 +27,8 @@ let save = freshSave();
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && typeof s.round === 'number') save = { ...save, ...s }; } catch (e) {}
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 const cal = () => calendar(save.mode || 'short');
+// Kesselwald and Isla Grande come back dry in a long season, with lines of their own.
+const dryLines = (track, kind) => (track.dryNow && LINES.DRY_VISIT[track.id]?.[kind]) || [];
 // A long season stops for the Summer Shutdown after round 6, once.
 const dueBreak = () => save.mode === 'long' && save.round === 6 && !save.breakDone;
 const afterRace = () => go(save.round >= cal().length ? seasonScene : dueBreak() ? breakScene : calendarScene);
@@ -461,8 +463,8 @@ const calendarScene = {
 const briefingScene = {
   enter() {
     this.tr = cal()[save.round]; this.map = bakeMap(this.tr, 150, 110); this.t = 0;
-    setTimeOfDay(this.tr.time);
-    const pool = (this.tr.shutdown ? LINES.SHUTDOWN.BRIEF : LINES.BRIEF[this.tr.id]) || [['mags', 'Gloves on. Same as always.']];
+    setConditions(this.tr);
+    const pool = (this.tr.shutdown ? LINES.SHUTDOWN.BRIEF : LINES.BRIEF[this.tr.id] || []).concat(dryLines(this.tr, 'brief')) || [['mags', 'Gloves on. Same as always.']];
     this.quote = pickFresh(pool);
     saveHeard();
   },
@@ -514,7 +516,7 @@ const firstName = c => c.d.name.split(' ')[0];
 const drvKey = c => c.i === 0 ? 'nico' : 'sanna';
 
 function raceScene(track, round, { practice = false } = {}) {
-  setTimeOfDay(track.time);
+  setConditions(track);
   const seed = (Date.now() & 0xffff) + round * 7919;
   const r = rng(seed);
   const race = new Race(track, { seed, round, flagChance: practice ? 0 : 1.5 / cal().length });
@@ -523,7 +525,7 @@ function raceScene(track, round, { practice = false } = {}) {
   const dir = new Director(PEOPLE, r);
   const th = theme(track);
   const wkind = track.weather.some(w => w.wet) ? 'rain' : track.theme === 'alpine' ? 'snow' : track.theme === 'desert' ? 'sand' : 'rain';
-  const own = track.shutdown ? LINES.SHUTDOWN.TRACK_IDLE : LINES.TRACK_IDLE[track.id] || [];
+  const own = (track.shutdown ? LINES.SHUTDOWN.TRACK_IDLE : LINES.TRACK_IDLE[track.id] || []).concat(dryLines(track, 'idle'));
   const idlePool = LINES.IDLE.concat(own, own);
   const S = {
     race, track, stop: null, leaving: null, pickers: [], pepT: 0, lightsT: 0, lights: 0, go: false, paused: false, pauseSel: 0,
@@ -602,7 +604,7 @@ function raceScene(track, round, { practice = false } = {}) {
     for (const e of race.events) {
       const c = e.car;
       switch (e.type) {
-        case 'start': { const own = track.shutdown ? LINES.SHUTDOWN.TRACK_START : LINES.TRACK_START[track.id] || []; dir.sayFrom(own.length ? own : LINES.START, { x: track.name }, 2); break; }
+        case 'start': { const own = (track.shutdown ? LINES.SHUTDOWN.TRACK_START : LINES.TRACK_START[track.id] || []).concat(dryLines(track, 'start')); dir.sayFrom(own.length ? own : LINES.START, { x: track.name }, 2); break; }
         case 'boxCall': dir.sayFrom(LINES.BOXCALL, vars(c), 3); A.sfx('radio'); toast(`BOX BOX: CAR ${c.num}`, '#ff8a1e'); break;
         case 'pitEntry':
           if (c.player) { S.pickers = S.pickers.filter(p => p.car !== c); S.pickers.push({ car: c, choice: race.recommend(c), rec: race.recommend(c) }); A.sfx('radio'); }

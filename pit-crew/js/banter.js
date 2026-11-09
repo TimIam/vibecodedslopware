@@ -10,6 +10,7 @@ import * as PEP from './lines/pep.js';
 import * as FLAG from './lines/flags.js';
 import * as SHUTDOWN from './lines/shutdown.js';
 import * as NEON_DAY from './lines/neonday.js';
+import { DRY_VISIT } from './lines/dryvisit.js';
 
 const IDLE = [
   [['toby', 'Mags, how many wheel nuts have you done in your career?'], ['mags', 'All of them, Toby.']],
@@ -187,6 +188,7 @@ export const LINES = {
   BOSS: merge(BOSS, INTRO.BOSS),
   FLAG,
   SHUTDOWN,
+  DRY_VISIT,
 };
 
 // Player-chosen names: every line is written with the defaults and swapped on the way out.
@@ -228,6 +230,14 @@ const NIGHT_ONLY = /\b(floodlights?|midnight|night races?|under the lights|neon 
 const DUSK_ONLY = /\b(sunset|sundown|dusk|twilight|low sun|going purple|everything is orange|racing into gold)\b|\bsun (sets|goes down|is going down|is setting|is low|sits right on the horizon|is right behind)\b|start in daylight and finish/i;
 const NOT_NIGHT = /\b(sun|suns|sunny|sunshine|sunburnt?|sunglasses|glare|daylight|shade|afternoon)\b|sand is so bright|exit is bright|eating breakfast/i;
 const NOT_DAY = /\btonight\b/i;
+// Same for the weather: rain talk needs rain in the forecast, and "no rain" talk needs none.
+const NO_RAIN = /\bno rain\b|still no rain|probability of rain this lap: two percent|also two percent|rain has (stayed away|skipped)|wets stay in the garage|fishing out the wets/i;
+const RAIN_TALK = /\b(rain|rains|raining|rained|rainy|wet|wets|squall|radar|thunder|puddles?|umbrellas?|dry for now)\b/i;
+function textFitsSky(t, wet) {
+  if (NO_RAIN.test(t)) return !wet;
+  if (RAIN_TALK.test(t)) return wet;
+  return true;
+}
 function textFits(t, time) {
   if (NIGHT_ONLY.test(t) && time !== 'night') return false;
   if (DUSK_ONLY.test(t) && time !== 'dusk' && time !== 'sunset') return false;
@@ -236,10 +246,12 @@ function textFits(t, time) {
   return true;
 }
 const textsOf = item => typeof item === 'string' ? [item] : Array.isArray(item[0]) ? item.map(l => l[1]) : [item[1]];
-export const fitsTime = (item, time) => textsOf(item).every(t => textFits(t, time));
-let timeNow = null;
-// The time of day of the race being talked about; pickFresh only offers lines that fit it.
-export function setTimeOfDay(t) { timeNow = t || null; }
+// The dry-visit lines joke about the weather that didn't come, and only ever play on dry visits.
+const DRY_JOKES = new Set(Object.values(DRY_VISIT).flatMap(v => [...v.start, ...v.idle, ...v.brief]));
+export const fits = (item, time, wet) => textsOf(item).every(t => textFits(t, time) && (DRY_JOKES.has(item) || textFitsSky(t, wet)));
+let timeNow = null, wetNow = false;
+// The race being talked about; pickFresh only offers lines that fit its time of day and forecast.
+export function setConditions(track) { timeNow = track.time || null; wetNow = track.weather.some(w => w.wet); }
 
 const keyOf = item => typeof item === 'string' ? item : Array.isArray(item[0]) ? item[0][1] : item[1];
 
@@ -247,7 +259,7 @@ const keyOf = item => typeof item === 'string' ? item : Array.isArray(item[0]) ?
 // the rest of its pool has had a turn.
 export function pickFresh(list, r = Math.random) {
   if (!list || !list.length) return null;
-  if (timeNow) { const fit = list.filter(c => fitsTime(c, timeNow)); if (fit.length) list = fit; }
+  if (timeNow) { const fit = list.filter(c => fits(c, timeNow, wetNow)); if (fit.length) list = fit; }
   const ranked = list.map(c => ({ c, at: heard.at[keyOf(c)] || 0, k: r() })).sort((a, b) => a.at - b.at || a.k - b.k);
   const window = Math.max(1, Math.ceil(list.length / 4));
   const pick = ranked[Math.floor(r() * window)].c;
@@ -346,7 +358,7 @@ export class Director {
 // conditions, or about the basics when it's dry, mild and daylight.
 const PEP_ORDER = ['finale', 'shutdown', 'rain', 'dry', 'heat', 'cold', 'night', 'dusk', 'sand', 'walls', 'doubleStack', 'tightLane', 'slick', 'long'];
 export function pepTalk(track, r = Math.random) {
-  setTimeOfDay(track.time);
+  setConditions(track);
   const has = m => track.mods.includes(m);
   const wet = track.weather.some(w => w.wet);
   const time = track.time || 'day';
