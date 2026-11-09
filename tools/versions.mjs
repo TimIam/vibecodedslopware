@@ -29,7 +29,7 @@ const SESSIONS = {
   "pour-decisions": ["d422c125"], timberline: ["a40b8edd"], "fell-swoop": ["9120001a"], "peel-out": ["a3cda84d"],
   craps: ["78700707"], "safe-water": ["00e37866"], "par-for-the-curse": ["47f422c5", "20edeecd"],
   "pit-crew": ["1aea2484"], "the-endgame-is-me": ["30bbe722"], "projection-mayhem": ["9aea4264"],
-  "binding-order": ["73ca41e4"], shop: ["18796b08"], "park-inspector": ["2108b4e3"],
+  "binding-order": ["73ca41e4"], "hostile-fauna": ["f0033dac"], shop: ["18796b08"], "park-inspector": ["2108b4e3"],
   wasteland: ["4c2439ef"], antfarm: ["bb8a5495"], snowglobe: ["f7ab5567"], "dit-happens": ["4219778b"],
   arcade: ["81fba3dd"],
 };

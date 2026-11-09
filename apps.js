@@ -1047,8 +1047,8 @@ window.SLOPWARE = {
   },
   "par-for-the-curse": {
    "visits": 31,
-   "prompts": 30,
-   "tokens": 4409148,
+   "prompts": 31,
+   "tokens": 4665402,
    "sharedWith": null,
    "versions": [
     {
@@ -1132,8 +1132,8 @@ window.SLOPWARE = {
      "n": 12,
      "date": "2026-11-09T13:50:46-07:00",
      "note": "free-direction swing, whack your friends, no player freezes",
-     "prompts": 4,
-     "tokens": 307531
+     "prompts": 5,
+     "tokens": 563785
     }
    ]
   },
@@ -1322,6 +1322,21 @@ window.SLOPWARE = {
      "n": 3,
      "date": "2026-11-07T12:26:36-07:00",
      "note": "the seven-map campaign, sequel-style"
+    }
+   ]
+  },
+  "hostile-fauna": {
+   "visits": 0,
+   "prompts": 2,
+   "tokens": 571674,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-09T14:17:50-07:00",
+     "note": "a reverse sci-fi FPS RPG where you are the natives",
+     "prompts": 2,
+     "tokens": 571674
     }
    ]
   }
