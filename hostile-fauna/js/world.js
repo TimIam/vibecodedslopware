@@ -138,7 +138,7 @@ function makeSky(sky) {
           nb+=amp*mix(mix(mix(n000,n100,fp.x),mix(n010,n110,fp.x),fp.y),mix(mix(n001,n101,fp.x),mix(n011,n111,fp.x),fp.y),fp.z); np*=2.03; amp*=0.5; }
         c+=mix(uMid,uHor,nb)*smoothstep(0.5,0.85,nb)*smoothstep(0.1,0.5,h)*0.55*(1.0-uHaze);
         float a=atan(d.z,d.x); float band=sin(a*3.0+uT*0.05+sin(a*7.0+uT*0.11)*0.6);
-        float au=smoothstep(0.55,1.0,band)*smoothstep(0.12,0.3,h)*smoothstep(0.75,0.35,h);
+        float au=smoothstep(0.55,1.0,band)*smoothstep(0.12,0.3,h)*(1.0-smoothstep(0.35,0.75,h));
         au*=0.5+0.5*sin(a*40.0+uT*0.7+h*20.0);
         c+=mix(vec3(0.1,0.9,0.7),vec3(0.7,0.3,1.0),h*1.6)*au*0.5*uAur;
         c=mix(c,uHazeCol,uHaze*(1.0-smoothstep(0.0,0.7,h)*0.6));
@@ -617,7 +617,7 @@ export function buildWorld(def) {
   const flies = new THREE.Points(fg, new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uT: { value: 0 } },
     vertexShader: 'uniform float uT; varying float vA; void main(){ vec3 p=position; float s=p.x*12.9+p.z*78.2; p.x+=sin(uT*0.4+s)*1.5; p.y+=sin(uT*0.7+s*1.3)*0.6; p.z+=cos(uT*0.5+s*0.7)*1.5; vA=0.5+0.5*sin(uT*2.0+s); vec4 mv=modelViewMatrix*vec4(p,1.0); gl_PointSize=150.0/max(1.0,-mv.z); gl_Position=projectionMatrix*mv; }',
-    fragmentShader: 'varying float vA; void main(){ float d=length(gl_PointCoord-0.5); float a=smoothstep(0.5,0.0,d)*vA; gl_FragColor=vec4(vec3(0.6,1.0,0.8)*a*1.5,a); }',
+    fragmentShader: 'varying float vA; void main(){ float d=length(gl_PointCoord-0.5); float a=(1.0-smoothstep(0.0,0.5,d))*vA; gl_FragColor=vec4(vec3(0.6,1.0,0.8)*a*1.5,a); }',
   }));
   flies.frustumCulled = false; group.add(flies);
 

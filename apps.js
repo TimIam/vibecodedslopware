@@ -881,8 +881,8 @@ window.SLOPWARE = {
   },
   "wasteland": {
    "visits": 0,
-   "prompts": 5,
-   "tokens": 1703244,
+   "prompts": 7,
+   "tokens": 1737752,
    "sharedWith": null,
    "versions": [
     {
@@ -903,8 +903,8 @@ window.SLOPWARE = {
      "n": 3,
      "date": "2026-11-09T08:23:04-07:00",
      "note": "rotation, plots, bridges, snipers, camps, market, Gazette",
-     "prompts": 2,
-     "tokens": 1073325
+     "prompts": 4,
+     "tokens": 1107833
     }
    ]
   },
@@ -1047,7 +1047,7 @@ window.SLOPWARE = {
   },
   "par-for-the-curse": {
    "visits": 31,
-   "prompts": 32,
+   "prompts": 33,
    "tokens": 4802021,
    "sharedWith": null,
    "versions": [
@@ -1139,7 +1139,7 @@ window.SLOPWARE = {
      "n": 13,
      "date": "2026-11-09T14:41:37-07:00",
      "note": "the loading screen reports failures instead of freezing",
-     "prompts": 2,
+     "prompts": 3,
      "tokens": 394651
     }
    ]
@@ -1334,8 +1334,8 @@ window.SLOPWARE = {
   },
   "hostile-fauna": {
    "visits": 0,
-   "prompts": 8,
-   "tokens": 832415,
+   "prompts": 10,
+   "tokens": 866135,
    "sharedWith": null,
    "versions": [
     {
@@ -1351,6 +1351,13 @@ window.SLOPWARE = {
      "note": "new look, and projectiles now hit the ground",
      "prompts": 6,
      "tokens": 260741
+    },
+    {
+     "n": 3,
+     "date": "2026-11-09T15:10:26-07:00",
+     "note": "stop the screen flashing black on real GPUs",
+     "prompts": 2,
+     "tokens": 33720
     }
    ]
   }

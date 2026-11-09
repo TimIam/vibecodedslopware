@@ -29,6 +29,14 @@ const shader = {
 };
 
 export const gradePass = new ShaderPass(shader);
+
+// Runs before bloom. One pixel that isn't a number (a shader dividing by nothing on some GPU) would otherwise be
+// blurred by bloom into a whole black screen, so any such pixel is zeroed here and brightness is capped.
+export const cleanPass = new ShaderPass({
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+  fragmentShader: 'varying vec2 vUv; uniform sampler2D tDiffuse; void main(){ vec3 c=texture2D(tDiffuse,vUv).rgb; if(!(c.r>=0.0&&c.r<1e4)) c.r=0.0; if(!(c.g>=0.0&&c.g<1e4)) c.g=0.0; if(!(c.b>=0.0&&c.b<1e4)) c.b=0.0; gl_FragColor=vec4(min(c,vec3(24.0)),1.0); }',
+});
 const U = gradePass.uniforms;
 
 export const lens = {
