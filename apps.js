@@ -881,8 +881,8 @@ window.SLOPWARE = {
   },
   "wasteland": {
    "visits": 0,
-   "prompts": 4,
-   "tokens": 1481797,
+   "prompts": 5,
+   "tokens": 1569997,
    "sharedWith": null,
    "versions": [
     {
@@ -896,8 +896,15 @@ window.SLOPWARE = {
      "n": 2,
      "date": "2026-11-07T15:05:41-07:00",
      "note": "cast shadows, crisper sprites, livelier ground",
+     "prompts": 1,
+     "tokens": 66483
+    },
+    {
+     "n": 3,
+     "date": "2026-11-09T08:23:04-07:00",
+     "note": "rotation, plots, bridges, snipers, camps, market, Gazette",
      "prompts": 2,
-     "tokens": 918361
+     "tokens": 940078
     }
    ]
   },
@@ -991,7 +998,7 @@ window.SLOPWARE = {
   "par-for-the-curse": {
    "visits": 31,
    "prompts": 20,
-   "tokens": 3514130,
+   "tokens": 3519197,
    "sharedWith": null,
    "versions": [
     {
@@ -1048,7 +1055,7 @@ window.SLOPWARE = {
      "date": "2026-11-09T08:19:07-07:00",
      "note": "free swing, one cart, longer harder climb",
      "prompts": 3,
-     "tokens": 232114
+     "tokens": 237181
     }
    ]
   },

@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Wasteland Planning Commission</title>
+<meta name="description" content="A post-apocalyptic isometric city builder. Start with an outpost and a farm, salvage the ruins, recruit security against raiders and mutants, research your way from scrap to brick to vinyl siding, then build a Mobile Settlement Vehicle and found the next town.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏗️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+:root{--face:#c3bfb3;--hi:#f5f2e8;--lo:#77736a;--dk:#24221e;--ink:#1d1b18;--title1:#6e3a22;--title2:#a5532e;--good:#2f7a3a;--bad:#a8281e;--warn:#9a6a10;--paper:#efe8d6}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;overflow:hidden;background:#0c0b0a;color:var(--ink);font:14px/1.35 "Pixelify Sans",ui-monospace,Consolas,monospace;user-select:none;-webkit-user-select:none;touch-action:none}
+button{font:inherit;color:inherit}
+#view{position:fixed;left:0;right:0;top:88px;bottom:28px;width:100%;height:calc(100% - 116px);display:block;cursor:crosshair;image-rendering:pixelated}
+.bev{background:var(--face);border:2px solid;border-color:var(--hi) var(--lo) var(--lo) var(--hi);box-shadow:0 0 0 1px var(--dk)}
+.sunk{background:#dcd8cc;border:2px solid;border-color:var(--lo) var(--hi) var(--hi) var(--lo)}
+.btn{appearance:none;cursor:pointer;background:var(--face);border:2px solid;border-color:var(--hi) var(--lo) var(--lo) var(--hi);box-shadow:0 0 0 1px var(--dk);padding:3px 9px;min-height:28px;display:inline-flex;align-items:center;gap:5px;justify-content:center}
+.btn:hover{background:#cfcbbf}
+.btn:active,.btn.on{border-color:var(--lo) var(--hi) var(--hi) var(--lo);background:#aaa597}
+.btn:disabled{color:#86817a;cursor:not-allowed}
+.btn:focus-visible{outline:2px dotted var(--ink);outline-offset:-5px}
+.btn.go{background:#9fc18a}.btn.go:hover{background:#b0d29a}
+.btn.red{background:#d39a8c}
+.title{background:linear-gradient(90deg,var(--title1),var(--title2));color:#fbefd9;padding:3px 8px;font-weight:700;letter-spacing:.5px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.title .x{appearance:none;border:2px solid;border-color:var(--hi) var(--lo) var(--lo) var(--hi);background:var(--face);color:var(--ink);width:22px;height:20px;line-height:12px;padding:0;cursor:pointer;font-weight:700}
+
+/* top HUD */
+#hud{position:fixed;left:0;right:0;top:52px;height:36px;z-index:20;display:flex;align-items:center;gap:6px;padding:3px 6px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+#hud::-webkit-scrollbar{display:none}
+#town{max-width:150px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none;display:block}
+.res{display:flex;align-items:center;gap:2px;padding:1px 4px 1px 2px;height:26px;white-space:nowrap;font-size:13px;flex:none}
+.res[hidden]{display:none}
+.res img{width:18px;height:18px;image-rendering:pixelated}
+.res small{font-size:11px;color:#5a564e}
+.res small.neg{color:var(--bad)}.res small.pos{color:var(--good)}
+.res.low{animation:low .8s steps(2) infinite}
+@keyframes low{50%{background:#e8b0a0}}
+#hud .sp{flex:1}
+#rsch{min-width:120px;max-width:210px;cursor:pointer;position:relative;overflow:hidden;white-space:nowrap;flex:none}
+#rsch .bar{position:absolute;left:0;top:0;bottom:0;background:#e9cf7a;z-index:0}
+#rsch span{position:relative;z-index:1}
+#speed{display:flex;gap:2px}
+#speed .btn{min-width:30px;padding:2px 5px}
+#day{white-space:nowrap;padding:0 6px;flex:none}
+#speed,#menuBtn{flex:none}
+
+/* left tools */
+#tools{position:fixed;left:0;top:88px;bottom:28px;width:52px;z-index:20;display:flex;flex-direction:column;gap:3px;padding:4px 4px;overflow-y:auto;scrollbar-width:none}
+#tools::-webkit-scrollbar{display:none}
+#tools .btn{width:40px;height:38px;padding:0;min-height:0}
+#tools .btn img{width:28px;height:28px;image-rendering:pixelated}
+#tools hr{border:0;border-top:1px solid var(--lo);border-bottom:1px solid var(--hi);margin:2px 0;width:100%}
+#fly{position:fixed;left:56px;top:92px;width:330px;max-height:calc(100% - 132px);z-index:25;display:flex;flex-direction:column}
+#fly[hidden]{display:none}
+#flyList{overflow-y:auto;padding:4px;display:flex;flex-direction:column;gap:4px}
+.bcard{display:grid;grid-template-columns:64px 1fr;gap:6px;align-items:center;padding:4px;text-align:left;cursor:pointer;width:100%}
+.bcard img{width:64px;height:48px;object-fit:contain;image-rendering:pixelated;background:#8e8a7e;border:1px solid var(--lo)}
+.bcard b{display:block}
+.bcard .cost{display:flex;flex-wrap:wrap;gap:2px 7px;font-size:12px;margin-top:2px}
+.bcard .cost span{display:inline-flex;align-items:center;gap:2px}
+.bcard .cost img{width:12px;height:12px;border:0;background:none}
+.bcard .cost .short{color:var(--bad)}
+.bcard .meta{font-size:11.5px;color:#4c483f}
+.bcard.locked{opacity:.6}
+.bcard.locked img{filter:grayscale(1) brightness(.6)}
+
+/* inspector */
+#insp{position:fixed;right:8px;top:96px;width:290px;max-height:calc(100% - 300px);z-index:22;display:flex;flex-direction:column}
+#insp[hidden]{display:none}
+#inspBody{padding:6px 8px 8px;overflow-y:auto;font-size:13px}
+#inspBody p{margin:4px 0}
+#inspBody .row{display:flex;justify-content:space-between;gap:6px;padding:1px 0;border-bottom:1px dotted #9a958a}
+#inspBody .acts{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+#inspBody .tag{display:inline-block;padding:0 5px;margin-right:3px;border:1px solid var(--lo);background:#e2ddd0;font-size:12px}
+.ok{color:var(--good)}.no{color:var(--bad)}.wn{color:var(--warn)}
+.desc{color:#4a463e;font-size:12.5px}
+
+/* minimap */
+#mmWrap{position:fixed;right:8px;bottom:36px;z-index:21;padding:3px}
+#mm{display:block;width:256px;height:128px;image-rendering:pixelated;cursor:pointer;background:#000}
+#mmBar{display:flex;gap:3px;margin-top:3px}
+#mmBar .btn{flex:1;font-size:12px;min-height:24px;padding:0 4px}
+
+/* ticker */
+#ticker{position:fixed;left:0;right:0;bottom:0;height:28px;z-index:20;display:flex;align-items:center;gap:8px;padding:0 8px;overflow:hidden;white-space:nowrap}
+#ticker .lbl{font-weight:700;color:#fbefd9;background:var(--title1);padding:1px 6px}
+#tickText{overflow:hidden;text-overflow:ellipsis;flex:1;cursor:pointer}
+#tickText .bad{color:var(--bad)}#tickText .good{color:var(--good)}#tickText .warn{color:var(--warn)}
+
+/* memo */
+#memo{position:fixed;left:60px;bottom:36px;width:330px;z-index:21}
+#memo[hidden]{display:none}
+#memo .body{padding:6px 8px;background:var(--paper);font-size:13px}
+#memo .body b{color:var(--title1)}
+
+/* toasts */
+#toasts{position:fixed;left:50%;transform:translateX(-50%);top:98px;z-index:40;display:flex;flex-direction:column;gap:5px;align-items:center;pointer-events:none}
+.toast{padding:5px 12px;font-weight:600;animation:tin .25s steps(3)}
+.toast.bad{background:#e8b6a8}.toast.good{background:#bcd8a8}.toast.warn{background:#ead79a}
+@keyframes tin{from{transform:translateY(-8px);opacity:0}}
+
+/* modals */
+.modal{position:fixed;inset:52px 0 0;z-index:60;display:grid;place-items:center;background:rgba(10,9,8,.6)}
+.modal[hidden]{display:none}
+.win{width:min(860px,96vw);max-height:calc(100dvh - 72px);display:flex;flex-direction:column}
+.win .content{overflow:auto;padding:10px 14px}
+#titleWin{width:min(640px,96vw)}
+#titleWin h1{margin:0;font-size:34px;line-height:1.05;color:var(--title1);text-shadow:2px 2px 0 #e8d8b8}
+#titleWin h1 small{display:block;font-size:14px;color:#5a564e;letter-spacing:2px;text-shadow:none;margin-top:4px}
+#titleArt{display:block;width:100%;height:180px;image-rendering:pixelated;margin:8px 0;border:2px solid;border-color:var(--lo) var(--hi) var(--hi) var(--lo);background:#0c0b0a}
+#titleWin ul{margin:8px 0;padding-left:18px;font-size:13.5px}
+#titleWin .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+#titleWin .acts .btn{font-size:16px;padding:6px 16px}
+.keys{font-size:12px;color:#4c483f;margin-top:8px}
+kbd{display:inline-block;padding:0 4px;border:1px solid var(--lo);border-bottom-width:2px;background:#e8e4d8;font:inherit;font-size:11px}
+#tree{position:relative;margin:4px auto;}
+#tree svg{position:absolute;inset:0;pointer-events:none}
+.tnode{position:absolute;width:128px;min-height:52px;padding:4px 6px;font-size:12px;text-align:left;cursor:pointer;display:block}
+.tnode b{display:block;font-size:12.5px}
+.tnode .u{font-size:10.5px;color:#4c483f}
+.tnode.done{background:#a9c995}
+.tnode.cur{background:#ead27e}
+.tnode.lock{background:#a8a499;color:#55524a;cursor:default}
+.tnode .pb{height:4px;background:#8a7a40;margin-top:3px}
+#charterList{list-style:none;padding:0;margin:6px 0}
+#charterList li{padding:4px 0;border-bottom:1px dotted #9a958a;display:flex;gap:8px;align-items:center}
+#charterList .ck{width:18px;height:18px;display:inline-grid;place-items:center;border:2px solid;border-color:var(--lo) var(--hi) var(--hi) var(--lo);background:#fff;font-weight:700;color:var(--good)}
+.stats{display:grid;grid-template-columns:1fr auto;gap:2px 16px;max-width:360px}
+
+@media (max-width:760px){
+  #view{top:88px;bottom:76px;height:calc(100% - 164px)}
+  #tools{top:auto;bottom:28px;left:0;right:0;width:auto;height:48px;flex-direction:row;overflow-x:auto;overflow-y:hidden;padding:4px}
+  #tools hr{width:auto;height:100%;border:0;border-left:1px solid var(--lo);border-right:1px solid var(--hi);margin:0 2px}
+  #tools .btn{flex:none}
+  #fly{left:4px;right:4px;width:auto;top:auto;bottom:80px;max-height:52vh}
+  #insp{left:4px;right:4px;width:auto;top:auto;bottom:80px;max-height:44vh}
+  #mmWrap{top:92px;bottom:auto;right:4px}
+  #mm{width:160px;height:80px}
+  #mmBar{display:none}
+  #memo{left:4px;right:4px;width:auto;bottom:80px}
+  #rsch{min-width:130px}
+  .tnode{width:112px}
+}
+</style>
+<script type="module" src="./js/main.js"></script>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<canvas id="view" aria-label="Wasteland Planning Commission map"></canvas>
+
+<div id="hud" class="bev">
+  <button id="town" class="btn" title="Switch town">Founders Rest</button>
+  <div id="resBar" style="display:flex;gap:3px"></div>
+  <div class="sp"></div>
+  <button id="rsch" class="btn" title="Research (T)"><div class="bar"></div><span>Research: none</span></button>
+  <div id="day" class="sunk res">Day 1</div>
+  <div id="speed">
+    <button class="btn" data-s="0" title="Pause (Space)">❚❚</button>
+    <button class="btn" data-s="1" title="Normal (1)">▶</button>
+    <button class="btn" data-s="2" title="Fast (2)">▶▶</button>
+    <button class="btn" data-s="4" title="Fastest (3)">▶▶▶</button>
+  </div>
+  <button id="menuBtn" class="btn" title="Menu">☰</button>
+</div>
+
+<div id="tools" class="bev"></div>
+
+<div id="fly" class="bev" hidden>
+  <div class="title"><span id="flyTitle">Build</span><button class="x" data-close="fly" aria-label="Close">×</button></div>
+  <div id="flyList"></div>
+</div>
+
+<div id="insp" class="bev" hidden>
+  <div class="title"><span id="inspTitle">Inspector</span><button class="x" data-close="insp" aria-label="Close">×</button></div>
+  <div id="inspBody"></div>
+</div>
+
+<div id="mmWrap" class="bev">
+  <canvas id="mm" width="256" height="128" aria-label="Minimap"></canvas>
+  <div id="mmBar">
+    <button class="btn" id="zoomOut" title="Zoom out (-)">−</button>
+    <button class="btn" id="zoomIn" title="Zoom in (+)">+</button>
+    <button class="btn" id="homeBtn" title="Centre on the outpost (H)">Outpost</button>
+    <button class="btn" id="charterBtn" title="Commission charter (K)">Charter</button>
+  </div>
+</div>
+
+<div id="memo" class="bev" hidden>
+  <div class="title"><span>Commission memo</span><button class="x" id="memoX" aria-label="Dismiss">×</button></div>
+  <div class="body" id="memoBody"></div>
+</div>
+
+<div id="ticker" class="bev"><span class="lbl" id="tickLbl">BULLETIN</span><span id="tickText"></span></div>
+<div id="toasts"></div>
+
+<div id="titleM" class="modal">
+  <div id="titleWin" class="win bev">
+    <div class="title"><span>WPC.EXE</span></div>
+    <div class="content">
+      <h1>Wasteland Planning Commission<small>A post-apocalyptic city builder</small></h1>
+      <canvas id="titleArt" width="320" height="90"></canvas>
+      <p>The world ended. The paperwork did not. You are the Planning Commission of a dusty outpost with one farm, five settlers and a lot of junk.</p>
+      <ul>
+        <li><b>Clear debris</b> to salvage scrap, wood, stone, metal and glass. Build homes and farms; surplus food draws settlers.</li>
+        <li><b>Recruit security</b> before the mutants and raiders find you. Your people are tiny and very breakable.</li>
+        <li><b>Research</b> from scrap shacks to timber, then brick and glass, then plastic and its colourful vinyl siding.</li>
+        <li>Fulfil the <b>Charter</b>: parks, shops, a newspaper, factory and battery farms, wind and solar, electric cars, and a <b>Mobile Settlement Vehicle</b> to found the next town.</li>
+      </ul>
+      <div class="acts">
+        <button class="btn go" id="newBtn">Convene the Commission</button>
+        <button class="btn" id="contBtn" hidden>Continue</button>
+      </div>
+      <div class="keys">Drag or <kbd>WASD</kbd> to pan · wheel or <kbd>+</kbd><kbd>−</kbd> to zoom · <kbd>C</kbd> clear · <kbd>R</kbd> road · <kbd>B</kbd> bulldoze · <kbd>T</kbd> research · <kbd>Space</kbd> pause · <kbd>Esc</kbd> cancel</div>
+    </div>
+  </div>
+</div>
+
+<div id="treeM" class="modal" hidden>
+  <div class="win bev" style="width:min(1000px,98vw)">
+    <div class="title"><span>Research &amp; Blueprints</span><button class="x" data-close="treeM" aria-label="Close">×</button></div>
+    <div class="content"><p id="treeInfo" style="margin:0 0 6px"></p><div id="tree"></div></div>
+  </div>
+</div>
+
+<div id="charterM" class="modal" hidden>
+  <div class="win bev" style="width:min(520px,96vw)">
+    <div class="title"><span>The Commission Charter</span><button class="x" data-close="charterM" aria-label="Close">×</button></div>
+    <div class="content">
+      <p class="desc" style="margin:0">Article 1: rebuild. Article 2: rebuild somewhere else. Articles 3 to 40 concern parking.</p>
+      <ul id="charterList"></ul>
+      <div class="stats" id="statsBox"></div>
+    </div>
+  </div>
+</div>
+
+<div id="menuM" class="modal" hidden>
+  <div class="win bev" style="width:min(380px,94vw)">
+    <div class="title"><span>Commission business</span><button class="x" data-close="menuM" aria-label="Close">×</button></div>
+    <div class="content" style="display:flex;flex-direction:column;gap:6px">
+      <button class="btn" id="gridBtn">Toggle tile grid (G)</button>
+      <button class="btn" id="flagBtn">Toggle unstaffed markers</button>
+      <button class="btn" id="saveBtn">Save now</button>
+      <button class="btn red" id="restartBtn">Dissolve the Commission (new game)</button>
+      <p class="desc" style="margin:4px 0 0">The game saves itself to this browser every half minute.</p>
+    </div>
+  </div>
+</div>
+
+<div id="winM" class="modal" hidden>
+  <div class="win bev" style="width:min(520px,96vw)">
+    <div class="title"><span>Charter fulfilled</span><button class="x" data-close="winM" aria-label="Close">×</button></div>
+    <div class="content">
+      <h2 style="margin:0;color:var(--title1)">The wasteland is a little less waste.</h2>
+      <p>The MSV has unfolded into a new outpost, the road home is cut, and the Commission has done what the Commission set out to do. The minutes will record that it was mostly about parking.</p>
+      <div class="stats" id="winStats"></div>
+      <p class="desc">Keep going: every Vehicle Works can send another MSV.</p>
+      <button class="btn go" data-close="winM">Carry on planning</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
