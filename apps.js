@@ -1172,6 +1172,13 @@ window.SLOPWARE = {
      "note": "every fire makes smoke again, drifting on the wind",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 12,
+     "date": "2026-11-09T05:41:44-07:00",
+     "note": "the studio splash plays on every launch",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
