@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Dit Happens</title>
+<meta name="description" content="A Morse code trainer with single-A graphics. Copy signals from ships in the dark before they hit the rocks. Koch method, Farnsworth spacing, and a real telegraph key.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📡</text></svg>">
+<link rel="stylesheet" href="/site-nav.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <button class="mute" id="mute" type="button" aria-label="Toggle sound">♪ Sound on</button>
+  <a class="site-coffee" style="margin-left:0" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<main id="app">
+  <div id="stage">
+    <canvas id="sea" aria-hidden="true"></canvas>
+
+    <div id="hud" hidden>
+      <div><span id="h-night"></span><span id="h-ship"></span></div>
+      <div id="hud-right"><span id="h-tons"></span><span id="h-streak"></span></div>
+    </div>
+    <div id="callout" aria-live="polite"></div>
+    <ol id="ledger" aria-label="Ship log"></ol>
+
+    <section class="panel" id="panel-title">
+      <h1>Dit Happens</h1>
+      <div id="title-morse" aria-hidden="true"></div>
+      <p id="tagline">A Morse code trainer with <em>single-A graphics</em>.</p>
+      <p id="how">Ships signal from the dark. Type what you hear before they reach the rocks. One new letter at a time, starting with two.</p>
+      <div class="actions">
+        <button class="primary" id="start" type="button" data-primary>Report for duty</button>
+        <button class="plain" id="book" type="button">Codebook</button>
+        <button class="plain" id="settings" type="button">Settings</button>
+      </div>
+      <p id="title-progress"></p>
+    </section>
+
+    <section class="panel" id="panel-brief" hidden>
+      <h2 id="brief-night"></h2>
+      <p id="brief-line"></p>
+      <h3>Tonight's codebook</h3>
+      <div id="brief-chars"></div>
+      <p class="fine" id="brief-speed"></p>
+      <div class="actions"><button class="primary" id="brief-go" type="button" data-primary>Light the lamp</button></div>
+    </section>
+
+    <section class="panel" id="panel-intro" hidden aria-live="polite">
+      <h3>New in the codebook</h3>
+      <button id="intro-glyph" type="button" aria-label="Got it, continue"></button>
+      <div id="intro-code"></div>
+      <div id="intro-speak"></div>
+      <p id="intro-press"></p>
+      <div class="actions"><button class="plain" id="intro-again" type="button">Hear it again</button></div>
+    </section>
+
+    <section class="panel" id="panel-pause" hidden>
+      <h2>Tea break</h2>
+      <p>The ships have kindly agreed to wait.</p>
+      <div class="actions">
+        <button class="primary" id="resume" type="button" data-primary>Back to the lamp</button>
+        <button class="plain" id="quit" type="button">Abandon the night</button>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-debrief" hidden>
+      <h2 id="debrief-title"></h2>
+      <p id="debrief-verdict"></p>
+      <div class="stats">
+        <div><b id="d-acc"></b><span>copy accuracy</span></div>
+        <div><b id="d-saved"></b><span>ships saved</span></div>
+        <div><b id="d-tons"></b><span>tons saved</span></div>
+        <div><b id="d-streak"></b><span>best streak</span></div>
+      </div>
+      <p id="d-unlock"></p>
+      <div id="d-missed"></div>
+      <div class="actions">
+        <button class="primary" id="next-night" type="button" data-primary></button>
+        <button class="plain" id="debrief-home" type="button">Back to shore</button>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-book" hidden>
+      <h2>Codebook</h2>
+      <p>Tap any character to hear it. Bars show how reliably you copy it.</p>
+      <div id="book-grid"></div>
+      <div class="actions">
+        <button class="primary" id="book-drill" type="button" data-primary>Drill my weakest letters</button>
+        <button class="plain" data-back type="button">Back</button>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-settings" hidden>
+      <h2>Settings</h2>
+      <div id="settings-rows"></div>
+      <div class="actions">
+        <button class="primary" data-back type="button" data-primary>Done</button>
+        <button class="plain" id="reset" type="button">Forget my progress</button>
+      </div>
+    </section>
+  </div>
+
+  <footer id="desk">
+    <div id="meter" aria-hidden="true"><span id="meter-fill"></span></div>
+    <div id="desk-row">
+      <div id="nameplate">Harbor signal station</div>
+      <div id="slate"></div>
+      <div id="keys"></div>
+      <button id="replay" type="button" hidden>Repeat<small>Enter, half credit</small></button>
+      <button id="tkey" type="button" aria-label="Telegraph key: hold to send" hidden>
+        <svg viewBox="0 0 260 72" aria-hidden="true">
+          <rect x="30" y="56" width="200" height="12" rx="2" fill="#5c3a1e"/>
+          <rect x="30" y="56" width="200" height="3" fill="#7b5230"/>
+          <rect x="140" y="38" width="20" height="18" fill="#a57f3e"/>
+          <rect x="196" y="46" width="24" height="10" rx="1" fill="#a57f3e"/>
+          <rect x="56" y="50" width="14" height="6" fill="#d7b26b"/>
+          <g class="arm">
+            <rect x="52" y="30" width="172" height="7" rx="2" fill="#e0bb74"/>
+            <rect x="52" y="30" width="172" height="2" fill="#f7e2ae"/>
+            <rect x="59" y="16" width="8" height="15" fill="#2b2118"/>
+            <ellipse cx="63" cy="14" rx="23" ry="7" fill="#17110c"/>
+            <ellipse cx="60" cy="12" rx="13" ry="2.5" fill="#463a2d"/>
+          </g>
+        </svg>
+      </button>
+    </div>
+    <div id="desk-hint"></div>
+  </footer>
+</main>
+<script type="module" src="js/game.js"></script>
+</body>
+</html>
