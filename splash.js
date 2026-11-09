@@ -1,14 +1,15 @@
 // VIBE CODED SLOPWARE: the studio splash. No assets, no dependencies.
 //
-// Opt-in, one game at a time. Put it before the game's own scripts so it covers the first frame:
-//   <script src="/splash.js"></script>                 plays on load
-//   <script src="/splash.js" data-manual></script>     waits for SlopwareSplash.play()
-//   <script src="/splash.js" data-always></script>     plays on every load, not once per tab
+// Opt-in, one game at a time, and only once a game is in ship-shape: this splash, then the game's full title
+// animation, in sequence. Put it before the game's own scripts so it covers the first frame, and hold the title
+// until it has gone:
+//   <script src="/splash.js"></script>                 plays on every load
+//   <script src="/splash.js" data-manual></script>     for a game with something to do first (ask for sound, say):
+//                                                      waits for await SlopwareSplash.start()
 //   await SlopwareSplash.ready                         resolves when it is gone
 //
-// It plays once per tab per page, any key or tap skips it, and input never
-// reaches the game underneath while it is up. It stays out of the way of
-// headless test bots (navigator.webdriver), iframes, the home page and the shop.
+// Any key or tap skips it, and input never reaches the game underneath while
+// it is up. It stays out of the way of headless test bots (navigator.webdriver) and iframes.
 //   ?splash=1     force it        ?splash=0     suppress it
 //   ?splash=2.5   freeze at 2.5s, for screenshots
 //
@@ -660,34 +661,26 @@
   // ---- auto-play ------------------------------------------------------------
   const script = document.currentScript;
   const param = new URLSearchParams(location.search).get('splash');
-  const storageKey = 'slopware-splash:' + location.pathname;
-
-  function seen() {
-    try { return sessionStorage.getItem(storageKey) === '1'; } catch (e) { return false; }
-  }
-  function markSeen() {
-    try { sessionStorage.setItem(storageKey, '1'); } catch (e) { /* private mode: replays, fine */ }
-  }
-  function shouldAutoPlay() {
-    if (script && script.hasAttribute('data-manual')) return false;
+  function wanted() {
     if (param === '0') return false;
     if (param !== null) return true;
     if (navigator.webdriver) return false;
-    if (window.top !== window) return false;
-    if (location.pathname === '/' || location.pathname === '/shop/' || location.pathname === '/shop') return false;
-    return !!(script && script.hasAttribute('data-always')) || !seen();
+    return window.top === window;
   }
+  const held = () => script && script.hasAttribute('data-manual');
 
   const freezeAt = param !== null && param !== '' && param !== '1' && param !== '0' && !isNaN(+param) ? +param : null;
   const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   let ready = Promise.resolve();
-  if (shouldAutoPlay()) {
-    markSeen();
-    ready = play({ at: freezeAt == null ? undefined : freezeAt, still: reduced && freezeAt == null });
+  function start() {
+    if (wanted()) ready = play({ at: freezeAt == null ? undefined : freezeAt, still: reduced && freezeAt == null });
+    return ready;
   }
+  if (!held()) start();
 
   window.SlopwareSplash = {
     get ready() { return ready; },
+    start,
     play(opts) { ready = play(opts); return ready; },
     skip() { if (session) session.skip(); },
     seek(t) { if (session) session.seek(t); },

@@ -1463,5 +1463,11 @@ if (DEV) {
   };
 }
 
-go(titleScene);
-requestAnimationFrame(frame);
+// the studio splash first, then the title from its beginning
+(async () => {
+  await window.SlopwareSplash?.ready;
+  if (navigator.userActivation?.hasBeenActive) A.init();   // a click that skipped the splash already allows sound
+  last = performance.now();
+  go(titleScene);
+  requestAnimationFrame(frame);
+})();
