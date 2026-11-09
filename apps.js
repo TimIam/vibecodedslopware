@@ -103,6 +103,11 @@ window.SLOPWARE = {
      "n": 2,
      "date": "2026-11-08T13:50:10-07:00",
      "note": "add the retail Midnight download"
+    },
+    {
+     "n": 3,
+     "date": "2026-11-08T18:03:26-07:00",
+     "note": "role symbols, and a debuff color, glow and timer for dispels"
     }
    ]
   },
