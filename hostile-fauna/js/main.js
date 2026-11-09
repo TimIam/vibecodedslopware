@@ -14,7 +14,7 @@ import { P, initViewModel, updatePlayer, recompute } from './player.js';
 import { startMission, updateMission, leaveMission } from './mission.js';
 import { MISSIONS } from './missions.js';
 import { initAudio, setCombat } from './audio.js';
-import { gradePass, lens } from './post.js';
+import { gradePass, cleanPass, lens } from './post.js';
 import * as ui from './ui.js';
 
 const view = document.getElementById('view'), canvas = document.getElementById('game');
@@ -33,6 +33,7 @@ function boot() {
   S.scene.add(camera);
   composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 }));
   composer.addPass(new RenderPass(S.scene, camera));
+  composer.addPass(cleanPass);
   bloom = new UnrealBloomPass(new THREE.Vector2(4, 4), 0.42, 0.5, 1.0); bloom.enabled = S.save.opts.bloom; composer.addPass(bloom);
   composer.addPass(gradePass);
   composer.addPass(new OutputPass());

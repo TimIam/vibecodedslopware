@@ -26,7 +26,7 @@ export function initFx(sc) {
     uniforms: { uScale: { value: 600 } },
     vertexShader: `attribute vec3 aColor; attribute float aSize; attribute float aAlpha; varying vec3 vC; varying float vA; uniform float uScale;
       void main(){ vC=aColor; vA=aAlpha; vec4 mv=modelViewMatrix*vec4(position,1.0); gl_PointSize=aSize*uScale/max(0.1,-mv.z); gl_Position=projectionMatrix*mv; }`,
-    fragmentShader: `varying vec3 vC; varying float vA; void main(){ float d=length(gl_PointCoord-0.5); float a=smoothstep(0.5,0.0,d); gl_FragColor=vec4(vC*a*vA, a*vA); }`,
+    fragmentShader: `varying vec3 vC; varying float vA; void main(){ float d=length(gl_PointCoord-0.5); float a=(1.0-smoothstep(0.0,0.5,d)); gl_FragColor=vec4(vC*a*vA, a*vA); }`,
   }));
   points.frustumCulled = false; points.renderOrder = 5;
   scene.add(points);
@@ -43,7 +43,7 @@ export function initFx(sc) {
   for (let i = 0; i < 10; i++) {
     const m = new THREE.Mesh(sph, new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, uniforms: { uA: { value: 1 }, uT: { value: 0 } },
       vertexShader: 'varying vec3 vN, vV; varying vec3 vP; void main(){ vP=position; vec4 mv=modelViewMatrix*vec4(position,1.0); vN=normalize(normalMatrix*normal); vV=normalize(-mv.xyz); gl_Position=projectionMatrix*mv; }',
-      fragmentShader: 'uniform float uA,uT; varying vec3 vN, vV; varying vec3 vP; void main(){ float f=pow(1.0-abs(dot(normalize(vN),normalize(vV))),2.2); float band=0.5+0.5*sin(vP.y*14.0-uT*9.0+sin(atan(vP.z,vP.x)*3.0)*1.5); vec3 c=mix(vec3(0.25,1.0,0.9),vec3(0.75,0.5,1.0),band); gl_FragColor=vec4(c*(f*1.6+band*0.12+0.05)*uA,1.0); }' }));
+      fragmentShader: 'uniform float uA,uT; varying vec3 vN, vV; varying vec3 vP; void main(){ float f=pow(clamp(1.0-abs(dot(normalize(vN),normalize(vV))),0.0,1.0),2.2); float band=0.5+0.5*sin(vP.y*14.0-uT*9.0+sin(atan(vP.z,vP.x)*3.0)*1.5); vec3 c=mix(vec3(0.25,1.0,0.9),vec3(0.75,0.5,1.0),band); gl_FragColor=vec4(c*(f*1.6+band*0.12+0.05)*uA,1.0); }' }));
     m.visible = false; scene.add(m); bubbles.push({ m, t: 0, on: false });
   }
   const cyl = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true).rotateX(Math.PI / 2);

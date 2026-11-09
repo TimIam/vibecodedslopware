@@ -90,7 +90,7 @@ export function groundMaterial() {
         diffuseColor.rgb*=1.0-0.13*vPad*smoothstep(0.8,1.0,abs(sin(vWp.x*1.3+gN2*9.0+gN1)));`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         float gE=vedge(vWp.xz*0.1+vec2(vn(vWp.xz*0.05)*1.8));
-        float gLine=smoothstep(0.022,0.004,gE)+0.07*smoothstep(0.16,0.0,gE);
+        float gLine=(1.0-smoothstep(0.004,0.022,gE))+0.07*(1.0-smoothstep(0.0,0.16,gE));
         float gPulse=0.5+0.5*sin(uT*0.9-length(vWp.xz)*0.14+gN2*7.0);
         vec3 gCol=mix(vec3(0.08,0.9,0.75),vec3(0.6,0.28,1.0),smoothstep(0.38,0.66,gN2));
         totalEmissiveRadiance+=gCol*gLine*(0.25+0.75*gPulse)*(1.0-vPad)*uDim*0.55;`);
@@ -120,7 +120,7 @@ export function makeGrass(count, r, place, hue) {
       }`,
     fragmentShader: `uniform float uDim; varying float vH; varying vec3 vC;
       #include <fog_pars_fragment>
-      void main(){ vec3 c=vC*mix(0.1,0.6,vH*vH)+vC*pow(vH,7.0)*1.0*uDim; c=mix(vec3(dot(c,vec3(0.33))),c,0.35+0.65*uDim);
+      void main(){ vec3 c=vC*mix(0.1,0.6,vH*vH)+vC*pow(clamp(vH,0.0,1.0),7.0)*1.0*uDim; c=mix(vec3(dot(c,vec3(0.33))),c,0.35+0.65*uDim);
         gl_FragColor=vec4(c,1.0);
         #include <fog_fragment>
       }`,
@@ -206,8 +206,8 @@ const shaftMat = (color, strength) => new THREE.ShaderMaterial({
       }`,
   fragmentShader: `uniform vec3 uCol; uniform float uK,uT; varying float vY; varying vec3 vN, vV;
     #include <fog_pars_fragment>
-    void main(){ float rim=pow(abs(dot(normalize(vN),normalize(vV))),1.6); ${FOG_FADE}
-      gl_FragColor=vec4(uCol*uK*rim*pow(vY,1.4)*(1.0-ff*0.6),1.0); }`,
+    void main(){ float rim=pow(clamp(abs(dot(normalize(vN+1e-5),normalize(vV))),0.0,1.0),1.6); ${FOG_FADE}
+      gl_FragColor=vec4(uCol*uK*rim*pow(clamp(vY,0.0,1.0),1.4)*(1.0-ff*0.6),1.0); }`,
 });
 export function lightCone(h, rad, color = 0xffe9c8, strength = 0.16) {
   const g = new THREE.ConeGeometry(rad, h, 28, 1, true).translate(0, -h / 2, 0);   // apex at the origin, opening downward; uv.y is 1 at the apex
