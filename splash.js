@@ -6,6 +6,7 @@
 //   <script src="/splash.js"></script>                 plays on every load
 //   <script src="/splash.js" data-manual></script>     for a game with something to do first (ask for sound, say):
 //                                                      waits for await SlopwareSplash.start()
+//   <script src="/splash.js" data-hold></script>       stays up on its last frame until the player presses something
 //   await SlopwareSplash.ready                         resolves when it is gone
 //
 // Any key or tap skips it, and input never reaches the game underneath while
@@ -496,7 +497,8 @@
     const tagline = opts.tagline || TAGLINES[Math.random() * TAGLINES.length | 0];
     const still = !!opts.still;
     let clock = opts.at != null ? opts.at : 0, frozen = opts.at != null, last = performance.now(), raf = 0;
-    let exitAt = still ? STILL_HOLD : T.exit, durations = EXIT, ended = false;
+    const hold = !!opts.hold;
+    let exitAt = hold ? Infinity : still ? STILL_HOLD : T.exit, durations = EXIT, ended = false;
     const end = () => exitAt + (still ? STILL_FADE : durations.mosaic + durations.iris);
     let resolve;
     const promise = new Promise(r => { resolve = r; });
@@ -543,7 +545,7 @@
     }
 
     function renderAt(t) {
-      drawScene(still ? STILL_SCENE : Math.min(t, exitAt), tagline);
+      drawScene(still ? STILL_SCENE : Math.min(t, exitAt, T.exit), tagline);
       present(t);
     }
 
@@ -599,7 +601,7 @@
     let watchdog = 0;
     (function arm() {
       watchdog = setTimeout(() => {
-        if (frozen || document.visibilityState === 'hidden') arm(); else finish();
+        if (frozen || document.visibilityState === 'hidden' || (hold && exitAt === Infinity)) arm(); else finish();
       }, WATCHDOG_MS);
     })();
 
@@ -673,7 +675,7 @@
   const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   let ready = Promise.resolve();
   function start() {
-    if (wanted()) ready = play({ at: freezeAt == null ? undefined : freezeAt, still: reduced && freezeAt == null });
+    if (wanted()) ready = play({ at: freezeAt == null ? undefined : freezeAt, still: reduced && freezeAt == null, hold: script && script.hasAttribute('data-hold') });
     return ready;
   }
   if (!held()) start();
