@@ -990,8 +990,8 @@ window.SLOPWARE = {
   },
   "par-for-the-curse": {
    "visits": 31,
-   "prompts": 16,
-   "tokens": 3263815,
+   "prompts": 17,
+   "tokens": 3282016,
    "sharedWith": null,
    "versions": [
     {
@@ -1033,8 +1033,15 @@ window.SLOPWARE = {
      "n": 6,
      "date": "2026-11-04T15:22:33-07:00",
      "note": "timed swaying cannon, high plugging lob, shot arcs",
-     "prompts": 4,
-     "tokens": 898853
+     "prompts": 3,
+     "tokens": 79871
+    },
+    {
+     "n": 7,
+     "date": "2026-11-09T07:31:02-07:00",
+     "note": "run freely, drive golf carts up hard roads",
+     "prompts": 2,
+     "tokens": 837183
     }
    ]
   },
