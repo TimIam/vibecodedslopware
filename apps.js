@@ -909,6 +909,21 @@ window.SLOPWARE = {
     }
    ]
   },
+  "dit-happens": {
+   "visits": 0,
+   "prompts": 3,
+   "tokens": 296473,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-08T12:16:16-07:00",
+     "note": "a Morse code trainer with single-A graphics",
+     "prompts": 3,
+     "tokens": 296473
+    }
+   ]
+  },
   "pit-crew": {
    "visits": 19,
    "prompts": 8,
