@@ -24,32 +24,57 @@ export function canvas(w, h) {
 
 // ---------- software sprite ----------
 export class Spr {
-  constructor(w, d, top = 64, pad = 4) {
-    this.W = Math.ceil((w + d) * 16 + pad * 2 + top * 0.95); // room on the right for the cast shadow
-    this.H = Math.ceil((w + d) * 8 + top + pad * 2);
-    this.ox = d * 16 + pad; this.oy = top + pad;
+  // w, d: footprint in the building's own frame. rot 0-3: which of the four directions it is seen from.
+  constructor(w, d, top = 64, pad = 4, rot = 0) {
+    this.rot = rot & 3; this.lw = w; this.ld = d;
+    const vw = rot & 1 ? d : w, vd = rot & 1 ? w : d;
+    this.W = Math.ceil((vw + vd) * 16 + pad * 2 + top * 0.95); // room on the right for the cast shadow
+    this.H = Math.ceil((vw + vd) * 8 + top + pad * 2);
+    this.ox = vd * 16 + pad; this.oy = top + pad;
     this.buf = new Uint32Array(this.W * this.H);
+    this.zb = new Float32Array(this.W * this.H).fill(-1e9);  // depth: X+Y grows toward the viewer along any pixel's ray
     this.gnd = new Uint8Array(this.W * this.H); this.gm = 0; // which pixels are the plot's own ground
     this.shm = new Uint8Array(this.W * this.H);              // cast shadow mask
+    this.dp = 0; // depth of the last projected point, used by loose pixels and lines
     this.smoke = []; this.extra = {};
   }
-  set(x, y, c) { x |= 0; y |= 0; if (x >= 0 && y >= 0 && x < this.W && y < this.H && c) { const i = y * this.W + x; this.buf[i] = c; this.gnd[i] = this.gm; } }
-  // late-afternoon sun from the upper left: a point at height z lands this far along the ground
-  shadow(pts) {
-    const q = pts.map(([gx, gy, z]) => this.p(gx + (z * 0.78) / 16, gy - (z * 0.16) / 16, 0)).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-    const lo = [], hi = [];
-    for (const p of q) { while (lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
-    for (let i = q.length - 1; i >= 0; i--) { const p = q[i]; while (hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
-    const hull = lo.slice(0, -1).concat(hi.slice(0, -1));
-    if (hull.length < 3) return;
-    const keep = this.set; this.set = (x, y) => { if (x >= 0 && y >= 0 && x < this.W && y < this.H) this.shm[y * this.W + x] = 1; };
-    this.poly(hull, () => 1); this.set = keep;
+  // building frame -> view frame, and back
+  v(x, y) {
+    switch (this.rot) {
+      case 1: return [this.ld - y, x];
+      case 2: return [this.lw - x, this.ld - y];
+      case 3: return [y, this.lw - x];
+      default: return [x, y];
+    }
   }
-  shadowBox(x, y, w, d, z, h) { const P = []; for (const [a, b] of [[x, y], [x + w, y], [x + w, y + d], [x, y + d]]) P.push([a, b, z], [a, b, z + h]); this.shadow(P); }
-  p(gx, gy, z = 0) { return [this.ox + (gx - gy) * 16, this.oy + (gx + gy) * 8 - z]; }
-  // scanline polygon fill; fn(sx, sy) -> colour
-  poly(pts, fn) {
+  iv(X, Y) {
+    switch (this.rot) {
+      case 1: return [Y, this.ld - X];
+      case 2: return [this.lw - X, this.ld - Y];
+      case 3: return [this.lw - Y, X];
+      default: return [X, Y];
+    }
+  }
+  vdir(dx, dy) {
+    switch (this.rot) {
+      case 1: return [-dy, dx];
+      case 2: return [-dx, -dy];
+      case 3: return [dy, -dx];
+      default: return [dx, dy];
+    }
+  }
+  // which shading a surface facing this building-frame direction gets: 0 lit wall side, 1 shaded side, 2 turned away
+  faceIdx(dx, dy) { const [X, Y] = this.vdir(dx, dy); return Y > 0 ? 0 : X > 0 ? 1 : 2; }
+  set(x, y, c, d = this.dp) {
+    x |= 0; y |= 0;
+    if (x < 0 || y < 0 || x >= this.W || y >= this.H || !c) return;
+    const i = y * this.W + x;
+    if (d < this.zb[i] - 0.02) return;
+    this.zb[i] = d; this.buf[i] = c; this.gnd[i] = this.gm;
+  }
+  // returns [screen x, screen y, depth]
+  p(gx, gy, z = 0) { const [X, Y] = this.v(gx, gy); this.dp = X + Y; return [this.ox + (X - Y) * 16, this.oy + (X + Y) * 8 - z, X + Y]; }
+  scan(pts, put) {
     let y0 = 1e9, y1 = -1e9;
     for (const q of pts) { y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); }
     for (let y = Math.floor(y0); y <= Math.ceil(y1); y++) {
@@ -59,116 +84,163 @@ export class Spr {
         if ((a[1] <= yc && b[1] > yc) || (b[1] <= yc && a[1] > yc)) xs.push(a[0] + ((yc - a[1]) / (b[1] - a[1])) * (b[0] - a[0]));
       }
       xs.sort((a, b) => a - b);
-      for (let k = 0; k + 1 < xs.length; k += 2) for (let x = Math.ceil(xs[k] - 0.5); x < xs[k + 1] - 0.5; x++) this.set(x, y, fn(x, y));
+      for (let k = 0; k + 1 < xs.length; k += 2) for (let x = Math.ceil(xs[k] - 0.5); x < xs[k + 1] - 0.5; x++) put(x, y);
     }
   }
-  // a vertical wall face. side 0: the +y face (lower left), side 1: the +x face (lower right).
-  // h may be a function of the column. fn(u, v, side, len, h) -> colour
-  wall(side, x, y, w, d, z, h, fn) {
-    const [sx, sy] = side === 0 ? this.p(x, y + d, z) : this.p(x + w, y + d, z);
-    const len = Math.round((side === 0 ? w : d) * 16), X = Math.round(sx);
-    for (let c = 0; c < len; c++) {
-      const base = Math.round(sy + (side === 0 ? c * 0.5 : -c * 0.5) + (side === 0 ? 0.25 : -0.25));
-      const hh = typeof h === 'function' ? h(c) : h;
-      for (let v = 0; v < hh; v++) this.set(X + c, base - 1 - v, fn(c, v, side, len, hh));
+  // scanline polygon fill with depth interpolated across the plane; fn(sx, sy) -> colour
+  poly(pts, fn) {
+    let a = 0, b = 0, c = pts[0][2] || 0;
+    for (let k = 2; k < pts.length; k++) {
+      const [P, Q, R0] = [pts[0], pts[1], pts[k]];
+      const det = (Q[0] - P[0]) * (R0[1] - P[1]) - (R0[0] - P[0]) * (Q[1] - P[1]);
+      if (Math.abs(det) < 1e-6) continue;
+      a = ((Q[2] - P[2]) * (R0[1] - P[1]) - (R0[2] - P[2]) * (Q[1] - P[1])) / det;
+      b = ((R0[2] - P[2]) * (Q[0] - P[0]) - (Q[2] - P[2]) * (R0[0] - P[0])) / det;
+      c = P[2] - a * P[0] - b * P[1];
+      break;
     }
-    let hm = 0; for (let c = 0; c < len; c += 2) hm = Math.max(hm, typeof h === 'function' ? h(c) : h);
-    if (hm > 0 && !this.gm) this.shadowBox(side === 0 ? x : x + w, side === 0 ? y + d : y, side === 0 ? w : 0.001, side === 0 ? 0.001 : d, z, hm);
+    this.scan(pts, (x, y) => this.set(x, y, fn(x, y), a * (x + 0.5) + b * (y + 0.5) + c));
   }
-  // flat top. fn(u, v) where u, v are pixel-ish coords across the rectangle (16 per tile)
+  // late-afternoon sun from the upper left of the screen: a point at height z lands this far along the ground
+  shadow(pts) {
+    if (this.gm) return;
+    const q = pts.map(([gx, gy, z]) => {
+      const [X, Y] = this.v(gx, gy), XX = X + (z * 0.78) / 16, YY = Y - (z * 0.16) / 16;
+      return [this.ox + (XX - YY) * 16, this.oy + (XX + YY) * 8];
+    }).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const lo = [], hi = [];
+    for (const p of q) { while (lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for (let i = q.length - 1; i >= 0; i--) { const p = q[i]; while (hi.length > 1 && cr(hi[hi.length - 2], hi[hi.length - 1], p) <= 0) hi.pop(); hi.push(p); }
+    const hull = lo.slice(0, -1).concat(hi.slice(0, -1));
+    if (hull.length < 3) return;
+    this.scan(hull, (x, y) => { if (x >= 0 && y >= 0 && x < this.W && y < this.H) this.shm[y * this.W + x] = 1; });
+  }
+  shadowBox(x, y, w, d, z, h) { const P = []; for (const [a, b] of [[x, y], [x + w, y], [x + w, y + d], [x, y + d]]) P.push([a, b, z], [a, b, z + h]); this.shadow(P); }
+  // a vertical wall. face, in the building's own frame: 0 the +y wall, 1 +x, 2 -y, 3 -x. Faces turned away are not drawn.
+  // inner draws the inside of a far wall instead (for roofless ruins). h may be a function of the column.
+  // fn(u, v, side, len, h, face) -> colour, where side is 0 or 1 for how the wall sits in this view
+  wall(face, x, y, w, d, z, h, fn, inner = false) {
+    const e = [[x, y + d, x + w, y + d], [x + w, y + d, x + w, y], [x + w, y, x, y], [x, y, x, y + d]][face];
+    let A = this.p(e[0], e[1], z), Z = this.p(e[2], e[3], z);
+    const seen = Z[0] > A[0];
+    const span = Math.round(Math.abs(Z[0] - A[0]));
+    if (!inner) {
+      let hm = 0;
+      for (let c = 0; c < span; c += 2) hm = Math.max(hm, typeof h === 'function' ? h(c) : h);
+      if (hm > 0) this.shadowBox(Math.min(e[0], e[2]), Math.min(e[1], e[3]), Math.abs(e[2] - e[0]) || 0.001, Math.abs(e[3] - e[1]) || 0.001, z, hm);
+    }
+    if (seen === inner) return;
+    if (inner) [A, Z] = [Z, A];
+    const side = Z[1] > A[1] ? 0 : 1, X = Math.round(A[0]);
+    for (let c = 0; c < span; c++) {
+      const base = Math.round(A[1] + (side === 0 ? c * 0.5 + 0.25 : -c * 0.5 - 0.25));
+      const hh = typeof h === 'function' ? h(c) : h, dep = A[2] + ((Z[2] - A[2]) * (c + 0.5)) / span;
+      for (let v = 0; v < hh; v++) this.set(X + c, base - 1 - v, fn(c, v, side, span, hh, face), dep);
+    }
+  }
+  walls(x, y, w, d, z, h, fn) { for (let f = 0; f < 4; f++) this.wall(f, x, y, w, d, z, h, fn); }
+  // flat top. fn(u, v, sx, sy) where u, v run across the rectangle, 16 per tile, in the building's own frame
   top(x, y, w, d, z, fn) {
     const pts = [this.p(x, y, z), this.p(x + w, y, z), this.p(x + w, y + d, z), this.p(x, y + d, z)];
     const ox = this.ox, oy = this.oy - z;
     this.poly(pts, (sx, sy) => {
-      const X = sx + 0.5 - ox, Y = sy + 0.5 - oy;
-      const gx = (X / 16 + Y / 8) / 2, gy = (Y / 8 - X / 16) / 2;
+      const S0 = sx + 0.5 - ox, T0 = sy + 0.5 - oy;
+      const [gx, gy] = this.iv((S0 / 16 + T0 / 8) / 2, (T0 / 8 - S0 / 16) / 2);
       return fn((gx - x) * 16, (gy - y) * 16, sx, sy);
     });
   }
   box(x, y, w, d, z, h, m) {
-    this.wall(0, x, y, w, d, z, h, m.wall);
-    this.wall(1, x, y, w, d, z, h, m.wall);
+    this.walls(x, y, w, d, z, h, m.wall);
     if (m.top) this.top(x, y, w, d, z + h, m.top);
   }
-  line(x0, y0, x1, y1, c) {
+  line(x0, y0, x1, y1, c, d0 = this.dp, d1 = d0) {
     x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
-    const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
-    let e = dx + dy;
+    const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, steps = Math.max(dx, -dy) || 1;
+    let e = dx + dy, n = 0;
     for (;;) {
-      this.set(x0, y0, typeof c === 'function' ? c(x0, y0) : c);
+      this.set(x0, y0, typeof c === 'function' ? c(x0, y0) : c, d0 + ((d1 - d0) * n) / steps);
       if (x0 === x1 && y0 === y1) break;
       const e2 = 2 * e;
       if (e2 >= dy) { e += dy; x0 += sx; }
       if (e2 <= dx) { e += dx; y0 += sy; }
+      n++;
     }
   }
   // upright cylinder (tanks, silos). base colour array; top colour array.
   cyl(cx, cy, r, z, h, col, topc, bands = 0) {
-    const [sx, sy] = this.p(cx, cy, z), rx = r * 22.6, ry = r * 11.3;
+    const [sx, sy, D] = this.p(cx, cy, z), rx = r * 22.6, ry = r * 11.3;
     for (let x = Math.ceil(sx - rx); x <= sx + rx; x++) {
       const t = (x + 0.5 - sx) / rx; if (Math.abs(t) > 1) continue;
-      const ey = ry * Math.sqrt(1 - t * t), f = 1.08 - 0.42 * ((t + 1) / 2) - (t < -0.85 ? 0.12 : 0);
+      const q = Math.sqrt(1 - t * t), ey = ry * q, f = 1.08 - 0.42 * ((t + 1) / 2) - (t < -0.85 ? 0.12 : 0), front = D + r * 1.414 * q;
       for (let y = Math.round(sy - h + ey); y < Math.round(sy + ey); y++) {
         const band = bands && ((Math.round(sy + ey) - y) % bands === 0) ? 0.82 : 1;
-        this.set(x, y, sh(col, f * band * (0.97 + hash(x, y, 7) * 0.06)));
+        this.set(x, y, sh(col, f * band * (0.97 + hash(x, y, 7) * 0.06)), front);
       }
-      for (let y = Math.round(sy - h - ey); y < Math.round(sy - h + ey); y++) this.set(x, y, sh(topc, 1.05 + (y - (sy - h)) / ry * 0.08 - (Math.abs(t) > 0.9 ? 0.1 : 0)));
+      for (let y = Math.round(sy - h - ey); y < Math.round(sy - h + ey); y++) this.set(x, y, sh(topc, 1.05 + (y - (sy - h)) / ry * 0.08 - (Math.abs(t) > 0.9 ? 0.1 : 0)), D + (y + 0.5 - (sy - h)) / 8);
     }
-    const P = []; for (let k = 0; k < 12; k++) { const a = (k / 12) * Math.PI * 2, gx = cx + Math.cos(a) * r, gy = cy + Math.sin(a) * r; P.push([gx, gy, z], [gx, gy, z + h]); }
+    const P = [];
+    for (let k = 0; k < 12; k++) { const a = (k / 12) * Math.PI * 2, gx = cx + Math.cos(a) * r, gy = cy + Math.sin(a) * r; P.push([gx, gy, z], [gx, gy, z + h]); }
     this.shadow(P);
+    this.dp = D;
   }
-  // gable roof with ridge along x (slopes face +y and -y)
+  // gable roof, ridge along the building's x axis (slopes face +y and -y, gable ends +x and -x)
   gableX(x, y, w, d, z, rh, roof, gable, o = 0.08) {
     const X0 = x - o, X1 = x + w + o, Y0 = y - o, Y1 = y + d + o, ym = y + d / 2;
-    const back = [this.p(X0, Y0, z - 1), this.p(X1, Y0, z - 1), this.p(X1, ym, z + rh), this.p(X0, ym, z + rh)];
-    const front = [this.p(X0, Y1, z - 1), this.p(X1, Y1, z - 1), this.p(X1, ym, z + rh), this.p(X0, ym, z + rh)];
+    const ax = this.vdir(1, 0)[0] !== 0 ? 'x' : 'y', fa = this.faceIdx(0, 1), fb = this.faceIdx(0, -1);
     this.shadow([[X0, Y0, z], [X1, Y0, z], [X1, Y1, z], [X0, Y1, z], [X0, ym, z + rh], [X1, ym, z + rh]]);
-    this.poly(back, (sx, sy) => roof(sx, sy, 2, 'x'));
-    this.wall(1, x, y, w, d, z, (c) => Math.max(0, Math.round(rh * (1 - Math.abs(c / (d * 16) - 0.5) * 2))), gable);
-    this.poly(front, (sx, sy) => roof(sx, sy, 0, 'x'));
+    const tri = (c) => Math.max(0, Math.round(rh * (1 - Math.abs(c / (d * 16) - 0.5) * 2)));
+    this.wall(1, x, y, w, d, z, tri, gable); this.wall(3, x, y, w, d, z, tri, gable);
+    this.poly([this.p(X0, Y0, z - 1), this.p(X1, Y0, z - 1), this.p(X1, ym, z + rh), this.p(X0, ym, z + rh)], (sx, sy) => roof(sx, sy, fb, ax));
+    this.poly([this.p(X0, Y1, z - 1), this.p(X1, Y1, z - 1), this.p(X1, ym, z + rh), this.p(X0, ym, z + rh)], (sx, sy) => roof(sx, sy, fa, ax));
     const a = this.p(X0, ym, z + rh), b = this.p(X1, ym, z + rh);
-    this.line(a[0], a[1], b[0], b[1], (sx, sy) => roof(sx, sy, 3, 'x'));
+    this.line(a[0], a[1], b[0], b[1], (sx, sy) => roof(sx, sy, 3, ax), a[2] + 0.05, b[2] + 0.05);
   }
-  // gable roof with ridge along y (slopes face +x and -x)
+  // gable roof, ridge along the building's y axis (slopes face +x and -x, gable ends +y and -y)
   gableY(x, y, w, d, z, rh, roof, gable, o = 0.08) {
     const X0 = x - o, X1 = x + w + o, Y0 = y - o, Y1 = y + d + o, xm = x + w / 2;
-    const back = [this.p(X0, Y0, z - 1), this.p(X0, Y1, z - 1), this.p(xm, Y1, z + rh), this.p(xm, Y0, z + rh)];
-    const front = [this.p(X1, Y0, z - 1), this.p(X1, Y1, z - 1), this.p(xm, Y1, z + rh), this.p(xm, Y0, z + rh)];
+    const ax = this.vdir(0, 1)[0] !== 0 ? 'x' : 'y', fa = this.faceIdx(1, 0), fb = this.faceIdx(-1, 0);
     this.shadow([[X0, Y0, z], [X1, Y0, z], [X1, Y1, z], [X0, Y1, z], [xm, Y0, z + rh], [xm, Y1, z + rh]]);
-    this.poly(back, (sx, sy) => roof(sx, sy, 2, 'y'));
-    this.poly(front, (sx, sy) => roof(sx, sy, 1, 'y'));
-    this.wall(0, x, y, w, d, z, (c) => Math.max(0, Math.round(rh * (1 - Math.abs(c / (w * 16) - 0.5) * 2))), gable);
+    const tri = (c) => Math.max(0, Math.round(rh * (1 - Math.abs(c / (w * 16) - 0.5) * 2)));
+    this.wall(0, x, y, w, d, z, tri, gable); this.wall(2, x, y, w, d, z, tri, gable);
+    this.poly([this.p(X0, Y0, z - 1), this.p(X0, Y1, z - 1), this.p(xm, Y1, z + rh), this.p(xm, Y0, z + rh)], (sx, sy) => roof(sx, sy, fb, ax));
+    this.poly([this.p(X1, Y0, z - 1), this.p(X1, Y1, z - 1), this.p(xm, Y1, z + rh), this.p(xm, Y0, z + rh)], (sx, sy) => roof(sx, sy, fa, ax));
     const a = this.p(xm, Y0, z + rh), b = this.p(xm, Y1, z + rh);
-    this.line(a[0], a[1], b[0], b[1], (sx, sy) => roof(sx, sy, 3, 'y'));
+    this.line(a[0], a[1], b[0], b[1], (sx, sy) => roof(sx, sy, 3, ax), a[2] + 0.05, b[2] + 0.05);
   }
-  // single-pitch roof, high at the back (-x,-y corner side), for scrap lean-tos
-  lean(x, y, w, d, z, hb, roof) {
+  // single-pitch roof, high at the -x,-y corner, for scrap lean-tos. wall fills the gap under the raised eaves.
+  lean(x, y, w, d, z, hb, roof, wall = null) {
     const pts = [this.p(x - 0.06, y - 0.06, z + hb), this.p(x + w + 0.06, y - 0.06, z + hb * 0.5), this.p(x + w + 0.06, y + d + 0.06, z - 1), this.p(x - 0.06, y + d + 0.06, z + hb * 0.5)];
     this.shadow([[x, y, z + hb], [x + w, y, z + hb * 0.5], [x + w, y + d, z], [x, y + d, z + hb * 0.5]]);
     this.poly(pts, (sx, sy) => roof(sx, sy, 0, 'l'));
+    if (wall) {
+      const ramp = (a, b, L) => (c) => Math.round(a + ((b - a) * c) / (L * 16));
+      this.wall(0, x, y, w, d, z, ramp(hb * 0.5, 0, w), wall); this.wall(1, x, y, w, d, z, ramp(0, hb * 0.5, d), wall);
+      this.wall(2, x, y, w, d, z, ramp(hb * 0.5, hb, w), wall); this.wall(3, x, y, w, d, z, ramp(hb, hb * 0.5, d), wall);
+    }
   }
   done() {
-    const W = this.W, B = this.buf, solid = (i) => B[i] && !this.gnd[i];
+    const W = this.W, B0 = this.buf, solid = (i) => B0[i] && !this.gnd[i];
     // darken the silhouette edge of everything standing up, so it reads against the ground
     const edge = [];
     for (let y = 1; y < this.H - 1; y++) for (let x = 1; x < W - 1; x++) {
       const i = y * W + x;
       if (solid(i) && (!solid(i + 1) || !solid(i + W) || !solid(i - 1) || !solid(i - W))) edge.push(i);
     }
-    for (const i of edge) { const c = B[i]; B[i] = pk((c & 255) * 0.78, ((c >> 8) & 255) * 0.78, ((c >> 16) & 255) * 0.78); }
+    for (const i of edge) { const c = B0[i]; B0[i] = pk((c & 255) * 0.78, ((c >> 8) & 255) * 0.78, ((c >> 16) & 255) * 0.78); }
     // cast shadows: onto bare ground as translucent dark, onto the plot's own ground as a darker shade
-    for (let i = 0; i < B.length; i++) {
+    for (let i = 0; i < B0.length; i++) {
       if (!this.shm[i]) continue;
-      if (!B[i]) B[i] = pk(26, 18, 10, 112);
-      else if (this.gnd[i]) { const c = B[i]; B[i] = pk((c & 255) * 0.66, ((c >> 8) & 255) * 0.64, ((c >> 16) & 255) * 0.62); }
+      if (!B0[i]) B0[i] = pk(26, 18, 10, 112);
+      else if (this.gnd[i]) { const c = B0[i]; B0[i] = pk((c & 255) * 0.66, ((c >> 8) & 255) * 0.64, ((c >> 16) & 255) * 0.62); }
     }
     // crop to content
     let x0 = this.W, y0 = this.H, x1 = -1, y1 = -1;
-    for (let y = 0; y < this.H; y++) for (let x = 0; x < this.W; x++) if (this.buf[y * this.W + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    for (let y = 0; y < this.H; y++) for (let x = 0; x < this.W; x++) if (B0[y * this.W + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
     if (x1 < 0) { x0 = y0 = 0; x1 = y1 = 0; }
     const w = x1 - x0 + 1, h = y1 - y0 + 1, c = canvas(w, h), ctx = c.getContext('2d');
     const id = ctx.createImageData(w, h), out = new Uint32Array(id.data.buffer);
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) out[y * w + x] = this.buf[(y + y0) * this.W + x + x0];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) out[y * w + x] = B0[(y + y0) * this.W + x + x0];
     ctx.putImageData(id, 0, 0);
     return { c, ax: this.ox - x0, ay: this.oy - y0, w, h, smoke: this.smoke.map(([x, y]) => [x - this.ox, y - this.oy]), extra: Object.fromEntries(Object.entries(this.extra).map(([k, [x, y]]) => [k, [x - this.ox, y - this.oy]])) };
   }
@@ -294,8 +366,8 @@ const WIN = {
 export function facade(m, o) {
   const st = o.storey || 11, ww = o.ww || 3, wh = o.wh || 4, sp = o.sp || 7, style = o.siding ? 3 : o.era;
   const W = WIN[style];
-  return (u, v, side, len, h) => {
-    const door = o.door !== false && side === (o.doorSide || 0);
+  return (u, v, side, len, h, face = 0) => {
+    const door = o.door !== false && face === (o.doorSide || 0);
     if (door) {
       const du = o.doorU != null ? o.doorU : Math.floor(len / 2) - 1, dw = o.dw || 3, dh = o.dh || 6;
       if (u >= du && u < du + dw && v < dh) {
@@ -356,13 +428,12 @@ function flag(S, x, y, z, h, col) {
 function block(S, o, x, y, w, d, h, opt = {}) {
   const m = opt.mat || wallMat(o, opt.kind);
   const f = facade(m.wall, { era: o.era, siding: o.siding && opt.kind !== 'industrial', hue: o.hue, seed: o.seed, ...opt.f });
-  S.wall(0, x, y, w, d, 0, h, f);
-  S.wall(1, x, y, w, d, 0, h, f);
+  S.walls(x, y, w, d, 0, h, f);
   const roof = opt.roof || (o.era === 0 ? 'lean' : o.era === 1 ? 'gable' : opt.flat ? 'flat' : 'gable');
   const rf = opt.roofFn || roofOf(o);
   if (roof === 'flat') {
     S.top(x, y, w, d, h, (u, v, sx, sy) => (u < 1 || v < 1 || u > w * 16 - 1 || v > d * 16 - 1 ? sh([150, 146, 138], 1.1) : (o.era === 2 && !o.siding ? sh([84, 82, 80], n(sx, sy, o.seed, 0.12)) : m.top(u, v, sx, sy))));
-  } else if (roof === 'lean') S.lean(x, y, w, d, h, opt.rh || 5, rf);
+  } else if (roof === 'lean') S.lean(x, y, w, d, h, opt.rh || 5, rf, m.wall);
   else if (roof === 'gable') ((opt.axis || (o.hue % 2 ? 'x' : 'y')) === 'x' ? S.gableX(x, y, w, d, h, opt.rh || Math.round(Math.min(w, d) * 9), rf, f) : S.gableY(x, y, w, d, h, opt.rh || Math.round(Math.min(w, d) * 9), rf, f));
   else if (roof === 'none') S.top(x, y, w, d, h, m.top);
 }
@@ -443,7 +514,7 @@ R.outpost = (S, o) => {
     // a scrap palisade, a shack, a lookout and a flag
     const pal = matScrap(o.seed + 5);
     S.wall(0, 0.05, 0.05, 1.9, 1.9, 0, (c) => (c > 13 && c < 19 ? 0 : 5 + (hash(c >> 1, 1, o.seed) * 3 | 0)), pal.wall);
-    S.wall(1, 0.05, 0.05, 1.9, 1.9, 0, (c) => 5 + (hash(c >> 1, 2, o.seed) * 3 | 0), pal.wall);
+    for (const f of [1, 2, 3]) S.wall(f, 0.05, 0.05, 1.9, 1.9, 0, (c) => 5 + (hash(c >> 1, f + 1, o.seed) * 3 | 0), pal.wall);
     block(S, o, 0.35, 0.3, 1.05, 0.9, 13, { rh: 6, f: { doorU: 6 } });
     S.cyl(1.55, 0.45, 0.16, 0, 9, H('#5f7a8a'), H('#4a6575'), 3);
     tree(S, 1.6, 1.6, 0, o.seed, false);
@@ -495,8 +566,7 @@ R.farm = (S, o) => {
 R.greenhouse = (S, o) => {
   ground(S, 0, 0, 2, 2, gravelFn(o.seed));
   const g = matGlass(o.era === 1 ? '#8a6a44' : o.siding ? '#f3efe4' : '#d8d6cf');
-  S.wall(0, 0.15, 0.15, 1.7, 1.7, 0, 12, g.wall);
-  S.wall(1, 0.15, 0.15, 1.7, 1.7, 0, 12, g.wall);
+  S.walls(0.15, 0.15, 1.7, 1.7, 0, 12, g.wall);
   S.gableX(0.15, 0.15, 1.7, 1.7, 12, 10, (sx, sy, face) => ((sx % 6 === 0) ? sh([210, 208, 200], 1) : sh([150, 205, 214], [1, 0.85, 1.1, 1.2][face] + (hash(sx, sy, 4) < 0.15 ? 0.15 : 0))), g.wall, 0.04);
 };
 R.factoryfarm = (S, o) => {
@@ -711,61 +781,31 @@ R.barracks = (S, o) => {
   for (let k = 0; k < 7; k++) S.box(0.2 + k * 0.22, 1.5, 0.18, 0.14, 0, 3, { wall: (u, v, s) => sh([150, 136, 100], LIGHT[s] * (v === 1 ? 0.8 : 1)), top: () => sh([170, 156, 116], 1) });
   flag(S, 1.85, 1.85, 0, 20, '#5a7a4a');
 };
-R.evplant = (S, o) => {
-  ground(S, 0, 0, 3, 3, asphaltFn(o.seed));
-  const m = o.siding ? matMetal(['#7da0b5', '#c4a35a', '#b56a5a', '#8b86b8', '#7fae7a', '#6f9fcf'][o.hue], o.seed) : matConcrete(o.seed, H('#bab6ad'));
-  S.wall(0, 0.1, 0.1, 2.6, 1.9, 0, 16, facade(m.wall, { era: 2, siding: false, hue: o.hue, seed: o.seed, sp: 8, ww: 5, wh: 3, dw: 7, dh: 11 }));
-  S.wall(1, 0.1, 0.1, 2.6, 1.9, 0, 16, facade(m.wall, { era: 2, door: false, sp: 8, ww: 5, wh: 3 }));
-  // sawtooth roof: north-light strips
-  for (let k = 0; k < 5; k++) {
-    const y0 = 0.1 + k * 0.38;
-    const pts = [S.p(0.1, y0, 16), S.p(2.7, y0, 16), S.p(2.7, y0 + 0.38, 24), S.p(0.1, y0 + 0.38, 24)];
-    S.poly(pts, (sx, sy) => sh([160, 164, 166], 1.05 * n(sx, sy, k, 0.04)));
-    const g = [S.p(0.1, y0 + 0.38, 24), S.p(2.7, y0 + 0.38, 24), S.p(2.7, y0 + 0.38, 16), S.p(0.1, y0 + 0.38, 16)];
-    S.poly(g, (sx, sy) => sh([120, 170, 200], 1 + (sx % 5 === 0 ? -0.3 : 0)));
-  }
-  S.wall(1, 0.1, 0.1, 2.6, 1.9, 16, (c) => Math.round(8 * ((c % 6) / 6)), m.wall);
-  for (let k = 0; k < 5; k++) { const [sx, sy] = S.p(0.4 + k * 0.5, 2.55, 0); const c = H(['#7fc4c0', '#f0cf6a', '#ef9a83', '#86b6e8', '#9fd38c'][k]); for (let x = 0; x < 4; x++) for (let y = 0; y < 2; y++) S.set(sx + x, sy - y - (x >> 1), sh(c, y ? 1.1 : 0.85)); }
-};
-R.vworks = (S, o) => {
-  ground(S, 0, 0, 3, 3, asphaltFn(o.seed));
-  // a barrel-vaulted hangar along x
-  const L = 2.8, Y0 = 0.15, D = 1.9, Hh = 14, rise = 14;
-  const m = o.siding ? matMetal(['#7da0b5', '#c4a35a', '#b56a5a', '#8b86b8', '#7fae7a', '#6f9fcf'][o.hue], o.seed) : matMetal('#9aa1a5', o.seed);
-  for (let k = 0; k <= 40; k++) {
-    const t = k / 40, y = Y0 + D * t, z = Hh + rise * Math.sin(Math.PI * t), z2 = Hh + rise * Math.sin(Math.PI * Math.min(1, t + 1 / 40));
-    const pts = [S.p(0.1, y, z), S.p(0.1 + L, y, z), S.p(0.1 + L, y + D / 40 + 0.005, z2), S.p(0.1, y + D / 40 + 0.005, z2)];
-    const f = 0.8 + 0.4 * Math.cos(Math.PI * t * 0.9);
-    S.poly(pts, (sx) => sh(hex(o.siding ? ['#7da0b5', '#c4a35a', '#b56a5a', '#8b86b8', '#7fae7a', '#6f9fcf'][o.hue] : '#a9b0b4'), f * (sx % 4 === 0 ? 1.08 : 1)));
-  }
-  S.wall(1, 0.1, Y0, L, D, 0, (c) => Math.round(Hh + rise * Math.sin(Math.PI * (c / (D * 16)))), facade(m.wall, { era: 2, door: false, sp: 9, ww: 4, wh: 3 }));
-  S.wall(0, 0.1, Y0, L, D, 0, Hh, facade(m.wall, { era: 2, sp: 9, ww: 4, wh: 3, dw: 18, dh: 12, doorU: 14 }));
-  // gantry crane over the yard
-  const y = 2.6, cA = S.p(0.2, y, 0), cB = S.p(0.2, y, 22), cC = S.p(2.8, y, 22), cD = S.p(2.8, y, 0);
-  const ye = sh([214, 172, 52], 1);
-  S.line(cA[0], cA[1], cB[0], cB[1], ye); S.line(cD[0], cD[1], cC[0], cC[1], ye); S.line(cB[0], cB[1], cC[0], cC[1], ye); S.line(cB[0], cB[1] - 1, cC[0], cC[1] - 1, sh([170, 136, 40], 1));
-};
 // ---------- MSV ----------
-export function msvSprite(axis) {
-  const S = new Spr(axis ? 0.6 : 1.4, axis ? 1.4 : 0.6, 28, 3);
-  const w = axis ? 0.6 : 1.4, d = axis ? 1.4 : 0.6;
-  const body = { wall: (u, v, s, len) => sh(v === 6 || v === 7 ? [216, 120, 50] : (u % 9 === 4 && v > 9 && v < 13) ? [70, 110, 140] : [176, 168, 128], LIGHT[s] * n(u, v, 3, 0.03)), top: (u, v, sx, sy) => sh([164, 158, 124], 1.1 * n(sx, sy, 2, 0.04)) };
+export const MSV_SIZE = [1.4, 0.6];
+const msvCache = {};
+export function msvSprite(rot) {
+  if (msvCache[rot]) return msvCache[rot];
+  const [w, d] = MSV_SIZE, S = new Spr(w, d, 30, 3, rot);
+  const body = { wall: (u, v, s2) => sh(v === 6 || v === 7 ? [216, 120, 50] : (u % 9 === 4 && v > 9 && v < 13) ? [70, 110, 140] : [176, 168, 128], LIGHT[s2] * n(u, v, 3, 0.03)), top: (u, v, sx, sy) => sh([164, 158, 124], 1.1 * n(sx, sy, 2, 0.04)) };
   S.box(0.02, 0.02, w - 0.04, d - 0.04, 3, 15, body);
-  // wheels
-  const wheels = axis ? [[w - 0.02, 0.25], [w - 0.02, 0.7], [w - 0.02, 1.15]] : [[0.25, d - 0.02], [0.7, d - 0.02], [1.15, d - 0.02]];
-  for (const [x, y] of wheels) { const [sx, sy] = S.p(x, y, 2); for (let yy = -2; yy <= 2; yy++) for (let xx = -2; xx <= 2; xx++) if (xx * xx + yy * yy <= 5) S.set(sx + xx, sy + yy, sh([34, 32, 30], xx * xx + yy * yy < 2 ? 2.4 : 1)); }
-  // roof gear: a folded tower and a dish
-  S.box(axis ? 0.15 : 0.9, axis ? 0.9 : 0.15, 0.3, 0.3, 18, 6, matMetal('#8e979c'));
-  const [sx, sy] = S.p(axis ? 0.3 : 0.3, axis ? 0.3 : 0.3, 18); S.line(sx, sy, sx, sy - 8, sh([200, 200, 200], 1)); S.set(sx, sy - 9, sh([255, 80, 60], 1));
-  return S.done();
+  for (const y of [0, d - 0.05]) for (const x of [0.2, 0.65, 1.1]) S.box(x, y, 0.2, 0.05, 0, 5, { wall: (u, v, s2) => sh([34, 32, 30], LIGHT[s2] * (v === 2 ? 1.8 : 1)), top: () => sh([44, 42, 40], 1) });
+  // cab windows at the front, a folded tower and a mast on the roof
+  S.box(w - 0.3, 0.06, 0.26, d - 0.12, 18, 4, { wall: (u, v, s2) => sh([80, 120, 150], LIGHT[s2]), top: () => sh([150, 146, 118], 1.1) });
+  S.box(0.3, 0.15, 0.3, 0.3, 18, 6, matMetal('#8e979c'));
+  const m0 = S.p(0.15, 0.3, 18), m1 = S.p(0.15, 0.3, 26);
+  S.line(m0[0], m0[1], m1[0], m1[1], sh([200, 200, 200], 1), m0[2], m1[2]);
+  S.set(m1[0], m1[1] - 1, sh([255, 80, 60], 1), m1[2]);
+  msvCache[rot] = S.done();
+  return msvCache[rot];
 }
 
 // ---------- debris ----------
 const RUIN_C = [H('#8f8b82'), H('#9a7c66'), H('#7d7a74')];
-export function featureSprite(f, fv) {
+export function featureSprite(f, fv, rot = 0) {
   const s = fv * 13 + 7;
   if (f === F.TREE) {
-    const S = new Spr(1, 1, 30, 2);
+    const S = new Spr(1, 1, 30, 2, rot);
     const [sx, sy] = S.p(0.5 + (hash(s, 1) - 0.5) * 0.4, 0.5 + (hash(s, 2) - 0.5) * 0.4, 0);
     const hgt = 10 + (hash(s, 3) * 10 | 0), col = [H('#4a3b2e'), H('#5c4a3a'), H('#3b3029')][fv % 3];
     { const gx = 0.5 + (hash(s, 1) - 0.5) * 0.4, gy = 0.5 + (hash(s, 2) - 0.5) * 0.4; S.shadow([[gx, gy, 0], [gx + 0.04, gy, 0], [gx, gy, hgt], [gx + 0.04, gy, hgt]]); }
@@ -779,7 +819,7 @@ export function featureSprite(f, fv) {
   }
   if (f === F.RUIN) {
     const hgt = 9 + Math.round((fv / 255) * 48);
-    const S = new Spr(1, 1, hgt + 8, 2);
+    const S = new Spr(1, 1, hgt + 8, 2, rot);
     const kind = fv % 3, col = RUIN_C[kind];
     const jag = (c) => Math.max(3, hgt - Math.round(Math.abs(Math.sin(c * 0.7 + fv)) * 6 + hash(c >> 1, 5, s) * 9));
     const wall = (u, v, side, len, h) => {
@@ -792,18 +832,18 @@ export function featureSprite(f, fv) {
     };
     const inner = (u, v, side, len, h) => sh(col, (side === 0 ? 0.6 : 0.5) * n(u, v, s + 1, 0.08));
     // inner back walls first, then rubble floor, then the jagged front walls
-    S.wall(1, 0.06 - 0.88, 0.06, 0.88, 0.88, 0, (c) => Math.max(2, jag(c + 30) - 2), inner);
-    S.wall(0, 0.06, 0.06 - 0.88, 0.88, 0.88, 0, (c) => Math.max(2, jag(c + 60) - 2), inner);
     S.top(0.06, 0.06, 0.88, 0.88, 1, (u, v, sx, sy) => sh([72, 68, 62], n(sx, sy, s, 0.2)));
-    S.wall(0, 0.06, 0.06, 0.88, 0.88, 0, jag, wall);
-    S.wall(1, 0.06, 0.06, 0.88, 0.88, 0, (c) => jag(c + 14), wall);
+    for (let f2 = 0; f2 < 4; f2++) {
+      S.wall(f2, 0.06, 0.06, 0.88, 0.88, 0, (c) => jag(c + f2 * 14), wall);
+      S.wall(f2, 0.06, 0.06, 0.88, 0.88, 0, (c) => Math.max(2, jag(c + f2 * 14) - 2), inner, true);
+    }
     // rebar
     const [rx, ry] = S.p(0.94, 0.94, jag(0) - 1);
     S.line(rx, ry, rx + 2, ry - 4, sh([110, 70, 50], 1));
     return S.done();
   }
   if (f === F.WRECK) {
-    const S = new Spr(1, 1, 12, 2), ax = fv % 2, col = SCRAP[fv % 8];
+    const S = new Spr(1, 1, 12, 2, rot), ax = fv % 2, col = SCRAP[fv % 8];
     const w = ax ? 0.34 : 0.62, d = ax ? 0.62 : 0.34, x = 0.5 - w / 2, y = 0.5 - d / 2;
     const m = { wall: (u, v, side) => sh(v === 0 ? [30, 28, 26] : col, LIGHT[side] * n(u, v, s, 0.12) * (hash(u, v, s) < 0.12 ? 0.7 : 1)), top: (u, v, sx, sy) => sh(col, 1.05 * n(sx, sy, s, 0.15)) };
     S.box(x, y, w, d, 0, 4, m);
@@ -812,7 +852,7 @@ export function featureSprite(f, fv) {
     return S.done();
   }
   if (f === F.JUNK) {
-    const S = new Spr(1, 1, 16, 2);
+    const S = new Spr(1, 1, 16, 2, rot);
     for (let k = 0; k < 5; k++) {
       const x = 0.15 + hash(s, k) * 0.5, y = 0.15 + hash(s, k + 9) * 0.5, w = 0.12 + hash(s, k + 4) * 0.2;
       if (k === 2) S.cyl(x + 0.1, y + 0.1, 0.08, 0, 6, SCRAP[(fv + k) % 8], sh(SCRAP[(fv + k) % 8], 0.7) && SCRAP[(fv + k) % 8], 2);
@@ -821,7 +861,7 @@ export function featureSprite(f, fv) {
     return S.done();
   }
   if (f === F.RUBBLE) {
-    const S = new Spr(1, 1, 10, 2);
+    const S = new Spr(1, 1, 10, 2, rot);
     for (let k = 0; k < 6; k++) {
       const x = 0.1 + hash(s, k) * 0.6, y = 0.1 + hash(s, k + 9) * 0.6, w = 0.12 + hash(s, k + 4) * 0.22, c = k % 3 === 0 ? H('#9c5a45') : RUIN_C[k % 3];
       S.box(x, y, w, w * (0.6 + hash(s, k + 7) * 0.6), 0, 1 + hash(s, k + 2) * 4, { wall: (u, v, side) => sh(c, LIGHT[side] * n(u, v, s, 0.1)), top: (u, v, sx, sy) => sh(c, 1.1 * n(sx, sy, s, 0.1)) });
@@ -831,24 +871,201 @@ export function featureSprite(f, fv) {
   return null;
 }
 
+// ---------- vehicles ----------
+// Sized to seat people: a settler is three pixels tall, and two of them show in each windscreen.
+export const VEH = { car: [0.52, 0.27], truck: [0.78, 0.3], troop: [0.95, 0.34], cart: [0.42, 0.26] };
+const VCOL = ['#7fc4c0', '#f0cf6a', '#ef9a83', '#86b6e8', '#9fd38c', '#a99ad6', '#e8e4da'];
+const paint = (c) => ({ wall: (u, v, s) => sh(c, LIGHT[s] * (v === 0 ? 0.7 : 1)), top: (u, v, sx, sy) => sh(c, 1.1 * n(sx, sy, 2, 0.03)) });
+const cabin = (c) => ({
+  wall: (u, v, s) => (v >= 1 ? ((u % 4 === 1 && v === 1) ? sh([222, 180, 140], 1) : sh([66, 96, 118], LIGHT[s] * 1.1)) : sh(c, LIGHT[s])),
+  top: () => sh(c, 1.15),
+});
+// a vehicle at (x, y) in the frame it is drawn in; length along x, or along y when axis is 'y'
+function vehicle(S, kind, col, x, y, axis = 'x') {
+  const c = H(col);
+  const b = (a0, b0, l, w, z, h, m) => (axis === 'x' ? S.box(x + a0, y + b0, l, w, z, h, m) : S.box(x + b0, y + a0, w, l, z, h, m));
+  const [L, W2] = VEH[kind], tyre = paint([30, 28, 26]);
+  for (const a of [0.08, L - 0.16]) for (const s0 of [-0.012, W2 - 0.03]) b(a, s0, 0.09, 0.042, 0, 2, tyre);
+  if (kind === 'car') {
+    b(0, 0, L, W2, 1, 3, paint(c));
+    b(0.1, 0.03, 0.3, W2 - 0.06, 4, 3, cabin(c));
+  } else if (kind === 'truck') {
+    b(0, 0, L, W2, 1, 2, paint([70, 70, 72]));
+    b(L - 0.26, 0.01, 0.26, W2 - 0.02, 3, 5, cabin(c));
+    b(0, 0.01, L - 0.3, W2 - 0.02, 3, 3, { wall: (u, v, s) => sh(c, LIGHT[s] * (u % 3 ? 0.95 : 0.75)), top: () => sh([44, 40, 36], 1) });
+  } else if (kind === 'troop') {
+    const blue = H('#3e6a8e');
+    b(0, 0, L, W2, 1, 2, paint([44, 52, 62]));
+    b(L - 0.26, 0.01, 0.26, W2 - 0.02, 3, 5, cabin(blue));
+    b(0, 0.01, L - 0.3, W2 - 0.02, 3, 6, { wall: (u, v, s) => sh(blue, LIGHT[s] * (u % 5 ? 1 : 0.76)), top: (u, v, sx, sy) => sh(blue, 1.2 * n(sx, sy, 3, 0.03)) });
+  } else {
+    b(0, 0.02, L, W2 - 0.04, 2, 3, matWood(5));
+    b(0.04, 0.05, L - 0.08, W2 - 0.1, 5, 2, paint([120, 116, 84]));
+  }
+}
+const vcache = new Map();
+export function vehicleSprite(kind, colour, rot) {
+  const key = kind + '|' + colour + '|' + rot;
+  let s = vcache.get(key);
+  if (!s) {
+    const [L, W2] = VEH[kind], S = new Spr(L, W2, 16, 3, rot);
+    vehicle(S, kind, VCOL[colour % VCOL.length], 0, 0);
+    s = S.done(); vcache.set(key, s);
+  }
+  return s;
+}
+export const VEH_COLOURS = VCOL.length;
+
+// ---------- bridges and loot ----------
+const bcache = new Map();
+export function bridgeSprite(axis, era, rot) {
+  const key = axis * 10 + era + rot * 100;
+  let s = bcache.get(key);
+  if (s) return s;
+  const S = new Spr(1, 1, 10, 2, rot);
+  const col = era === 0 ? '#8a5a3a' : era === 1 ? '#8a6a44' : '#b4b8ba';
+  const rail = { wall: (u, v, s2) => sh(H(col), LIGHT[s2] * (v === 2 ? 1.15 : 0.85)), top: () => sh(H(col), 1.2) };
+  // two railings along the deck, with a post at each end
+  for (const k of [0.17, 0.79]) {
+    if (axis === 1) { S.box(0, k, 1, 0.04, 2, 2, rail); S.box(0.02, k, 0.06, 0.04, 0, 2, rail); S.box(0.5, k, 0.06, 0.04, 0, 2, rail); }
+    else { S.box(k, 0, 0.04, 1, 2, 2, rail); S.box(k, 0.02, 0.04, 0.06, 0, 2, rail); S.box(k, 0.5, 0.04, 0.06, 0, 2, rail); }
+  }
+  s = S.done(); bcache.set(key, s);
+  return s;
+}
+let crate = null;
+export function crateSprite() {
+  if (crate) return crate;
+  const S = new Spr(0.4, 0.4, 10, 2, 0);
+  S.box(0.06, 0.06, 0.28, 0.28, 0, 5, { wall: (u, v, s) => sh([176, 132, 70], LIGHT[s] * (u % 3 ? 1 : 0.72)), top: (u, v, sx, sy) => sh([206, 164, 90], n(sx, sy, 4, 0.05)) });
+  crate = S.done();
+  return crate;
+}
+
+// ---------- the Camp: tents all game, and they fold ----------
+function canvasRoof(col, seed) {
+  const c = H(col);
+  return (sx, sy, face, axis) => sh(c, [0.98, 0.76, 1.12, 1.26][face] * n(sx, sy, seed, 0.05) * ((axis === 'l' ? sx : sx + sy) % 7 === 0 ? 0.88 : 1));
+}
+function tent(S, x, y, len, wid, height, col, seed, f, axis = 'x') {
+  const fold = 1 - f;
+  if (f > 0.97) { // rolled and strapped
+    const l = axis === 'x' ? len * 0.5 : wid * 0.5, w = axis === 'x' ? wid * 0.5 : len * 0.5;
+    S.box(x + (axis === 'x' ? len * 0.25 : wid * 0.25), y + (axis === 'x' ? wid * 0.25 : len * 0.25), l, w, 0, 3, paint(H(col)));
+    return;
+  }
+  const rf = canvasRoof(col, seed), wall = { wall: (u, v, s) => sh(H(col), LIGHT[s] * (v % 4 === 3 ? 0.88 : 1)) };
+  const rh = Math.max(1, Math.round(height * fold)), W2 = wid * (0.45 + 0.55 * fold);
+  if (axis === 'x') S.gableX(x, y + (wid - W2) / 2, len * (0.6 + 0.4 * fold), W2, 0, rh, rf, wall.wall, 0.02);
+  else S.gableY(x + (wid - W2) / 2, y, W2, len * (0.6 + 0.4 * fold), 0, rh, rf, wall.wall, 0.02);
+}
+R.camp = (S, o) => {
+  const f = o.fold || 0, sd = o.seed;
+  ground(S, 0, 0, 4, 4, (u, v, sx, sy) => sh(hash(sx >> 1, sy, 3) < 0.08 ? [124, 104, 72] : [114, 94, 66], n(sx, sy, sd, 0.1)));
+  // six sleeping tents in two rows, and a larger command tent at the head
+  const C1 = '#7c7c54', C2 = '#94875c';
+  tent(S, 0.25, 0.3, 1.0, 0.8, 11, C1, 3, f);
+  tent(S, 1.5, 0.3, 1.0, 0.8, 11, C2, 4, f);
+  tent(S, 0.25, 2.85, 1.0, 0.8, 11, C2, 5, f);
+  tent(S, 1.5, 2.85, 1.0, 0.8, 11, C1, 6, f);
+  tent(S, 2.85, 0.3, 1.0, 0.8, 11, C1, 7, f, 'y');
+  tent(S, 2.85, 2.5, 1.2, 0.8, 11, C2, 8, f, 'y');
+  tent(S, 0.3, 1.45, 1.5, 1.05, 15, '#6a7a58', 9, f);
+  // fire pit, crates, and the flag that comes down last
+  if (f < 0.5) {
+    const [sx, sy, dep] = S.p(2.6, 2.0, 0);
+    for (let k = -3; k <= 3; k++) { S.set(sx + k, sy + (k & 1), sh([70, 66, 62], 1), dep); S.set(sx + k, sy - 1 + (k & 1), sh([92, 86, 78], 1), dep); }
+    S.set(sx, sy - 2, sh([255, 170, 60], 1), dep + 0.1); S.set(sx + 1, sy - 2, sh([255, 200, 90], 1), dep + 0.1); S.set(sx, sy - 3, sh([255, 220, 120], 1), dep + 0.1);
+    if (f === 0) S.smoke.push([sx, sy - 5]);
+  }
+  for (let k = 0; k < 3; k++) S.box(2.1 + k * 0.22, 1.2, 0.18, 0.18, 0, 3, matWood(sd + k));
+  if (f < 0.85) flag(S, 2.1, 1.75, 0, Math.round(26 * (1 - f)), '#3e6a8e');
+};
+
+// ---------- the EV plant, with a lot full of real vehicles ----------
+R.evplant = (S, o) => {
+  ground(S, 0, 0, 3, 3, (u, v, sx, sy) => (v > 31 && Math.floor(u + 3) % 11 === 0 ? sh([214, 214, 204], 1) : asphaltFn(o.seed)(u, v, sx, sy)));
+  const m = o.siding ? matMetal(['#7da0b5', '#c4a35a', '#b56a5a', '#8b86b8', '#7fae7a', '#6f9fcf'][o.hue], o.seed) : matConcrete(o.seed, H('#bab6ad'));
+  S.walls(0.1, 0.1, 2.8, 1.75, 0, 16, facade(m.wall, { era: 2, siding: false, hue: o.hue, seed: o.seed, sp: 8, ww: 5, wh: 3, dw: 7, dh: 11 }));
+  // sawtooth roof: north-light strips
+  for (let k = 0; k < 5; k++) {
+    const y0 = 0.1 + k * 0.35;
+    S.poly([S.p(0.1, y0, 16), S.p(2.9, y0, 16), S.p(2.9, y0 + 0.35, 24), S.p(0.1, y0 + 0.35, 24)], (sx, sy) => sh([160, 164, 166], 1.05 * n(sx, sy, k, 0.04)));
+    S.poly([S.p(0.1, y0 + 0.35, 24), S.p(2.9, y0 + 0.35, 24), S.p(2.9, y0 + 0.35, 16), S.p(0.1, y0 + 0.35, 16)], (sx) => sh([120, 170, 200], 1 + (sx % 5 === 0 ? -0.3 : 0)));
+  }
+  S.wall(1, 0.1, 0.1, 2.8, 1.75, 16, (c) => Math.round(8 * (1 - (c % 5.6) / 5.6)), m.wall);
+  S.wall(3, 0.1, 0.1, 2.8, 1.75, 16, (c) => Math.round(8 * ((c % 5.6) / 5.6)), m.wall);
+  S.shadow([[0.1, 0.1, 24], [2.9, 0.1, 24], [2.9, 1.85, 24], [0.1, 1.85, 24]]);
+  // the lot: a row of cars nose-in, then trucks
+  ['#7fc4c0', '#f0cf6a', '#ef9a83', '#86b6e8', '#9fd38c'].forEach((c, k) => vehicle(S, 'car', c, 0.14 + k * 0.56, 2.0, 'y'));
+  ['#e8e4da', '#ef9a83', '#7fc4c0'].forEach((c, k) => vehicle(S, 'truck', c, 0.18 + k * 0.92, 2.62));
+};
+
+// ---------- the Vehicle Works: a 5x5 yard with a great hangar ----------
+R.vworks = (S, o) => {
+  const hazard = (u, v) => (u + v) % 12 < 6;
+  ground(S, 0, 0, 5, 5, (u, v, sx, sy) => {
+    if (v > 50 && v < 53) return hazard(Math.floor(u), 0) ? sh([214, 172, 52], 1) : sh([40, 38, 36], 1);
+    if (v > 53 && Math.floor(u) % 26 === 0) return sh([206, 206, 196], 1);
+    return asphaltFn(o.seed)(u, v, sx, sy);
+  });
+  const col = o.siding ? ['#7da0b5', '#c4a35a', '#b56a5a', '#8b86b8', '#7fae7a', '#6f9fcf'][o.hue] : '#a9b0b4', C = H(col);
+  const m = matMetal(col, o.seed);
+  const X0 = 0.2, L = 4.6, Y0 = 0.2, D = 2.9, Hh = 18, rise = 24;
+  // the barrel vault
+  for (let k = 0; k < 48; k++) {
+    const t = k / 48, t2 = (k + 1) / 48, y = Y0 + D * t, y2 = Y0 + D * t2, z = Hh + rise * Math.sin(Math.PI * t), z2 = Hh + rise * Math.sin(Math.PI * t2);
+    const ny = -Math.cos(Math.PI * (t + t2) / 2), nz = Math.sin(Math.PI * (t + t2) / 2), [vx, vy] = S.vdir(0, ny);
+    const f = 0.72 + 0.36 * nz + vy * 0.1 - vx * 0.2;
+    S.poly([S.p(X0, y, z), S.p(X0 + L, y, z), S.p(X0 + L, y2, z2), S.p(X0, y2, z2)], (sx) => sh(C, f * (sx % 5 === 0 ? 1.1 : 1)));
+  }
+  const arch = (c) => Math.round(Hh + rise * Math.sin(Math.PI * (c / (D * 16))));
+  const endWall = facade(m.wall, { era: 2, door: false, sp: 11, ww: 5, wh: 4, storey: 16 });
+  S.wall(1, X0, Y0, L, D, 0, arch, endWall); S.wall(3, X0, Y0, L, D, 0, arch, endWall);
+  S.wall(2, X0, Y0, L, D, 0, Hh, m.wall);
+  // the open hangar front, with an MSV on the assembly floor inside
+  S.wall(0, X0, Y0, L, D, 0, Hh, (u, v, side, len, h) => {
+    const u0 = 10, u1 = len - 10;
+    if (u >= u0 && u < u1 && v < h - 2) {
+      const cu = (u0 + u1) / 2, inU = Math.abs(u - cu) < 15;
+      if (inU && v < 10) { if (v < 2) return sh([34, 32, 30], 1); return v > 5 && (u % 7 === 2) ? sh([70, 110, 140], 1) : v === 5 || v === 6 ? sh([216, 120, 50], 0.9) : sh([176, 168, 128], 0.85); }
+      return sh([26, 28, 32], 1 + (v > 12 ? 0.2 : 0));
+    }
+    if (u === u0 - 1 || u === u1) return hazard(0, v) ? sh([214, 172, 52], LIGHT[side]) : sh([40, 38, 36], LIGHT[side]);
+    return m.wall(u, v, side);
+  });
+  // the yard: gantry crane, offices, fuel, parts
+  S.box(0.3, 3.45, 1.0, 1.1, 0, 15, { wall: facade(wallMat(o).wall, { era: o.era, siding: o.siding, hue: o.hue, seed: o.seed, sp: 6, doorSide: 1, storey: 8, wh: 3 }), top: (u, v, sx, sy) => sh([84, 82, 80], n(sx, sy, o.seed, 0.12)) });
+  S.cyl(4.45, 3.65, 0.28, 0, 16, H('#c9c5bc'), H('#a8a49c'), 4);
+  S.cyl(4.45, 4.4, 0.28, 0, 16, H('#c9c5bc'), H('#a8a49c'), 4);
+  for (let k = 0; k < 5; k++) S.box(1.6 + k * 0.3, 4.55, 0.24, 0.24, 0, 3 + (k % 3) * 2, matMetal(['#8e979c', '#a5532e', '#5a6a80'][k % 3], k));
+  const ye = sh([214, 172, 52], 1), yd = sh([170, 136, 40], 1);
+  const posts = [[1.55, 3.3], [4.0, 3.3], [4.0, 4.35], [1.55, 4.35]];
+  for (const [x, y] of posts) { const a = S.p(x, y, 0), b = S.p(x, y, 30); S.line(a[0], a[1], b[0], b[1], ye, a[2], b[2]); S.line(a[0] + 1, a[1], b[0] + 1, b[1], yd, a[2], b[2]); }
+  for (let k = 0; k < 4; k++) { const a = S.p(posts[k][0], posts[k][1], 30), b = S.p(posts[(k + 1) % 4][0], posts[(k + 1) % 4][1], 30); S.line(a[0], a[1], b[0], b[1], ye, a[2], b[2]); S.line(a[0], a[1] - 1, b[0], b[1] - 1, yd, a[2], b[2]); }
+  const h0 = S.p(2.8, 3.8, 30), h1 = S.p(2.8, 3.8, 12);
+  S.line(h0[0], h0[1], h1[0], h1[1], sh([40, 40, 40], 1), h0[2], h1[2]);
+  S.box(2.7, 3.7, 0.2, 0.2, 9, 3, m);
+};
+
 // ---------- building sprite cache ----------
 const cache = new Map();
-export function buildingSprite(b) {
-  const key = `${b.type}|${b.era}|${b.siding ? 1 : 0}|${b.hue}`;
+export function buildingSprite(b, rot = 0, fold = 0) {
+  const key = `${b.type}|${b.era}|${b.siding ? 1 : 0}|${b.hue}|${rot}|${fold}`;
   let s = cache.get(key);
   if (s) return s;
   const def = B[b.type], [w, d] = def.size;
-  const S = new Spr(w, d, 72, 3);
-  R[b.type](S, { era: b.era, siding: b.siding, hue: b.hue, seed: (b.hue + 1) * 31 + b.era * 7, w, d });
+  const S = new Spr(w, d, 72, 3, rot);
+  R[b.type](S, { era: b.era, siding: b.siding, hue: b.hue, seed: (b.hue + 1) * 31 + b.era * 7, w, d, fold });
   s = S.done();
   cache.set(key, s);
   return s;
 }
 const fcache = new Map();
-export function featureSpriteCached(f, fv) {
-  const key = f * 1000 + (f === F.RUIN ? fv : fv % 12);
+export function featureSpriteCached(f, fv, rot = 0) {
+  const key = (f * 1000 + (f === F.RUIN ? fv : fv % 12)) * 4 + rot;
   let s = fcache.get(key);
-  if (s === undefined) { s = featureSprite(f, f === F.RUIN ? fv : fv % 12); fcache.set(key, s); }
+  if (s === undefined) { s = featureSprite(f, f === F.RUIN ? fv : fv % 12, rot); fcache.set(key, s); }
   return s;
 }
 
@@ -857,7 +1074,7 @@ export function icon(kind, scale = 2) {
   const c = canvas(12 * scale, 12 * scale), x = c.getContext('2d');
   const P = (px, py, col) => { x.fillStyle = col; x.fillRect(px * scale, py * scale, scale, scale); };
   const pat = {
-    food: ['....gg......', '...gg.......', '..ooooo.....', '.ooooooo....', '.oooyoooo...', 'ooooooooo...', 'ooooooooo...', '.ooooooo....', '..ooooo.....', '............'],
+    food: ['.....y......', '....yyy.....', '....yoy.....', '...gyyyg....', '...gyoyg....', '..ggyyygg...', '..ggyoygg...', '...gyyyg....', '...ggggg....', '....ggg.....', '.....g......'],
     scrap: ['............', '..rrr.......', '.rrrrgg.....', '.rrggggg....', 'rrggbbgg....', 'rgggbbbgg...', '.ggbbbbbg...', '..gbbbbg....', '....bb......'],
     wood: ['............', '.......ww...', '.....wwwwk..', '...wwwwwwk..', '.wwwwwwwk...', 'wwwwwwwk....', 'kwwwwwk.....', '.kkkkk......'],
     stone: ['............', '...ssss.....', '..ssssss....', '.ssssssst...', '.sssssstt...', 'ssssssttt...', '.sstttttt...', '..tttttt....'],

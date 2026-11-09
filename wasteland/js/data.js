@@ -31,7 +31,7 @@ export const SIDING_MULT = 0.1;
 // c = build points; the era turns them into materials. extra = fixed extra cost on top.
 // prod/cons per day at full staff, before era multiplier (cons is not multiplied).
 export const B = {
-  outpost:   { name: 'Outpost', cat: 'civic', size: [2, 2], c: 0, unique: true, house: 4, bunks: 2, crew: 3, reveal: 11,
+  outpost:   { name: 'Outpost', cat: 'civic', size: [2, 2], c: 0, unique: true, house: 6, bunks: 2, crew: 3, reveal: 11,
                desc: 'Commission headquarters, stockpile and crew barracks. Its crew clears debris and raises buildings.' },
   home:      { name: 'Homestead', cat: 'housing', size: [1, 1], c: 8, house: 4,
                desc: 'Four walls and a door, more or less. Houses settlers.' },
@@ -47,12 +47,14 @@ export const B = {
                desc: 'Long sheds of chickens. Nobody on the Commission wants to go inside.' },
   cattle:    { name: 'Battery Feedlot', cat: 'food', size: [3, 3], c: 55, extra: { metal: 8 }, jobs: 4, power: -3, prod: { food: 48 }, tech: 'battery',
                desc: 'Cattle, indoors, in rows. Feeds a town. Smells like one too.' },
-  salvage:   { name: 'Salvage Yard', cat: 'industry', size: [2, 2], c: 12, jobs: 2, crew: 2, prod: { scrap: 5 },
-               desc: 'Sorts junk into useful junk. Adds two crew for clearing and building.' },
+  salvage:   { name: 'Scrap Yard', cat: 'industry', size: [2, 2], c: 12, jobs: 2, crew: 2, prod: { scrap: 5, wood: 1, stone: 1, metal: 0.6, glass: 0.3, plastic: 0.15 },
+               desc: 'Sorts junk into useful junk: mostly scrap, with a little wood, stone, metal, glass and plastic. Adds two crew for clearing and building.' },
   tinker:    { name: "Tinker's Shed", cat: 'civic', size: [1, 1], c: 10, jobs: 2, research: 3,
                desc: 'Someone with a soldering iron and opinions. Produces know-how for research.' },
-  guard:     { name: 'Guard Post', cat: 'defense', size: [1, 1], c: 10, bunks: 3,
-               desc: 'A lookout with three bunks. Recruit security here to protect civilians.' },
+  guard:     { name: 'Guard Tower', cat: 'defense', size: [1, 1], c: 10, bunks: 3, reveal: 20, limit: 15, snipe: 15,
+               desc: 'A lookout with three bunks. Sees 20 squares and extends town limits 15. Officers posted as snipers fire from the tower up to 15 squares.' },
+  camp:      { name: 'Camp', cat: 'defense', size: [4, 4], c: 0, extra: { scrap: 30, food: 15 }, bt: 22, bunks: 8, fixedBunks: true, cons: { food: 6 }, noEra: true, limit: 0, reveal: 10,
+               desc: 'Tents for eight security officers. Costs extra food every day, but the whole camp can fold up and move anywhere on the explored map.' },
   lumber:    { name: 'Lumber Camp', cat: 'industry', size: [2, 2], c: 16, jobs: 3, prod: { wood: 6 }, tech: 'carpentry',
                desc: 'Cuts deadwood and the hardy scrub that grows back. Wood for the Timber era.' },
   quarry:    { name: 'Quarry', cat: 'industry', size: [2, 2], c: 20, jobs: 3, prod: { stone: 6 }, tech: 'masonry',
@@ -86,9 +88,9 @@ export const B = {
   barracks:  { name: 'Barracks', cat: 'defense', size: [2, 2], c: 30, bunks: 8, tech: 'metal',
                desc: 'Bunks for eight security officers and a rack for their rifles.' },
   evplant:   { name: 'EV Plant', cat: 'transport', size: [3, 3], c: 80, extra: { metal: 20, glass: 6 }, jobs: 6, power: -4, appeal: 3, tech: 'ev',
-               desc: 'Builds little electric runabouts. They will drive your roads.' },
-  vworks:    { name: 'Vehicle Works', cat: 'transport', size: [3, 3], c: 100, extra: { metal: 30, glass: 10, plastic: 10 }, jobs: 8, power: -6, tech: 'msv',
-               desc: 'Assembles Mobile Settlement Vehicles: a town on wheels, sent out to found the next one.' },
+               desc: 'Builds electric cars and trucks that seat two or more. They will drive your roads.' },
+  vworks:    { name: 'Vehicle Works', cat: 'transport', size: [5, 5], c: 200, extra: { metal: 90, glass: 30, plastic: 30 }, jobs: 12, power: -8, tech: 'msv',
+               desc: 'A vast assembly hangar and yard. Builds Mobile Settlement Vehicles: a town on wheels, sent out to found the next one.' },
 };
 for (const id in B) B[id].id = id;
 
@@ -99,23 +101,23 @@ export const CATS = [
 
 // Research tree. x/y place the node in the tree view (columns are tiers).
 export const TECH = {
-  carpentry:      { name: 'Carpentry', cost: 20, req: [], x: 0, y: 3, desc: 'Lumber camps, and the Timber era: wood replaces scrap.' },
-  agronomy:       { name: 'Agronomy', cost: 35, req: ['carpentry'], x: 1, y: 0, desc: 'Greenhouses.' },
-  masonry:        { name: 'Masonry', cost: 40, req: ['carpentry'], x: 1, y: 2, desc: 'Quarries for building stone.' },
-  metal:          { name: 'Metalworking', cost: 45, req: ['carpentry'], x: 1, y: 4, desc: 'Smelters and barracks.' },
-  civics:         { name: 'Civics', cost: 45, req: ['carpentry'], x: 1, y: 6, desc: 'Parks, schools and clinics.' },
-  glass:          { name: 'Glassblowing', cost: 60, req: ['masonry'], x: 2, y: 2, desc: 'Glassworks.' },
-  commerce:       { name: 'Commerce', cost: 55, req: ['civics'], x: 2, y: 7, desc: 'Trading posts and general stores.' },
-  electric:       { name: 'Electricity', cost: 80, req: ['metal'], x: 2, y: 4, desc: 'Wood-gas generators. Power for bigger industry.' },
-  reconstruction: { name: 'Reconstruction', cost: 80, req: ['masonry', 'metal', 'glass'], x: 3, y: 2, desc: 'The Masonry era: brick, stone, metal and glass. Tenement blocks.' },
-  printing:       { name: 'Printing Press', cost: 100, req: ['civics', 'electric'], x: 3, y: 6, desc: 'The Community Newspaper.' },
-  indag:          { name: 'Industrial Agriculture', cost: 110, req: ['agronomy', 'electric'], x: 3, y: 0, desc: 'Factory farms.' },
-  renew:          { name: 'Renewable Energy', cost: 130, req: ['electric', 'glass'], x: 3, y: 4, desc: 'Wind turbines and solar arrays.' },
-  retail:         { name: 'Retail Revival', cost: 110, req: ['commerce', 'reconstruction'], x: 4, y: 7, desc: 'Shopping strips.' },
-  battery:        { name: 'Battery Farming', cost: 120, req: ['indag'], x: 4, y: 0, desc: 'Battery henhouses and feedlots for chicken and cattle.' },
-  petro:          { name: 'Petrochemistry', cost: 140, req: ['electric', 'reconstruction'], x: 4, y: 2, desc: 'Plastic refineries. Running one turns new buildings colourful.' },
-  ev:             { name: 'Electric Vehicles', cost: 160, req: ['renew', 'metal'], x: 4, y: 4, desc: 'EV plants: electric cars on your roads.' },
-  msv:            { name: 'Mobile Settlement Vehicles', cost: 240, req: ['ev', 'petro', 'indag'], x: 5, y: 3, desc: 'Vehicle works, and the MSV: send settlers out to found a new town.' },
+  carpentry:      { name: 'Carpentry', cost: 200, req: [], x: 0, y: 3, desc: 'Lumber camps, and the Timber era: wood replaces scrap.' },
+  agronomy:       { name: 'Agronomy', cost: 350, req: ['carpentry'], x: 1, y: 0, desc: 'Greenhouses.' },
+  masonry:        { name: 'Masonry', cost: 400, req: ['carpentry'], x: 1, y: 2, desc: 'Quarries for building stone.' },
+  metal:          { name: 'Metalworking', cost: 450, req: ['carpentry'], x: 1, y: 4, desc: 'Smelters and barracks.' },
+  civics:         { name: 'Civics', cost: 450, req: ['carpentry'], x: 1, y: 6, desc: 'Parks, schools and clinics.' },
+  glass:          { name: 'Glassblowing', cost: 600, req: ['masonry'], x: 2, y: 2, desc: 'Glassworks.' },
+  commerce:       { name: 'Commerce', cost: 550, req: ['civics'], x: 2, y: 7, desc: 'Trading posts and general stores.' },
+  electric:       { name: 'Electricity', cost: 800, req: ['metal'], x: 2, y: 4, desc: 'Wood-gas generators. Power for bigger industry.' },
+  reconstruction: { name: 'Reconstruction', cost: 800, req: ['masonry', 'metal', 'glass'], x: 3, y: 2, desc: 'The Masonry era: brick, stone, metal and glass. Tenement blocks.' },
+  printing:       { name: 'Printing Press', cost: 1000, req: ['civics', 'electric'], x: 3, y: 6, desc: 'The Community Newspaper.' },
+  indag:          { name: 'Industrial Agriculture', cost: 1100, req: ['agronomy', 'electric'], x: 3, y: 0, desc: 'Factory farms.' },
+  renew:          { name: 'Renewable Energy', cost: 1300, req: ['electric', 'glass'], x: 3, y: 4, desc: 'Wind turbines and solar arrays.' },
+  retail:         { name: 'Retail Revival', cost: 1100, req: ['commerce', 'reconstruction'], x: 4, y: 7, desc: 'Shopping strips.' },
+  battery:        { name: 'Battery Farming', cost: 1200, req: ['indag'], x: 4, y: 0, desc: 'Battery henhouses and feedlots for chicken and cattle.' },
+  petro:          { name: 'Petrochemistry', cost: 1400, req: ['electric', 'reconstruction'], x: 4, y: 2, desc: 'Plastic refineries. Running one turns new buildings colourful.' },
+  ev:             { name: 'Electric Vehicles', cost: 1600, req: ['renew', 'metal'], x: 4, y: 4, desc: 'EV plants: electric cars on your roads.' },
+  msv:            { name: 'Mobile Settlement Vehicles', cost: 24000, req: ['ev', 'petro', 'indag'], x: 5, y: 3, desc: 'Vehicle works, and the MSV: send settlers out to found a new town.' },
 };
 for (const id in TECH) TECH[id].id = id;
 
@@ -136,7 +138,7 @@ export const CHARTER = [
   { id: 'battery', text: 'Battery-farm chicken and cattle', test: (c) => c.chickens > 0 && c.cattle > 0 },
   { id: 'ev', text: 'Put electric cars on the road', test: (c) => c.evplant > 0 },
   { id: 'renew', text: 'Generate wind and solar power', test: (c) => c.windmill > 0 && c.solar > 0 },
-  { id: 'vworks', text: 'Build a Vehicle Works', test: (c) => c.vworks > 0 },
+  { id: 'vworks', text: 'Build a Vehicle Works and its hangar', test: (c) => c.vworks > 0 },
   { id: 'msv', text: 'Found a new settlement with an MSV', test: (c, G) => G.settlements.length > 1 },
 ];
 
@@ -157,5 +159,27 @@ export function costFor(def, era, siding) {
   return o;
 }
 export const ROAD_COST = [{ scrap: 1 }, { scrap: 1, wood: 1 }, { stone: 1 }];
-export const buildTime = (def) => 6 + def.c * 0.5;
+export const BRIDGE_COST = [{ scrap: 4 }, { wood: 3, scrap: 2 }, { stone: 2, metal: 2 }];
+export const ROAD_NAME = ['', 'Dirt track', 'Gravel road', 'Asphalt road'];
+export const buildTime = (def) => def.bt || 6 + def.c * 0.5;
+
+// How far back in the eras a building can be raised. Anything that depends on Reconstruction has no older form.
+const needsRecon = (id) => id === 'reconstruction' || TECH[id].req.some(needsRecon);
+export const minEra = (def) => (def.noEra ? null : def.tech && needsRecon(def.tech) ? 2 : 0);
+// Build styles offered right now: 0 scrap, 1 timber, 2 masonry, 3 masonry with vinyl siding.
+export function stylesFor(def, era, siding) {
+  const lo = minEra(def);
+  if (lo === null) return [];
+  const out = [];
+  for (let k = lo; k <= era; k++) out.push(k);
+  if (siding && era === 2) out.push(3);
+  return out;
+}
+export const STYLE_NAME = ['Scrap', 'Timber', 'Masonry', 'Vinyl'];
+
+// Plot colours for the plot view, by building category
+export const PLOT_COLOR = { defense: '#5a6f96', housing: '#c23b34', food: '#3f9a45', industry: '#7d5531', transport: '#7d5531', power: '#e6c63c', retail: '#c4c4c0', civic: '#f2f2ee' };
+
+// Relative worth of each material at the Trading Post, before the market moves it
+export const MARKET_BASE = { food: 1, scrap: 1, wood: 1.4, stone: 1.5, metal: 2.5, glass: 3, plastic: 4 };
 export const eraMult = (b) => ERA_MULT[b.era] + (b.siding ? SIDING_MULT : 0);

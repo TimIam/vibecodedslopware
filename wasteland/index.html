@@ -8,13 +8,13 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏗️</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Jacquard+12&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/site-nav.css">
 <style>
 :root{--face:#c3bfb3;--hi:#f5f2e8;--lo:#77736a;--dk:#24221e;--ink:#1d1b18;--title1:#6e3a22;--title2:#a5532e;--good:#2f7a3a;--bad:#a8281e;--warn:#9a6a10;--paper:#efe8d6}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html,body{margin:0;height:100%;overflow:hidden;background:#0c0b0a;color:var(--ink);font:14px/1.35 "Pixelify Sans",ui-monospace,Consolas,monospace;user-select:none;-webkit-user-select:none;touch-action:none}
+html,body{margin:0;height:100%;overflow:hidden;background:#0c0b0a;color:var(--ink);font:14px/1.4 "Atkinson Hyperlegible",Verdana,Tahoma,system-ui,sans-serif;user-select:none;-webkit-user-select:none;touch-action:none}
 button{font:inherit;color:inherit}
 #view{position:fixed;left:0;right:0;top:88px;bottom:28px;width:100%;height:calc(100% - 116px);display:block;cursor:crosshair;image-rendering:pixelated}
 .bev{background:var(--face);border:2px solid;border-color:var(--hi) var(--lo) var(--lo) var(--hi);box-shadow:0 0 0 1px var(--dk)}
@@ -83,8 +83,8 @@ button{font:inherit;color:inherit}
 /* minimap */
 #mmWrap{position:fixed;right:8px;bottom:36px;z-index:21;padding:3px}
 #mm{display:block;width:256px;height:128px;image-rendering:pixelated;cursor:pointer;background:#000}
-#mmBar{display:flex;gap:3px;margin-top:3px}
-#mmBar .btn{flex:1;font-size:12px;min-height:24px;padding:0 4px}
+#mmBar{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;max-width:256px}
+#mmBar .btn{flex:1 0 auto;font-size:12px;min-height:24px;padding:0 6px}
 
 /* ticker */
 #ticker{position:fixed;left:0;right:0;bottom:0;height:28px;z-index:20;display:flex;align-items:center;gap:8px;padding:0 8px;overflow:hidden;white-space:nowrap}
@@ -118,6 +118,38 @@ button{font:inherit;color:inherit}
 #titleWin .acts .btn{font-size:16px;padding:6px 16px}
 .keys{font-size:12px;color:#4c483f;margin-top:8px}
 kbd{display:inline-block;padding:0 4px;border:1px solid var(--lo);border-bottom-width:2px;background:#e8e4d8;font:inherit;font-size:11px}
+#tip{position:fixed;z-index:90;max-width:320px;padding:4px 8px;background:#fbf4dc;color:#1d1b18;border:1px solid #24221e;box-shadow:2px 2px 0 rgba(0,0,0,.35);font-size:13px;line-height:1.35;pointer-events:none}
+.click{cursor:pointer}
+.res.click:hover{background:#ece8da}
+#tickLbl.click{text-decoration:underline}
+#rfis{position:fixed;right:276px;bottom:36px;z-index:21;padding:3px 5px 2px;display:flex;gap:4px;align-items:flex-end}
+.rf{width:18px;display:flex;flex-direction:column;align-items:center;font-size:12px;font-weight:700}
+.rf .well{width:14px;height:64px;position:relative;background:#3a372f;border:1px solid var(--lo)}
+.rf .well i{position:absolute;left:0;right:0;bottom:0;display:block}
+.bimg{display:flex;flex-direction:column;align-items:center;gap:2px}
+.eras{display:flex;align-items:center;gap:2px;font-size:11px;line-height:1}
+.eb{appearance:none;width:16px;height:16px;padding:0;line-height:12px;font-size:12px;font-weight:700;cursor:pointer;background:var(--face);border:1px solid;border-color:var(--hi) var(--lo) var(--lo) var(--hi);color:inherit}
+.eb:disabled{color:#8e8a80;cursor:default}
+.eb2{appearance:none;padding:1px 7px;font-size:12px;cursor:pointer;background:var(--face);border:1px solid;border-color:var(--hi) var(--lo) var(--lo) var(--hi);color:inherit}
+.eb2.on{background:#9fc18a;border-color:var(--lo) var(--hi) var(--hi) var(--lo)}
+.stp{display:inline-flex;align-items:center;gap:3px}
+.stp b{min-width:12px;text-align:center}
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{text-align:left;border-bottom:2px solid var(--lo);padding:2px 6px 2px 0}
+.tbl td{padding:2px 6px 2px 0;border-bottom:1px dotted #9a958a}
+.tbl tr.hl td{font-weight:700;background:#e6dfc4}
+.ri{width:16px;height:16px;image-rendering:pixelated;vertical-align:-3px;margin-right:4px}
+.amts{display:flex;gap:4px;align-items:center;margin:8px 0}
+#paper{background:#e8e2cf;color:#221e1a;padding:12px 18px 16px;font-family:Georgia,"Times New Roman",serif}
+#paperMast{font:400 64px/1 "Jacquard 12","UnifrakturCook",Georgia,serif;text-align:center;letter-spacing:1px;margin:2px 0 4px}
+#paperEars{display:flex;justify-content:space-between;border-top:3px double #221e1a;border-bottom:3px double #221e1a;padding:3px 2px;font:700 12px/1.3 "Atkinson Hyperlegible",sans-serif}
+#paperHead{font:700 36px/1.08 "Atkinson Hyperlegible",Georgia,serif;text-transform:uppercase;text-align:center;margin:12px 0 4px}
+#paperDeck{text-align:center;font-style:italic;font-size:16px;margin:0 0 10px;border-bottom:1px solid #221e1a;padding-bottom:8px}
+#paperCols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px}
+#paperPhoto{width:100%;image-rendering:pixelated;display:block;border:1px solid #221e1a}
+#paperBody{font-size:15px;line-height:1.42}
+#paperBody p{margin:0 0 9px;text-align:justify}
+@media (max-width:600px){#paperMast{font-size:40px}#paperHead{font-size:25px}#paperCols{grid-template-columns:1fr}}
 #tree{position:relative;margin:4px auto;}
 #tree svg{position:absolute;inset:0;pointer-events:none}
 .tnode{position:absolute;width:128px;min-height:52px;padding:4px 6px;font-size:12px;text-align:left;cursor:pointer;display:block}
@@ -141,7 +173,11 @@ kbd{display:inline-block;padding:0 4px;border:1px solid var(--lo);border-bottom-
   #insp{left:4px;right:4px;width:auto;top:auto;bottom:80px;max-height:44vh}
   #mmWrap{top:92px;bottom:auto;right:4px}
   #mm{width:160px;height:80px}
-  #mmBar{display:none}
+  #mmBar{max-width:160px}
+  #mmBar .btn{font-size:11px;padding:0 3px;min-height:22px}
+  #charterBtn,#homeBtn{display:none}
+  #rfis{right:auto;left:4px;top:92px;bottom:auto}
+  .rf .well{height:44px}
   #memo{left:4px;right:4px;width:auto;bottom:80px}
   #rsch{min-width:130px}
   .tnode{width:112px}
@@ -188,12 +224,24 @@ kbd{display:inline-block;padding:0 4px;border:1px solid var(--lo);border-bottom-
 <div id="mmWrap" class="bev">
   <canvas id="mm" width="256" height="128" aria-label="Minimap"></canvas>
   <div id="mmBar">
+    <button class="btn" id="rotL" title="Turn the view left (Q)">⟲</button>
+    <button class="btn" id="rotR" title="Turn the view right (E)">⟳</button>
+    <button class="btn" id="plotBtn" title="Plot view (P): hide buildings and show their plots. Slate blue security, red residential, green food, brown industry, yellow power, light grey retail, white civic.">Plots</button>
     <button class="btn" id="zoomOut" title="Zoom out (-)">−</button>
     <button class="btn" id="zoomIn" title="Zoom in (+)">+</button>
     <button class="btn" id="homeBtn" title="Centre on the outpost (H)">Outpost</button>
     <button class="btn" id="charterBtn" title="Commission charter (K)">Charter</button>
   </div>
 </div>
+
+<div id="rfis" class="bev" title="RFIS: what this town most needs in order to grow. Residential, Food, Industrial, Security. The taller the bar, the greater the need.">
+  <div class="rf"><div class="well"><i id="rf_r" style="background:#c23b34"></i></div>R</div>
+  <div class="rf"><div class="well"><i id="rf_f" style="background:#3f9a45"></i></div>F</div>
+  <div class="rf"><div class="well"><i id="rf_i" style="background:#c98a3a"></i></div>I</div>
+  <div class="rf"><div class="well"><i id="rf_s" style="background:#5a7ab0"></i></div>S</div>
+</div>
+
+<div id="tip" hidden></div>
 
 <div id="memo" class="bev" hidden>
   <div class="title"><span>Commission memo</span><button class="x" id="memoX" aria-label="Dismiss">×</button></div>
@@ -220,7 +268,7 @@ kbd{display:inline-block;padding:0 4px;border:1px solid var(--lo);border-bottom-
         <button class="btn go" id="newBtn">Convene the Commission</button>
         <button class="btn" id="contBtn" hidden>Continue</button>
       </div>
-      <div class="keys">Drag or <kbd>WASD</kbd> to pan · wheel or <kbd>+</kbd><kbd>−</kbd> to zoom · <kbd>C</kbd> clear · <kbd>R</kbd> road · <kbd>B</kbd> bulldoze · <kbd>T</kbd> research · <kbd>Space</kbd> pause · <kbd>Esc</kbd> cancel</div>
+      <div class="keys">Drag or <kbd>WASD</kbd> to pan · wheel or <kbd>+</kbd><kbd>−</kbd> to zoom · <kbd>Q</kbd><kbd>E</kbd> turn the view · <kbd>P</kbd> plots · <kbd>C</kbd> shovel · <kbd>R</kbd> road · <kbd>B</kbd> bulldoze · <kbd>T</kbd> research · <kbd>Space</kbd> pause · <kbd>Esc</kbd> cancel</div>
     </div>
   </div>
 </div>
@@ -253,6 +301,48 @@ kbd{display:inline-block;padding:0 4px;border:1px solid var(--lo);border-bottom-
       <button class="btn red" id="restartBtn">Dissolve the Commission (new game)</button>
       <p class="desc" style="margin:4px 0 0">The game saves itself to this browser every half minute.</p>
     </div>
+  </div>
+</div>
+
+<div id="confirmM" class="modal" hidden>
+  <div class="win bev" style="width:min(400px,94vw)">
+    <div class="title"><span>Commission business</span></div>
+    <div class="content"><p id="confirmText" style="margin:0 0 12px"></p>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="confirmNo">Never mind</button><button class="btn red" id="confirmYes">Yes</button></div></div>
+  </div>
+</div>
+
+<div id="popM" class="modal" hidden>
+  <div class="win bev" style="width:min(460px,96vw)">
+    <div class="title"><span>Settlers</span><button class="x" data-close="popM" aria-label="Close">×</button></div>
+    <div class="content" id="popBody"></div>
+  </div>
+</div>
+
+<div id="secM" class="modal" hidden>
+  <div class="win bev" style="width:min(420px,96vw)">
+    <div class="title"><span>Security forces</span><button class="x" data-close="secM" aria-label="Close">×</button></div>
+    <div class="content" id="secBody"></div>
+  </div>
+</div>
+
+<div id="tradeM" class="modal" hidden>
+  <div class="win bev" style="width:min(460px,96vw)">
+    <div class="title"><span>Trading Post</span><button class="x" data-close="tradeM" aria-label="Close">×</button></div>
+    <div class="content" id="tradeBody"></div>
+  </div>
+</div>
+
+<div id="paperM" class="modal" hidden>
+  <div class="win bev" style="width:min(720px,96vw)">
+    <div class="title"><span>The Wasteland Gazette</span><button class="x" data-close="paperM" aria-label="Close">×</button></div>
+    <div class="content" style="padding:0"><div id="paper">
+      <div id="paperMast">The Wasteland Gazette</div>
+      <div id="paperEars"></div>
+      <h2 id="paperHead"></h2>
+      <p id="paperDeck"></p>
+      <div id="paperCols"><canvas id="paperPhoto" width="320" height="200"></canvas><div id="paperBody"></div></div>
+    </div></div>
   </div>
 </div>
 

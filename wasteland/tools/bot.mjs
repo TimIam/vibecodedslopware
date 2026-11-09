@@ -48,9 +48,9 @@ function brain(s) {
   if (s.id === 0 && c('tinker') < 1) want.push('tinker');
   if (s.sec >= s.bunks - 1 && s.bunks < 2 + s.pop / 7) want.push(R.metal && s.pop > 40 ? 'barracks' : 'guard');
   if (s.id === 0 && c('salvage') < 1 && G.t > 60) want.push('salvage');
-  if (s.id === 0 && c('tinker') < 2 && s.pop > 12) want.push('tinker');
+  if (s.id === 0 && c('tinker') < 2 + Math.floor(s.pop / 25) && s.pop > 12) want.push('tinker');
   if (R.carpentry && c('lumber') < 1 + (s.pop > 30)) want.push('lumber');
-  if (R.civics && c('school') < 1 && s.pop > 14) want.push('school');
+  if (R.civics && c('school') < 1 + Math.floor(s.pop / 18) && s.pop > 14) want.push('school');
   if (R.civics && c('park') < 1 + Math.floor(s.pop / 30)) want.push('park');
   if (R.masonry && c('quarry') < 1 + (s.pop > 35)) want.push('quarry');
   if (R.metal && c('smelter') < 1 + (s.pop > 40)) want.push('smelter');
