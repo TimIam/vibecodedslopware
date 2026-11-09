@@ -9,6 +9,7 @@ import * as EV from './lines/events.js';
 import * as PEP from './lines/pep.js';
 import * as FLAG from './lines/flags.js';
 import * as SHUTDOWN from './lines/shutdown.js';
+import * as NEON_DAY from './lines/neonday.js';
 
 const IDLE = [
   [['toby', 'Mags, how many wheel nuts have you done in your career?'], ['mags', 'All of them, Toby.']],
@@ -175,10 +176,10 @@ const BOSS = {
 const merge = (base, more) => { for (const k in more) base[k] = (base[k] || []).concat(more[k]); return base; };
 export const LINES = {
   IDLE: IDLE.concat(MORE_IDLE),
-  TRACK_IDLE: merge(TRACK_IDLE, MORE_TRACK),
+  TRACK_IDLE: merge(merge(TRACK_IDLE, MORE_TRACK), { neon: NEON_DAY.TRACK_IDLE }),
   START: START.concat(INTRO.START),
-  TRACK_START: INTRO.TRACK_START,
-  BRIEF: INTRO.BRIEF,
+  TRACK_START: merge({ ...INTRO.TRACK_START }, { neon: NEON_DAY.TRACK_START }),
+  BRIEF: merge({ ...INTRO.BRIEF }, { neon: NEON_DAY.BRIEF }),
   BOXCALL: BOXCALL.concat(EV.BOXCALL),
   REACT: merge(REACT, EV.REACT),
   EVENTS: merge(EVENTS, EV.EVENTS),
@@ -221,12 +222,32 @@ export function saveHeard() {
   if (keys.length > 2500) keys.sort((a, b) => heard.at[a] - heard.at[b]).slice(0, keys.length - 2000).forEach(k => delete heard.at[k]);
   try { localStorage.setItem(HEARD_KEY, JSON.stringify(heard)); } catch (e) {}
 }
+// Lines that only make sense at certain times of day. A long season runs the tracks again at
+// other times, so sunset chat must stay off a night race and floodlights off a day race.
+const NIGHT_ONLY = /\b(floodlights?|midnight|night races?|under the lights|neon signs|all that neon|neon on the fuel|ten at night|two in the morning|beautiful night|all night|so purple|everything purple|four shadows|tight and dark|darker than it looks|dark out there|lit the bridge)\b/i;
+const DUSK_ONLY = /\b(sunset|sundown|dusk|twilight|low sun|going purple|everything is orange|racing into gold)\b|\bsun (sets|goes down|is going down|is setting|is low|sits right on the horizon|is right behind)\b|start in daylight and finish/i;
+const NOT_NIGHT = /\b(sun|suns|sunny|sunshine|sunburnt?|sunglasses|glare|daylight|shade|afternoon)\b|sand is so bright|exit is bright|eating breakfast/i;
+const NOT_DAY = /\btonight\b/i;
+function textFits(t, time) {
+  if (NIGHT_ONLY.test(t) && time !== 'night') return false;
+  if (DUSK_ONLY.test(t) && time !== 'dusk' && time !== 'sunset') return false;
+  if (NOT_NIGHT.test(t) && time === 'night') return false;
+  if (NOT_DAY.test(t) && time === 'day') return false;
+  return true;
+}
+const textsOf = item => typeof item === 'string' ? [item] : Array.isArray(item[0]) ? item.map(l => l[1]) : [item[1]];
+export const fitsTime = (item, time) => textsOf(item).every(t => textFits(t, time));
+let timeNow = null;
+// The time of day of the race being talked about; pickFresh only offers lines that fit it.
+export function setTimeOfDay(t) { timeNow = t || null; }
+
 const keyOf = item => typeof item === 'string' ? item : Array.isArray(item[0]) ? item[0][1] : item[1];
 
 // Pick from a pool, least recently heard first: anything used waits until most of
 // the rest of its pool has had a turn.
 export function pickFresh(list, r = Math.random) {
   if (!list || !list.length) return null;
+  if (timeNow) { const fit = list.filter(c => fitsTime(c, timeNow)); if (fit.length) list = fit; }
   const ranked = list.map(c => ({ c, at: heard.at[keyOf(c)] || 0, k: r() })).sort((a, b) => a.at - b.at || a.k - b.k);
   const window = Math.max(1, Math.ceil(list.length / 4));
   const pick = ranked[Math.floor(r() * window)].c;
@@ -325,6 +346,7 @@ export class Director {
 // conditions, or about the basics when it's dry, mild and daylight.
 const PEP_ORDER = ['finale', 'shutdown', 'rain', 'dry', 'heat', 'cold', 'night', 'dusk', 'sand', 'walls', 'doubleStack', 'tightLane', 'slick', 'long'];
 export function pepTalk(track, r = Math.random) {
+  setTimeOfDay(track.time);
   const has = m => track.mods.includes(m);
   const wet = track.weather.some(w => w.wet);
   const time = track.time || 'day';

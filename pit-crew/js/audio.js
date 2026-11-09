@@ -183,6 +183,13 @@ const SONGS = {
     drums: 'k.h.s.hkk.h.s.h.',
     leadVol: 0.5,
   },
+  break: {
+    bpm: 92,
+    lead: bars(`E5 . . G5 . . A5 . G5 . E5 . . . D5 .  C5 . . E5 . . G5 . E5 . C5 . . . A4 .  D5 . . F5 . . A5 . F5 . D5 . . . C5 .  B4 . . D5 . . G5 . . . . . . . . .`),
+    bass: bars(`C3 . . . G3 . . . C3 . . . G3 . . .  A2 . . . E3 . . . A2 . . . E3 . . .  D3 . . . A3 . . . D3 . . . A3 . . .  G2 . . . D3 . . . G2 . . . D3 . . .`),
+    drums: 'k.....h.s.....h.',
+    leadVol: 0.45,
+  },
   results: {
     bpm: 120,
     lead: bars(`C5 E5 G5 C6 . . G5 . C6 . . . . . . .  A5 . G5 . F5 . E5 . D5 . E5 . C5 . . .`),

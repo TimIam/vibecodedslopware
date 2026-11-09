@@ -5,11 +5,12 @@ import { TEAMS, DRIVERS, TRACKS, COMPOUNDS, COMPOUND_ORDER, PEOPLE, POINTS, MOD_
 import { Race, rng, IN_T, OUT_T, TANK } from './race.js';
 import { PitStop } from './stop.js';
 import { bake, bakeMap, Y, BOX_X, theme, straightCar } from './scene.js';
-import { Director, LINES, rename, pepTalk, pickFresh, saveHeard } from './banter.js';
+import { Director, LINES, rename, pepTalk, pickFresh, saveHeard, setTimeOfDay } from './banter.js';
 import { calendar, MODES, TIME_NAME } from './season.js';
 import * as C from './custom.js';
 import * as A from './audio.js';
 import * as O from './options.js';
+import { makeBreak } from './break.js';
 
 // The game draws at 512x288 into an offscreen canvas; present() scales it to fill the window.
 const cv = document.getElementById('game');
@@ -26,6 +27,10 @@ let save = freshSave();
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && typeof s.round === 'number') save = { ...save, ...s }; } catch (e) {}
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 const cal = () => calendar(save.mode || 'short');
+// A long season stops for the Summer Shutdown after round 6, once.
+const dueBreak = () => save.mode === 'long' && save.round === 6 && !save.breakDone;
+const afterRace = () => go(save.round >= cal().length ? seasonScene : dueBreak() ? breakScene : calendarScene);
+const nextRace = () => go(save.round >= cal().length ? seasonScene : dueBreak() ? breakScene : briefingScene);
 function newSeason(mode) {
   const keep = { muted: save.muted, best: save.best, practiceBest: save.practiceBest };
   save = { ...freshSave(mode), ...keep };
@@ -103,6 +108,7 @@ addEventListener('keydown', e => {
     return;
   }
   A.init();
+  if (scene.raw && scene.raw(e, true)) { e.preventDefault(); return; }
   // the options screen waiting for a new key gets the raw key first
   if (scene.capture && scene.capture(e.code)) { e.preventDefault(); return; }
   const acts = O.actionsFor(e.code), nav = NAV[e.code];
@@ -114,6 +120,7 @@ addEventListener('keydown', e => {
   if (nav && scene.key) scene.key(nav);
 });
 addEventListener('keyup', e => {
+  if (scene.raw) scene.raw(e, false);
   const acts = O.actionsFor(e.code);
   if (acts.length && scene.actionsUp) scene.actionsUp(acts);
 });
@@ -145,6 +152,7 @@ cv.addEventListener('pointerdown', e => {
   if (scene.click) scene.click(p.x, p.y);
 });
 const endPointer = e => {
+  if (scene.pointerUp) scene.pointerUp();
   const k = pointerKeys.get(e.pointerId);
   if (k) { pointerKeys.delete(e.pointerId); scene.keyUp && scene.keyUp(k); }
 };
@@ -303,9 +311,9 @@ const titleScene = (() => {
       sel = Math.min(sel, its.length - 1);
       its.forEach(([label, fn], i) => button(W / 2 - 70, 116 + i * 20, 140, 17, label, fn, { hot: i === sel }));
       const n = cal().length;
-      if (menu === 'season') text(g, 'SHORT: 6 RACES, +3 LAPS.  LONG: 12 RACES, +6 LAPS.', W / 2, 118 + its.length * 20, '#6a7898', { align: 'center' });
+      if (menu === 'season') text(g, 'SHORT: 6 RACES.  LONG: 12 RACES.', W / 2, 118 + its.length * 20, '#6a7898', { align: 'center' });
       else if (save.round > 0 && save.round < n) text(g, `${MODES[save.mode || 'short'].name}: ROUND ${save.round + 1} OF ${n}`, W / 2, 118 + its.length * 20, '#6a7898', { align: 'center' });
-      text(g, A.ready() ? 'ARROWS + ENTER, OR CLICK' : 'CLICK OR PRESS ANY KEY FOR SOUND', W / 2, H - 28, A.ready() ? '#6a7898' : '#ffd23a', { align: 'center' });
+      text(g, 'ARROWS + ENTER, OR CLICK', W / 2, H - 28, '#6a7898', { align: 'center' });
       text(g, 'FICTIONAL TEAMS, DRIVERS AND CIRCUITS. NOT AFFILIATED WITH ANY RACING SERIES.', W / 2, H - 14, '#3a4660', { align: 'center' });
     },
     key(k) {
@@ -438,13 +446,13 @@ const calendarScene = {
     });
     const dp = DRIVERS.filter(d => d.team === 0).map(d => `${d.name.split(' ')[1].toUpperCase()} ${save.drv[d.code] || 0}`).join('   ');
     text(g, dp, 412, 168, '#9ad8ff', { align: 'center' });
-    if (save.round < cal().length) button(324, 230, 176, 22, `GO TO ROUND ${save.round + 1}`, () => go(briefingScene), { hot: true });
+    if (save.round < cal().length) button(324, 230, 176, 22, `GO TO ROUND ${save.round + 1}`, nextRace, { hot: true });
     else button(324, 230, 176, 22, 'SEASON REVIEW', () => go(seasonScene), { hot: true });
     button(12, 230, 100, 22, 'TITLE', () => go(titleScene), { color: '#5c6a8a' });
     button(118, 230, 110, 22, 'TEAM SETUP', () => go(setupScene), { color: '#5c6a8a' });
   },
   key(k) {
-    if (k === 'enter' || k === 'space') go(save.round < cal().length ? briefingScene : seasonScene);
+    if (k === 'enter' || k === 'space') nextRace();
     if (k === 'esc') go(titleScene);
   },
 };
@@ -453,6 +461,7 @@ const calendarScene = {
 const briefingScene = {
   enter() {
     this.tr = cal()[save.round]; this.map = bakeMap(this.tr, 150, 110); this.t = 0;
+    setTimeOfDay(this.tr.time);
     const pool = (this.tr.shutdown ? LINES.SHUTDOWN.BRIEF : LINES.BRIEF[this.tr.id]) || [['mags', 'Gloves on. Same as always.']];
     this.quote = pickFresh(pool);
     saveHeard();
@@ -505,6 +514,7 @@ const firstName = c => c.d.name.split(' ')[0];
 const drvKey = c => c.i === 0 ? 'nico' : 'sanna';
 
 function raceScene(track, round, { practice = false } = {}) {
+  setTimeOfDay(track.time);
   const seed = (Date.now() & 0xffff) + round * 7919;
   const r = rng(seed);
   const race = new Race(track, { seed, round, flagChance: practice ? 0 : 1.5 / cal().length });
@@ -1054,9 +1064,9 @@ function resultsScene(track, race, log, pts, round) {
       const name = (PEOPLE[who === '{drv}' ? (bestPos === ours[0].final ? 'nico' : 'sanna') : who] || PEOPLE.dev).name;
       const line = name + ': ' + said.replace(/{d}/g, (bestPos === ours[0].final ? DRIVERS[0] : DRIVERS[1]).name.split(' ')[0]).replace(/{p}/g, bestPos).replace(/{x}/g, track.gp).replace(/{n}/g, bestPos === ours[0].final ? 7 : 11);
       wrap(line, 440).slice(0, 4 - ql.length).forEach((l, i) => text(g, l, 52, 214 + ql.length * 10 + i * 10, '#9ad8ff'));
-      button(W / 2 - 60, 260, 120, 20, round === null ? 'BACK' : 'CONTINUE', () => go(save.round >= cal().length ? seasonScene : calendarScene), { hot: true });
+      button(W / 2 - 60, 260, 120, 20, round === null ? 'BACK' : 'CONTINUE', afterRace, { hot: true });
     },
-    key(k) { if (k === 'enter' || k === 'space') go(save.round >= cal().length ? seasonScene : calendarScene); },
+    key(k) { if (k === 'enter' || k === 'space') afterRace(); },
   };
 }
 
@@ -1433,6 +1443,9 @@ const practiceScene = (() => {
   };
 })();
 
+// ===== the Summer Shutdown, between rounds 6 and 7 of a long season
+const breakScene = makeBreak({ g, button, mouse: () => mouse, onContinue: () => { save.breakDone = true; persist(); go(briefingScene); } });
+
 // ------------------------------------------------------------ loop
 let last = performance.now(), acc = 0;
 const STEP = 1 / 60;
@@ -1454,6 +1467,7 @@ if (DEV) {
   window.__pc = {
     speed: 1, bot: false,
     get scene() { return scene; },
+    breakScene, brk: id => { go(breakScene); return breakScene.jump(id); },
     go: name => go({ setup: setupScene, title: titleScene, calendar: calendarScene, briefing: briefingScene, practice: practiceScene, how: howScene, season: seasonScene }[name]),
     race: (i, mode) => go(raceScene(calendar(mode || save.mode || 'short')[i] || TRACKS[i], i)),
     step(n = 1) { for (let i = 0; i < n; i++) { scene.update(STEP); T += STEP; } ui.length = 0; scene.draw(); present(); },

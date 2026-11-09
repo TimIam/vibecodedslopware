@@ -32,7 +32,8 @@ export function variant(base, extra, second) {
     if (time === 'night') mods.push('night');
     blurb = `Second visit, and it's a different place: a ${time === 'night' ? 'night' : time} race this time, ${wasWet ? 'and the forecast says dry' : 'with rain due part way through'}.`;
   }
-  return { ...base, key: `${base.id}-${second ? 'b' : 'a'}${laps}`, laps, weather, mods, time, second, blurb, dryNow: second && base.weather.some(w => w.wet) };
+  const gp = second && base.gp.startsWith('Night') ? 'Harbour Grand Prix' : base.gp;
+  return { ...base, gp, key: `${base.id}-${second ? 'b' : 'a'}${laps}`, laps, weather, mods, time, second, blurb, dryNow: second && base.weather.some(w => w.wet) };
 }
 
 export function calendar(mode = 'short') {
