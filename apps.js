@@ -69,7 +69,14 @@ window.SLOPWARE = {
      "date": "2026-10-04T10:47:48-06:00",
      "note": "no more stun-lock, gentler first fights",
      "prompts": 2,
-     "tokens": 587022
+     "tokens": 582944
+    },
+    {
+     "n": 6,
+     "date": "2026-11-09T06:59:13-07:00",
+     "note": "six 8-bit games, playable in a Pinecrest room in Strange Weather",
+     "prompts": 0,
+     "tokens": 4078
     }
    ]
   },
@@ -874,8 +881,8 @@ window.SLOPWARE = {
   },
   "wasteland": {
    "visits": 0,
-   "prompts": 3,
-   "tokens": 633614,
+   "prompts": 4,
+   "tokens": 1481797,
    "sharedWith": null,
    "versions": [
     {
@@ -889,8 +896,8 @@ window.SLOPWARE = {
      "n": 2,
      "date": "2026-11-07T15:05:41-07:00",
      "note": "cast shadows, crisper sprites, livelier ground",
-     "prompts": 1,
-     "tokens": 70178
+     "prompts": 2,
+     "tokens": 918361
     }
    ]
   },
@@ -983,8 +990,8 @@ window.SLOPWARE = {
   },
   "par-for-the-curse": {
    "visits": 31,
-   "prompts": 15,
-   "tokens": 2448891,
+   "prompts": 16,
+   "tokens": 3263815,
    "sharedWith": null,
    "versions": [
     {
@@ -1026,8 +1033,8 @@ window.SLOPWARE = {
      "n": 6,
      "date": "2026-11-04T15:22:33-07:00",
      "note": "timed swaying cannon, high plugging lob, shot arcs",
-     "prompts": 3,
-     "tokens": 83929
+     "prompts": 4,
+     "tokens": 898853
     }
    ]
   },
