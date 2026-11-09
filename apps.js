@@ -940,8 +940,8 @@ window.SLOPWARE = {
   },
   "pit-crew": {
    "visits": 19,
-   "prompts": 9,
-   "tokens": 6268125,
+   "prompts": 10,
+   "tokens": 6291531,
    "sharedWith": null,
    "versions": [
     {
@@ -997,8 +997,8 @@ window.SLOPWARE = {
      "n": 8,
      "date": "2026-11-09T08:52:36-07:00",
      "note": "the Summer Shutdown, five break scenes, banter that knows the time of day",
-     "prompts": 1,
-     "tokens": 2278233
+     "prompts": 2,
+     "tokens": 2301639
     }
    ]
   },
