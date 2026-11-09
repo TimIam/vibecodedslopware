@@ -32,9 +32,13 @@ const cab2 = Arcade.mount(document.querySelector('#screen'), 'menu');
 
 From a non-module script use `import('/arcade/arcade.js')`, as Strange Weather does through Godot's `JavaScriptBridge`. An iframe also works: `/arcade/?game=fishing&embed=1` posts `{ vibearcade: true, type: 'gameover' | 'exit', score, hi }` to its parent.
 
-Options for all three: `sound`, `seed`, `games: ['fishing', ...]` (limits the menu), `storage: false` (no saved high scores), `onStart({ id })` (return `false` to refuse, for charging coins), `onGameOver({ id, score, hi, isHi, msg })`, `onExit(...)`.
+Options for all three: `sound`, `seed`, `games: ['fishing', ...]` (limits the menu), `storage: false` (keep high scores only until the page closes), `onStart({ id })` (return `false` to refuse, for charging coins), `onGameOver({ id, score, hi, isHi, msg })`, `onExit(...)`.
 
 Hosts that drive input themselves call `cab.press('a', true)`. Buttons are `up down left right a b start back`. Keys are arrows or WASD, Z or Space for A, X for B, Enter for start or pause, Esc to back out.
+
+## High scores
+
+Each game keeps a top 10 in the player's browser (`localStorage`, `vibearcade.top.<id>`), so every browser is its own machine. A score that makes the table asks for three initials, picked with up and down, and the row is saved the moment the game ends so backing out can't lose it. X (button B) shows the table from the title screen or menu, and it also plays in the attract loop.
 
 ## Adding a game
 
