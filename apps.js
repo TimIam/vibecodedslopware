@@ -990,8 +990,8 @@ window.SLOPWARE = {
   },
   "par-for-the-curse": {
    "visits": 31,
-   "prompts": 17,
-   "tokens": 3282016,
+   "prompts": 20,
+   "tokens": 3514130,
    "sharedWith": null,
    "versions": [
     {
@@ -1042,6 +1042,13 @@ window.SLOPWARE = {
      "note": "run freely, drive golf carts up hard roads",
      "prompts": 2,
      "tokens": 837183
+    },
+    {
+     "n": 8,
+     "date": "2026-11-09T08:19:07-07:00",
+     "note": "free swing, one cart, longer harder climb",
+     "prompts": 3,
+     "tokens": 232114
     }
    ]
   },
