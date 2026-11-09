@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>VibeArcade</title>
-<meta name="description" content="Six tiny 8-bit arcade games from Vibe Coded Slopware: fishing, a brick breaker, a space shooter, data center demolition, a maze chase and a run and gun.">
+<meta name="description" content="Walk around an 8-bit arcade where six tiny machines play themselves: fishing, a brick breaker, a space shooter, data center demolition, a maze chase and a run and gun.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕹️</text></svg>">
 <link rel="stylesheet" href="/site-nav.css">
 <style>
@@ -25,11 +25,13 @@ body.embed .site-topbar{display:none}
 <div id="wrap"></div>
 <script type="module">
 import { mount } from './arcade.js';
+import { mountRoom } from './room.js';
 import { setAudioMuted, audioMuted } from './audio.js';
-const q = new URLSearchParams(location.search), id = q.get('game') || 'menu', embed = q.has('embed');
+const q = new URLSearchParams(location.search), id = q.get('game') || 'menu', embed = q.has('embed'), walkIn = !embed && !q.has('game');
 if (embed) document.body.classList.add('embed');
 const tell = msg => { if (embed && parent !== window) parent.postMessage({ vibearcade: true, ...msg }, location.origin); };
-window.__arc = mount(document.getElementById('wrap'), id, {
+if (walkIn) window.__room = mountRoom(document.getElementById('wrap'));
+else window.__arc = mount(document.getElementById('wrap'), id, {
   onGameOver: o => tell({ type: 'gameover', ...o }),
   onExit: o => tell({ type: 'exit', ...o }),
 });

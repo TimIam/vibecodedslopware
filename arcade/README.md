@@ -13,6 +13,8 @@ Six 8-bit games on one 256x240 canvas, built to be dropped into other games on t
 
 Pass `'menu'` instead of an id for the six-in-one cabinet.
 
+`/arcade/` is the walk-in version (`room.js`): an 8-bit room where every machine runs its own demo and you sit down at one to play it. `/arcade/?game=menu` is the six-in-one cabinet and `/arcade/?game=fishing` opens a single game.
+
 ## Putting a cabinet in a game
 
 ```js

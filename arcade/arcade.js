@@ -261,7 +261,7 @@ class Cabinet {
       this.game.draw(g);
       g.reset();
       this.drawHud(g);
-      if (this.mode === 'demo') this.drawDemo(g);
+      if (this.mode === 'demo' && this.opts.attractText !== false) this.drawDemo(g);
       if (this.mode === 'pause') { g.panel(84, 104, 88, 26); g.center('PAUSED', 113, C.y); }
       if (this.mode === 'over') this.drawOver(g);
     }
@@ -369,13 +369,13 @@ class Cabinet {
 // Headless: you draw cab.canvas (drawImage, THREE.CanvasTexture) and call cab.update(dt). Runs its attract loop until played.
 export function create(id, opts) { return new Cabinet(id, opts); }
 
-function bindKeys(cab) {
+export function bindKeys(cab) {
   const editing = e => e.target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName ?? '');
   const down = e => {
     if (e.ctrlKey || e.metaKey || e.altKey || /^F\d+$/.test(e.code) || editing(e)) return;
     unlockAudio();
     const b = KEYMAP[e.code];
-    if (b) cab.press(b, true);
+    if (b && !e.repeat) cab.press(b, true); // a key held from the walk-up must not start the game
     e.preventDefault();
     e.stopImmediatePropagation(); // the host must not walk the player around while they're at the machine
   };
@@ -408,11 +408,17 @@ function touchPad(cab, root) {
 
 // Live inside an element of yours. Takes the keyboard until cab.destroy().
 export function mount(el, id, opts = {}) {
-  const cab = new Cabinet(id, { sound: true, ...opts });
+  return attach(el, new Cabinet(id, { sound: true, ...opts }), opts);
+}
+
+// Puts anything with { canvas, update, press, releaseAll, destroy, dead } in an element and runs it.
+export function attach(el, cab, opts = {}) {
   if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
   cab.canvas.style.cssText = 'display:block;width:100%;height:100%;object-fit:contain;image-rendering:pixelated;image-rendering:crisp-edges';
   el.appendChild(cab.canvas);
-  const unkey = opts.keys === false ? null : bindKeys(cab);
+  let unkey = opts.keys === false ? null : bindKeys(cab);
+  cab.keysOff = () => { unkey?.(); unkey = null; };
+  cab.keysOn = () => { unkey ??= bindKeys(cab); };
   const pad = document.createElement('div');
   pad.style.cssText = 'position:absolute;inset:0;pointer-events:none';
   if (opts.touch ?? matchMedia('(pointer:coarse)').matches) {
