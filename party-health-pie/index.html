@@ -50,17 +50,17 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
   <p class="hint">An early release. Bars are a shape, and the shape can be a pie.</p>
 
   <div class="cta">
-    <a class="btn primary" href="/party-health-pie/PartyHealthPie-1.0.0.zip" download>
-      <b>Download for Classic Forever</b><small>v1.0.0 · 0.3 MB · free</small>
+    <a class="btn primary" href="/party-health-pie/PartyHealthPie-1.1.0.zip" download>
+      <b>Download for Classic Forever</b><small>v1.1.0 · 0.3 MB · free</small>
     </a>
-    <a class="btn primary" href="/party-health-pie/PartyHealthPie-Retail-1.0.0.zip" download>
-      <b>Download for retail (Midnight)</b><small>v1.0.0 · 0.3 MB · free · adds all 13 classes</small>
+    <a class="btn primary" href="/party-health-pie/PartyHealthPie-Retail-1.1.0.zip" download>
+      <b>Download for retail (Midnight)</b><small>v1.1.0 · 0.3 MB · free · adds all 13 classes</small>
     </a>
   </div>
-  <p class="note">The retail build hasn’t been played on a live retail client yet, so treat it as a test release.</p>
+  <p class="note">The retail build hasn’t been played on a live retail client yet, so treat it as a test release. The debuff glow is new in 1.1.0 and hasn’t been tested in a real group yet.</p>
 
   <figure>
-    <img src="/party-health-pie/preview.png" width="520" height="260" alt="Two pie meters. Each has five colored wedges, with blue shield bands at the rim, pale green incoming-heal bands, and a yellow outline around the selected player.">
+    <img src="/party-health-pie/preview.png" width="520" height="260" alt="Two pie meters with five colored wedges each. One shows blue shield bands at the rim and pale green incoming-heal bands. The other shows tank, healer and DPS symbols, with a purple sword and a green shield glowing for players who have a debuff.">
     <figcaption>Rendered from the addon’s own drawing code, not an in-game screenshot.</figcaption>
   </figure>
 
@@ -97,6 +97,8 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
     <li><b>Low health</b> (33% or below) turns the wedge deep red with a thick flashing outline.</li>
     <li><b>Dead</b> is charcoal, <b>disconnected</b> is grey, and someone who <b>left</b> leaves a transparent wedge.</li>
     <li><b>Your target</b> gets a yellow outline. Select a pet and only its slice lights up.</li>
+    <li><b>Role symbols</b> mark each player as tank (shield), healer (cross) or DPS (sword).</li>
+    <li><b>Debuffs you can dispel</b> turn the symbol curse purple, magic blue, disease gold or poison green. A halo fades as the debuff runs out, and a countdown shows the seconds left.</li>
   </ul>
 
   <h2>Healing with it</h2>
@@ -128,6 +130,8 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
     <li>The circle can’t be dragged during combat, and size changes apply when combat ends.</li>
     <li>A low-health wedge stays red until the player recovers to 50%. When the game hides party health from addons, it follows the 33% line both ways instead.</li>
     <li>Instant heals have no cast, so they don’t show an incoming-heal band.</li>
+    <li>Role symbols come from the role set in the game, so someone with no role has no symbol. They still get the debuff halo and countdown.</li>
+    <li>If a player has several debuffs you can dispel, the symbol shows the one ending soonest.</li>
     <li>On retail, the game may not report other players’ secondary resources. If a class with Secondary ticked shows an empty band, untick it.</li>
   </ul>
 
