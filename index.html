@@ -11,7 +11,8 @@
 @media (prefers-color-scheme:dark){:root{--bg:#15171a;--fg:#ece8df;--dim:#9a958a;--card:#1d2024;--line:#2e3238;--accent:#8fc46a}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}
-main{max-width:940px;margin:0 auto;padding:64px 16px 48px}
+main{padding:64px 16px 48px;display:grid;grid-template-columns:minmax(260px,1fr) minmax(0,908px) minmax(0,1fr);column-gap:24px}
+main>*{grid-column:2;min-width:0}
 h1{font-size:clamp(34px,7vw,56px);line-height:1.05;margin:0 0 12px;letter-spacing:-1px}
 h1 span{color:var(--accent)}
 .lede{color:var(--dim);font-size:18px;margin:0 0 28px;max-width:560px}
@@ -36,8 +37,30 @@ footer{margin-top:48px;color:var(--dim);font-size:13px}
 .card .meta{margin-top:6px;font-size:12.5px;color:var(--dim);opacity:.85}
 .card .ver{position:absolute;right:12px;bottom:7px;font-size:11px;color:var(--dim);opacity:.8}
 .tip{position:fixed;z-index:10;max-width:260px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--fg);font-size:12.5px;line-height:1.45;box-shadow:0 6px 20px rgba(0,0,0,.18);pointer-events:none}
+.app{position:relative}
+.star{position:absolute;top:3px;left:3px;display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;border-radius:9px;background:none;color:var(--fg);cursor:pointer;transition:transform .15s}
+.star svg{width:20px;height:20px;fill:currentColor;opacity:.2;transition:opacity .15s,fill .15s}
+.star:hover svg,.star:focus-visible svg{opacity:.4}
+.star[aria-pressed="true"] svg{fill:#f2b01e;opacity:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.3))}
+a.card:hover~.star,.star:hover{transform:translateY(-2px)}
+.app:has(.star:hover) a.card{transform:translateY(-2px);border-color:var(--accent)}
+.favs{grid-column:1;grid-row:1/span 5;justify-self:end;align-self:start;position:sticky;top:68px;width:260px;max-height:calc(100vh - 84px);display:flex;flex-direction:column;padding:12px;border:1px solid var(--line);border-radius:14px}
+.favs h2{margin:0 0 10px;font-size:15px}
+.favs-hint{display:none;margin:0;color:var(--dim);font-size:13.5px}
+.favs.is-empty .favs-hint{display:block}
+.favs-list{position:relative;display:grid;grid-auto-rows:max-content;gap:6px;min-height:0;margin:0;padding:0;list-style:none;overflow-y:auto;overscroll-behavior:contain}
+.fav{display:flex;align-items:center;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:10px;transition:border-color .15s}
+.fav:hover{border-color:var(--accent)}
+.fav.dragging{position:relative;z-index:1;border-color:var(--accent);box-shadow:0 6px 18px rgba(0,0,0,.22)}
+.grip{flex:none;align-self:stretch;width:30px;padding:0;border:0;background:none;color:var(--dim);font:inherit;font-size:13px;letter-spacing:-1px;white-space:nowrap;cursor:grab;touch-action:none;user-select:none}
+.grip:active{cursor:grabbing}
+.fav a{flex:1;min-width:0;display:flex;align-items:center;gap:8px;padding:6px 10px 6px 0;color:inherit;text-decoration:none}
+.fav .icon{flex:none;width:26px;font-size:20px;line-height:1.3}
+.fav .icon img{width:24px;height:24px}
+.fav-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tip b{display:block}
 .tip span{display:block;color:var(--dim)}
+@media (max-width:1000px){main{display:block;max-width:940px;margin:0 auto}.favs{position:static;justify-self:stretch;width:auto;max-height:none;margin:0 0 16px}.favs.is-empty{display:none}.favs-list{max-height:45vh}}
 @media (max-width:640px){.app{grid-template-columns:1fr;gap:6px}.vers{display:flex;flex-wrap:wrap}.vers:empty{display:none}}
 @media (max-width:520px){a.card{grid-template-columns:48px 1fr}.tag{display:none}.icon{font-size:32px}.icon img{width:44px;height:44px}}
 </style>
@@ -58,6 +81,11 @@ footer{margin-top:48px;color:var(--dim);font-size:13px}
     <button type="button" data-sort="popular">Popular</button>
     <button type="button" data-sort="az">A–Z</button>
   </div>
+  <aside class="favs is-empty" aria-label="Favorites">
+    <h2>Favorites</h2>
+    <p class="favs-hint">Click the star on any app to keep it here.</p>
+    <ol class="favs-list"></ol>
+  </aside>
   <div class="grid">
     <a class="card" href="/bonsai/">
       <div class="icon">🌳</div>
@@ -281,7 +309,7 @@ footer{margin-top:48px;color:var(--dim);font-size:13px}
     const app = data[slug], wrap = el("div", "app"), vers = el("div", "vers");
     card.replaceWith(wrap); wrap.append(card, vers);
     const name = card.querySelector("h2").textContent;
-    if (!app) return { wrap, name, soon: card.classList.contains("soon") };
+    if (!app) return { wrap, card, slug, name, soon: card.classList.contains("soon") };
     const vs = app.versions, first = vs[0], last = vs[vs.length - 1];
     const bits = ["First released " + day(first.date, true)];
     if (app.prompts != null) bits.push(plural(app.prompts, "prompt"), tok(app.tokens) + " tokens");
@@ -299,7 +327,7 @@ footer{margin-top:48px;color:var(--dim);font-size:13px}
       a.addEventListener("blur", hideTip);
       vers.append(a);
     }
-    return { wrap, name, first: first.date, latest: last.date, visits: app.visits };
+    return { wrap, card, slug, name, first: first.date, latest: last.date, visits: app.visits };
   });
 
   // Cards with no history yet (just added) count as newest; "Next thing" stays last.
@@ -322,6 +350,116 @@ footer{margin-top:48px;color:var(--dim);font-size:13px}
   let saved = null;
   try { saved = localStorage.getItem("slopware.sort"); } catch {}
   sort(saved || "latest");
+
+  // Favorites: starred apps in the visitor's own order, remembered in this browser.
+  const favBox = document.querySelector(".favs"), favList = favBox.querySelector(".favs-list");
+  const bySlug = new Map(apps.filter((a) => a.slug).map((a) => [a.slug, a]));
+  let favs = null;
+  try { favs = JSON.parse(localStorage.getItem("slopware.favorites")); } catch {}
+  favs = Array.isArray(favs) ? [...new Set(favs)].filter((s) => bySlug.has(s)) : [];
+  const saveFavs = () => { try { localStorage.setItem("slopware.favorites", JSON.stringify(favs)); } catch {} };
+  const rows = () => [...favList.children];
+  const readOrder = () => { favs = rows().map((li) => li.dataset.slug); saveFavs(); };
+  // Shifts the other rows around li: moving li itself would drop its pointer capture and focus.
+  const moveRow = (li, to) => {
+    const list = rows(), from = list.indexOf(li);
+    if (to < from) li.after(...list.slice(to, from));
+    else if (to > from) li.before(...list.slice(from + 1, to + 1));
+  };
+
+  // Rows are all one height (names don't wrap), so a slot is just top / step.
+  const startDrag = (e, li, grip) => {
+    if (e.button !== 0 || favs.length < 2) return;
+    e.preventDefault();
+    const step = rows()[1].offsetTop - rows()[0].offsetTop;
+    const listY = (y) => y - favList.getBoundingClientRect().top + favList.scrollTop;
+    const grab = listY(e.clientY) - li.offsetTop;
+    let y = e.clientY, frame = 0;
+    const place = () => {
+      const last = rows().length - 1, top = Math.max(0, Math.min(last * step, listY(y) - grab));
+      const to = Math.round(top / step), from = rows().indexOf(li);
+      if (to !== from) {
+        const others = rows().filter((r) => r !== li), before = others.map((r) => r.offsetTop);
+        moveRow(li, to);
+        others.forEach((r, i) => {
+          const d = before[i] - r.offsetTop;
+          if (d) r.animate([{ transform: `translateY(${d}px)` }, { transform: "none" }], { duration: 120, easing: "ease-out" });
+        });
+      }
+      li.style.transform = `translateY(${top - li.offsetTop}px)`;
+    };
+    const tick = () => {
+      const r = favList.getBoundingClientRect();
+      const d = y < r.top + 28 ? -8 : y > r.bottom - 28 ? 8 : 0;
+      if (d && favList.scrollHeight > favList.clientHeight) { favList.scrollTop += d; place(); }
+      frame = requestAnimationFrame(tick);
+    };
+    const move = (ev) => { y = ev.clientY; place(); };
+    const end = () => {
+      cancelAnimationFrame(frame);
+      grip.removeEventListener("pointermove", move);
+      grip.removeEventListener("lostpointercapture", end);
+      const from = li.style.transform;
+      li.style.transform = "";
+      li.classList.remove("dragging");
+      if (from) li.animate([{ transform: from }, { transform: "none" }], { duration: 120, easing: "ease-out" });
+      readOrder();
+    };
+    grip.setPointerCapture(e.pointerId);
+    grip.addEventListener("pointermove", move);
+    grip.addEventListener("lostpointercapture", end);
+    li.classList.add("dragging");
+    frame = requestAnimationFrame(tick);
+  };
+
+  const nudge = (li, by) => {
+    const to = rows().indexOf(li) + by;
+    if (to < 0 || to >= rows().length) return;
+    moveRow(li, to);
+    readOrder();
+  };
+
+  const favRow = (slug) => {
+    const a = bySlug.get(slug), li = el("li", "fav"), grip = el("button", "grip", "⋮ ⋮"), link = el("a");
+    li.dataset.slug = slug;
+    grip.type = "button";
+    grip.title = "Drag to reorder";
+    grip.setAttribute("aria-label", "Reorder " + a.name + ". Use the up and down arrow keys.");
+    grip.addEventListener("pointerdown", (e) => startDrag(e, li, grip));
+    grip.addEventListener("keydown", (e) => {
+      const by = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+      if (by) { e.preventDefault(); nudge(li, by); }
+    });
+    link.href = a.card.getAttribute("href");
+    link.title = a.name;
+    link.append(a.card.querySelector(".icon").cloneNode(true), el("span", "fav-name", a.name));
+    li.append(grip, link);
+    return li;
+  };
+
+  const paintFavs = () => {
+    favList.replaceChildren(...favs.map(favRow));
+    favBox.classList.toggle("is-empty", !favs.length);
+    for (const [slug, a] of bySlug) {
+      const on = favs.includes(slug);
+      a.star.setAttribute("aria-pressed", String(on));
+      a.star.title = on ? "Remove from favorites" : "Add to favorites";
+    }
+  };
+
+  for (const [slug, a] of bySlug) {
+    a.star = el("button", "star");
+    a.star.type = "button";
+    a.star.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.95 6.27 6.87.83-5.07 4.7 1.33 6.79L12 17.7l-6.08 3.39 1.33-6.79-5.07-4.7 6.87-.83z"/></svg>';
+    a.star.setAttribute("aria-label", "Favorite " + a.name);
+    a.star.addEventListener("click", () => {
+      favs = favs.includes(slug) ? favs.filter((s) => s !== slug) : [...favs, slug];
+      saveFavs();
+      paintFavs();
+    });
+    a.card.after(a.star);
+  }
+  paintFavs();
 })();
 </script>
 </body>
