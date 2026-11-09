@@ -67,19 +67,9 @@ function soundGate() {
     for (const ev of EVENTS) addEventListener(ev, hear, true);
   });
 }
-function loadSplash() {
-  return new Promise(done => {
-    const s = document.createElement('script');
-    s.src = '/splash.js';
-    s.setAttribute('data-always', '');   // every launch, not just the first in a tab
-    s.onload = s.onerror = done;
-    document.head.appendChild(s);
-  });
-}
 (async () => {
   if (await soundBlocked()) await soundGate();
-  await loadSplash();
-  await window.SlopwareSplash?.ready;
+  await window.SlopwareSplash?.start();
   booted = true;
   last = performance.now();
   audio.unlock();
