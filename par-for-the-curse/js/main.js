@@ -72,7 +72,7 @@ function loadSave() { try { return JSON.parse(localStorage.getItem('pftc-save') 
 
 /* ---------------- quips ---------------- */
 const Q = {
-  welcome: ['Welcome to Mount Bogey. Nine holes, one mountain, zero refunds.', 'Welcome back. The mountain missed you. It did not.'],
+  welcome: ['Welcome to Mount Bogey. Nine holes, one mountain, zero refunds.', "Welcome back. The mountain missed you.... Just kidding, it didn't."],
   fall: ['Gravity remains undefeated.', 'And that is {m} metres of progress, gone.', 'The mountain giveth. The mountain taketh away.', 'Bold strategy. It did not pay off.', 'Have you considered hitting it less?', 'Weeeeee.', 'Back to hole {h}. Lovely this time of year.'],
   bigfall: ['That is a long way down. {m} metres, to be precise.', 'Oh no. Oh no no no.', 'And the crowd goes silent.'],
   sea: ['Into the sea. Magnificent.', 'Ball overboard!', 'That one is going to Portugal.', 'The fish thank you for your donation.'],
@@ -150,6 +150,7 @@ async function boot() {
   for (const part of [me.p.head, me.p.eyes, me.p.stache, me.crown, ...Object.values(me.hats)]) part.traverse(o => o.layers.set(1));
   camera.layers.enable(1); sun.shadow.camera.layers.enable(1);
   swing = new Swing();
+  swing.calibrate();
   carts = [new Cart(scene, course.cartSpots[0])];
   ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 24, 16), toon(0xffffff));
   ballMesh.castShadow = true; addOutline(ballMesh, 0.012); scene.add(ballMesh);
@@ -303,6 +304,7 @@ addEventListener('keydown', e => {
   keys.add(k);
   if (k >= '1' && k <= '5') setSlot(+k - 1);
   if (k === 'q' && !S.grip) cycleClub(-1);
+  if (k === 'h' && !e.repeat) S.showHit = !S.showHit;
   if (k === 'e' && !e.repeat && !S.grip) interact();
   if ((k === 'w' || k === 's') && S.mode === 'address' && !e.repeat) leaveAddress();
   if (k === 'm') { A.setMuted(!A.isMuted()); updateHud(); }
@@ -502,7 +504,10 @@ function worldEvent(k, d) {
 
 /* ---------------- the shot ---------------- */
 function launch(r) {
+  const at = r.contact ? localToWorld(r.contact, V()) : ball.p.clone();
   S.grip = false;
+  S.hitStop = r.kind === 'pure' ? 0.09 : 0.05;
+  fx.sparks(at, r.kind === 'pure' ? 14 : 6);
   if (r.kind !== 'putt') r.v.multiplyScalar(POWER);
   if (!S.tipDone) { S.tipDone = true; try { localStorage.setItem('pftc-tip', '1'); } catch (e) {} $('tip').classList.remove('show'); }
   const f = fDir(), w = wDir();
@@ -519,10 +524,12 @@ function launch(r) {
   if (r.kind === 'putt') A.play('putt', clamp(speed / 6, 0.3, 1));
   else A.play('hit', clamp(speed / 30, 0.4, 1), { pure: r.kind === 'pure' });
   const mph = v => Math.round(v * 2.237);
-  $('shot').innerHTML = `<b>${CLUBS[swing.ci].name}</b> · head ${mph(r.headSpeed)} mph · ball ${mph(speed)} mph` + (r.kind === 'pure' ? ' · <em>PURE</em>' : r.kind === 'topped' ? ' · <em class="bad">TOPPED</em>' : '');
+  $('shot').innerHTML = `<b>${CLUBS[swing.ci].name}</b> · head ${mph(r.headSpeed)} mph · ball ${mph(speed)} mph` + (r.kind === 'pure' ? ' · <em>PURE</em>' : r.kind === 'topped' ? ' · <em class="bad">TOPPED</em>' : r.kind === 'shank' ? ' · <em class="bad">SHANK</em>' : '') + (r.where === 'toe' || r.where === 'heel' ? ` · off the ${r.where}` : '');
   $('shot').classList.add('show'); clearTimeout(launch.t); launch.t = setTimeout(() => $('shot').classList.remove('show'), 4000);
   if (r.kind === 'pure') { fx.sparks(ball.p, 26); pop('PURE!', 'great', ball.p.clone().add(V(0, 0.4, 0))); if (Math.random() < 0.6) quip('pure'); shake(0.12); }
   else if (r.kind === 'topped') { pop('topped', 'bad', ball.p.clone().add(V(0, 0.4, 0))); quip('topped'); addRage(5); }
+  else if (r.kind === 'shank') { pop('SHANK!', 'bad', ball.p.clone().add(V(0, 0.4, 0))); quip('topped'); addRage(10); }
+  else if (r.kind === 'toe' || r.kind === 'heel') { pop('off the ' + r.kind, 'bad', ball.p.clone().add(V(0, 0.4, 0))); addRage(4); }
   if (r.kind !== 'putt' && speed > 25) shake(0.1);
   sendEv({ k: 'hit', p: ball.p.toArray().map(n => +n.toFixed(2)), s: +speed.toFixed(1) });
   updateHud();
@@ -626,6 +633,7 @@ function frame(now) {
   let dt = Math.min(0.05, (now - last) / 1000); last = now;
   S.realDt = dt;
   if (S.slowmo) dt *= S.slowmo;
+  if (S.hitStop > 0) { S.hitStop -= S.realDt; dt *= 0.08; }   // a beat of freeze so you feel the contact
   step(dt);
   render(dt);
 }
@@ -673,7 +681,7 @@ function step(dt) {
       }
     }
     if (S.mode === 'address' || (free && !ball.frozen && ball.grounded && ball.v.distanceTo(ball.gVel) < 0.25)) {
-      const r = swing.strike(bl, free);
+      const r = swing.strike(bl);
       if (r) {
         if (S.fat) { r.v.multiplyScalar(0.55); r.kind = 'fat'; quip('fat'); addRage(5); }
         launch(r); S.fat = false;
@@ -1016,7 +1024,8 @@ function updateCamera(dt) {
     const L = S.golferG.clone().addScaledVector(w, 0.34).addScaledVector(f, 0.4).add(V(0, 0.34, 0));
     const ang = 1.0, dist = swing.ci === 0 ? 2.2 : 2.7;
     wantPos = L.clone().addScaledVector(w, Math.cos(ang) * dist).addScaledVector(f, -Math.sin(ang) * dist).add(V(0, swing.ci === 0 ? 1.05 : 1.2, 0));
-    wantLook = L.clone().addScaledVector(f, 2).add(V(0, -0.1, 0));
+    // While gripping, tip down so the ball and the club head sit mid-screen, clear of the HUD.
+    wantLook = S.grip ? S.golferG.clone().addScaledVector(w, 0.5).addScaledVector(f, 0.6).add(V(0, 0.08, 0)) : L.clone().addScaledVector(f, 2).add(V(0, -0.1, 0));
     pivot = S.golferG.clone().addScaledVector(w, 0.25).add(V(0, 0.5, 0));
     k = S.modeT < 1 ? 3 : 6;
   }
@@ -1136,6 +1145,83 @@ function updateArc() {
   arcRing.scale.setScalar(1 + Math.sin(S.t * 5) * 0.12);
 }
 
+/* ---------------- strike guide ---------------- */
+// While gripping near the ball: a lane on the turf showing the strip the middle of the face travels along
+// on a full swing and how wide the face is, a ring round the ball that says whether it is in that strip, an
+// arrow toward the lane when it isn't, and the head's real footprint sliding over the grass.
+let guide, hitbox;
+const GUIDE_GOOD = 0x3ddc84, GUIDE_OK = 0xffd23f, GUIDE_BAD = 0xff4d4d, LOCAL_BALL = BALL_R / ACTOR;
+const _gm = new THREE.Matrix4();
+function makeGuide() {
+  const plane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  const mat = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide });
+  const flat = (color, opacity) => { const m = new THREE.Mesh(plane, mat(color, opacity)); m.renderOrder = 2; return m; };
+  const lane = flat(0xffffff, 0.28), mid = flat(0xffffff, 0.8), foot = flat(0xffffff, 0.5);
+  const root = new THREE.Group(); root.add(lane, mid);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(1, 1.3, 40).rotateX(-Math.PI / 2), mat(GUIDE_GOOD, 0.95)); ring.renderOrder = 3;
+  const tri = new THREE.Shape(); tri.moveTo(-0.5, 0); tri.lineTo(0.5, 0); tri.lineTo(0, 1); tri.closePath();
+  const arrow = new THREE.Mesh(new THREE.ShapeGeometry(tri).rotateX(Math.PI / 2), mat(GUIDE_BAD, 0.95)); arrow.renderOrder = 3;
+  scene.add(root, ring, foot, arrow);
+  guide = { root, lane, mid, foot, ring, arrow, box: {} };
+}
+function updateGuide() {
+  if (!guide) makeGuide();
+  const on = !!S.grip && ballInReach() && !S.emote && ball.grounded;
+  guide.root.visible = guide.ring.visible = guide.foot.visible = on; guide.arrow.visible = false;
+  updateHitboxes();
+  if (!on) return;
+  const yaw = bodyYaw(), f = fDir(yaw), w = wDir(yaw), bl = worldToLocal(ball.p, V());
+  const line = swing.zero[swing.ci].z, box = swing.headBox(guide.box), half = box.h.x + box.r;
+  const ground = ball.p.y - BALL_R + 0.018, across = Math.atan2(w.x, w.z);
+  // The lane, centred on the ball along the swing and on the face's line across it.
+  localToWorld(V(bl.x, 0, line), guide.root.position); guide.root.position.y = ground;
+  guide.root.rotation.set(0, across, 0);
+  guide.lane.scale.set(1.5 * ACTOR, 1, 2 * half * ACTOR); guide.mid.scale.set(1.5 * ACTOR, 1, 0.022 * ACTOR);
+  // Is the ball in it?
+  const off = bl.z - line, reach = half + LOCAL_BALL;
+  const color = Math.abs(off) < half * 0.5 && Math.abs(bl.x) < 0.3 ? GUIDE_GOOD : Math.abs(off) < reach ? GUIDE_OK : GUIDE_BAD;
+  guide.ring.material.color.setHex(color); guide.mid.material.color.setHex(color); guide.lane.material.color.setHex(color);
+  guide.ring.position.set(ball.p.x, ground, ball.p.z); guide.ring.scale.setScalar(BALL_R * (1.35 + Math.sin(S.t * 6) * 0.06));
+  if (Math.abs(off) >= half * 0.5) {
+    const dir = off > 0 ? 1 : -1;     // the way to shuffle
+    guide.arrow.visible = true;
+    guide.arrow.position.copy(guide.ring.position).addScaledVector(w, BALL_R * 1.9);
+    guide.arrow.rotation.set(0, Math.atan2(w.x * dir, w.z * dir), 0);
+    guide.arrow.scale.setScalar(BALL_R * 1.4);
+  }
+  // The head's footprint: brightest as it reaches the ball, gone when the club is up in the air.
+  const tw = V().addScaledVector(f, box.toe.x).addScaledVector(w, box.toe.z);
+  localToWorld(box.c, guide.foot.position); guide.foot.position.y = ground + 0.002;
+  guide.foot.rotation.set(0, Math.atan2(tw.x, tw.z), 0);
+  guide.foot.scale.set(2 * (box.h.z + box.r) * ACTOR, 1, 2 * half * ACTOR);
+  const near = clamp(1 - Math.hypot(box.c.x - bl.x, box.c.z - bl.z) / 0.7, 0, 1), low = clamp(1 - (box.c.y - 0.05) / 0.45, 0, 1);
+  guide.foot.material.opacity = low * (0.3 + near * 0.6);
+}
+// H: draw the real colliders over everything.
+function updateHitboxes() {
+  const on = !!S.showHit && (!!S.grip || S.mode === 'address' || S.mode === 'flight') && !S.noClub;
+  if (!on) { if (hitbox) hitbox.root.visible = false; return; }
+  if (!hitbox) {
+    const line = c => new THREE.LineBasicMaterial({ color: c, depthTest: false, transparent: true });
+    const head = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)), line(0xff3df2));
+    const bl = new THREE.LineSegments(new THREE.WireframeGeometry(new THREE.SphereGeometry(1, 12, 8)), line(0x28e0ff));
+    const shaft = new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(), V(0, 1, 0)]), line(0xff3df2));
+    const root = new THREE.Group(); root.add(head, bl, shaft);
+    root.traverse(o => { o.renderOrder = 9; o.frustumCulled = false; });
+    scene.add(root);
+    hitbox = { root, head, bl, shaft };
+  }
+  hitbox.root.visible = true;
+  const yaw = bodyYaw(), f = fDir(yaw), w = wDir(yaw), toW = d => V().addScaledVector(f, d.x).addScaledVector(UP, d.y).addScaledVector(w, d.z);
+  const box = swing.headBox(guide.box), a = toW(box.toe), b = toW(box.up), c = V().crossVectors(a, b);
+  localToWorld(box.c, hitbox.head.position);
+  hitbox.head.quaternion.setFromRotationMatrix(_gm.makeBasis(a, b, c));
+  hitbox.head.scale.set(2 * (box.h.x + box.r) * ACTOR, 2 * (box.h.y + box.r) * ACTOR, 2 * (box.h.z + box.r) * ACTOR);
+  hitbox.bl.position.copy(ball.p); hitbox.bl.scale.setScalar(BALL_R);
+  const h0 = localToWorld(swing.hand, V()), h1 = localToWorld(swing.head, V()), d = V().subVectors(h1, h0);
+  hitbox.shaft.position.copy(h0); hitbox.shaft.quaternion.setFromUnitVectors(UP, d.clone().normalize()); hitbox.shaft.scale.setScalar(d.length());
+}
+
 /* ---------------- render ---------------- */
 function render(dt) {
   ballMesh.position.copy(ball.p);
@@ -1149,6 +1235,7 @@ function render(dt) {
   } else ballShadow.visible = false;
   // Aim dots.
   updateArc();
+  updateGuide();
   aimDots.visible = (S.mode === 'address' || (S.grip && ballInReach())) && !S.emote;
   if (aimDots.visible) {
     const f = fDir();
@@ -1217,7 +1304,7 @@ function ballMarker() {
 }
 function promptText() {
   if (S.mode === 'walk') {
-    if (S.grip) return 'Swing the mouse through the ball · <kbd>Q</kbd><kbd>E</kbd> turn · <kbd>WASD</kbd> shuffle · let go to look around';
+    if (S.grip) return 'Green ring = on the face · <kbd>WASD</kbd> shuffle · <kbd>Q</kbd><kbd>E</kbd> turn · <kbd>H</kbd> hit boxes';
     if (nearCart()) return '<kbd>E</kbd>: hop in the cart';
     return (S.noClub ? '<kbd>2</kbd>–<kbd>5</kbd> pick a club' : '<b>Hold left mouse</b> to grip the club') + ' · <kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump';
   }
@@ -1229,6 +1316,8 @@ function updateHudLive() {
   flagMarker(); ballMarker();
   const pt = promptText();
   if (pt !== S.promptShown) { S.promptShown = pt; $('prompt').innerHTML = pt; $('prompt').hidden = !pt || !!S.intro; }
+  $('prompt').classList.toggle('top', !!S.grip);
+  document.body.classList.toggle('gripping', !!S.grip);
   $('tip').classList.toggle('show', !S.tipDone && !!S.grip && !S.intro);
   $('rageFill').style.width = S.rage + '%';
   $('rage').classList.toggle('hot', S.rage > 70);
@@ -1430,7 +1519,7 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     setClub,
     fire: () => fireCannon(), get cannon() { return S.cannon; },
     tick: n => { for (let i = 0; i < n; i++) { S.realDt = 1 / 60; step(S.slowmo ? S.slowmo / 60 : 1 / 60); } },
-    keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
+    get guide() { return guide; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
     // Deterministic swing at 60 fps: back for `back` frames, pause, then through; runs until the ball rests.
     swingTest: (power = 1, back = 24, down = 10, club) => {
       if (club != null) setClub(club);

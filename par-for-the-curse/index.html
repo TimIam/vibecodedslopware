@@ -124,6 +124,12 @@ h1,h2,h3,.lil{font-family:"Lilita One",Nunito,sans-serif;font-weight:400;letter-
 #ballMark.off i{display:inline-block}
 #prompt{left:50%;bottom:92px;transform:translateX(-50%);padding:6px 14px;font-weight:800;font-size:14px;white-space:nowrap}
 #prompt[hidden]{display:none}
+/* gripping: nothing sits between you and the ball */
+#prompt.top{bottom:auto;top:66px;font-size:12px;padding:4px 11px;animation:promptOut .5s 4s forwards}
+@keyframes promptOut{to{opacity:0}}
+#clubs{transition:opacity .15s,bottom .15s}
+body.gripping #clubs{opacity:.4;bottom:-44px}
+body.gripping #shot{opacity:0}
 #flagMark i{display:none;font-style:normal;color:var(--red);font-size:16px}
 #flagMark.off i{display:inline-block}
 /* name tags */
@@ -236,6 +242,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
     <span class="k"><kbd>WASD</kbd></span><span>run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump</span>
     <span class="k"><kbd>E</kbd></span><span>get in or out of the cart</span>
     <span class="k"><kbd>Q</kbd> <kbd>E</kbd></span><span>while gripping: turn on the spot</span>
+    <span class="k"><kbd>H</kbd></span><span>show the real hit boxes</span>
     <span class="k"><kbd>1</kbd>–<kbd>5</kbd> wheel</span><span>hands, driver, wedge, putter, iron</span>
     <span class="k"><kbd>F</kbd></span><span>hold to look at the flag</span>
     <span class="k"><kbd>R</kbd></span><span>unplayable lie: back to your last shot, +1</span>

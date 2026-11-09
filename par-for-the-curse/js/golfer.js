@@ -36,6 +36,12 @@ function fitClub(i) {
   const phi = lieAngle(i);
   const R = new THREE.Matrix4().makeTranslation(0, hy, 0).multiply(new THREE.Matrix4().makeRotationZ(-phi)).multiply(new THREE.Matrix4().makeTranslation(0, -hy, 0));
   const Rn = new THREE.Matrix3().setFromMatrix4(new THREE.Matrix4().makeRotationZ(-phi));
+  // The hit box is measured from the head's own vertices, in axes that lie along the lofted face: X toe,
+  // T up the face, N out of the face.
+  const size = info.head_size || [0.13, 0.07, 0.08], topY = hc.y + size[1] / 2 + 0.002;
+  const L = c.loft * Math.PI / 180, N = V(...(info.face_normal || [0, Math.sin(L), Math.cos(L)])).normalize();
+  const X = V(1, 0, 0), T = V().crossVectors(N, X).normalize();
+  const lo = V(Infinity, Infinity, Infinity), hi = V(-Infinity, -Infinity, -Infinity), rel = V();
   const t = lib.get(c.mesh);
   if (t) t.traverse(o => {
     if (!o.isMesh || o.userData.bent) return;
@@ -43,16 +49,45 @@ function fitClub(i) {
     const p = o.geometry.attributes.position, n = o.geometry.attributes.normal, v = V();
     for (let k = 0; k < p.count; k++) {
       if (p.getY(k) >= hy) continue;
-      v.fromBufferAttribute(p, k).applyMatrix4(R); p.setXYZ(k, v.x, v.y, v.z);
+      v.fromBufferAttribute(p, k);
+      if (v.y < topY) {
+        rel.subVectors(v, hc);
+        const a = rel.dot(X), b = rel.dot(T), d = rel.dot(N);
+        lo.min(_a.set(a, b, d)); hi.max(_a);
+      }
+      v.applyMatrix4(R); p.setXYZ(k, v.x, v.y, v.z);
       if (n) { v.fromBufferAttribute(n, k).applyMatrix3(Rn); n.setXYZ(k, v.x, v.y, v.z); }
     }
     p.needsUpdate = true; if (n) n.needsUpdate = true;
     o.geometry.computeBoundingSphere();
   });
+  if (!Number.isFinite(lo.x)) { lo.set(-size[0] / 2, -size[1] / 2, -size[2] / 2); hi.set(size[0] / 2, size[1] / 2, size[2] / 2); }
   const head = hc.clone().applyMatrix4(R); head.x = -head.x;
   const fit = { q: new THREE.Quaternion().setFromUnitVectors(head.clone().normalize(), DOWN), s: c.len / head.length() };
+  // From the Blender club's space into the space of the club wrapper the golfer actually holds.
+  const toWrap = p => { const w = p.clone().applyMatrix4(R); w.x = -w.x; return w.multiplyScalar(fit.s).applyQuaternion(fit.q); };
+  const dirWrap = d => { const w = d.clone().applyMatrix3(Rn); w.x = -w.x; return w.applyQuaternion(fit.q).normalize(); };
+  const mid = V().addVectors(lo, hi).multiplyScalar(0.5), half = V().subVectors(hi, lo).multiplyScalar(0.5 * fit.s);
+  const r = THREE.MathUtils.clamp(Math.min(half.x, half.y, half.z) * 0.5, 0.006, 0.02);
+  const centre = hc.clone().addScaledVector(X, mid.x).addScaledVector(T, mid.y).addScaledVector(N, mid.z);
+  const fc = V(...(info.face_center || [hc.x, hc.y, hi.z + hc.z]));
+  const hosel = V(...(info.hosel_top || [0, hy, 0]));
+  fit.col = {
+    c: toWrap(centre), toe: dirWrap(X), up: dirWrap(T), face: dirWrap(N),
+    h: V(half.x - r, half.y - r, half.z - r), r,
+    sweetU: (fc.x - centre.x) * fit.s, sweetV: V().subVectors(fc, centre).dot(T) * fit.s,
+    hosel: toWrap(hosel), heel: toWrap(centre.clone().addScaledVector(X, lo.x - mid.x)),
+  };
   clubFit.set(i, fit);
   return fit;
+}
+// The club's orientation in the golfer's frame. y runs up the shaft, z is the way the face looks.
+function clubBasis(club, planeN, x, y, z) {
+  y.copy(club).negate();
+  z.crossVectors(planeN, club);
+  if (z.lengthSq() < 1e-4) z.set(1, 0, 0);
+  z.addScaledVector(y, -z.dot(y)).normalize();
+  x.crossVectors(y, z).normalize();
 }
 
 export const SKINS = ['#ffd9b8', '#f4c09a', '#e0a47a', '#c68655', '#9a6440', '#6e452b'];
@@ -95,6 +130,13 @@ function aim(mesh, from, to, len) {
   mesh.quaternion.setFromUnitVectors(DOWN, _c.divideScalar(l || 1));
   const s = Math.max(1, l / len); mesh.scale.set(1 + (s - 1) * -0.3, s, 1 + (s - 1) * -0.3);
 }
+
+const SHAFT_R = 0.014, START_FACE = 0.7;
+const newFrame = () => ({ hand: V(), head: V(), o: V(), x: V(), y: V(), z: V() });
+const _f0 = newFrame(), _f1 = newFrame(), _f2 = newFrame();
+const _s = V(), _r = V(), _c0 = V(), _ct = V(), _cu = V(), _cf = V(), _s0 = V(), _s1 = V(), _sd = V();
+const wrapPoint = (f, p, out) => out.copy(f.o).addScaledVector(f.x, p.x).addScaledVector(f.y, p.y).addScaledVector(f.z, p.z);
+const wrapDir = (f, d, out) => out.set(0, 0, 0).addScaledVector(f.x, d.x).addScaledVector(f.y, d.y).addScaledVector(f.z, d.z);
 
 export class Golfer {
   constructor(look) {
@@ -208,12 +250,8 @@ export class Golfer {
       cm.position.copy(s.hands[0]).addScaledVector(s.club, -0.03);
       // The face turns with the swing plane: it is square to the target at address, faces up the
       // line on the backswing and closes through impact, the way a real clubface rotates.
-      const y = _c.copy(s.club).negate();
-      const z = _d.crossVectors(s.planeN || PLANE_N, s.club);
-      if (z.lengthSq() < 1e-4) z.set(1, 0, 0);
-      z.addScaledVector(y, -z.dot(y)).normalize();
-      const x = _e.crossVectors(y, z).normalize();
-      _m4.makeBasis(x, y, z); cm.quaternion.setFromRotationMatrix(_m4);
+      clubBasis(s.club, s.planeN || PLANE_N, _e, _c, _d);
+      _m4.makeBasis(_e, _c, _d); cm.quaternion.setFromRotationMatrix(_m4);
     }
   }
 }
@@ -270,7 +308,8 @@ export class Swing {
     this.a0 = V().subVectors(this.gripAddr, this.S).normalize();  // arm direction at address
     this.up2 = V().copy(this.a0).negate();                          // "up" in the arm plane
     this.hand = V(); this.handV = V(); this.target = new THREE.Vector2();  // target in plane coords (s along x, r along up2)
-    this.head = V(); this.headV = V(); this.prevHead = V();
+    this.head = V(); this.headV = V(); this.prevHead = V(); this.prevHand = V(); this.lastDt = 1 / 360;
+    this.zero = CLUBS.map(() => ({ z: null, path: 0, face: 0, v: 0 }));   // what a clean full swing does, per club
     this.club = CLUBS[3];
     this.speedHist = 0;
     this.setClub(3);
@@ -283,8 +322,121 @@ export class Swing {
     this.reachZ = this.gripAddr.z + Math.sqrt(Math.max(0.01, L * L - drop * drop));
     this.d0 = V(0, -drop, this.reachZ - this.gripAddr.z).normalize();
     this.planeN = V().crossVectors(this.d0, XV).normalize();
-    this.ball = V(0.05, LOCAL_BALL_R, this.reachZ);
+    this.ball = V(0.05, LOCAL_BALL_R, this.zero[i].z ?? this.reachZ);
     this.reset();
+  }
+  // Run clean swings of several strengths for each club against a test ball and remember what they do: the
+  // line the middle of the face travels along on a full swing (the strike lane on the turf shows it), and
+  // the head's natural path, face angle and strike height at each speed, which count as straight and centred.
+  calibrate() {
+    const swingOnce = (power, onStep) => {
+      this.reset();
+      const dt = 1 / 360, frames = [[24, -14, -11], [14, 0, 0], [10, 60 * power, 46 * power], [6, 10, -14]];
+      for (const [n, dx, dy] of frames) for (let f = 0; f < n; f++) {
+        this.input(dx, dy);
+        for (let i = 0; i < 6; i++) { this.step(dt, true); if (onStep() === false) return; }
+      }
+    };
+    for (let i = 0; i < CLUBS.length; i++) {
+      this.setClub(i);
+      const rows = [];
+      for (const power of [1, 0.6, 0.4, 0.25]) {
+        // First find where the head crosses the ball, then exactly how it meets one there.
+        let z = null;
+        swingOnce(power, () => { if (this.prevHead.x < -0.07 && this.head.x >= -0.07 && this.headV.x > 0) { z = this.head.z; return false; } });
+        if (z === null) continue;
+        const ball = V(0.05, LOCAL_BALL_R, z);
+        let hit = null;
+        swingOnce(power, () => { if (this.headV.x > 0.4) hit = this.probe(ball); if (hit && !hit.overlap) return false; hit = null; });
+        if (!hit) continue;
+        const p = hit.vel, fv = hit.frameFace;
+        rows.push({ hs: Math.hypot(p.x, p.z), z: z - hit.u, path: Math.atan2(p.z, p.x), face: Math.atan2(fv.z, fv.x), v: hit.v });
+      }
+      rows.sort((a, b) => a.hs - b.hs);
+      this.zero[i] = { z: rows.length ? rows[rows.length - 1].z : this.reachZ, rows };
+    }
+    this.setClub(3);
+  }
+  // What a clean swing at this head speed does with the current club.
+  cleanAt(hs) {
+    const rows = this.zero[this.ci].rows || [];
+    if (!rows.length) return { path: 0, face: 0, v: 0 };
+    if (hs <= rows[0].hs) return rows[0];
+    for (let i = 1; i < rows.length; i++) if (hs <= rows[i].hs) {
+      const a = rows[i - 1], b = rows[i], k = (hs - a.hs) / Math.max(1e-6, b.hs - a.hs), mix = n => a[n] + (b[n] - a[n]) * k;
+      return { path: mix('path'), face: mix('face'), v: mix('v') };
+    }
+    return rows[rows.length - 1];
+  }
+  // Position of the club at the fraction t of the last physics step.
+  frameAt(t, f) {
+    f.hand.lerpVectors(this.prevHand, this.hand, t);
+    f.head.lerpVectors(this.prevHead, this.head, t);
+    _s.subVectors(f.head, f.hand).normalize();
+    clubBasis(_s, this.planeN, f.x, f.y, f.z);
+    f.o.copy(f.hand).addScaledVector(_s, -0.03);
+    return f;
+  }
+  // Touching the ball with the head (a rounded box) or the shaft (a thin capsule)? Local coordinates.
+  touch(f, ball, Rb = LOCAL_BALL_R) {
+    const col = fitClub(this.ci).col;
+    wrapPoint(f, col.c, _c0); wrapDir(f, col.toe, _ct); wrapDir(f, col.up, _cu); wrapDir(f, col.face, _cf);
+    _r.subVectors(ball, _c0);
+    const u = _r.dot(_ct), v = _r.dot(_cu), w = _r.dot(_cf);
+    const cu = THREE.MathUtils.clamp(u, -col.h.x, col.h.x), cv = THREE.MathUtils.clamp(v, -col.h.y, col.h.y), cw = THREE.MathUtils.clamp(w, -col.h.z, col.h.z);
+    let du = u - cu, dv = v - cv, dw = w - cw;
+    let dist = Math.hypot(du, dv, dw), n = null, part = 'head';
+    if (dist < Rb + col.r) {
+      if (dist > 1e-6) { du /= dist; dv /= dist; dw /= dist; }
+      else {
+        // The ball's centre is inside the box: leave by the nearest side.
+        const su = col.h.x - Math.abs(u), sv = col.h.y - Math.abs(v), sw = col.h.z - Math.abs(w);
+        du = dv = dw = 0;
+        if (su <= sv && su <= sw) du = Math.sign(u) || 1; else if (sv <= sw) dv = Math.sign(v) || 1; else dw = Math.sign(w) || 1;
+      }
+      n = V().addScaledVector(_ct, du).addScaledVector(_cu, dv).addScaledVector(_cf, dw).normalize();
+      const q = V().copy(ball).addScaledVector(n, -Rb);
+      return { part, n, q, dist: dist + 0, depth: Rb + col.r - dist, u: u - col.sweetU, v: v - col.sweetV, du, dv, dw, frameFace: _cf.clone() };
+    }
+    // The shaft and hosel: a shank.
+    for (const [a, b] of [[V(), col.hosel], [col.hosel, col.heel]]) {
+      wrapPoint(f, a, _s0); wrapPoint(f, b, _s1);
+      _sd.subVectors(_s1, _s0);
+      const l2 = _sd.lengthSq(), s = l2 > 1e-9 ? THREE.MathUtils.clamp(_r.subVectors(ball, _s0).dot(_sd) / l2, 0, 1) : 0;
+      _r.copy(_s0).addScaledVector(_sd, s);
+      const away = V().subVectors(ball, _r), dd = away.length();
+      if (dd < Rb + SHAFT_R) {
+        n = dd > 1e-6 ? away.divideScalar(dd) : _cf.clone();
+        return { part: 'shaft', n, q: _r.clone(), dist: dd, depth: Rb + SHAFT_R - dd, u: 0, v: 0, du: 0, dv: 0, dw: 0, frameFace: _cf.clone() };
+      }
+    }
+    return null;
+  }
+  // First contact with the ball during the last physics step, swept through the motion so nothing tunnels.
+  probe(ball) {
+    const STEPS = 8;
+    for (let k = 0; k <= STEPS; k++) {
+      const t = k / STEPS, hit = this.touch(this.frameAt(t, _f0), ball);
+      if (!hit) continue;
+      hit.overlap = k === 0;
+      hit.t = t; hit.headAt = _f0.head.clone();
+      // The contact point's own velocity: how the club moved that point over the step.
+      _f1.hand.copy(this.prevHand); _f1.head.copy(this.prevHead); this.frameAt(0, _f1);
+      _f2.hand.copy(this.hand); _f2.head.copy(this.head); this.frameAt(1, _f2);
+      const toCoords = (f, out) => out.set(_r.subVectors(hit.q, _f0.o).dot(_f0.x), _r.dot(_f0.y), _r.dot(_f0.z));
+      toCoords(_f0, _c0);
+      hit.vel = wrapPoint(_f2, _c0, V()).sub(wrapPoint(_f1, _c0, V())).divideScalar(this.lastDt);
+      return hit;
+    }
+    return null;
+  }
+  // The middle of the face right now, in local coordinates, plus the head's footprint for drawing.
+  headBox(out = {}) {
+    const col = fitClub(this.ci).col, f = this.frameAt(1, _f0);
+    out.c = wrapPoint(f, col.c, out.c || V()); out.toe = wrapDir(f, col.toe, out.toe || V());
+    out.up = wrapDir(f, col.up, out.up || V()); out.face = wrapDir(f, col.face, out.face || V());
+    out.h = col.h; out.r = col.r;
+    return out;
   }
   reset() {
     // Address with the head a little behind the ball (the putter, with locked wrists, needs more room).
@@ -322,6 +474,7 @@ export class Swing {
   }
   step(dt, ground) {
     const C = this.club;
+    this.lastDt = dt; this.prevHand.copy(this.hand);
     // Hands: spring toward the target with capped acceleration and speed (the weight of the club).
     const T = this.planePoint(this.target.x, this.target.y, _c);
     const acc = _d.subVectors(T, this.hand).multiplyScalar(900).addScaledVector(this.handV, -55);
@@ -352,49 +505,50 @@ export class Swing {
     this.headV.subVectors(this.head, this.prevHead).divideScalar(dt);
     return this.headV;
   }
-  // Did the head strike the ball this step? Returns launch info in local coords or null.
-  // free: the golfer is not lined up for them, so the head has real width and a shot off the toe or heel
-  // is weaker and goes crooked.
-  strike(ballLocal, free = false) {
+  // Did the club hit the ball during this physics step? Returns launch info in local coords or null.
+  // Everything comes from the real contact: which part of the club touched the ball, where on the face,
+  // and how that point of the club was moving.
+  strike(ball) {
     if (!this.armed) return null;
-    const Rr = LOCAL_BALL_R + HEAD_R;
-    const a = this.prevHead, b = this.head;
-    const ab = _a.subVectors(b, a), len2 = ab.lengthSq();
-    const t = len2 > 1e-10 ? THREE.MathUtils.clamp(_b.subVectors(ballLocal, a).dot(ab) / len2, 0, 1) : 0;
-    const P = _c.copy(a).addScaledVector(ab, t);
-    // The head swings in about 0.13 from where it rests, so a ball sat at the resting head is struck centrally.
-    const off = free ? ballLocal.z - P.z - 0.13 : 0;
-    const dist = free ? Math.hypot(P.x - ballLocal.x, P.y - ballLocal.y, Math.max(0, Math.abs(off) - 0.09)) : P.distanceTo(ballLocal);
-    if (dist > Rr) return null;
-    const vh = this.headV.clone();
-    const vf = vh.x;
-    // Only a head arriving from outside the ball counts; one already touching it (after a club switch,
-    // or nudged while waiting) is eased back out instead of costing a stroke.
-    if (vf < 0.4 || a.distanceTo(ballLocal) < Rr) {
-      // Resting against the ball or moving away: push the head back out, no shot.
-      if (dist < Rr && !free) { const n = _d.subVectors(this.head, ballLocal).normalize(); this.head.copy(ballLocal).addScaledVector(n, Rr + 0.002); }
+    const hit = this.probe(ball);
+    if (!hit) return null;
+    const vp = hit.vel, arrive = vp.dot(hit.n);
+    // A club already resting on the ball, easing up to it, or coming back from the far side doesn't play
+    // a shot: the ball stays put and the club stops against it instead of passing through.
+    if (hit.overlap || arrive < 0.4 || vp.x < 0.4) {
+      if (hit.overlap) this.head.addScaledVector(hit.n, -(hit.depth + 0.002));
+      else this.head.copy(hit.headAt).addScaledVector(hit.n, -0.002);
+      this.headV.set(0, 0, 0);
       return null;
     }
     this.armed = false;
-    const C = this.club;
-    const hs = Math.hypot(vh.x, vh.z);
-    // + means toward the ball line (in-to-out). A free swing naturally arcs out about 9 degrees; call that straight.
-    const path = Math.atan2(vh.z, vh.x) - (free ? 0.16 : 0);
-    const attack = Math.atan2(vh.y, hs);
-    const dyN = THREE.MathUtils.clamp((ballLocal.y - P.y) / Rr, -1, 1);   // + head below ball centre
+    const C = this.club, col = fitClub(this.ci).col, hs = Math.hypot(vp.x, vp.z), clean = this.cleanAt(hs);
+    const path = Math.atan2(vp.z, vp.x) - clean.path, attack = Math.atan2(vp.y, hs);
+    const faceYaw = Math.atan2(hit.frameFace.z, hit.frameFace.x) - clean.face;
+    const toe = THREE.MathUtils.clamp(hit.u / (col.h.x + col.r), -2, 2);
+    const low = hit.v - clean.v;         // + the ball met the face higher than a clean strike, so the head was low
+    const dyN = THREE.MathUtils.clamp(low / 0.1, -1, 1);
+    const putter = C.id === 'putter', info = { path, club: C.id, contact: hit.q.clone(), headSpeed: vp.length() };
+    // The shaft or the very end of the head: the ball goes the way the geometry pushes it, and not fast.
+    if (hit.part === 'shaft' || Math.abs(hit.du) > 0.72) {
+      const kind = hit.part === 'shaft' ? 'shank' : hit.du > 0 ? 'toe' : 'heel';
+      const v = hit.n.clone().multiplyScalar(Math.max(arrive, 0) * (kind === 'shank' ? 0.55 : 0.75) * C.smash);
+      if (v.y < 0) v.y = 0.3;
+      return { ...info, v, spin: 0, quality: 0, kind: putter ? 'putt' : kind, launch: Math.atan2(v.y, Math.hypot(v.x, v.z)), bite: false, where: kind };
+    }
     let launch = C.loft * Math.PI / 180 * (0.95 + 0.2 * dyN) + attack * 0.15;
-    const toe = THREE.MathUtils.clamp(off / 0.2, -1, 1);
-    let q = (1 - Math.min(1, Math.abs(dyN - 0.35) * 0.9)) * (1 - 0.45 * Math.abs(toe));
+    let q = (1 - Math.min(1, Math.abs(dyN) * 0.9)) * (1 - 0.45 * Math.min(1, Math.abs(toe) * 0.5));
     let speed = hs * C.smash * (0.72 + 0.28 * q);
     let kind = q > 0.88 ? 'pure' : 'ok';
-    if (dyN < -0.25 && C.id !== 'putter') { launch = Math.min(launch, 0.04); speed *= 0.62; kind = 'topped'; }
-    if (C.id === 'putter') { launch = Math.max(0.0, Math.min(launch, 0.09)); speed = hs * C.smash; kind = 'putt'; }
+    if (low < -0.035 && !putter) { launch = Math.min(launch, 0.04); speed *= 0.62; kind = 'topped'; }
+    if (putter) { launch = Math.max(0.0, Math.min(launch, 0.09)); speed = hs * C.smash; kind = 'putt'; }
     launch = THREE.MathUtils.clamp(launch, -0.05, 1.25);
-    const start = path * 0.7 + toe * 0.3;
-    const dir = V(Math.cos(start), 0, Math.sin(start));
-    const v = dir.multiplyScalar(Math.cos(launch) * speed); v.y = Math.sin(launch) * speed;
-    const spin = C.id === 'putter' ? 0 : THREE.MathUtils.clamp(-path * 22 * (speed / 30), -9, 9);
-    return { v, spin, headSpeed: vh.length(), quality: q, kind, launch, path, club: C.id, bite: !!C.bite };
+    // The ball starts mostly where the face looks and takes some of the head's path; off the toe or heel
+    // the head twists round the ball.
+    const start = faceYaw * START_FACE + path * (1 - START_FACE) + toe * 0.12;
+    const v = V(Math.cos(start), 0, Math.sin(start)).multiplyScalar(Math.cos(launch) * speed); v.y = Math.sin(launch) * speed;
+    const spin = putter ? 0 : THREE.MathUtils.clamp(-(path - faceYaw) * 22 * (speed / 30), -9, 9);
+    return { ...info, v, spin, quality: q, kind, launch, bite: !!C.bite, where: Math.abs(toe) < 0.4 ? 'middle' : toe > 0 ? 'toe' : 'heel' };
   }
   // Plane coordinates of the hands for networking.
   handPlane() { const rel = _a.subVectors(this.hand, this.S); return [rel.dot(XV), rel.dot(this.a0)]; }
