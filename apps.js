@@ -882,7 +882,7 @@ window.SLOPWARE = {
   "wasteland": {
    "visits": 0,
    "prompts": 5,
-   "tokens": 1569997,
+   "tokens": 1595552,
    "sharedWith": null,
    "versions": [
     {
@@ -904,7 +904,7 @@ window.SLOPWARE = {
      "date": "2026-11-09T08:23:04-07:00",
      "note": "rotation, plots, bridges, snipers, camps, market, Gazette",
      "prompts": 2,
-     "tokens": 940078
+     "tokens": 965633
     }
    ]
   },
@@ -940,8 +940,8 @@ window.SLOPWARE = {
   },
   "pit-crew": {
    "visits": 19,
-   "prompts": 8,
-   "tokens": 3989892,
+   "prompts": 9,
+   "tokens": 5267883,
    "sharedWith": null,
    "versions": [
     {
@@ -990,15 +990,15 @@ window.SLOPWARE = {
      "n": 7,
      "date": "2026-11-09T05:59:29-07:00",
      "note": "the studio splash on every launch, then the title",
-     "prompts": 0,
-     "tokens": 7060
+     "prompts": 1,
+     "tokens": 1285051
     }
    ]
   },
   "par-for-the-curse": {
    "visits": 31,
-   "prompts": 20,
-   "tokens": 3519197,
+   "prompts": 22,
+   "tokens": 3526942,
    "sharedWith": null,
    "versions": [
     {
@@ -1055,7 +1055,14 @@ window.SLOPWARE = {
      "date": "2026-11-09T08:19:07-07:00",
      "note": "free swing, one cart, longer harder climb",
      "prompts": 3,
-     "tokens": 237181
+     "tokens": 232114
+    },
+    {
+     "n": 9,
+     "date": "2026-11-09T08:44:12-07:00",
+     "note": "Q and E turn the golfer while gripping",
+     "prompts": 2,
+     "tokens": 12812
     }
    ]
   },
