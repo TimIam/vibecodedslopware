@@ -941,7 +941,7 @@ window.SLOPWARE = {
   "pit-crew": {
    "visits": 19,
    "prompts": 9,
-   "tokens": 5267883,
+   "tokens": 6268125,
    "sharedWith": null,
    "versions": [
     {
@@ -990,15 +990,22 @@ window.SLOPWARE = {
      "n": 7,
      "date": "2026-11-09T05:59:29-07:00",
      "note": "the studio splash on every launch, then the title",
+     "prompts": 0,
+     "tokens": 7060
+    },
+    {
+     "n": 8,
+     "date": "2026-11-09T08:52:36-07:00",
+     "note": "the Summer Shutdown, five break scenes, banter that knows the time of day",
      "prompts": 1,
-     "tokens": 1285051
+     "tokens": 2278233
     }
    ]
   },
   "par-for-the-curse": {
    "visits": 31,
    "prompts": 22,
-   "tokens": 3526942,
+   "tokens": 3531235,
    "sharedWith": null,
    "versions": [
     {
@@ -1062,7 +1069,7 @@ window.SLOPWARE = {
      "date": "2026-11-09T08:44:12-07:00",
      "note": "Q and E turn the golfer while gripping",
      "prompts": 2,
-     "tokens": 12812
+     "tokens": 17105
     }
    ]
   },
