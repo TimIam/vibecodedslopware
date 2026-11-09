@@ -14,6 +14,7 @@ import { P, initViewModel, updatePlayer, recompute } from './player.js';
 import { startMission, updateMission, leaveMission } from './mission.js';
 import { MISSIONS } from './missions.js';
 import { initAudio, setCombat } from './audio.js';
+import { gradePass, lens } from './post.js';
 import * as ui from './ui.js';
 
 const view = document.getElementById('view'), canvas = document.getElementById('game');
@@ -25,7 +26,7 @@ function boot() {
   loadSave();
   renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
   S.scene = new THREE.Scene();
   camera = S.camera = new THREE.PerspectiveCamera(80, 1, 0.08, 1800);
@@ -33,6 +34,7 @@ function boot() {
   composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 }));
   composer.addPass(new RenderPass(S.scene, camera));
   bloom = new UnrealBloomPass(new THREE.Vector2(4, 4), 0.42, 0.5, 1.0); bloom.enabled = S.save.opts.bloom; composer.addPass(bloom);
+  composer.addPass(gradePass);
   composer.addPass(new OutputPass());
   initFx(S.scene); initProj(S.scene); initViewModel(camera); recompute();
   ui.on.startMission = i => { hadLock = false; S.paused = false; startMission(i); S.mode = 'mission'; lock(); };
@@ -120,6 +122,7 @@ function frame(now) {
     camera.rotation.set(0, 0, 0); camera.lookAt(0, 7, 0); camera.fov = 62; camera.updateProjectionMatrix();
     updateFx(dt, camera, vw, vh); S.W.update(dt, clock, camera);
   }
+  lens.update(dt, clock, S.W?.haze || 0, S.mode === 'mission' ? Math.min(1, Math.max(0, P.hurtT * 2)) : 0, vw / vh);
   composer.render();
 }
 
@@ -164,7 +167,7 @@ function botThink(dt) {
       if (P.hp < P.maxHp * 0.45 && P.cdBlink <= 0) { I.f = -1; I.blink = true; }
     } else {
       I.f = goal && gd < 2.2 && !goal.t ? 0 : 1; I.sprint = gd > 25;
-      if (goal?.t && gd < 14 && !goal.t.shielded) I.f = 0;
+      if (goal?.t && gd < 14 && !goal.t.shielded && seesTarget(ex, ey, ez, goal.t)) I.f = 0;
     }
   }
   if (M.holding) { I.useHeld = true; I.use = true; if (M.holding.hold) I.f = I.r = 0; }

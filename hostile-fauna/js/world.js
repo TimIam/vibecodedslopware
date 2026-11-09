@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { S, clamp, lerp, smooth, rng, TAU } from './state.js';
 import { SIGNS } from './data.js';
+import { sceneT, dim, playerPos, panelTex, crateTex, concreteTex, gillTex, groundMaterial, makeGrass, makePools, makeMist, lightCone, skyBeam, flare } from './scenery.js';
 
 const BOX = new THREE.BoxGeometry(1, 1, 1);
 const M = {};   // shared materials, made once
@@ -93,8 +94,8 @@ export const peaceShieldTex = shieldTex;
 function mats() {
   if (M.hull) return;
   const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.1, flatShading: true, ...o });
-  M.hull = std(0xd9d6cc); M.hull2 = std(0xb9bcc0); M.trim = std(0xe8641c); M.navy = std(0x1b2a4a); M.dark = std(0x2a2f38, { metalness: 0.5, roughness: 0.5 });
-  M.concrete = std(0x8d8f8c); M.crate = std(0x6f7a52); M.metal = std(0x7d848c, { metalness: 0.7, roughness: 0.4 });
+  M.hull = std(0xffffff, { map: panelTex('#d9d6cc', '#8f8c82', 1), flatShading: false }); M.hull2 = std(0xffffff, { map: panelTex('#b9bcc0', '#7b7f86', 2), flatShading: false }); M.trim = std(0xe8641c); M.navy = std(0xffffff, { map: panelTex('#22355c', '#101a30', 3), flatShading: false }); M.dark = std(0x2a2f38, { metalness: 0.5, roughness: 0.5 });
+  M.concrete = std(0xffffff, { map: concreteTex(), roughness: 0.95, flatShading: false }); M.crate = std(0xffffff, { map: crateTex('#6f7a52'), flatShading: false }); M.crate2 = std(0xffffff, { map: crateTex('#9aa0a6'), flatShading: false }); M.metal = std(0x7d848c, { metalness: 0.7, roughness: 0.4 });
   M.window = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.25, 0.7) });
   M.lamp = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.7, 1.55, 1.25) });
   M.red = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.5, 0.3, 0.2) });
@@ -102,7 +103,10 @@ function mats() {
   M.glass = new THREE.MeshStandardMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.2, roughness: 0.1, metalness: 0.3, side: THREE.DoubleSide, depthWrite: false });
   M.stone = std(0x1d2030, { roughness: 0.6, metalness: 0.2, emissive: 0x58e6d0, emissiveMap: glyphTex(), emissiveIntensity: 0.85 });
   M.stonePlain = std(0x232638, { roughness: 0.7 });
-  M.trunk = std(0x2a2440, { roughness: 0.9 });
+  M.trunk = std(0x2a2440, { roughness: 0.9, flatShading: false });
+  M.gill = gillTex(); M.band = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.45, 1.5, 1.3) });
+  M.crystal = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x3a6f78, emissiveIntensity: 0.9, roughness: 0.15, metalness: 0.5, flatShading: true });
+  M.jelly = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   M.rock = std(0x3a3550, { roughness: 0.95 });
   M.robe = std(0x2b3a52, { roughness: 0.7 }); M.skin = std(0x5fa39a, { roughness: 0.5 });
   M.eye = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.7, 1.5, 1.35) });
@@ -128,6 +132,11 @@ function makeSky(sky) {
         vec3 c=mix(uHor,uMid,smoothstep(0.0,0.28,h)); c=mix(c,uTop,smoothstep(0.2,0.85,h));
         vec3 q=floor(d*190.0); float s=hash(q); float tw=0.6+0.4*sin(uT*2.0+s*90.0);
         c+=vec3(0.9,0.95,1.0)*step(0.9965,s)*tw*smoothstep(0.02,0.3,h)*1.6;
+        float s2=hash(floor(d*420.0)+7.0); c+=vec3(0.7,0.8,1.0)*step(0.997,s2)*smoothstep(0.05,0.4,h)*0.6;
+        vec3 np=d*2.2+vec3(uT*0.004,0.0,0.0); float nb=0.0, amp=0.5; for(int i=0;i<4;i++){ vec3 ip=floor(np), fp=fract(np); fp=fp*fp*(3.0-2.0*fp);
+          float n000=hash(ip),n100=hash(ip+vec3(1,0,0)),n010=hash(ip+vec3(0,1,0)),n110=hash(ip+vec3(1,1,0)),n001=hash(ip+vec3(0,0,1)),n101=hash(ip+vec3(1,0,1)),n011=hash(ip+vec3(0,1,1)),n111=hash(ip+vec3(1,1,1));
+          nb+=amp*mix(mix(mix(n000,n100,fp.x),mix(n010,n110,fp.x),fp.y),mix(mix(n001,n101,fp.x),mix(n011,n111,fp.x),fp.y),fp.z); np*=2.03; amp*=0.5; }
+        c+=mix(uMid,uHor,nb)*smoothstep(0.5,0.85,nb)*smoothstep(0.1,0.5,h)*0.55*(1.0-uHaze);
         float a=atan(d.z,d.x); float band=sin(a*3.0+uT*0.05+sin(a*7.0+uT*0.11)*0.6);
         float au=smoothstep(0.55,1.0,band)*smoothstep(0.12,0.3,h)*smoothstep(0.75,0.35,h);
         au*=0.5+0.5*sin(a*40.0+uT*0.7+h*20.0);
@@ -140,8 +149,8 @@ function makeSky(sky) {
     const m = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), new THREE.MeshBasicMaterial({ color: col, fog: false }));
     m.position.set(Math.cos(az) * Math.cos(el) * dist, Math.sin(el) * dist, Math.sin(az) * Math.cos(el) * dist); g.add(m); return m;
   };
-  moon(46, new THREE.Color(1.3, 1.5, 1.6), sky.moonAz ?? 2.2, 0.62);
-  moon(18, new THREE.Color(1.5, 0.9, 1.5), (sky.moonAz ?? 2.2) + 0.5, 0.36);
+  const m1 = moon(46, new THREE.Color(1.3, 1.5, 1.6), sky.moonAz ?? 2.2, 0.62), m2 = moon(18, new THREE.Color(1.5, 0.9, 1.5), (sky.moonAz ?? 2.2) + 0.5, 0.36);
+  for (const [m, c, sz] of [[m1, 0x9fd8ff, 420], [m2, 0xe0a0ff, 170]]) { const f = flare(c, sz, 0.5); f.material.fog = false; f.position.copy(m.position); g.add(f); }
   const giant = moon(150, new THREE.Color(0.32, 0.22, 0.5), (sky.moonAz ?? 2.2) - 2.2, 0.16, 820);
   const band = new THREE.Mesh(new THREE.RingGeometry(190, 270, 48), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.4, 0.35, 0.6), side: THREE.DoubleSide, transparent: true, opacity: 0.35, fog: false }));
   band.rotation.x = 1.25; giant.add(band);
@@ -156,6 +165,7 @@ function makeSky(sky) {
     mesh(BOX, hullM, L * 0.2, L * 0.1, 0, s).scale.set(L * 0.3, L * 0.1, L * 0.12);
     mesh(BOX, hullM, -L * 0.42, 0, 0, s).scale.set(L * 0.16, L * 0.22, L * 0.26);
     mesh(BOX, engM, -L * 0.51, 0, 0, s).scale.set(L * 0.02, L * 0.14, L * 0.18);
+    const ef = flare(0x70b8ff, L * 0.7, 0.8); ef.material.fog = false; ef.position.set(-L * 0.54, 0, 0); s.add(ef);
     for (let k = 0; k < 14; k++) mesh(BOX, winM, (r() - 0.4) * L * 0.8, (r() - 0.5) * L * 0.08, L * 0.091, s).scale.set(L * 0.012, L * 0.008, 0.5);
     s.position.set((r() - 0.5) * 520, 300 + r() * 120 - i * 10, (r() - 0.5) * 200);
     s.rotation.y = 0.2 + r() * 0.2; fleet.add(s);
@@ -330,14 +340,17 @@ export function buildWorld(def) {
       if (t < 0 || t >= best) continue;
       const y = oy + dy * t; if (y >= c.y0 && y <= c.y1) best = t;
     }
-    for (let t = 0.8; t < best; t += 1.4) {
+    // Terrain: sample along the ray and always test the far end, so a short step (a slow pod, one frame) can't slip under the ground.
+    for (let prev = 0, t = Math.min(0.8, best); ; t = Math.min(t + 1.4, best)) {
       const y = oy + dy * t;
       if (y > 40 && dy >= 0) break;
       if (y < W.height(ox + dx * t, oz + dz * t)) {
-        let a = t - 1.4, b2 = t;
-        for (let i = 0; i < 5; i++) { const m = (a + b2) / 2; if (oy + dy * m < W.height(ox + dx * m, oz + dz * m)) b2 = m; else a = m; }
-        best = Math.max(0, a); break;
+        let a = prev, b2 = t;
+        for (let i = 0; i < 6; i++) { const m = (a + b2) / 2; if (oy + dy * m < W.height(ox + dx * m, oz + dz * m)) b2 = m; else a = m; }
+        best = a; break;
       }
+      if (t >= best) break;
+      prev = t;
     }
     return best;
   };
@@ -355,6 +368,10 @@ export function buildWorld(def) {
     return false;
   };
 
+  const pools = makePools(900); group.add(pools);
+  // A disc of light on the ground. human = 1 for floodlights, which the humans' air does not dim.
+  W.pool = (x, z, rad, color, k = 0.5, human = 0) => pools.add_(x, W.height(x, z), z, rad, color, k, human, (W.height(x - 1, z) - W.height(x + 1, z)) / 2, (W.height(x, z - 1) - W.height(x, z + 1)) / 2);
+
   // ---------------------------------------------------------------- builder
   const b = W.b = {
     r,
@@ -366,6 +383,10 @@ export function buildWorld(def) {
       box(w + 0.2, 0.3, d + 0.2, M.hull2, 0, 0.15, 0, g);
       const n = Math.max(1, Math.floor(w / 2.4));
       for (let i = 0; i < n; i++) for (const s of [-1, 1]) mesh(BOX, M.window, (i - (n - 1) / 2) * 2.2, h * 0.52, s * (d / 2 + 0.02), g).scale.set(1.1, 0.5, 0.06);
+      box(1.3, 2.1, 0.12, M.dark, -w * 0.28, 1.05, d / 2 + 0.03, g); mesh(BOX, M.lamp, -w * 0.28, 2.35, d / 2 + 0.08, g).scale.set(0.5, 0.12, 0.1);
+      box(1.6, 0.7, 1.2, M.hull2, w * 0.2, h + 0.35, -d * 0.15, g); mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.08, 10), M.dark, w * 0.2, h + 0.72, -d * 0.15, g);
+      for (const sx of [-1, 1]) box(0.14, h, 0.14, M.metal, sx * (w / 2 + 0.05), h / 2, d / 2 + 0.05, g);
+      W.pool(x - w * 0.28, z + d / 2 + 1.6, 3.2, 0xffe2b0, 0.5, 1);
       if (o.dish) { const dish = mesh(new THREE.SphereGeometry(1.1, 10, 6, 0, TAU, 0, 1.1), M.hull2, w * 0.25, h + 1.2, 0, g); dish.rotation.z = -0.9; mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2, 5), M.metal, w * 0.25, h + 0.6, 0, g); }
       if (o.mast) { mesh(new THREE.CylinderGeometry(0.05, 0.05, 5, 5), M.metal, -w * 0.3, h + 2.5, 0, g); mesh(new THREE.SphereGeometry(0.12, 6, 5), M.red, -w * 0.3, h + 5, 0, g); }
       W.addBox(x, z, w, d, y - 2, y + h);
@@ -385,7 +406,7 @@ export function buildWorld(def) {
     },
     crate(x, z, s = 1.3, stack = 1) {
       const y = W.height(x, z);
-      for (let i = 0; i < stack; i++) { const c = box(s, s, s, i % 2 ? M.hull2 : M.crate, x, y + s / 2 + i * s, z, group); c.rotation.y = (r() - 0.5) * 0.3 * (i ? 1 : 0); box(s + 0.04, 0.12, s + 0.04, M.dark, x, y + s * 0.5 + i * s, z, group); }
+      for (let i = 0; i < stack; i++) { const c = box(s, s, s, i % 2 ? M.crate2 : M.crate, x, y + s / 2 + i * s, z, group); c.rotation.y = (r() - 0.5) * 0.3 * (i ? 1 : 0); }
       W.addBox(x, z, s, s, y - 1, y + s * stack);
     },
     barrier(x, z, len = 4, alongX = true) {
@@ -412,6 +433,10 @@ export function buildWorld(def) {
       box(1.6, 0.5, 0.5, M.dark, x, y + 9, z, group);
       for (const s of [-0.5, 0, 0.5]) mesh(BOX, M.lamp, x + s, y + 8.9, z + 0.2, group).scale.set(0.36, 0.3, 0.2);
       if (light && W.lampCount < 4) { const l = new THREE.PointLight(0xffe9c8, 260, 60, 1.7); l.position.set(x, y + 8.4, z + 0.6); group.add(l); W.lampCount++; }
+      for (const s of [-1, 1]) { const br = box(0.06, 2.2, 0.06, M.metal, x + s * 0.45, y + 8, z, group); br.rotation.z = s * 0.42; }
+      const cone = lightCone(9, 7.5, 0xffe9c8, light ? 0.5 : 0.3); cone.position.set(x, y + 8.9, z + 0.3); group.add(cone);
+      const fl = flare(0xffe9c8, light ? 9 : 6, 0.9); fl.position.set(x, y + 8.9, z + 0.3); group.add(fl);
+      W.pool(x, z + 0.3, 10, 0xffe2b0, light ? 0.5 : 0.3, 1);
       W.addCircle(x, z, 0.3, y - 1, y + 9);
     },
     sign(x, z, face, key, o = {}) {
@@ -437,19 +462,37 @@ export function buildWorld(def) {
       const y = W.height(x, z) - 0.5;
       const m = mesh(new THREE.CylinderGeometry(rad * 0.3, rad, h, 4, 1), M.stone, x, y + h / 2, z, group); m.rotation.y = r() * TAU; m.castShadow = true;
       if (h < 4) { mesh(new THREE.OctahedronGeometry(rad * 0.4), M.dim, x, y + h + rad * 0.9, z, group); W.addCircle(x, z, rad * 0.8, y - 1, y + h); return; }
-      const crown = mesh(new THREE.OctahedronGeometry(rad * 0.55), M.eye, x, y + h + rad * 1.3, z, group);
-      const halo = mesh(new THREE.TorusGeometry(rad * 1.1, 0.05, 5, 28), M.eye, x, y + h + rad * 1.3, z, group); halo.rotation.x = Math.PI / 2;
+      const crown = mesh(new THREE.OctahedronGeometry(rad * 0.5), M.eye, x, y + h + rad * 1.3, z, group); crown.scale.y = 1.6;
+      const halo = mesh(new THREE.TorusGeometry(rad * 1.1, 0.04, 5, 36), M.eye, x, y + h + rad * 1.3, z, group); halo.rotation.x = Math.PI / 2;
+      const halo2 = mesh(new THREE.TorusGeometry(rad * 1.5, 0.025, 5, 36), M.dim, x, y + h + rad * 1.3, z, group);
+      const st = box(rad * 2.6, 0.5, rad * 2.6, M.stonePlain, x, y + 0.6, z, group); st.rotation.y = m.rotation.y + Math.PI / 4; box(rad * 3.3, 0.3, rad * 3.3, M.stonePlain, x, y + 0.3, z, group).rotation.y = st.rotation.y;
+      for (const f of [0.3, 0.55, 0.78]) { const rr = rad * (1 - 0.7 * f) * 1.02; const bd = mesh(new THREE.CylinderGeometry(rr, rr * 1.02, 0.09, 4), M.band, x, y + h * f, z, group); bd.rotation.y = m.rotation.y; }
+      const shards = [];
+      for (let i = 0; i < 3; i++) { const sh = mesh(new THREE.OctahedronGeometry(rad * 0.18), M.stonePlain, x, y, z, group); sh.scale.y = 2.2; shards.push(sh); }
+      const beamUp = skyBeam(60, rad * 0.4, 0x7ff0e0, 0.11); beamUp.position.set(x, y + h + rad * 1.3, z); group.add(beamUp);
+      const fl = flare(0x7ff0e0, rad * 3.2, 0.32); fl.position.set(x, y + h + rad * 1.3, z); group.add(fl); (W.dimmable ||= []).push(beamUp, fl);
+      W.pool(x, z, rad * 5, 0x40e0c8, 0.13);
       const ph = r() * 6;
-      W.anim.push(t => { crown.rotation.y = t * 0.5 + ph; crown.position.y = y + h + rad * 1.3 + Math.sin(t * 0.8 + ph) * 0.3; halo.rotation.z = -t * 0.3; halo.position.y = crown.position.y; });
+      W.anim.push(t => { crown.rotation.y = t * 0.5 + ph; const cy = y + h + rad * 1.3 + Math.sin(t * 0.8 + ph) * 0.3; crown.position.y = cy; halo.rotation.z = -t * 0.3; halo.position.y = cy; halo2.position.y = cy; halo2.rotation.set(1.2 + Math.sin(t * 0.3 + ph) * 0.4, t * 0.2, 0);
+        for (let i = 0; i < 3; i++) { const a = t * 0.35 + ph + i * 2.094, hh = y + h * (0.45 + i * 0.17) + Math.sin(t * 0.6 + i) * 0.6; shards[i].position.set(x + Math.cos(a) * rad * 1.8, hh, z + Math.sin(a) * rad * 1.8); shards[i].rotation.y = a * 2; } });
       W.addCircle(x, z, rad * 0.8, y - 1, y + h);
     },
     tree(x, z, s = 1) {
       const y = W.height(x, z) - 0.3, h = 5 * s + r() * 3 * s;
       const hue = [0x3fe0c8, 0xc86bff, 0xffa84a, 0x5aa8ff][r() * 4 | 0];
-      const t = mesh(new THREE.CylinderGeometry(0.18 * s, 0.42 * s, h, 6), M.trunk, x, y + h / 2, z, group); t.castShadow = true; t.rotation.z = (r() - 0.5) * 0.12;
-      const capM = new THREE.MeshStandardMaterial({ color: 0x1a1830, emissive: hue, emissiveIntensity: 0.55, roughness: 0.6, flatShading: true });
-      const cap = mesh(new THREE.SphereGeometry(2.1 * s, 10, 5, 0, TAU, 0, Math.PI * 0.45), capM, x, y + h - 0.5 * s, z, group); cap.scale.y = 0.55; cap.castShadow = true;
-      const under = mesh(new THREE.CircleGeometry(1.9 * s, 12), new THREE.MeshBasicMaterial({ color: new THREE.Color(hue).multiplyScalar(1.15), side: THREE.DoubleSide }), x, y + h - 0.3 * s, z, group); under.rotation.x = Math.PI / 2;
+      const t = mesh(new THREE.CylinderGeometry(0.16 * s, 0.44 * s, h, 9, 5), M.trunk, x, y + h / 2, z, group); t.castShadow = true;
+      const lean = (r() - 0.5) * 0.9 * s, la = r() * TAU, tp = t.geometry.attributes.position;
+      for (let i = 0; i < tp.count; i++) { const k = (tp.getY(i) / h + 0.5); tp.setX(i, tp.getX(i) + Math.cos(la) * lean * k * k); tp.setZ(i, tp.getZ(i) + Math.sin(la) * lean * k * k); }
+      t.geometry.computeVertexNormals();
+      const cx = x + Math.cos(la) * lean, cz = z + Math.sin(la) * lean, cr = (1.7 + r() * 0.9) * s;
+      const capM = new THREE.MeshStandardMaterial({ color: 0x241d3e, emissive: hue, emissiveIntensity: 0.4, roughness: 0.5 });
+      const prof = [[0, 0.62], [0.3, 0.6], [0.6, 0.5], [0.85, 0.3], [0.98, 0.08], [1, -0.06], [0.93, -0.12]].map(([px, py]) => new THREE.Vector2(px * cr, py * cr));
+      const cap = mesh(new THREE.LatheGeometry(prof, 18), capM, cx, y + h - 0.25 * s, cz, group); cap.castShadow = true;
+      const under = mesh(new THREE.CircleGeometry(cr * 0.95, 20), new THREE.MeshBasicMaterial({ color: new THREE.Color(hue).multiplyScalar(1.1), map: M.gill, side: THREE.DoubleSide }), cx, y + h - 0.3 * s, cz, group); under.rotation.x = Math.PI / 2;
+      const rim = mesh(new THREE.TorusGeometry(cr * 0.99, 0.035 * s, 5, 26), new THREE.MeshBasicMaterial({ color: new THREE.Color(hue).multiplyScalar(1.5) }), cx, y + h - 0.3 * s, cz, group); rim.rotation.x = Math.PI / 2;
+      for (let i = 0, n = 3 + (r() * 4 | 0); i < n; i++) { const a = r() * TAU, d = r() * cr * 0.7, sp = mesh(new THREE.SphereGeometry((0.08 + r() * 0.1) * s, 6, 5), rim.material, cx + Math.cos(a) * d, y + h - 0.25 * s + cr * (0.62 - 0.3 * (d / cr) * (d / cr)), cz + Math.sin(a) * d, group); sp.scale.y = 0.4; }
+      W.pool(cx, cz, cr * 3.2, hue, 0.2);
+      (W.treeMats ||= []).push({ m: rim.material, hue });
       W.addCircle(x, z, 0.4 * s, y - 1, y + h);
       return { cap: capM, under: under.material, hue };
     },
@@ -489,21 +532,22 @@ export function buildWorld(def) {
   def.layout(b, W);
 
   // ---------------------------------------------------------------- terrain mesh
-  const size = (R + 48) * 2, seg = 170;
+  const size = (R + 48) * 2, seg = 210;
   const geo = new THREE.PlaneGeometry(size, size, seg, seg).rotateX(-Math.PI / 2);
-  const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
+  const pos = geo.attributes.position, col = new Float32Array(pos.count * 3), padA = new Float32Array(pos.count);
   const cA = new THREE.Color(0x0d3338), cB = new THREE.Color(0x18523f), cV = new THREE.Color(0x35255e), cD = new THREE.Color(0x66563f), cR = new THREE.Color(0x2b2944), c = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i), h = W.height(x, z);
     pos.setY(i, h);
     const n = 0.5 + 0.5 * Math.sin(x * 0.13 + s2) * Math.cos(z * 0.11 + s3), v = smooth(0.55, 0.9, 0.5 + 0.5 * Math.sin(x * 0.05 + z * 0.03 + s1 * 3));
     c.copy(cA).lerp(cB, n).lerp(cV, v * 0.8);
-    c.lerp(cD, W.padAt(x, z) * 0.95);
-    c.lerp(cR, smooth(R - 4, R + 6, Math.hypot(x, z)));
-    const j = 0.9 + r() * 0.2; col[i * 3] = c.r * j; col[i * 3 + 1] = c.g * j; col[i * 3 + 2] = c.b * j;
+    const pw = W.padAt(x, z), rimK = smooth(R - 4, R + 6, Math.hypot(x, z));
+    c.lerp(cD, pw * 0.95);
+    c.lerp(cR, rimK); padA[i] = Math.max(pw, Math.min(1, rimK * 2.5));
+    const j = 0.95 + r() * 0.1; col[i * 3] = c.r * j; col[i * 3 + 1] = c.g * j; col[i * 3 + 2] = c.b * j;
   }
-  geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
-  const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.95 }));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('aPad', new THREE.BufferAttribute(padA, 1)); geo.computeVertexNormals();
+  const ground = new THREE.Mesh(geo, groundMaterial());
   ground.receiveShadow = true; group.add(ground); W.groundMesh = ground;
 
   // ---------------------------------------------------------------- flora (kept off anything the humans paved)
@@ -512,27 +556,60 @@ export function buildWorld(def) {
   for (let i = 0, n = 0; i < 400 && n < (def.trees ?? 46); i++) { const x = (r() - 0.5) * 2 * R, z = (r() - 0.5) * 2 * R; if (free(x, z, 3) && Math.hypot(x - def.spawn[0], z - def.spawn[1]) > 6) { W.glow.push(b.tree(x, z, 0.8 + r() * 0.9)); n++; } }
   for (let i = 0, n = 0; i < 200 && n < 14; i++) { const x = (r() - 0.5) * 2 * R, z = (r() - 0.5) * 2 * R; if (free(x, z, 3)) { b.rock(x, z, 0.8 + r() * 1.6); n++; } }
   const dummy = new THREE.Object3D(), ic = new THREE.Color();
-  const NT = 5200, tend = new THREE.InstancedMesh(new THREE.ConeGeometry(0.07, 1, 4).translate(0, 0.5, 0), new THREE.MeshBasicMaterial(), NT);
+  const hueAt = (x, z) => 0.46 + 0.3 * smooth(0.5, 0.9, 0.5 + 0.5 * Math.sin(x * 0.05 + z * 0.03 + s1 * 3)) + 0.05 * Math.sin(x * 0.3) * Math.cos(z * 0.27);
+  let clump = null;
+  const grass = makeGrass(def.grass ?? 30000, r, i => {
+    if (i % 12 === 0 || !clump) { const x = (r() - 0.5) * 2 * (R + 2), z = (r() - 0.5) * 2 * (R + 2); clump = W.padAt(x, z) > 0.04 || Math.hypot(x, z) > R + 2 ? null : { x, z }; }
+    if (!clump) return null;
+    const x = clump.x + (r() - 0.5) * 1.6, z = clump.z + (r() - 0.5) * 1.6;
+    return { x, y: W.height(x, z), z };
+  }, hueAt);
+  group.add(grass); W.tendrils = grass;
+  const NB = 520, bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.11, 10, 8), new THREE.MeshBasicMaterial(), NB), stalks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.02, 0.03, 1, 4).translate(0, 0.5, 0), M.trunk, NB);
   let n = 0;
-  for (let i = 0; i < NT * 3 && n < NT; i++) {
-    const x = (r() - 0.5) * 2 * R, z = (r() - 0.5) * 2 * R;
-    if (W.padAt(x, z) > 0.05 || Math.hypot(x, z) > R + 2) continue;
-    dummy.position.set(x, W.height(x, z) - 0.05, z); dummy.rotation.set((r() - 0.5) * 0.5, r() * 6, (r() - 0.5) * 0.5); dummy.scale.set(1, 0.4 + r() * 0.9, 1); dummy.updateMatrix();
-    tend.setMatrixAt(n, dummy.matrix);
-    ic.setHSL(0.45 + r() * 0.3, 0.7, 0.1 + r() * 0.12); tend.setColorAt(n, ic); n++;
-  }
-  tend.count = n; group.add(tend); W.tendrils = tend;
-  const NB = 520, bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.12, 6, 5), new THREE.MeshBasicMaterial(), NB), stalks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.02, 0.03, 1, 4).translate(0, 0.5, 0), M.trunk, NB);
-  n = 0;
   for (let i = 0; i < NB * 3 && n < NB; i++) {
     const x = (r() - 0.5) * 2 * R, z = (r() - 0.5) * 2 * R;
     if (W.padAt(x, z) > 0.05 || Math.hypot(x, z) > R) continue;
     const h = 0.4 + r() * 1.3, y = W.height(x, z);
     dummy.rotation.set(0, 0, 0); dummy.position.set(x, y, z); dummy.scale.set(1, h, 1); dummy.updateMatrix(); stalks.setMatrixAt(n, dummy.matrix);
     dummy.position.y = y + h; dummy.scale.setScalar(0.7 + r() * 1.1); dummy.updateMatrix(); bulbs.setMatrixAt(n, dummy.matrix);
-    ic.setHSL([0.47, 0.78, 0.09, 0.58][r() * 4 | 0], 0.9, 0.6).multiplyScalar(1.25); bulbs.setColorAt(n, ic); n++;
+    ic.setHSL([0.47, 0.78, 0.09, 0.58][r() * 4 | 0], 0.9, 0.6); if (n % 3 === 0) W.pool(x, z, 1.5 + r() * 1.2, ic.getHex(), 0.16); ic.multiplyScalar(1.25); bulbs.setColorAt(n, ic); n++;
   }
   bulbs.count = stalks.count = n; group.add(bulbs, stalks); W.bulbs = bulbs;
+
+  // Crystal clusters, mostly near the edges where nobody has bulldozed yet.
+  const NC = 150, crystals = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.3, 0), M.crystal, NC);
+  n = 0;
+  for (let i = 0; i < 300 && n < NC - 5; i++) {
+    const x = (r() - 0.5) * 2 * R, z = (r() - 0.5) * 2 * R;
+    if (!free(x, z, 2) || Math.hypot(x - def.spawn[0], z - def.spawn[1]) < 5) continue;
+    const hue = [0.48, 0.52, 0.76, 0.83][r() * 4 | 0], k = 3 + (r() * 3 | 0);
+    for (let j = 0; j < k; j++) {
+      const cx = x + (r() - 0.5) * 1.6, cz = z + (r() - 0.5) * 1.6, sc = 0.6 + r() * 1.6;
+      dummy.position.set(cx, W.height(cx, cz) + sc * 0.35, cz); dummy.rotation.set((r() - 0.5) * 0.9, r() * 6, (r() - 0.5) * 0.9); dummy.scale.set(sc * 0.5, sc * 2.2, sc * 0.5); dummy.updateMatrix();
+      crystals.setMatrixAt(n, dummy.matrix); crystals.setColorAt(n, ic.setHSL(hue, 0.7, 0.55)); n++;
+    }
+    W.pool(x, z, 4, ic.setHSL(hue, 0.9, 0.55).getHex(), 0.2);
+    if (n % 12 < 4) W.addCircle(x, z, 0.7, W.height(x, z) - 1, W.height(x, z) + 1.6);
+  }
+  crystals.count = n; crystals.castShadow = true; group.add(crystals);
+
+  // Drifters: slow, pulsing, entirely unbothered by the invasion.
+  const bell = new THREE.SphereGeometry(0.5, 10, 6, 0, TAU, 0, Math.PI * 0.55), NJ = def.jellies ?? 26;
+  const jellies = new THREE.InstancedMesh(bell, M.jelly, NJ), tails = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.02, 0.005, 1.6, 4).translate(0, -0.8, 0), M.jelly, NJ * 3), jl = [];
+  for (let i = 0; i < NJ; i++) { const a = r() * TAU, rr = 12 + r() * (R - 16); jl.push({ x: Math.cos(a) * rr, z: Math.sin(a) * rr, y: 4 + r() * 9, ph: r() * 6, s: 0.7 + r() * 1.3, sp: 0.2 + r() * 0.3 }); ic.setHSL([0.5, 0.8, 0.58][i % 3], 0.8, 0.6); jellies.setColorAt(i, ic); for (let k = 0; k < 3; k++) tails.setColorAt(i * 3 + k, ic); }
+  jellies.frustumCulled = tails.frustumCulled = false; group.add(jellies, tails);
+  W.anim.push(t => {
+    for (let i = 0; i < NJ; i++) {
+      const j = jl[i], x = j.x + Math.sin(t * 0.05 * j.sp + j.ph) * 8, z = j.z + Math.cos(t * 0.04 * j.sp + j.ph * 1.3) * 8, beat = Math.sin(t * 1.4 * j.sp * 3 + j.ph);
+      const y = W.height(x, z) + j.y + Math.sin(t * 0.3 + j.ph) * 1.2 + beat * 0.15;
+      dummy.rotation.set(0, 0, 0); dummy.position.set(x, y, z); dummy.scale.set(j.s * (1 + beat * 0.12), j.s * (1 - beat * 0.15), j.s * (1 + beat * 0.12)); dummy.updateMatrix(); jellies.setMatrixAt(i, dummy.matrix);
+      for (let k = 0; k < 3; k++) { dummy.position.set(x + Math.cos(k * 2.09) * 0.22 * j.s, y, z + Math.sin(k * 2.09) * 0.22 * j.s); dummy.rotation.set(Math.sin(t + j.ph + k) * 0.25, 0, Math.cos(t * 0.8 + j.ph + k) * 0.25); dummy.scale.set(j.s, j.s * (1 + beat * 0.2), j.s); dummy.updateMatrix(); tails.setMatrixAt(i * 3 + k, dummy.matrix); }
+    }
+    jellies.instanceMatrix.needsUpdate = tails.instanceMatrix.needsUpdate = true;
+  });
+
+  const mist = makeMist(54, r, R, W.height, def.sky.mist ?? def.sky.hor); group.add(mist);
 
   const NF = 260, fg = new THREE.BufferGeometry(), fp = new Float32Array(NF * 3);
   for (let i = 0; i < NF; i++) { const x = (r() - 0.5) * 2 * R, z = (r() - 0.5) * 2 * R; fp[i * 3] = x; fp[i * 3 + 1] = W.height(x, z) + 0.6 + r() * 4; fp[i * 3 + 2] = z; }
@@ -557,18 +634,23 @@ export function buildWorld(def) {
   S.scene.fog = W.fog; S.scene.background = new THREE.Color(def.sky.fog);
 
   // Human "fresh air": 0 is your sky, 1 is car park. Mission four drives this.
-  W.haze = 0;
+  W.haze = 0; dim.value = 1; M.jelly.opacity = 0.55; M.crystal.emissiveIntensity = 0.9;
   const hazeCol = new THREE.Color(0x9fb4c4);
   W.setHaze = v => {
     W.haze = v; sky.userData.dome.material.uniforms.uHaze.value = v;
     W.fog.color.copy(W.fogBase).lerp(hazeCol, v * 0.85); W.fog.density = W.fogD * (1 + v * 1.6);
     for (const g of W.glow) { g.cap.emissiveIntensity = 0.55 * (1 - v * 0.9); g.under.color.set(g.hue).multiplyScalar(1.15 * (1 - v * 0.85)); }
-    W.bulbs.material.color.setScalar(1 - v * 0.8); W.tendrils.material.color.setScalar(1 - v * 0.5).lerp(new THREE.Color(0.6, 0.6, 0.6), v * 0.5);
+    W.bulbs.material.color.setScalar(1 - v * 0.8); dim.value = 1 - v * 0.92;
+    for (const t of W.treeMats || []) t.m.color.set(t.hue).multiplyScalar(1.5 * (1 - v * 0.85));
+    for (const o of W.dimmable || []) o.visible = v < 0.6;
+    M.jelly.opacity = 0.55 * (1 - v * 0.7); M.crystal.emissiveIntensity = 0.9 * (1 - v * 0.8);
   };
 
   W.update = (dt, t, cam) => {
     sky.position.copy(cam.position);
-    sky.userData.dome.material.uniforms.uT.value = t; flies.material.uniforms.uT.value = t;
+    sky.userData.dome.material.uniforms.uT.value = t; flies.material.uniforms.uT.value = t; sceneT.value = t;
+    if (S.P) playerPos.value.copy(S.mode === 'mission' || S.mode === 'dialog' ? S.P.pos : cam.position);
+    M.stone.emissiveIntensity = 0.75 + 0.2 * Math.sin(t * 0.7); M.band.color.setRGB(0.45, 1.5, 1.3).multiplyScalar(0.7 + 0.3 * Math.sin(t * 1.1));
     sun.target.position.set(cam.position.x, 0, cam.position.z);
     sun.position.copy(sun.target.position).addScaledVector(sun.userData.dir, 110);
     for (const f of W.anim) f(t, dt);

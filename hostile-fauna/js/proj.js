@@ -77,6 +77,9 @@ export function explode(x, y, z, r, dmg, owner, o = {}) {
   const color = o.color ?? (owner === 'p' ? 0x8dffb0 : 0xffa040);
   ring(x, Math.max(y - 0.5, S.W.height(x, z)), z, 0.5, r, color, 0.45);
   burst(x, y, z, { n: 46, color, speed: r * 2.6, size: 0.55, life: 0.7, g: 3 });
+  ring(x, Math.max(y - 0.5, S.W.height(x, z)), z, 0.2, r * 0.6, 0xffffff, 0.25);
+  if (owner === 'p') burst(x, y + 0.5, z, { n: 30, color: 0x8dffb0, speed: r * 0.9, up: 1.2, size: 0.3, life: 2.2, drag: 2.2, g: -0.4 });   // spores hang in the air a while
+  else burst(x, y + 0.5, z, { n: 14, color: 0x6a6258, speed: 3, up: 3, size: 1.2, life: 1.4, drag: 1.5 });
   flash(x, y + 1, z, color, 120, 0.3);
   sfx('boom');
   const P = S.P, dp = Math.hypot(P.pos.x - x, P.pos.y + 1.3 - y, P.pos.z - z);
@@ -105,6 +108,8 @@ export function updateProj(dt) {
       if (Math.random() < 0.6) burst(p.x, p.y, p.z, { n: 1, color: 0xffb060, speed: 0.4, size: 0.4, life: 0.4 });
     }
     p.vy -= p.grav * dt;
+    if (p.kind === 'thorn') burst(p.x, p.y, p.z, { n: 1, color: 0x7ffff0, speed: 0.3, size: 0.2, life: 0.16, drag: 0 });
+    else if (p.kind === 'spore') burst(p.x, p.y, p.z, { n: 2, color: 0x8dffb0, speed: 0.8, size: 0.34, life: 0.5, drag: 0.5 });
     const sp = Math.hypot(p.vx, p.vy, p.vz), len = sp * dt, dx = p.vx / sp, dy = p.vy / sp, dz = p.vz / sp;
     let t = W.ray(p.x, p.y, p.z, dx, dy, dz, len), ent = null, head = false, hitPlayer = false;
     if (p.owner === 'p') { const h = firstHit(p.x, p.y, p.z, dx, dy, dz, t); if (h) { t = h.t; ent = h.hit; head = h.head; } }
