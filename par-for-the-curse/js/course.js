@@ -146,6 +146,7 @@ export class Course {
     this.scene = scene; this.world = world;
     this.root = new THREE.Group(); scene.add(this.root);
     this.camBlockers = [this.root];   // what the camera may not pass through
+    this.cartSpots = [];
     this.holes = []; this.zones = []; this.animators = []; this.winds = []; this.sensors = [];
     this.fx = { sound: () => {}, event: () => {} };
     this.t = 0;
@@ -313,6 +314,7 @@ export class Course {
     const aims = { 1: [[60, 0]], 2: [[34, 0], [50, 0], [64, 0]], 3: [[63, 0]], 4: [[40, 0], [62, 0]], 5: [[40, 0], [53, 0], [66, 0]],
       6: [[29, 0], [41, 0], [52, 0], [66, 0]], 7: [[32, 4.2], [67, 0]], 8: [[30, 0], [41, 0], [53.5, 0], [66, 0]], 9: [[37, 0], [60, 0]] };
     for (const [i, pts] of Object.entries(aims)) this.holes[i].aims = pts;
+    this.cartPaths();
     this.decorate();
   }
   holeInfo(H, name, par, blurb) { Object.assign(H, { name, par, blurb }); this.holes[H.i] = H; }
@@ -326,6 +328,7 @@ export class Course {
       const ox = summit ? SIDE : 0, oy = summit ? RISE : 0;
       const P = { i: summit ? NHOLES : k + 1, frame: Hn.frame, group: Hn.group };
       this.block(P, ox - PAD, ox + PAD, -PAD, PAD, oy, oy, { thick: 4, rockDepth: 9 + Math.random() * 4 });
+      if (!summit) this.cartSpots.push({ p: Hn.frame.w(-5.2, 0, -5.6), yaw: Hn.frame.yaw });
       if (!summit) {
         // Tee box for hole k+1.
         const tee = { x: 5.5, z: -3.2 };
@@ -359,7 +362,6 @@ export class Course {
     // The first tee gets a welcome sign, a cart and a lamp.
     const P0 = { i: 1, frame: this.H[0].frame, group: this.H[0].group };
     this.sign(P0, 2.5, -7.2, 0, ['WELCOME TO', 'MOUNT BOGEY', 'no refunds · no mulligans'], Math.PI * 0.08);
-    this.prop(P0, 'golf_cart', -4.5, -4.5, { y: 0, rot: 0.8, scale: 1 });
     this.prop(P0, 'lamp', 8, -8, { y: 0, scale: 1 });
   }
   makeCup(H, p) {
@@ -664,7 +666,7 @@ export class Course {
     this.sensors.push({ kind: 'cannon', hole: 7, p: H.frame.w(rx, 0, rz), r: 1.6, barrel, pivot: bp, frame: H.frame, mouth: () => { barrel.updateWorldMatrix(true, false); const m = pm('cannon_barrel').muzzle || [0, 0, 1.4]; return new THREE.Vector3(m[0], m[1], m[2] + 0.3).applyMatrix4(barrel.matrixWorld); } });
     this.sign(H, 30.5, 6.6, 0, ['CANNON →', 'roll in, then time it'], -0.5);
     this.prop(H, 'tree_round', 13, 5.6, { trunk: 0.35 }); this.prop(H, 'tree_round', 16, -5.8, { trunk: 0.35 });
-    this.prop(H, 'rock_b', 38, -6, { scale: 0.8 }); this.prop(H, 'flowers', 66, 5.8, {});
+    this.prop(H, 'rock_b', 38.6, 6.2, { scale: 0.8 }); this.prop(H, 'flowers', 66, 5.8, {});
   }
   hole8(H) {
     this.holeInfo(H, 'Moving Day', 4, 'Platforms that will not sit still. Neither will you.');
@@ -724,6 +726,57 @@ export class Course {
   }
 
   // Background: the spire, distant islands. (Sky, sea, clouds and balloons live in sky.js.)
+  // A narrow road through hole-local points [x, y, z]: tilted slabs joined by round landings, no rails.
+  road(H, pts, w) {
+    const F = H.frame, thick = 0.5;
+    const roadMat = this._roadMat || (this._roadMat = toon(0xffffff, { params: { map: canvasTex(128, 128, (g, cw, ch) => {
+      g.fillStyle = '#c9a26b'; g.fillRect(0, 0, cw, ch);
+      for (let i = 0; i < 260; i++) { g.fillStyle = Math.random() < 0.5 ? 'rgba(120,85,45,.3)' : 'rgba(240,215,165,.35)'; g.fillRect(Math.random() * cw, Math.random() * ch, 2 + Math.random() * 9, 1 + Math.random() * 3); }
+      g.fillStyle = '#efe2c2'; g.fillRect(0, 0, cw, 9); g.fillRect(0, ch - 9, cw, 9);
+      g.fillStyle = '#ff5d73'; for (let i = 0; i < 2; i++) { g.fillRect(i * 64, 0, 30, 9); g.fillRect(i * 64, ch - 9, 30, 9); }
+    }) } }));
+    const nodeMat = toon(0xc9a26b);
+    // Round landings fill the corners. They sit just low enough not to poke up through a slab that climbs into them.
+    const node = ([x, y, z], i) => {
+      const r = w * 0.56;
+      let tan = 0;
+      for (const j of [i - 1, i + 1]) if (pts[j]) tan = Math.max(tan, Math.abs(pts[j][1] - y) / Math.hypot(pts[j][0] - x, pts[j][2] - z));
+      const top = y - r * tan - 0.01;
+      this.world.add(new Collider('cyl', { pos: F.w(x, top - thick / 2, z), r, hh: thick / 2, surf: 'fairway', hole: H.i, tag: 'road' }));
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, thick, 24), nodeMat);
+      m.position.set(x, top - thick / 2, z); m.receiveShadow = true; addOutline(m, 0.05); H.group.add(m);
+      const rock = make('under_rock'); rock.position.set(x, top - thick + 0.05, z); rock.scale.set(r * 2, 3.5, r * 2); H.group.add(rock);
+    };
+    pts.forEach(node);
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const [ax, ay, az] = pts[i], [bx, by, bz] = pts[i + 1];
+      const run = Math.hypot(bx - ax, bz - az), rise = by - ay, L = Math.hypot(run, rise);
+      const lq = new THREE.Quaternion().setFromAxisAngle(UP, -Math.atan2(bz - az, bx - ax)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.atan2(rise, run)));
+      const cl = new THREE.Vector3((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2).add(new THREE.Vector3(0, -thick / 2, 0).applyQuaternion(lq));
+      this.world.add(new Collider('box', { pos: F.w(cl.x, cl.y, cl.z), quat: F.q.clone().multiply(lq), half: new THREE.Vector3(L / 2, thick / 2, w / 2), surf: 'fairway', hole: H.i, tag: 'road' }));
+      const geo = new RoundedBoxGeometry(L, thick, w, 2, 0.08), uv = geo.attributes.uv;
+      for (let k = 0; k < uv.count; k++) uv.setX(k, uv.getX(k) * L / 2.5);
+      const m = new THREE.Mesh(geo, roadMat);
+      m.position.copy(cl); m.quaternion.copy(lq); m.receiveShadow = true; addOutline(m, 0.05); H.group.add(m);
+    }
+  }
+  // The hard way up by cart (or on foot): skinny unfenced roads round every hole you can't otherwise cross.
+  cartPaths() {
+    const [, H2, H3, , , , H7, H8, H9] = this.H;
+    this.road(H2, [[13, -0.35, -9], [18, -0.35, -13], [28.5, 3.15, -13], [33, 3.15, -9]], 2.3);
+    this.road(H2, [[35, 3.15, -9], [39.5, 3.15, -13], [50, 6.65, -13], [54, 6.65, -9]], 2.3);
+    this.sign(H2, 12, -10.2, -0.35, ['CART PATH', 'keep left. or right.'], 0.5);
+    this.road(H3, [[28, -0.35, -9], [36, 1.2, -13], [44, 3.2, -8.5], [50, 5, -13], [57, 6.65, -9]], 2.2);
+    this.sign(H3, 26, -10.2, -0.35, ['CART PATH', 'do not look down'], 0.5);
+    this.road(H7, [[38, 0, -5], [44, 2, -11], [50, 3.4, -4], [56, 5, -11], [64, 7, -5]], 2.1);
+    this.sign(H7, 35.5, -6.5, 0, ['CART PATH', 'hairpins ahead'], 0.5);
+    // Hole 8's road has a hole in it: hit the kicker with some speed.
+    this.road(H8, [[21, 0, -5], [27, 1.2, -11], [36, 3.6, -11]], 2.2);
+    this.road(H8, [[41, 3.3, -11], [52, 5.5, -11], [61, 7, -5]], 2.2);
+    this.sign(H8, 19, -3.6, 0, ['ROAD OUT', 'floor it'], 0.5);
+    this.road(H9, [[22, 0, -5.5], [30, 2.2, -9], [38, 3.6, -5.5], [46, 5.8, -9], [51.5, 7, -7.4], [52.5, 7, -5]], 2);
+    this.sign(H9, 20, -6.2, 0, ['LAST ROAD', 'no pressure'], 0.5);
+  }
   decorate() {
     const sp = make('spire', { outline: 0.15 });
     sp.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = true; } });

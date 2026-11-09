@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { loadAssets, make, toon, addOutline } from './assets.js';
 import { World, BALL_R, G as GRAV } from './physics.js';
 import { Course, frames, NHOLES, CUP_R, SEA_Y, RISE, padPos } from './course.js';
-import { Golfer, Swing, CLUBS, SKINS, SHIRTS, PANTS, HATS } from './golfer.js';
+import { Golfer, Swing, CLUBS, SKINS, SHIRTS, PANTS, HATS, runPose, sitPose } from './golfer.js';
+import { Cart, collideBody } from './cart.js';
 import { Particles, Confetti, Trail } from './fx.js';
 import { Sky } from './sky.js';
 import * as A from './audio.js';
@@ -41,8 +42,10 @@ function resize() {
 }
 
 /* ---------------- state ---------------- */
-let world, course, sky, fx, confetti, me, swing, ballMesh, ballShadow, trail, aimDots;
+let world, course, sky, fx, confetti, me, swing, ballMesh, ballShadow, trail, aimDots, ballBeam;
 let net = null;
+let carts = [];
+const W = { v: V(), carry: V(), grounded: true, phase: 0, amt: 0, ox: [V(0, 0.34, 0), V(0, 0.76, 0)] };
 const S = {
   mode: 'loading', t: 0, modeT: 0,
   hole: 1, holeStrokes: 0, strokes: 0, falls: 0, lost: 0, rage: 0, best: 0, finished: false, crown: false,
@@ -96,6 +99,8 @@ const Q = {
   double: ['Double bogey. We have all been there.', 'Double. Breathe.'],
   worse: ['{n} strokes. We will not speak of this.', 'That took {n}. The mountain is laughing.', 'Finally. {n} strokes.'],
   idle: ['Any time now.', 'The ball is not going to hit itself.', 'Take your time. It is not like the wind is getting stronger.'],
+  swim: ['Golfers cannot swim. Noted.', 'You fell in. Your ball is judging you from up there.'],
+  cartSea: ['Cart overboard!', 'That is coming out of your deposit.'],
   tantrum: ['Let it out.', 'Very mature.', 'Use your words.'],
   rage: ['RAGE MODE ENGAGED.', 'Someone needs a juice box.'],
   drop: ['Unplayable lie. One stroke.'],
@@ -145,11 +150,14 @@ async function boot() {
   for (const part of [me.p.head, me.p.eyes, me.p.stache, me.crown, ...Object.values(me.hats)]) part.traverse(o => o.layers.set(1));
   camera.layers.enable(1); sun.shadow.camera.layers.enable(1);
   swing = new Swing();
+  carts = course.cartSpots.map(s => new Cart(scene, s));
   ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 24, 16), toon(0xffffff));
   ballMesh.castShadow = true; addOutline(ballMesh, 0.012); scene.add(ballMesh);
   ballShadow = new THREE.Mesh(new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x1b2a1a, transparent: true, opacity: 0.25, depthWrite: false }));
   scene.add(ballShadow);
   trail = new Trail(scene, '#ffffff');
+  ballBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 60, 10, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff3a0, transparent: true, opacity: 0.25, depthWrite: false, side: THREE.DoubleSide }));
+  ballBeam.visible = false; scene.add(ballBeam);
   aimDots = new THREE.Group();
   for (let i = 0; i < 26; i++) { const d = new THREE.Mesh(new THREE.SphereGeometry(i < 8 ? 0.04 : 0.06 + i * 0.004, 8, 6), new THREE.MeshBasicMaterial({ color: i % 2 ? 0xfff3a0 : 0xffffff, transparent: true, opacity: Math.max(0.15, 0.9 - i * 0.03), depthWrite: false })); d.renderOrder = 3; aimDots.add(d); }
   scene.add(aimDots);
@@ -233,7 +241,8 @@ function start() {
   A.initAudio();
   $('title').hidden = true; document.body.classList.add('playing');
   if (!S.startedAt) S.startedAt = Date.now();
-  setMode('address');
+  placeWalker(false);
+  setMode('walk');
   lockPointer();
   showHoleCard();
   if (!S.welcomed) { S.welcomed = true; setTimeout(() => quip('welcome', {}, true), 900); }
@@ -256,6 +265,8 @@ canvas.addEventListener('mousedown', e => {
   if (document.pointerLockElement !== canvas) lockPointer();
   if (e.button === 2) S.aimHeld = true;
   if (e.button === 0 && S.mode === 'cannon') fireCannon();
+  if (e.button === 0 && S.mode === 'walk' && document.pointerLockElement === canvas && nearBall()) enterAddress();
+  if (e.button === 0 && S.mode === 'drive') A.play('beep', 1);
 });
 addEventListener('mouseup', e => { if (e.button === 2) S.aimHeld = false; });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -266,7 +277,7 @@ addEventListener('mousemove', e => {
     if (S.intro) { S.intro.moved += Math.abs(e.movementX) + Math.abs(e.movementY); if (S.intro.moved > 120) S.intro = null; }
   }
 });
-addEventListener('wheel', e => { if (S.mode !== 'title' && !S.paused) cycleClub(e.deltaY > 0 ? -1 : 1); }, { passive: true });
+addEventListener('wheel', e => { if (S.mode !== 'title' && S.mode !== 'drive' && !S.paused) cycleClub(e.deltaY > 0 ? -1 : 1); }, { passive: true });
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvas;
   $('clickToPlay').hidden = locked || S.mode === 'title' || S.mode === 'loading';
@@ -278,8 +289,11 @@ addEventListener('keydown', e => {
   if (k === 'tab') { e.preventDefault(); $('board').hidden = false; renderBoard(); return; }
   if (S.mode === 'title') return;
   keys.add(k);
-  if (k >= '1' && k <= '4') setClub(+k - 1);
-  if (k === 'q') cycleClub(-1); if (k === 'e') cycleClub(1);
+  if (k >= '1' && k <= '5') setSlot(+k - 1);
+  if (k === 'q') cycleClub(-1);
+  if (k === 'e' && !e.repeat) interact();
+  if (k === 'p') poofToBall();
+  if ((k === 'w' || k === 's') && S.mode === 'address' && !e.repeat) leaveAddress();
   if (k === 'm') { A.setMuted(!A.isMuted()); updateHud(); }
   if (k === 'n') { A.setMusic(!A.musicIsOn()); toast(A.musicIsOn() ? 'Music on' : 'Music off'); }
   if (k === 'b') { A.setVoice(!A.voiceIsOn()); toast(A.voiceIsOn() ? 'Announcer on' : 'Announcer off'); }
@@ -299,19 +313,167 @@ function toggleView() {
   toast(S.fpv ? '👁 First person: mouse right takes it back, left swings through' : '🎥 Third person view');
   updateHud();
 }
+// Number keys 1-5: bare hands, driver, wedge, putter, iron (values are CLUBS indices, -1 for none).
+const SLOTS = [-1, 3, 1, 0, 2];
+const heldClub = () => (S.noClub || S.mode === 'drive' ? -1 : swing.ci);
 function setClub(i) {
+  if (S.mode === 'walk' || S.mode === 'drive') {
+    S.noClub = false; swing.setClub(i); me.setClub(heldClub()); updateHud(); A.play('click', 0.6); return;
+  }
   if (S.mode !== 'address' && S.mode !== 'title') { S.pendingClub = i; return; }
-  swing.setClub(i); me.setClub(i); settleGolfer(true); updateHud(); A.play('click', 0.6);
+  S.noClub = false; swing.setClub(i); me.setClub(i); settleGolfer(true); updateHud(); A.play('click', 0.6);
 }
-function cycleClub(d) { setClub((swing.ci + d + 4) % 4); }
-function takeDrop() {
+function setBareHands() {
+  if (S.mode === 'address') leaveAddress();
+  if (S.mode !== 'walk' && S.mode !== 'drive') { S.pendingClub = -1; return; }
+  S.noClub = true; me.setClub(-1); updateHud(); A.play('click', 0.6);
+}
+function setSlot(i) { if (SLOTS[i] < 0) setBareHands(); else setClub(SLOTS[i]); }
+function cycleClub(d) { const at = SLOTS.indexOf(S.noClub ? -1 : swing.ci); setSlot((at + d + SLOTS.length) % SLOTS.length); }
+
+/* ---------------- walking and the cart ---------------- */
+function nearBall() { return !ball.frozen && Math.hypot(S.golferG.x - ball.p.x, S.golferG.z - ball.p.z) < 2.3 && Math.abs(S.golferG.y - (ball.p.y - BALL_R)) < 1.4; }
+function nearCart() {
+  let best = null, d = 2.8;
+  for (const c of carts) { const dd = Math.hypot(S.golferG.x - c.pos.x, S.golferG.z - c.pos.z); if (dd < d && Math.abs(S.golferG.y - c.pos.y) < 1.5) { d = dd; best = c; } }
+  return best;
+}
+const yawFacing = (hx, hz) => Math.atan2(hz, -hx);   // body yaw whose chest points along (hx, hz)
+const bodyYaw = () => (S.mode === 'walk' || S.mode === 'drive' ? S.walkYaw : S.aim);
+function lookAtBall() {
+  const dx = ball.p.x - S.golferG.x, dz = ball.p.z - S.golferG.z;
+  if (Math.hypot(dx, dz) < 0.05) return;
+  S.camYaw = Math.atan2(dx, dz); S.camPitch = 0.22; S.walkYaw = yawFacing(dx, dz);
+}
+// Stand the golfer a couple of metres from the ball, on whichever side has ground.
+function placeWalker(poof) {
+  const f = fDir(), w = wDir(), from = S.golferG.clone();
+  let spot = null;
+  for (const [a, b] of [[-2, 0.8], [-2, -0.8], [0, 2], [0, -2], [2, 0]]) {
+    const x = ball.p.x + f.x * a + w.x * b, z = ball.p.z + f.z * a + w.z * b;
+    const g = world.groundAt(x, ball.p.y + 1, z, 3);
+    if (g && Math.abs(g.y - ball.p.y) < 1) { spot = V(x, g.y, z); break; }
+  }
+  if (spot) S.golferG.copy(spot); else golferOrigin(S.golferG);
+  W.v.set(0, 0, 0); W.carry.set(0, 0, 0); W.grounded = true;
+  lookAtBall();
+  if (poof) { fx.poof(from.add(V(0, 0.5, 0))); me.squash = 1; A.play('poof', 0.7); }
+}
+function enterAddress() {
+  if (S.mode !== 'walk') return;
+  S.noClub = false; me.setClub(swing.ci);
+  S.stepFrom = S.golferG.clone(); S.stepIn = 0.22;
+  aimAt(courseTarget()); golferOrigin(S.golferG); swing.reset();
+  setMode('address'); A.play('click', 0.6); updateHud();
+}
+function leaveAddress() {
   if (S.mode !== 'address') return;
+  const f = fDir();
+  S.walkYaw = yawFacing(f.x, f.z); S.camYaw = S.aim; S.camPitch = 0.22;
+  W.v.set(0, 0, 0); W.carry.set(0, 0, 0); W.grounded = true;
+  setMode('walk'); updateHud();
+}
+function enterCart(c) {
+  S.cart = c; setMode('drive'); me.setClub(-1); A.play('beep', 0.7); updateHud();
+  if (!S.cartTold) { S.cartTold = true; toast('🛺 W/S drive · A/D steer · Space brake · click honks · E hop out'); }
+}
+function exitCart(toBall) {
+  const c = S.cart; if (!c) return;
+  S.cart = null; c.speed = 0; A.engine(0);
+  const H = c.heading(), L = V(H.z, 0, -H.x);
+  let spot = null;
+  for (const [a, b] of [[1.3, 0], [-1.3, 0], [0, -2], [0, 2]]) {
+    const x = c.pos.x + L.x * a + H.x * b, z = c.pos.z + L.z * a + H.z * b;
+    const g = world.groundAt(x, c.pos.y + 1.2, z, 3);
+    if (g && Math.abs(g.y - c.pos.y) < 1.1) { spot = V(x, g.y, z); break; }
+  }
+  S.golferG.copy(spot || c.pos);
+  W.v.set(0, 0, 0); W.carry.set(0, 0, 0); W.grounded = true;
+  S.camYaw = c.yaw; S.camPitch = 0.22; S.walkYaw = yawFacing(H.x, H.z);
+  setMode('walk'); me.setClub(heldClub()); updateHud();
+}
+function interact() {
+  if (S.mode === 'address') return leaveAddress();
+  if (S.mode === 'drive') return exitCart();
+  if (S.mode !== 'walk') return;
+  if (nearBall()) return enterAddress();
+  const c = nearCart(); if (c) enterCart(c);
+}
+function poofToBall() {
+  if (S.mode === 'drive') exitCart();
+  if (S.mode !== 'walk' || ball.frozen) return;
+  S.noClub = false; me.setClub(swing.ci);
+  aimAt(courseTarget()); settleGolfer(); setMode('address'); updateHud();
+}
+function walkStep(dt) {
+  const G_ = S.golferG, fw = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0), rt = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0);
+  const fx_ = Math.sin(S.camYaw), fz_ = Math.cos(S.camYaw);
+  let mx = fx_ * fw - fz_ * rt, mz = fz_ * fw + fx_ * rt;
+  const ml = Math.hypot(mx, mz); if (ml > 0) { mx /= ml; mz /= ml; }
+  const hands = S.noClub, run = keys.has('shift');
+  const top = S.emote ? 0 : (run ? (hands ? 9.5 : 7.5) : (hands ? 5.2 : 4.3));
+  if (!S.emote && keys.has(' ') && W.grounded) { W.v.y = hands ? 7.2 : 6.4; W.grounded = false; me.squash = 0.5; A.play('pop', 0.3); }
+  const n = 2, h = dt / n;
+  for (let i = 0; i < n; i++) {
+    const rate = (W.grounded ? 40 : 9) * h;
+    const dvx = mx * top - W.v.x, dvz = mz * top - W.v.z, dl = Math.hypot(dvx, dvz);
+    const k = dl > rate ? rate / dl : 1;
+    W.v.x += dvx * k; W.v.z += dvz * k;
+    if (!W.grounded) W.v.y -= GRAV * h;
+    const ox = G_.x, oz = G_.z;
+    G_.x += (W.v.x + W.carry.x) * h; G_.z += (W.v.z + W.carry.z) * h; G_.y += W.v.y * h;
+    collideBody(world, G_, W.ox, 0.27, 0.46, (nh, d, c, nrm) => { if (!nh && W.v.y > 0) W.v.y = 0; });
+    if (W.v.y > 0.01) continue;
+    const reach = W.grounded ? 0.42 : Math.max(0.05, -W.v.y * h + 0.05);
+    const g = world.groundAt(G_.x, G_.y + 0.5, G_.z, 0.5 + reach);
+    if (g && g.y >= G_.y + 0.49) { G_.x = ox; G_.z = oz; W.v.x = W.v.z = 0; continue; }
+    if (g) {
+      if (!W.grounded && W.v.y < -5) { me.squash = 1; fx.dust(G_, 8, 0.6); }
+      G_.y = g.y; W.v.y = 0; W.grounded = true;
+      g.col.pointVel(G_, W.carry);
+      if (g.col.surf === 'mushroom') { W.v.y = 14; W.grounded = false; if (g.col.mesh) g.col.mesh.userData.sq = 1; A.play('boing', 1); }
+    } else if (W.grounded) { W.grounded = false; }
+  }
+  const spd = Math.hypot(W.v.x, W.v.z);
+  W.amt = lerp(W.amt, clamp(spd / 7.5, 0, 1), 1 - Math.exp(-dt * 12));
+  if (spd > 0.2) W.phase += dt * (5 + spd * 1.75);
+  if (ml > 0 && !S.emote) {
+    let da = yawFacing(mx, mz) - S.walkYaw; da = Math.atan2(Math.sin(da), Math.cos(da));
+    S.walkYaw += da * (1 - Math.exp(-dt * 14));
+  }
+  if (W.grounded && spd > 7 && Math.random() < dt * 14) fx.dust(G_, 2, 0.4);
+  if (G_.y < SEA_Y + 0.5) {
+    fx.bigSplash(V(G_.x, SEA_Y, G_.z)); A.play('splash', 1); addRage(8); quip('swim');
+    W.v.set(0, 0, 0); placeWalker(true);
+  }
+}
+function driveStep(dt) {
+  const c = S.cart; if (!c) return;
+  const throttle = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0);
+  const steer = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0);
+  S.cartSteer = lerp(S.cartSteer || 0, steer, 1 - Math.exp(-dt * 8));
+  c.update(dt, { throttle, steer, brake: keys.has(' ') }, world, {
+    hit: v => { shake(Math.min(0.5, v * 0.05)); A.play('thud', Math.min(1, v / 10)); fx.sparks(c.pos.clone().add(V(0, 0.8, 0)), 8); },
+    land: v => { if (v > 3) { shake(Math.min(0.4, v * 0.03)); A.play('thud', Math.min(1, v / 12)); fx.dust(c.pos, 14, 1); } },
+  });
+  c.seat(S.golferG);
+  const H = c.heading(); S.walkYaw = yawFacing(H.x, H.z);
+  A.engine(c.speed / 13 || 0.001);
+  if (c.grounded && Math.abs(c.speed) > 8 && Math.random() < dt * 16) fx.dust(c.pos.clone().addScaledVector(H, -1), 2, 0.5);
+  if (c.pos.y < SEA_Y + 0.5) {
+    fx.bigSplash(V(c.pos.x, SEA_Y, c.pos.z)); A.play('splash', 1); A.play('womp', 0.8); addRage(20); quip('cartSea');
+    S.cart = null; A.engine(0); c.reset();
+    setMode('walk'); me.setClub(heldClub()); W.v.set(0, 0, 0); placeWalker(true); updateHud();
+  }
+}
+function takeDrop() {
+  if (S.mode !== 'address' && S.mode !== 'walk') return;
   const H = course.holeAt(ball.p, S.hole);
   if (H !== S.shotHole || ball.p.y < S.shotY - 4) { quip('nodrop'); return; }
   if (ball.p.distanceTo(S.shotFrom) < 0.5) return;
   S.strokes++; S.holeStrokes++;
   ball.p.copy(S.shotFrom); ball.v.set(0, 0, 0);
-  settleGolfer(); quip('drop'); updateHud(); save();
+  settleGolfer(); setMode('address'); quip('drop'); updateHud(); save();
 }
 function shout(text, mine) {
   if (!text) return;
@@ -379,10 +541,12 @@ function ballRested() {
   if (z && z.type === 'sand' && Math.random() < 0.6) quip('sand');
   aimAt(courseTarget());
   course.rerollWind();
-  settleGolfer();
-  setMode('address');
-  if (S.pendingClub != null) { setClub(S.pendingClub); S.pendingClub = null; }
+  setMode('walk');
+  W.v.set(0, 0, 0); W.carry.set(0, 0, 0); W.grounded = true;
+  lookAtBall();
+  if (S.pendingClub != null) { if (S.pendingClub < 0) setBareHands(); else setClub(S.pendingClub); S.pendingClub = null; }
   else autoClub();
+  if (nearBall()) enterAddress();
   updateHud(); save();
 }
 function autoClub() {
@@ -423,7 +587,7 @@ function holed(h) {
   sendEv({ k: 'sink', h, n, par });
   setTimeout(() => {
     if (h === NHOLES) return finish();
-    placeOnTee(h + 1); settleGolfer(); setMode('address'); setClub(3); showHoleCard(); updateHud(); save();
+    placeOnTee(h + 1); placeWalker(true); setMode('walk'); setClub(3); showHoleCard(); updateHud(); save();
   }, 2800);
 }
 function finish() {
@@ -439,12 +603,12 @@ function finish() {
   sendEv({ k: 'finish', n: S.strokes, falls: S.falls });
   save(); updateHud();
 }
-$('climbAgain').onclick = () => { $('finish').hidden = true; resetClimb(); setMode('address'); showHoleCard(); updateHud(); lockPointer(); };
+$('climbAgain').onclick = () => { $('finish').hidden = true; resetClimb(); placeWalker(false); setMode('walk'); showHoleCard(); updateHud(); lockPointer(); };
 $('stayTop').onclick = () => { $('finish').hidden = true; setMode('address'); lockPointer(); };
 
 function showHoleCard() {
   const H = course.holes[S.hole]; if (!H) return;
-  if (S.mode === 'address' && H.cup) S.intro = { t: 0, dur: 3.4, cup: H.cup.clone(), moved: 0 };
+  if ((S.mode === 'address' || S.mode === 'walk') && H.cup) S.intro = { t: 0, dur: 3.4, cup: H.cup.clone(), moved: 0 };
   $('hcNum').textContent = `Hole ${S.hole}`; $('hcName').textContent = H.name; $('hcPar').textContent = `Par ${H.par}`; $('hcBlurb').textContent = H.blurb;
   const el = $('holeCard'); el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
 }
@@ -475,6 +639,7 @@ function step(dt) {
   const swinging = (S.mode === 'address' || S.mode === 'flight') && !S.emote;
   // In first person you look down from the golfer's eyes, so screen-right is away from the target.
   if (swinging && S.mode === 'address') swing.input(S.fpCam ? -mouseDX : mouseDX, mouseDY);
+  if (S.mode === 'walk') { S.camYaw -= mouseDX * 0.0028; S.camPitch = clamp(S.camPitch + mouseDY * 0.0022, -0.55, 1.15); }
   mouseDX = mouseDY = 0;
   const sub = 6, h = dt / sub;
   let maxHead = 0;
@@ -534,10 +699,13 @@ function step(dt) {
   }
   if (S.mode === 'flight') flight(dt);
   if (S.mode === 'cannon') cannonTick(S.realDt || dt);
-  if (S.mode === 'address' && !ball.frozen) {
+  if (S.mode === 'walk') walkStep(dt);
+  if (S.mode === 'drive') driveStep(dt);
+  if (S.mode !== 'drive') A.engine(0);
+  if ((S.mode === 'address' || S.mode === 'walk') && !ball.frozen) {
     // On movers the golfer rides along; if the ball gets knocked (bonk), go back to watching it.
     if (ball.v.distanceTo(ball.gVel) > 0.6 || !ball.grounded && ball.airT > 0.15) { setMode('flight'); S.flightT = 0; S.restT = 0; S.shotFrom.copy(ball.p); S.shotY = ball.p.y; S.shotHole = S.hole; }
-    else golferOrigin(S.golferG);
+    else if (S.mode === 'address') golferOrigin(S.golferG);
   }
   if (S.mode === 'finished' || (S.fireworksUntil && t < S.fireworksUntil)) {
     if (Math.random() < dt * 3) { const c = course.holes[NHOLES].cup; fx.firework(c.clone().add(V((Math.random() - 0.5) * 30, 8 + Math.random() * 10, (Math.random() - 0.5) * 30))); A.play('firework', 0.5); }
@@ -671,21 +839,22 @@ function fireCannon(auto) {
 }
 
 /* ---------------- posing ---------------- */
-function localToWorld(p, out) { const f = fDir(), w = wDir(); return out.copy(S.golferG).addScaledVector(f, p.x).addScaledVector(UP, p.y).addScaledVector(w, p.z); }
-function worldToLocal(p, out) { const f = fDir(), w = wDir(); _d.subVectors(p, S.golferG); return out.set(_d.dot(f), _d.y, _d.dot(w)); }
+function localToWorld(p, out) { const y = bodyYaw(), f = fDir(y), w = wDir(y); return out.copy(S.golferG).addScaledVector(f, p.x).addScaledVector(UP, p.y).addScaledVector(w, p.z); }
+function worldToLocal(p, out) { const y = bodyYaw(), f = fDir(y), w = wDir(y); _d.subVectors(p, S.golferG); return out.set(_d.dot(f), _d.y, _d.dot(w)); }
 const poseIn = { hands: [V(), V()], club: V(), handDir: null, feet: [V(), V()] };
 function poseMe(dt) {
-  const f = fDir(), w = wDir();
+  const yaw = bodyYaw(), f = fDir(yaw), w = wDir(yaw);
   const s = poseIn;
-  s.G = S.golferG; s.f = f; s.w = w; s.planeN = swing.planeN;
-  s.hop = 0; s.tilt = 0.38; s.turn = 0; s.shift = 0; s.lean = 0; s.squint = false; s.elbowsUp = false; s.handDir = null; s.headRoll = 0; s.knee = 0.03;
+  s.G = S.golferG;
+  if (S.stepIn > 0) { S.stepIn -= dt; s.G = S.stepFrom.clone().lerp(S.golferG, 1 - Math.max(0, S.stepIn) / 0.22); } s.f = f; s.w = w; s.planeN = swing.planeN;
+  s.hop = 0; s.tilt = 0.38; s.turn = 0; s.shift = 0; s.lean = 0; s.squint = false; s.elbowsUp = false; s.handDir = null; s.headRoll = 0; s.knee = 0.03; s.hipZ = undefined;
   // Feet follow the ground (slopes, steps).
   for (let k = 0; k < 2; k++) {
     s.feet[k].set(k ? -0.15 : 0.15, swing.R.ankle, 0.02);
     const fw = localToWorld(s.feet[k], _b); const g = world.groundAt(fw.x, fw.y + 0.6, fw.z, 2);
     if (g) s.feet[k].y += clamp(g.y - S.golferG.y, -0.25, 0.25);
   }
-  if (S.emote) {
+  if (S.emote && S.mode !== 'drive') {
     const t = S.emoteT, e = S.emote;
     const club = s.club.set(0, 1, 0.3).normalize();
     if (e === 'tantrum') {
@@ -702,6 +871,14 @@ function poseMe(dt) {
       s.tilt = 0.55; s.hands[0].set(0.04, 0.78, 0.2); s.hands[1].set(-0.04, 0.8, 0.22); club.set(0.4, -1, 0.3).normalize(); s.squint = true; s.headRoll = Math.sin(t * 3) * 0.15;
     }
     s.look = V(0, 0.7, 2);
+  } else if (S.mode === 'walk') {
+    runPose(s, W.phase, W.amt, { club: !S.noClub, air: !W.grounded });
+    if (W.grounded) for (let k = 0; k < 2; k++) {
+      const fw = localToWorld(s.feet[k], _b), g = world.groundAt(fw.x, fw.y + 0.6, fw.z, 2);
+      if (g) s.feet[k].y += clamp(g.y - S.golferG.y, -0.25, 0.25);
+    }
+  } else if (S.mode === 'drive') {
+    sitPose(s, S.cartSteer || 0);
   } else {
     s.hands[0].copy(swing.hand);
     s.club.subVectors(swing.head, swing.hand).normalize();
@@ -714,17 +891,19 @@ function poseMe(dt) {
     else s.look = swing.ball.clone();
   }
   me.pose(s, dt, S.t);
+  if (S.mode === 'drive' && S.cart) me.root.quaternion.copy(S.cart.mesh.quaternion);
 }
 
 /* ---------------- camera ---------------- */
 const cam = { pos: V(130, 60, 130), look: V(0, 20, 0), fov: 55 };
+const viewDir = () => V(Math.sin(S.camYaw) * Math.cos(S.camPitch), -Math.sin(S.camPitch), Math.cos(S.camYaw) * Math.cos(S.camPitch));
 function updateCamera(dt) {
   const f = fDir(), w = wDir();
-  let wantPos, wantLook, k = 4, pivot = null;
+  let wantPos, wantLook, k = 4, pivot = null, clearRate = 7;
   S.aimViewT = Math.max(0, (S.aimViewT || 0) - dt);
   const aimView = S.aimHeld || keys.has('shift') || S.aimViewT > 0;
   const viewHeld = aimView || keys.has('f');
-  const fp = S.fpCam = S.fpv && !viewHeld && !S.intro && !S.emote && (S.mode === 'address' || S.mode === 'flight' || S.mode === 'cannon');
+  const fp = S.fpCam = S.fpv && !viewHeld && !S.intro && !S.emote && (S.mode === 'address' || S.mode === 'flight' || S.mode === 'cannon' || S.mode === 'walk' || S.mode === 'drive');
   camera.layers[fp ? 'disable' : 'enable'](1);
   const slow = S.mode === 'flight' && S.slowmo && S.slowCup;
   const fov = slow ? (fp ? 26 : 30) : (fp ? 80 : 55);
@@ -735,7 +914,9 @@ function updateCamera(dt) {
     // At address aim between the ball and the hands so both gloves and the club are in shot.
     const tgt = S.mode === 'address' ? ball.p.clone().lerp(localToWorld(swing.hand, V()), 0.4).addScaledVector(f, 0.15) : ball.p.clone();
     cam.pos.copy(eye);
-    cam.look.lerp(tgt, 1 - Math.exp(-dt * (S.mode === 'address' ? 20 : 6)));
+    if (S.mode === 'walk') cam.look.copy(eye).add(viewDir());
+    else if (S.mode === 'drive' && S.cart) { const H = S.cart.heading(); cam.look.copy(eye).addScaledVector(H, 10).add(V(0, -1.2, 0)); }
+    else cam.look.lerp(tgt, 1 - Math.exp(-dt * (S.mode === 'address' ? 20 : 6)));
     camera.position.copy(cam.pos);
     if (shakeAmt > 0.001) { camera.position.add(V((Math.random() - 0.5) * shakeAmt, (Math.random() - 0.5) * shakeAmt, (Math.random() - 0.5) * shakeAmt).multiplyScalar(0.3)); shakeAmt *= Math.exp(-dt * 6); }
     camera.lookAt(cam.look);
@@ -801,6 +982,16 @@ function updateCamera(dt) {
     const d = ball.p.distanceTo(tgt);
     wantLook = mid; wantPos = mid.clone().addScaledVector(f, -d * 0.3).add(V(0, 12 + d * 0.5, 0)).addScaledVector(w, d * 0.2);
     k = 3;
+  } else if (S.mode === 'walk') {
+    const P = S.golferG.clone().add(V(0, 1.0, 0)), v = viewDir();
+    wantPos = P.clone().addScaledVector(v, -4.6).add(V(0, 0.35, 0));
+    wantLook = P.clone().addScaledVector(v, 3);
+    pivot = P; k = 16; clearRate = 22;
+  } else if (S.mode === 'drive' && S.cart) {
+    const c = S.cart, H = c.heading();
+    wantPos = c.pos.clone().addScaledVector(H, -6.8 - Math.abs(c.speed) * 0.12).add(V(0, 3.5, 0));
+    wantLook = c.pos.clone().addScaledVector(H, 7).add(V(0, 0.8, 0));
+    pivot = c.pos.clone().add(V(0, 1.6, 0)); k = 7; clearRate = 14;
   } else {
     // The swing camera: in front of the golfer, across the ball, swung back from the target.
     // Across the ball from the golfer and well back from the target, so the golfer fills the left of
@@ -811,17 +1002,17 @@ function updateCamera(dt) {
     wantLook = L.clone().addScaledVector(f, 2.2).add(V(0, -0.15, 0));
     pivot = S.golferG.clone().addScaledVector(w, 0.4).add(V(0, 0.8, 0));
     k = S.modeT < 1 ? 3 : 6;
-    if (S.intro) {
-      // Fly in from above the flag to the golfer when a hole starts.
-      S.intro.t += dt;
-      const e = THREE.MathUtils.smootherstep(Math.max(0, S.intro.t - 0.6) / (S.intro.dur - 0.6), 0, 1);
-      const c = S.intro.cup, back = _a.subVectors(c, ball.p).setY(0).normalize();
-      const p0 = c.clone().addScaledVector(back, 7).add(V(0, 7, 0)), l0 = c.clone().add(V(0, 1, 0));
-      const arc = Math.sin(e * Math.PI) * 10;
-      cam.pos.copy(p0).lerp(wantPos, e).add(V(0, arc, 0)); cam.look.copy(l0).lerp(wantLook, e);
-      if (S.intro.t >= S.intro.dur) S.intro = null;
-      wantPos = cam.pos.clone(); wantLook = cam.look.clone(); k = 1000;
-    }
+  }
+  if (S.intro && (S.mode === 'address' || S.mode === 'walk') && !viewHeld) {
+    // Fly in from above the flag to the golfer when a hole starts.
+    S.intro.t += dt;
+    const e = THREE.MathUtils.smootherstep(Math.max(0, S.intro.t - 0.6) / (S.intro.dur - 0.6), 0, 1);
+    const c = S.intro.cup, back = _a.subVectors(c, ball.p).setY(0).normalize();
+    const p0 = c.clone().addScaledVector(back, 7).add(V(0, 7, 0)), l0 = c.clone().add(V(0, 1, 0));
+    const arc = Math.sin(e * Math.PI) * 10;
+    cam.pos.copy(p0).lerp(wantPos, e).add(V(0, arc, 0)); cam.look.copy(l0).lerp(wantLook, e);
+    if (S.intro.t >= S.intro.dur) S.intro = null;
+    wantPos = cam.pos.clone(); wantLook = cam.look.clone(); k = 1000;
   }
   const a = 1 - Math.exp(-dt * k);
   cam.pos.lerp(wantPos, a); cam.look.lerp(wantLook, a);
@@ -829,7 +1020,7 @@ function updateCamera(dt) {
   camera.position.copy(cam.pos);
   if (!window.__freeCam && !S.intro && S.mode !== 'respawn') {
     if (!pivot) pivot = S.mode === 'flight' || S.mode === 'cannon' ? ball.p.clone().add(V(0, 0.3, 0)) : cam.look.clone();
-    keepClear(pivot, camera.position, dt);
+    keepClear(pivot, camera.position, dt, clearRate);
   } else camHas = false;
   if (shakeAmt > 0.001) { camera.position.add(V((Math.random() - 0.5) * shakeAmt, (Math.random() - 0.5) * shakeAmt, (Math.random() - 0.5) * shakeAmt)); shakeAmt *= Math.exp(-dt * 6); }
   camera.lookAt(cam.look);
@@ -851,7 +1042,7 @@ function clearance(pivot, p) {
   const d = hit ? Math.max(0.45, hit.distance - 0.45) : full;
   return { p: pivot.clone().addScaledVector(dir, d), score: hit ? d / full : 1 };
 }
-function keepClear(pivot, pos, dt) {
+function keepClear(pivot, pos, dt, rate = 7) {
   let best = null;
   const off = V().subVectors(pos, pivot);
   for (const [lift, yaw] of [[0, 0], [1.6, 0], [3.4, 0], [0.8, 0.8], [0.8, -0.8], [1.5, 1.6], [1.5, -1.6], [6, 0]]) {
@@ -860,7 +1051,7 @@ function keepClear(pivot, pos, dt) {
     if (c.score > 0.92) break;
   }
   if (!camHas) { camSmooth.copy(best.p); camHas = true; }
-  else camSmooth.lerp(best.p, 1 - Math.exp(-dt * 7));
+  else camSmooth.lerp(best.p, 1 - Math.exp(-dt * rate));
   // Never sit inside something while easing: if the smoothed spot is blocked, jump to the clear one.
   if (clearance(pivot, camSmooth).score < 0.98) camSmooth.copy(best.p);
   pos.copy(camSmooth);
@@ -966,7 +1157,7 @@ function updateHud() {
   const H = course.holes[S.hole];
   $('hHole').textContent = S.hole; $('hName').textContent = H ? H.name : ''; $('hPar').textContent = H ? H.par : '';
   $('hThis').textContent = S.holeStrokes; $('hTotal').textContent = S.strokes; $('hFalls').textContent = S.falls;
-  [...$('clubs').children].forEach((el, i) => el.classList.toggle('on', i === swing.ci));
+  [...$('clubs').children].forEach((el, i) => el.classList.toggle('on', SLOTS[i] === (S.noClub ? -1 : swing.ci)));
   $('mute').textContent = A.isMuted() ? '🔇 M' : '🔊 M';
   $('view').textContent = S.fpv ? '🎥 V third person' : '👁 V first person';
   $('tipText').innerHTML = S.fpv ? 'Drag back <em>↗ up and right</em>, pause, then swing <em>↙ down and left</em> through the ball. Faster swing, longer shot.' : 'Drag back <em>↖ up and left</em>, pause, then swing <em>↘ down and right</em> through the ball. Faster swing, longer shot.';
@@ -976,7 +1167,7 @@ const climbMarks = [];
 // A pill over the flag with the distance (and climb) to it; pinned to the screen edge when off view.
 function flagMarker() {
   const el = $('flagMark'), H = course.holes[S.hole];
-  const show = (S.mode === 'address' || S.mode === 'flight') && H && H.cup && !S.intro;
+  const show = ['address', 'flight', 'walk', 'drive'].includes(S.mode) && H && H.cup && !S.intro;
   el.hidden = !show; if (!show) return;
   const p = H.cup.clone().add(V(0, 2.5, 0)).project(camera);
   const behind = p.z > 1;
@@ -990,8 +1181,37 @@ function flagMarker() {
   const d = Math.hypot(H.cup.x - ball.p.x, H.cup.z - ball.p.z), dy = H.cup.y - (ball.p.y - BALL_R);
   $('flagDist').textContent = Math.round(d) + ' m' + (Math.abs(dy) > 1.5 ? (dy > 0 ? '  ↑' : '  ↓') + Math.round(Math.abs(dy)) : '');
 }
+// Where's my ball: a pill over it (pinned to the screen edge) and a beam of light, while on foot or in the cart.
+function ballMarker() {
+  const el = $('ballMark'), show = (S.mode === 'walk' || S.mode === 'drive') && !S.intro;
+  const d = Math.hypot(ball.p.x - S.golferG.x, ball.p.z - S.golferG.z), dy = ball.p.y - S.golferG.y;
+  ballBeam.visible = show && d > 3;
+  ballBeam.position.set(ball.p.x, ball.p.y + 30, ball.p.z);
+  ballBeam.material.opacity = 0.2 + Math.sin(S.t * 4) * 0.07;
+  el.hidden = !show; if (!show) return;
+  const p = ball.p.clone().add(V(0, 1.1, 0)).project(camera), behind = p.z > 1;
+  let x = (p.x + 1) / 2, y = (1 - p.y) / 2;
+  if (behind) { x = 1 - x; y = 0.9; }
+  const off = behind || x < 0.04 || x > 0.96 || y < 0.12 || y > 0.9;
+  el.style.left = (clamp(x, 0.04, 0.96) * 100) + '%'; el.style.top = (clamp(y, 0.12, 0.9) * 100) + '%';
+  el.classList.toggle('off', off);
+  $('ballArrow').style.transform = 'rotate(' + Math.atan2(y - 0.5, x - 0.5) + 'rad)';
+  $('ballDist').textContent = Math.round(d) + ' m' + (Math.abs(dy) > 2 ? (dy > 0 ? '  ↑' : '  ↓') + Math.round(Math.abs(dy)) : '');
+}
+function promptText() {
+  if (S.mode === 'walk') {
+    if (nearBall()) return '<kbd>E</kbd> or click: step up to the ball';
+    if (nearCart()) return '<kbd>E</kbd>: hop in the cart';
+    return '<kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump · <kbd>P</kbd> poof to your ball';
+  }
+  if (S.mode === 'drive') return '<kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> brake · <kbd>E</kbd> hop out · <kbd>P</kbd> poof to your ball';
+  if (S.mode === 'address' && S.modeT < 5) return '<kbd>E</kbd> step away';
+  return '';
+}
 function updateHudLive() {
-  flagMarker();
+  flagMarker(); ballMarker();
+  const pt = promptText();
+  if (pt !== S.promptShown) { S.promptShown = pt; $('prompt').innerHTML = pt; $('prompt').hidden = !pt || !!S.intro; }
   $('tip').classList.toggle('show', !S.tipDone && S.mode === 'address' && !S.intro && S.modeT > 0.5);
   $('rageFill').style.width = S.rage + '%';
   $('rage').classList.toggle('hot', S.rage > 70);
@@ -1024,7 +1244,7 @@ async function connect() {
   } catch (e) { console.warn('multiplayer unavailable', e); $('netStatus').textContent = 'solo (offline)'; return; }
   net.on('connection', c => { $('netStatus').textContent = c ? 'live' : 'reconnecting…'; if (c) net.presence(presenceInfo()); });
   net.on('join', p => { toast(`👋 <b>${escapeHtml(p.presence.nm || 'A golfer')}</b> started climbing`); renderBoard(); });
-  net.on('leave', p => { const o = others.get(p.id); if (o) { scene.remove(o.golfer.root); scene.remove(o.ball); o.trail.mesh.removeFromParent(); o.tag.remove(); others.delete(p.id); } p.dot?.remove(); renderBoard(); });
+  net.on('leave', p => { const o = others.get(p.id); if (o) { if (o.cart) scene.remove(o.cart.mesh); scene.remove(o.golfer.root); scene.remove(o.ball); o.trail.mesh.removeFromParent(); o.tag.remove(); others.delete(p.id); } p.dot?.remove(); renderBoard(); });
   net.on('event', (p, e) => remoteEvent(p, e));
 }
 function presenceInfo() { return { nm: myName(), lk: { skin: look.skin, shirt: look.shirt, pants: look.pants, hat: look.hat, hatType: look.hatType, stache: !!look.stache }, hole: S.hole, st: S.strokes, fa: S.falls, best: S.best, done: S.finished, crown: S.crown }; }
@@ -1036,7 +1256,7 @@ function netTick(dt) {
     netAcc = 0;
     const r2 = n => Math.round(n * 100) / 100, r3 = n => Math.round(n * 1000) / 1000;
     const hp = swing.handPlane();
-    net.state({ b: ball.p.toArray().map(r2), g: [r2(S.golferG.x), r2(S.golferG.y), r2(S.golferG.z), r3(S.aim)], h: [r3(hp[0]), r3(hp[1])], hd: swing.head.toArray().map(r3), c: swing.ci, e: S.emote || 0, et: r2(S.emoteT), m: S.mode === 'flight' ? 1 : 0, rd: Math.round(me.redness * 10) / 10, bv: ballMesh.visible ? 1 : 0 });
+    net.state({ b: ball.p.toArray().map(r2), g: [r2(S.golferG.x), r2(S.golferG.y), r2(S.golferG.z), r3(bodyYaw())], wk: S.mode === 'walk' ? (Math.hypot(W.v.x, W.v.z) > 0.2 ? 2 : 1) : 0, air: S.mode === 'walk' && !W.grounded ? 1 : 0, ct: S.mode === 'drive' && S.cart ? [r2(S.cart.pos.x), r2(S.cart.pos.y), r2(S.cart.pos.z), r3(S.cart.yaw), r3(S.cart.pitch), r3(S.cart.roll), r2(S.cartSteer || 0)] : 0, h: [r3(hp[0]), r3(hp[1])], hd: swing.head.toArray().map(r3), c: heldClub(), e: S.emote || 0, et: r2(S.emoteT), m: S.mode === 'flight' ? 1 : 0, rd: Math.round(me.redness * 10) / 10, bv: ballMesh.visible ? 1 : 0 });
   }
   if (presAcc > 2) { presAcc = 0; net.presence(presenceInfo()); if (!$('board').hidden) renderBoard(); $('netStatus').textContent =(net.connected() ? 'live' : 'reconnecting…') + (net.peers.size ? ` · ${net.peers.size + 1} here` : ''); }
 }
@@ -1054,7 +1274,7 @@ function remoteEvent(p, e) {
   else if (e.k === 'cannon' && o) A.play('cannon', proximity(o.ball.position) * 0.8);
   else if (e.k === 'bonk' && e.to === net.me && Array.isArray(e.v)) {
     // Someone's ball knocked ours.
-    if (S.mode === 'address' || S.mode === 'flight') { ball.v.add(V().fromArray(e.v).clampLength(0, 15)); toast(`💥 ${nm} bonked your ball!`); }
+    if (S.mode === 'address' || S.mode === 'flight' || S.mode === 'walk') { ball.v.add(V().fromArray(e.v).clampLength(0, 15)); toast(`💥 ${nm} bonked your ball!`); }
   }
 }
 function othersFor(p) {
@@ -1086,9 +1306,9 @@ function updateOthers(dt) {
     o.ball.position.copy(o.bpos); o.ball.visible = s.bv !== 0;
     o.trail.push(o.bpos, s.m === 1 && o.bvel.length() > 3); o.trail.update(camera);
     const gt = V(s.g[0], s.g[1], s.g[2]);
-    if (o.G.distanceTo(gt) > 2) { if (o.G.lengthSq()) fx.poof(o.G.clone().add(V(0, 0.5, 0))); o.G.copy(gt); o.golfer.squash = 1; } else o.G.lerp(gt, k);
+    if (o.G.distanceTo(gt) > (s.ct ? 8 : 3)) { if (o.G.lengthSq()) fx.poof(o.G.clone().add(V(0, 0.5, 0))); o.G.copy(gt); o.golfer.squash = 1; } else o.G.lerp(gt, k);
     let da = (s.g[3] || 0) - o.aim; da = Math.atan2(Math.sin(da), Math.cos(da)); o.aim += da * k;
-    if (o.sw.ci !== s.c && s.c >= 0 && s.c < 4) { o.sw.setClub(s.c); o.golfer.setClub(s.c); }
+    if (o.held !== s.c) { o.held = s.c; const ok = s.c >= 0 && s.c < 4; if (ok) o.sw.setClub(s.c); o.golfer.setClub(ok ? s.c : -1); }
     if (Array.isArray(s.h)) { const hp = o.sw.planePoint(s.h[0], s.h[1], V()); o.hand.lerp(hp, k); }
     if (Array.isArray(s.hd)) o.head.lerp(V().fromArray(s.hd), k);
     o.golfer.redness = lerp(o.golfer.redness, +s.rd || 0, dt * 3);
@@ -1103,6 +1323,15 @@ function updateOthers(dt) {
       pose.hands[0].set(0.18, 1.0 + Math.sin(t * 20) * 0.1, 0.1); pose.hands[1].set(-0.18, 1.0 - Math.sin(t * 20) * 0.1, 0.1);
       pose.club.set(0.3, 1, 0.2).normalize(); pose.squint = o.emote === 'tantrum';
       if (o.emote === 'tantrum' && Math.random() < dt * 20) fx.steam(o.golfer.p.head.getWorldPosition(V()).add(V(0, 0.35, 0)));
+    } else if (Array.isArray(s.ct)) {
+      sitPose(pose, s.ct[6] || 0);
+    } else if (s.wk) {
+      const moved = o.lastG ? o.lastG.distanceTo(o.G) / Math.max(dt, 1e-3) : 0;
+      o.lastG = (o.lastG || V()).copy(o.G);
+      o.wspd = lerp(o.wspd || 0, s.wk === 2 ? moved : 0, 1 - Math.exp(-dt * 8));
+      o.wp = (o.wp || 0) + dt * (5 + o.wspd * 1.75);
+      pose.feet = null;
+      runPose(pose, o.wp, clamp(o.wspd / 7.5, 0, 1), { club: s.c >= 0, air: !!s.air });
     } else {
       pose.hands[0].copy(o.hand);
       pose.club.subVectors(o.head, o.hand); if (pose.club.lengthSq() < 1e-6) pose.club.set(0, -1, 0.5); pose.club.normalize();
@@ -1113,6 +1342,14 @@ function updateOthers(dt) {
     }
     const cr = !!p.presence?.crown; if (cr !== o.crown) { o.crown = cr; o.golfer.setCrown(cr); }
     o.golfer.pose(pose, dt, S.t);
+    if (Array.isArray(s.ct)) {
+      if (!o.cart) o.cart = new Cart(scene, { p: V(s.ct[0], s.ct[1], s.ct[2]), yaw: s.ct[3] });
+      o.cart.mesh.visible = true;
+      o.cart.pos.lerp(V(s.ct[0], s.ct[1], s.ct[2]), k);
+      let dy = s.ct[3] - o.cart.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); o.cart.yaw += dy * k;
+      o.cart.pitch = s.ct[4]; o.cart.roll = s.ct[5]; o.cart.sync();
+      o.golfer.root.quaternion.copy(o.cart.mesh.quaternion);
+    } else if (o.cart) o.cart.mesh.visible = false;
     o.tag.textContent = (p.presence?.crown ? '👑 ' : '') + (p.presence?.nm || 'Golfer');
     o.tagPos = o.G.clone().add(V(0, 1.45, 0));
     // Ball-to-ball bonks: our ball reflects, theirs gets told.
@@ -1175,6 +1412,8 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     aimAt: (x, z) => { aimAt(V(x, 0, z)); golferOrigin(S.golferG); },
     setClub,
     fire: () => fireCannon(), get cannon() { return S.cannon; },
+    tick: n => { for (let i = 0; i < n; i++) { S.realDt = 1 / 60; step(S.slowmo ? S.slowmo / 60 : 1 / 60); } },
+    keys, W, get carts() { return carts; }, enterCart, exitCart, enterAddress, leaveAddress, interact, poofToBall, placeWalker, setSlot, setMode, nearBall, nearCart,
     // Deterministic swing at 60 fps: back for `back` frames, pause, then through; runs until the ball rests.
     swingTest: (power = 1, back = 24, down = 10, club) => {
       if (club != null) setClub(club);

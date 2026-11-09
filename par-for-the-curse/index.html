@@ -43,7 +43,7 @@ h1,h2,h3,.lil{font-family:"Lilita One",Nunito,sans-serif;font-weight:400;letter-
 
 /* clubs */
 #clubs{left:50%;bottom:16px;transform:translateX(-50%);display:flex;gap:8px}
-#clubs div{width:78px;padding:6px 4px 5px;text-align:center;background:var(--cream);border:3px solid var(--ink);border-radius:14px;box-shadow:0 4px 0 var(--ink);opacity:.72;transition:transform .12s,opacity .12s}
+#clubs div{width:70px;padding:6px 4px 5px;text-align:center;background:var(--cream);border:3px solid var(--ink);border-radius:14px;box-shadow:0 4px 0 var(--ink);opacity:.72;transition:transform .12s,opacity .12s}
 #clubs div.on{opacity:1;transform:translateY(-6px);background:var(--sun)}
 #clubs b{display:block;font-family:"Lilita One";font-weight:400;font-size:15px}
 #clubs kbd{font:900 10px Nunito;color:#6a5f70}
@@ -118,7 +118,12 @@ h1,h2,h3,.lil{font-family:"Lilita One",Nunito,sans-serif;font-weight:400;letter-
 
 /* flag marker */
 #flagMark{position:absolute;transform:translate(-50%,-100%);display:flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;background:rgba(255,248,234,.92);border:3px solid var(--ink);box-shadow:0 3px 0 var(--ink);font-weight:900;font-size:14px;white-space:nowrap;z-index:4}
-#flagMark[hidden]{display:none}
+#flagMark[hidden],#ballMark[hidden]{display:none}
+#ballMark{position:absolute;transform:translate(-50%,-100%);display:flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;background:rgba(255,243,160,.95);border:3px solid var(--ink);box-shadow:0 3px 0 var(--ink);font-weight:900;font-size:14px;white-space:nowrap;z-index:4}
+#ballMark i{display:none;font-style:normal;color:var(--red);font-size:16px}
+#ballMark.off i{display:inline-block}
+#prompt{left:50%;bottom:92px;transform:translateX(-50%);padding:6px 14px;font-weight:800;font-size:14px;white-space:nowrap}
+#prompt[hidden]{display:none}
 #flagMark i{display:none;font-style:normal;color:var(--red);font-size:16px}
 #flagMark.off i{display:inline-block}
 /* name tags */
@@ -194,7 +199,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 <script src="/site-nav.js"></script>
 
 <canvas id="game" tabindex="0" aria-label="Par for the Curse game view"></canvas>
-<div id="tags"><div id="flagMark" hidden><i id="flagArrow">➜</i><span>⛳ <b id="flagDist"></b></span></div></div>
+<div id="tags"><div id="ballMark" hidden><i id="ballArrow">➜</i><span>⚪ <b id="ballDist"></b></span></div><div id="flagMark" hidden><i id="flagArrow">➜</i><span>⛳ <b id="flagDist"></b></span></div></div>
 
 <div class="hud chunk" id="score">
   <div class="hole"><small>Hole</small><span id="hHole">1</span></div>
@@ -213,10 +218,11 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 <div class="hud" id="pops"></div>
 <div class="hud" id="holeCard"><span class="num" id="hcNum">Hole 1</span><h2 id="hcName">Warm-Up Wobble</h2><div class="par" id="hcPar">Par 3</div><p id="hcBlurb"></p></div>
 <div class="hud chunk" id="shot"></div>
+<div class="hud chunk" id="prompt" hidden></div>
 <div class="hud chunk" id="cannonUI" hidden><b>🎯 Time the cannon!</b><div class="ctrack"><i class="sweet"></i><i id="cneedle"></i></div><small>Click or <kbd>Space</kbd> to fire when the needle is in the red</small></div>
 <div class="hud" id="tip"><div class="tipcard chunk"><b>Your mouse is your hands.</b><span id="tipText"></span></div></div>
 <div class="hud" id="clubs">
-  <div><b>Putter</b><kbd>1</kbd></div><div><b>Wedge</b><kbd>2</kbd></div><div><b>Iron</b><kbd>3</kbd></div><div><b>Driver</b><kbd>4</kbd></div>
+  <div><b>Hands</b><kbd>1</kbd></div><div><b>Driver</b><kbd>2</kbd></div><div><b>Wedge</b><kbd>3</kbd></div><div><b>Putter</b><kbd>4</kbd></div><div><b>Iron</b><kbd>5</kbd></div>
 </div>
 <div class="hud" id="mute">🔊 M</div>
 <div class="hud" id="view">👁 V first person</div>
@@ -227,7 +233,10 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
     <span class="k">mouse</span><span>your hands. Pull back and up, then swing through</span>
     <span class="k"><kbd>A</kbd><kbd>D</kbd></span><span>aim (<kbd>Shift</kbd> for fine)</span>
     <span class="k">right mouse</span><span>look down the line, mouse aims</span>
-    <span class="k"><kbd>1</kbd>–<kbd>4</kbd> wheel</span><span>clubs</span>
+    <span class="k"><kbd>WASD</kbd></span><span>run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump</span>
+    <span class="k"><kbd>E</kbd></span><span>step up to the ball · step away · get in or out of a cart</span>
+    <span class="k"><kbd>P</kbd></span><span>poof to your ball</span>
+    <span class="k"><kbd>1</kbd>–<kbd>5</kbd> wheel</span><span>hands, driver, wedge, putter, iron</span>
     <span class="k"><kbd>F</kbd></span><span>hold to look at the flag</span>
     <span class="k"><kbd>R</kbd></span><span>unplayable lie: back to your last shot, +1</span>
     <span class="k"><kbd>T</kbd> <kbd>G</kbd></span><span>tantrum · dance</span>
@@ -256,7 +265,9 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
     <div class="keys">
       <span class="k">mouse</span><span><b>is your hands.</b> Pull back and up, pause, then swing down through the ball. Fast = far.</span>
       <span class="k"><kbd>A</kbd><kbd>D</kbd></span><span>aim · right mouse to look down the line</span>
-      <span class="k"><kbd>1</kbd>–<kbd>4</kbd></span><span>putter, wedge, iron, driver</span>
+      <span class="k"><kbd>WASD</kbd></span><span>run anywhere. Walk up to your ball and press <kbd>E</kbd> to swing</span>
+      <span class="k"><kbd>1</kbd>–<kbd>5</kbd></span><span>hands, driver, wedge, putter, iron</span>
+      <span class="k"><kbd>E</kbd></span><span>golf carts wait at every tee</span>
       <span class="k"><kbd>V</kbd></span><span>first-person view, Half Sword style</span>
       <span class="k"><kbd>H</kbd></span><span>all the controls</span>
     </div>

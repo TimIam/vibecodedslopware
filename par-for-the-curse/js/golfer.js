@@ -216,6 +216,44 @@ export class Golfer {
   }
 }
 
+// Running: legs stride with the speed. Empty hands pump; with a club, the lead hand carries it bouncing
+// over the shoulder and the other arm pumps. amt is 0 standing to 1 flat out.
+const CARRY = V(-0.05, 0.72, -0.69).normalize(), FIST = V(0, -0.4, 0.9).normalize();
+export function runPose(s, phase, amt, opt = {}) {
+  const sw = Math.sin(phase), cw = Math.cos(phase), ankle = 0.06, stride = 0.08 + 0.2 * amt;
+  s.feet = s.feet || [V(), V()]; s.hands = s.hands || [V(), V()]; s.club = s.club || V();
+  s.tilt = 0.05 + 0.3 * amt; s.turn = sw * 0.28 * amt; s.lean = cw * 0.05 * amt; s.knee = 0.03 + 0.03 * amt;
+  s.hop = Math.abs(cw) * 0.07 * amt; s.shift = 0; s.look = V(0, 0.72, 2); s.squint = false;
+  const moving = amt > 0.03 ? 1 : 0;
+  if (opt.air) {
+    s.feet[0].set(0.14, ankle + 0.14, 0.14); s.feet[1].set(-0.14, ankle + 0.1, -0.1); s.tilt = 0.12; s.turn = 0;
+    s.hands[0].set(0.3, 0.68, 0.04); s.hands[1].set(-0.3, 0.68, 0.04);
+  } else {
+    s.feet[0].set(0.11, ankle + Math.max(0, cw) * 0.13 * amt * moving, 0.02 + sw * stride * moving);
+    s.feet[1].set(-0.11, ankle + Math.max(0, -cw) * 0.13 * amt * moving, 0.02 - sw * stride * moving);
+    const lift = 0.36 + 0.14 * Math.min(1, amt * 1.6);
+    s.hands[0].set(0.21, lift + cw * 0.03 * amt, 0.08 - sw * 0.2 * amt);
+    s.hands[1].set(-0.21, lift - cw * 0.03 * amt, 0.08 + sw * 0.2 * amt);
+  }
+  s.handDir = [FIST, FIST];
+  if (opt.club) {
+    const b = Math.sin(phase * 2) * 0.09 * amt;
+    s.hands[0].set(0.2, 0.6 + cw * 0.02 * amt, 0.13);
+    s.club.copy(CARRY); s.club.y += b; s.club.z -= b * 0.6; s.club.normalize();
+    s.handDir = [s.club, FIST];
+  } else s.club.set(0, -1, 0);
+}
+// Sitting in the cart with both hands on the wheel. Coordinates are the cart's, relative to the seat.
+export function sitPose(s, steer = 0) {
+  s.feet = s.feet || [V(), V()]; s.hands = s.hands || [V(), V()]; s.club = s.club || V();
+  s.feet[0].set(0.12, 0.05, 0.3); s.feet[1].set(-0.12, 0.05, 0.3);
+  const c = Math.cos(steer * 0.5), n = Math.sin(steer * 0.5), r = 0.12;
+  s.hands[0].set(r * c, 0.5 + r * n * 0.6, 0.33); s.hands[1].set(-r * c, 0.5 - r * n * 0.6, 0.33);
+  s.tilt = 0.32; s.turn = steer * 0.12; s.lean = -steer * 0.12; s.knee = 0; s.hop = 0; s.shift = 0; s.hipZ = 0;
+  s.look = V(steer * 0.5, 0.85, 2); s.squint = false;
+  s.club.set(0, -1, 0); s.handDir = [FIST, FIST];
+}
+
 /* ---------------- the swing ---------------- */
 // All swing state is in the golfer's local frame: x toward the target, y up, z toward the ball line.
 export class Swing {

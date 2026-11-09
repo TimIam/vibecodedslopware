@@ -73,6 +73,7 @@ export function play(name, vol = 1, opt = {}) {
     case 'chat': tone('sine', 660, 990, 0.08, 0.15 * v, t); break;
     case 'rage': tone('sawtooth', 120, 90, 0.5, 0.12 * v, t); burst(0.5, 0.2 * v, 400, 'bandpass', t, 2); break;
     case 'lip': tone('triangle', 1200, 900, 0.06, 0.25 * v, t); tone('triangle', 1000, 800, 0.06, 0.2 * v, t + 0.09); break;
+    case 'beep': tone('square', 494, 494, 0.16, 0.08 * v, t); tone('square', 392, 392, 0.2, 0.08 * v, t + 0.15); break;
     case 'fanfare': [523, 659, 784, 1047].forEach((f, i) => tone('square', f, f, i === 3 ? 0.6 : 0.14, 0.07, t + i * 0.13)); break;
   }
 }
@@ -117,6 +118,20 @@ export function slowmo(on) {
     clearInterval(slowBeat);
     if (music) music.gain.setTargetAtTime(musicOn ? 0.16 : 0, t, 0.3);
   }
+}
+// The cart's little electric whine.
+let eng = null;
+export function engine(v) {
+  if (!ctx) return;
+  if (!eng) {
+    const o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+    o.type = 'sawtooth'; o.frequency.value = 70; f.type = 'lowpass'; f.frequency.value = 900; g.gain.value = 0;
+    o.connect(f); f.connect(g); g.connect(sfx); o.start();
+    eng = { o, g };
+  }
+  const t = ctx.currentTime, a = Math.min(1, Math.abs(v));
+  eng.o.frequency.setTargetAtTime(60 + a * 210, t, 0.05);
+  eng.g.gain.setTargetAtTime(muted || v === 0 ? 0 : 0.03 + a * 0.05, t, 0.06);
 }
 export function wind(strength) {
   if (!ctx || !windGain) return;
