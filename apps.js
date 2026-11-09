@@ -1047,8 +1047,8 @@ window.SLOPWARE = {
   },
   "par-for-the-curse": {
    "visits": 31,
-   "prompts": 26,
-   "tokens": 4103371,
+   "prompts": 30,
+   "tokens": 4409148,
    "sharedWith": null,
    "versions": [
     {
@@ -1126,7 +1126,14 @@ window.SLOPWARE = {
      "date": "2026-11-09T12:46:24-07:00",
      "note": "everything drawn is solid, more shot power",
      "prompts": 2,
-     "tokens": 204906
+     "tokens": 203152
+    },
+    {
+     "n": 12,
+     "date": "2026-11-09T13:50:46-07:00",
+     "note": "free-direction swing, whack your friends, no player freezes",
+     "prompts": 4,
+     "tokens": 307531
     }
    ]
   },
