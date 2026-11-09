@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>VibeArcade</title>
+<meta name="description" content="Six tiny 8-bit arcade games from Vibe Coded Slopware: fishing, a brick breaker, a space shooter, data center demolition, a maze chase and a run and gun.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕹️</text></svg>">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#07080c;overscroll-behavior:none;-webkit-user-select:none;user-select:none}
+#wrap{position:fixed;left:0;right:0;top:52px;bottom:0}
+body.embed #wrap{top:0}
+body.embed .site-topbar{display:none}
+.site-topbar .mute{margin-left:auto;margin-right:8px;padding:0 10px;border:1px solid #8c9b80;border-radius:999px;background:none;color:inherit;cursor:pointer}
+</style>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <button class="mute" id="mute" type="button" aria-label="Toggle sound">♪ Sound on</button>
+</nav>
+<script src="/site-nav.js"></script>
+<div id="wrap"></div>
+<script type="module">
+import { mount } from './arcade.js';
+import { setAudioMuted, audioMuted } from './audio.js';
+const q = new URLSearchParams(location.search), id = q.get('game') || 'menu', embed = q.has('embed');
+if (embed) document.body.classList.add('embed');
+const tell = msg => { if (embed && parent !== window) parent.postMessage({ vibearcade: true, ...msg }, location.origin); };
+window.__arc = mount(document.getElementById('wrap'), id, {
+  onGameOver: o => tell({ type: 'gameover', ...o }),
+  onExit: o => tell({ type: 'exit', ...o }),
+});
+const mute = document.getElementById('mute');
+mute.onclick = () => { setAudioMuted(!audioMuted()); mute.textContent = audioMuted() ? '♪ Sound off' : '♪ Sound on'; mute.blur(); };
+</script>
+</body>
+</html>

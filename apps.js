@@ -938,10 +938,39 @@ window.SLOPWARE = {
     }
    ]
   },
+  "arcade": {
+   "visits": 0,
+   "prompts": 5,
+   "tokens": 748343,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-09T06:59:13-07:00",
+     "note": "six 8-bit games, playable in a Pinecrest room in Strange Weather",
+     "prompts": 1,
+     "tokens": 455441
+    },
+    {
+     "n": 2,
+     "date": "2026-11-09T09:17:05-07:00",
+     "note": "top 10 tables with three-letter initials, game title in the score bar",
+     "prompts": 3,
+     "tokens": 211911
+    },
+    {
+     "n": 3,
+     "date": "2026-11-09T09:27:56-07:00",
+     "note": "walk around an 8-bit room where the machines play themselves",
+     "prompts": 1,
+     "tokens": 80991
+    }
+   ]
+  },
   "pit-crew": {
    "visits": 19,
    "prompts": 10,
-   "tokens": 6326173,
+   "tokens": 6333397,
    "sharedWith": null,
    "versions": [
     {
@@ -1005,7 +1034,7 @@ window.SLOPWARE = {
      "date": "2026-11-09T09:19:12-07:00",
      "note": "crew talk follows the forecast",
      "prompts": 1,
-     "tokens": 58048
+     "tokens": 65272
     }
    ]
   },
