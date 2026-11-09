@@ -882,7 +882,7 @@ window.SLOPWARE = {
   "wasteland": {
    "visits": 0,
    "prompts": 5,
-   "tokens": 1595552,
+   "tokens": 1703244,
    "sharedWith": null,
    "versions": [
     {
@@ -904,7 +904,7 @@ window.SLOPWARE = {
      "date": "2026-11-09T08:23:04-07:00",
      "note": "rotation, plots, bridges, snipers, camps, market, Gazette",
      "prompts": 2,
-     "tokens": 965633
+     "tokens": 1073325
     }
    ]
   },
@@ -1048,7 +1048,7 @@ window.SLOPWARE = {
   "par-for-the-curse": {
    "visits": 31,
    "prompts": 32,
-   "tokens": 4716776,
+   "tokens": 4802021,
    "sharedWith": null,
    "versions": [
     {
@@ -1140,7 +1140,7 @@ window.SLOPWARE = {
      "date": "2026-11-09T14:41:37-07:00",
      "note": "the loading screen reports failures instead of freezing",
      "prompts": 2,
-     "tokens": 309406
+     "tokens": 394651
     }
    ]
   },
@@ -1334,16 +1334,23 @@ window.SLOPWARE = {
   },
   "hostile-fauna": {
    "visits": 0,
-   "prompts": 6,
-   "tokens": 712445,
+   "prompts": 8,
+   "tokens": 832415,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
      "date": "2026-11-09T14:17:50-07:00",
      "note": "a reverse sci-fi FPS RPG where you are the natives",
+     "prompts": 2,
+     "tokens": 571674
+    },
+    {
+     "n": 2,
+     "date": "2026-11-09T15:01:23-07:00",
+     "note": "new look, and projectiles now hit the ground",
      "prompts": 6,
-     "tokens": 712445
+     "tokens": 260741
     }
    ]
   }
