@@ -941,7 +941,7 @@ window.SLOPWARE = {
   "arcade": {
    "visits": 0,
    "prompts": 7,
-   "tokens": 791227,
+   "tokens": 796287,
    "sharedWith": null,
    "versions": [
     {
@@ -970,7 +970,7 @@ window.SLOPWARE = {
      "date": "2026-11-09T10:07:44-07:00",
      "note": "one-screen room with all six machines on the back wall",
      "prompts": 2,
-     "tokens": 42884
+     "tokens": 47944
     }
    ]
   },
@@ -1047,8 +1047,8 @@ window.SLOPWARE = {
   },
   "par-for-the-curse": {
    "visits": 31,
-   "prompts": 22,
-   "tokens": 3531235,
+   "prompts": 24,
+   "tokens": 3899958,
    "sharedWith": null,
    "versions": [
     {
@@ -1112,7 +1112,14 @@ window.SLOPWARE = {
      "date": "2026-11-09T08:44:12-07:00",
      "note": "Q and E turn the golfer while gripping",
      "prompts": 2,
-     "tokens": 17105
+     "tokens": 12812
+    },
+    {
+     "n": 10,
+     "date": "2026-11-09T11:37:49-07:00",
+     "note": "real club and ball hit boxes, strike guide while gripping",
+     "prompts": 2,
+     "tokens": 373016
     }
    ]
   },
