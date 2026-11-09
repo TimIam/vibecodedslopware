@@ -940,8 +940,8 @@ window.SLOPWARE = {
   },
   "arcade": {
    "visits": 0,
-   "prompts": 5,
-   "tokens": 748343,
+   "prompts": 7,
+   "tokens": 791227,
    "sharedWith": null,
    "versions": [
     {
@@ -964,6 +964,13 @@ window.SLOPWARE = {
      "note": "walk around an 8-bit room where the machines play themselves",
      "prompts": 1,
      "tokens": 80991
+    },
+    {
+     "n": 4,
+     "date": "2026-11-09T10:07:44-07:00",
+     "note": "one-screen room with all six machines on the back wall",
+     "prompts": 2,
+     "tokens": 42884
     }
    ]
   },
