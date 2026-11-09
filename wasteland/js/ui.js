@@ -17,10 +17,10 @@ function pix(rows, pal, scale = 2) {
   rows.forEach((r, y) => [...r].forEach((ch, X) => { if (pal[ch]) { x.fillStyle = pal[ch]; x.fillRect(X * scale, y * scale, scale, scale); } }));
   return c.toDataURL();
 }
-const PAL = { k: '#1d1b18', w: '#f5f2e8', g: '#7f7a70', r: '#a5532e', y: '#e8c64a', b: '#5a7aa0', n: '#6aa64a', o: '#c98a3a', d: '#6e5a3e', s: '#b4aea2', p: '#ef7fae', t: '#4f8a8a', l: '#8fc7d4' };
+const PAL = { k: '#1d1b18', w: '#f5f2e8', g: '#7f7a70', r: '#a5532e', y: '#e8c64a', b: '#5a7aa0', n: '#6aa64a', o: '#c98a3a', d: '#6e5a3e', s: '#b4aea2', p: '#ef7fae', t: '#4f8a8a', l: '#8fc7d4', h: '#c99c5e', S: '#eef1ee', m: '#aeb7ba', e: '#6c767c' };
 const TOOLICON = {
   inspect: ['', ' k', ' kk', ' kwk', ' kwwk', ' kwwwk', ' kwwwwk', ' kwwwwwk', ' kwwkkkk', ' kwk', ' kk', ' k'],
-  clear: ['         dddd', '          dd', '         dd', '        dd', '       dd', '      dd', '  s  dd', ' sssdd', ' ssgss', ' ssgggs', ' sgggs', '  sgs', '  ss'],
+  clear: ['         kkkk', '        khhhhk', '        kd  dk', '        kh  hk', '        khhhhk', '   kk  khdkkk', '  kSSkkhdk', ' kSSSkmek', ' kSSmmek', ' kSmmmmek', ' kSmmmeeek', '  kmmeeek', '   kmeekk', '    kkk'],
   road: ['', '      gg', '    gggggg', '  ggggyggggg', 'ggggggggggggg', '  gggyggggg', '    gggggg', '      gg'],
   bulldoze: ['', '', '   yyyyy', '   ykkky', '  yyyyyyy  g', '  yyyyyyy gg', ' kkkkkkkkggg', ' kgkgkgk', ' kkkkkkk'],
   housing: ['', '      r', '     rrr', '    rrrrr', '   rrrrrrr', '  rrrrrrrrr', '   wwwwwww', '   wkwwlkw', '   wkwwlkw', '   wkwwwww', '   wkwwwww'],
