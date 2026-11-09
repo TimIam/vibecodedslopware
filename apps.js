@@ -1047,8 +1047,8 @@ window.SLOPWARE = {
   },
   "par-for-the-curse": {
    "visits": 31,
-   "prompts": 31,
-   "tokens": 4665402,
+   "prompts": 32,
+   "tokens": 4716776,
    "sharedWith": null,
    "versions": [
     {
@@ -1132,8 +1132,15 @@ window.SLOPWARE = {
      "n": 12,
      "date": "2026-11-09T13:50:46-07:00",
      "note": "free-direction swing, whack your friends, no player freezes",
-     "prompts": 5,
-     "tokens": 563785
+     "prompts": 4,
+     "tokens": 305753
+    },
+    {
+     "n": 13,
+     "date": "2026-11-09T14:41:37-07:00",
+     "note": "the loading screen reports failures instead of freezing",
+     "prompts": 2,
+     "tokens": 309406
     }
    ]
   },
@@ -1327,16 +1334,16 @@ window.SLOPWARE = {
   },
   "hostile-fauna": {
    "visits": 0,
-   "prompts": 2,
-   "tokens": 571674,
+   "prompts": 6,
+   "tokens": 712445,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
      "date": "2026-11-09T14:17:50-07:00",
      "note": "a reverse sci-fi FPS RPG where you are the natives",
-     "prompts": 2,
-     "tokens": 571674
+     "prompts": 6,
+     "tokens": 712445
     }
    ]
   }
