@@ -20,6 +20,31 @@ RT.perfNow = now
 RT.now = function() return (_G.GetTime and _G.GetTime() or 0) * 1000 end
 RT.print = function(...) _G.print("|cffd8b45cThe Endgame is Me:|r", ...) end
 
+-- The last few things that happened, kept in the saved variables: after a /reload the file says what went wrong.
+local function note(text)
+  local db = ns.DB
+  if not db then return end
+  db.log = db.log or {}
+  db.log[#db.log + 1] = string.format("%.1f %s", (_G.GetTime and _G.GetTime() or 0), tostring(text))
+  while #db.log > 60 do table.remove(db.log, 1) end
+end
+A.note = note
+local function trace(err)
+  local msg = tostring(type(err) == "table" and err.message or err)
+  if _G.debugstack then msg = msg .. " | " .. tostring(_G.debugstack(2, 6, 0)):gsub("[%c]+", " / ") end
+  return msg
+end
+-- runs fn; an error is printed and logged instead of vanishing (the client hides Lua errors by default)
+local function guard(what, fn, ...)
+  local ok, err = xpcall(fn, trace, ...)
+  if not ok then
+    note("ERROR in " .. what .. ": " .. tostring(err))
+    RT.print("error in " .. what .. ": " .. tostring(err))
+  end
+  return ok
+end
+A.guard = guard
+
 local function look() return ns.DB.look or {} end
 local function bossName(g) if ns.DB.name and ns.DB.name ~= "" then g.boss.name = ns.DB.name:upper() end end
 
@@ -46,7 +71,7 @@ local function button(parent, text, w, h, fn)
   function b.able(self, on) self.on = on and true or false; self:paint(false) end
   b:SetScript("OnEnter", function(self) self:paint(true) end)
   b:SetScript("OnLeave", function(self) self:paint(false) end)
-  b:SetScript("OnClick", function(self) if self.on and fn then ns.Sound.play("menuGo"); fn(self) end end)
+  b:SetScript("OnClick", function(self) if self.on and fn then ns.Sound.play("menuGo"); guard("a button (" .. tostring(self.label:GetText()) .. ")", fn, self) end end)
   return b
 end
 
@@ -55,12 +80,10 @@ local function panel(name, w, h)
   p:SetSize(w, h)
   p:SetPoint("CENTER", D.over, "CENTER", 0, 0)
   p:EnableMouse(true)
-  local bg = D.solid(p, "BACKGROUND", 0.07, 0.055, 0.04, 0.96)
-  bg:SetAllPoints(p)
-  for _, side in ipairs({ "TOP", "BOTTOM" }) do
-    local l = D.solid(p, "BORDER", 0.5, 0.4, 0.26, 1)
-    l:SetPoint(side .. "LEFT", p, side .. "LEFT", 0, 0); l:SetPoint(side .. "RIGHT", p, side .. "RIGHT", 0, 0); l:SetHeight(0.5)
-  end
+  local rim = D.solid(p, "BACKGROUND", 0.62, 0.5, 0.3, 1)
+  rim:SetAllPoints(p)
+  local bg = D.solid(p, "BORDER", 0.13, 0.1, 0.075, 1)
+  bg:SetPoint("TOPLEFT", p, "TOPLEFT", 1, -1); bg:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -1, 1)
   p:Hide()
   ui[name] = p
   return p
@@ -78,6 +101,7 @@ local PANELS = { "menu", "pause", "over", "won", "store", "look", "loading", "er
 local build = {}   -- name → function that makes that panel the first time it is wanted
 
 function A.setMode(mode)
+  note("mode " .. tostring(mode))
   A.mode = mode
   local shown = ({ menu = "menu", paused = "pause", over = "over", won = "won", store = "store", look = "look", loading = "loading", error = "error" })[mode]
   if shown and not ui[shown] then build[shown]() end
@@ -94,9 +118,11 @@ end
 
 local function fail(err)
   A.err = tostring(type(err) == "table" and err.message or err)
+  note("ERROR: " .. A.err)
   RT.print("stopped on an error: " .. A.err)
   A.job = nil
-  A.setMode("error")
+  D.info:SetText("error: see chat")
+  guard("the error panel", A.setMode, "error")
 end
 
 -- ------------------------------------------------------------------------------------------------ slow work in slices
@@ -111,7 +137,7 @@ local function slice(co, ms)
 end
 
 function A.load(label, job, done)
-  A.job = { co = coroutine.create(job), done = done }
+  A.job = { co = coroutine.create(job), done = done, t0 = now(), frames = 0 }
   A.loadLabel = label
   A.setMode("loading")
 end
@@ -403,10 +429,18 @@ end
 local function onUpdate(self, elapsed)
   if A.job then
     local job = A.job
+    job.frames = job.frames + 1
     local ok, err = slice(job.co, 11)
     if not ok then fail(err) return end
+    -- the title bar says what is going on even if nothing over the picture can be seen
+    local dots = string.rep(".", floor(job.frames / 20) % 4)
+    local text = (A.loadLabel or "LOADING") .. (D.progress and string.format("  %d%%", D.progress * 100) or dots)
+    D.info:SetText(text)
+    if ui.loading and ui.loading.status then ui.loading.status:SetText(D.progress and string.format("%d%%", D.progress * 100) or ("painting pixels" .. dots)) end
     if coroutine.status(job.co) == "dead" then
       A.job = nil
+      D.info:SetText("")
+      note(string.format("loaded '%s' in %d frames, %.1f s", tostring(A.loadLabel), job.frames, (now() - job.t0) / 1000))
       local ok2, err2 = pcall(job.done)
       if not ok2 then fail(err2) end
     end
@@ -445,10 +479,11 @@ end
 -- ------------------------------------------------------------------------------------------------ panels
 
 build.loading = function()
-  local p = panel("loading", 150, 26)
-  local t = line(p, 6, "CENTER", 0, 3, 0.93, 0.89, 0.78)
-  local s = line(p, 4.5, "CENTER", 0, -6, 0.6, 0.56, 0.48)
-  s:SetText("painting pixels...")
+  local p = panel("loading", 170, 34)
+  local t = line(p, 7, "CENTER", 0, 5, 1, 0.9, 0.6)
+  local s = line(p, 5, "CENTER", 0, -7, 0.85, 0.8, 0.7)
+  s:SetText("painting pixels")
+  p.status = s
   p.refresh = function() t:SetText(A.loadLabel or "LOADING") end
 end
 
@@ -712,8 +747,10 @@ function A.open()
   end
   f:Show()
   if not D.built then
+    note("opening for the first time this session")
     A.load("SETTING UP THE SCREEN", function()
       D.build()
+      note("grid built")
       A.R = Render.createRenderer()
       Render.setCalm(false)   -- the window does the shaking (see display.lua), so the renderer's own switch stays on
     end, function() A.setMode("menu") end)
@@ -734,7 +771,7 @@ function A.close()
 end
 
 function A.toggle()
-  if D.frame and D.frame:IsShown() then A.close() else A.open() end
+  if D.frame and D.frame:IsShown() then guard("closing the window", A.close) else guard("opening the window", A.open) end
 end
 
 -- ------------------------------------------------------------------------------------------------ events and the slash command
@@ -787,8 +824,10 @@ _G.SlashCmdList["THEENDGAMEISME"] = function(msg)
     ns.DB.pos = nil
     if D.frame then D.frame:ClearAllPoints(); D.frame:SetPoint("CENTER", _G.UIParent, "CENTER", 0, 20); D.snap() end
     RT.print("window moved back to the middle.")
+  elseif cmd == "log" then
+    for _, l in ipairs(ns.DB.log or {}) do RT.print(l) end
   elseif cmd == "help" or cmd == "?" then
-    RT.print("/endgame opens and closes the game.  /endgame scale <1-8 or auto>,  fps <10-240>,  perf,  calm,  mute,  reset")
+    RT.print("/endgame opens and closes the game.  /endgame scale <1-8 or auto>,  fps <10-240>,  perf,  calm,  mute,  reset,  log")
   else
     A.toggle()
   end

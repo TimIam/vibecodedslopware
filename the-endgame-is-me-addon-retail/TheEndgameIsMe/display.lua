@@ -130,7 +130,8 @@ function D.create()
   local over = _G.CreateFrame("Frame", nil, view)
   D.over = over
   over:SetAllPoints(view)
-  over:SetFrameLevel(grid:GetFrameLevel() + 5)
+  over:SetFrameLevel(grid:GetFrameLevel() + 20)
+  over:SetFrameStrata("DIALOG")   -- a whole strata above the picture, so no menu can end up under 57,600 textures
 
   local pos = ns.DB and ns.DB.pos
   D.applyScale()
@@ -147,9 +148,17 @@ end
 function D.build()
   if D.built then return end
   local grid = D.grid
+  local strip = nil
   for gy = 0, H - 1 do
+    -- Eight rows to a frame. One frame holding every texture would be 230,000 vertices in a single batch, more than
+    -- a 16-bit index can address, and a frame's textures also get slower to add the more it already has.
+    if gy % 8 == 0 then
+      strip = _G.CreateFrame("Frame", nil, grid)
+      strip:SetAllPoints(grid)
+    end
+    D.progress = gy / H
     for gx = 0, W - 1 do
-      local t = grid:CreateTexture(nil, "ARTWORK")
+      local t = strip:CreateTexture(nil, "ARTWORK")
       t:SetColorTexture(1, 1, 1, 1)
       if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false); t:SetTexelSnappingBias(0) end
       t:SetSize(1, 1)
@@ -157,8 +166,9 @@ function D.build()
       t:SetVertexColor(0.078, 0.102, 0.07)
       tex[gy * W + gx + 1] = t
     end
-    if gy % 4 == 3 then RT.breathe() end
+    RT.breathe()
   end
+  D.progress = nil
   for gx = 0, W - 1 do colX[gx] = gx end
   for gy = 0, H - 1 do rowY[gy] = gy end
   laidX, laidY = 0, 0

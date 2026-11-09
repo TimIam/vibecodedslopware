@@ -49,7 +49,12 @@ local function checkPicture(where)
   local view, grid = D.view, D.grid
   local gp = grid.points.TOPLEFT
   local seen, bad = {}, 0
-  for _, t in ipairs(grid.regions) do
+  local all = {}
+  for _, strip in ipairs(grid.children) do
+    assert(#strip.regions * 4 <= 65535, "a strip of the grid has too many vertices for one batch")
+    for _, t in ipairs(strip.regions) do all[#all + 1] = t end
+  end
+  for _, t in ipairs(all) do
     local p = t.points.TOPLEFT
     local sx, sy = gp.x + p.x - (D.sx or 0), -(gp.y + p.y) - (D.sy or 0)
     if sx >= 0 and sx < 320 and sy >= 0 and sy < 180 then
@@ -288,5 +293,6 @@ checkPicture("after reopening")
 Stub.event("PLAYER_LOGOUT")
 plain(TheEndgameIsMeDB, 0)
 
+for _, l in ipairs(TheEndgameIsMeDB.log or {}) do assert(not l:find("ERROR", 1, true), "the addon logged an error: " .. l) end
 for k in pairs(_G) do assert(before[k] or allowed[k], "the addon leaked a global: " .. tostring(k)) end
 say(string.format("OK: %s passed. %d colour changes over the whole session.", dir, Stub.colourCalls or 0))

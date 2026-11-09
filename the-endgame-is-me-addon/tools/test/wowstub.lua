@@ -102,6 +102,7 @@ function GetCursorPosition() return Stub.cursor[1], Stub.cursor[2] end
 function GetTime() return Stub.clock end
 local t0 = os.clock()
 function debugprofilestop() return (os.clock() - t0) * 1000 end
+function debugstack() return "stub stack" end
 function InCombatLockdown() return Stub.combat end
 function PlaySoundFile(path, channel) assert(type(path) == "string"); Stub.sounds[#Stub.sounds + 1] = path; return true, #Stub.sounds end
 function StopSound(handle, fade) end
