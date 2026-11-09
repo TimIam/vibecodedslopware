@@ -119,7 +119,8 @@ function D.create()
   D.view = view
   view:SetPoint("TOPLEFT", f, "TOPLEFT", EDGE, -BAR)
   view:SetSize(W, H)
-  if view.SetClipsChildren then view:SetClipsChildren(true) end
+  -- No clipping frame: every texture always sits inside the picture (see layout below), so nothing needs cutting
+  -- off, and in the client a clipped parent showed none of its children at all.
   local vb = solid(view, "BACKGROUND", 0.078, 0.102, 0.07, 1)
   vb:SetAllPoints(view)
   local grid = _G.CreateFrame("Frame", nil, view)
@@ -127,11 +128,14 @@ function D.create()
   grid:SetSize(W, H)
   grid:SetPoint("TOPLEFT", view, "TOPLEFT", 0, 0)
   -- everything that sits over the picture (menus, the Hoard) parents to this
-  local over = _G.CreateFrame("Frame", nil, view)
+  -- It belongs to the window, not to the picture, and sits a whole strata above it: whatever happens to the 57,600
+  -- textures, the menus do not depend on them.
+  local over = _G.CreateFrame("Frame", nil, f)
   D.over = over
-  over:SetAllPoints(view)
-  over:SetFrameLevel(grid:GetFrameLevel() + 20)
-  over:SetFrameStrata("DIALOG")   -- a whole strata above the picture, so no menu can end up under 57,600 textures
+  over:SetPoint("TOPLEFT", f, "TOPLEFT", EDGE, -BAR)
+  over:SetSize(W, H)
+  over:SetFrameStrata("DIALOG")
+  bar:SetFrameStrata("DIALOG")   -- the shake nudges the picture a pixel or two; the title bar stays on top of it
 
   local pos = ns.DB and ns.DB.pos
   D.applyScale()

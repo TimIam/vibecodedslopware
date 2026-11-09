@@ -22,6 +22,7 @@ function Region:SetHeight(h) self.h = h end
 function Region:Show() self.shown = true end
 function Region:Hide() self.shown = false end
 function Region:IsShown() return self.shown end
+function Region:IsVisible() local f = self; while f do if not f.shown then return false end; f = f.parent end return true end
 
 local Texture = setmetatable({}, { __index = Region })
 function Texture:SetColorTexture(r, g, b, a) assert(type(r) == "number" and type(g) == "number" and type(b) == "number", "SetColorTexture"); self.color = { r, g, b, a or 1 } end
@@ -102,6 +103,7 @@ function GetCursorPosition() return Stub.cursor[1], Stub.cursor[2] end
 function GetTime() return Stub.clock end
 local t0 = os.clock()
 function debugprofilestop() return (os.clock() - t0) * 1000 end
+function GetBuildInfo() return "1.60.1", "99999", "Nov 1 2026", 16001 end
 function debugstack() return "stub stack" end
 function InCombatLockdown() return Stub.combat end
 function PlaySoundFile(path, channel) assert(type(path) == "string"); Stub.sounds[#Stub.sounds + 1] = path; return true, #Stub.sounds end

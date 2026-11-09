@@ -368,7 +368,10 @@ local function playFrame(elapsed)
     RT.spriteBudget, RT.fillSheets = 0, true
     A.R.render(g, { mx = mx, my = my, cursor = true, muted = ns.DB.mute })
     RT.fillSheets = false
-    stats.cells = stats.cells + D.present()
+    local sent = D.present()
+    stats.cells = stats.cells + sent
+    A.drawn = (A.drawn or 0) + 1
+    if A.drawn <= 3 or A.drawn % 600 == 0 then note(string.format("play frame %d: %d cells sent, sim+draw %.1f ms, boss at %.0f,%.0f", A.drawn, sent, now() - t0, g.boss.x, g.boss.y)) end
   end
   local t2 = now()
   stats.sim, stats.draw, stats.steps, stats.frames = stats.sim + t1 - t0, stats.draw + t2 - t1, stats.steps + n, stats.frames + 1
@@ -427,9 +430,14 @@ local function lookFrame(elapsed)
 end
 
 local function onUpdate(self, elapsed)
+  if not A.ticked then A.ticked = true; note("first OnUpdate, elapsed " .. tostring(elapsed)) end
   if A.job then
     local job = A.job
     job.frames = job.frames + 1
+    if job.frames % 120 == 1 then
+      note(string.format("loading '%s': frame %d, %.1f s, progress %s, coroutine %s", tostring(A.loadLabel), job.frames, (now() - job.t0) / 1000,
+        tostring(D.progress), coroutine.status(job.co)))
+    end
     local ok, err = slice(job.co, 11)
     if not ok then fail(err) return end
     -- the title bar says what is going on even if nothing over the picture can be seen
@@ -471,6 +479,7 @@ local function onUpdate(self, elapsed)
     if ns.DB.perf and stats.frames > 0 then
       D.info:SetText(string.format("sim %.1f ms x%.1f   draw %.1f ms   %d px/frame   %d fps", stats.sim / max(1, stats.steps), stats.steps / stats.frames,
         stats.draw / stats.frames, stats.cells / stats.frames, floor(stats.frames / stats.t + 0.5)))
+    elseif A.mode == "error" then D.info:SetText("error: see chat, or /endgame log")
     elseif D.info:GetText() ~= "" then D.info:SetText("") end
     stats.sim, stats.draw, stats.cells, stats.frames, stats.steps, stats.t = 0, 0, 0, 0, 0, 0
   end
@@ -733,7 +742,9 @@ end
 -- ------------------------------------------------------------------------------------------------ opening and closing
 
 function A.open()
+  note("open: client build " .. tostring(_G.GetBuildInfo and select(4, _G.GetBuildInfo())) .. ", screen " .. tostring(_G.GetPhysicalScreenSize and table.concat({ _G.GetPhysicalScreenSize() }, "x")))
   local f = D.create()
+  note(string.format("window made: scale %s (%d px per game px), effective %.4f, UIParent %.4f", tostring(f:GetScale()), D.scale, f:GetEffectiveScale(), _G.UIParent:GetEffectiveScale()))
   if not ui.dim then
     ui.dim = D.solid(D.over, "BACKGROUND", 0, 0, 0, 0.55)
     ui.dim:SetAllPoints(D.over)
@@ -753,7 +764,8 @@ function A.open()
       note("grid built")
       A.R = Render.createRenderer()
       Render.setCalm(false)   -- the window does the shaking (see display.lua), so the renderer's own switch stays on
-    end, function() A.setMode("menu") end)
+      note("renderer made")
+    end, function() A.setMode("menu"); note("menu panel shown: " .. tostring(ui.menu and ui.menu:IsShown()) .. ", visible " .. tostring(ui.menu and ui.menu.IsVisible and ui.menu:IsVisible())) end)
   elseif A.mode == "closed" then
     A.setMode(A.wasMode == "paused" and "paused" or A.wasMode == "store" and "store" or "menu")
   end
