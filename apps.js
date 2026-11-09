@@ -882,7 +882,7 @@ window.SLOPWARE = {
   "wasteland": {
    "visits": 0,
    "prompts": 7,
-   "tokens": 1747797,
+   "tokens": 1752678,
    "sharedWith": null,
    "versions": [
     {
@@ -911,7 +911,7 @@ window.SLOPWARE = {
      "date": "2026-11-09T15:10:40-07:00",
      "note": "a proper shovel in the action bar",
      "prompts": 2,
-     "tokens": 177800
+     "tokens": 182681
     }
    ]
   },
@@ -983,8 +983,8 @@ window.SLOPWARE = {
   },
   "pit-crew": {
    "visits": 19,
-   "prompts": 10,
-   "tokens": 6333397,
+   "prompts": 11,
+   "tokens": 6896828,
    "sharedWith": null,
    "versions": [
     {
@@ -1048,7 +1048,14 @@ window.SLOPWARE = {
      "date": "2026-11-09T09:19:12-07:00",
      "note": "crew talk follows the forecast",
      "prompts": 1,
-     "tokens": 65272
+     "tokens": 58048
+    },
+    {
+     "n": 10,
+     "date": "2026-11-09T16:23:27-07:00",
+     "note": "Rest On Your Laurels, hidden debug screen, flat Claw & Order, named minigame casts",
+     "prompts": 1,
+     "tokens": 570655
     }
    ]
   },
@@ -1342,7 +1349,7 @@ window.SLOPWARE = {
   "hostile-fauna": {
    "visits": 0,
    "prompts": 10,
-   "tokens": 868812,
+   "tokens": 871425,
    "sharedWith": null,
    "versions": [
     {
@@ -1364,7 +1371,7 @@ window.SLOPWARE = {
      "date": "2026-11-09T15:10:26-07:00",
      "note": "stop the screen flashing black on real GPUs",
      "prompts": 2,
-     "tokens": 36397
+     "tokens": 39010
     }
    ]
   }
