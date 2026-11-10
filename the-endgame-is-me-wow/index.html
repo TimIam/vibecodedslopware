@@ -52,17 +52,17 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
   <p class="hint">An early release. The browser game’s own code, translated to Lua and drawn on 57,600 very small squares.</p>
 
   <div class="cta">
-    <a class="btn primary" href="/the-endgame-is-me-wow/TheEndgameIsMe-1.0.0.zip" download>
-      <b>Download for Classic Forever</b><small>v1.0.0 · 4.2 MB · free</small>
+    <a class="btn primary" href="/the-endgame-is-me-wow/TheEndgameIsMe-1.1.0.zip" download>
+      <b>Download for Classic Forever</b><small>v1.1.0 · 4.2 MB · free</small>
     </a>
-    <a class="btn primary" href="/the-endgame-is-me-wow/TheEndgameIsMe-Retail-1.0.0.zip" download>
-      <b>Download for retail (Midnight)</b><small>v1.0.0 · 4.2 MB · free</small>
+    <a class="btn primary" href="/the-endgame-is-me-wow/TheEndgameIsMe-Retail-1.1.0.zip" download>
+      <b>Download for retail (Midnight)</b><small>v1.1.0 · 4.2 MB · free</small>
     </a>
     <a class="btn" href="/the-endgame-is-me/">
       <b>Play it in a browser</b><small>the original, nothing to install</small>
     </a>
   </div>
-  <p class="note">Treat both as test releases. On Classic Forever the window, the display test and the menu have been seen working in the live game; a full run has so far only been played against a stand-in for the game’s API. The retail build hasn’t been run in a live client yet.</p>
+  <p class="note">Treat both as test releases. On Classic Forever it has been played in the live game as far as the Hoard, and the Controls panel works there; a run all the way to the castle has so far only been played against a stand-in for the game’s API. The retail build hasn’t been run in a live client yet.</p>
 
   <figure>
     <img src="/the-endgame-is-me-wow/preview.png" width="640" height="360" alt="A top-down pixel-art clearing ringed by standing stones. A large furry horned boss stands on a worn path between two rocks, inside a red circle that warns of a stomp, while a handful of tiny adventurers close in. The corner shows a score, a lap count and the boss’s health bar, named Old Bristles.">
@@ -79,6 +79,8 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
     <li><b>WASD or the arrow keys</b> walk. <b>The mouse</b> aims.</li>
     <li><b>Left click</b> swipes; hold it down to keep swiping. <b>Right click, Q, E and R</b> are your other abilities. <b>Space</b> shakes your fur.</li>
     <li><b>Esc</b> pauses and hands the keyboard back to WoW. <b>M</b> mutes.</li>
+    <li><b>Want other keys?</b> Open <b>Controls</b> on the game’s menu or the pause menu, click the key you want to change, then press the new one or click a mouse button. The letters under the ability buttons follow along. Esc always pauses, whatever you choose.</li>
+    <li><b>More abilities than buttons?</b> A new ability takes a free button if there is one. To move one, click a slot in the Hoard and pick what goes on it. Only that slot changes; if your pick was on another button, the two trade places.</li>
     <li>It’s the same game as <a href="/the-endgame-is-me/">the browser version</a>: seven levels, the Hoard between them, the quiet man on the horse, and New Game+ when the castle falls.</li>
   </ul>
 
@@ -105,6 +107,7 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
     <li><b>Start the game.</b> On the character select screen, click <b>AddOns</b> and make sure The Endgame is Me is ticked.</li>
     <li><b>Try it.</b> Type <code>/endgame</code> in chat.</li>
   </ol>
+  <p><b>Updating from an older version?</b> Same steps: with the game closed, replace the old <code>TheEndgameIsMe</code> folder with the new one. Your save, your best score and your keys live somewhere else and stay put. If you swap the folder while the game is running, <code>/reload</code> isn’t enough: the addon will ask you to restart the game.</p>
 
   <h2>If it doesn’t show up</h2>
   <ul>
@@ -117,6 +120,7 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
   <h2>Commands</h2>
   <div class="keys">
     <span><code>/endgame</code></span><span>open or close the game (<code>/teim</code> works too)</span>
+    <span><code>/endgame keys</code></span><span>change the controls</span>
     <span><code>/endgame scale 3</code></span><span>screen pixels per game pixel, 1 to 8; <code>auto</code> picks for you</span>
     <span><code>/endgame fps 30</code></span><span>draw less often, if it drags your frame rate down</span>
     <span><code>/endgame perf</code></span><span>show timings in the title bar</span>
@@ -143,6 +147,12 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
     <li>Fur colour comes from a row of swatches.</li>
     <li>Smoke is dotted, not see-through, to save frame time.</li>
     <li>Each level’s music has a calm mix and a fighting mix. Switching between them starts the tune again.</li>
+  </ul>
+
+  <h2>What’s new</h2>
+  <ul>
+    <li><b>1.1.0:</b> change the controls. Any action can go on any key or mouse button, two each. And a fix for the Hoard: clicking a slot used to step through your abilities and shuffle the other buttons on the way. Now a slot puts up a list to pick from.</li>
+    <li><b>1.0.0:</b> the first release.</li>
   </ul>
 
   <footer>Made with questionable judgment and an AI pair programmer. Standing in your own fire is still on you.</footer>
