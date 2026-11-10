@@ -208,7 +208,7 @@ kbd{display:inline-block;min-width:22px;padding:0 6px;border:2px solid var(--ink
 #menu{background:rgba(30,20,40,.35)}
 #menu .panel{width:min(380px,100%)}
 #menu h2{margin:0 0 4px;font:400 28px "Lilita One"}
-#menu .vol{display:grid;grid-template-columns:96px 1fr 38px;align-items:center;gap:8px;margin-top:9px;font-weight:900;font-size:14px}
+#menu .vol{display:grid;grid-template-columns:96px 1fr 52px;align-items:center;gap:8px;margin-top:9px;font-weight:900;font-size:14px}
 #menu .vol input{width:100%;accent-color:var(--red)}
 #menu .vol output{text-align:right;color:#6a5f70}
 #menu .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
@@ -392,6 +392,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
   <label class="vol">Music<input type="range" min="0" max="100" data-vol="music"><output></output></label>
   <label class="vol">Announcer<input type="range" min="0" max="100" data-vol="announcer"><output></output></label>
   <label class="vol">Voice chat<input type="range" min="0" max="100" data-vol="chat"><output></output></label>
+  <label class="vol" title="How hard every joint pulls toward its pose: floppy ragdolls to stiff fighters">Body<input type="range" min="10" max="250" id="stiff"><output></output></label>
   <h3>Sparring partner <small><kbd>P</kbd> resets Sparky</small></h3>
   <div class="seg"><button id="sparBag">Punching bag</button><button id="sparFight">Fights back</button><button id="sparOff">Send home</button></div>
   <p class="how">Sparky is a golfer on your computer only: hit Sparky with the same swing you use on friends, and reset with <kbd>P</kbd>.</p>
@@ -422,12 +423,12 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
   (function () {
     var q = window.__load && window.__load.retry ? '?r=' + Date.now() : '';
     var T = 'https://cdn.jsdelivr.net/npm/three@0.160.0/', J = T + 'examples/jsm/';
-    var imports = { three: T + 'build/three.module.js' + q, 'three/addons/': J };
+    var imports = { three: T + 'build/three.module.js' + q, 'three/addons/': J, '@dimforge/rapier3d-compat': 'https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/+esm' };
     if (q) {
       ['loaders/GLTFLoader.js', 'geometries/RoundedBoxGeometry.js'].forEach(function (f) { imports['three/addons/' + f] = J + f + q; });
       imports[J + 'utils/BufferGeometryUtils.js'] = J + 'utils/BufferGeometryUtils.js' + q;
       var base = new URL('js/', location.href).href;
-      ['assets', 'audio', 'cart', 'course', 'fx', 'golfer', 'net', 'physics', 'sky', 'voice', 'wreck', 'controls'].forEach(function (m) { imports[base + m + '.js'] = base + m + '.js' + q; });
+      ['assets', 'audio', 'cart', 'course', 'fx', 'golfer', 'net', 'physics', 'sky', 'voice', 'wreck', 'controls', 'ragdoll'].forEach(function (m) { imports[base + m + '.js'] = base + m + '.js' + q; });
     }
     var map = document.createElement('script'); map.type = 'importmap'; map.textContent = JSON.stringify({ imports: imports });
     var main = document.createElement('script'); main.type = 'module'; main.src = 'js/main.js' + q;

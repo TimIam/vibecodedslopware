@@ -7,6 +7,7 @@ import { Golfer, Swing, CLUBS, SKINS, SHIRTS, PANTS, HATS, runPose, sitPose } fr
 import { Cart, collideBody, BUMP } from './cart.js';
 import { Particles, Confetti, Trail } from './fx.js';
 import { Wreck } from './wreck.js';
+import { Ragdolls, RAGDOLL } from './ragdoll.js';
 import { Assist, GOLF_HINT, ASSIST } from './controls.js';
 import { Sky } from './sky.js';
 import * as A from './audio.js';
@@ -53,7 +54,7 @@ function resize() {
 }
 
 /* ---------------- state ---------------- */
-let world, course, sky, fx, confetti, me, swing, assist, ballMesh, ballShadow, trail, aimDots, ballBeam;
+let world, course, sky, fx, confetti, me, swing, assist, phys = null, ballMesh, ballShadow, trail, aimDots, ballBeam;
 let net = null;
 let carts = [];
 const W = { v: V(), carry: V(), grounded: true, phase: 0, amt: 0, ox: [V(0, 0.3, 0), V(0, 0.55, 0)] };
@@ -249,9 +250,11 @@ function showMenu(on) {
   m.hidden = !on; menuAt = performance.now();
   if (on) {
     $('clickToPlay').hidden = true; if (document.pointerLockElement) document.exitPointerLock();
+    $('stiff').value = Math.round(RAGDOLL.stiffness * 100); $('stiff').nextElementSibling.textContent = stiffWord();
     for (const el of m.querySelectorAll('[data-vol]')) { el.value = Math.round(A.getVolume(el.dataset.vol) * 100); el.nextElementSibling.textContent = el.value; }
   } else if (document.pointerLockElement !== canvas) { $('clickToPlay').hidden = false; lockPointer(); }
 }
+const stiffWord = () => (RAGDOLL.stiffness < 0.4 ? 'floppy' : RAGDOLL.stiffness < 0.8 ? 'loose' : RAGDOLL.stiffness < 1.3 ? 'normal' : RAGDOLL.stiffness < 1.9 ? 'firm' : 'stiff');
 function menuSetup() {
   const m = $('menu');
   for (const el of m.querySelectorAll('[data-vol]')) el.oninput = () => {
@@ -266,6 +269,10 @@ function menuSetup() {
       at = performance.now(); b.textContent = 'Sure? Click again';
       setTimeout(() => { if (at && performance.now() - at >= 3900) { at = 0; b.textContent = label; } }, 4000);
     };
+  };
+  $('stiff').oninput = () => {
+    RAGDOLL.stiffness = clamp($('stiff').value / 100, 0.1, 2.5); $('stiff').nextElementSibling.textContent = stiffWord();
+    try { localStorage.setItem('pftc-stiff', String(RAGDOLL.stiffness)); } catch (e) {}
   };
   for (const [id, mode] of [['sparBag', 'bag'], ['sparFight', 'fight'], ['sparOff', null]]) $(id).onclick = () => { sparSpawn(mode); showMenu(false); };
   twice('resetBall', () => { resetBall(); showMenu(false); });
@@ -298,6 +305,44 @@ const GRIP_WALK = 2.4;       // how fast you can walk with the club in your hand
 const HIT_STOP = 0.07;       // seconds the world nearly stops when a club lands on someone, so you feel it land
 // A club strike on another golfer: to a real player over the network, or to the sparring partner here.
 function whackTo(id, e) { if (id === SPAR.id) sparHit(e); else if (net) net.event(e); }
+/* ---------------- ragdoll hits ---------------- */
+// Which golfers' bodies are in the physics this frame. Driving, and the title screen, are posed straight.
+function dollList() {
+  const list = [{ golfer: me, key: 'me', ground: S.golferG.y, mode: S.mode === 'drive' || !playing() ? 'kinematic' : 'active', ko: S.ko > 0 }];
+  for (const [id, o] of others) list.push({ golfer: o.golfer, key: id, ground: o.G.y, mode: o.riding ? 'kinematic' : 'active', ko: o.ko > 0 });
+  return list;
+}
+// Two golfers' bodies touched in the physics. Damage comes from how fast the hitting part was closing and
+// what it was: the club hurts most, a forearm or elbow less, a shoulder barge least (HIT.part scales the
+// speed into the old club-face speeds the damage table was made for). Club on club is a parry: a clang and no damage. As before, the one who swings decides the hit on
+// another player and tells them; Sparky's hits on you are decided here.
+const HIT = { min: 2.2, gap: 0.35, part: { club: 0.6, fa: 0.45, ua: 0.35, head: 0.35, sh: 0.35, th: 0.25, torso: 0.2, hips: 0.2 } };
+const PART_OF = { head: 'head', torso: 'body', hips: 'body', ua: 'body', fa: 'body', th: 'legs', sh: 'legs' };
+const hitGap = new Map();
+function physHit(h) {
+  const mine = h.by === 'me', atMe = h.to === 'me', fromSpar = h.by === SPAR.id;
+  if (h.hitPart === 'club') {
+    if (h.speed > 3 && (mine || atMe || fromSpar)) { A.play('rock', clamp(h.speed / 10, 0.3, 0.9) * proximity(h.at)); fx.sparks(h.at, 6); }
+    return;
+  }
+  const s = Math.round(h.speed * (HIT.part[h.part] || 0.3) * 10) / 10;
+  if (s < HIT.min || !(mine || (atMe && fromSpar))) return;
+  const k = h.by + '>' + h.to; if (S.t - (hitGap.get(k) ?? -9) < HIT.gap) return;
+  const part = PART_OF[h.hitPart] || 'body';
+  const v = h.dir.clone().setY(Math.max(0, h.dir.y)).normalize().multiplyScalar(Math.min(13, s * (part === 'head' ? 1.3 : 0.9))); v.y += 2.5;
+  if (mine) {
+    const o = others.get(h.to); if (!o || o.down) return;
+    hitGap.set(k, S.t);
+    whackTo(h.to, { k: 'whack', to: h.to, v: v.toArray().map(x => +x.toFixed(2)), part, s });
+    S.hitStop = HIT_STOP; shake(Math.min(0.3, s * 0.02)); fx.sparks(h.at, part === 'head' ? 16 : 8); A.play('thud', clamp(s / 10, 0.4, 1));
+    pop((part === 'head' ? 'CLONK!' : 'WHACK!') + `<small>-${whackDamage(part, s)}</small>`, 'great', h.at.clone().add(V(0, 0.3, 0)));
+    if (window.__whacks) window.__whacks.push({ part, s, with: h.part });
+  } else if (bot && bot.ko <= 0 && !S.down) {
+    hitGap.set(k, S.t);
+    S.hitStop = HIT_STOP; takeHit({ id: SPAR.id }, SPAR.name, { v: v.toArray(), part, s });
+    if (window.__sparHits) window.__sparHits.push({ part, s, with: h.part });
+  }
+}
 /* ---------------- sparring partner ---------------- */
 // Player 2 for practice: a golfer on this computer only, built from the same parts and the same swing as
 // everyone else, so hitting it feels like hitting a friend. 'bag' stands with its guard up and takes it;
@@ -352,9 +397,10 @@ function sparTick(dt) {
     if (mv.phase === 'wind') { ease(C[0][0], C[0][1], 8); if (mv.t > SPAR.wind) { mv.phase = 'cut'; mv.t = 0; } }
     else if (mv.phase === 'cut') { T.set(C[1][0], C[1][1]); if (mv.t > SPAR.cut) { mv.phase = 'rest'; mv.t = 0; } }
     else { ease(0.35, 0.55, 6); if (mv.t > 0.3) { b.move = null; b.nextAt = S.t + lerp(SPAR.rest[0], SPAR.rest[1], Math.random()); } }
-  } else ease(0.35, b.ko > 0 ? -0.4 : 0.55, 6);
+  } else if (b.mode === 'bag') ease(0, -0.35, 6);       // a punching bag keeps its arms down: no guard
+  else ease(0.35, b.ko > 0 ? -0.4 : 0.55, 6);
   const f = fDir(b.aim), w = wDir(b.aim);
-  for (let i = 0; i < 4; i++) { sw.step(dt / 4, true); if (b.move && b.move.phase === 'cut' && !b.move.hit) sparStrike(b, f, w); }
+  for (let i = 0; i < 4; i++) { sw.step(dt / 4, true); if (!phys && b.move && b.move.phase === 'cut' && !b.move.hit) sparStrike(b, f, w); }
   sparState(walking ? 2 : 0);
 }
 // Its club against you, on the same collider your club uses against it.
@@ -460,6 +506,10 @@ async function boot() {
   swing = new Swing();
   swing.calibrate();
   assist = new Assist(swing);
+  // The bodies are physics (ragdoll.js). Without Rapier the game still plays, with posed bodies and the old hit test.
+  LD.set('Waking up the bodies'); await paint();
+  try { phys = await Ragdolls.load(); phys.onHit = physHit; phys.groundAt = (x, y, z) => world.groundAt(x, y + 1, z, 6)?.y ?? null; } catch (e) { console.warn('Ragdolls are off:', e); phys = null; }
+  try { const st = +localStorage.getItem('pftc-stiff'); if (st > 0) RAGDOLL.stiffness = clamp(st, 0.1, 2.5); } catch (e) {}
   carts = [new Cart(scene, course.cartSpots[0])];
   carts[0].addCollider(world);
   ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 24, 16), toon(0xffffff));
@@ -1177,7 +1227,7 @@ function step(dt) {
       const r = swing.strike(bl, free ? _bv.set(ball.v.dot(f), ball.v.y, ball.v.dot(w)) : undefined, ball.grounded);
       if (r) launch(r);
     }
-    if (S.grip) meleeCheck();
+    if (S.grip && !phys) meleeCheck();
     if (i === 0) wreck.near(S.golferG, 2.6, sceneryNear);
     sceneryCheck(sceneryNear);
   }
@@ -1236,6 +1286,8 @@ function step(dt) {
   sky.update(t, dt);
   fx.update(dt); confetti.update(dt, t); wreck.update(dt, t);
   updateOthers(dt);
+  // Every golfer has been posed: those poses are the ragdolls' targets, and the bodies are drawn where physics puts them.
+  if (phys) phys.step(dt, dollList());
   voiceTick();
   netTick(dt);
   updateCamera(S.realDt || dt);
@@ -1915,6 +1967,7 @@ async function connect() {
 function dropOther(p) {
   if (voice) voice.drop(p.id);
   const o = others.get(p.id);
+  if (o && phys) phys.remove(o.golfer);
   if (o) { if (o.cart) scene.remove(o.cart.mesh); scene.remove(o.golfer.root); scene.remove(o.ball); o.trail.mesh.removeFromParent(); o.tag.remove(); others.delete(p.id); }
   p.dot?.remove();
 }
@@ -2012,6 +2065,7 @@ function updateOthers(dt) {
     if (!others.has(p.id) && others.size >= MAX_PLAYERS - 1) continue;      // a sixth golfer is not part of this race
     const o = othersFor(p);
     const riding = s.dr === 1;
+    o.riding = riding; o.ko = +s.ko || 0;
     o.hp = Number.isFinite(+s.hp) ? clamp(+s.hp, 0, 100) : 100; o.down = s.ko > 0 && o.hp <= 0;
     o.nameHtml = `<b style="color:${escapeHtml(o.lk.shirt)}">${escapeHtml(String(p.presence?.nm || 'Golfer').slice(0, 16))}</b>`;
     const k = 1 - Math.exp(-dt * 12);
@@ -2197,7 +2251,7 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     setClub,
     fire: () => fireCannon(), get cannon() { return S.cannon; },
     tick: (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { S.realDt = dt; step(dt); } },
-    THREE, get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, get wreck() { return wreck; }, wreckHit, tearDivot, askReset, voteAnswer, get vote() { return vote; }, showMenu, resetBall, resetCart, assistPress, sparSpawn, get spar() { return bot; }, get assist() { return assist; }, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
+    THREE, get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, get wreck() { return wreck; }, wreckHit, tearDivot, askReset, voteAnswer, get vote() { return vote; }, showMenu, resetBall, resetCart, assistPress, sparSpawn, get spar() { return bot; }, get phys() { return phys; }, RAGDOLL, get assist() { return assist; }, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
     // Deterministic swing at 60 fps: back for `back` frames, pause, then through; runs until the ball rests.
     swingTest: (power = 1, back = 24, down = 10, club) => {
       if (club != null) setClub(club);
