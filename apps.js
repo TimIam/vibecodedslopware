@@ -984,7 +984,7 @@ window.SLOPWARE = {
   "pit-crew": {
    "visits": 19,
    "prompts": 11,
-   "tokens": 6896828,
+   "tokens": 6904472,
    "sharedWith": null,
    "versions": [
     {
@@ -1055,7 +1055,7 @@ window.SLOPWARE = {
      "date": "2026-11-09T16:23:27-07:00",
      "note": "Rest On Your Laurels, hidden debug screen, flat Claw & Order, named minigame casts",
      "prompts": 1,
-     "tokens": 570655
+     "tokens": 578299
     }
    ]
   },
@@ -1153,8 +1153,15 @@ window.SLOPWARE = {
      "n": 13,
      "date": "2026-11-09T14:41:37-07:00",
      "note": "the loading screen reports failures instead of freezing",
-     "prompts": 3,
-     "tokens": 394651
+     "prompts": 2,
+     "tokens": 309406
+    },
+    {
+     "n": 14,
+     "date": "2026-11-09T17:00:39-07:00",
+     "note": "raw face-forward swing, PIN-locked rooms, paved cart paths",
+     "prompts": 1,
+     "tokens": 85245
     }
    ]
   },
