@@ -1345,6 +1345,13 @@ window.SLOPWARE = {
      "note": "rename the Endgame shirt, add Endgame Logo and Slopware 2 shirts",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 5,
+     "date": "2026-11-10T14:54:45-07:00",
+     "note": "Endgame Logo shirt with each line bent evenly",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
@@ -1479,6 +1486,13 @@ window.SLOPWARE = {
      "n": 13,
      "date": "2026-11-09T05:59:29-07:00",
      "note": "the splash loads with the page and plays after the sound screen",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 14,
+     "date": "2026-11-10T14:54:45-07:00",
+     "note": "Endgame Logo shirt with each line bent evenly",
      "prompts": 0,
      "tokens": 0
     }
