@@ -17,10 +17,11 @@
 // who has the code and is willing to try all 10,000 PINs one connection at a time would get in.
 const SUPABASE_URL = 'https://dgpfngeqozrbwmjgnzuw.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_IEQdSVT6rLr4hyEmQYuHmQ_lTPZruXC';
-const PUBLIC = 'mountain';
+const MOUNTAIN = 'mountain';
 // Supabase only tells a newcomer who is already there if presence is switched on by name when joining.
 const PRESENCE = key => ({ key, enabled: true });
-const IDENTITY = ['nm', 'lk'];      // what rides on presence; everything else is the score
+const IDENTITY = ['nm', 'lk', 'sl', 'jt']; // what rides on presence (sl: which cart bay at the first tee, jt: when you joined); everything else is the score
+export const MAX_PLAYERS = 5;       // a race is five golfers at most; a full public mountain spills into the next one
 
 // Invite codes: five characters, none that read alike (no I, L, O, 0 or 1).
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -44,9 +45,14 @@ const roomError = code => Object.assign(new Error(code), { code });
 const othersIn = (ch, me) => Object.entries(ch.presenceState()).filter(([k]) => k !== me).map(([, metas]) => metas[metas.length - 1] || {});
 const pickKeys = (o, keys, yes = true) => Object.fromEntries(Object.entries(o).filter(([k]) => keys.includes(k) === yes));
 
+// Only plain numbers and booleans are kept from a peer's score.
+const cleanScore = q => { const o = {}; let n = 0; for (const [k, v] of Object.entries(q)) { if (n++ > 24) break; if (k.length < 8 && (typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)))) o[k] = v; } return o; };
+
 // joinRoom('mountain' | code, pin, presence). Rejects with .code 'pin-needed' or 'pin-wrong' when a
-// locked room keeps you out; any other failure means multiplayer is unavailable.
-export async function joinRoom(room, pin, presence) {
+// locked room keeps you out and 'room-full' when a private room already has five golfers; any other
+// failure means multiplayer is unavailable. A full public mountain sends you on to the next one.
+// (PUBLIC can be swapped for another name so a test can fill a public mountain without touching the real one.)
+export async function joinRoom(room, pin, presence, PUBLIC = MOUNTAIN) {
   const client = await getClient();
   const me = 'g' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-3);
   room = cleanCode(room) || PUBLIC; pin = room === PUBLIC ? '' : cleanPin(pin);
@@ -82,11 +88,13 @@ export async function joinRoom(room, pin, presence) {
     // An open room that already has people in it stays open: a PIN typed by a late arrival is dropped.
     locked = lockedThere || (!!pin && !there.some(m => m.lock === 0));
     if (!locked) pin = '';
+    // Say so in the lobby straight away: word of it takes a second or two to reach the next arrival.
+    if (spend()) lobby.track({ lock: locked ? 1 : 0 }).catch(() => {});
   }
 
-  const name = await channelName(room, pin);
+  let name = await channelName(room, pin), shard = 1;
   const peers = new Map();
-  const cbs = { join: [], leave: [], event: [], connection: [] };
+  const cbs = { join: [], leave: [], event: [], connection: [], full: [], slot: [] };
   const emit = (k, ...a) => { for (const f of cbs[k]) { try { f(...a); } catch (e) { console.error(e); } } };
   let mine = { ...presence }, connected = false, synced = false, ch = null;
   let sentId = '', sentScore = '', lastScore = 0, wantScore = true;
@@ -98,6 +106,22 @@ export async function joinRoom(room, pin, presence) {
     sentId = id; ch.track(identity()).catch(() => {});
   };
 
+  // Two golfers who arrive in the same second cannot see each other on the way in. So once everyone is
+  // on the roll, order of arrival settles it: past the fifth, the latest arrival leaves again, and of two
+  // who picked the same cart bay the later one moves along.
+  function settle(state) {
+    if (!inRoom || leaving) return;
+    const all = Object.entries(state).map(([id, metas]) => ({ id, ...(metas[metas.length - 1] || {}) })).filter(m => Number.isFinite(m.jt))
+      .sort((a, b) => a.jt - b.jt || (a.id < b.id ? -1 : 1));
+    const at = all.findIndex(m => m.id === me);
+    if (at >= MAX_PLAYERS) { leave(); emit('full'); return; }
+    if (at < 1) return;
+    const ahead = all.slice(0, at).map(m => m.sl);
+    if (!ahead.includes(mine.sl)) return;
+    const free = [0, 1, 2, 3, 4].find(i => !ahead.includes(i));
+    if (free === undefined) return;
+    mine.sl = free; trackIdentity(false); emit('slot', free);
+  }
   function openChannel() {
     const c = ch = client.channel(name, { config: { presence: PRESENCE(me), broadcast: { self: false } } });
     c.on('presence', { event: 'sync' }, () => {
@@ -111,6 +135,7 @@ export async function joinRoom(room, pin, presence) {
         if (!p.joined) { p.joined = true; wantScore = true; emit('join', p); }
       }
       for (const id of [...peers.keys()]) { const p = peers.get(id); if (!seen.has(id) && p.joined && performance.now() - p.t > 4000) { peers.delete(id); emit('leave', p); } }
+      settle(state);
     });
     c.on('broadcast', { event: 'st' }, ({ payload }) => {
       if (!payload || typeof payload.p !== 'string' || payload.p === me || !payload.s) return;
@@ -119,7 +144,7 @@ export async function joinRoom(room, pin, presence) {
     });
     c.on('broadcast', { event: 'sc' }, ({ payload }) => {
       if (!payload || typeof payload.p !== 'string' || payload.p === me || !payload.q || typeof payload.q !== 'object') return;
-      const p = peer(payload.p); p.live = payload.q; Object.assign(p.presence, payload.q);
+      const p = peer(payload.p); p.live = cleanScore(payload.q); Object.assign(p.presence, p.live);
     });
     c.on('broadcast', { event: 'ev' }, ({ payload }) => {
       if (!payload || typeof payload.p !== 'string' || payload.p === me) return;
@@ -142,12 +167,26 @@ export async function joinRoom(room, pin, presence) {
     while (performance.now() < until && !othersIn(ch, me).length) { await sleep(150); if (synced && (quiet += 150) > 2500) break; }
     if (!othersIn(ch, me).length) { leaving = true; await drop(ch); await drop(lobby); throw roomError('pin-wrong'); }
   }
+  // Who is already here: wait for the first roll call, so the room can be counted and a cart bay picked.
+  for (;;) {
+    const until = performance.now() + 4000;
+    while (!synced && performance.now() < until) await sleep(100);
+    await sleep(600);      // the first roll call can be a beat behind
+    if (othersIn(ch, me).length < MAX_PLAYERS) break;
+    await drop(ch); peers.clear(); synced = false; connected = false;
+    if (room !== PUBLIC) { leaving = true; await drop(lobby); throw roomError('room-full'); }
+    if (++shard > 8) { leaving = true; throw new Error('every public mountain is full'); }
+    name = await channelName(PUBLIC + '-' + shard, '');
+    openChannel();
+  }
+  const taken = othersIn(ch, me).map(m => m.sl);
+  mine.sl = [0, 1, 2, 3, 4].find(i => !taken.includes(i)) ?? 0; mine.jt = Date.now();
   inRoom = true;
   trackIdentity(true);
-  if (lobby && spend()) lobby.track({ lock: locked ? 1 : 0 }).catch(() => {});
 
   window.addEventListener('pagehide', () => { leaving = true; try { ch.untrack(); client.removeChannel(ch); if (lobby) { lobby.untrack(); client.removeChannel(lobby); } } catch (e) {} });
-  setInterval(() => {
+  const leave = async () => { leaving = true; inRoom = false; clearInterval(timer); await drop(ch); await drop(lobby); };
+  const timer = setInterval(() => {
     const now = performance.now();
     // Drop peers that stop streaming (closed tab without a clean leave).
     for (const [id, p] of peers) if (p.t && now - p.t > 15000) { peers.delete(id); emit('leave', p); }
@@ -162,8 +201,9 @@ export async function joinRoom(room, pin, presence) {
   }, 1000);
 
   return {
-    me, peers, room, pin, locked,
+    me, peers, room, pin, locked, shard, leave, get slot() { return mine.sl; },
     connected: () => connected,
+    roster: () => Object.entries(ch.presenceState()).map(([k, m]) => ({ id: k, sl: m[m.length - 1]?.sl })),
     on(k, f) { cbs[k].push(f); },
     state(s) { if (connected) ch.send({ type: 'broadcast', event: 'st', payload: { p: me, s } }).catch(() => {}); },
     event(e) { if (connected) ch.send({ type: 'broadcast', event: 'ev', payload: { ...e, p: me } }).catch(() => {}); },

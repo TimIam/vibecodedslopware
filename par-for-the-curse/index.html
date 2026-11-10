@@ -75,6 +75,24 @@ h1,h2,h3,.lil{font-family:"Lilita One",Nunito,sans-serif;font-weight:400;letter-
 #rageFill{display:block;height:100%;width:0;background:linear-gradient(90deg,#ffd23f,#ff8c42,#ff3d3d);transition:width .2s}
 #rage.hot{animation:wob .25s infinite alternate}
 @keyframes wob{to{transform:rotate(1.5deg) scale(1.03)}}
+#health{left:64px;top:134px;width:190px;padding:6px 10px 8px}
+#health .lbl{display:flex;justify-content:space-between;align-items:baseline;font-family:"Lilita One";font-size:15px}
+#health .lbl small{font-family:Nunito;font-weight:900;font-size:12px;color:#6a5f70}
+#health .bar{margin-top:4px;height:12px;border-radius:7px;background:#e8dcd1;border:2px solid var(--ink);overflow:hidden}
+#hpFill{display:block;height:100%;width:100%;background:linear-gradient(90deg,#2fbf5f,#7bd389);transition:width .15s}
+#health.low #hpFill{background:linear-gradient(90deg,#e23d3d,#ff8c42)}
+#health.down{animation:wob .25s infinite alternate}
+#voice{right:16px;bottom:64px;font-weight:900;font-size:13px;color:#fff;text-shadow:0 2px 0 var(--ink)}
+#voice[hidden],#voiceAsk[hidden]{display:none}
+#voiceAsk{left:50%;top:124px;transform:translateX(-50%);max-width:min(440px,80vw);padding:9px 14px;font-weight:800;font-size:14px;text-align:center}
+#voiceAsk b{display:block;font-family:"Lilita One";font-weight:400;font-size:18px}
+.tag .hpb{display:block;height:5px;margin:2px 0 1px;border-radius:3px;background:rgba(255,255,255,.28);overflow:hidden}
+.tag .hpb b{display:block;height:100%;width:100%;background:#5fe07a}
+#board tr.me td,.standings tr.me td{background:rgba(255,210,63,.35)}
+.standings{width:100%;border-collapse:collapse;margin-top:12px;font-weight:800;text-align:left}
+.standings th{font-family:"Lilita One";font-weight:400;border-bottom:3px solid var(--ink);padding:4px 6px}
+.standings td{padding:5px 6px;border-bottom:2px dashed rgba(43,34,51,.15)}
+.standings .dot{display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid var(--ink);margin-right:6px;vertical-align:-1px}
 #windbox{right:14px;top:134px;display:flex;align-items:center;gap:8px;padding:5px 12px 6px;font-weight:900}
 #windbox[hidden]{display:none}
 #windbox .lbl{font-family:"Lilita One";font-weight:400;font-size:15px}
@@ -203,7 +221,7 @@ kbd{display:inline-block;min-width:22px;padding:0 6px;border:2px solid var(--ink
 #help h3{margin:0 0 6px;font-size:16px}
 body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;z-index:3;box-shadow:inset 0 0 160px 40px rgba(255,40,20,.55);animation:rg .3s infinite alternate}
 @keyframes rg{to{box-shadow:inset 0 0 120px 20px rgba(255,40,20,.35)}}
-@media(max-width:760px){#title{place-items:end center;padding:10px;background:none}.panel{max-height:62dvh}#toasts,#rage,#help{display:none}#clubs div{width:62px}}
+@media(max-width:760px){#title{place-items:end center;padding:10px;background:none}.panel{max-height:62dvh}#toasts,#rage,#help{display:none}#health{left:14px;top:150px;width:150px}#clubs div{width:62px}}
 </style>
 </head>
 <body>
@@ -220,13 +238,15 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
   <div class="hole"><small>Hole</small><span id="hHole">1</span></div>
   <div class="nm"><span id="hNameWrap">Par <b id="hPar">3</b></span><span id="hName" style="font-family:'Lilita One';font-size:18px;color:var(--ink)">Warm-Up Wobble</span></div>
   <div class="stats">
-    <div><b id="hThis">0</b><span>this hole</span></div>
+    <div><b id="hTime">0:00</b><span>race time</span></div>
     <div><b id="hTotal">0</b><span>strokes</span></div>
     <div><b id="hFalls">0</b><span>falls</span></div>
   </div>
 </div>
 <div class="hud" id="climb"><span class="cap">🏆</span><div id="climbTrack"><i id="meDot"></i></div></div>
 <div class="hud chunk" id="rage"><div class="lbl">Rage <small>T to let it out</small></div><div class="bar"><i id="rageFill"></i></div></div>
+<div class="hud chunk" id="health"><div class="lbl">Health <small id="hpNum">100</small></div><div class="bar"><i id="hpFill"></i></div></div>
+<div class="hud chunk" id="voiceAsk" hidden><b>🎙 Voice chat with golfers near you</b><span>Press <kbd>K</kbd> to turn it on. Your browser will ask to use your microphone; say no and you can still listen. The game plays fine without it.</span></div>
 <div class="hud chunk" id="windbox" hidden><span class="lbl">Wind</span><i id="windArrow">➜</i><b id="windTxt"></b></div>
 <div class="hud" id="toasts"></div>
 <div class="hud chunk" id="quip"></div>
@@ -242,9 +262,11 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 <div class="hud" id="mute">🔊 M</div>
 <div class="hud" id="view">👁 V first person</div>
 <div class="hud" id="netStatus">connecting…</div>
+<div class="hud" id="voice" hidden>🎙 K voice chat</div>
 <div class="hud chunk" id="help" hidden>
   <h3>How to swing</h3>
   <div class="keys">
+    <span class="k">right click</span><span>by your ball: the golf stance. Lined up on the hole, with a preview. Mouse back to wind up, through to hit. <kbd>A</kbd><kbd>D</kbd> aim, right click again to step away</span>
     <span class="k">hold left mouse</span><span>the mouse stops looking and becomes the club. You face where you were looking and the club goes where the mouse goes: right, left, up, down. Whatever the face meets flies off to your left, ball or friend. Nothing aims for you</span>
     <span class="k"><kbd>WASD</kbd></span><span>run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump</span>
     <span class="k"><kbd>E</kbd></span><span>get in or out of the cart</span>
@@ -257,7 +279,9 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
     <span class="k"><kbd>T</kbd> <kbd>G</kbd></span><span>tantrum · dance</span>
     <span class="k"><kbd>V</kbd></span><span>first / third person</span>
     <span class="k"><kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd><kbd>J</kbd></span><span>shout</span>
-    <span class="k"><kbd>Tab</kbd></span><span>scoreboard</span>
+    <span class="k"><kbd>Tab</kbd></span><span>race standings</span>
+    <span class="k"><kbd>K</kbd></span><span>voice chat with golfers near you: on, then mute and unmute · <kbd>Shift</kbd>+<kbd>K</kbd> leaves</span>
+    <span class="k"><kbd>Enter</kbd></span><span>twice, in a private room: everyone back to the first tee for a fresh race</span>
     <span class="k"><kbd>M</kbd> <kbd>N</kbd> <kbd>B</kbd></span><span>mute · music · announcer</span>
   </div>
 </div>
@@ -320,10 +344,12 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
     <div class="row" style="display:flex;justify-content:space-between;align-items:center"><label class="check"><input type="checkbox" id="stache"> Magnificent moustache</label><button class="btn small" id="randomize">🎲 Random</button></div>
     <button class="btn go" id="play">Tee off ⛳</button>
     <div class="keys">
-      <span class="k">mouse</span><span><b>Hold left mouse</b> and the mouse is the club. Drag right to wind up, rip left to hit: the ball goes to your left, so stand with the hole on your left. Nothing lines you up and nothing shows where it will go.</span>
+      <span class="k">mouse</span><span><b>Right click</b> by your ball for the golf stance: you are lined up on the hole, pull the mouse back and swing it through. <b>Hold left mouse</b> to swing the club freely at anything, friends included.</span>
       <span class="k"><kbd>WASD</kbd></span><span>run anywhere, and shuffle while you grip</span>
       <span class="k"><kbd>1</kbd>–<kbd>5</kbd></span><span>hands, driver, wedge, putter, iron</span>
       <span class="k"><kbd>E</kbd></span><span>your one golf cart is parked at the first tee. Lose it and you start again. The climb only counts once it is parked in the bay at the summit</span>
+      <span class="k">race</span><span>up to five golfers, and the fastest to the top wins: strokes do not count, the clock does. Clubs and carts hurt, so mind your health bar</span>
+      <span class="k"><kbd>K</kbd></span><span>voice chat with golfers near you (optional)</span>
       <span class="k"><kbd>V</kbd></span><span>first-person view</span>
       <span class="k"><kbd>H</kbd></span><span>all the controls</span>
     </div>
@@ -333,12 +359,13 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 
 <div class="hud chunk" id="clickToPlay" hidden>Click to grab the club<small>Esc lets go of the mouse</small></div>
 
-<div class="overlay" id="board" hidden><div class="panel"><h2 style="margin:0">Mount Bogey leaderboard</h2><div style="font-weight:800;color:#6a5f70" id="playerCount"></div>
-  <table><thead><tr><th>#</th><th>Golfer</th><th>Where</th><th>Strokes</th><th>Falls</th></tr></thead><tbody id="boardRows"></tbody></table></div></div>
+<div class="overlay" id="board" hidden><div class="panel"><h2 style="margin:0">The race up Mount Bogey</h2><div style="font-weight:800;color:#6a5f70" id="playerCount"></div>
+  <table><thead><tr><th>#</th><th>Golfer</th><th>Where</th><th>Time</th><th>Falls</th></tr></thead><tbody id="boardRows"></tbody></table></div></div>
 
 <div class="overlay" id="finish" hidden><div class="panel">
-  <h1>Summit!</h1><p class="sub">You conquered Mount Bogey. The crown is yours, and everyone can see it.</p>
-  <div class="bigstats"><div><b id="finStrokes">0</b><span>strokes</span></div><div><b id="finFalls">0</b><span>falls</span></div><div><b id="finLost">0</b><span>lost</span></div><div><b id="finTime">0</b><span>time</span></div></div>
+  <h1>Summit!</h1><p class="sub" id="finNote">You conquered Mount Bogey. The crown is yours, and everyone can see it.</p>
+  <div class="bigstats"><div><b id="finTime">0</b><span>your time</span></div><div><b id="finPlace">1st</b><span>place</span></div><div><b id="finStrokes">0</b><span>strokes</span></div><div><b id="finFalls">0</b><span>falls</span></div></div>
+  <table class="standings"><thead><tr><th>#</th><th>Golfer</th><th>Where</th><th>Time</th><th>Falls</th></tr></thead><tbody id="finRows"></tbody></table>
   <div style="display:flex;gap:10px;margin-top:16px"><button class="btn" id="stayTop" style="flex:1;background:#fff;color:var(--ink)">Stay up here</button><button class="btn" id="climbAgain" style="flex:1">Climb again</button></div>
 </div></div>
 
@@ -354,7 +381,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
       ['loaders/GLTFLoader.js', 'geometries/RoundedBoxGeometry.js'].forEach(function (f) { imports['three/addons/' + f] = J + f + q; });
       imports[J + 'utils/BufferGeometryUtils.js'] = J + 'utils/BufferGeometryUtils.js' + q;
       var base = new URL('js/', location.href).href;
-      ['assets', 'audio', 'cart', 'course', 'fx', 'golfer', 'net', 'physics', 'sky'].forEach(function (m) { imports[base + m + '.js'] = base + m + '.js' + q; });
+      ['assets', 'audio', 'cart', 'course', 'fx', 'golfer', 'net', 'physics', 'sky', 'voice'].forEach(function (m) { imports[base + m + '.js'] = base + m + '.js' + q; });
     }
     var map = document.createElement('script'); map.type = 'importmap'; map.textContent = JSON.stringify({ imports: imports });
     var main = document.createElement('script'); main.type = 'module'; main.src = 'js/main.js' + q;

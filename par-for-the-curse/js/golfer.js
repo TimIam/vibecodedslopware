@@ -307,6 +307,11 @@ export function sitPose(s, steer = 0) {
 // Nothing helps: the mouse maps straight onto the hands with no dead band, the turf is only something the
 // head can scrape along or dig into, and a ball leaves the club by plain collision (see strike).
 const VERT_SENS = 1, MAX_ARC = 2.3, MOUSE = 0.0048;
+// Two ways to hold the club. Fighting (left mouse): free in every direction, but the hands stay in front
+// of the body (FIGHT_ARC) and drift back to the middle when the mouse rests, so the arms never end up
+// stuck behind you. Golf (this.golf, the stance from a right click): the full backswing, and small up
+// and down wobbles of the mouse are ignored (GOLF_DEAD) so a level swing stays level.
+const FIGHT_ARC = 1.25, FIGHT_LIFT = 1.9, GOLF_DEAD = 0.22, GOLF_SOLID = 0.07;
 const MIN_LIFT = -0.45;     // how far the hands can press down and in toward the body
 const TURF_MU = 0.6;        // turf friction on the sole
 const FACE_GRIP = 0.3;      // how much of the club's path, as against where its face looks, the ball starts along
@@ -348,6 +353,7 @@ export class Swing {
   // Test rigs only (the game never uses this): run one level full swing per club and note the line the
   // middle of the face crosses, so a headless test can put a ball exactly there.
   calibrate() {
+    this.golf = true;
     const swingOnce = onStep => {
       this.reset();
       const dt = 1 / 360, frames = [[24, -14, 0], [14, 0, 0], [10, 60, 0], [6, 10, 0]];
@@ -451,6 +457,7 @@ export class Swing {
   }
   // Where the hands are for a sweep angle u and lift v: straight onto the shell, no dead band, no easing.
   handAt(u, lift, reach, out) {
+    if (this.golf) { const x = Math.max(0, Math.abs(lift) - GOLF_DEAD); lift = Math.sign(lift) * x * x / (x + 0.5); }
     const th = Math.hypot(u, lift), r = this.rA * reach;
     if (th < 1e-6) return out.copy(this.S).addScaledVector(this.a0, r);
     const k = Math.sin(th) / th;
@@ -484,14 +491,20 @@ export class Swing {
     const k = MOUSE * this.club.sens;
     this.target.x += dx * k;
     if (thrust) this.reach = THREE.MathUtils.clamp(this.reach - dy * 0.0016, 0.5, 0.995);
-    else this.target.y = Math.max(MIN_LIFT, this.target.y - dy * k * VERT_SENS);
+    else this.target.y = Math.max(this.golf ? -GOLF_DEAD : MIN_LIFT, this.target.y - dy * k * VERT_SENS);
     this.thrusting = thrust;
+    if (dx || dy) this.idle = 0;
+    if (!this.golf) {
+      this.target.x = THREE.MathUtils.clamp(this.target.x, -FIGHT_ARC, FIGHT_ARC);
+      this.target.y = Math.min(this.target.y, FIGHT_LIFT);
+    }
     const l = this.target.length();
     if (l > MAX_ARC) this.target.multiplyScalar(MAX_ARC / l);
   }
   step(dt, ground) {
     const C = this.club;
     this.lastDt = dt; this.prevHand.copy(this.hand);
+    if (!this.golf) { this.idle = (this.idle || 0) + dt; if (this.idle > 0.45) this.target.multiplyScalar(Math.exp(-dt * 1.6)); }
     // Hands: spring toward the target with capped acceleration and speed (the weight of the club).
     if (!this.thrusting) this.reach += (0.995 - this.reach) * (1 - Math.exp(-dt * 8));
     const T = this.handAt(this.target.x, this.target.y, this.reach, _c);
@@ -568,11 +581,12 @@ export class Swing {
     // How high the head is above where it sits with its sole level with the bottom of the ball. Anywhere
     // from there up to the middle of the ball is a solid hit; higher is thin, then topped; lower is skied.
     const high = (hit.headAt.y - HEAD_R) - (ball.y - LOCAL_BALL_R) - REST_GAP;
-    const thin = high > SOLID ? high - SOLID : high < -SOLID ? high + SOLID : 0, dy = clamp(-thin / 0.06, -1, 1);
+    const solid = this.golf ? GOLF_SOLID : SOLID;      // the golf stance forgives a head that is a bit high or low
+    const thin = high > solid ? high - solid : high < -solid ? high + solid : 0, dy = clamp(-thin / 0.06, -1, 1);
     const flat = Math.hypot(rel.x, rel.z);
     const faceYaw = Math.atan2(face.z, face.x), across = flat > 0.5 ? Math.atan2(rel.z, rel.x) - faceYaw : 0;
     const path = Math.atan2(Math.sin(across), Math.cos(across)), attack = Math.atan2(rel.y, flat);
-    const q = (1 - Math.min(1, Math.abs(dy) * 0.9)) * (1 - 0.45 * Math.min(1, Math.abs(toe) * 0.5));
+    const q = (1 - Math.min(1, Math.abs(dy) * 0.9)) * (1 - (this.golf ? 0.25 : 0.45) * Math.min(1, Math.abs(toe) * 0.5));
     let launch = C.loft * Math.PI / 180 * (0.95 + 0.2 * dy) + attack * 0.15, speed = hs * C.smash * (0.72 + 0.28 * q), kind = q > 0.88 ? 'pure' : 'ok';
     if (thin > 0.03 && !putter) { launch = Math.min(launch, 0.04); speed *= 0.62; kind = 'topped'; }
     if (putter) { launch = clamp(launch, 0, 0.09); speed = hs * C.smash; }

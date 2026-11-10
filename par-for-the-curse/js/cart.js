@@ -9,6 +9,7 @@ const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const _p = V(), _n = V(), _c = V(), _h = V(), _v = V();
 export const CART = { accel: 7.5, brake: 18, reverse: 5, max: 14, coast: 2.2, step: 0.55, empty: 6 };   // empty: how hard a cart with nobody in it slows to a stop
 export const SEAT = V(0.28, 0.69, 0.05);
+export const BUMP = { off: 0.4, r: 0.45 };      // a cart as two circles for cart-on-cart and cart-on-golfer: centres this far fore and aft, this radius
 const NOT_FOR_BODIES = new Set(['pin', 'road', 'cliff', 'cartbody', 'post']);
 
 // Push a body out of anything its sample spheres touch, horizontally. Things lower than stepH above
@@ -43,12 +44,12 @@ export class Cart {
     this.mesh.traverse(o => { if (o.isMesh) { o.castShadow = true; o.raycast = () => {}; } });
     scene.add(this.mesh);
     this.home = { p: spot.p.clone(), yaw: spot.yaw };
-    this.pos = V(); this.carry = V(); this.offsets = [V(), V()];
+    this.pos = V(); this.carry = V(); this.push = V(); this.offsets = [V(), V()];
     this.reset();
   }
   reset() {
     this.pos.copy(this.home.p); this.yaw = this.home.yaw;
-    this.speed = 0; this.vy = 0; this.rise = 0; this.grounded = true; this.pitch = 0; this.roll = 0; this.carry.set(0, 0, 0);
+    this.speed = 0; this.vy = 0; this.rise = 0; this.grounded = true; this.pitch = 0; this.roll = 0; this.carry.set(0, 0, 0); this.push.set(0, 0, 0);
     this.sync();
   }
   // While parked the cart is something a ball can hit. It is switched off while moving, so nobody can
@@ -100,7 +101,8 @@ export class Cart {
       } else this.yaw += input.steer * 0.35 * h;
       const ox = this.pos.x, oz = this.pos.z, oy = this.pos.y;
       this.heading(H);
-      this.pos.addScaledVector(H, this.speed * h).addScaledVector(this.carry, h);
+      this.pos.addScaledVector(H, this.speed * h).addScaledVector(this.carry, h).addScaledVector(this.push, h);
+      this.push.multiplyScalar(Math.exp(-h * (this.grounded ? 3 : 0.4)));
       this.offsets[0].set(H.x * 0.46, 0.6, H.z * 0.46); this.offsets[1].set(-H.x * 0.46, 0.6, -H.z * 0.46);
       collideBody(world, this.pos, this.offsets, 0.36, 0.4, (nh, d, c) => {
         if (!nh) return;
@@ -138,11 +140,42 @@ export class Cart {
   // Nobody at the wheel: it carries on under its own momentum, flies, lands and coasts to a stop. Once it
   // has stopped on solid ground it stays parked, even on a ramp. On a moving platform it rides along.
   idle(dt, world, ev) {
-    if (this.grounded && Math.abs(this.speed) < 0.25) {
+    if (this.grounded && Math.abs(this.speed) < 0.25 && this.push.lengthSq() < 0.04) {
       const g = world.groundAt(this.pos.x, this.pos.y + 0.7, this.pos.z, 1.1, true);
-      if (g && !g.col.motion && Math.abs(g.y - this.pos.y) < 0.05) { this.speed = 0; this.carry.set(0, 0, 0); return; }
+      if (g && !g.col.motion && Math.abs(g.y - this.pos.y) < 0.05) { this.speed = 0; this.carry.set(0, 0, 0); this.push.set(0, 0, 0); return; }
     }
     this.update(dt, { throttle: 0, steer: 0, brake: false, coast: CART.empty }, world, ev);
+  }
+  // Another player's cart, which this client cannot move: get out of its way and take the knock. Each cart
+  // is two circles, nose and tail. Returns how hard they met (m/s), 0 if they did not.
+  bump(pos, yaw, vel) {
+    if (Math.abs(pos.y - this.pos.y) > 1.2) return 0;
+    const H = this.heading(), ox = Math.sin(yaw) * BUMP.off, oz = Math.cos(yaw) * BUMP.off;
+    let hard = 0;
+    for (const a of [1, -1]) for (const b of [1, -1]) {
+      let dx = this.pos.x + H.x * BUMP.off * a - (pos.x + ox * b), dz = this.pos.z + H.z * BUMP.off * a - (pos.z + oz * b);
+      let d = Math.hypot(dx, dz);
+      if (d >= BUMP.r * 2) continue;
+      if (d < 1e-3) { dx = H.z; dz = -H.x; d = 1; }
+      dx /= d; dz /= d;
+      const depth = BUMP.r * 2 - d;
+      this.pos.x += dx * depth; this.pos.z += dz * depth;
+      // Closing speed along the line between them; equal weights, a bit of bounce.
+      const closing = (vel.x - H.x * this.speed - this.push.x) * dx + (vel.z - H.z * this.speed - this.push.z) * dz;
+      if (closing <= 0) continue;
+      const j = closing * 0.7, along = (dx * H.x + dz * H.z) * j;
+      this.speed = THREE.MathUtils.clamp(this.speed + along, -CART.max, CART.max);
+      this.push.x += dx * j - H.x * along; this.push.z += dz * j - H.z * along;
+      if (closing > hard) { hard = closing; this.hit = { x: dx, z: dz, j }; }
+    }
+    if (hard) this.sync();
+    return hard;
+  }
+  // A shove from outside (another cart ran into this one): part of it turns the wheels, the rest slides it.
+  knock(jx, jz) {
+    const H = this.heading(), along = jx * H.x + jz * H.z;
+    this.speed = THREE.MathUtils.clamp(this.speed + along, -CART.max, CART.max);
+    this.push.x += jx - H.x * along; this.push.z += jz - H.z * along;
   }
   seat(out = V()) { return out.copy(SEAT).applyMatrix4(this.mesh.matrixWorld); }
 }
