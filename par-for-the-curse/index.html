@@ -215,6 +215,13 @@ kbd{display:inline-block;min-width:22px;padding:0 6px;border:2px solid var(--ink
 #menu .acts .btn{width:100%}
 #menu .note{margin:10px 0 0;font-weight:800;font-size:12px;color:#6a5f70}
 #menu #resume{width:100%;margin-top:14px}
+#pinAsk{z-index:30;background:rgba(30,20,40,.45)}
+#pinAsk .panel{width:min(340px,100%);text-align:center}
+#pinAsk h2{margin:0 0 6px;font:400 28px "Lilita One"}
+#pinAsk .note{font-weight:800;font-size:14px;color:#6a5f70;margin:0 0 12px}
+#pinAsk .note.bad{color:var(--red)}
+#pinAsk input{width:140px;font:900 30px Nunito,sans-serif;letter-spacing:.3em;text-align:center;padding:6px;border:3px solid var(--ink);border-radius:12px}
+#pinAsk .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
 #menu h3{margin:14px 0 5px;font:400 17px "Lilita One"}
 #menu h3 small{font:800 11px Nunito,sans-serif;color:#6a5f70;margin-left:6px}
 #menu .seg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
@@ -400,9 +407,15 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
     <button class="btn small" id="resetBall">Reset my ball</button>
     <button class="btn small" id="resetCart">Reset my cart</button>
     <button class="btn small" id="resetMap" style="grid-column:1/-1">Reset the map for everyone</button>
+    <button class="btn small" id="toTitle" style="grid-column:1/-1">Join or create a game</button>
   </div>
   <p class="note">Ball: back on this hole's tee, +1 stroke. Cart: back in its bay at the first tee. Map: everyone back to the first tee for a fresh race, and every other golfer has to agree.</p>
   <button class="btn" id="resume">Back to the game</button>
+</div></div>
+<div class="overlay" id="pinAsk" hidden><div class="panel">
+  <h2>🔒 Locked room</h2><p class="note" id="pinAskNote"></p>
+  <input type="text" id="pinAskIn" maxlength="4" inputmode="numeric" placeholder="PIN" autocomplete="off" aria-label="Four digit room PIN">
+  <div class="acts"><button class="btn small" id="pinAskNo">Back</button><button class="btn small" id="pinAskGo">Join</button></div>
 </div></div>
 <div class="hud chunk" id="clickToPlay" hidden>Click to grab the club<small>Esc opens the menu</small></div>
 

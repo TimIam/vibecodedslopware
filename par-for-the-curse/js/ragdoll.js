@@ -41,7 +41,8 @@ export const RAGDOLL = {
   koStrength: 0.05,   // share of the joint springs left in a knocked-out body
   getUp: 0.8,         // seconds to stiffen back up after a knockout
   maxAccel: 1500,     // cap on any motor's angular acceleration, rad/s², so one bad frame can't fling a limb
-  hz: 240,            // physics steps per second
+  hz: 240,            // physics steps per second (about: each frame is cut into equal steps of about this size)
+  grip: { freq: 70, damping: 1, trailArm: 0.15 },     // the spring that keeps the trail hand on the club while swinging (rad/s, ratio)
   snap: 1.5,          // metres: a body this far from where it should be is put straight back (teleports, respawns)
 };
 
@@ -102,24 +103,29 @@ export class Ragdolls {
     this.dolls = new Map();       // golfer -> doll
     this.cols = new Map();        // collider handle -> { doll, seg }
     this.slots = [0, 1, 2, 3, 4, 5, 6];
-    this.acc = 0;
     this.onHit = null;            // (hit) => void, see contacts()
     this.groundAt = null;         // (x, y, z) => height of the ground under that point, or null
   }
   remove(golfer) {
     const d = this.dolls.get(golfer); if (!d) return;
+    d.grip = null;
+    for (const m of managed(golfer)) m.matrixAutoUpdate = true;
     for (const s of d.segs) { for (const c of s.cols) this.cols.delete(c.handle); this.world.removeRigidBody(s.body); }
     this.world.removeRigidBody(d.floor);
     this.slots.push(d.slot); this.dolls.delete(golfer);
   }
-  // One frame. list: [{ golfer, key, ground (y under the golfer), mode: 'active' | 'kinematic', ko: bool }].
+  // One frame. list: [{ golfer, key, ground (y under the golfer), mode: 'active' | 'kinematic', ko: bool,
+  // twoHands: bool (both hands on the club) }].
   // Call it after every golfer has been posed: their models hold the targets, and come back holding the bodies.
   step(dt, list) {
     for (const it of list) this.prepare(it, dt);
-    this.acc = Math.min(this.acc + dt, 10 / RAGDOLL.hz);
-    const h = 1 / RAGDOLL.hz;
-    while (this.acc >= h) {
-      this.acc -= h;
+    // The frame's own time, cut into equal steps: what is drawn is always the bodies at this frame's moment.
+    // (Fixed steps carried over between frames come out as 1, 2, 1, 2 steps a frame on a 144 Hz screen and
+    // the bodies judder against the camera.)
+    if (!(dt > 0)) return;
+    const n = Math.min(10, Math.max(1, Math.round(dt * RAGDOLL.hz))), h = dt / n;
+    this.world.timestep = h;
+    for (let k = 0; k < n; k++) {
       for (const it of list) { const d = this.dolls.get(it.golfer); if (d) this.drive(d, h); }
       this.world.step(this.events);
       this.contacts();
@@ -130,9 +136,15 @@ export class Ragdolls {
   /* ---------- per frame ---------- */
   prepare(it, dt) {
     const g = it.golfer;
-    g.root.updateMatrixWorld(true);
     let d = this.dolls.get(g);
-    if (!d) { if (!this.slots.length) return; d = this.build(it); }
+    if (!d && !this.slots.length) return;
+    // The animation has set every model's position, turn and size: build their matrices from that. After
+    // the physics we write those matrices directly (show), so nothing is ever split back into position,
+    // turn and size, which drifts: a turned, stretched part can't be split exactly, and the error grew
+    // every frame on the parts the animation never resizes (hands, shoes, hats).
+    for (const m of managed(g)) { m.matrixAutoUpdate = false; m.updateMatrix(); }
+    g.root.updateMatrixWorld(true);
+    if (!d) d = this.build(it);
     d.key = it.key; d.mode = it.mode;
     // Targets: where the animation put every model this frame.
     for (const s of d.segs) {
@@ -141,7 +153,8 @@ export class Ragdolls {
       mesh.matrixWorld.decompose(s.tp, s.tq, s.ts);
       if (s.name === 'club' && !s.mesh) s.tp.add(_a.set(0, -(g.R.fore + 0.03) * ACTOR, 0).applyQuaternion(s.tq));     // no club: it hangs from the hand
       s.tm.compose(s.tp, s.tq, _s.set(1, 1, 1));
-      s.ride = riders(g, s.name).filter(r => r.visible).map(r => ({ mesh: r, rel: new THREE.Matrix4().copy(s.mesh ? s.mesh.matrixWorld : s.tm).invert().multiply(r.matrixWorld) }));
+      (s.tw || (s.tw = new THREE.Matrix4())).copy(mesh.matrixWorld);
+      s.ride = riders(g, s.name).filter(r => r.visible).map(r => ({ mesh: r, tw: r.matrixWorld.clone() }));
     }
     // Each joint's target angle, and how fast that target is turning (in the parent's frame), so a motor can
     // keep up with a moving pose instead of always trailing it.
@@ -165,6 +178,13 @@ export class Ragdolls {
       j.Is = Math.max(1e-6, Is); j.It = Math.max(1e-7, It);
     }
     if ((g.club ?? -1) !== d.club) this.fitClub(d, g.club);
+    this.trailGrip(d, !!it.twoHands && d.club >= 0 && it.mode === 'active' && !it.ko);
+    // Holding on, the trail hand is drawn where the pose puts it on the club: the posed forearm stretches to
+    // reach the grip and the physical one can't, so drawn on the forearm it would hover off the club.
+    if (d.grip) {
+      const fa = d.segs.find(x => x.name === 'fa1'), club = d.segs.find(x => x.name === 'club'), i = fa.ride.findIndex(r => r.mesh === g.p.hand[1]);
+      if (i >= 0 && club.mesh) club.ride.push(...fa.ride.splice(i, 1));
+    }
     const hips = d.segs[0];
     d.vT.copy(hips.tp).sub(d.lastT).divideScalar(Math.max(dt, 1e-4));
     if (d.vT.length() > 30) d.vT.set(0, 0, 0);
@@ -182,6 +202,26 @@ export class Ragdolls {
     } else d.floor.setNextKinematicTranslation({ x: hips.tp.x, y: it.ground - 0.45, z: hips.tp.z });
     const gs = d.ko ? 1 : d.up ? 1 - (1 - RAGDOLL.weight) * d.up : RAGDOLL.weight;
     if (gs !== d.gs) { d.gs = gs; for (const s of d.segs) s.body.setGravityScale(gs, true); }
+  }
+  // Both hands on the club: a spring from the trail hand to its place on the grip, made where the pose
+  // puts it, and let go again when the golfer lets go.
+  // (Our own spring between the two points, solved like the joint motors: Rapier's spring joint at zero rest
+  // length divides by the distance between them and goes to NaN.)
+  trailGrip(d, want) {
+    if (want === !!d.grip) return;
+    if (!want) { d.grip = null; return; }
+    const fa = d.segs.find(x => x.name === 'fa1'), club = d.segs.find(x => x.name === 'club');
+    const hand = d.golfer.p.hand[1].getWorldPosition(V());
+    d.grip = { fa, club, a1: hand.clone().sub(fa.tp).applyQuaternion(fa.tq.clone().invert()), a2: hand.clone().sub(club.tp).applyQuaternion(club.tq.clone().invert()) };
+  }
+  holdGrip(d, h) {
+    const G = d.grip, B1 = G.fa.body, B2 = G.club.body;
+    const p1 = worldPoint(B1, G.a1, V()), p2 = worldPoint(B2, G.a2, V());
+    const v1 = pointVelAt(B1, p1), v2 = pointVelAt(B2, p2);
+    // The hand is pulled onto the club and the club is left alone: the swing steers the club, and a trail
+    // hand dragging on it knocked it off the line the player swung.
+    implicit(_c, _a.subVectors(p2, p1), _b.subVectors(v1, v2), RAGDOLL.grip.freq, RAGDOLL.grip.damping, h);
+    B1.applyImpulseAtPoint(_c.multiplyScalar(B1.mass()), p1, true);
   }
   // Put every body exactly on its target, still. For teleports, carts and the title screen.
   snap(d) {
@@ -223,13 +263,15 @@ export class Ragdolls {
       if (club) _b.set(wc.x, wc.y, wc.z).sub(j.child.wW);
       else if (limbParent) _b.set(wc.x - wp.x, wc.y - wp.y, wc.z - wp.z).sub(_c.copy(j.child.wW).sub(j.parent.wW));
       else _b.set(wc.x - wp.x, wc.y - wp.y, wc.z - wp.z).sub(_c.copy(j.wT).applyQuaternion(_q2.set(qp.x, qp.y, qp.z, qp.w)));
-      const w0 = RAGDOLL.freq[j.kind] * Math.sqrt(stiff);
+      // With both hands on the club the trail arm follows the grip, not its own pose: it only steers.
+      const w0 = RAGDOLL.freq[j.kind] * Math.sqrt(stiff * (d.grip && (j.child.name === 'fa1' || j.child.name === 'ua1') ? RAGDOLL.grip.trailArm : 1));
       implicit(_c, _a, _b, w0, zeta, h);
       // Swing and twist (about the limb's own length) each get the inertia they actually move.
       if (j.round) _c.multiplyScalar(j.Is);
       else { const t = _c.dot(j.axis); _c.addScaledVector(j.axis, -t).multiplyScalar(j.Is).addScaledVector(j.axis, t * j.It); }
       C.applyTorqueImpulse(_c, true);
     }
+    if (d.grip) this.holdGrip(d, h);
     // The hips, held where the game wants the golfer to be, carrying the part of the body's weight it feels.
     if (d.ko) return;
     const hips = d.segs[0], H = hips.body, rs = d.up || 1, R0 = RAGDOLL.root;
@@ -250,9 +292,10 @@ export class Ragdolls {
   show(d) {
     for (const s of d.segs) {
       const t = s.body.translation(), r = s.body.rotation();
-      _m.compose(_p.set(t.x, t.y, t.z), _q.set(r.x, r.y, r.z, r.w), _s.set(1, 1, 1));
-      if (s.mesh) place(s.mesh, _m2.compose(_p, _q, s.ts));
-      for (const rd of s.ride) place(rd.mesh, _m2.copy(_m).multiply(new THREE.Matrix4().makeScale(s.ts.x, s.ts.y, s.ts.z)).multiply(rd.rel));
+      // The rigid move physics made from the target frame, applied to the posed model and what rides on it.
+      _m.compose(_p.set(t.x, t.y, t.z), _q.set(r.x, r.y, r.z, r.w), _s.set(1, 1, 1)).multiply(_m2.copy(s.tm).invert());
+      if (s.mesh) put(s.mesh, _m, s.tw);
+      for (const rd of s.ride) put(rd.mesh, _m, rd.tw);
     }
   }
   // Two bodies started touching. The game hears about every touch between different golfers fast enough to
@@ -334,9 +377,15 @@ export class Ragdolls {
   }
 }
 
-function place(mesh, worldM) {
-  _m.copy(mesh.parent.matrixWorld).invert().multiply(worldM);
-  _m.decompose(mesh.position, mesh.quaternion, mesh.scale);
+// Every model the ragdoll draws: the body parts, what rides on them and all the clubs.
+function managed(g) {
+  const p = g.p;
+  return [p.hips, p.torso, p.head, p.eyes, p.stache, g.crown, ...Object.values(g.hats), ...p.ua, ...p.fa, ...p.hand, ...p.th, ...p.sh, ...p.shoe, ...g.clubs];
+}
+// Set a model's own matrix so that it lands at world matrix rigid x tw.
+function put(mesh, rigid, tw) {
+  mesh.matrix.copy(mesh.parent.matrixWorld).invert().multiply(rigid).multiply(tw);
+  mesh.matrixWorldNeedsUpdate = true;
 }
 // One step of a spring (w, damping ratio z) and damper, solved backward in time: the change in velocity
 // that lands its next state exactly, from error e and velocity error ve. Stable at any stiffness.
@@ -360,6 +409,10 @@ const _sq = new THREE.Quaternion(), _sq2 = new THREE.Quaternion();
 // A segment's inertia about its own length: the smallest principal one for a limb, the average for a ball.
 function axialInertia(s) { const i = s.body.principalInertia(); return ['hips', 'torso', 'head'].includes(s.kind) ? (i.x + i.y + i.z) / 3 : Math.max(1e-7, Math.min(i.x, i.y, i.z)); }
 function avgInertia(b) { const i = b.principalInertia(); return Math.max(1e-6, (i.x + i.y + i.z) / 3); }
+// A point fixed in a body (its own frame) in the world, and that point's velocity.
+function worldPoint(b, local, out) { const r = b.rotation(), t = b.translation(); return out.copy(local).applyQuaternion(_wq.set(r.x, r.y, r.z, r.w)).add(_wp.set(t.x, t.y, t.z)); }
+function pointVelAt(b, p) { const o = b.translation(), v = b.linvel(), w = b.angvel(); return V(v.x, v.y, v.z).add(V(w.x, w.y, w.z).cross(V(p.x - o.x, p.y - o.y, p.z - o.z))); }
+const _wq = new THREE.Quaternion(), _wp = V();
 // The velocity of a collider's centre, from its body's spin and travel.
 function pointVel(col) {
   const b = col.parent(), c = col.translation(), o = b.translation(), v = b.linvel(), w = b.angvel();

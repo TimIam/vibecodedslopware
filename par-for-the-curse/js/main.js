@@ -279,6 +279,7 @@ function menuSetup() {
   twice('resetCart', () => { resetCart(); showMenu(false); });
   twice('resetMap', () => { askReset(); showMenu(false); });
   $('resume').onclick = () => showMenu(false);
+  $('toTitle').onclick = () => { A.play('click'); toTitle(); };
   m.addEventListener('mousedown', e => { if (e.target === m) showMenu(false); });
 }
 /* ---------------- the golf stance: Charge ---------------- */
@@ -308,8 +309,8 @@ function whackTo(id, e) { if (id === SPAR.id) sparHit(e); else if (net) net.even
 /* ---------------- ragdoll hits ---------------- */
 // Which golfers' bodies are in the physics this frame. Driving, and the title screen, are posed straight.
 function dollList() {
-  const list = [{ golfer: me, key: 'me', ground: S.golferG.y, mode: S.mode === 'drive' || !playing() ? 'kinematic' : 'active', ko: S.ko > 0 }];
-  for (const [id, o] of others) list.push({ golfer: o.golfer, key: id, ground: o.G.y, mode: o.riding ? 'kinematic' : 'active', ko: o.ko > 0 });
+  const list = [{ golfer: me, key: 'me', ground: S.golferG.y, mode: S.mode === 'drive' || !playing() ? 'kinematic' : 'active', ko: S.ko > 0, twoHands: (!!S.grip || S.mode === 'address') && !S.noClub }];
+  for (const [id, o] of others) list.push({ golfer: o.golfer, key: id, ground: o.G.y, mode: o.riding ? 'kinematic' : 'active', ko: o.ko > 0, twoHands: !o.wk && !o.riding && o.held >= 0 && !o.emote });
   return list;
 }
 // Two golfers' bodies touched in the physics. Damage comes from how fast the hitting part was closing and
@@ -642,6 +643,39 @@ function setupRoom() {
     navigator.clipboard.writeText(u).then(done, () => toast(escapeHtml(u)));
   };
   roomLabel();
+}
+// A locked room asks for its PIN before it lets you in.
+function askPin(note, bad) {
+  const box = $('pinAsk'), inp = $('pinAskIn');
+  $('pinAskNote').textContent = note; $('pinAskNote').classList.toggle('bad', !!bad);
+  box.hidden = false; inp.value = ''; setTimeout(() => inp.focus(), 30);
+  const go = () => {
+    const p = cleanPin(inp.value); if (!p) { $('pinAskNote').textContent = 'A PIN is 4 digits.'; $('pinAskNote').classList.add('bad'); inp.focus(); return; }
+    box.hidden = true; $('roomPin').value = p; $('roomPin').oninput(); teeOff();
+  };
+  $('pinAskGo').onclick = go;
+  inp.onkeydown = e => { if (e.key === 'Enter') go(); if (e.key === 'Escape') box.hidden = true; e.stopPropagation(); };
+  inp.oninput = () => { inp.value = inp.value.replace(/\D/g, '').slice(0, 4); };
+  $('pinAskNo').onclick = () => { box.hidden = true; };
+}
+// Esc menu: leave this room for the title, to join another or make one. You keep your place on the mountain.
+async function toTitle() {
+  $('menu').hidden = true;
+  if (S.cart) exitCart();
+  if (S.mode === 'address') leaveAddress();
+  S.grip = false; S.lmb = false;
+  if (bot) sparSpawn(null);
+  const was = net; net = null;
+  clearTimeout(S.netRetry);
+  if (voice) { voice.disable(); voice = null; voiceLabel(); }
+  vote = null; voteBanner();
+  for (const id of [...others.keys()]) dropOther({ id });
+  if (was) { try { await was.leave(); } catch (e) {} }
+  S.savedG = S.golferG.toArray();
+  $('netStatus').textContent = 'solo';
+  document.body.classList.remove('playing');
+  setMode('title'); $('title').hidden = false; roomLabel(); updateHud();
+  if (document.pointerLockElement) document.exitPointerLock();
 }
 // A private room is checked before you start, so a wrong PIN leaves you on this screen to try again.
 async function teeOff() {
@@ -1937,11 +1971,20 @@ async function connect() {
   try {
     net = await joinRoom(S.room, S.pin, presenceInfo());
   } catch (e) {
-    if (e.code === 'pin-needed') { roomLabel('Room ' + roomCode() + ' is locked. Type its 4-digit PIN.', true); $('roomPin').focus(); return false; }
-    if (e.code === 'pin-wrong') { roomLabel('That is not the PIN for room ' + roomCode() + '.', true); $('roomPin').select(); return false; }
+    if (e.code === 'pin-needed') { roomLabel('Room ' + roomCode() + ' is locked. Type its 4-digit PIN.', true); askPin('Room ' + roomCode() + ' is locked. Type its 4-digit PIN to join.'); return false; }
+    if (e.code === 'pin-wrong') { roomLabel('That is not the PIN for room ' + roomCode() + '.', true); askPin('That is not the PIN for room ' + roomCode() + '. Try again.', true); return false; }
     if (e.code === 'room-full') { roomLabel('Room ' + roomCode() + ' is full: a race is ' + MAX_PLAYERS + ' golfers at most.', true); return false; }
-    console.warn('multiplayer unavailable', e); $('netStatus').textContent = 'solo (offline)'; return true;
+    // Anything else is the network. Play on alone and keep trying in the background, saying why.
+    console.warn('multiplayer unavailable', e);
+    const why = e.why === 'blocked' ? 'blocked by the browser or network' : e.why === 'timeout' ? 'room server not answering' : 'no connection';
+    S.netTries = (S.netTries || 0) + 1;
+    $('netStatus').textContent = `solo · ${why} · retrying`;
+    $('netStatus').title = String(e && e.message || e);
+    clearTimeout(S.netRetry);
+    S.netRetry = setTimeout(() => { if (!net && !$('title').hidden) return; if (!net) connect(); }, Math.min(60000, 8000 * S.netTries));
+    return true;
   }
+  S.netTries = 0; $('netStatus').title = '';
   S.pin = net.pin;
   try { if (net.pin) sessionStorage.setItem('pftc-pin:' + S.room, net.pin); else sessionStorage.removeItem('pftc-pin:' + S.room); } catch (e) {}
   if (typedPin && !net.pin) toast('Room ' + roomCode() + ' was already open, so it has no PIN.');
@@ -1951,7 +1994,7 @@ async function connect() {
   voiceLabel(); chatVolume();
   net.on('connection', c => { netLabel(); if (c) net.presence(presenceInfo()); });
   net.on('join', p => { toast(`👋 <b>${escapeHtml(p.presence.nm || 'A golfer')}</b> started climbing`); renderBoard(); });
-  net.on('leave', p => { dropOther(p); renderBoard(); if (vote && vote.from === p.id) { vote = null; voteBanner(); } });
+  net.on('leave', p => { dropOther(p); renderBoard(); netLabel(); if (vote && vote.from === p.id) { vote = null; voteBanner(); } });
   net.on('slot', s => useCartBay(s));
   // Squeezed out: someone else took the last place in the same moment.
   net.on('full', () => {
@@ -2065,7 +2108,7 @@ function updateOthers(dt) {
     if (!others.has(p.id) && others.size >= MAX_PLAYERS - 1) continue;      // a sixth golfer is not part of this race
     const o = othersFor(p);
     const riding = s.dr === 1;
-    o.riding = riding; o.ko = +s.ko || 0;
+    o.riding = riding; o.ko = +s.ko || 0; o.wk = s.wk || 0;
     o.hp = Number.isFinite(+s.hp) ? clamp(+s.hp, 0, 100) : 100; o.down = s.ko > 0 && o.hp <= 0;
     o.nameHtml = `<b style="color:${escapeHtml(o.lk.shirt)}">${escapeHtml(String(p.presence?.nm || 'Golfer').slice(0, 16))}</b>`;
     const k = 1 - Math.exp(-dt * 12);
@@ -2251,7 +2294,7 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     setClub,
     fire: () => fireCannon(), get cannon() { return S.cannon; },
     tick: (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { S.realDt = dt; step(dt); } },
-    THREE, get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, get wreck() { return wreck; }, wreckHit, tearDivot, askReset, voteAnswer, get vote() { return vote; }, showMenu, resetBall, resetCart, assistPress, sparSpawn, get spar() { return bot; }, get phys() { return phys; }, RAGDOLL, get assist() { return assist; }, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
+    THREE, get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, get wreck() { return wreck; }, wreckHit, tearDivot, askReset, voteAnswer, get vote() { return vote; }, showMenu, resetBall, resetCart, assistPress, sparSpawn, toTitle, askPin, get spar() { return bot; }, get phys() { return phys; }, RAGDOLL, get assist() { return assist; }, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
     // Deterministic swing at 60 fps: back for `back` frames, pause, then through; runs until the ball rests.
     swingTest: (power = 1, back = 24, down = 10, club) => {
       if (club != null) setClub(club);

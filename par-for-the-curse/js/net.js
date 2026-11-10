@@ -28,11 +28,20 @@ const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const newCode = () => [...crypto.getRandomValues(new Uint8Array(5))].map(n => ALPHABET[n % ALPHABET.length]).join('');
 // Codes are matched in lower case; older, longer room names from invite links still work.
 export const cleanCode = s => String(s || '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24);
+const LOBBY_WAIT = 2500;      // ms to listen in a room's lobby before deciding nobody is there
 export const cleanPin = s => { const p = String(s || '').replace(/\D/g, ''); return p.length === 4 ? p : ''; };
 
+// The Supabase library comes from a CDN. Some networks, ad blockers and privacy browsers block one CDN
+// or another, so a second one is tried before giving up.
+const LIBS = ['https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm', 'https://esm.sh/@supabase/supabase-js@2.45.4?bundle'];
 let clientP = null;
-const getClient = () => clientP || (clientP = import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm')
-  .then(({ createClient }) => createClient(SUPABASE_URL, SUPABASE_KEY, { realtime: { params: { eventsPerSecond: 40 } } }))
+const loadLib = async () => {
+  let err = null;
+  for (const u of LIBS) { try { return await import(u); } catch (e) { err = e; console.warn('could not load', u, e); } }
+  throw Object.assign(new Error('could not download the multiplayer library (blocked?)'), { cause: err, why: 'blocked' });
+};
+const getClient = () => clientP || (clientP = loadLib()
+  .then(({ createClient }) => createClient(SUPABASE_URL, SUPABASE_KEY, { realtime: { params: { eventsPerSecond: 40 }, timeout: 20000 } }))
   .catch(e => { clientP = null; throw e; }));
 
 async function channelName(room, pin) {
@@ -75,13 +84,19 @@ export async function joinRoom(room, pin, presence, PUBLIC = MOUNTAIN) {
     let first = null; const firstSync = new Promise(r => { first = r; });
     lobby.on('presence', { event: 'sync' }, () => first());
     await new Promise((res, rej) => {
-      const t = setTimeout(() => rej(new Error('room lobby timed out')), 8000);
-      lobby.subscribe(s => {
+      // A slow or far-away connection can take a while to open the socket: wait generously.
+      const t = setTimeout(() => { drop(lobby); rej(Object.assign(new Error('could not reach the room server'), { why: 'timeout' })); }, 20000);
+      lobby.subscribe((s, err) => {
         if (s === 'SUBSCRIBED') { clearTimeout(t); res(); if (inRoom && spend()) lobby.track({ lock: locked ? 1 : 0 }).catch(() => {}); }
-        else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') { clearTimeout(t); rej(new Error('room lobby ' + s)); }
+        else if ((s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') && !inRoom) { clearTimeout(t); drop(lobby); rej(Object.assign(new Error('room server said ' + s + (err ? ': ' + err.message : '')), { why: s === 'TIMED_OUT' ? 'timeout' : 'error' })); }
       });
     });
-    await Promise.race([firstSync, sleep(2500)]);
+    const t0 = performance.now();
+    await Promise.race([firstSync, sleep(LOBBY_WAIT)]);
+    // The first roll call can arrive empty, before the golfers already here are listed. Believing it let
+    // people walk past a PIN into an empty copy of a locked room, so an empty lobby is only believed after
+    // LOBBY_WAIT.
+    while (!othersIn(lobby, me).length && performance.now() - t0 < LOBBY_WAIT) await sleep(150);
     const there = othersIn(lobby, me);
     lockedThere = there.some(m => m.lock === 1);
     if (lockedThere && !pin) { await drop(lobby); throw roomError('pin-needed'); }
