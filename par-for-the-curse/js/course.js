@@ -559,7 +559,7 @@ export class Course {
     // A staircase of big mushrooms from the tee side up to the green: [along, across, height of the cap].
     // Each is a short hop from the last for a golfer on foot, and a ball that lands on one is thrown on to
     // the next and from the last onto the green, so the hard part is only getting a ball onto any of them.
-    const shrooms = [[35, -1.2, -1], [40.5, 1.2, 0.8], [46, -1.2, 2.6], [51.5, 1.2, 4.4]], BIG = 1.5, capR = 1.45 * BIG;
+    const shrooms = [[33, -1, -0.3], [39, 1, 1.1], [44.6, -1, 2.8], [50.2, 1, 4.5]], BIG = 1.8, capR = 1.45 * BIG;
     shrooms.forEach(([x, z, top], i) => {
       const m = make('mushroom', { outline: 0.04 });
       const capTop = (pm('mushroom').cap_top ?? 1.2) * BIG;
