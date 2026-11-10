@@ -33,10 +33,12 @@ local FontString = setmetatable({}, { __index = Region })
 function FontString:SetFont(path, size, flags) assert(type(path) == "string" and type(size) == "number" and size > 0, "SetFont"); self.font = size; return true end
 function FontString:SetText(s) assert(s == nil or type(s) == "string" or type(s) == "number", "SetText wants a string"); self.text = s == nil and "" or tostring(s) end
 function FontString:GetText() return self.text or "" end
-FontString.SetTextColor, FontString.SetShadowColor, FontString.SetShadowOffset, FontString.SetJustifyH = noop, noop, noop, noop
+function FontString:SetTextColor(r, g, b) assert(type(r) == "number" and type(g) == "number" and type(b) == "number", "SetTextColor"); self.rgb = { r, g, b } end
+function FontString:SetJustifyH(j) assert(j == "LEFT" or j == "CENTER" or j == "RIGHT", "SetJustifyH"); self.justify = j end
+FontString.SetShadowColor, FontString.SetShadowOffset = noop, noop
 
 local Frame = setmetatable({}, { __index = Region })
-function Frame:CreateTexture(name, layer) local t = setmetatable({ kind = "Texture", points = {}, shown = true, parent = self }, { __index = Texture }); self.regions[#self.regions + 1] = t; Stub.textures = (Stub.textures or 0) + 1; return t end
+function Frame:CreateTexture(name, layer) local t = setmetatable({ kind = "Texture", points = {}, shown = true, parent = self, layer = layer }, { __index = Texture }); self.regions[#self.regions + 1] = t; Stub.textures = (Stub.textures or 0) + 1; return t end
 function Frame:CreateFontString(name, layer) local t = setmetatable({ kind = "FontString", points = {}, shown = true, parent = self }, { __index = FontString }); self.regions[#self.regions + 1] = t; return t end
 function Frame:SetScript(what, fn) assert(fn == nil or type(fn) == "function", "SetScript"); self.scripts[what] = fn end
 function Frame:GetScript(what) return self.scripts[what] end
@@ -89,7 +91,7 @@ function Frame:GetTop()
 end
 
 local EditBox = setmetatable({}, { __index = Frame })
-EditBox.SetFont, EditBox.SetTextColor, EditBox.SetAutoFocus, EditBox.SetMaxLetters, EditBox.ClearFocus = FontString.SetFont, noop, noop, noop, noop
+EditBox.SetFont, EditBox.SetTextColor, EditBox.SetAutoFocus, EditBox.SetMaxLetters, EditBox.ClearFocus = FontString.SetFont, FontString.SetTextColor, noop, noop, noop
 function EditBox:SetText(s) assert(type(s) == "string", "EditBox:SetText"); self.text = s end
 function EditBox:GetText() return self.text or "" end
 
@@ -121,6 +123,11 @@ function InCombatLockdown() return Stub.combat end
 function PlaySoundFile(path, channel) assert(type(path) == "string"); Stub.sounds[#Stub.sounds + 1] = path; return true, #Stub.sounds end
 function StopSound(handle, fade) end
 C_Timer = { After = function(sec, fn) Stub.timers[#Stub.timers + 1] = { at = Stub.clock + sec, fn = fn } end }
+-- Options > AddOns: the page is kept, hidden, until the test "opens" it (Stub.showPage)
+Settings = {
+  RegisterCanvasLayoutCategory = function(frame, name) assert(type(name) == "string", "category name"); frame.shown = false; return { frame = frame, name = name } end,
+  RegisterAddOnCategory = function(cat) Stub.category = cat end,
+}
 local realPrint = print
 function print(...) local t = {}; for i = 1, select("#", ...) do t[i] = tostring((select(i, ...))) end; Stub.printed[#Stub.printed + 1] = table.concat(t, " "); if Stub.echo then realPrint(...) end end
 Stub.print = realPrint
@@ -148,6 +155,20 @@ function Stub.click(text)
   local b = Stub.button(text)
   if not b then error("no visible button labelled " .. text, 2) end
   b.scripts.OnClick(b, "LeftButton")
+end
+-- the first visible button whose label is exactly this (the Controls panel's keys: "W" is also in "New game")
+function Stub.exact(text)
+  for _, f in ipairs(Stub.frames) do
+    if f.kind == "Button" and visible(f) and f.label and f.label.text == text then f.scripts.OnClick(f, "LeftButton"); return f end
+  end
+  error("no visible button labelled exactly " .. text, 2)
+end
+-- the addon's page in the client's options, opened or closed
+function Stub.showPage(on)
+  local page = assert(Stub.category, "the addon registered no options page").frame
+  page.shown = on and true or false
+  if on and page.scripts.OnShow then page.scripts.OnShow(page) end
+  return page
 end
 function Stub.key(frame, key, down) local s = frame.scripts[down and "OnKeyDown" or "OnKeyUp"]; assert(frame.keyboard, "the frame is not taking keys"); s(frame, key) end
 -- every piece of text on visible things, for looking at a panel

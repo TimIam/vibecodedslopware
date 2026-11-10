@@ -1693,8 +1693,7 @@ local x0 = __mfloor(((__I1.W / 2) - (((n * bs) + ((n - 1) * gap)) / 2)) + 0.5);
 local y0 = 160;
 __forEach(__sarr(1, g.slots, 0, "shake"), function(k, i) 
 local x = (x0 + (i * (bs + gap)));
-local key;
-if (i < 5) then key = __I1.SLOT_KEYS[i]; else key = "SPC"; end;
+local key = RT.host.keyLabel(i);
 ctx.fillStyle = __I0.PAL.ink;
 ctx.globalAlpha = 0.8;
 ctx:fillRect(x, y0, bs, bs);
@@ -1751,7 +1750,7 @@ local climber = __find(g.units, function(u)
 return ((u.role == "rider") and (u.state == "climb"));
 end);
 if (__T(climber) and (not __T(b.dead))) then
-__I0.drawText(ctx, "HE IS IN YOUR FUR! SHAKE! [SPACE]", (__I1.W / 2), 151, __I0.PAL.gold, {align="center", alpha=((blink ~= 0) and 1 or 0.55)});
+__I0.drawText(ctx, (("HE IS IN YOUR FUR! SHAKE! [" .. __str(RT.host.keyLabel(6))) .. "]"), (__I1.W / 2), 151, __I0.PAL.gold, {align="center", alpha=((blink ~= 0) and 1 or 0.55)});
 elseif __T(b.taunt) then
 __I0.drawText(ctx, "TAUNTED", (__I1.W / 2), 151, __I0.PAL.red, {align="center"});
 end;

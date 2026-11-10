@@ -118,6 +118,72 @@ checkPicture("appearance")
 Stub.click("Done")
 assert(A.mode == "menu")
 
+-- controls: the panel, the box that listens, a key taken from another action, mouse buttons, Esc, clearing, combat
+local Keys = ns.Keys
+local function shownText(s) return (table.concat(Stub.texts(), " | "):find(s, 1, true)) ~= nil end
+assert(shownText("W A S D walk"), "the menu should name the keys in use")
+Stub.click("Controls")
+assert(A.mode == "keys", "Controls should open the controls panel, got " .. A.mode)
+local cap = A.ui.keys.cap
+local function listening() return Stub.visible(cap) and cap.keyboard == true end
+assert(not Stub.visible(cap) and not cap.keyboard, "the listening box should be away until a key is clicked")
+Stub.exact("W")                       -- Walk up, key 1
+assert(listening() and not D.view.keyboard, "clicking a key should put the listening box up, holding the keyboard")
+Stub.key(cap, "I", true)
+assert(not Stub.visible(cap) and not cap.keyboard, "a key press should put the listening box away")
+assert(Keys.get("up", 1) == "I" and Keys.action("I") == "up" and Keys.action("W") == nil, "Walk up should be on I, and W free")
+assert(TheEndgameIsMeDB.keys and TheEndgameIsMeDB.keys.up[1] == "I", "a changed key should be saved")
+Stub.exact("Up arrow")                -- Walk up, key 2: give it a key that Ability 4 has
+Stub.key(cap, "E", true)
+assert(Keys.get("up", 2) == "E" and Keys.get("slot3", 1) == nil and Keys.action("E") == "up", "E should have moved from Ability 4 to Walk up")
+assert(shownText("E was Ability 4"), "the panel should say where the key came from")
+Stub.exact("Space")                   -- Shake, key 1: a mouse button, clicked on the box
+cap.scripts.OnMouseDown(cap, "Button4")
+assert(Keys.get("shake", 1) == "BUTTON4" and Keys.action("SPACE") == nil and not listening(), "a mouse button clicked on the box should bind")
+assert(RT.host.keyLabel(5) == "M4" and RT.host.keyLabel(6) == "MOUSE BUTTON 4", "the HUD should name the new shake button")
+Stub.exact("Q")                       -- Esc cancels, and can never be bound
+Stub.key(cap, "ESCAPE", true)
+assert(not listening() and Keys.get("slot2", 1) == "Q" and Keys.action("ESCAPE") == nil, "Esc should cancel and stay unbound")
+Stub.exact("Q")
+Stub.click("Clear this key")
+assert(not listening() and Keys.get("slot2", 1) == nil and Keys.action("Q") == nil and RT.host.keyLabel(2) == "-", "Clear should empty the place")
+Stub.exact("P")
+Stub.click("Cancel")
+assert(not listening() and Keys.get("pause", 1) == "P", "Cancel should change nothing")
+Stub.combat = true                    -- it never listens in combat, and a fight starting takes the box down
+Stub.exact("P")
+assert(not listening() and shownText("Not while you are in combat"), "the listening box must not come up in combat")
+Stub.combat = false
+Stub.exact("P")
+assert(listening())
+Stub.combat = true
+Stub.event("PLAYER_REGEN_DISABLED")
+assert(not listening() and A.mode == "keys", "a fight starting should take the listening box down")
+Stub.combat = false
+-- a saved table somebody edited by hand: junk is dropped, no key ends up on two actions, the rest get defaults
+local savedKeys = TheEndgameIsMeDB.keys
+Keys.load({ up = { "ESCAPE", 5 }, left = { "W", "W" }, slot0 = "nonsense" })
+assert(Keys.get("up", 1) == nil and Keys.get("up", 2) == nil, "entries that are not keys should be dropped")
+assert(Keys.get("left", 1) == "W" and Keys.get("left", 2) == nil, "a key listed twice should count once")
+assert(Keys.get("slot0", 1) == "BUTTON1" and Keys.get("right", 1) == "D", "anything unreadable or missing should get its defaults")
+local seenKey = {}
+for _, act in ipairs(Keys.ACTIONS) do
+  for slot = 1, 2 do
+    local key = Keys.get(act.id, slot)
+    if key then assert(not seenKey[key] and Keys.action(key) == act.id, "a key on two actions: " .. key); seenKey[key] = true end
+  end
+end
+-- what the panels and the HUD call a few awkward keys
+assert(Keys.short("NUMPAD7") == "N7" and Keys.short(";") == "SEM" and Keys.short("F11") == "F11" and Keys.short("BUTTON5") == "M5" and Keys.short(nil) == "-", "short key names")
+assert(Keys.name("NUMPAD7") == "Num 7" and Keys.name("LSHIFT") == "Left Shift" and Keys.name("BUTTON3") == "Middle click" and Keys.name("X") == "X", "key names")
+assert(not Keys.bindable("ESCAPE") and not Keys.bindable("") and Keys.bindable("ENTER"), "which keys can be bound")
+Keys.load(savedKeys)
+assert(Keys.get("up", 1) == "I" and Keys.get("shake", 1) == "BUTTON4" and Keys.get("slot2", 1) == nil and Keys.get("slot3", 1) == nil, "the saved keys did not come back")
+Stub.click("Defaults")
+assert(TheEndgameIsMeDB.keys == nil and Keys.get("up", 1) == "W" and Keys.get("slot3", 1) == "E" and Keys.get("shake", 1) == "SPACE", "Defaults should put every key back")
+Stub.click("Done")
+assert(A.mode == "menu", "Done should go back to the menu")
+
 -- a new run
 Stub.click("New game")
 t = os.clock()
@@ -149,6 +215,71 @@ assert(view.propagate == true, "a key the game does not use should be passed on 
 Stub.key(view, "W", true)
 assert(view.propagate == false, "a movement key should not be passed on")
 Stub.key(view, "W", false)
+
+-- controls from the pause menu: the run is played on the new keys, and the old ones go back to WoW
+Stub.key(view, "ESCAPE", true)
+assert(A.mode == "paused")
+Stub.click("Controls")
+assert(A.mode == "keys" and A.keysBack == "paused", "Controls on the pause menu should open the panel over the run")
+Stub.exact("D"); Stub.key(cap, "L", true)                                   -- Walk right
+Stub.exact("Left click"); Stub.key(cap, "NUMPAD1", true)                    -- Ability 1
+Stub.exact("Right click"); cap.scripts.OnMouseDown(cap, "MiddleButton")     -- Ability 2
+assert(RT.host.keyLabel(0) == "N1" and RT.host.keyLabel(1) == "MMB", "the HUD should show the new ability keys")
+-- logging out with the panel up over a run still saves the run
+TheEndgameIsMeDB.save = nil
+Stub.event("PLAYER_LOGOUT")
+assert(TheEndgameIsMeDB.save and TheEndgameIsMeDB.save.level == 1, "logging out with Controls up should still save the run")
+-- and closing the window from there comes back to the run on break
+SlashCmdList["THEENDGAMEISME"]("")
+assert(A.mode == "closed" and A.wasMode == "paused", "closing from Controls should leave the run on break, got " .. tostring(A.wasMode))
+SlashCmdList["THEENDGAMEISME"]("")
+assert(A.mode == "paused")
+Stub.click("Resume")
+assert(A.mode == "play" and view.keyboard)
+frames(150)   -- whatever was mid-swing finishes and cools down
+local swipe = g.slots[0]
+assert(not g.boss.act and g.boss.cd[swipe] <= 0, "ability 1 should be ready by now")
+x0 = g.boss.x
+Stub.key(view, "D", true)
+assert(view.propagate == true, "D is no longer the game's, so it should go on to WoW")
+view.scripts.OnMouseDown(view, "LeftButton")
+frames(30)
+assert(math.abs(g.boss.x - x0) < 0.5 and not g.boss.act and g.boss.cd[swipe] <= 0, "the old keys still do things")
+Stub.key(view, "D", false)
+view.scripts.OnMouseUp(view, "LeftButton")
+Stub.key(view, "L", true)
+assert(view.propagate == false, "the new walking key should be kept from WoW")
+frames(60)
+assert(g.boss.x > x0 + 10, "the new walking key does not walk")
+Stub.key(view, "L", false)
+Stub.key(view, "NUMPAD1", true)
+frames(2)
+assert((g.boss.act and g.boss.act.kind == swipe) or g.boss.cd[swipe] > 0, "the new key did not use ability 1")
+local casts = 0
+for _ = 1, 400 do
+  local was = g.boss.cd[swipe]
+  frames(1)
+  if g.boss.cd[swipe] > was then casts = casts + 1 end
+end
+assert(casts >= 1, "holding the new key should keep swiping, as holding the mouse button did")
+Stub.key(view, "NUMPAD1", false)
+view.scripts.OnMouseDown(view, "MiddleButton")
+assert(A.press.slot1 and A.keys.BUTTON3, "middle click should be ability 2 now")
+view.scripts.OnMouseUp(view, "MiddleButton")
+assert(not A.keys.BUTTON3, "letting go of a mouse button should be noticed")
+frames(2)
+view.scripts.OnMouseDown(view, "RightButton")
+assert(not A.press.slot1 and not A.keys.BUTTON2, "right click should be nobody's now")
+frames(20)
+checkPicture("on the new keys")
+Stub.key(view, "ESCAPE", true)
+assert(A.mode == "paused", "Esc should pause whatever the keys are")
+Stub.click("Controls")
+Stub.click("Defaults")
+Stub.click("Done")
+assert(A.mode == "paused" and Keys.get("right", 1) == "D" and Keys.get("slot0", 1) == "BUTTON1")
+Stub.click("Resume")
+assert(A.mode == "play")
 
 -- pause, save and quit, continue
 Stub.key(view, "ESCAPE", true)
@@ -319,6 +450,54 @@ checkPicture("after reopening")
 Stub.event("PLAYER_LOGOUT")
 plain(TheEndgameIsMeDB, 0)
 
+-- /endgame keys: from a run it pauses first; with the window shut it opens it, on the Controls panel
+assert(A.mode == "play")
+SlashCmdList["THEENDGAMEISME"]("keys")
+assert(A.mode == "keys" and A.keysBack == "paused", "/endgame keys during a run should pause it and open Controls")
+Stub.exact("M"); Stub.key(cap, "LSHIFT", true)
+assert(Keys.get("mute", 1) == "LSHIFT")
+SlashCmdList["THEENDGAMEISME"]("")
+assert(not f:IsShown() and A.mode == "closed")
+SlashCmdList["THEENDGAMEISME"]("keys")
+assert(f:IsShown() and A.mode == "keys" and A.keysBack == "paused", "/endgame keys should open the window on the Controls panel")
+Stub.click("Done")
+assert(A.mode == "paused")
+-- the page in the client's options lists the keys as they stand, and its button leads to the same panel
+local page = Stub.showPage(true)
+local pageText = {}
+for _, r in ipairs(page.regions) do if r.kind == "FontString" and r.text then pageText[#pageText + 1] = r.text end end
+pageText = table.concat(pageText, " | ")
+assert(pageText:find("Walk up:  W, Up arrow", 1, true) and pageText:find("Pause:  Esc, P", 1, true) and pageText:find("Sound on or off:  Left Shift", 1, true),
+  "the options page should list the keys in use: " .. pageText)
+SlashCmdList["THEENDGAMEISME"]("")
+Stub.click("Change the controls")
+assert(f:IsShown() and A.mode == "keys", "the options page's button should open the Controls panel")
+Stub.showPage(false)
+-- the keys survive the trip through the saved-variables file
+plain(TheEndgameIsMeDB, 0)
+text = {}
+dump(TheEndgameIsMeDB.keys, text, 0)
+back = assert(loadstring("return " .. table.concat(text)))()
+assert(same(back, TheEndgameIsMeDB.keys), "the keys changed on their way through the saved-variables file")
+Keys.load(back)
+assert(Keys.get("mute", 1) == "LSHIFT" and Keys.get("up", 1) == "W", "the keys did not come back from the file")
+Stub.click("Defaults")
+Stub.click("Done")
+assert(A.mode == "paused" and TheEndgameIsMeDB.keys == nil)
+
 for _, l in ipairs(TheEndgameIsMeDB.log or {}) do assert(not l:find("ERROR", 1, true), "the addon logged an error: " .. l) end
 for k in pairs(_G) do assert(before[k] or allowed[k], "the addon leaked a global: " .. tostring(k)) end
+
+-- An update that adds a file, met by a /reload instead of a restart: the client cannot see the new file, so every
+-- other file loads without it. That must not be an error, and the slash command must say what to do.
+local half = {}
+for line in toc:gmatch("[^\r\n]+") do
+  if line:sub(1, 2) ~= "##" and line:match("%.lua$") and line ~= "keys.lua" then assert(loadfile(dir .. "/" .. line))(ADDON, half) end
+end
+assert(not half.App, "with a file missing the game should not start")
+local said = #Stub.printed
+SlashCmdList["THEENDGAMEISME"]("")
+assert(#Stub.printed == said + 1 and Stub.printed[#Stub.printed]:find("start it again", 1, true), "with a file missing, /endgame should say to restart the game")
+for k in pairs(_G) do assert(before[k] or allowed[k], "the half-loaded addon leaked a global: " .. tostring(k)) end
+
 say(string.format("OK: %s passed. %d colour changes over the whole session.", dir, Stub.colourCalls or 0))

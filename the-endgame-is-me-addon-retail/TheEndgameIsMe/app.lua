@@ -3,16 +3,31 @@
 -- modules (the game_*.lua files beside this one).
 
 local ADDON, ns = ...
-local RT, D, Store = ns.RT, ns.Display, ns.Store
+
+-- Every file before this one has to have loaded. One that an update added while the client was running has not: a
+-- /reload only reads the files that were there when the client started. Say so, instead of failing somewhere odd.
+if not (ns.RT and ns.Display and ns.Store and ns.Keys and ns.Sound) then
+  local function say()
+    _G.print("|cffd8b45cThe Endgame is Me:|r this update added files, and /reload cannot see new files. Exit the game completely and start it again.")
+  end
+  _G.SLASH_THEENDGAMEISME1, _G.SLASH_THEENDGAMEISME2 = "/endgame", "/teim"
+  _G.SlashCmdList["THEENDGAMEISME"] = say
+  _G.TheEndgameIsMe_OnCompartmentClick = say
+  say()
+  return
+end
+
+local RT, D, Store, Keys = ns.RT, ns.Display, ns.Store, ns.Keys
 local World, Render, Art = RT.module("world"), RT.module("render"), RT.module("art")
 local Screen = RT.Screen
 local floor, min, max = math.floor, math.min, math.max
 local DT = 1 / 60
 local GW, GH = 320, 180
 
-local A = { mode = "closed", acc = 0, keys = {}, press = {}, mouseL = false, sinceDraw = 0 }
+local A = { mode = "closed", acc = 0, keys = {}, press = {}, sinceDraw = 0 }
 ns.App = A
 local ui = {}
+A.ui = ui
 local stats = { sim = 0, draw = 0, cells = 0, frames = 0, steps = 0, t = 0, line = "" }
 
 local now = _G.debugprofilestop or function() return (_G.GetTime and _G.GetTime() or os.clock()) * 1000 end
@@ -99,19 +114,19 @@ end
 
 -- ------------------------------------------------------------------------------------------------ modes
 
-local PANELS = { "menu", "pause", "over", "won", "store", "look", "loading", "error", "check", "count", "nodisplay" }
+local PANELS = { "menu", "pause", "over", "won", "store", "look", "keys", "loading", "error", "check", "count", "nodisplay" }
 local build = {}   -- name → function that makes that panel the first time it is wanted
 
 function A.setMode(mode)
   note("mode " .. tostring(mode))
   A.mode = mode
-  local shown = ({ menu = "menu", paused = "pause", over = "over", won = "won", store = "store", look = "look", loading = "loading", error = "error",
-    check = "check", count = "count", nodisplay = "nodisplay" })[mode]
+  local shown = ({ menu = "menu", paused = "pause", over = "over", won = "won", store = "store", look = "look", keys = "keys", loading = "loading",
+    error = "error", check = "check", count = "count", nodisplay = "nodisplay" })[mode]
   if shown and not ui[shown] then build[shown]() end
   for _, n in ipairs(PANELS) do if ui[n] then if n == shown then ui[n]:Show() else ui[n]:Hide() end end end
   if ui.dim then if shown and shown ~= "loading" and shown ~= "look" and shown ~= "check" and shown ~= "count" then ui.dim:Show() else ui.dim:Hide() end end
   local playing = mode == "play" or mode == "ending" or mode == "check" or mode == "count"
-  A.keys, A.press, A.mouseL = {}, {}, false
+  A.keys, A.press = {}, {}
   local view = D.view
   view:EnableKeyboard(playing)
   if playing and view.SetPropagateKeyboardInput and not (_G.InCombatLockdown and _G.InCombatLockdown()) then view:SetPropagateKeyboardInput(false) end
@@ -174,6 +189,7 @@ local function afterDisplay()
   D.showAll()
   A.setMode("menu")
   note("display ready in mode " .. tostring(D.mode))
+  if A.wantKeys then A.wantKeys = nil; A.openKeys() end
 end
 
 local function tryMode()
@@ -309,8 +325,9 @@ end
 function A.saveNow()
   local g = A.g
   if not g or g.boss.dead or g.over or g.won then return false end
-  if A.mode ~= "play" and A.mode ~= "paused" and A.mode ~= "store" then return false end
-  return Store.write(g, A.mode == "store" and "store" or "play")
+  local mode = A.mode == "keys" and A.keysBack or A.mode   -- the Controls panel may be up over a run on break
+  if mode ~= "play" and mode ~= "paused" and mode ~= "store" then return false end
+  return Store.write(g, mode == "store" and "store" or "play")
 end
 
 local function resumeFrom(g, phase)
@@ -411,8 +428,17 @@ end
 
 -- ------------------------------------------------------------------------------------------------ input
 
-local KEYMAP = { J = "slot0", K = "slot1", F = "slot1", Q = "slot2", E = "slot3", R = "slot4", SPACE = "shake" }
-local MOVE = { W = true, A = true, S = true, D = true, UP = true, DOWN = true, LEFT = true, RIGHT = true }
+-- A key or a mouse button going down, by the name its binding has (see keys.lua). Says whether the game had a use
+-- for it. A.keys is everything being held, which is what walking and the held swipe read.
+local function pressed(name)
+  local act = Keys.action(name)
+  if not act then return false end
+  A.keys[name] = true
+  if act == "pause" then A.pause()
+  elseif act == "mute" then ns.Sound.toggle()
+  elseif act == "shake" or act:sub(1, 4) == "slot" then A.press[act] = true end
+  return true
+end
 
 local function onKeyDown(self, key)
   local used = true
@@ -421,11 +447,8 @@ local function onKeyDown(self, key)
   elseif A.mode == "ending" then
     if key == "ENTER" or key == "SPACE" or key == "ESCAPE" then endingDone() else used = false end
   elseif A.mode == "play" then
-    if key == "ESCAPE" or key == "P" then A.pause()
-    elseif key == "M" then ns.Sound.toggle()
-    elseif KEYMAP[key] then A.press[KEYMAP[key]] = true; A.keys[key] = true
-    elseif MOVE[key] then A.keys[key] = true
-    else used = false end
+    if key == "ESCAPE" then A.pause()   -- always, whatever the bindings say: the way out cannot be bound away
+    elseif not pressed(key) then used = false end
   else used = false end
   -- keys the game has no use for (Enter for chat, the screenshot key) go on to WoW when that is allowed
   if self.SetPropagateKeyboardInput and not (_G.InCombatLockdown and _G.InCombatLockdown()) then self:SetPropagateKeyboardInput(not used) end
@@ -435,10 +458,10 @@ local function onKeyUp(self, key) A.keys[key] = nil end
 local function onMouseDown(self, btn)
   if A.mode == "ending" then if A.ending and A.ending["end"].t > 1 then endingDone() end return end
   if A.mode ~= "play" then return end
-  if btn == "LeftButton" then A.press.slot0 = true; A.mouseL = true end
-  if btn == "RightButton" then A.press.slot1 = true end
+  local name = Keys.MOUSE[btn]
+  if name then pressed(name) end
 end
-local function onMouseUp(self, btn) if btn == "LeftButton" then A.mouseL = false end end
+local function onMouseUp(self, btn) local name = Keys.MOUSE[btn]; if name then A.keys[name] = nil end end
 
 local function readInput(g, mx, my)
   local k = A.keys
@@ -446,10 +469,10 @@ local function readInput(g, mx, my)
   for name in pairs(A.press) do press[name] = true end
   return {
     mx = mx + g.cam.x, my = my + g.cam.y,
-    ax = ((k.D or k.RIGHT) and 1 or 0) - ((k.A or k.LEFT) and 1 or 0),
-    ay = ((k.S or k.DOWN) and 1 or 0) - ((k.W or k.UP) and 1 or 0),
+    ax = (Keys.held(k, "right") and 1 or 0) - (Keys.held(k, "left") and 1 or 0),
+    ay = (Keys.held(k, "down") and 1 or 0) - (Keys.held(k, "up") and 1 or 0),
     press = press,
-    hold = { slot0 = A.mouseL or k.J or false },
+    hold = { slot0 = Keys.held(k, "slot0") },
   }
 end
 
@@ -682,7 +705,7 @@ build.error = function()
 end
 
 build.menu = function()
-  local p = panel("menu", 190, 150)
+  local p = panel("menu", 190, 166)
   line(p, 12, "TOP", 0, -10, 0.86, 0.72, 0.36):SetText("THE ENDGAME IS ME")
   line(p, 4.5, "TOP", 0, -27, 0.62, 0.58, 0.5):SetText("You are the boss. They are the content.")
   local y = -40
@@ -691,12 +714,13 @@ build.menu = function()
   add("New game", function() A.newRun() end)
   local plus = add("New Game +", function() A.newRun(Store.plus()) end)
   add("Appearance", function() A.setMode("look") end)
+  add("Controls", function() A.openKeys() end)
   local snd = add("Sound", function() ns.Sound.toggle(); ui.menu.refresh() end)
   local best = line(p, 4.5, "BOTTOM", 0, 18, 0.86, 0.72, 0.36)
   local help = line(p, 4, "BOTTOM", 0, 5, 0.55, 0.52, 0.46)
-  help:SetText("WASD walk  -  mouse aims  -  LMB RMB Q E R abilities  -  Space shakes  -  Esc pauses")
   help:SetWidth(182)
   p.refresh = function()
+    help:SetText(Keys.summary())
     local info = Store.info()
     cont:able(info ~= nil)
     cont.label:SetText(info and ("Continue (level " .. info.level .. ", " .. RT.commas(info.score) .. ")") or "Continue")
@@ -709,14 +733,139 @@ build.menu = function()
 end
 
 build.pause = function()
-  local p = panel("pause", 130, 92)
+  local p = panel("pause", 130, 102)
   line(p, 8, "TOP", 0, -8, 0.93, 0.89, 0.78):SetText("ON BREAK")
   line(p, 4, "TOP", 0, -20, 0.6, 0.56, 0.48):SetText("The keyboard is WoW's again until you resume.")
   button(p, "Resume", 100, 13, function() A.resume() end):SetPoint("TOP", p, "TOP", 0, -30)
   button(p, "Save and quit", 100, 13, function() A.saveNow(); A.goMenu() end):SetPoint("TOP", p, "TOP", 0, -46)
+  button(p, "Controls", 100, 13, function() A.openKeys() end):SetPoint("TOP", p, "TOP", 0, -62)
   local snd = button(p, "Sound", 100, 13, function() ns.Sound.toggle(); ui.pause.refresh() end)
-  snd:SetPoint("TOP", p, "TOP", 0, -62)
+  snd:SetPoint("TOP", p, "TOP", 0, -78)
   p.refresh = function() snd.label:SetText(ns.DB.mute and "Sound: off" or "Sound: on") end
+end
+
+-- ------------------------------------------------------------------------------------------------ the Controls panel
+
+-- Two places for a key or a mouse button beside each action. Clicking one puts up a box that takes the next key
+-- pressed, or the next mouse button clicked on it. While the box is up it has the whole keyboard, Esc included, so
+-- it is never put up in combat and comes down the moment a fight starts.
+local capture   -- { act = an entry of Keys.ACTIONS, slot = 1 or 2 } while the box is waiting
+
+function A.endCapture()
+  capture = nil
+  local p = ui.keys
+  if p and p.cap then p.cap:EnableKeyboard(false); p.cap:Hide() end
+end
+
+function A.startCapture(act, slot)
+  if _G.InCombatLockdown and _G.InCombatLockdown() then
+    A.keysMsg = "Not while you are in combat."
+    ui.keys.refresh()
+    return
+  end
+  capture = { act = act, slot = slot }
+  local cap = ui.keys.cap
+  local now = Keys.get(act.id, slot)
+  cap.title:SetText(act.name:upper() .. ", KEY " .. slot)
+  cap.sub:SetText("Now: " .. (now and Keys.name(now) or "nothing") .. ".   Esc cancels.   A key already in use moves here.")
+  cap.clear:able(now ~= nil)
+  cap:Show()
+  cap:EnableKeyboard(true)
+end
+
+-- the box heard something: a key name from OnKeyDown, or BUTTON1 to BUTTON5
+function A.captured(key)
+  local c = capture
+  if not c then return end
+  if key == "ESCAPE" then
+    A.keysMsg = nil
+    ui.keys.refresh()
+    return
+  end
+  local ok, from = Keys.set(c.act.id, c.slot, key)
+  if not ok then return end   -- not a key that can be bound: keep waiting
+  A.keysMsg = from and (Keys.name(key) .. " was " .. Keys.actionName(from) .. ". Now it is " .. c.act.name .. ".") or (c.act.name .. ": " .. Keys.name(key) .. ".")
+  note("controls: " .. c.act.id .. " " .. c.slot .. " = " .. key .. (from and (" (taken from " .. from .. ")") or ""))
+  ns.Sound.play("menuGo")
+  ui.keys.refresh()
+end
+
+-- The panel sits over whatever was up: the menu, a run on break, the Hoard. Done goes back there.
+function A.openKeys()
+  if A.mode == "play" then A.pause() end
+  if A.mode == "keys" then return true end
+  if A.job or not ({ menu = true, paused = true, store = true, over = true, won = true, look = true })[A.mode] then return false end
+  A.keysBack, A.keysMsg = A.mode, nil
+  A.setMode("keys")
+  return true
+end
+
+build.keys = function()
+  local p = panel("keys", 240, 172)
+  line(p, 8, "TOPLEFT", 8, -6, 0.86, 0.72, 0.36):SetText("CONTROLS")
+  local hint = D.text(p, 4.2, 0.62, 0.58, 0.5)
+  hint:SetPoint("TOPRIGHT", p, "TOPRIGHT", -8, -8.5)
+  hint:SetText("Click a key to change it. Esc always pauses.")
+  local cells = {}
+  for i, act in ipairs(Keys.ACTIONS) do
+    local y = -19 - (i - 1) * 10.4
+    line(p, 5, "TOPLEFT", 10, y - 2.2, 0.8, 0.76, 0.66):SetText(act.name)
+    cells[act.id] = {}
+    for slot = 1, 2 do
+      local b = button(p, "", 70, 9.4, function() A.startCapture(act, slot) end)
+      b:SetPoint("TOPLEFT", p, "TOPLEFT", 86 + (slot - 1) * 73, y)
+      b.label:SetFont(D.FONT, 4.8, "")
+      cells[act.id][slot] = b
+    end
+  end
+  local status = line(p, 4.4, "BOTTOMLEFT", 10, 20.5, 1, 0.75, 0.5)
+  status:SetWidth(220); status:SetJustifyH("LEFT")
+  button(p, "Defaults", 70, 12, function()
+    Keys.reset()
+    A.keysMsg = "Back to the keys the game came with."
+    ui.keys.refresh()
+  end):SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 10, 5)
+  button(p, "Done", 70, 12, function() A.setMode(A.keysBack or "menu") end):SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -10, 5)
+
+  -- the box that listens, over the middle of the list
+  local cap = _G.CreateFrame("Frame", nil, p)
+  cap:SetFrameLevel(p:GetFrameLevel() + 20)
+  cap:SetSize(204, 66)
+  cap:SetPoint("CENTER", p, "CENTER", 0, 4)
+  cap:EnableMouse(true)
+  local rim = D.solid(cap, "BACKGROUND", 0.86, 0.72, 0.36, 1)
+  rim:SetAllPoints(cap)
+  local bg = D.solid(cap, "BORDER", 0.1, 0.08, 0.06, 1)
+  bg:SetPoint("TOPLEFT", cap, "TOPLEFT", 1, -1); bg:SetPoint("BOTTOMRIGHT", cap, "BOTTOMRIGHT", -1, 1)
+  cap.title = line(cap, 6.5, "TOP", 0, -6, 0.86, 0.72, 0.36)
+  line(cap, 5, "TOP", 0, -19, 0.93, 0.89, 0.78):SetText("Press a key, or click a mouse button on this box.")
+  cap.sub = line(cap, 4.2, "TOP", 0, -29, 0.62, 0.58, 0.5)
+  cap.clear = button(cap, "Clear this key", 84, 11, function()
+    local c = capture
+    if c and Keys.clear(c.act.id, c.slot) then A.keysMsg = c.act.name .. ": key " .. c.slot .. " cleared." end
+    ui.keys.refresh()
+  end)
+  cap.clear:SetPoint("BOTTOMLEFT", cap, "BOTTOMLEFT", 10, 6)
+  button(cap, "Cancel", 84, 11, function() ui.keys.refresh() end):SetPoint("BOTTOMRIGHT", cap, "BOTTOMRIGHT", -10, 6)
+  cap:SetScript("OnKeyDown", function(self, key) guard("the controls", A.captured, key) end)
+  cap:SetScript("OnMouseDown", function(self, btn)
+    local name = Keys.MOUSE[btn]
+    if name then guard("the controls", A.captured, name) end
+  end)
+  cap:Hide()
+  p.cap = cap
+
+  -- showing the panel as it stands always puts the box away
+  p.refresh = function()
+    A.endCapture()
+    for _, act in ipairs(Keys.ACTIONS) do
+      for slot = 1, 2 do
+        local key = Keys.get(act.id, slot)
+        cells[act.id][slot].label:SetText(key and Keys.name(key) or "-")
+      end
+    end
+    status:SetText(A.keysMsg or "")
+  end
 end
 
 local function statBlock(p, top, rows)
@@ -846,12 +995,12 @@ build.store = function()
     name:SetText(a.name)
     local where = RT.indexOf(g.slots, a.id)
     tag:SetText(a.passive and (o.lvl > 0 and ("level " .. o.lvl) or "not grown")
-      or o.owned and (where >= 0 and ("on " .. World.SLOT_KEYS[where]) or "owned, not on a button") or "not owned")
+      or o.owned and (where >= 0 and ("on " .. Keys.short(Keys.first("slot" .. where))) or "owned, not on a button") or "not owned")
     desc:SetText((a.id == "summon" and o.owned and o.lvl > 0) and a.ups[o.lvl - 1] or a.desc)
     what:SetText(cost == nil and "Nothing left to grow." or ("Mutate: " .. tostring(text)))
     mutate.label:SetText(cost == nil and "Fully mutated" or ("Mutate   " .. RT.commas(cost)))
     mutate:able(cost ~= nil and g.points >= cost)
-    for i = 0, 4 do slots[i].label:SetText(World.SLOT_KEYS[i] .. ":  " .. (g.slots[i] and names[g.slots[i]] or "(empty)")) end
+    for i = 0, 4 do slots[i].label:SetText(Keys.short(Keys.first("slot" .. i)) .. ":  " .. (g.slots[i] and names[g.slots[i]] or "(empty)")) end
   end
 end
 
@@ -970,12 +1119,17 @@ function A.open()
     end)
   elseif A.mode == "closed" then
     if not ns.DB.display then A.startCheck(A.measureFirst); A.measureFirst = nil
-    else A.setMode(A.wasMode == "paused" and "paused" or A.wasMode == "store" and "store" or "menu") end
+    else
+      A.setMode(A.wasMode == "paused" and "paused" or A.wasMode == "store" and "store" or "menu")
+      if A.wantKeys then A.wantKeys = nil; A.openKeys() end
+    end
   end
 end
 
 function A.close()
   if not D.frame then return end
+  A.wantKeys = nil
+  if A.mode == "keys" then A.setMode(A.keysBack or "menu") end   -- back to what the panel was over, so that is what gets saved
   if A.mode == "play" then A.setMode("paused") end
   A.saveNow()
   A.wasMode = A.mode
@@ -989,6 +1143,17 @@ function A.toggle()
   if D.frame and D.frame:IsShown() then guard("closing the window", A.close) else guard("opening the window", A.open) end
 end
 
+-- the Controls panel, asked for from outside the window (the options page, /endgame keys): open the window first if it is shut
+function A.showKeys()
+  guard("closing the client's menus", clearTheWay)
+  if not (D.frame and D.frame:IsShown()) then
+    A.wantKeys = true
+    guard("opening the window", A.open)
+  elseif not A.openKeys() then
+    RT.print("the window is busy. When it is done, Controls is on the game's menu.")
+  end
+end
+
 -- ------------------------------------------------------------------------------------------------ events and the slash command
 
 local ev = _G.CreateFrame("Frame")
@@ -997,38 +1162,59 @@ ev:RegisterEvent("PLAYER_LOGOUT")
 ev:RegisterEvent("PLAYER_REGEN_DISABLED")
 ev:RegisterEvent("UI_SCALE_CHANGED")
 ev:RegisterEvent("DISPLAY_SIZE_CHANGED")
--- a page in the client's Options > AddOns list: what the addon is and how to open it
+-- a page in the client's Options > AddOns list: what the addon is, the keys as they stand, and how to open it
 local function settingsPage()
   local S = _G.Settings
   if not (S and S.RegisterCanvasLayoutCategory and S.RegisterAddOnCategory) then return end
   local page = _G.CreateFrame("Frame")
   page.name = "The Endgame is Me"
-  local function text(size, y, str, r, g, b)
+  local function text(size, x, y, width, str, r, g, b)
     local fs = page:CreateFontString(nil, "OVERLAY")
     fs:SetFont(D.FONT, size, "")
     fs:SetTextColor(r or 0.93, g or 0.89, b or 0.78)
-    fs:SetPoint("TOPLEFT", page, "TOPLEFT", 16, y)
-    fs:SetWidth(560); fs:SetJustifyH("LEFT")
+    fs:SetPoint("TOPLEFT", page, "TOPLEFT", x, y)
+    fs:SetWidth(width); fs:SetJustifyH("LEFT")
     fs:SetText(str)
     return fs
   end
-  text(22, -16, "The Endgame is Me", 0.86, 0.72, 0.36)
-  text(13, -50, "A reverse boss fight in a window: you are the boss, the raids are the content.")
-  text(13, -80, "/endgame  opens and closes the game (also /teim).\nWASD or the arrows walk, the mouse aims, left and right click, Q, E and R are your abilities, Space shakes your fur. Esc pauses and gives the keyboard back to WoW.")
-  text(13, -150, "/endgame scale 1-8    screen pixels per game pixel (or: auto)\n/endgame fps 30         draw less often\n/endgame perf            timings in the title bar\n/endgame calm           screen shake on or off\n/endgame mute           sound on or off\n/endgame reset          move the window back to the middle\n/endgame log              what the addon has been doing", 0.7, 0.67, 0.6)
-  local b = _G.CreateFrame("Button", nil, page)
-  b:SetSize(160, 28)
-  b:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -290)
-  local bg = b:CreateTexture(nil, "BACKGROUND"); bg:SetColorTexture(0.33, 0.24, 0.13, 1); bg:SetAllPoints(b)
-  local bl = b:CreateFontString(nil, "OVERLAY"); bl:SetFont(D.FONT, 14, ""); bl:SetPoint("CENTER", b, "CENTER", 0, 0); bl:SetText("Open the game")
-  b:SetScript("OnClick", function() if not (D.frame and D.frame:IsShown()) then A.toggle() end end)
+  local function press(label, x, y, w, fn)
+    local b = _G.CreateFrame("Button", nil, page)
+    b:SetSize(w, 28)
+    b:SetPoint("TOPLEFT", page, "TOPLEFT", x, y)
+    local bg = b:CreateTexture(nil, "BACKGROUND"); bg:SetColorTexture(0.33, 0.24, 0.13, 1); bg:SetAllPoints(b)
+    b.label = b:CreateFontString(nil, "OVERLAY"); b.label:SetFont(D.FONT, 14, ""); b.label:SetPoint("CENTER", b, "CENTER", 0, 0); b.label:SetText(label)
+    b:SetScript("OnClick", function() guard("the options page", fn) end)
+    return b
+  end
+  text(22, 16, -16, 560, "The Endgame is Me", 0.86, 0.72, 0.36)
+  text(13, 16, -50, 560, "A reverse boss fight in a window: you are the boss, the raids are the content.")
+  text(13, 16, -76, 560, "/endgame  opens and closes the game (also /teim). The mouse aims. Esc pauses and gives the keyboard back to WoW.")
+  text(14, 16, -118, 560, "Controls", 0.86, 0.72, 0.36)
+  local left, right = text(12, 16, -140, 270, ""), text(12, 300, -140, 270, "")
+  press("Open the game", 16, -246, 160, function() if not (D.frame and D.frame:IsShown()) then A.toggle() end end)
+  press("Change the controls", 188, -246, 190, function() A.showKeys() end)
+  text(13, 16, -292, 560, "/endgame keys             change the controls\n/endgame scale 1-8    screen pixels per game pixel (or: auto)\n/endgame fps 30         draw less often\n/endgame perf            timings in the title bar\n/endgame calm           screen shake on or off\n/endgame mute           sound on or off\n/endgame reset          move the window back to the middle\n/endgame log              what the addon has been doing", 0.7, 0.67, 0.6)
+  -- the keys as they are now, in two columns; filled in each time the page is shown
+  local function refresh()
+    local cols = { {}, {} }
+    for i, act in ipairs(Keys.ACTIONS) do
+      local keys = Keys.describe(act.id)
+      if act.id == "pause" then keys = keys == "not set" and "Esc" or ("Esc, " .. keys) end
+      local col = cols[i <= 6 and 1 or 2]
+      col[#col + 1] = act.name .. ":  " .. keys
+    end
+    left:SetText(table.concat(cols[1], "\n"))
+    right:SetText(table.concat(cols[2], "\n"))
+  end
+  page:SetScript("OnShow", function() guard("the options page", refresh) end)
+  refresh()
   local cat = S.RegisterCanvasLayoutCategory(page, page.name)
   S.RegisterAddOnCategory(cat)
 end
 
 ev:SetScript("OnEvent", function(self, event, arg1)
   if event == "ADDON_LOADED" then
-    if arg1 == ADDON then Store.init(); ns.Sound.init(); guard("the options page", settingsPage) end
+    if arg1 == ADDON then Store.init(); Keys.init(); ns.Sound.init(); guard("the options page", settingsPage) end
   elseif event == "PLAYER_LOGOUT" then
     A.saveNow()
   elseif event == "UI_SCALE_CHANGED" or event == "DISPLAY_SIZE_CHANGED" then
@@ -1038,6 +1224,8 @@ ev:SetScript("OnEvent", function(self, event, arg1)
     if A.mode == "play" then
       A.setMode("paused")
       RT.print("paused, because you are in combat.")
+    elseif A.mode == "keys" and ui.keys then
+      ui.keys.refresh()   -- puts the listening box away
     end
   end
 end)
@@ -1073,10 +1261,12 @@ _G.SlashCmdList["THEENDGAMEISME"] = function(msg)
     ns.DB.display = nil
     if D.built and D.frame and D.frame:IsShown() and not A.job then guard("the display check", A.startCheck, cmd == "measure")
     else A.measureFirst = cmd == "measure"; if not (D.frame and D.frame:IsShown()) then A.toggle() end end
+  elseif cmd == "keys" or cmd == "controls" or cmd == "binds" then
+    A.showKeys()
   elseif cmd == "log" then
     for _, l in ipairs(ns.DB.log or {}) do RT.print(l) end
   elseif cmd == "help" or cmd == "?" then
-    RT.print("/endgame opens and closes the game.  /endgame scale <1-8 or auto>,  fps <10-240>,  perf,  calm,  mute,  reset,  log,  probe")
+    RT.print("/endgame opens and closes the game.  /endgame keys,  scale <1-8 or auto>,  fps <10-240>,  perf,  calm,  mute,  reset,  log,  probe")
   else
     A.toggle()
   end

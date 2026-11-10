@@ -29,6 +29,10 @@ An addon has no canvas and no Web Audio, only Lua, frames and textures. So:
   as a torus and slides under a clipping frame, so a scrolling level repaints one row or column per step, not the screen.
 - **`src/app.lua`** is what `main.js` and the page's HTML did: input, the fixed 60 Hz step, menus, the Hoard, the
   ending, the slash command. **`src/saves.lua`** keeps the run, best score, look and New Game+ in `TheEndgameIsMeDB`.
+- **`src/keys.lua`** is which key or mouse button does what. The defaults are the browser game's; the Controls panel
+  (on the menu and the pause menu, or `/endgame keys`) changes them, two places per action, kept in
+  `TheEndgameIsMeDB.keys`. Esc is not bindable: it always pauses, so there is always a way to get the keyboard back.
+  The HUD's letters under the ability buttons come from here too (`keyLabel`, a patch to `render.js` in `build.mjs`).
 - **Sound** is the game's own, rendered to OGG by `tools/bake-audio.mjs` (headless Chrome runs `audio.js` and
   `music.js` against offline audio contexts; ffmpeg encodes). The files live in `sounds/` and are copied into each build.
 
@@ -48,6 +52,9 @@ node bake-audio.mjs         # only when the game's sounds change: needs Chrome a
 
 To install, copy `TheEndgameIsMe/` into the client's `Interface\AddOns` (or unzip the matching file from `dist/` there).
 The folder name is the same for both clients, so each client's AddOns folder gets its own copy.
+
+A client only finds new files when it starts. After an update that adds a Lua file (1.1.0 added `keys.lua`), a
+`/reload` loads everything except the new file; `app.lua` notices and tells the player to restart the game.
 
 The first time the window opens in a client it runs a display test: the picture is 57,600 textures, and how many the
 client's renderer will draw at once depends on how they are grouped. The test shows a card each way, asks which one
@@ -77,6 +84,7 @@ These need a Lua 5.1 interpreter (`lua5.1`, `luac5.1`); none of them needs the g
 | Does the addon run? | `lua5.1 tools/test/smoke.lua TheEndgameIsMe` | Loads the built folder against a strict stub of the WoW API (`wowstub.lua`) and plays a whole session: menus, a run, save and reload, every level, the Hoard, winning, dying. Also checks the texture grid shows exactly the frame the game drew. |
 | Pictures and timings | `lua5.1 tools/test/shot.lua <seed> <level> <steps> out.ppm` | Renders through the real renderer; `ppm2png.mjs` converts. Prints ms per step and per frame. |
 | Every look | `lua5.1 tools/test/looks.lua` | Paints the boss in every option of every part. |
+| What a panel looks like | `lua5.1 tools/test/panels.lua`, then `node tools/test/panels.mjs` | Opens the menus in the stub and draws what it recorded as PNGs in `build/` (a browser's font, so a check for overlaps, not for looks). |
 | Where time goes | `lua5.1 tools/test/profile.lua <level> <steps>` | Per-function frame cost. |
 
 `tools/wsl.sh` runs a command in WSL with an unpacked `lua5.1` on the path, for Windows machines without one.
@@ -89,3 +97,6 @@ These need a Lua 5.1 interpreter (`lua5.1`, `luac5.1`); none of them needs the g
 - Smoke is dithered instead of blended, and the ending has no warm wash, both to save frame time.
 - Music is two mixes per level (calm, fighting) that cross-fade; changing mix restarts the loop.
 - The screen shake moves the whole picture, HUD included.
+- The keys can be changed (Controls). The browser game's spare key for ability 2, F, is not bound to start with: each
+  action has two places, and ability 2's are right click and K. The mouse wheel and combinations (Shift+1) cannot be
+  bound; Shift, Ctrl and Alt count as keys of their own.

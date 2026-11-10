@@ -14,7 +14,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const game = path.resolve(root, '../the-endgame-is-me/js');
 export const ADDON = 'TheEndgameIsMe';
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';
 
 // in load order: a module comes after everything it imports
 export const MODULES = ['props', 'smoke', 'art', 'levels/forest', 'levels/clearing', 'levels/farms', 'levels/village', 'levels/wall', 'levels/city',
@@ -64,6 +64,10 @@ export function pathDist(`],
     // smoke is dithered rather than blended: a burning city is a lot of see-through pixels for interpreted Lua
     [`    ctx.globalAlpha = Math.min(0.9, 0.28 + 0.64 * dn ** 1.3) * born;
     ctx.drawImage(spr, Math.round(c.x) - R - 2, Math.round(c.y) - R - 2);`, `    ctx.drawDithered(spr, Math.round(c.x) - R - 2, Math.round(c.y) - R - 2, Math.min(0.9, 0.28 + 0.64 * dn ** 1.3) * born);`],
+    // the letters under the ability buttons, and the key the "shake him off" prompt names, are whatever the player
+    // has bound (src/keys.lua), not the browser game's fixed ones
+    [`key = i < 5 ? SLOT_KEYS[i] : 'SPC';`, `key = keyLabel(i);`],
+    [`'HE IS IN YOUR FUR! SHAKE! [SPACE]'`, `'HE IS IN YOUR FUR! SHAKE! [' + keyLabel(6) + ']'`],
     // thousands separators without a regular expression
     [`function fmt(n) { return Math.floor(n).toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g, ','); }`, `function fmt(n) { return commas(n); }`],
   ],
@@ -134,7 +138,7 @@ export function fileList() {
   const g = name => [luaName(name), 'game'];
   return [['rt.lua', 'src'], ['canvas.lua', 'src'], g('props'), g('smoke'), g('art'), ['gfx.lua', 'src'],
     ...MODULES.filter(m => m.startsWith('levels/')).map(g), g('world'), g('render'), g('save'),
-    ['sound_manifest.lua', 'made'], ['saves.lua', 'src'], ['display.lua', 'src'], ['sound.lua', 'src'], ['app.lua', 'src']];
+    ['sound_manifest.lua', 'made'], ['saves.lua', 'src'], ['keys.lua', 'src'], ['display.lua', 'src'], ['sound.lua', 'src'], ['app.lua', 'src']];
 }
 
 // One addon folder per client. The Lua is the same; only the TOC's Interface number differs.
@@ -223,6 +227,8 @@ Install: put this TheEndgameIsMe folder in Interface\\AddOns and /reload.
 Play:    /endgame   (also /teim)
          WASD or the arrows walk, the mouse aims, left and right click, Q, E and R are your abilities,
          Space shakes your fur, Esc pauses and gives the keyboard back to WoW.
+Keys:    Controls, on the game's menu and on the pause menu, puts any of that on other keys or mouse
+         buttons (/endgame keys opens it). Esc always pauses.
 Options: /endgame scale 1-8 (or auto)   how many screen pixels per game pixel
          /endgame fps 30               draw less often, if it drags your frame rate down
          /endgame perf                 show timings in the title bar

@@ -22,6 +22,7 @@ end
 ns.SIM = { "props", "smoke", "levels/forest", "levels/clearing", "levels/farms", "levels/village", "levels/wall", "levels/city", "levels/castle", "levels/index", "world" }
 ns.loadAll = function()
   load("src/canvas.lua")
+  load("src/keys.lua")   -- the HUD asks it what to write under the ability buttons
   ns.loadGame({ "props", "smoke", "art" })
   load("src/gfx.lua")
   ns.loadGame({ "levels/forest", "levels/clearing", "levels/farms", "levels/village", "levels/wall", "levels/city", "levels/castle", "levels/index", "world", "render" })
