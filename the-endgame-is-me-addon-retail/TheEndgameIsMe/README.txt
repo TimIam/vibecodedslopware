@@ -2,6 +2,7 @@ The Endgame is Me 1.0.0, for World of Warcraft (retail).
 
 A reverse boss fight in a window: you are the boss, the raids are the content. It is the browser game from
 https://vibecodedslopware.com/the-endgame-is-me/ with its rules and pixel art translated to Lua.
+Help, updates and the other client's download: https://vibecodedslopware.com/the-endgame-is-me-wow/
 
 Install: put this TheEndgameIsMe folder in Interface\AddOns and /reload.
 Play:    /endgame   (also /teim)

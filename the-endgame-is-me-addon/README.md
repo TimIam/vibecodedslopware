@@ -53,6 +53,20 @@ The first time the window opens in a client it runs a display test: the picture 
 client's renderer will draw at once depends on how they are grouped. The test shows a card each way, asks which one
 is visible, and remembers the answer (`/endgame probe` runs it again). See `Display.setMode` in `src/display.lua`.
 
+## Publishing a release
+
+The public page is `../the-endgame-is-me-wow/` (vibecodedslopware.com/the-endgame-is-me-wow/): `index.html`, two
+pictures and the two zips. This folder and the retail one are in `.vercelignore`, so only the page folder is served.
+
+1. Bump `VERSION` in `tools/build.mjs`, run `node tools/build.mjs --zip` and the tests, and commit that.
+2. Copy both zips from `dist/` into `../the-endgame-is-me-wow/` (old ones stay: older versions of the page link to
+   them), and update the version, size and status note in its `index.html`.
+3. Commit the page folder **on its own**. `tools/versions.mjs` treats each commit that touches it as a version of the
+   card on the home page, and ignores commits that touch three or more project folders at once.
+4. Run `node ../tools/versions.mjs` and commit what it writes.
+
+The pictures come from `tools/test/shot.lua` with kit `-1` (see `tools/test/previews.sh`), through `ppm2png.mjs`.
+
 ## Tests
 
 These need a Lua 5.1 interpreter (`lua5.1`, `luac5.1`); none of them needs the game client.

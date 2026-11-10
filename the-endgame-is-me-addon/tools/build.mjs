@@ -205,7 +205,7 @@ function release(mods) {
     fs.mkdirSync(c.dir, { recursive: true });
     const toc = [`## Interface: ${c.interface}`, '## Title: The Endgame is Me', '## Notes: A reverse boss fight: you are the boss. Type /endgame to play.',
       '## Author: timiam', `## Version: ${VERSION}`, '## SavedVariables: TheEndgameIsMeDB', '## AddonCompartmentFunc: TheEndgameIsMe_OnCompartmentClick',
-      `## X-Website: https://vibecodedslopware.com/the-endgame-is-me/`, ''];
+      `## X-Website: https://vibecodedslopware.com/the-endgame-is-me-wow/`, ''];
     for (const [file, from] of fileList()) {
       const text = from === 'src' ? fs.readFileSync(path.join(root, 'src', file), 'utf8') : from === 'made' ? sounds.lua
         : mods[MODULES.find(m => luaName(m) === file)];
@@ -217,6 +217,7 @@ function release(mods) {
 
 A reverse boss fight in a window: you are the boss, the raids are the content. It is the browser game from
 https://vibecodedslopware.com/the-endgame-is-me/ with its rules and pixel art translated to Lua.
+Help, updates and the other client's download: https://vibecodedslopware.com/the-endgame-is-me-wow/
 
 Install: put this TheEndgameIsMe folder in Interface\\AddOns and /reload.
 Play:    /endgame   (also /teim)

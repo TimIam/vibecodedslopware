@@ -20,7 +20,8 @@ local floor = math.floor
 local DT = 1 / 60
 local tSim, tDraw, frames, cells, worst, warm = 0, 0, 0, 0, 0, 0
 local clock = os.clock
-for i = 0, steps - 1 do
+local aimX, aimY = 100, 60
+local function advance(i, draw)
   local b, m = g.boss, g.map
   local ax, ay
   if m.A then
@@ -40,21 +41,36 @@ for i = 0, steps - 1 do
   if kit > 0 then
     if i % 90 == 10 then press.slot0 = true end
     if i % 230 == 60 then press.slot4 = true end
-    if b.hp < b.maxhp * 0.5 and not b.dead then b.hp = b.maxhp end
   end
+  -- any kit but 0 keeps the boss on its feet, so a long run gets as far as the raids
+  if kit ~= 0 and b.hp < b.maxhp * 0.5 and not b.dead then b.hp = b.maxhp end
+  local mx, my = b.x + ax * 30 + i % 7, b.y + ay * 30 + 1
+  aimX, aimY = mx - g.cam.x, my - g.cam.y
   local t0 = clock()
-  W.step(g, { mx = b.x + ax * 30 + i % 7, my = b.y + ay * 30 + 1, ax = ax, ay = ay, press = press, hold = { slot0 = true } }, DT)
+  W.step(g, { mx = mx, my = my, ax = ax, ay = ay, press = press, hold = { slot0 = true } }, DT)
   RT.setlen(g.events, 0)
   if g.store then W.nextMap(g) end
   local t1 = clock()
   tSim = tSim + t1 - t0
-  if i % every == 0 or i == steps - 1 then
-    R.render(g, { mx = 100, my = 60, cursor = true })
+  if draw then
+    R.render(g, { mx = aimX, my = aimY, cursor = true })
     local c = RT.Screen.present(nil)
     local dt = clock() - t1
     -- the first second paints the level and the boss's sprites; steady state is what the frame rate depends on
     if i >= 60 then cells = cells + c; frames = frames + 1; tDraw = tDraw + dt; if dt > worst then worst = dt end else warm = warm + dt end
   end
+end
+for i = 0, steps - 1 do advance(i, i % every == 0 or i == steps - 1) end
+-- kit -1 is for pictures: no bought abilities and an honest HUD; it runs on until the boss is mid-wind-up and not
+-- flashing white from a hit, so the frame shows a telegraph
+if kit < 0 then
+  local i = steps
+  while i < steps + 600 and not (g.boss.flash <= 0 and g.boss.act and not g.boss.act.fired and g.boss.act.kind ~= "shake" and g.boss.act.t > 0.1) do
+    advance(i, false)
+    i = i + 1
+  end
+  advance(i, true)
+  steps = i + 1
 end
 local px = RT.Screen.snapshot()
 local f = assert(io.open(out, "wb"))

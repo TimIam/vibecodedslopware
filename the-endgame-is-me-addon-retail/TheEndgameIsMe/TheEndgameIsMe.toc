@@ -5,7 +5,7 @@
 ## Version: 1.0.0
 ## SavedVariables: TheEndgameIsMeDB
 ## AddonCompartmentFunc: TheEndgameIsMe_OnCompartmentClick
-## X-Website: https://vibecodedslopware.com/the-endgame-is-me/
+## X-Website: https://vibecodedslopware.com/the-endgame-is-me-wow/
 
 rt.lua
 canvas.lua
