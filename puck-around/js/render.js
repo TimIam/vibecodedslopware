@@ -6,7 +6,8 @@ import { PLAYER_COLORS } from './teams.js';
 
 const { W, H, GL, GR, GY0, GY1, NET, CORNER, MID } = RINK;
 export const SW = 480, SH = 270;
-const ICE_Y = 46;
+export const ICE_Y = 46;
+export const camX = () => cam;
 const SKIN = ['#f1c9a5', '#d9a273', '#a86f47', '#f6d7bd', '#c68c5e', '#8a5a3a'];
 
 let g = null, rink = null, cam = 240, camInit = false;
@@ -182,6 +183,7 @@ export function draw(V, ui) {
     const c = s.ctl >= 0 ? s.ctl : -1;
     skater(s.x - cam, ICE_Y + s.y, s, ui.kits[s.team], ui.t, c >= 0 && c === ui.me ? PLAYER_COLORS[c % 4] : null);
     if (p.owner === s.id) puck(p);
+    if (s.id === ui.hover) { const x = Math.round(s.x - cam), y = Math.round(ICE_Y + s.y); for (const sx of [-1, 1]) for (const sy of [0, 1]) { R(x + sx * 8 - (sx > 0 ? 3 : 0), sy ? y + 3 : y - 21, 4, 1, '#ffffff'); R(x + sx * 8 - (sx > 0 ? 0 : 0) + (sx > 0 ? 0 : 0), sy ? y : y - 21, 1, 4, '#ffffff'); } }
     if (c >= 0) {
       const col = PLAYER_COLORS[c % 4], x = Math.round(s.x - cam), y = Math.round(ICE_Y + s.y) - 26 + (c === ui.me ? ((ui.t * 4) | 0) % 2 : 0);
       R(x - 2, y, 5, 1, col); R(x - 1, y + 1, 3, 1, col); R(x, y + 2, 1, 1, col);

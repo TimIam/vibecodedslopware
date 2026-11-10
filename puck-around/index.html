@@ -41,6 +41,13 @@ button.sel{background:#f2c230;color:#111;border-color:#fff}
 .dim{color:#8894b0;font-size:.85em}
 #notice{pointer-events:auto;display:none;background:#b3261e;color:#fff;padding:.5em 1em;margin-bottom:.6em;max-width:94%;text-transform:none;font-weight:400;font-family:"Segoe UI",system-ui,sans-serif;letter-spacing:0;line-height:1.35}
 #notice.on{display:block}
+#board{margin:.4em 0;padding:0;list-style:none;counter-reset:b}
+#board li{display:flex;gap:.6em;padding:.25em .5em;background:#131a2c;margin:.15em 0;counter-increment:b}
+#board li::before{content:counter(b);color:#8894b0;width:1.6em}
+#board .nm{flex:1}#board .rt{color:#ffe14d}#board li.me{outline:.1em solid #f2c230}
+#final-elo{color:#ffe14d;text-transform:uppercase;font:inherit;margin:.3em 0}
+#my-elo{color:#ffe14d;white-space:nowrap}
+#game.play{cursor:crosshair}
 kbd{display:inline-block;background:#1a2236;border:.1em solid #55627f;padding:0 .4em;font:inherit;font-size:.9em;text-transform:uppercase}
 </style>
 </head>
@@ -57,8 +64,9 @@ kbd{display:inline-block;background:#1a2236;border:.1em solid #55627f;padding:0 
     <div id="notice" role="status"></div>
 
     <div class="panel" id="p-title">
-      <div class="row"><button class="big go" id="b-online" type="button">Play online with friends</button></div>
-      <div class="row"><button class="big" id="b-solo" type="button">Play the computer</button><button class="big" id="b-how" type="button">How to play</button></div>
+      <div class="row"><label for="name">Your name</label><input class="grow" id="name" maxlength="10" autocomplete="off" spellcheck="false"><span class="dim" id="my-elo"></span></div>
+      <div class="row"><button class="big go" id="b-queue" type="button">Find a match</button><button class="big" id="b-online" type="button">Play with friends</button></div>
+      <div class="row"><button class="big" id="b-solo" type="button">Play the computer</button><button class="big" id="b-board" type="button">Leaderboard</button><button class="big" id="b-how" type="button">How to play</button></div>
     </div>
 
     <div class="panel" id="p-solo">
@@ -73,10 +81,23 @@ kbd{display:inline-block;background:#1a2236;border:.1em solid #55627f;padding:0 
     <div class="panel" id="p-online">
       <h2>Play online</h2>
       <p>Start a room and send your friends the code, or type in a code a friend sent you. Up to four can play, two a side; anyone else can watch.</p>
-      <div class="row"><label for="name">Your name</label><input class="grow" id="name" maxlength="10" autocomplete="off" spellcheck="false"></div>
       <div class="row"><button class="big go" id="b-create" type="button">Start a new room</button></div>
       <div class="row"><input class="grow" id="code" maxlength="8" placeholder="Room code" autocomplete="off" spellcheck="false" aria-label="Room code"><button id="b-join" type="button">Join</button></div>
       <div class="row"><button type="button" data-back>Back</button><span class="dim" id="online-status"></span></div>
+    </div>
+
+    <div class="panel" id="p-queue">
+      <h2>Find a match</h2>
+      <p id="q-status">Looking for an opponent...</p>
+      <p class="dim">One against one, two-minute periods, and the result counts toward your rating.</p>
+      <div class="row"><button type="button" id="b-queue-cancel">Cancel</button></div>
+    </div>
+
+    <div class="panel mid" id="p-board">
+      <h2>Leaderboard</h2>
+      <ol id="board"></ol>
+      <p class="dim" id="board-info">Everyone starts at 1000. Online games with a person on each side move your rating; games against the computer do not.</p>
+      <div class="row"><button type="button" data-back>Back</button></div>
     </div>
 
     <div class="panel" id="p-lobby">
@@ -96,12 +117,12 @@ kbd{display:inline-block;background:#1a2236;border:.1em solid #55627f;padding:0 
 
     <div class="panel mid" id="p-how">
       <h2>How to play</h2>
-      <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrow keys skate. A controller works too.</p>
-      <p><b>With the puck:</b> <kbd>J</kbd> passes toward where you are steering, and you take over the skater you passed to. <kbd>K</kbd> shoots at the marker sliding across the goal mouth: tap for a quick wrister, hold and let go for a slapshot. Shoot when the marker is away from the goalie.</p>
-      <p><b>Without it:</b> <kbd>J</kbd> switches you to the skater nearest the puck. <kbd>K</kbd> throws a body check.</p>
-      <p><b>Faceoffs:</b> hit <kbd>J</kbd> the moment the puck drops. Too early and your stick is tied up.</p>
-      <p><b>Fights:</b> check the same skater enough and the gloves come off. <kbd>A</kbd><kbd>D</kbd> move, hold <kbd>W</kbd> to guard your head or <kbd>S</kbd> your body, <kbd>J</kbd> jabs high, <kbd>K</kbd> digs low. The loser sits five minutes and their team skates short.</p>
-      <p class="dim"><kbd>Z</kbd> and <kbd>X</kbd> work in place of <kbd>J</kbd> and <kbd>K</kbd>. <kbd>Esc</kbd> opens the menu.</p>
+      <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrow keys skate. The mouse does the rest. A controller works too.</p>
+      <p><b>With the puck:</b> left click a teammate to pass to them, and you take over that skater. Left click anywhere else to shoot at the marker sliding across the goal mouth: click for a quick wrister, hold and let go for a slapshot. Shoot when the marker is away from the goalie.</p>
+      <p><b>Without it:</b> left click a teammate to switch to them, or anywhere else to throw a body check. Right click switches to the skater nearest the puck.</p>
+      <p><b>Faceoffs:</b> click the moment the puck drops. Too early and your stick is tied up.</p>
+      <p><b>Fights:</b> check the same skater enough and the gloves come off. <kbd>A</kbd><kbd>D</kbd> move, hold <kbd>W</kbd> to guard your head or <kbd>S</kbd> your body, left click jabs high, right click digs low. The loser sits five minutes and their team skates short.</p>
+      <p class="dim">Keys still work: <kbd>J</kbd> passes or switches, <kbd>K</kbd> shoots or checks. <kbd>Esc</kbd> opens the menu.</p>
       <div class="row"><button type="button" data-back>Back</button></div>
     </div>
 
@@ -113,6 +134,7 @@ kbd{display:inline-block;background:#1a2236;border:.1em solid #55627f;padding:0 
 
     <div class="panel" id="p-final">
       <div class="row"><button class="big go" id="b-rematch" type="button">Rematch</button><button class="big" id="b-done" type="button">Done</button></div>
+      <p id="final-elo"></p>
       <p class="dim" id="final-info"></p>
     </div>
   </div>

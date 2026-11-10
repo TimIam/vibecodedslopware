@@ -5,7 +5,8 @@ import * as SIM from './sim.js';
 import * as R from './render.js';
 import * as A from './audio.js';
 import { TEAMS, kits } from './teams.js';
-import { openRoom, newCode, cleanCode, cleanName } from './net.js';
+import { openRoom, openQueue, newCode, cleanCode, cleanName } from './net.js';
+import * as ELO from './elo.js';
 
 const $ = id => document.getElementById(id);
 const canvas = $('game'), stage = $('stage'), uiEl = $('ui');
@@ -20,10 +21,11 @@ R.init(canvas);
 
 // mode: 'title' (the computer plays itself behind the menu), 'solo', 'host', 'guest'
 const G = { mode: 'title', S: null, cfg: null, me: -1, kits: kits(0, 1), names: [], paused: false, room: null, lob: null,
-  buf: [], off: Infinity, gap: 2, pred: null, lastSnap: 0, evCur: 0, banner: null, shake: 0, cheer: 0, t: 0, hintT: 0, n: 0, panel: null };
+  buf: [], off: Infinity, gap: 2, pred: null, lastSnap: 0, rat: {}, mm: false, queue: null, hover: -1, evCur: 0, banner: null, shake: 0, cheer: 0, t: 0, hintT: 0, n: 0, panel: null };
 
 // ---------------------------------------------------------------------------------------------- input
 const keys = new Set(), inp = { mx: 0, my: 0, a: false, b: false };
+let tgt = -1, mouseB = false;
 let ca = 0, cb = 0, sentCa = 0, sentCb = 0, padA = false, padB = false, padX = 0, padY = 0, seq = 0, lastSent = '';
 const PASS = ['KeyJ', 'KeyZ', 'Space'], SHOOT = ['KeyK', 'KeyX', 'KeyL'], MOVE = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
 const typing = e => e.target instanceof HTMLElement && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
@@ -35,12 +37,39 @@ addEventListener('keydown', e => {
   if (PASS.includes(e.code) || SHOOT.includes(e.code) || MOVE.includes(e.code)) e.preventDefault();
   if (e.repeat) return;
   keys.add(e.code);
-  if (PASS.includes(e.code)) ca++;
+  if (PASS.includes(e.code)) { tgt = -1; ca++; }
   if (SHOOT.includes(e.code)) cb++;
 });
 addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 addEventListener('pointerdown', () => A.init());
+// The mouse: left click a teammate to pass (or switch) to them, anywhere else to shoot (or check).
+// Right click passes where you are steering, or switches to whoever is nearest the puck.
+const curView = () => (G.mode === 'guest' ? (G.buf.length ? G.buf[G.buf.length - 1].v : null) : G.S);
+function mateAt(e) {
+  const V = curView();
+  if (!V || G.me < 0 || !playing() || V.phase === 'fight') return -1;
+  const r = canvas.getBoundingClientRect(), wx = (e.clientX - r.left) / r.width * R.SW + R.camX(), wy = (e.clientY - r.top) / r.height * R.SH - R.ICE_Y;
+  const team = G.cfg.humans[G.me].team;
+  let best = -1, bd = 22;
+  for (const s of V.sk) { if (s.team !== team || s.role === 5 || s.out > 0 || s.ctl === G.me) continue; const d = Math.hypot(s.x - wx, s.y - 8 - wy); if (d < bd) { bd = d; best = s.id; } }
+  return best;
+}
+canvas.addEventListener('mousedown', e => {
+  if (!playing()) return;
+  e.preventDefault(); canvas.focus();
+  const V = curView();
+  if (!V) return;
+  if (V.phase === 'fight') { if (e.button === 0) ca++; else if (e.button === 2) cb++; return; }
+  if (e.button === 2) { tgt = -1; ca++; return; }
+  if (e.button !== 0) return;
+  const mate = mateAt(e);
+  if (mate >= 0) { tgt = mate; ca++; } else { cb++; mouseB = true; }
+});
+addEventListener('mouseup', e => { if (e.button === 0) mouseB = false; });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('mousemove', e => { G.hover = mateAt(e); });
+canvas.addEventListener('mouseleave', () => { G.hover = -1; });
 function readInput() {
   const k = c => keys.has(c);
   let mx = (k('KeyD') || k('ArrowRight') ? 1 : 0) - (k('KeyA') || k('ArrowLeft') ? 1 : 0), my = (k('KeyS') || k('ArrowDown') ? 1 : 0) - (k('KeyW') || k('ArrowUp') ? 1 : 0);
@@ -55,7 +84,8 @@ function readInput() {
     if (padX || padY) { mx = clamp(padX, -1, 1); my = clamp(padY, -1, 1); }
     a = a || pa; b = b || pb;
   }
-  if (!playing()) { mx = my = 0; a = b = false; }
+  b = b || mouseB;
+  if (!playing()) { mx = my = 0; a = b = false; mouseB = false; }
   inp.mx = mx; inp.my = my; inp.a = a; inp.b = b;
 }
 
@@ -91,7 +121,11 @@ function onEvent(e, V) {
     case 'bell': sfx('bell'); break;
     case 'penalty': sfx('penalty'); say('FIVE FOR FIGHTING', { dur: 2.6, scale: 3, color: '#ff6b5e', sub: K[e.a].name + ' SKATE ONE SHORT', pri: 1 }); break;
     case 'penEnd': sfx('switch'); say(K[e.a].abbr + ' BACK AT FULL STRENGTH', { dur: 1.2, scale: 1, y: 60 }); break;
-    case 'final': if (!quiet) { A.sfx('win'); G.banner = null; show('p-final'); } break;
+    case 'final':
+      if (quiet) break;
+      A.sfx('win'); G.banner = null; show('p-final');
+      if (G.cfg.rated && G.me >= 0 && G.mode !== 'solo') reportResult(G.cfg, V.score.slice());
+      break;
   }
 }
 function drain(V) {
@@ -106,7 +140,8 @@ function show(id) {
     const boss = G.mode !== 'guest';
     $('b-rematch').hidden = !boss;
     $('b-done').textContent = G.mode === 'solo' ? 'Back to the menu' : boss ? 'Back to the lobby' : 'Leave the room';
-    $('final-info').textContent = boss ? '' : 'Waiting for the host to pick what happens next.';
+    $('final-info').textContent = (G.cfg.rated || G.mode === 'solo' ? '' : 'Unrated: rated games need a person on each side. ') + (boss ? '' : 'Waiting for the host to pick what happens next.');
+    if (G.mm) $('b-done').textContent = 'Done';
   }
   if (id === 'p-pause') {
     $('pause-title').textContent = G.mode === 'solo' ? 'Paused' : 'Menu (the game carries on)';
@@ -124,6 +159,29 @@ const fill = (sel, v) => { sel.innerHTML = TEAMS.map((t, i) => `<option value="$
 fill($('s-home'), store.get('home', '0')); fill($('s-away'), store.get('away', '1')); fill($('l-home'), 0); fill($('l-away'), 1);
 $('s-diff').value = store.get('diff', '1'); $('s-len').value = store.get('len', '120');
 $('name').value = cleanName(store.get('name', '')) || 'SKATER' + (10 + ((Math.random() * 90) | 0));
+const showElo = () => { const p = ELO.profile(); $('my-elo').textContent = p ? 'Rating ' + p.rating : ''; };
+async function signIn() { try { await ELO.me(myName()); showElo(); return ELO.profile().pub; } catch (e) { console.warn('ratings unavailable', e); return null; } }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function reportResult(cfg, score) {
+  const el = $('final-elo'), home = cfg.humans.filter(h => h.team === 0).map(h => h.pub), away = cfg.humans.filter(h => h.team === 1).map(h => h.pub);
+  el.textContent = 'Recording the result...';
+  for (let i = 0; i < 8; i++) {
+    try {
+      const r = await ELO.report(cfg.match, home, away, score[0], score[1]);
+      if (G.cfg !== cfg) return;
+      if (r && r.applied) { el.textContent = 'Rating ' + (r.rating - r.delta) + ' > ' + r.rating + ' (' + (r.delta > 0 ? '+' : '') + r.delta + ')'; showElo(); G.rat = {}; return; }
+      if (r && r.error) break;
+    } catch (e) { console.warn('report', e); }
+    await sleep(1500);
+  }
+  if (G.cfg === cfg) el.textContent = 'This one could not be rated.';
+}
+async function fetchRatings() {
+  const need = G.room ? [...G.room.members.values()].map(m => m.pb).filter(p => p && !(p in G.rat)) : [];
+  if (!need.length) return;
+  for (const p of need) G.rat[p] = 0;
+  try { for (const r of await ELO.ratings(need)) G.rat[r.pub] = r.rating; renderLobby(); } catch (e) { for (const p of need) delete G.rat[p]; }
+}
 const myName = () => { const n = cleanName($('name').value) || 'SKATER'; store.set('name', n); return n; };
 
 // -------------------------------------------------------------------------------------------- matches
@@ -142,6 +200,7 @@ function startMatch(cfg, mode) {
   G.evCur = 0; G.buf = []; G.off = Infinity; G.pred = null; G.banner = null; G.shake = G.cheer = 0; G.hintT = 16; G.lastSnap = performance.now();
   G.S = mode === 'guest' ? null : SIM.newGame(cfg);
   sentCa = ca; sentCb = cb; keys.clear();
+  $('final-elo').textContent = ''; G.hover = -1; mouseB = false; clearTimeout(mmTimer);
   show(null); notice(''); A.music(null); A.setCrowd(1); A.sfx('charge');
 }
 $('b-solo').onclick = () => { A.sfx('select'); show('p-solo'); };
@@ -157,7 +216,17 @@ $('b-quit').onclick = () => { if (G.mode === 'solo') toTitle(); else if (G.mode 
 $('b-rematch').onclick = () => {
   if (G.mode === 'solo') startMatch({ ...G.cfg, seed: (Math.random() * 1e9) | 0 }, 'solo'); else if (G.mode === 'host') hostStart();
 };
-$('b-done').onclick = () => { if (G.mode === 'solo') toTitle(); else if (G.mode === 'host') endHosted(); else leaveRoom(); };
+$('b-done').onclick = () => { if (G.mode === 'solo') toTitle(); else if (G.mode === 'host' && !G.mm) endHosted(); else leaveRoom(); };
+$('b-queue').onclick = () => { A.sfx('select'); startQueue(); };
+$('b-queue-cancel').onclick = () => { A.sfx('move'); stopQueue(); if (G.room) leaveRoom(); else show('p-title'); };
+$('b-board').onclick = async () => {
+  A.sfx('select'); show('p-board'); $('board').innerHTML = '<li class="dim">Loading...</li>';
+  try {
+    const me = await signIn(), rows = await ELO.leaderboard();
+    $('board').innerHTML = rows.length ? rows.map(r => '<li class="' + (r.pub === me ? 'me' : '') + '"><span class="nm">' + cleanName(r.name) + '</span><span class="dim">' + (r.wins | 0) + '-' + (r.losses | 0) + '</span><span class="rt">' + (r.rating | 0) + '</span></li>').join('') : '<li class="dim">Nobody has finished a rated game yet. Be the first.</li>';
+  } catch (e) { $('board').innerHTML = '<li class="dim">The leaderboard could not be reached.</li>'; }
+};
+$('name').onchange = () => { myName(); if (ELO.profile()) signIn(); };
 
 // --------------------------------------------------------------------------------------------- rooms
 const isHost = () => !!G.room && G.room.isHost;
@@ -175,6 +244,11 @@ function reconcile() {       // host: seat newcomers, forget leavers
   for (const id of Object.keys(lob.sides)) if (!ids.has(id)) delete lob.sides[id];
   for (const m of sorted()) if (!(m.id in lob.sides)) seat(lob, m.id);
   if (G.mode === 'host' && G.S) G.cfg.humans.forEach((h, i) => { if (!ids.has(h.id)) SIM.dropController(G.S, i); });
+  if (G.mm && G.mode === 'title' && !lob.started && ids.size === 2 && Object.values(lob.sides).filter(s => s >= 0).length === 2) {
+    const a = (Math.random() * TEAMS.length) | 0;
+    lob.teams = [a, (a + 1 + ((Math.random() * (TEAMS.length - 1)) | 0)) % TEAMS.length];
+    return hostStart();
+  }
   pushLob();
 }
 function renderLobby() {
@@ -185,7 +259,7 @@ function renderLobby() {
   $('players').innerHTML = sorted().map(m => {
     const s = lob ? lob.sides[m.id] : undefined, you = m.id === room.me;
     const link = m.id === room.hostId ? '' : host ? (room.linked(m.id) ? 'direct' : 'relay') : you ? (room.linked(room.hostId) ? 'direct' : 'relay') : '';
-    return `<li><span class="nm">${m.nm}</span>${you ? '<span class="tag you">you</span>' : ''}${m.id === room.hostId ? '<span class="tag">host</span>' : ''}${link ? `<span class="tag">${link}</span>` : ''}<span class="tag ${s === 0 ? 'h' : s === 1 ? 'a' : ''}">${s === 0 ? 'home' : s === 1 ? 'away' : s === -1 ? 'watching' : '...'}</span></li>`;
+    return `<li><span class="nm">${m.nm}</span>${m.pb && G.rat[m.pb] ? `<span class="tag">${G.rat[m.pb]}</span>` : ''}${you ? '<span class="tag you">you</span>' : ''}${m.id === room.hostId ? '<span class="tag">host</span>' : ''}${link ? `<span class="tag">${link}</span>` : ''}<span class="tag ${s === 0 ? 'h' : s === 1 ? 'a' : ''}">${s === 0 ? 'home' : s === 1 ? 'away' : s === -1 ? 'watching' : '...'}</span></li>`;
   }).join('');
   const mine = lob ? lob.sides[room.me] : undefined;
   for (const b of document.querySelectorAll('[data-side]')) b.classList.toggle('sel', +b.dataset.side === mine);
@@ -197,12 +271,14 @@ function renderLobby() {
     ? (room.members.size < 2 ? 'Send a friend the link or the code. Empty spots are filled by computer skaters.' : n ? 'Everyone in? Drop the puck.' : 'Somebody has to pick a side.')
     : 'Waiting for the host to drop the puck.';
   $('b-start').disabled = !n;
+  fetchRatings();
 }
 function hostStart() {
   const lob = G.lob;
-  const humans = sorted().filter(m => lob.sides[m.id] >= 0).map(m => ({ id: m.id, team: lob.sides[m.id], name: m.nm }));
+  const humans = sorted().filter(m => lob.sides[m.id] >= 0).map(m => ({ id: m.id, team: lob.sides[m.id], name: m.nm, pub: m.pb }));
   if (!humans.length) return;
-  lob.cfg = { periodLen: lob.periodLen, diff: lob.diff, seed: (Math.random() * 1e9) | 0, teams: lob.teams.slice(), humans };
+  const rated = humans.some(h => h.team === 0) && humans.some(h => h.team === 1) && humans.every(h => h.pub);
+  lob.cfg = { periodLen: lob.periodLen, diff: lob.diff, seed: (Math.random() * 1e9) | 0, teams: lob.teams.slice(), humans, rated, match: crypto.randomUUID() };
   lob.started = true;
   startMatch(lob.cfg, 'host');
   pushLob();
@@ -214,18 +290,30 @@ function toLobby(msg) {
 }
 async function leaveRoom(msg) {
   const room = G.room;
-  G.room = null; G.lob = null; clearInterval(lobTimer);
+  G.room = null; G.lob = null; G.mm = false; clearInterval(lobTimer); clearTimeout(mmTimer);
   history.replaceState(null, '', location.pathname);
   toTitle(msg);
   if (room) await room.leave();
 }
 let lobTimer = 0, joining = false;
-async function enterRoom(code) {
+async function startQueue() {
+  if (G.queue || joining) return;
+  show('p-queue'); $('q-status').textContent = 'Looking for an opponent...';
+  try {
+    await signIn();
+    const q = await openQueue(code => { G.queue = null; if (G.panel === 'p-queue') enterRoom(code, true); },
+      n => { $('q-status').textContent = n > 1 ? 'Opponent found. Getting the room ready...' : 'Looking for an opponent... You are the only one in line right now.'; });
+    if (G.panel !== 'p-queue') return q.leave();
+    G.queue = q;
+  } catch (e) { console.error(e); show('p-title'); notice(e.message || 'Matchmaking is not available right now.'); }
+}
+function stopQueue() { if (G.queue) { G.queue.leave(); G.queue = null; } }
+async function enterRoom(code, mm = false) {
   if (joining) return;
   joining = true; $('online-status').textContent = 'Connecting...';
   try {
-    const room = await openRoom(code, myName());
-    G.room = room; G.lob = null;
+    const room = await openRoom(code, myName(), await signIn());
+    G.room = room; G.lob = null; G.mm = mm;
     room.on('host', () => {
       if (room.isHost) {
         const was = G.mode === 'guest';
@@ -241,8 +329,13 @@ async function enterRoom(code) {
     room.on('msg', onMsg);
     lobTimer = setInterval(() => { if (isHost()) pushLob(); else if (G.room && !G.lob) G.room.send('hi', 0, G.room.hostId); }, 2000);
     history.replaceState(null, '', location.pathname + '?room=' + room.code);
+    if (mm) {
+      history.replaceState(null, '', location.pathname);
+      show('p-queue'); $('q-status').textContent = 'Opponent found. Dropping the puck...';
+      // if the other player never turns up, get back in line
+      mmTimer = setTimeout(async () => { if (G.room === room && G.mm && G.mode === 'title') { await leaveRoom(); startQueue(); } }, 12000);
+    } else toLobby();
     if (room.isHost && !G.lob) { G.lob = freshLob(); reconcile(); }
-    toLobby();
   } catch (e) {
     console.error(e);
     $('online-status').textContent = '';
@@ -261,7 +354,7 @@ function onMsg(k, d, from) {
       if (!c || c.dead || !(d.q > (c.q || 0))) return;
       c.q = d.q;
       c.inp.mx = clamp(+d.mx || 0, -1, 1); c.inp.my = clamp(+d.my || 0, -1, 1); c.inp.a = !!d.a; c.inp.b = !!d.b;
-      if (c.ca !== undefined) { c.inp.pa += clamp(d.ca - c.ca, 0, 3); c.inp.pb += clamp(d.cb - c.cb, 0, 3); }
+      if (c.ca !== undefined) { if (d.ca > c.ca) c.inp.pt = Number.isInteger(d.pt) ? d.pt : -1; c.inp.pa += clamp(d.ca - c.ca, 0, 3); c.inp.pb += clamp(d.cb - c.cb, 0, 3); }
       c.ca = d.ca; c.cb = d.cb;
     }
     return;
@@ -308,13 +401,14 @@ function localToSim() {
   if (!c) return;
   const on = playing();
   c.inp.mx = on ? inp.mx : 0; c.inp.my = on ? inp.my : 0; c.inp.a = on && inp.a; c.inp.b = on && inp.b;
+  if (ca > sentCa) c.inp.pt = tgt;
   c.inp.pa += ca - sentCa; c.inp.pb += cb - sentCb; sentCa = ca; sentCb = cb;
 }
 function guestTick() {
   const room = G.room, last = G.buf[G.buf.length - 1];
   if (G.me >= 0) {
     const sig = `${inp.mx.toFixed(2)},${inp.my.toFixed(2)},${inp.a},${inp.b},${ca},${cb}`;
-    if (G.n % 2 === 0 || sig !== lastSent) { lastSent = sig; room.fast('in', { q: ++seq, mx: +inp.mx.toFixed(2), my: +inp.my.toFixed(2), a: inp.a ? 1 : 0, b: inp.b ? 1 : 0, ca, cb }, room.hostId); }
+    if (G.n % 2 === 0 || sig !== lastSent) { lastSent = sig; room.fast('in', { q: ++seq, mx: +inp.mx.toFixed(2), my: +inp.my.toFixed(2), a: inp.a ? 1 : 0, b: inp.b ? 1 : 0, ca, cb, pt: tgt }, room.hostId); }
   }
   if (performance.now() - G.lastSnap > 8000) { G.lastSnap = performance.now(); return toLobby('Lost touch with the host.'); }
   // move our own skater straight away, easing back toward where the host says it is
@@ -354,17 +448,18 @@ function guestView() {
   }
   return V;
 }
-const KEYS_HINT = 'WASD: SKATE   J: PASS / SWITCH   K: SHOOT (HOLD = SLAPSHOT) / CHECK';
+const KEYS_HINT = 'WASD: SKATE   CLICK A TEAMMATE: PASS   CLICK: SHOOT (HOLD = SLAPSHOT) / CHECK';
 function render(dt) {
   const V = G.mode === 'guest' ? guestView() : G.S;
   if (!V) { const g = canvas.getContext('2d'); g.fillStyle = '#0b0f1a'; g.fillRect(0, 0, R.SW, R.SH); R.drawPanel([{ text: 'WAITING FOR THE HOST...', color: '#f2c230' }], 120); return; }
   const title = G.mode === 'title', mine = G.me >= 0 ? V.sk.find(s => s.ctl === G.me) : null;
-  const ui = { kits: G.kits, me: G.me, names: G.names, t: G.t, dt, banner: title ? null : G.banner, shake: G.shake, cheer: G.cheer, dim: title ? 0.45 : G.panel === 'p-pause' ? 0.5 : 0, hint: '' };
+  const ui = { kits: G.kits, me: G.me, names: G.names, t: G.t, dt, banner: title ? null : G.banner, shake: G.shake, cheer: G.cheer, dim: title ? 0.45 : G.panel === 'p-pause' ? 0.5 : 0, hint: '', hover: title ? -1 : G.hover };
+  canvas.classList.toggle('play', playing());
   if (!title) {
     if (G.me < 0) ui.hint = 'WATCHING';
     else if (V.phase === 'fight') ui.hint = V.fight.ids.includes(mine ? mine.id : -1) || !V.sk.some(s => V.fight.ids.includes(s.id) && s.ctl >= 0 && s.team === G.cfg.humans[G.me].team)
-      ? 'A/D: MOVE   W: GUARD HEAD   S: GUARD BODY   J: JAB   K: BODY SHOT' : 'YOUR TEAMMATE IS IN THIS ONE';
-    else if ((V.phase === 'faceoff' || V.phase === 'draw') && mine && Math.abs(mine.x - 480) < 20 && Math.abs(mine.y - 108) < 4) ui.hint = 'HIT J THE MOMENT THE PUCK DROPS';
+      ? 'A/D: MOVE   W: GUARD HEAD   S: GUARD BODY   LEFT CLICK: JAB   RIGHT CLICK: BODY SHOT' : 'YOUR TEAMMATE IS IN THIS ONE';
+    else if ((V.phase === 'faceoff' || V.phase === 'draw') && mine && Math.abs(mine.x - 480) < 20 && Math.abs(mine.y - 108) < 4) ui.hint = 'CLICK THE MOMENT THE PUCK DROPS';
     else if (V.phase === 'play' && G.hintT > 0) ui.hint = KEYS_HINT;
   }
   if (V.phase === 'fight' && V.fight) R.drawFight(V, ui); else R.draw(V, ui);
@@ -375,6 +470,7 @@ function render(dt) {
   }
 }
 let last = performance.now(), acc = 0, lastFrame = last;
+var mmTimer = 0;
 function advance() {
   const now = performance.now();
   acc += Math.min(0.25, (now - last) / 1000); last = now;
@@ -410,9 +506,10 @@ addEventListener('pointerdown', () => { if (G.mode === 'title') A.music('title')
 addEventListener('beforeunload', () => { if (G.room) G.room.leave(); });
 
 toTitle();
+signIn();
 const invite = cleanCode(new URLSearchParams(location.search).get('room'));
 if (invite) { $('code').value = invite; show('p-online'); $('online-status').textContent = 'Invited to room ' + invite + '. Pick a name and press Join.'; }
 requestAnimationFrame(frame);
 
 // Handles for automated tests on a developer's machine.
-if (LOCAL) window.__pa = { G, SIM, startMatch, tick, enterRoom, hostStart, press: k => { if (k === 'a') ca++; else cb++; }, inp, keys };
+if (LOCAL) window.__pa = { G, SIM, ELO, startMatch, tick, enterRoom, hostStart, startQueue, press: k => { if (k === 'a') ca++; else cb++; }, inp, keys };

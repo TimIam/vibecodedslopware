@@ -52,7 +52,7 @@ export function newGame(cfg) {
     cfg, t: 0, tick: 0, seed: (cfg.seed | 0) || 1, phase: 'faceoff', phaseT: 0, period: 1, clock: cfg.periodLen,
     score: [0, 0], shots: [0, 0], sk: Array.from({ length: 12 }, (_, i) => mkSkater(i)),
     puck: { x: W / 2, y: MID, vx: 0, vy: 0, owner: -1, shot: false, passTo: -1, lastTeam: -1, lastSk: -1, noPick: { id: -1, t: 0 }, gk: [0, 0], tried: {} },
-    ctl: cfg.humans.map((h, i) => ({ idx: i, team: h.team, sk: -1, name: h.name, inp: { mx: 0, my: 0, a: false, b: false, pa: 0, pb: 0 }, pressA: false, pressB: false, dead: false })),
+    ctl: cfg.humans.map((h, i) => ({ idx: i, team: h.team, sk: -1, name: h.name, inp: { mx: 0, my: 0, a: false, b: false, pa: 0, pb: 0, pt: -1 }, pressA: false, pressB: false, dead: false })),
     aim: [{ y: MID, on: false, ph: 0 }, { y: MID, on: false, ph: 0.37 }],
     fight: null, fightsLeft: 1, ev: [], evSeq: 0, fo: null, winner: -1, stats: { checks: [0, 0], fights: 0, passes: [0, 0] },
   };
@@ -218,7 +218,13 @@ function passTo(S, s, m) {
   ctlFollow(S, s, m);
   emit(S, 'pass');
 }
-function humanPass(S, s, mx, my) {
+// A clicked teammate: the skater a mouse pass or switch is meant for, if that is allowed.
+function picked(S, c, self) {
+  const id = c.inp.pt, m = Number.isInteger(id) && id >= 0 && id < 12 ? S.sk[id] : null;
+  return m && m.team === c.team && m.role < 5 && onIce(m) && m.down <= 0 && m.id !== self ? m : null;
+}
+function humanPass(S, s, mx, my, to) {
+  if (to) return passTo(S, s, to);
   const aimed = Math.abs(mx) + Math.abs(my) > 0.2, im = hyp(mx, my) || 1, d = dirOf(s.team);
   let best = null, bs = -1e9;
   for (const m of S.sk) {
@@ -266,9 +272,9 @@ function hit(S, a, v) {
   emit(S, 'check', Math.round(v.x), Math.round(v.y));
   if (++v.anger >= T.ANGER && S.fightsLeft > 0) startFight(S, a, v);
 }
-function switchCtl(S, c) {
+function switchCtl(S, c, to) {
   const p = S.puck;
-  let best = null, bd = 1e9;
+  let best = to && to.ctl < 0 ? to : null, bd = best ? -1 : 1e9;
   for (const s of S.sk) {
     if (s.team !== c.team || s.role === 5 || !onIce(s) || s.down > 0 || (s.ctl >= 0 && s.ctl !== c.idx)) continue;
     const d = hyp(s.x - p.x, s.y - p.y);
@@ -280,19 +286,21 @@ function switchCtl(S, c) {
 function human(S, c, dt) {
   let s = c.sk >= 0 ? S.sk[c.sk] : null;
   if (!s || !onIce(s)) { c.sk = -1; switchCtl(S, c); s = c.sk >= 0 ? S.sk[c.sk] : null; if (!s) return; }
-  if (s.down > 0) { if (c.pressA) switchCtl(S, c); return; }
+  const to = c.pressA ? picked(S, c, s.id) : null;
+  if (c.pressA) c.inp.pt = -1;
+  if (s.down > 0) { if (c.pressA) switchCtl(S, c, to); return; }
   if (s.lunge > 0) return;
   const { mx, my } = c.inp, p = S.puck, has = p.owner === s.id;
   drive(s, mx, my, dt, (has ? T.V_CARRY : T.V_SKATE) * (s.wind >= 0 ? T.WIND_SLOW : 1));
   if (has) {
-    if (c.pressA && s.wind < 0) humanPass(S, s, mx, my);
+    if (c.pressA && s.wind < 0) humanPass(S, s, mx, my, to);
     else {
       if (c.pressB && s.wind < 0) s.wind = 0;
       if (s.wind >= 0) { s.wind += dt; if (!c.inp.b || s.wind > 1.1) shoot(S, s, Math.min(1, s.wind / T.WIND_FULL)); }
     }
   } else {
     s.wind = -1;
-    if (c.pressA) switchCtl(S, c);
+    if (c.pressA) switchCtl(S, c, to);
     if (c.pressB && s.lungeCd <= 0) startLunge(s, mx, my);
   }
 }

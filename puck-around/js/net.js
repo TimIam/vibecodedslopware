@@ -23,7 +23,7 @@ async function loadLib() {
   for (const u of LIBS) { try { return await import(u); } catch (e) { err = e; console.warn('could not load', u, e); } }
   throw Object.assign(new Error('Could not download the multiplayer library. An ad blocker or firewall may be in the way.'), { cause: err });
 }
-const getClient = () => clientP || (clientP = loadLib()
+export const getClient = () => clientP || (clientP = loadLib()
   .then(({ createClient }) => createClient(SUPABASE_URL, SUPABASE_KEY, { realtime: { params: { eventsPerSecond: 40 }, timeout: 20000 } }))
   .catch(e => { clientP = null; throw e; }));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -36,7 +36,7 @@ const getIce = () => iceP || (iceP = Promise.race([
   sleep(2500).then(() => STUN),
 ]));
 
-export async function openRoom(code, name) {
+export async function openRoom(code, name, pub) {
   const client = await getClient();
   const me = 'p' + Math.random().toString(36).slice(2, 10);
   const ch = client.channel('pafo:' + code.toLowerCase(), { config: { presence: { key: me, enabled: true }, broadcast: { self: false } } });
@@ -132,7 +132,7 @@ export async function openRoom(code, name) {
     members.clear();
     for (const [key, metas] of Object.entries(state)) {
       const m = metas[metas.length - 1];
-      if (m && Number.isFinite(m.jt)) members.set(key, { id: key, nm: cleanName(m.nm) || 'PLAYER', jt: m.jt });
+      if (m && Number.isFinite(m.jt)) members.set(key, { id: key, nm: cleanName(m.nm) || 'PLAYER', jt: m.jt, pb: typeof m.pb === 'string' && /^[0-9a-f-]{36}$/.test(m.pb) ? m.pb : null });
     }
     if (!tracked || !members.has(me)) return;      // not on the roll ourselves yet
     const first = [...members.values()].sort((a, b) => a.jt - b.jt || (a.id < b.id ? -1 : 1))[0];
@@ -158,7 +158,7 @@ export async function openRoom(code, name) {
   let jt = Date.now();
   for (const metas of Object.values(ch.presenceState())) for (const m of metas) if (Number.isFinite(m.jt) && m.jt >= jt) jt = m.jt + 1;
   tracked = true;
-  await ch.track({ nm: cleanName(name) || 'PLAYER', jt });
+  await ch.track({ nm: cleanName(name) || 'PLAYER', jt, pb: pub || null });
   sync();
 
   return {
@@ -174,4 +174,46 @@ export async function openRoom(code, name) {
       try { await client.removeChannel(ch); } catch (e) {}
     },
   };
+}
+
+// Matchmaking: everyone looking for a game sits in one presence channel. Sorted by arrival, players
+// pair off first with second, third with fourth. The earlier of a pair picks a room code and invites
+// the other; once the other says yes, both leave the queue and meet in that room.
+export async function openQueue(onMatch, onCount) {
+  const client = await getClient();
+  const me = 'q' + Math.random().toString(36).slice(2, 10);
+  const ch = client.channel('pafo-queue', { config: { presence: { key: me, enabled: true }, broadcast: { self: false } } });
+  let left = false, done = false, jt = 0, pending = null, timer = 0;
+  const say = m => { if (!left) ch.send({ type: 'broadcast', event: 'q', payload: { ...m, f: me } }).catch(() => {}); };
+  const leave = async () => { if (left) return; left = true; clearInterval(timer); try { await ch.untrack(); } catch (e) {} try { await client.removeChannel(ch); } catch (e) {} };
+  const finish = code => { done = true; leave(); onMatch(code); };
+  function pair() {
+    if (done || left || !jt) return;
+    const list = Object.entries(ch.presenceState()).map(([id, metas]) => ({ id, jt: (metas[metas.length - 1] || {}).jt })).filter(m => Number.isFinite(m.jt))
+      .sort((a, b) => a.jt - b.jt || (a.id < b.id ? -1 : 1));
+    const i = list.findIndex(m => m.id === me);
+    if (i < 0) return;
+    if (onCount) onCount(list.length);
+    const other = i % 2 === 0 ? list[i + 1] : null;
+    if (!other) return;
+    const now = performance.now();
+    if (!pending || pending.to !== other.id || now - pending.at > 6000) pending = { to: other.id, code: newCode(), at: now };
+    say({ k: 'inv', to: other.id, code: pending.code });
+  }
+  ch.on('presence', { event: 'sync' }, pair);
+  ch.on('broadcast', { event: 'q' }, ({ payload: m }) => {
+    if (!m || m.to !== me || done || left || typeof m.code !== 'string') return;
+    if (m.k === 'inv') { say({ k: 'ok', to: m.f, code: m.code }); finish(cleanCode(m.code)); }
+    else if (m.k === 'ok' && pending && m.code === pending.code) finish(pending.code);
+  });
+  await new Promise((res, rej) => {
+    const t = setTimeout(() => rej(new Error('Could not reach the matchmaking server. Check your connection and try again.')), 20000);
+    ch.subscribe(s => { if (s === 'SUBSCRIBED') { clearTimeout(t); res(); } else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') { clearTimeout(t); rej(new Error('The matchmaking server said no.')); } });
+  });
+  await sleep(600);
+  jt = Date.now();
+  for (const metas of Object.values(ch.presenceState())) for (const m of metas) if (Number.isFinite(m.jt) && m.jt >= jt) jt = m.jt + 1;
+  await ch.track({ jt });
+  timer = setInterval(pair, 1500);
+  return { leave };
 }
