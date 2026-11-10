@@ -8,6 +8,7 @@ import { Collider, BALL_R } from './physics.js';
 import { make, toon, addOutline, gradientMap, manifest } from './assets.js';
 const pm = n => manifest.props?.objects?.[n] || {};
 
+const WALL_H = 0.6;
 export const SIDE = 80, PAD = 9, RISE = 7, NHOLES = 9, CUP_R = 0.16, SEA_Y = -40;
 const CORNERS = [[40, 40], [-40, 40], [-40, -40], [40, -40]];
 const DIRS = [[-1, 0], [0, -1], [1, 0], [0, 1]];
@@ -216,7 +217,8 @@ export class Course {
     }
   }
   wall(H, x0, z0, x1, z1, y, o = {}) {
-    const F = H.frame, h = o.h ?? 0.6, t = o.t ?? 0.4, y1 = o.y1 ?? y;
+    // Every wall is built at WALL_H of its written height: low enough to chip a ball over, never lower than a kick-rail.
+    const F = H.frame, h = Math.max(0.18, (o.h ?? 0.6) * WALL_H), t = o.t ?? 0.4, y1 = o.y1 ?? y;
     const run = Math.hypot(x1 - x0, z1 - z0), rise = y1 - y, len = Math.hypot(run, rise);
     const yaw = Math.atan2(z1 - z0, x1 - x0), pitch = Math.atan2(rise, run);
     const lq = new THREE.Quaternion().setFromAxisAngle(UP, -yaw).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), pitch));
@@ -493,11 +495,14 @@ export class Course {
   }
   hole2(H) {
     this.holeInfo(H, 'Windmill Steps', 5, 'Chip up the steps, then roll through the windmill.');
-    this.block(H, 9, 26, -7, 7, 0);
-    // Each step reaches down past the level below, so nothing can roll in under it.
-    this.block(H, 26, 42, -6, 6, 3.5, 3.5, { thick: 6.5 });
-    this.block(H, 42, 71, -6, 6, 7, 7, { thick: 6.5 });
-    this.shoulders(H, 9, 26, 7, 0); this.shoulders(H, 26, 42, 6, 3.5, 3.5, 11, [-1, 1], 6.1); this.shoulders(H, 42, 71, 6, 7, 7, 11, [-1, 1], 6.1);
+    this.block(H, 9, 24, -7, 7, 0);
+    // Four steps of 1.75 m, low enough for an iron as well as a wedge. Each reaches down past the level
+    // below, so nothing can roll in under it. The wide ones (3.5 and 7) are where the cart path lands.
+    this.shoulders(H, 9, 24, 7, 0);
+    for (const [x0, x1, y] of [[24, 28, 1.75], [28, 40, 3.5], [40, 44, 5.25], [44, 71, 7]]) {
+      this.block(H, x0, x1, -6, 6, y, y, { thick: 6.5 });
+      this.shoulders(H, x0, x1, 6, y, y, 11, [-1, 1], 6.1);
+    }
     this.zone(H, 'sand', 20, -4, 1.6);
     this.zone(H, 'water', 34, 3, 1.8, { rz: 1.3 });
     // The windmill: a tunnel through the base, sails sweeping anything lofted over it.
@@ -530,7 +535,7 @@ export class Course {
     this.prop(H, 'tree_pine', 12, 5.8, { trunk: 0.35 }); this.prop(H, 'tree_pine', 23, 6, { trunk: 0.35 });
     this.prop(H, 'bush', 30, -5.2, {}); this.prop(H, 'flowers', 39, 5, {}); this.prop(H, 'flowers', 47, -5, {});
     this.prop(H, 'tree_round', 66, 4.6, { trunk: 0.35 }); this.prop(H, 'rock_c', 64, -4.8, { scale: 0.7 });
-    this.sign(H, 24.6, -6.2, 0, ['STEP UP.', 'USE A WEDGE'], 0.4);
+    this.sign(H, 22.6, -6.2, 0, ['STEP UP.', 'ONE AT A TIME'], 0.4);
   }
   hole3(H) {
     this.holeInfo(H, 'Mushroom Gorge', 4, 'Fly the gorge, or trust the mushrooms.');

@@ -203,6 +203,17 @@ body.gripping #shot{opacity:0}
 kbd{display:inline-block;min-width:22px;padding:0 6px;border:2px solid var(--ink);border-bottom-width:4px;border-radius:7px;background:#fff;font:900 11px/1.6 Nunito;text-align:center;color:var(--ink)}
 .small-print{margin-top:10px;font-size:12px;color:#6a5f70;font-weight:700}
 #clickToPlay{left:50%;top:50%;transform:translate(-50%,-50%);padding:12px 20px;font-family:"Lilita One";font-size:22px;text-align:center}
+#menu{background:rgba(30,20,40,.35)}
+#menu .panel{width:min(380px,100%)}
+#menu h2{margin:0 0 4px;font:400 28px "Lilita One"}
+#menu .vol{display:grid;grid-template-columns:96px 1fr 38px;align-items:center;gap:8px;margin-top:9px;font-weight:900;font-size:14px}
+#menu .vol input{width:100%;accent-color:var(--red)}
+#menu .vol output{text-align:right;color:#6a5f70}
+#menu .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+#menu .acts .btn{width:100%}
+#menu .note{margin:10px 0 0;font-weight:800;font-size:12px;color:#6a5f70}
+#menu #resume{width:100%;margin-top:14px}
+#vote{left:50%;top:64px;transform:translateX(-50%);padding:8px 14px;font-weight:900;font-size:15px;text-align:center;max-width:min(560px,92vw)}
 #clickToPlay small{display:block;font-family:Nunito;font-weight:800;font-size:13px;color:#6a5f70}
 #board .panel{width:min(520px,100%)}
 #board table{width:100%;border-collapse:collapse;margin-top:10px;font-weight:800}
@@ -281,7 +292,8 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
     <span class="k"><kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd><kbd>J</kbd></span><span>shout</span>
     <span class="k"><kbd>Tab</kbd></span><span>race standings</span>
     <span class="k"><kbd>K</kbd></span><span>voice chat with golfers near you: on, then mute and unmute · <kbd>Shift</kbd>+<kbd>K</kbd> leaves</span>
-    <span class="k"><kbd>Enter</kbd></span><span>twice, in a private room: everyone back to the first tee for a fresh race</span>
+    <span class="k"><kbd>Enter</kbd></span><span>twice: ask to reset the map (everyone back to the first tee). The others have to agree: <kbd>Y</kbd> yes, <kbd>U</kbd> no</span>
+    <span class="k"><kbd>Esc</kbd></span><span>menu: volume, reset your ball, your cart or the map</span>
     <span class="k"><kbd>M</kbd> <kbd>N</kbd> <kbd>B</kbd></span><span>mute · music · announcer</span>
   </div>
 </div>
@@ -357,7 +369,23 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
   </div>
 </div>
 
-<div class="hud chunk" id="clickToPlay" hidden>Click to grab the club<small>Esc lets go of the mouse</small></div>
+<div class="hud chunk" id="vote" hidden></div>
+<div class="overlay" id="menu" hidden><div class="panel">
+  <h2>Menu</h2>
+  <label class="vol">Everything<input type="range" min="0" max="100" data-vol="master"><output></output></label>
+  <label class="vol">Effects<input type="range" min="0" max="100" data-vol="sfx"><output></output></label>
+  <label class="vol">Music<input type="range" min="0" max="100" data-vol="music"><output></output></label>
+  <label class="vol">Announcer<input type="range" min="0" max="100" data-vol="announcer"><output></output></label>
+  <label class="vol">Voice chat<input type="range" min="0" max="100" data-vol="chat"><output></output></label>
+  <div class="acts">
+    <button class="btn small" id="resetBall">Reset my ball</button>
+    <button class="btn small" id="resetCart">Reset my cart</button>
+    <button class="btn small" id="resetMap" style="grid-column:1/-1">Reset the map for everyone</button>
+  </div>
+  <p class="note">Ball: back on this hole's tee, +1 stroke. Cart: back in its bay at the first tee. Map: everyone back to the first tee for a fresh race, and every other golfer has to agree.</p>
+  <button class="btn" id="resume">Back to the game</button>
+</div></div>
+<div class="hud chunk" id="clickToPlay" hidden>Click to grab the club<small>Esc opens the menu</small></div>
 
 <div class="overlay" id="board" hidden><div class="panel"><h2 style="margin:0">The race up Mount Bogey</h2><div style="font-weight:800;color:#6a5f70" id="playerCount"></div>
   <table><thead><tr><th>#</th><th>Golfer</th><th>Where</th><th>Time</th><th>Falls</th></tr></thead><tbody id="boardRows"></tbody></table></div></div>

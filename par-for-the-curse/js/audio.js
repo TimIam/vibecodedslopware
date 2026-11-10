@@ -2,17 +2,30 @@
 // announcer that uses the browser's speech synthesis to be unhelpful out loud.
 let ctx = null, master = null, sfx = null, music = null, whooshGain = null, windGain = null, noiseBuf = null;
 let muted = false, musicOn = true, voiceOn = true;
+// Volume sliders in the escape menu, each 0 to 1: everything, effects, music, the announcer, voice chat.
+const vol = { master: 1, sfx: 1, music: 1, announcer: 1, chat: 1 };
+try { const sv = JSON.parse(localStorage.getItem('pftc-vol') || '{}'); for (const k in vol) if (sv[k] >= 0 && sv[k] <= 1) vol[k] = +sv[k]; } catch (e) {}
+const mus = x => (musicOn ? x * vol.music : 0);
+export function getVolume(k) { return vol[k]; }
+export function setVolume(k, v) {
+  if (!(k in vol)) return;
+  vol[k] = Math.max(0, Math.min(1, +v || 0));
+  try { localStorage.setItem('pftc-vol', JSON.stringify(vol)); } catch (e) {}
+  if (master) master.gain.value = muted ? 0 : 0.8 * vol.master;
+  if (sfx) sfx.gain.value = vol.sfx;
+  if (music) music.gain.value = mus(0.16);
+}
 try { muted = localStorage.getItem('pftc-muted') === '1'; musicOn = localStorage.getItem('pftc-music') !== '0'; voiceOn = localStorage.getItem('pftc-voice') !== '0'; } catch (e) {}
 
 export function initAudio() {
   if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
   ctx = new AC();
-  master = ctx.createGain(); master.gain.value = muted ? 0 : 0.8;
+  master = ctx.createGain(); master.gain.value = muted ? 0 : 0.8 * vol.master;
   const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
   master.connect(comp); comp.connect(ctx.destination);
-  sfx = ctx.createGain(); sfx.connect(master);
-  music = ctx.createGain(); music.gain.value = musicOn ? 0.16 : 0; music.connect(master);
+  sfx = ctx.createGain(); sfx.gain.value = vol.sfx; sfx.connect(master);
+  music = ctx.createGain(); music.gain.value = mus(0.16); music.connect(master);
   noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
   const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   // Club whoosh: looping noise through a band-pass whose gain follows head speed.
@@ -105,7 +118,7 @@ export function slowmo(on) {
       const beat = () => { const tt = ctx.currentTime; tone('sine', 70, 40, 0.14, 0.4, tt); tone('sine', 66, 38, 0.16, 0.3, tt + 0.22); };
       beat(); slowBeat = setInterval(beat, 900);
     }
-    if (music) music.gain.setTargetAtTime(musicOn ? 0.03 : 0, t, 0.15);
+    if (music) music.gain.setTargetAtTime(mus(0.03), t, 0.15);
     if (windGain) windGain.gain.setTargetAtTime(0.01, t, 0.15);
   } else {
     burst(0.45, 0.3, 200, 'bandpass', t, 0.9, 2600);
@@ -116,7 +129,7 @@ export function slowmo(on) {
       stop.forEach(o => o.stop(t + 0.35));
     }
     clearInterval(slowBeat);
-    if (music) music.gain.setTargetAtTime(musicOn ? 0.16 : 0, t, 0.3);
+    if (music) music.gain.setTargetAtTime(mus(0.16), t, 0.3);
   }
 }
 // The cart's little electric whine.
@@ -163,9 +176,9 @@ function startMusic() {
   }, 60);
 }
 
-export function setMuted(m) { muted = m; try { localStorage.setItem('pftc-muted', m ? '1' : '0'); } catch (e) {} if (master) master.gain.value = m ? 0 : 0.8; if (m && window.speechSynthesis) speechSynthesis.cancel(); }
+export function setMuted(m) { muted = m; try { localStorage.setItem('pftc-muted', m ? '1' : '0'); } catch (e) {} if (master) master.gain.value = m ? 0 : 0.8 * vol.master; if (m && window.speechSynthesis) speechSynthesis.cancel(); }
 export function isMuted() { return muted; }
-export function setMusic(on) { musicOn = on; try { localStorage.setItem('pftc-music', on ? '1' : '0'); } catch (e) {} if (music) music.gain.value = on ? 0.16 : 0; }
+export function setMusic(on) { musicOn = on; try { localStorage.setItem('pftc-music', on ? '1' : '0'); } catch (e) {} if (music) music.gain.value = mus(0.16); }
 export function musicIsOn() { return musicOn; }
 export function setVoice(on) { voiceOn = on; try { localStorage.setItem('pftc-voice', on ? '1' : '0'); } catch (e) {} if (!on && window.speechSynthesis) speechSynthesis.cancel(); }
 export function voiceIsOn() { return voiceOn; }
@@ -186,6 +199,6 @@ export function say(text, force) {
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text.replace(/[^\w\s.,!?'’-]/g, ''));
   if (voice) u.voice = voice;
-  u.rate = 1.04; u.pitch = 0.92; u.volume = 0.9;
+  u.rate = 1.04; u.pitch = 0.92; u.volume = 0.9 * vol.announcer * vol.master;
   speechSynthesis.speak(u);
 }

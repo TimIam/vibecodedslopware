@@ -18,6 +18,7 @@ export class Voice {
   // send(to, data): put a handshake message on the room channel. me: my id in the room.
   constructor(send, me) {
     this.send = send; this.me = me;
+    this.volume = 1;              // the voice chat slider
     this.on = false; this.mic = null; this.muted = false; this.denied = false;
     this.links = new Map();       // peer id -> { pc, gain, pan, el, ... }
     this.ctx = null;
@@ -137,7 +138,7 @@ export class Voice {
     const l = this.links.get(id); if (!l || !l.gain) return;
     const t = this.ctx.currentTime;
     l.vol = voiceGain(dist);
-    l.gain.gain.setTargetAtTime(l.vol, t, 0.08);
+    l.gain.gain.setTargetAtTime(l.vol * this.volume, t, 0.08);
     if (l.pan) l.pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, pan)) * 0.7, t, 0.08);
   }
   // Is this golfer making noise right now (for the little speaker over their head)?

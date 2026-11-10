@@ -154,7 +154,7 @@ const fmtTime = (ms, tenths) => {
 };
 const ordinal = n => n + (['th', 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10] || 'th');
 const held = () => S.goAt > 0 && Date.now() < S.goAt;      // the countdown: nobody moves until it ends
-function raceRestart(ms, who) {
+function raceRestart(ms, msg) {
   if (S.mode === 'title' || S.mode === 'loading') return;
   $('finish').hidden = true;
   if (S.mode === 'address') leaveAddress();
@@ -162,13 +162,114 @@ function raceRestart(ms, who) {
   resetClimb();
   S.goAt = Date.now() + ms; S.startedAt = S.goAt; S.lastCount = 0; S.emote = null; S.lmb = false; S.bumpFrom = S.t + 2.5;
   placeWalker(false); setMode('walk'); showHoleCard(); updateHud(); save();
-  toast(`🏁 ${who} restarted the race. Everyone is back on the first tee.`);
+  toast('🏁 ' + msg + ' Back to the first tee.');
 }
 function raceKey() {
-  if (!net || S.room === 'mountain') { toast('🏁 Your clock runs from your own tee-off. Restarting the race for everyone is for private rooms.'); return; }
-  if (held()) return;
-  if (!S.raceArm || S.t - S.raceArm > 4) { S.raceArm = S.t; toast('🏁 Press <kbd>Enter</kbd> again to send everyone back to the first tee for a fresh race.'); return; }
-  S.raceArm = 0; sendEv({ k: 'race', ms: 5000 }); raceRestart(5000, 'You');
+  if (held() || vote) return;
+  if (!S.raceArm || S.t - S.raceArm > 4) { S.raceArm = S.t; toast('🏁 Press <kbd>Enter</kbd> again to reset the map: everyone back to the first tee. The others have to agree.'); return; }
+  S.raceArm = 0; askReset();
+}
+// Resetting the map sends the whole room back to the first tee, so the whole room has to agree. The asker
+// repeats the question every few seconds (late arrivals and lost messages), every other golfer answers
+// Y or U, one refusal or 20 seconds of silence ends it, and a client only obeys the final "go" from
+// someone whose vote it said yes to.
+const VOTE_MS = 20000;
+let vote = null;      // mine: { mine, yes: Set of ids, until, askAt }; theirs: { from, nm, until, answered }
+function voteBanner() {
+  const el = $('vote'); el.hidden = !vote; if (!vote) return;
+  const s = Math.max(0, Math.ceil((vote.until - Date.now()) / 1000));
+  const html = vote.mine ? '🗳 Reset the map? ' + vote.yes.size + ' of ' + (net ? net.peers.size : 0) + ' agreed · ' + s + ' s'
+    : vote.answered ? '🗳 You agreed to reset the map. Waiting for the rest · ' + s + ' s'
+    : '🗳 ' + vote.nm + ' wants to reset the map: <kbd>Y</kbd> agree · <kbd>U</kbd> refuse · ' + s + ' s';
+  if (el.dataset.h !== html) { el.dataset.h = html; el.innerHTML = html; }
+}
+function resetMap(msg) { vote = null; voteBanner(); raceRestart(5000, msg); }
+function askReset() {
+  if (S.mode === 'title' || S.mode === 'loading' || held()) return;
+  if (vote) { toast(vote.mine ? '🗳 Still waiting for the others to agree.' : '🗳 There is a vote already: <kbd>Y</kbd> agree, <kbd>U</kbd> refuse.'); return; }
+  if (!net || !net.peers.size) { resetMap('You reset the map.'); return; }
+  vote = { mine: true, yes: new Set(), until: Date.now() + VOTE_MS, askAt: 0 };
+  toast('🗳 Asked the others to reset the map. Everyone has to agree.'); voteBanner();
+}
+function voteAnswer(yes) {
+  if (!vote || vote.mine || vote.answered) return;
+  sendEv({ k: 'rv', a: yes ? 'yes' : 'no', to: vote.from });
+  if (yes) { vote.answered = true; voteBanner(); }
+  else { vote = null; voteBanner(); toast('🗳 You refused. The map stays as it is.'); }
+}
+function voteTick() {
+  if (!vote) return;
+  const now = Date.now();
+  if (now > vote.until) {
+    if (vote.mine) { sendEv({ k: 'rv', a: 'off' }); toast('🗳 Not everyone agreed in time. The map stays as it is.'); }
+    vote = null; voteBanner(); return;
+  }
+  if (vote.mine) {
+    if (!net || !net.peers.size) { resetMap('You reset the map.'); return; }
+    if ([...net.peers.keys()].every(id => vote.yes.has(id))) { sendEv({ k: 'rv', a: 'go' }); resetMap('Everyone agreed to reset the map.'); return; }
+    if (now - vote.askAt > 3000) { vote.askAt = now; sendEv({ k: 'rv', a: 'ask' }); }
+  }
+  voteBanner();
+}
+function voteEvent(p, e, nm) {
+  if (e.a === 'ask') {
+    if (!vote) { vote = { from: p.id, nm, until: Date.now() + VOTE_MS + 5000 }; A.play('chat'); voteBanner(); }
+    else if (vote.mine) vote.yes.add(p.id);                    // we both asked: that is a yes from each of us
+    else if (vote.from === p.id && vote.answered) sendEv({ k: 'rv', a: 'yes', to: p.id });
+  }
+  else if (e.a === 'yes') { if (vote && vote.mine && e.to === net.me) vote.yes.add(p.id); }
+  else if (e.a === 'no') { if (vote && vote.mine && e.to === net.me) { vote = null; voteBanner(); sendEv({ k: 'rv', a: 'off' }); toast('🗳 ' + nm + ' refused. The map stays as it is.'); } }
+  else if (e.a === 'off') { if (vote && vote.from === p.id) { vote = null; voteBanner(); toast('🗳 The vote to reset the map fell through.'); } }
+  else if (e.a === 'go') { if (vote && (vote.mine ? vote.yes.has(p.id) : vote.from === p.id && vote.answered)) resetMap('Everyone agreed to reset the map.'); }
+}
+// Your own ball and cart need nobody's leave: these are for when one is stuck.
+function resetBall() {
+  if (S.mode === 'title' || S.mode === 'loading' || held() || S.finished || S.awaitPark) return;
+  if (S.mode === 'address') leaveAddress();
+  const n = S.holeStrokes + 1;
+  placeOnTee(S.hole); S.holeStrokes = n; S.strokes++; trail.clear();
+  if (S.mode === 'walk') placeWalker(true);
+  toast('⛳ Ball back on the tee of hole ' + S.hole + ', +1 stroke.'); updateHud(); save();
+}
+function resetCart() {
+  if (S.mode === 'title' || S.mode === 'loading' || held()) return;
+  const c = carts[0];
+  if (S.cart === c) exitCart();
+  c.reset(); A.play('poof');
+  toast('🛒 Your cart is back in its bay at the first tee.'); save();
+}
+/* ---------------- escape menu ---------------- */
+const playing = () => S.mode !== 'title' && S.mode !== 'loading';
+const chatVolume = () => { if (voice) voice.volume = A.getVolume('chat') * A.getVolume('master'); };
+let menuAt = 0;
+function showMenu(on) {
+  const m = $('menu'); if (on === !m.hidden) return;
+  m.hidden = !on; menuAt = performance.now();
+  if (on) {
+    $('clickToPlay').hidden = true; if (document.pointerLockElement) document.exitPointerLock();
+    for (const el of m.querySelectorAll('[data-vol]')) { el.value = Math.round(A.getVolume(el.dataset.vol) * 100); el.nextElementSibling.textContent = el.value; }
+  } else if (document.pointerLockElement !== canvas) { $('clickToPlay').hidden = false; lockPointer(); }
+}
+function menuSetup() {
+  const m = $('menu');
+  for (const el of m.querySelectorAll('[data-vol]')) el.oninput = () => {
+    A.setVolume(el.dataset.vol, el.value / 100); el.nextElementSibling.textContent = el.value; chatVolume();
+    if (el.dataset.vol === 'master' || el.dataset.vol === 'sfx') A.play('click');
+  };
+  // The resets ask twice: one stray click should not cost a stroke or a cart.
+  const twice = (id, fn) => {
+    const b = $(id), label = b.textContent; let at = 0;
+    b.onclick = () => {
+      if (performance.now() - at < 4000) { at = 0; b.textContent = label; fn(); return; }
+      at = performance.now(); b.textContent = 'Sure? Click again';
+      setTimeout(() => { if (at && performance.now() - at >= 3900) { at = 0; b.textContent = label; } }, 4000);
+    };
+  };
+  twice('resetBall', () => { resetBall(); showMenu(false); });
+  twice('resetCart', () => { resetCart(); showMenu(false); });
+  twice('resetMap', () => { askReset(); showMenu(false); });
+  $('resume').onclick = () => showMenu(false);
+  m.addEventListener('mousedown', e => { if (e.target === m) showMenu(false); });
 }
 function countdownTick() {
   if (!S.goAt) return;
@@ -318,7 +419,7 @@ function setupTitle() {
   $('name').oninput = () => { look.name = $('name').value.replace(/[^\p{L}\p{N} _.'-]/gu, '').slice(0, 16); saveLook(); };
   $('randomize').onclick = () => { Object.assign(look, { skin: pick(SKINS), shirt: pick(SHIRTS), pants: pick(PANTS), hat: pick(SHIRTS), hatType: pick(HATS), stache: Math.random() < 0.35 }); me.setLook(look); if (S.crown) me.setCrown(true); saveLook(); setupTitle(); A.play('poof'); };
   setupRoom();
-  $('play').onclick = teeOff;
+  $('play').onclick = teeOff; menuSetup();
   $('restartClimb').onclick = () => { if (confirm('Start the climb over from hole 1? Your stroke count resets.')) { resetClimb(); start(); } };
 }
 /* ---------------- rooms: invite codes and PINs ---------------- */
@@ -424,12 +525,15 @@ addEventListener('mousemove', e => {
 addEventListener('wheel', e => { if (S.mode !== 'title' && S.mode !== 'drive' && !S.paused) cycleClub(e.deltaY > 0 ? -1 : 1); }, { passive: true });
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvas;
-  $('clickToPlay').hidden = locked || S.mode === 'title' || S.mode === 'loading';
-  if (!locked) { S.aimHeld = false; S.lmb = false; }
+  // Letting go of the mouse (Esc) opens the menu; taking it back closes it.
+  if (locked) { $('menu').hidden = true; $('clickToPlay').hidden = true; }
+  else { S.aimHeld = false; S.lmb = false; if (playing() && $('finish').hidden) showMenu(true); }
 });
 addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT') return;
   const k = e.key.toLowerCase();
+  // Esc with the mouse free opens and closes the menu (with the mouse held, the browser frees it first).
+  if (k === 'escape' && playing() && $('finish').hidden) { if (performance.now() - menuAt > 300) showMenu($('menu').hidden); return; }
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
   if (k === 'tab') { e.preventDefault(); $('board').hidden = false; renderBoard(); return; }
   if (S.mode === 'title') return;
   keys.add(k);
@@ -440,6 +544,8 @@ addEventListener('keydown', e => {
   if ((k === 'w' || k === 's') && S.mode === 'address' && !e.repeat) leaveAddress();
   if (k === 'm') { A.setMuted(!A.isMuted()); updateHud(); }
   if (k === 'enter' && !e.repeat) raceKey();
+  if (k === 'y' && !e.repeat) voteAnswer(true);
+  if (k === 'u' && !e.repeat) voteAnswer(false);
   if (k === 'k' && !e.repeat) voiceKey(e.shiftKey);
   if (k === 'n') { A.setMusic(!A.musicIsOn()); toast(A.musicIsOn() ? 'Music on' : 'Music off'); }
   if (k === 'b') { A.setVoice(!A.voiceIsOn()); toast(A.voiceIsOn() ? 'Announcer on' : 'Announcer off'); }
@@ -1084,7 +1190,13 @@ function poseMe(dt) {
     s.turn = clamp(a * 0.6, -1.3, 1.15);
     s.shift = a < 0 ? Math.max(-0.04, a * 0.02) : Math.min(0.07, a * 0.05);
     s.knee = 0.035 + Math.abs(a) * 0.01;
-    s.look = S.grip ? swing.head.clone() : swing.ball.clone();
+    if (S.grip) {
+      // Fighting: stand up out of the golf crouch as the hands rise, lean into a side cut, and watch what
+      // is in front rather than craning round after the club.
+      const up = clamp(swing.target.y / 1.55, 0, 1);
+      s.tilt = 0.38 - 0.24 * up; s.lean = clamp(-a * 0.12, -0.14, 0.14); s.knee = 0.04 + Math.abs(a) * 0.012 + up * 0.01;
+      s.look = V(clamp(swing.head.x * 0.45, -0.6, 0.6), 0.45 + up * 0.25, 1.4);
+    } else s.look = swing.ball.clone();
   }
   me.pose(s, dt, S.t);
   if (S.mode === 'drive' && S.cart) me.root.quaternion.copy(S.cart.mesh.quaternion);
@@ -1557,7 +1669,7 @@ function promptText() {
 }
 function updateHudLive() {
   flagMarker(); ballMarker();
-  countdownTick();
+  countdownTick(); voteTick();
   const clock = fmtTime(raceMs(), S.finished);
   if (clock !== S.clockShown) { S.clockShown = clock; $('hTime').textContent = clock; }
   $('hpFill').style.width = clamp(S.hp, 0, 100) + '%';
@@ -1611,10 +1723,10 @@ async function connect() {
   roomLabel(); netLabel();
   useCartBay(net.slot);
   voice = new Voice((to, d) => { if (net) net.event({ k: 'rtc', to, d }); }, net.me);
-  voiceLabel();
+  voiceLabel(); chatVolume();
   net.on('connection', c => { netLabel(); if (c) net.presence(presenceInfo()); });
   net.on('join', p => { toast(`👋 <b>${escapeHtml(p.presence.nm || 'A golfer')}</b> started climbing`); renderBoard(); });
-  net.on('leave', p => { dropOther(p); renderBoard(); });
+  net.on('leave', p => { dropOther(p); renderBoard(); if (vote && vote.from === p.id) { vote = null; voteBanner(); } });
   net.on('slot', s => useCartBay(s));
   // Squeezed out: someone else took the last place in the same moment.
   net.on('full', () => {
@@ -1671,7 +1783,7 @@ function remoteEvent(p, e) {
   else if (e.k === 'sink') { const d = (+e.n || 0) - (+e.par || 0); toast(`⛳ ${nm} sank hole ${+e.h || '?'} in ${+e.n || '?'}${+e.n === 1 ? ' — ACE!' : d < 0 ? ' (under par!)' : ''}`); if (o) confetti.burst(o.ball.position.clone(), 80, 4); }
   else if (e.k === 'sea') toast(`🌊 ${nm} hit it into the sea`);
   else if (e.k === 'finish') toast(`👑 ${nm} FINISHED THE CLIMB in ${fmtTime(clamp(+e.ms || 0, 0, 1e9), true)}!`);
-  else if (e.k === 'race') { if (S.room !== 'mountain' && performance.now() - (remoteEvent.raceAt || -1e9) > 15000) { remoteEvent.raceAt = performance.now(); raceRestart(clamp(+e.ms || 5000, 3000, 10000), nm); } }
+  else if (e.k === 'rv') voteEvent(p, e, nm);
   else if (e.k === 'rtc') { if (e.to === net.me && voice && o) voice.signal(p.id, e.d); }
   else if (e.k === 'ram' && e.to === net.me && o) {
     // The golfer we ran down tells us so: the cart feels it too.
@@ -1912,7 +2024,7 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     setClub,
     fire: () => fireCannon(), get cannon() { return S.cannon; },
     tick: (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { S.realDt = dt; step(dt); } },
-    THREE, get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
+    THREE, get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, askReset, voteAnswer, get vote() { return vote; }, showMenu, resetBall, resetCart, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
     // Deterministic swing at 60 fps: back for `back` frames, pause, then through; runs until the ball rests.
     swingTest: (power = 1, back = 24, down = 10, club) => {
       if (club != null) setClub(club);
