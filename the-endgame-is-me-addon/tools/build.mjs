@@ -55,7 +55,7 @@ export function pathDist(`],
 `, `    buf.shakeX = Math.round(ox); buf.shakeY = Math.round(oy);
 `],
     [`    ctx.drawImage(trail, 0, 0);
-`, `    buf.begin(bg, trail, VIEW.x, VIEW.y, fg);
+`, `    buf.begin(bg, trail, VIEW.x, VIEW.y, fg, waterLayer(g, VIEW.x, VIEW.y));
     ctx.translate(-VIEW.x, -VIEW.y);
 `],
     [`    if (fg) ctx.drawImage(fg, VIEW.x, VIEW.y);`, `    buf.maskOff();`],
@@ -68,6 +68,10 @@ export function pathDist(`],
     // has bound (src/keys.lua), not the browser game's fixed ones
     [`key = i < 5 ? SLOT_KEYS[i] : 'SPC';`, `key = keyLabel(i);`],
     [`'HE IS IN YOUR FUR! SHAKE! [SPACE]'`, `'HE IS IN YOUR FUR! SHAKE! [' + keyLabel(6) + ']'`],
+    // the telegraph's pixel loop is hand-written Lua (src/gfx.lua): the same picture for a third of the time
+    ["  ctx.fillStyle = PAL.tele;\n  for (let py = y0; py <= y1; py++) for (let px = x0; px <= x1; px++) {\n    const dx = px + 0.5 - b.x, dy = py + 0.5 - b.y, dist = Math.hypot(dx, dy);\n    if (dist > R || dist < 8) continue;\n    let edge = dist > R - 1;\n    if (k !== 'stomp') {\n      const ad = Math.abs(angDiff(Math.atan2(dy, dx), face));\n      if (ad > half) continue;\n      if ((half - ad) * dist < 1) edge = true;\n    }\n    let al;\n    if (edge) al = channel ? 0.35 : 0.85;\n    else if (dist < 8 + (R - 8) * prog) al = ((px + py + blink) & 1) ? (channel ? 0.12 : 0.42) : (channel ? 0.04 : 0.16);\n    else al = ((px + py) & 1) ? 0.12 : 0;\n    if (!al) continue;\n    ctx.globalAlpha = al;\n    ctx.fillRect(px, py, 1, 1);\n  }\n", `  ctx.fillStyle = PAL.tele;
+  teleArc(ctx, b.x, b.y, R, x0, x1, y0, y1, k !== 'stomp', half, face, prog, blink, channel);
+`],
     // thousands separators without a regular expression
     [`function fmt(n) { return Math.floor(n).toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g, ','); }`, `function fmt(n) { return commas(n); }`],
   ],
@@ -106,9 +110,34 @@ export function pathDist(`],
 };
 // Top-level functions and constants written by hand in Lua instead (the text is the Lua that defines them on M).
 const OVERRIDES = {
+  // near() is asked for every unit and falling stone, every step. The game builds a Set each time (four tables here)
+  // and only ever walks it, so this hands back a plain list, in the same order, with a stamp to skip repeats.
+  props: { near: `do
+local stamp, call, floor = setmetatable({}, { __mode = "k" }), 0, math.floor
+M.near = function(g, x, y, r)
+if not g.pgrid or g.propsDirty then M.rebuildGrid(g) end
+call = call + 1
+local out, n, idx, CELL = { length = 0 }, 0, g.pgrid.idx, M.CELL
+for cy = floor((y - r) / CELL), floor((y + r) / CELL) do
+for cx = floor((x - r) / CELL), floor((x + r) / CELL) do
+local e = idx[cx * 4096 + cy]
+local a = e and e[1]
+if a then
+for i = 0, a.length - 1 do
+local p = a[i]
+if p.state ~= "gone" and stamp[p] ~= call then stamp[p] = call; out[n] = p; n = n + 1 end
+end
+end
+end
+end
+out.length = n
+return out
+end
+end` },
   world: { mulberry32: 'M.mulberry32 = RT.mulberry32;', pathField: 'M.pathField = RT.pathField;' },
   smoke: { mulberry32: 'M.mulberry32 = RT.mulberry32;' },
-  render: { fmt: 'M.fmt = RT.commas;' },
+  // still water is part of the retained ground (waterLayer, above); what is left to draw each frame is the glints
+  render: { fmt: 'M.fmt = RT.commas;', drawWater: 'M.drawWater = RT.drawWater;', drawFires: 'M.drawFires = RT.drawFires;' },
   art: { hash: 'M.hash = RT.hash;', newCanvas: 'M.newCanvas = RT.newCanvas;' },
   // src/saves.lua keeps the run in SavedVariables instead of localStorage
   save: { toB64: 'M.toB64 = function(a) return RT.packTyped(a) end;', fromB64: 'M.fromB64 = function(name, s) return RT.unpackTyped(name, s) end;',

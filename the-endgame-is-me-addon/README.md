@@ -85,7 +85,15 @@ These need a Lua 5.1 interpreter (`lua5.1`, `luac5.1`); none of them needs the g
 | Pictures and timings | `lua5.1 tools/test/shot.lua <seed> <level> <steps> out.ppm` | Renders through the real renderer; `ppm2png.mjs` converts. Prints ms per step and per frame. |
 | Every look | `lua5.1 tools/test/looks.lua` | Paints the boss in every option of every part. |
 | What a panel looks like | `lua5.1 tools/test/panels.lua`, then `node tools/test/panels.mjs` | Opens the menus in the stub and draws what it recorded as PNGs in `build/` (a browser's font, so a check for overlaps, not for looks). |
-| Where time goes | `lua5.1 tools/test/profile.lua <level> <steps>` | Per-function frame cost. |
+| Where time goes | `lua5.1 tools/test/profile.lua <level> <steps>` | Per-function frame cost. `prims.lua` splits it by drawing call (fills, sprites) and who asked for it. |
+| What each level costs | `lua5.1 tools/test/levelcost.lua walk` | Every level in one run: ms for rules and drawing, cells recoloured, garbage per frame, memory held. `cold <level>` starts at one level, to show nothing piles up. `garbage.lua <level>` charges the garbage to source lines. |
+| Did a speed-up change the picture? | `lua5.1 tools/test/framehash.lua > build/before.txt`, change, run again, `diff` | A checksum of the screen every few frames on every level, with a bot that casts everything. |
+| Water | `lua5.1 tools/test/water.lua` | The addon's water (a retained layer plus glints) against the game's own loop, before and after rubble is tipped in: no pixel may differ. |
+
+Speed-ups live in `src/gfx.lua` and `src/canvas.lua` (hand-written loops, the water layer, cached blends) and in the
+build's patches and overrides. The rule for all of them: same pixels, same game state. Prove it with `framehash.lua`
+and `exact.sh` before keeping one. The client collects garbage in step with what is thrown away, so churn is frame
+time there even where stock Lua does not show it.
 
 `tools/wsl.sh` runs a command in WSL with an unpacked `lua5.1` on the path, for Windows machines without one.
 

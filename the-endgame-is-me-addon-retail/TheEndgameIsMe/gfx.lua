@@ -108,3 +108,224 @@ function RT.prefillBoss(n, standingOnly)
   if not current then return 0 end
   return current.prefill(n, standingOnly)
 end
+
+-- ------------------------------------------------------------------------------------------------ water
+
+-- The game repaints every square of water every frame: two fills and three hashes a square, a millisecond and a half
+-- on the levels that have a moat. Only the glints move. So the water itself is a layer of the retained ground
+-- (Screen.begin takes it), painted a square at a time as squares come into view or get filled with rubble, and what
+-- is drawn each frame is the glints. Pixel for pixel what render.js's drawWater makes.
+local hash, mix = RT.hash, RT.mix
+local A1 = 16777216
+local WATER = { [0] = 0x2e5266, [1] = 0x2a4a5e }
+local LIP, GLINT, WASH = 0x16262e, "#5f8ea6", 0x1e282e
+local GLINT_WASHED = string.format("#%06x", mix(0x5f8ea6, WASH, 0.35))
+local RUBBLE = { [0] = 0x6b6c63, 0x55564f, 0x7a5a3a, 0x8f8f84, 0x5a3d29, 0x3f403a }
+local layers = setmetatable({}, { __mode = "k" })   -- a level's water → its layer
+
+local function paintCell(L, w, c, r, v)
+  local cs, CW, px = w.cs, L.width, L.px
+  local x, y = c * cs, r * cs
+  if v == 1 then
+    local col = WATER[(c + r) % 2]
+    for yy = y, y + cs - 1 do local row = yy * CW + 1; for xx = x, x + cs - 1 do px[row + xx] = col end end
+    -- a dark lip where water meets land
+    if r > 0 and w.a[(r - 1) * w.cols + c] == 0 then local row = y * CW + 1; for xx = x, x + cs - 1 do px[row + xx] = LIP end end
+  elseif v == 0 then
+    for yy = y, y + cs - 1 do local row = yy * CW + 1; for xx = x, x + cs - 1 do px[row + xx] = nil end end
+  else
+    -- filled in: six lumps of rubble under a wash. The wash alone is a see-through pixel, flagged by A1.
+    for yy = y, y + cs - 1 do local row = yy * CW + 1; for xx = x, x + cs - 1 do px[row + xx] = A1 + WASH end end
+    for k = 0, 5 do
+      local col = mix(RUBBLE[floor(hash(c * 7 + k, r) * 6)], WASH, 0.35)
+      local dx, dy = x + floor(hash(k, c + r * 31) * (cs - 1)), y + floor(hash(c, k + r) * (cs - 1))
+      for yy = dy, dy + 1 do for xx = dx, dx + 1 do
+        if xx < CW and yy < L.height then px[yy * CW + xx + 1] = col end
+      end end
+    end
+  end
+end
+
+local function cellRange(w, vx, vy)
+  local cs = w.cs
+  local c0, c1 = math.max(0, floor(vx / cs)), math.min(w.cols - 1, math.ceil((vx + 320) / cs))
+  local r0, r1 = math.max(0, floor(vy / cs)), math.min(w.rows - 1, math.ceil((vy + 180) / cs))
+  return c0, c1, r0, r1
+end
+
+-- the layer for this game's water with every square the camera can see up to date; nil on a dry level
+RT.host.waterLayer = function(g, vx, vy)
+  local w = g.water
+  if not w then return nil end
+  local L = layers[w]
+  if not L then
+    L = { width = w.cols * w.cs, height = w.rows * w.cs, px = {}, log = {}, seen = {} }
+    layers[w] = L
+  end
+  local a, cols, cs, seen = w.a, w.cols, w.cs, L.seen
+  local c0, c1, r0, r1 = cellRange(w, vx, vy)
+  for r = r0, r1 do
+    local base = r * cols
+    for c = c0, c1 do
+      local v = a[base + c]
+      local was = seen[base + c]
+      if was ~= v then
+        seen[base + c] = v
+        paintCell(L, w, c, r, v)
+        -- a square never seen before is about to be worked into the ground anyway; one that changed has to be said
+        if was ~= nil then L.log[#L.log + 1] = { c * cs, r * cs, c * cs + cs - 1, r * cs + cs - 1 } end
+      end
+    end
+  end
+  return L
+end
+
+-- the glints: one square in five has one, somewhere new three times a second
+local glintFor, glintFr, glints = nil, nil, nil
+function RT.drawWater(ctx, g)
+  local w = g.water
+  local a, cols, cs = w.a, w.cols, w.cs
+  local fr = floor(g.t * 3)
+  if glintFor ~= w or glintFr ~= fr then glintFor, glintFr, glints = w, fr, {} end
+  local c0, c1, r0, r1 = cellRange(w, RT.Screen.vx, RT.Screen.vy)
+  local list = glints
+  for r = r0, r1 do
+    local base = r * cols
+    for c = c0, c1 do
+      if a[base + c] == 1 then
+        local at = list[base + c]
+        if at == nil then
+          at = hash(c + fr, r) > 0.8 and (c * cs + floor(hash(c, r + fr) * cs)) * 4096 + r * cs + floor(hash(r, c) * cs)
+          list[base + c] = at
+        end
+        if at then
+          -- The game paints a square's glint before its lip and before the square to its right, so the lip hides a
+          -- glint on the top row, and the pixel that hangs over into the next square shows only if that is land.
+          local gx, gy = floor(at / 4096), at % 4096
+          local lip = gy == r * cs and r > 0 and a[base - cols + c] == 0
+          local first = not lip
+          local second = first
+          local washed = false
+          if gx + 1 >= c * cs + cs then
+            local nb = c + 1 < cols and a[base + c + 1] or 0
+            second = nb == 0
+            -- into a filled-in square it shows through the wash, unless a lump of rubble is in the way
+            if nb == 2 then
+              local L = layers[w]
+              local v = L and L.px[gy * L.width + gx + 2]
+              washed = v ~= nil and v >= A1
+            end
+          end
+          if first or second then
+            ctx.fillStyle = GLINT
+            ctx:fillRect(first and gx or gx + 1, gy, (first and second) and 2 or 1, 1)
+          end
+          if washed then ctx.fillStyle = GLINT_WASHED; ctx:fillRect(gx + 1, gy, 1, 1) end
+        end
+      end
+    end
+  end
+end
+
+-- ------------------------------------------------------------------------------------------------ telegraphs and fires
+
+-- The arc an attack is about to cover, and the fires, are worked out a pixel at a time, every frame. Translated code
+-- pays for each of JavaScript's habits on every pixel (a missing number is NaN, every Math call is a lookup), so
+-- these two loops are written by hand. Same arithmetic in the same order: the pictures are identical.
+local sqrt, atan2, fmod, abs, pi = math.sqrt, math.atan2, math.fmod, math.abs, math.pi
+local TAU = pi * 2
+
+-- render.js drawTelegraph's loop: a stomp's disc, or a swipe's or breath's wedge (wedge = true)
+RT.host.teleArc = function(ctx, bx, by, R, x0, x1, y0, y1, wedge, half, face, prog, blink, channel)
+  local far, near = R * R * 1.0001, 64 * 0.9999   -- well outside or well inside: no need for the square root
+  local edgeA = channel and 0.35 or 0.85
+  local onA, offA = channel and 0.12 or 0.42, channel and 0.04 or 0.16
+  local reach = 8 + (R - 8) * prog
+  local fill = ctx.fillRect
+  for py = y0, y1 do
+    local dy = py + 0.5 - by
+    local dy2 = dy * dy
+    for px = x0, x1 do
+      local dx = px + 0.5 - bx
+      local d2 = dx * dx + dy2
+      if d2 <= far and d2 >= near then
+        local dist = sqrt(d2)
+        if not (dist > R or dist < 8) then
+          local edge = dist > R - 1
+          local show = true
+          if wedge then
+            local d = fmod(atan2(dy, dx) - face, TAU)
+            if d > pi then d = d - TAU end
+            if d < -pi then d = d + TAU end
+            local ad = abs(d)
+            if ad > half then show = false
+            elseif (half - ad) * dist < 1 then edge = true end
+          end
+          if show then
+            local al
+            if edge then al = edgeA
+            elseif dist < reach then al = ((px + py + blink) % 2 == 1) and onA or offA
+            else al = ((px + py) % 2 == 1) and 0.12 or 0 end
+            if al ~= 0 then
+              ctx.globalAlpha = al
+              fill(ctx, px, py, 1, 1)
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
+local FIRE = { PAL.fire0, PAL.fire1, PAL.fire2, PAL.fire3 }
+-- render.js drawFires. The flicker is a hash of where and when, and "when" moves ten times a second, so a fire's
+-- pixels are worked out once per flicker and drawn from the list on the frames between (while it is not fading).
+local firePx = setmetatable({}, { __mode = "k" })   -- a fire → { fr, fade, cx, cy, r, n, x, y, colour, ... }
+function RT.drawFires(ctx, g)
+  local fr = floor(g.t * 10)
+  local fires = g.fires
+  local fill = ctx.fillRect
+  local vx, vy = RT.Screen.vx, RT.Screen.vy
+  for i = 0, fires.length - 1 do
+    local f = fires[i]
+    local fade
+    if f.t < 0.25 then fade = f.t / 0.25
+    elseif f.t > f.life - 1.2 then fade = math.max(0, (f.life - f.t) / 1.2)
+    else fade = 1 end
+    local r = f.r
+    local R = math.ceil(r)
+    local cx, cy = floor(f.x + 0.5), floor(f.y + 0.5)
+    -- one that is wholly off the screen draws nothing
+    if cx + R >= vx and cx - R < vx + 320 and cy + R >= vy and cy - R < vy + 180 then
+      local c = firePx[f]
+      if not c then c = {}; firePx[f] = c end
+      if c[1] ~= fr or c[2] ~= fade or c[3] ~= cx or c[4] ~= cy or c[5] ~= r then
+        c[1], c[2], c[3], c[4], c[5] = fr, fade, cx, cy, r
+        local n = 6
+        local k = 0.45 * (2 - fade)
+        for py = -R, R do
+          local wy = cy + py
+          local hy = wy * 13 + fr
+          for px = -R, R do
+            local d = sqrt(px * px + py * py) / r
+            if not (d > 1) then
+              local wx = cx + px
+              local h = hash(wx * 7 + fr * 31, hy)
+              if not (h < 0.15 + d * k) then
+                c[n + 1], c[n + 2], c[n + 3] = wx, wy, (d < 0.35 and h > 0.6) and 4 or d < 0.6 and 3 or h > 0.7 and 2 or 1
+                n = n + 3
+              end
+            end
+          end
+        end
+        c[6] = n
+      end
+      ctx.globalAlpha = fade
+      for j = 7, c[6], 3 do
+        ctx.fillStyle = FIRE[c[j + 2]]
+        fill(ctx, c[j], c[j + 1], 1, 1)
+      end
+    end
+  end
+  ctx.globalAlpha = 1
+end

@@ -24,7 +24,7 @@ const OBJ_METHODS = new Set(['filter', 'map', 'concat', 'split', 'sort', 'revers
 const MATH_DIRECT = { __proto__: null, floor: 'floor', ceil: 'ceil', abs: 'abs', sin: 'sin', cos: 'cos', tan: 'tan', atan2: 'atan2', atan: 'atan', asin: 'asin', acos: 'acos',
   sqrt: 'sqrt', exp: 'exp', pow: 'pow', min: 'min', max: 'max', random: 'random', log: 'log' };
 const MATH_RT = { __proto__: null, hypot: 'hypot', sign: 'sign', imul: 'imul', tanh: 'tanh', trunc: 'trunc' };
-const HOST_GLOBALS = new Set(['makeScreen', 'keyLabel', 'document', 'window', 'localStorage', 'navigator', 'location', 'matchMedia', 'requestAnimationFrame', 'cancelAnimationFrame',
+const HOST_GLOBALS = new Set(['makeScreen', 'keyLabel', 'waterLayer', 'teleArc', 'document', 'window', 'localStorage', 'navigator', 'location', 'matchMedia', 'requestAnimationFrame', 'cancelAnimationFrame',
   'setTimeout', 'clearTimeout', 'addEventListener', 'removeEventListener', 'atob', 'btoa', 'OffscreenCanvas', 'ImageData', 'innerWidth', 'innerHeight', 'JSON']);
 const TYPED = new Set(['Float32Array', 'Float64Array', 'Uint8Array', 'Uint16Array', 'Int16Array', 'Int32Array', 'Uint32Array', 'Int8Array', 'Uint8ClampedArray']);
 

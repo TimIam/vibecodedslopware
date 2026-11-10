@@ -2,7 +2,7 @@
 local ADDON, ns = ...;
 local RT = ns.RT;
 local M = RT.module("props");
-local __Error, __Map, __Set, __T, __add, __assign, __assignKV, __filter, __get, __hypot, __it, __orv, __pairs, __push, __set, __sign, __some, __str, __throw, __typed = RT["Error"], RT["Map"], RT["Set"], RT["T"], RT["add"], RT["assign"], RT["assignKV"], RT["filter"], RT["get"], RT["hypot"], RT["it"], RT.orv, pairs, RT["push"], RT["set"], RT["sign"], RT["some"], RT["str"], RT["throw"], RT["typed"];
+local __Error, __Map, __T, __assign, __assignKV, __filter, __get, __hypot, __it, __orv, __pairs, __push, __set, __sign, __some, __str, __throw, __typed = RT["Error"], RT["Map"], RT["T"], RT["assign"], RT["assignKV"], RT["filter"], RT["get"], RT["hypot"], RT["it"], RT.orv, pairs, RT["push"], RT["set"], RT["sign"], RT["some"], RT["str"], RT["throw"], RT["typed"];
 local __NaN = 0 / 0;
 local __mabs, __matan2, __mceil, __mcos, __mexp, __mfloor, __mmax, __mmin, __msin = math.abs, math.atan2, math.ceil, math.cos, math.exp, math.floor, math.max, math.min, math.sin;
 
@@ -97,30 +97,29 @@ end;
 g.pgrid = grid;
 g.propsDirty = false;
 end;
--- props:76
-M.near = function(g, x, y, r) 
-if ((not __T(g.pgrid)) or __T(g.propsDirty)) then
-M.rebuildGrid(g);
-end;
-local out = __Set();
-for cy = __mfloor(((y - r) / M.CELL)), __mfloor(((y + r) / M.CELL)) do
-for cx = __mfloor(((x - r) / M.CELL)), __mfloor(((x + r) / M.CELL)) do
-local a = __get(g.pgrid, ((cx * 4096) + cy));
-if __T(a) then
+-- near: replaced by the build
 do
-local __t13, __t14 = __it(a), 0;
-while __t14 < __t13.length do
-local p = __t13[__t14]; __t14 = __t14 + 1;
-if (p.state ~= "gone") then
-__add(out, p);
-end;
-end;
-end;
-end;
-end;
-end;
-do return out end;
-end;
+local stamp, call, floor = setmetatable({}, { __mode = "k" }), 0, math.floor
+M.near = function(g, x, y, r)
+if not g.pgrid or g.propsDirty then M.rebuildGrid(g) end
+call = call + 1
+local out, n, idx, CELL = { length = 0 }, 0, g.pgrid.idx, M.CELL
+for cy = floor((y - r) / CELL), floor((y + r) / CELL) do
+for cx = floor((x - r) / CELL), floor((x + r) / CELL) do
+local e = idx[cx * 4096 + cy]
+local a = e and e[1]
+if a then
+for i = 0, a.length - 1 do
+local p = a[i]
+if p.state ~= "gone" and stamp[p] ~= call then stamp[p] = call; out[n] = p; n = n + 1 end
+end
+end
+end
+end
+out.length = n
+return out
+end
+end
 -- props:88
 M.pay = function(g, p, frac, fire) 
 frac = __mmin(frac, (1 - (p.paid or __NaN)));
@@ -212,10 +211,10 @@ end;
 -- props:139
 M.damageZone = function(g, test, dmg, cx, cy, reach) 
 do
-local __t18, __t19 = __it(M.near(g, cx, cy, reach)), 0;
-while __t19 < __t18.length do
+local __t13, __t14 = __it(M.near(g, cx, cy, reach)), 0;
+while __t14 < __t13.length do
 repeat
-local p = __t18[__t19]; __t19 = __t19 + 1;
+local p = __t13[__t14]; __t14 = __t14 + 1;
 if (p.state ~= "up") then
 do break end;
 end;
@@ -227,9 +226,9 @@ until true;
 end;
 end;
 do
-local __t21, __t22 = __it(g.critters), 0;
-while __t22 < __t21.length do
-local c = __t21[__t22]; __t22 = __t22 + 1;
+local __t16, __t17 = __it(g.critters), 0;
+while __t17 < __t16.length do
+local c = __t16[__t17]; __t17 = __t17 + 1;
 if ((not __T(c.dead)) and __T(test(c.x, c.y))) then
 M.hurtCritter(g, c, dmg);
 end;
@@ -239,9 +238,9 @@ end;
 -- props:148
 M.igniteZone = function(g, test, cx, cy, reach, chance) if chance == nil then chance = 1 end;
 do
-local __t24, __t25 = __it(M.near(g, cx, cy, reach)), 0;
-while __t25 < __t24.length do
-local p = __t24[__t25]; __t25 = __t25 + 1;
+local __t19, __t20 = __it(M.near(g, cx, cy, reach)), 0;
+while __t20 < __t19.length do
+local p = __t19[__t20]; __t20 = __t20 + 1;
 if (((__T(M.KINDS[p.kind].flammable) and (not __T(p.burning))) and __T(test(p.x, p.y))) and (g.rng() < chance)) then
 M.ignite(g, p);
 end;
@@ -252,9 +251,9 @@ end;
 M.slowAt = function(g, x, y) 
 local f = 1;
 do
-local __t27, __t28 = __it(M.near(g, x, y, 14)), 0;
-while __t28 < __t27.length do
-local p = __t27[__t28]; __t28 = __t28 + 1;
+local __t22, __t23 = __it(M.near(g, x, y, 14)), 0;
+while __t23 < __t22.length do
+local p = __t22[__t23]; __t23 = __t23 + 1;
 local d = M.KINDS[p.kind];
 if (((p.state == "up") and __T(d.slow)) and (__hypot((x - (p.x or __NaN)), (y - (p.y or __NaN))) < (d.slowR or __NaN))) then
 f = __mmin(f, (1 - (d.slow or __NaN)));
@@ -266,10 +265,10 @@ end;
 -- props:162
 M.solidPush = function(g, e, r) 
 do
-local __t30, __t31 = __it(M.near(g, e.x, e.y, (r + 4))), 0;
-while __t31 < __t30.length do
+local __t25, __t26 = __it(M.near(g, e.x, e.y, (r + 4))), 0;
+while __t26 < __t25.length do
 repeat
-local p = __t30[__t31]; __t31 = __t31 + 1;
+local p = __t25[__t26]; __t26 = __t26 + 1;
 if ((p.state ~= "up") or (not __T(M.KINDS[p.kind].solid))) then
 do break end;
 end;
@@ -293,10 +292,10 @@ local my = ((b.y or __NaN) - oy);
 local ml = __hypot(mx, my);
 local blocked = false;
 do
-local __t33, __t34 = __it(M.near(g, b.x, b.y, ((b.r or __NaN) + 14))), 0;
-while __t34 < __t33.length do
+local __t28, __t29 = __it(M.near(g, b.x, b.y, ((b.r or __NaN) + 14))), 0;
+while __t29 < __t28.length do
 repeat
-local p = __t33[__t34]; __t34 = __t34 + 1;
+local p = __t28[__t29]; __t29 = __t29 + 1;
 local d = M.KINDS[p.kind];
 if (not M.touches(p, b.x, b.y, ((b.r or __NaN) - 1))) then
 do break end;
@@ -330,10 +329,10 @@ until true;
 end;
 end;
 do
-local __t36, __t37 = __it(g.critters), 0;
-while __t37 < __t36.length do
+local __t31, __t32 = __it(g.critters), 0;
+while __t32 < __t31.length do
 repeat
-local c = __t36[__t37]; __t37 = __t37 + 1;
+local c = __t31[__t32]; __t32 = __t32 + 1;
 if (__T(c.dead) or (__hypot(((c.x or __NaN) - (b.x or __NaN)), ((c.y or __NaN) - (b.y or __NaN))) > ((b.r or __NaN) + (c.r or __NaN)))) then
 do break end;
 end;
@@ -348,10 +347,10 @@ end;
 -- props:205
 M.updateProps = function(g, dt) 
 do
-local __t39, __t40 = __it(g.props), 0;
-while __t40 < __t39.length do
+local __t34, __t35 = __it(g.props), 0;
+while __t35 < __t34.length do
 repeat
-local p = __t39[__t40]; __t40 = __t40 + 1;
+local p = __t34[__t35]; __t35 = __t35 + 1;
 if (p.state == "gone") then
 do break end;
 end;
@@ -361,9 +360,9 @@ if __T(p.burning) then
 p.burnT = ((p.burnT or __NaN) + dt);
 if (g.rng() < (((d.spread or __NaN) * dt) * 4)) then
 do
-local __t42, __t43 = __it(M.near(g, p.x, p.y, 16)), 0;
-while __t43 < __t42.length do
-local q = __t42[__t43]; __t43 = __t43 + 1;
+local __t37, __t38 = __it(M.near(g, p.x, p.y, 16)), 0;
+while __t38 < __t37.length do
+local q = __t37[__t38]; __t38 = __t38 + 1;
 if (((((q ~= p) and (not __T(q.burning))) and __T(M.KINDS[q.kind].flammable)) and (__hypot(((q.x or __NaN) - (p.x or __NaN)), ((q.y or __NaN) - (p.y or __NaN))) < ((__T(p.w) and p.w or ((p.r or __NaN) * 2)) + 10))) and (g.rng() < 0.25)) then
 M.ignite(g, q);
 end;
@@ -374,9 +373,9 @@ if (g.rng() < 0.25) then
 M.API.part(g, ((p.x or __NaN) + ((g.rng() - 0.5) * (__T(p.w) and p.w or ((p.r or __NaN) * 2)))), (((p.y or __NaN) - 2) - (g.rng() * 4)), ((g.rng() - 0.5) * 8), ((-12) - (g.rng() * 14)), (0.5 + (g.rng() * 0.4)), "flame");
 end;
 do
-local __t45, __t46 = __it(g.units), 0;
-while __t46 < __t45.length do
-local u = __t45[__t46]; __t46 = __t46 + 1;
+local __t40, __t41 = __it(g.units), 0;
+while __t41 < __t40.length do
+local u = __t40[__t41]; __t41 = __t41 + 1;
 if ((not __T(u.dead)) and M.touches(p, u.x, u.y, 4)) then
 M.API.hurt(g, u, (20 * dt));
 end;
@@ -405,7 +404,7 @@ g.propsDirty = true;
 if (__T(g.water) and __T(M.isWater(g, p.x, p.y))) then
 M.fillWater(g, p.x, p.y, (__T(d.fill) and d.fill or 1));
 p.state = "gone";
-do local __t48 = 0; p.vy = __t48; p.vx = __t48; end;
+do local __t43 = 0; p.vy = __t43; p.vx = __t43; end;
 M.API.sound(g, "splash");
 for i = 0, 8 - 1 do
 local a = (g.rng() * M.TAU);
@@ -455,13 +454,13 @@ local cy = __mfloor((y / (w.cs or __NaN)));
 local cells = {[0]={[0]=0, 0, length=2}, {[0]=1, 0, length=2}, {[0]=(-1), 0, length=2}, {[0]=0, 1, length=2}, {[0]=0, (-1), length=2}, {[0]=1, 1, length=2}, {[0]=(-1), (-1), length=2}, {[0]=1, (-1), length=2}, {[0]=(-1), 1, length=2}, length=9};
 local n = 0;
 do
-local __t52, __t53 = __it(cells), 0;
-local __b54 = false;
-while __t53 < __t52.length do
+local __t47, __t48 = __it(cells), 0;
+local __b49 = false;
+while __t48 < __t47.length do
 repeat
-local __t55 = __t52[__t53]; __t53 = __t53 + 1; local dx, dy; dx = __t55[0]; dy = __t55[1];
+local __t50 = __t47[__t48]; __t48 = __t48 + 1; local dx, dy; dx = __t50[0]; dy = __t50[1];
 if (n >= (2 + (amount * 2))) then
-do __b54 = true; break end;
+do __b49 = true; break end;
 end;
 local X = (cx + dx);
 local Y = (cy + dy);
@@ -471,7 +470,7 @@ end;
 w.a[((Y * (w.cols or __NaN)) + X)] = 2;
 n = n + 1;
 until true;
-if __b54 then break end;
+if __b49 then break end;
 end;
 end;
 g.waterDirty = true;
@@ -511,7 +510,7 @@ end;
 -- props:291
 M.addCritter = function(g, kind, x, y, extra) if extra == nil then extra = {} end;
 local d = M.CRITTERS[kind];
-local c = __assign({id=(function() local __t59 = g.nextId; g.nextId = __t59 + 1; return __t59 end)(), kind=kind, x=x, y=y, hx=x, hy=y, hp=d.hp, r=d.r, dead=false, gone=false, walk=(g.rng() * 10), fx=((g.rng() < 0.5) and 1 or (-1)), moving=false, tx=x, ty=y, scared=0, hitT=0, seed=__mfloor((g.rng() * 1000000))}, extra);
+local c = __assign({id=(function() local __t54 = g.nextId; g.nextId = __t54 + 1; return __t54 end)(), kind=kind, x=x, y=y, hx=x, hy=y, hp=d.hp, r=d.r, dead=false, gone=false, walk=(g.rng() * 10), fx=((g.rng() < 0.5) and 1 or (-1)), moving=false, tx=x, ty=y, scared=0, hitT=0, seed=__mfloor((g.rng() * 1000000))}, extra);
 __push(g.critters, c);
 do return c end;
 end;
@@ -552,10 +551,10 @@ end;
 M.updateCritters = function(g, dt) 
 local b = g.boss;
 do
-local __t61, __t62 = __it(g.critters), 0;
-while __t62 < __t61.length do
+local __t56, __t57 = __it(g.critters), 0;
+while __t57 < __t56.length do
 repeat
-local c = __t61[__t62]; __t62 = __t62 + 1;
+local c = __t56[__t57]; __t57 = __t57 + 1;
 if __T(c.dead) then
 do break end;
 end;

@@ -54,6 +54,8 @@ local function mix(dst, src, a)
   return floor(dr + (sr - dr) * a + 0.5) * 65536 + floor(dg + (sg - dg) * a + 0.5) * 256 + floor(db + (sb - db) * a + 0.5)
 end
 
+RT.mix = mix
+
 -- src (with alpha sa, 0..1) over a packed destination pixel that may itself be see-through
 local function over(d, src, sa)
   if d == nil then
@@ -351,6 +353,21 @@ function SMeta:beginPath() end
 
 local lastStyle, lastRgb, lastA = nil, 0, 1
 
+-- Blending is most of what a see-through fill costs, and a fill meets the same few ground colours over and over (the
+-- HUD's backing covers 7,500 cells a frame), so the answers are kept: blends[colour][alpha][what was there] = result.
+local blends, nBlends = {}, 0
+local memoRgb, memoA, memoT = nil, nil, nil
+local function blendsFor(rgb, a)
+  if rgb == memoRgb and a == memoA then return memoT end
+  if nBlends > 300 then blends, nBlends = {}, 0 end   -- a fade makes a new alpha every frame
+  local byA = blends[rgb]
+  if not byA then byA = {}; blends[rgb] = byA end
+  local t = byA[a]
+  if not t then t = {}; byA[a] = t; nBlends = nBlends + 1 end
+  memoRgb, memoA, memoT = rgb, a, t
+  return t
+end
+
 function SMeta:fillRect(x, y, w, h)
   local style = self.fillStyle
   if style ~= lastStyle then
@@ -373,6 +390,7 @@ function SMeta:fillRect(x, y, w, h)
   local first = W - gx
   if first > n then first = n end
   local opaque = a >= 0.998
+  local memo = not opaque and blendsFor(rgb, a)
   local f, m = frame, mask
   for sy = y0, y1 do
     local row = ((sy + oy) % H) * W + 1
@@ -381,7 +399,13 @@ function SMeta:fillRect(x, y, w, h)
       for i = i0, i1 do
         if not (m and m[i]) then
           if mark[i] ~= f then mark[i] = f; nNow = nNow + 1; now[nNow] = i end
-          if opaque then cur[i] = rgb else cur[i] = mix(cur[i], rgb, a) end
+          if opaque then cur[i] = rgb
+          else
+            local d = cur[i]
+            local v = memo[d]
+            if not v then v = mix(d, rgb, a); memo[d] = v end
+            cur[i] = v
+          end
         end
       end
       if first >= n then break end
@@ -463,7 +487,8 @@ function SMeta:drawDithered(img, dx, dy, alpha)
 end
 
 -- the ground at one world pixel: the painted level, then scorch marks and footprints
-local bgC, trailC, fgC = nil, nil, nil
+local bgC, trailC, fgC, waterC = nil, nil, nil, nil
+local WATER_TINT = 0.35   -- the one see-through thing in a water layer: the wash over a filled-in cell (see gfx.lua)
 local viewX, viewY = 0, 0
 local function groundAt(wx, wy)
   local v = NIGHT
@@ -476,6 +501,12 @@ local function groundAt(wx, wy)
       local t = trailC.px[wy * trailC.width + wx + 1]
       if t ~= nil then
         if t < A1 then v = t else local a = floor(t / A1); v = mix(v, t - a * A1, a / 255) end
+      end
+    end
+    if waterC and wx < waterC.width and wy < waterC.height then
+      local t = waterC.px[wy * waterC.width + wx + 1]
+      if t ~= nil then
+        if t < A1 then v = t else v = mix(v, t % A1, WATER_TINT) end
       end
     end
   end
@@ -493,7 +524,7 @@ local function rebase(wx, wy)
   nTouched = nTouched + 1; touched[nTouched] = i
 end
 
-local lastBg, lastTrail, lastFg = nil, nil, nil
+local lastBg, lastTrail, lastFg, lastWater = nil, nil, nil, nil
 -- A frame that was drawn but never shown (the one painted behind a loading screen) leaves the display out of step
 -- with the lists of what changed, so the next frame to be shown sends every cell.
 local sendAll, unshown = false, false
@@ -506,12 +537,14 @@ end
 
 -- Starts a frame: brings the ground layer up to date for this camera, then wipes last frame's drawing back to ground.
 -- fg (a screen-sized canopy) is folded into the ground too, and until maskOff() nothing is drawn over it.
-function Screen.begin(bg, trail, vx, vy, fg)
+-- water (RT.host.waterLayer) is the level's still water, which lies over the footprints.
+function Screen.begin(bg, trail, vx, vy, fg, water)
   newFrame()
   if not trail.log then trail.log = {} end
-  local full = bg ~= lastBg or trail ~= lastTrail or fg ~= lastFg or trail.logAll
+  water = water or nil
+  local full = bg ~= lastBg or trail ~= lastTrail or fg ~= lastFg or water ~= lastWater or trail.logAll
   if not full and (math.abs(vx - viewX) >= W or math.abs(vy - viewY) >= H) then full = true end
-  bgC, trailC, fgC = bg, trail, fg or nil
+  bgC, trailC, fgC, waterC = bg, trail, fg or nil, water
   local px, py = viewX, viewY
   viewX, viewY = vx, vy
   ox, oy = vx % W, vy % H
@@ -530,9 +563,19 @@ function Screen.begin(bg, trail, vx, vy, fg)
       local x0, y0, x1, y1 = max(r[1], vx), max(r[2], vy), min(r[3], vx + W - 1), min(r[4], vy + H - 1)
       for wy = y0, y1 do for wx = x0, x1 do rebase(wx, wy) end end
     end
+    -- water that was filled in
+    if water then
+      local wlog = water.log
+      for k = 1, #wlog do
+        local r = wlog[k]
+        local x0, y0, x1, y1 = max(r[1], vx), max(r[2], vy), min(r[3], vx + W - 1), min(r[4], vy + H - 1)
+        for wy = y0, y1 do for wx = x0, x1 do rebase(wx, wy) end end
+      end
+    end
   end
+  if water and #water.log > 0 then water.log = {} end
   trail.log, trail.logAll = {}, nil
-  lastBg, lastTrail, lastFg = bg, trail, fg
+  lastBg, lastTrail, lastFg, lastWater = bg, trail, fg, water
   -- back to bare ground wherever something was drawn last frame
   for k = 1, nNow do local i = now[k]; cur[i] = base[i] end
   prev, now = now, prev
@@ -559,7 +602,7 @@ function Screen.beginPlain(rgb)
   end
   nPrev, nNow = 0, 0
   mask = nil
-  lastBg = nil
+  lastBg, waterC = nil, nil
   ox, oy, viewX, viewY = 0, 0, 0, 0
   SCtx.tx, SCtx.ty, SCtx.globalAlpha = 0, 0, 1
   Screen.ox, Screen.oy, Screen.vx, Screen.vy, Screen.shakeX, Screen.shakeY = 0, 0, 0, 0, 0, 0
