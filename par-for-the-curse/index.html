@@ -224,22 +224,7 @@ kbd{display:inline-block;min-width:22px;padding:0 6px;border:2px solid var(--ink
 #menu .panel{max-height:94vh;overflow:auto}
 #meter{left:50%;bottom:138px;transform:translateX(-50%);width:min(420px,80vw);text-align:center}
 #meter .track{position:relative;height:22px;border:3px solid var(--ink);border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 3px 0 rgba(0,0,0,.25)}
-#meter .sweet{position:absolute;top:0;bottom:0;left:15%;width:4px;margin-left:-2px;background:var(--ink)}
-#meter[data-mode=flick] .sweet{left:50%}
-#meter[data-mode=sling] .sweet,#meter[data-mode=charge] .sweet{display:none}
-#meter[data-mode=tempo] .sweet{left:76.9%}
-#meter .ringBox{position:relative;height:96px;margin-bottom:6px}
-#meter .ringBox i{position:absolute;left:50%;top:50%;width:60px;height:60px;margin:-30px 0 0 -30px;border-radius:50%;box-sizing:border-box}
-#meter .ringBox .target{transform:scale(.675);border:4px solid var(--ink);background:rgba(255,255,255,.75)}
-#meter .ringBox .ring{border:5px solid var(--red)}
-#guard{left:50%;top:46%;width:0;height:0}
-#guard i{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;display:grid;place-items:center;font:900 26px Nunito,sans-serif;font-style:normal;color:rgba(255,255,255,.55);text-shadow:0 2px 0 rgba(0,0,0,.4)}
-#guard i[data-g=left]{left:-90px}#guard i[data-g=right]{left:90px}#guard i[data-g=top]{top:-80px}
-#guard i.on{color:#fff;transform:scale(1.25)}
-#guard i.inc{color:var(--red);animation:pulse .25s infinite alternate}
-@keyframes pulse{to{transform:scale(1.5)}}
 #meter .fill{position:absolute;top:0;bottom:0;left:0;width:0;background:linear-gradient(90deg,#7bd389,#ffd23f 60%,#ff5d73)}
-#meter .mark{position:absolute;top:-2px;bottom:-2px;width:8px;margin-left:-4px;background:#fff;border:2px solid var(--ink);border-radius:4px}
 #meter small{display:inline-block;margin-top:5px;padding:3px 10px;border-radius:9px;background:rgba(255,255,255,.92);font-weight:900;font-size:13px;color:var(--ink)}
 #vote{left:50%;top:64px;transform:translateX(-50%);padding:8px 14px;font-weight:900;font-size:15px;text-align:center;max-width:min(560px,92vw)}
 #clickToPlay small{display:block;font-family:Nunito;font-weight:800;font-size:13px;color:#6a5f70}
@@ -293,8 +278,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 <div class="hud" id="holeCard"><span class="num" id="hcNum">Hole 1</span><h2 id="hcName">Warm-Up Wobble</h2><div class="par" id="hcPar">Par 3</div><p id="hcBlurb"></p></div>
 <div class="hud chunk" id="shot"></div>
 <div class="hud chunk" id="prompt" hidden></div>
-<div class="hud" id="guard" hidden><i data-g="left">◀</i><i data-g="top">▲</i><i data-g="right">▶</i></div>
-<div class="hud" id="meter" hidden><div class="ringBox" id="ringBox" hidden><i class="target"></i><i class="ring" id="ring"></i></div><div class="track"><i class="fill" id="meterFill"></i><i class="sweet"></i><i class="mark" id="meterMark" hidden></i></div><small id="meterSay"></small></div>
+<div class="hud" id="meter" hidden><div class="track"><i class="fill" id="meterFill"></i></div><small id="meterSay"></small></div>
 <div class="hud chunk" id="cannonUI" hidden><b>🎯 Time the cannon!</b><div class="ctrack"><i class="sweet"></i><i id="cneedle"></i></div><small>Press <kbd>E</kbd> to fire when the needle is in the red</small></div>
 <div class="hud" id="tip"><div class="tipcard chunk"><b>Your mouse is your hands.</b><span id="tipText"></span></div></div>
 <div class="hud" id="clubs">
@@ -314,6 +298,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
     <span class="k"><kbd>Q</kbd> <kbd>E</kbd></span><span>while gripping: turn on the spot</span>
     <span class="k">right mouse</span><span>while gripping: pull back and push forward to thrust</span>
     <span class="k"><kbd>H</kbd></span><span>show the real hit boxes</span>
+    <span class="k"><kbd>P</kbd></span><span>a sparring partner in front of you, or reset it (Esc menu: punching bag or fights back)</span>
     <span class="k"><kbd>1</kbd>–<kbd>5</kbd> wheel</span><span>hands, driver, wedge, putter, iron</span>
     <span class="k"><kbd>F</kbd></span><span>hold to look at the flag</span>
     <span class="k"><kbd>R</kbd></span><span>unplayable lie: back to your last shot, +1</span>
@@ -407,12 +392,9 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
   <label class="vol">Music<input type="range" min="0" max="100" data-vol="music"><output></output></label>
   <label class="vol">Announcer<input type="range" min="0" max="100" data-vol="announcer"><output></output></label>
   <label class="vol">Voice chat<input type="range" min="0" max="100" data-vol="chat"><output></output></label>
-  <h3>Fighting <small>left mouse · <kbd>[</kbd> swaps</small></h3>
-  <div class="seg"><button data-ctl="fight:0">Raw</button><button data-ctl="fight:1">Slash</button><button data-ctl="fight:2">Brawler</button><button data-ctl="fight:3">Duelist</button><button data-ctl="fight:4">Swipe</button><button data-ctl="fight:5">Boomerang</button></div>
-  <p class="how" id="fightHow"></p>
-  <h3>Golf shot <small>right click by your ball · <kbd>]</kbd> swaps</small></h3>
-  <div class="seg"><button data-ctl="golf:0">Feel</button><button data-ctl="golf:1">Flick</button><button data-ctl="golf:2">Meter</button><button data-ctl="golf:3">Slingshot</button><button data-ctl="golf:4">Charge</button><button data-ctl="golf:5">Tempo</button></div>
-  <p class="how" id="golfHow"></p>
+  <h3>Sparring partner <small><kbd>P</kbd> resets Sparky</small></h3>
+  <div class="seg"><button id="sparBag">Punching bag</button><button id="sparFight">Fights back</button><button id="sparOff">Send home</button></div>
+  <p class="how">Sparky is a golfer on your computer only: hit Sparky with the same swing you use on friends, and reset with <kbd>P</kbd>.</p>
   <div class="acts">
     <button class="btn small" id="resetBall">Reset my ball</button>
     <button class="btn small" id="resetCart">Reset my cart</button>

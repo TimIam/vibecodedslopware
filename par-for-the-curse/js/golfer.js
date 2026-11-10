@@ -307,19 +307,19 @@ export function sitPose(s, steer = 0) {
 // Nothing helps: the mouse maps straight onto the hands with no dead band, the turf is only something the
 // head can scrape along or dig into, and a ball leaves the club by plain collision (see strike).
 const VERT_SENS = 1, MAX_ARC = 2.3, MOUSE = 0.0048;
-// Two ways to hold the club. Fighting (left mouse): free in every direction, but the hands stay in front
-// of the body (FIGHT_ARC) and drift back to the middle when the mouse rests, so the arms never end up
-// stuck behind you. Golf (this.golf, the stance from a right click): the full backswing, and small up
+// Two ways to hold the club. Fighting (left mouse): free in every direction, the hands always in front of
+// the body (FIGHT_ARC), so the arms never end up stuck behind you.
+// Golf (this.golf, the stance from a right click): the full backswing, and small up
 // and down wobbles of the mouse are ignored (GOLF_DEAD) so a level swing stays level.
 const FIGHT_ARC = 1.25, FIGHT_LIFT = 1.55, GOLF_DEAD = 0.22, GOLF_SOLID = 0.07;
-// What a body can do with two hands on one club, for the fighting swing. The hands never go higher than the
-// forehead (FIGHT_LIFT) or further round than the chest can turn (FIGHT_ARC). Raised hands come down as
-// they swing back through the middle (FIGHT_DROP, per radian of sweep), because a level cut from a high
-// wind-up is a diagonal chop, not a waggle above your own head. Lift you are not holding up sinks after a
-// moment and the whole thing settles to a guard in front of the chest. The wrists stop the club short of
-// lying along the back: a side cut cocks it over the shoulder (COCK_SIDE), an overhead chop tips it back
-// past upright (COCK_UP).
-const FIGHT_DROP = 1.4, LIFT_HOLD = 0.25, LIFT_SINK = 2.6, GUARD_WAIT = 0.4, GUARD_RATE = 2.2, COCK_SIDE = 2.15, COCK_UP = 2.35, COCK_LEAN = 0.6;   // COCK_LEAN: raised, the club leans out over a shoulder, clear of the head
+// What a body can do with two hands on one club, for the fighting swing. The hands go exactly where the
+// mouse puts them and stay there: nothing drifts them back on its own, because hands that move by
+// themselves never feel like yours. They stop at the forehead (FIGHT_LIFT). Sideways, the arms only reach
+// round as far as FIGHT_ARC; push further and the body twists round with the swing (TURN_FOLLOW radians of
+// twist per radian pushed past it, collected in this.turn for the game to apply, which unwinds it again),
+// the way Half Sword's fighters are dragged round by their own weapon. The wrists stop the club short of lying along the back:
+// a side cut cocks it over the shoulder (COCK_SIDE), an overhead chop tips it back past upright (COCK_UP).
+const TURN_FOLLOW = 1, COCK_SIDE = 2.15, COCK_UP = 2.35, COCK_LEAN = 0.6;   // COCK_LEAN: raised, the club leans out over a shoulder, clear of the head
 const MIN_LIFT = -0.45;     // how far the hands can press down and in toward the body
 const TURF_MU = 0.6;        // turf friction on the sole
 const FACE_GRIP = 0.3;      // how much of the club's path, as against where its face looks, the ball starts along
@@ -500,20 +500,15 @@ export class Swing {
   }
   // Mouse deltas in pixels (dx right, dy down). thrust: pull back and push to jab instead of lifting.
   input(dx, dy, thrust = false) {
-    const k = MOUSE * this.club.sens, x0 = this.target.x;
+    const k = MOUSE * this.club.sens;
     this.target.x += dx * k;
-    if (!this.golf && !thrust) {
-      // Swinging back toward the middle brings raised hands down with it.
-      const inward = Math.abs(x0) - Math.abs(THREE.MathUtils.clamp(this.target.x, -FIGHT_ARC, FIGHT_ARC));
-      if (inward > 0 && this.target.y > 0 && dy >= 0) this.target.y *= Math.exp(-FIGHT_DROP * inward);
-      if (dy < 0) this.idleY = 0;
-    }
     if (thrust) this.reach = THREE.MathUtils.clamp(this.reach - dy * 0.0016, 0.5, 0.995);
     else this.target.y = Math.max(this.golf ? -GOLF_DEAD : MIN_LIFT, this.target.y - dy * k * VERT_SENS);
     this.thrusting = thrust;
-    if (dx || dy) this.idle = 0;
     if (!this.golf) {
-      this.target.x = THREE.MathUtils.clamp(this.target.x, -FIGHT_ARC, FIGHT_ARC);
+      // Past the arms' reach the body turns instead (+x is the golfer's left, and so is a positive turn).
+      const over = this.target.x - THREE.MathUtils.clamp(this.target.x, -FIGHT_ARC, FIGHT_ARC);
+      if (over) { this.turn = (this.turn || 0) + over * TURN_FOLLOW; this.target.x -= over; }
       this.target.y = Math.min(this.target.y, FIGHT_LIFT);
     }
     const l = this.target.length();
@@ -522,11 +517,6 @@ export class Swing {
   step(dt, ground) {
     const C = this.club;
     this.lastDt = dt; this.prevHand.copy(this.hand);
-    if (!this.golf) {
-      this.idle = (this.idle || 0) + dt; this.idleY = (this.idleY || 0) + dt;
-      if (this.idleY > LIFT_HOLD && this.target.y > 0) this.target.y *= Math.exp(-dt * LIFT_SINK);
-      if (this.idle > GUARD_WAIT) this.target.multiplyScalar(Math.exp(-dt * GUARD_RATE));
-    }
     // Hands: spring toward the target with capped acceleration and speed (the weight of the club).
     if (!this.thrusting) this.reach += (0.995 - this.reach) * (1 - Math.exp(-dt * 8));
     const T = this.handAt(this.target.x, this.target.y, this.reach, _c);
