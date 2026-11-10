@@ -1278,6 +1278,21 @@ window.SLOPWARE = {
     }
    ]
   },
+  "puck-around": {
+   "visits": 0,
+   "prompts": 2,
+   "tokens": 422376,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-10T11:43:33-07:00",
+     "note": "arcade hockey to play online with friends",
+     "prompts": 2,
+     "tokens": 422376
+    }
+   ]
+  },
   "shop": {
    "visits": 48,
    "prompts": 3,
