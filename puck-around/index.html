@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Puck Around &amp; Find Out</title>
+<meta name="description" content="Arcade hockey you can play online with friends. Five skaters a side, an aim marker sliding across the goal mouth, body checks, and when tempers go, the gloves come off. Send a friend the room code and drop the puck.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏒</text></svg>">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#07080c;color:#e8ecf4;font:14px/1.4 "Segoe UI",system-ui,sans-serif;overscroll-behavior:none}
+#wrap{position:fixed;left:0;right:0;top:52px;bottom:0;display:grid;place-items:center}
+#stage{position:relative;line-height:0}
+#game{display:block;image-rendering:pixelated;image-rendering:crisp-edges;outline:none;background:#000;box-shadow:0 0 0 1px #1d2130,0 10px 40px #000}
+.site-topbar .mute{margin-left:auto;margin-right:8px;padding:0 10px;border:1px solid #8c9b80;border-radius:999px}
+#ui{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;pointer-events:none;font:700 1em/1.35 ui-monospace,"Cascadia Mono",Consolas,monospace;text-transform:uppercase;letter-spacing:.04em}
+.panel{pointer-events:auto;display:none;background:rgba(8,12,24,.93);border:.14em solid #f2c230;padding:.9em 1.2em;margin-bottom:1.3em;width:28em;max-width:94%;max-height:78%;overflow:auto;box-shadow:.3em .3em 0 #000}
+.panel.on{display:block}
+.panel.mid{margin-bottom:auto;margin-top:auto}
+.panel h2{margin:0 0 .6em;font-size:1.15em;color:#f2c230}
+.panel p{margin:.4em 0;text-transform:none;font-weight:400;font-family:"Segoe UI",system-ui,sans-serif;letter-spacing:0;line-height:1.45}
+.row{display:flex;gap:.6em;align-items:center;margin:.45em 0;flex-wrap:wrap}
+.row>label{flex:0 0 8.5em;color:#9aa6c0}
+.row>.grow{flex:1 1 8em;min-width:0}
+button,select,input{font:inherit;text-transform:inherit;letter-spacing:inherit;color:#e8ecf4;background:#1a2236;border:.12em solid #3a4766;padding:.4em .7em;border-radius:0}
+input{text-transform:uppercase;width:100%}
+select{width:100%}
+button{cursor:pointer;background:#22305a}
+button:hover,button:focus-visible{border-color:#f2c230;outline:none}
+button.go{background:#c0392b;border-color:#ff8a70;color:#fff;flex:1}
+button.big{flex:1;padding:.6em .7em}
+button[disabled]{opacity:.45;cursor:default}
+button.sel{background:#f2c230;color:#111;border-color:#fff}
+.code{font-size:1.5em;color:#ffe14d;letter-spacing:.2em}
+#players{list-style:none;margin:.5em 0;padding:0}
+#players li{display:flex;gap:.6em;align-items:center;padding:.3em .5em;background:#131a2c;margin:.2em 0}
+#players .nm{flex:1}
+#players .tag{font-size:.8em;padding:.1em .5em;background:#2b3655;color:#cfd6e6}
+#players .tag.h{background:#1f3fa8}#players .tag.a{background:#c62828}#players .tag.you{background:#f2c230;color:#111}
+.dim{color:#8894b0;font-size:.85em}
+#notice{pointer-events:auto;display:none;background:#b3261e;color:#fff;padding:.5em 1em;margin-bottom:.6em;max-width:94%;text-transform:none;font-weight:400;font-family:"Segoe UI",system-ui,sans-serif;letter-spacing:0;line-height:1.35}
+#notice.on{display:block}
+kbd{display:inline-block;background:#1a2236;border:.1em solid #55627f;padding:0 .4em;font:inherit;font-size:.9em;text-transform:uppercase}
+</style>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <button class="mute" id="mute" type="button" aria-label="Toggle sound">♪ Sound on</button>
+  <a class="site-coffee" style="margin-left:0" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<div id="wrap"><div id="stage">
+  <canvas id="game" width="480" height="270" tabindex="0" aria-label="Puck Around and Find Out"></canvas>
+  <div id="ui">
+    <div id="notice" role="status"></div>
+
+    <div class="panel" id="p-title">
+      <div class="row"><button class="big go" id="b-online" type="button">Play online with friends</button></div>
+      <div class="row"><button class="big" id="b-solo" type="button">Play the computer</button><button class="big" id="b-how" type="button">How to play</button></div>
+    </div>
+
+    <div class="panel" id="p-solo">
+      <h2>Play the computer</h2>
+      <div class="row"><label for="s-home">Your team</label><select class="grow" id="s-home"></select></div>
+      <div class="row"><label for="s-away">Their team</label><select class="grow" id="s-away"></select></div>
+      <div class="row"><label for="s-diff">They play like</label><select class="grow" id="s-diff"><option value="0">Rookies</option><option value="1">Pros</option><option value="2">Goons</option></select></div>
+      <div class="row"><label for="s-len">Each period</label><select class="grow" id="s-len"><option value="60">1 minute</option><option value="120">2 minutes</option><option value="180">3 minutes</option></select></div>
+      <div class="row"><button type="button" data-back>Back</button><button class="go" id="b-solo-go" type="button">Drop the puck</button></div>
+    </div>
+
+    <div class="panel" id="p-online">
+      <h2>Play online</h2>
+      <p>Start a room and send your friends the code, or type in a code a friend sent you. Up to four can play, two a side; anyone else can watch.</p>
+      <div class="row"><label for="name">Your name</label><input class="grow" id="name" maxlength="10" autocomplete="off" spellcheck="false"></div>
+      <div class="row"><button class="big go" id="b-create" type="button">Start a new room</button></div>
+      <div class="row"><input class="grow" id="code" maxlength="8" placeholder="Room code" autocomplete="off" spellcheck="false" aria-label="Room code"><button id="b-join" type="button">Join</button></div>
+      <div class="row"><button type="button" data-back>Back</button><span class="dim" id="online-status"></span></div>
+    </div>
+
+    <div class="panel" id="p-lobby">
+      <h2>Room <span class="code" id="l-code"></span></h2>
+      <div class="row"><button id="b-copy" type="button">Copy invite link</button><span class="dim" id="l-copy"></span></div>
+      <ul id="players"></ul>
+      <div class="row"><label>You are</label><button type="button" data-side="0">Home</button><button type="button" data-side="1">Away</button><button type="button" data-side="-1">Watching</button></div>
+      <div id="l-host">
+        <div class="row"><label for="l-home">Home team</label><select class="grow" id="l-home"></select></div>
+        <div class="row"><label for="l-away">Away team</label><select class="grow" id="l-away"></select></div>
+        <div class="row"><label for="l-len">Each period</label><select class="grow" id="l-len"><option value="60">1 minute</option><option value="120">2 minutes</option><option value="180">3 minutes</option></select></div>
+        <div class="row"><label for="l-diff">Computer skaters</label><select class="grow" id="l-diff"><option value="0">Rookies</option><option value="1">Pros</option><option value="2">Goons</option></select></div>
+      </div>
+      <p class="dim" id="l-info"></p>
+      <div class="row"><button type="button" id="b-leave">Leave</button><button class="go" id="b-start" type="button">Drop the puck</button></div>
+    </div>
+
+    <div class="panel mid" id="p-how">
+      <h2>How to play</h2>
+      <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrow keys skate. A controller works too.</p>
+      <p><b>With the puck:</b> <kbd>J</kbd> passes toward where you are steering, and you take over the skater you passed to. <kbd>K</kbd> shoots at the marker sliding across the goal mouth: tap for a quick wrister, hold and let go for a slapshot. Shoot when the marker is away from the goalie.</p>
+      <p><b>Without it:</b> <kbd>J</kbd> switches you to the skater nearest the puck. <kbd>K</kbd> throws a body check.</p>
+      <p><b>Faceoffs:</b> hit <kbd>J</kbd> the moment the puck drops. Too early and your stick is tied up.</p>
+      <p><b>Fights:</b> check the same skater enough and the gloves come off. <kbd>A</kbd><kbd>D</kbd> move, hold <kbd>W</kbd> to guard your head or <kbd>S</kbd> your body, <kbd>J</kbd> jabs high, <kbd>K</kbd> digs low. The loser sits five minutes and their team skates short.</p>
+      <p class="dim"><kbd>Z</kbd> and <kbd>X</kbd> work in place of <kbd>J</kbd> and <kbd>K</kbd>. <kbd>Esc</kbd> opens the menu.</p>
+      <div class="row"><button type="button" data-back>Back</button></div>
+    </div>
+
+    <div class="panel mid" id="p-pause">
+      <h2 id="pause-title">Paused</h2>
+      <div class="row"><button class="big go" id="b-resume" type="button">Back to the ice</button></div>
+      <div class="row"><button class="big" id="b-quit" type="button">Quit</button></div>
+    </div>
+
+    <div class="panel" id="p-final">
+      <div class="row"><button class="big go" id="b-rematch" type="button">Rematch</button><button class="big" id="b-done" type="button">Done</button></div>
+      <p class="dim" id="final-info"></p>
+    </div>
+  </div>
+</div></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
