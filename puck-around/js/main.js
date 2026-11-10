@@ -145,7 +145,7 @@ function show(id) {
   }
   if (id === 'p-pause') {
     $('pause-title').textContent = G.mode === 'solo' ? 'Paused' : 'Menu (the game carries on)';
-    $('b-quit').textContent = G.mode === 'solo' ? 'Quit to the menu' : G.mode === 'host' ? 'End the game for everyone' : 'Leave the room';
+    $('b-quit').textContent = G.mode === 'solo' ? 'Quit to the menu' : G.mm ? 'Leave the match' : G.mode === 'host' ? 'End the game for everyone' : 'Leave the room';
   }
   if (!id) canvas.focus();
 }
@@ -212,7 +212,7 @@ $('b-solo-go').onclick = () => {
   startMatch({ periodLen: +$('s-len').value, diff: +$('s-diff').value, seed: (Math.random() * 1e9) | 0, teams: [+$('s-home').value, +$('s-away').value], humans: [{ team: 0, name: 'YOU' }] }, 'solo');
 };
 $('b-resume').onclick = () => togglePause();
-$('b-quit').onclick = () => { if (G.mode === 'solo') toTitle(); else if (G.mode === 'host') endHosted(); else leaveRoom(); };
+$('b-quit').onclick = () => { if (G.mode === 'solo') toTitle(); else if (G.mode === 'host' && !G.mm) endHosted(); else leaveRoom(); };
 $('b-rematch').onclick = () => {
   if (G.mode === 'solo') startMatch({ ...G.cfg, seed: (Math.random() * 1e9) | 0 }, 'solo'); else if (G.mode === 'host') hostStart();
 };
