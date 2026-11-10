@@ -1268,6 +1268,13 @@ window.SLOPWARE = {
      "note": "active ragdolls on Rapier",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 24,
+     "date": "2026-11-10T11:34:08-07:00",
+     "note": "PIN prompt, leave to the title, ragdoll drawing fixes",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
