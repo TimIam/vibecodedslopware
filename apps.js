@@ -1235,6 +1235,13 @@ window.SLOPWARE = {
      "note": "three fighting schemes and three golf shot schemes",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 20,
+     "date": "2026-11-10T09:29:51-07:00",
+     "note": "Mushroom Gorge is easier still",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
