@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Par for the Curse</title>
+<meta name="description" content="Multiplayer rage golf up a floating mountain. Stubby little golfers, a physical mouse-driven swing, windmills, geese, cannons, and a long way to fall.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛳</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+:root{--ink:#2b2233;--cream:#fff8ea;--red:#ff3d6e;--sun:#ffd23f;--sky:#36c5f0;--grass:#5cc04a;--shadow:0 6px 0 rgba(43,34,51,.9)}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#bfe3ff;color:var(--ink);font:600 15px/1.4 Nunito,system-ui,sans-serif;user-select:none;-webkit-user-select:none}
+#game{position:fixed;left:0;top:52px;width:100vw;height:calc(100vh - 52px);height:calc(100dvh - 52px);display:block;outline:none}
+body.playing #game{cursor:none}
+.hud{position:fixed;z-index:5;pointer-events:none}
+body:not(.playing) .hud{display:none!important}
+.chunk{background:var(--cream);border:3px solid var(--ink);border-radius:16px;box-shadow:var(--shadow)}
+h1,h2,h3,.lil{font-family:"Lilita One",Nunito,sans-serif;font-weight:400;letter-spacing:.01em}
+
+/* top-left: hole + score */
+#score{top:66px;left:14px;padding:8px 14px 9px;display:flex;gap:14px;align-items:center}
+#score .hole{font-family:"Lilita One";font-size:30px;line-height:1;color:var(--red);text-shadow:2px 2px 0 var(--ink)}
+#score .hole small{display:block;font-family:Nunito;font-weight:900;font-size:11px;color:var(--ink);text-shadow:none;letter-spacing:.08em;text-transform:uppercase;margin-bottom:2px}
+#score .nm{font-family:"Lilita One";font-size:18px;line-height:1.05}
+#score .nm span{display:block;font-family:Nunito;font-size:12px;color:#6a5f70;font-weight:800}
+#score .stats{display:flex;gap:12px;border-left:3px dashed rgba(43,34,51,.2);padding-left:12px}
+#score .stats div{display:grid;text-align:center}
+#score .stats b{font-family:"Lilita One";font-size:22px;line-height:1.05;font-weight:400}
+#score .stats span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;font-weight:900;color:#6a5f70}
+
+/* climb bar */
+#climb{left:14px;top:150px;bottom:110px;width:40px;padding:8px 0}
+#climbTrack{position:absolute;left:50%;top:14px;bottom:14px;width:12px;transform:translateX(-50%);border-radius:8px;background:linear-gradient(#ffd23f,#ff8c42 30%,#7bd389 70%,#36c5f0);border:3px solid var(--ink)}
+#climbTrack .tick{position:absolute;left:-7px;right:-7px;height:3px;background:var(--ink);border-radius:2px}
+#climbTrack .tick b{position:absolute;left:24px;top:-8px;font:900 10px Nunito;color:var(--ink);background:var(--cream);border-radius:5px;padding:0 3px}
+#meDot,.odot{position:absolute;left:50%;width:20px;height:20px;margin:0 0 -10px -10px;border-radius:50%;border:3px solid var(--ink);background:#fff;transition:bottom .25s}
+#meDot{z-index:2;width:24px;height:24px;margin:0 0 -12px -12px;box-shadow:0 0 0 3px #fff}
+.odot{opacity:.9}
+#climb .cap{position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-size:18px}
+
+/* clubs */
+#clubs{left:50%;bottom:16px;transform:translateX(-50%);display:flex;gap:8px}
+#clubs div{width:70px;padding:6px 4px 5px;text-align:center;background:var(--cream);border:3px solid var(--ink);border-radius:14px;box-shadow:0 4px 0 var(--ink);opacity:.72;transition:transform .12s,opacity .12s}
+#clubs div.on{opacity:1;transform:translateY(-6px);background:var(--sun)}
+#clubs b{display:block;font-family:"Lilita One";font-weight:400;font-size:15px}
+#clubs kbd{font:900 10px Nunito;color:#6a5f70}
+#shot{left:50%;bottom:96px;transform:translateX(-50%) translateY(10px);padding:6px 14px;opacity:0;transition:.25s;white-space:nowrap;font-weight:800}
+#shot.show{opacity:1;transform:translateX(-50%)}
+#cannonUI{left:50%;bottom:104px;transform:translateX(-50%);padding:9px 16px 10px;text-align:center;width:min(380px,86vw)}
+#cannonUI[hidden]{display:none}
+#cannonUI b{display:block;font-family:"Lilita One";font-weight:400;font-size:20px}
+#cannonUI small{display:block;margin-top:6px;font-weight:800;font-size:12px;color:#6a5f70}
+.ctrack{position:relative;height:22px;margin-top:6px;border:3px solid var(--ink);border-radius:12px;background:linear-gradient(90deg,#d8eefc,#fff 50%,#d8eefc);overflow:hidden}
+.ctrack .sweet{position:absolute;left:45.1%;width:9.8%;top:0;bottom:0;background:#ff3d3d}
+#cneedle{position:absolute;top:-2px;bottom:-2px;width:6px;margin-left:-3px;background:var(--ink);border-radius:3px;left:50%}
+#cannonUI.hot{animation:wob .12s infinite alternate}
+#cannonUI.hot b{color:var(--red)}
+#tip{right:16px;bottom:66px;transform:translateY(10px);opacity:0;transition:.3s}
+#tip.show{opacity:1;transform:none;animation:nudge 1.6s ease-in-out infinite}
+#tip .tipcard{padding:9px 14px;max-width:min(330px,40vw);text-align:left;font-weight:800;font-size:14px}
+#tip b{display:block;font-family:"Lilita One";font-weight:400;font-size:18px;color:var(--red)}
+#tip em{font-style:normal;color:#1f7ae0;white-space:nowrap}
+@keyframes nudge{50%{transform:translateY(-4px)}}
+#shot em{font-style:normal;color:#14a35a;font-weight:900}
+#shot em.bad{color:#e23d3d}
+
+/* rage */
+#rage{right:14px;top:66px;width:200px;padding:7px 10px 8px}
+#rage .lbl{display:flex;justify-content:space-between;font-family:"Lilita One";font-size:15px}
+#rage .lbl small{font-family:Nunito;font-weight:900;font-size:11px;color:#6a5f70}
+#rage .bar{margin-top:4px;height:12px;border-radius:7px;background:#e8dcd1;border:2px solid var(--ink);overflow:hidden}
+#rageFill{display:block;height:100%;width:0;background:linear-gradient(90deg,#ffd23f,#ff8c42,#ff3d3d);transition:width .2s}
+#rage.hot{animation:wob .25s infinite alternate}
+@keyframes wob{to{transform:rotate(1.5deg) scale(1.03)}}
+#health{left:64px;top:134px;width:190px;padding:6px 10px 8px}
+#health .lbl{display:flex;justify-content:space-between;align-items:baseline;font-family:"Lilita One";font-size:15px}
+#health .lbl small{font-family:Nunito;font-weight:900;font-size:12px;color:#6a5f70}
+#health .bar{margin-top:4px;height:12px;border-radius:7px;background:#e8dcd1;border:2px solid var(--ink);overflow:hidden}
+#hpFill{display:block;height:100%;width:100%;background:linear-gradient(90deg,#2fbf5f,#7bd389);transition:width .15s}
+#health.low #hpFill{background:linear-gradient(90deg,#e23d3d,#ff8c42)}
+#health.down{animation:wob .25s infinite alternate}
+#voice{right:16px;bottom:64px;font-weight:900;font-size:13px;color:#fff;text-shadow:0 2px 0 var(--ink)}
+#voice[hidden],#voiceAsk[hidden]{display:none}
+#voiceAsk{left:50%;top:124px;transform:translateX(-50%);max-width:min(440px,80vw);padding:9px 14px;font-weight:800;font-size:14px;text-align:center}
+#voiceAsk b{display:block;font-family:"Lilita One";font-weight:400;font-size:18px}
+.tag .hpb{display:block;height:5px;margin:2px 0 1px;border-radius:3px;background:rgba(255,255,255,.28);overflow:hidden}
+.tag .hpb b{display:block;height:100%;width:100%;background:#5fe07a}
+#board tr.me td,.standings tr.me td{background:rgba(255,210,63,.35)}
+.standings{width:100%;border-collapse:collapse;margin-top:12px;font-weight:800;text-align:left}
+.standings th{font-family:"Lilita One";font-weight:400;border-bottom:3px solid var(--ink);padding:4px 6px}
+.standings td{padding:5px 6px;border-bottom:2px dashed rgba(43,34,51,.15)}
+.standings .dot{display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid var(--ink);margin-right:6px;vertical-align:-1px}
+#windbox{right:14px;top:134px;display:flex;align-items:center;gap:8px;padding:5px 12px 6px;font-weight:900}
+#windbox[hidden]{display:none}
+#windbox .lbl{font-family:"Lilita One";font-weight:400;font-size:15px}
+#windbox i{display:inline-block;font-style:normal;font-size:22px;line-height:1;color:#1f7ae0;transition:transform .25s}
+#windbox.strong i{color:var(--red)}
+#windbox b{font-size:13px;min-width:54px}
+#toasts{top:180px!important}
+#view{right:16px;bottom:40px;font-weight:900;font-size:13px;color:#fff;text-shadow:0 2px 0 var(--ink)}
+#mute{right:16px;bottom:16px;font-weight:900;color:#fff;text-shadow:0 2px 0 var(--ink)}
+#netStatus{right:66px;bottom:16px;font-weight:900;font-size:12px;color:#fff;text-shadow:0 2px 0 var(--ink)}
+#toasts{right:14px;top:160px;width:280px;display:flex;flex-direction:column;gap:6px}
+.toast{padding:7px 11px;font-size:13px;font-weight:800;background:rgba(255,248,234,.95);border:3px solid var(--ink);border-radius:12px;box-shadow:0 3px 0 var(--ink);animation:tin .3s ease-out;transition:.5s}
+.toast.out{opacity:0;transform:translateX(30px)}
+@keyframes tin{from{opacity:0;transform:translateX(40px)}}
+
+/* announcer */
+#quip{top:66px;left:50%;transform:translateX(-50%) translateY(-12px) scale(.9);max-width:min(560px,60vw);padding:9px 18px 10px;text-align:center;opacity:0;transition:.22s cubic-bezier(.3,1.6,.6,1);font-weight:900;font-size:17px}
+#quip.show{opacity:1;transform:translateX(-50%)}
+#quip::before{content:"🎙️ ";}
+
+/* pops */
+#pops{inset:52px 0 0;}
+.pop{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font-family:"Lilita One";font-size:34px;color:#fff;text-align:center;white-space:nowrap;-webkit-text-stroke:2px var(--ink);text-shadow:0 4px 0 var(--ink);animation:pop 1.7s ease-out forwards}
+.pop small{display:block;font-family:Nunito;font-weight:900;font-size:15px;-webkit-text-stroke:0;text-shadow:0 2px 0 var(--ink)}
+.pop.at{font-size:26px}
+.pop.great{color:var(--sun)}
+.pop.good{color:#9ff0b0}
+.pop.bad{color:#ffb3c1;font-size:24px}
+.pop.big{font-size:clamp(46px,8vw,92px);color:var(--sun);top:34%}
+.pop.big.meh{color:#fff}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,-30%) scale(.5)}12%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}22%{transform:translate(-50%,-50%) scale(1)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-90%)}}
+
+/* hole card */
+#holeCard{left:50%;top:30%;transform:translate(-50%,-50%);text-align:center;opacity:0;pointer-events:none}
+#holeCard.show{animation:card 3.4s ease-in-out forwards}
+@keyframes card{0%{opacity:0;transform:translate(-50%,-50%) scale(.6) rotate(-6deg)}10%{opacity:1;transform:translate(-50%,-50%) scale(1.05) rotate(2deg)}16%{transform:translate(-50%,-50%) scale(1) rotate(0)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-60%)}}
+#holeCard .num{display:inline-block;font-family:"Lilita One";font-size:22px;color:#fff;background:var(--red);border:3px solid var(--ink);border-radius:12px;padding:2px 14px;box-shadow:0 4px 0 var(--ink)}
+#holeCard h2{margin:8px 0 0;font-size:clamp(40px,6vw,70px);line-height:1;color:#fff;-webkit-text-stroke:3px var(--ink);text-shadow:0 6px 0 var(--ink)}
+#holeCard .par{margin-top:8px;font-family:"Lilita One";font-size:22px;color:var(--sun);-webkit-text-stroke:1.5px var(--ink);text-shadow:0 3px 0 var(--ink)}
+#holeCard p{margin:6px 0 0;font-weight:900;color:#fff;text-shadow:0 2px 0 var(--ink),0 0 8px rgba(0,0,0,.4);font-size:17px}
+
+/* flag marker */
+#flagMark{position:absolute;transform:translate(-50%,-100%);display:flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;background:rgba(255,248,234,.92);border:3px solid var(--ink);box-shadow:0 3px 0 var(--ink);font-weight:900;font-size:14px;white-space:nowrap;z-index:4}
+#flagMark[hidden],#ballMark[hidden]{display:none}
+#ballMark{position:absolute;transform:translate(-50%,-100%);display:flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;background:rgba(255,243,160,.95);border:3px solid var(--ink);box-shadow:0 3px 0 var(--ink);font-weight:900;font-size:14px;white-space:nowrap;z-index:4}
+#ballMark i{display:none;font-style:normal;color:var(--red);font-size:16px}
+#ballMark.off i{display:inline-block}
+#prompt{left:50%;bottom:92px;transform:translateX(-50%);padding:6px 14px;font-weight:800;font-size:14px;white-space:nowrap}
+#prompt[hidden]{display:none}
+/* gripping: nothing sits between you and the ball */
+#prompt.top{bottom:auto;top:66px;font-size:12px;padding:4px 11px;animation:promptOut .5s 4s forwards}
+@keyframes promptOut{to{opacity:0}}
+#clubs{transition:opacity .15s,bottom .15s}
+body.gripping #clubs{opacity:.4;bottom:-44px}
+body.gripping #shot{opacity:0}
+#flagMark i{display:none;font-style:normal;color:var(--red);font-size:16px}
+#flagMark.off i{display:inline-block;font-size:24px;line-height:1}
+#flagMark.off{transform:translate(-50%,-50%);padding:5px 13px;background:var(--sun);font-size:16px;animation:pinPulse .7s ease-in-out infinite alternate}
+@keyframes pinPulse{to{box-shadow:0 3px 0 var(--ink),0 0 0 6px rgba(255,210,63,.35)}}
+/* name tags */
+#tags{position:fixed;inset:52px 0 0;pointer-events:none;z-index:4;overflow:hidden}
+.tag{position:absolute;transform:translate(-50%,-100%);padding:2px 9px;border-radius:9px;background:rgba(43,34,51,.78);color:#fff;font-weight:900;font-size:12px;white-space:nowrap}
+.bubble{position:absolute;transform:translate(-50%,-100%);padding:6px 12px;border-radius:14px;background:#fff;border:3px solid var(--ink);font-weight:900;font-size:15px;white-space:nowrap;box-shadow:0 3px 0 var(--ink)}
+.bubble::after{content:"";position:absolute;left:50%;bottom:-10px;margin-left:-7px;border:7px solid transparent;border-top-color:var(--ink)}
+
+/* overlays */
+.overlay{position:fixed;inset:52px 0 0;z-index:10;display:grid;place-items:center;padding:16px}
+.overlay[hidden]{display:none}
+#loading{background:radial-gradient(ellipse at 50% 40%,#e6f7ff,#8fd3ff)}
+#loading .box{text-align:center}
+#loading h1{margin:0;font-size:56px;color:#fff;-webkit-text-stroke:3px var(--ink);text-shadow:0 6px 0 var(--ink)}
+.lbar{width:260px;height:16px;margin:18px auto 0;border:3px solid var(--ink);border-radius:10px;background:#fff;overflow:hidden}
+.lbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--grass),var(--sun));transition:width .3s}
+#title{place-items:center end;padding-right:max(16px,5vw);background:linear-gradient(90deg,rgba(0,0,0,0) 30%,rgba(43,34,51,.25))}
+.panel{width:min(440px,100%);max-height:calc(100dvh - 84px);overflow:auto;padding:18px 20px 18px;background:var(--cream);border:4px solid var(--ink);border-radius:22px;box-shadow:0 8px 0 var(--ink)}
+.panel h1{margin:0;font-size:44px;line-height:.95;color:var(--red);-webkit-text-stroke:2px var(--ink);text-shadow:0 4px 0 var(--ink)}
+.panel h1 span{color:var(--sun)}
+.panel .sub{margin:8px 0 0;font-weight:800;color:#5a4f60}
+.row{margin-top:12px}
+.row label{display:block;font-family:"Lilita One";font-size:15px;margin-bottom:4px}
+.row input[type=text]{width:100%;padding:9px 12px;border:3px solid var(--ink);border-radius:12px;font:800 16px Nunito;background:#fff;color:var(--ink);outline:none}
+.sws{display:flex;flex-wrap:wrap;gap:6px}
+.sw{width:28px;height:28px;border-radius:50%;border:3px solid var(--ink);cursor:pointer;padding:0;box-shadow:0 2px 0 var(--ink)}
+.sw.on{outline:3px solid var(--red);outline-offset:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:4px 10px;border:3px solid var(--ink);border-radius:999px;background:#fff;font:900 13px Nunito;cursor:pointer;text-transform:capitalize;color:var(--ink)}
+.chip.on{background:var(--sun)}
+.check{display:flex;align-items:center;gap:8px;font-weight:900;cursor:pointer}
+.check input{width:20px;height:20px;accent-color:var(--red)}
+.btn{appearance:none;border:3px solid var(--ink);border-radius:16px;padding:12px 22px;background:var(--red);color:#fff;font:400 22px "Lilita One";cursor:pointer;box-shadow:0 5px 0 var(--ink);transition:transform .08s}
+.btn:hover{transform:translateY(-2px)}
+.btn:active{transform:translateY(3px);box-shadow:0 2px 0 var(--ink)}
+.btn.small{font-size:14px;padding:6px 12px;border-radius:11px;box-shadow:0 3px 0 var(--ink);background:#fff;color:var(--ink)}
+.btn.go{width:100%;margin-top:14px;font-size:26px;position:sticky;bottom:2px;z-index:2}
+.room{margin-top:12px;padding:10px 12px;border:3px dashed rgba(43,34,51,.3);border-radius:14px;font-size:13px}
+.room b{display:block;font-size:14px}
+.room .btns{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.room #roomNote.bad{color:var(--red);font-weight:900}
+.room .codes{display:flex;gap:8px;margin-top:8px}
+.room input{min-width:0;padding:7px 10px;border:3px solid var(--ink);border-radius:11px;font:900 15px Nunito;background:#fff;color:var(--ink);outline:none;letter-spacing:.12em;text-transform:uppercase}
+.room input::placeholder{letter-spacing:0;text-transform:none;font-weight:700;color:#9a90a0}
+.room input:focus{border-color:var(--red)}
+.room input:disabled{opacity:.45}
+#roomCode{flex:1}
+#roomPin{width:84px;text-align:center}
+.btn:disabled{opacity:.6;cursor:progress}
+#continueNote{margin:8px 0 0;font-weight:900;color:#14a35a}
+.keys{margin-top:12px;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13px;align-items:center}
+.keys .k{justify-self:end;white-space:nowrap}
+kbd{display:inline-block;min-width:22px;padding:0 6px;border:2px solid var(--ink);border-bottom-width:4px;border-radius:7px;background:#fff;font:900 11px/1.6 Nunito;text-align:center;color:var(--ink)}
+.small-print{margin-top:10px;font-size:12px;color:#6a5f70;font-weight:700}
+#clickToPlay{left:50%;top:50%;transform:translate(-50%,-50%);padding:12px 20px;font-family:"Lilita One";font-size:22px;text-align:center}
+#menu{background:rgba(30,20,40,.35)}
+#menu .panel{width:min(380px,100%)}
+#menu h2{margin:0 0 4px;font:400 28px "Lilita One"}
+#menu .vol{display:grid;grid-template-columns:96px 1fr 38px;align-items:center;gap:8px;margin-top:9px;font-weight:900;font-size:14px}
+#menu .vol input{width:100%;accent-color:var(--red)}
+#menu .vol output{text-align:right;color:#6a5f70}
+#menu .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+#menu .acts .btn{width:100%}
+#menu .note{margin:10px 0 0;font-weight:800;font-size:12px;color:#6a5f70}
+#menu #resume{width:100%;margin-top:14px}
+#vote{left:50%;top:64px;transform:translateX(-50%);padding:8px 14px;font-weight:900;font-size:15px;text-align:center;max-width:min(560px,92vw)}
+#clickToPlay small{display:block;font-family:Nunito;font-weight:800;font-size:13px;color:#6a5f70}
+#board .panel{width:min(520px,100%)}
+#board table{width:100%;border-collapse:collapse;margin-top:10px;font-weight:800}
+#board th{font-family:"Lilita One";font-weight:400;text-align:left;border-bottom:3px solid var(--ink);padding:4px 6px}
+#board td{padding:5px 6px;border-bottom:2px dashed rgba(43,34,51,.15)}
+#board .dot{display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid var(--ink);margin-right:6px;vertical-align:-1px}
+#board{pointer-events:none;background:rgba(43,34,51,.25)}
+#finish{background:rgba(43,34,51,.35)}
+#finish .panel{text-align:center}
+.bigstats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+.bigstats div{padding:8px 4px;border:3px solid var(--ink);border-radius:12px;background:#fff}
+.bigstats b{display:block;font-family:"Lilita One";font-weight:400;font-size:26px}
+.bigstats span{font-size:11px;font-weight:900;text-transform:uppercase;color:#6a5f70}
+#help{right:14px;bottom:52px;padding:10px 12px;width:250px;pointer-events:auto}
+#help .keys{margin-top:0}
+#help h3{margin:0 0 6px;font-size:16px}
+body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;z-index:3;box-shadow:inset 0 0 160px 40px rgba(255,40,20,.55);animation:rg .3s infinite alternate}
+@keyframes rg{to{box-shadow:inset 0 0 120px 20px rgba(255,40,20,.35)}}
+@media(max-width:760px){#title{place-items:end center;padding:10px;background:none}.panel{max-height:62dvh}#toasts,#rage,#help{display:none}#health{left:14px;top:150px;width:150px}#clubs div{width:62px}}
+</style>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<canvas id="game" tabindex="0" aria-label="Par for the Curse game view"></canvas>
+<div id="tags"><div id="ballMark" hidden><i id="ballArrow">➜</i><span>⚪ <b id="ballDist"></b></span></div><div id="flagMark" hidden><i id="flagArrow">➜</i><span>⛳ <b id="flagDist"></b></span></div></div>
+
+<div class="hud chunk" id="score">
+  <div class="hole"><small>Hole</small><span id="hHole">1</span></div>
+  <div class="nm"><span id="hNameWrap">Par <b id="hPar">3</b></span><span id="hName" style="font-family:'Lilita One';font-size:18px;color:var(--ink)">Warm-Up Wobble</span></div>
+  <div class="stats">
+    <div><b id="hTime">0:00</b><span>race time</span></div>
+    <div><b id="hTotal">0</b><span>strokes</span></div>
+    <div><b id="hFalls">0</b><span>falls</span></div>
+  </div>
+</div>
+<div class="hud" id="climb"><span class="cap">🏆</span><div id="climbTrack"><i id="meDot"></i></div></div>
+<div class="hud chunk" id="rage"><div class="lbl">Rage <small>T to let it out</small></div><div class="bar"><i id="rageFill"></i></div></div>
+<div class="hud chunk" id="health"><div class="lbl">Health <small id="hpNum">100</small></div><div class="bar"><i id="hpFill"></i></div></div>
+<div class="hud chunk" id="voiceAsk" hidden><b>🎙 Voice chat with golfers near you</b><span>Press <kbd>K</kbd> to turn it on. Your browser will ask to use your microphone; say no and you can still listen. The game plays fine without it.</span></div>
+<div class="hud chunk" id="windbox" hidden><span class="lbl">Wind</span><i id="windArrow">➜</i><b id="windTxt"></b></div>
+<div class="hud" id="toasts"></div>
+<div class="hud chunk" id="quip"></div>
+<div class="hud" id="pops"></div>
+<div class="hud" id="holeCard"><span class="num" id="hcNum">Hole 1</span><h2 id="hcName">Warm-Up Wobble</h2><div class="par" id="hcPar">Par 3</div><p id="hcBlurb"></p></div>
+<div class="hud chunk" id="shot"></div>
+<div class="hud chunk" id="prompt" hidden></div>
+<div class="hud chunk" id="cannonUI" hidden><b>🎯 Time the cannon!</b><div class="ctrack"><i class="sweet"></i><i id="cneedle"></i></div><small>Press <kbd>E</kbd> to fire when the needle is in the red</small></div>
+<div class="hud" id="tip"><div class="tipcard chunk"><b>Your mouse is your hands.</b><span id="tipText"></span></div></div>
+<div class="hud" id="clubs">
+  <div><b>Hands</b><kbd>1</kbd></div><div><b>Driver</b><kbd>2</kbd></div><div><b>Wedge</b><kbd>3</kbd></div><div><b>Putter</b><kbd>4</kbd></div><div><b>Iron</b><kbd>5</kbd></div>
+</div>
+<div class="hud" id="mute">🔊 M</div>
+<div class="hud" id="view">👁 V first person</div>
+<div class="hud" id="netStatus">connecting…</div>
+<div class="hud" id="voice" hidden>🎙 K voice chat</div>
+<div class="hud chunk" id="help" hidden>
+  <h3>How to swing</h3>
+  <div class="keys">
+    <span class="k">right click</span><span>by your ball: the golf stance. Lined up on the hole, with a preview. Mouse back to wind up, through to hit. <kbd>A</kbd><kbd>D</kbd> aim, right click again to step away</span>
+    <span class="k">hold left mouse</span><span>the mouse stops looking and becomes the club. You face where you were looking and the club goes where the mouse goes: right, left, up, down. Whatever the face meets flies off to your left, ball or friend. Nothing aims for you</span>
+    <span class="k"><kbd>WASD</kbd></span><span>run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump</span>
+    <span class="k"><kbd>E</kbd></span><span>get in or out of the cart</span>
+    <span class="k"><kbd>Q</kbd> <kbd>E</kbd></span><span>while gripping: turn on the spot</span>
+    <span class="k">right mouse</span><span>while gripping: pull back and push forward to thrust</span>
+    <span class="k"><kbd>H</kbd></span><span>show the real hit boxes</span>
+    <span class="k"><kbd>1</kbd>–<kbd>5</kbd> wheel</span><span>hands, driver, wedge, putter, iron</span>
+    <span class="k"><kbd>F</kbd></span><span>hold to look at the flag</span>
+    <span class="k"><kbd>R</kbd></span><span>unplayable lie: back to your last shot, +1</span>
+    <span class="k"><kbd>T</kbd> <kbd>G</kbd></span><span>tantrum · dance</span>
+    <span class="k"><kbd>V</kbd></span><span>first / third person</span>
+    <span class="k"><kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd><kbd>J</kbd></span><span>shout</span>
+    <span class="k"><kbd>Tab</kbd></span><span>race standings</span>
+    <span class="k"><kbd>K</kbd></span><span>voice chat with golfers near you: on, then mute and unmute · <kbd>Shift</kbd>+<kbd>K</kbd> leaves</span>
+    <span class="k"><kbd>Enter</kbd></span><span>twice: ask to reset the map (everyone back to the first tee). The others have to agree: <kbd>Y</kbd> yes, <kbd>U</kbd> no</span>
+    <span class="k"><kbd>Esc</kbd></span><span>menu: volume, reset your ball, your cart or the map</span>
+    <span class="k"><kbd>M</kbd> <kbd>N</kbd> <kbd>B</kbd></span><span>mute · music · announcer</span>
+  </div>
+</div>
+
+<div class="overlay" id="loading"><div class="box"><h1 class="lil">Par for the Curse</h1><div class="lbar"><i id="loadbar"></i></div><p id="loadmsg" style="font-weight:900">Fetching the game…</p></div></div>
+<script>
+  // Loading watchdog. The game module reports its stage here, and anything that breaks before the
+  // title screen (a file that did not arrive, no WebGL, a bad save) is shown instead of a frozen bar.
+  // A first failure reloads once by itself, and that retry fetches every script afresh (see the module
+  // map below), which is all a half-finished deploy or a bad cached file needs.
+  (function () {
+    var msg = document.getElementById('loadmsg'), box = msg.parentNode, slow = 0, btn = null, KEY = 'pftc-retry';
+    var L = window.__load = { stage: 'Fetching the game', done: false, failed: false, retry: false };
+    try { L.retry = Date.now() - (+sessionStorage.getItem(KEY) || 0) < 60000; } catch (e) {}
+    function reloadBtn() {
+      if (btn) return;
+      btn = document.createElement('button'); btn.className = 'btn small'; btn.textContent = 'Reload';
+      btn.style.marginTop = '10px'; btn.onclick = function () { location.reload(); }; box.appendChild(btn);
+    }
+    L.set = function (stage) { L.stage = stage; if (!L.failed) msg.textContent = stage + '…'; };
+    L.ok = function () { L.done = true; clearTimeout(slow); try { sessionStorage.removeItem(KEY); } catch (e) {} };
+    L.fail = function (why) {
+      if (L.done || L.failed) return;
+      L.failed = true; clearTimeout(slow);
+      var tried = true;
+      try { tried = Date.now() - (+sessionStorage.getItem(KEY) || 0) < 60000; if (!tried) sessionStorage.setItem(KEY, Date.now()); } catch (e) {}
+      if (!tried) { msg.textContent = 'Hit a snag, trying again…'; setTimeout(function () { location.reload(); }, 900); return; }
+      msg.textContent = 'Could not load: ' + why; reloadBtn();
+    };
+    addEventListener('error', function (e) {
+      var t = e.target;
+      if (t && t.tagName === 'SCRIPT') L.fail('part of the game did not arrive. Check your connection.');
+      else if (t === window && !/^ResizeObserver/.test(e.message || '')) L.fail((e.message || 'script error').replace(/^Uncaught (\w*Error: )?/, ''));
+    }, true);
+    slow = setTimeout(function () {
+      if (L.done || L.failed) return;
+      msg.textContent = L.stage + ' is taking a while. Check your connection, or reload.'; reloadBtn();
+    }, 15000);
+  })();
+</script>
+
+<div class="overlay" id="title" hidden>
+  <div class="panel">
+    <h1>Par for the <span>Curse</span></h1>
+    <p class="sub">Multiplayer rage golf up Mount Bogey: nine floating holes, one physical swing, and a very long way down. Fall off and you play from wherever you land.</p>
+    <p id="continueNote" hidden></p>
+    <div class="row"><label for="name">Your name</label><input type="text" id="name" maxlength="16" placeholder="Golfer" autocomplete="off" spellcheck="false"></div>
+    <div class="room">
+      <b id="roomName">Public mountain</b><span id="roomNote" role="status"></span>
+      <div class="codes">
+        <input type="text" id="roomCode" maxlength="24" placeholder="Invite code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Invite code">
+        <input type="text" id="roomPin" maxlength="4" inputmode="numeric" placeholder="PIN" autocomplete="off" aria-label="Four digit room PIN">
+      </div>
+      <div class="btns"><button class="btn small" id="newRoom">New private room</button><button class="btn small" id="copyInvite">Copy invite link</button><button class="btn small" id="restartClimb">Restart climb</button></div>
+    </div>
+    <div class="row"><label>Skin</label><div class="sws" id="skinSw"></div></div>
+    <div class="row"><label>Shirt</label><div class="sws" id="shirtSw"></div></div>
+    <div class="row"><label>Shorts</label><div class="sws" id="pantsSw"></div></div>
+    <div class="row"><label>Hat</label><div class="chips" id="hatType"></div><div class="sws" id="hatSw" style="margin-top:6px"></div></div>
+    <div class="row" style="display:flex;justify-content:space-between;align-items:center"><label class="check"><input type="checkbox" id="stache"> Magnificent moustache</label><button class="btn small" id="randomize">🎲 Random</button></div>
+    <button class="btn go" id="play">Tee off ⛳</button>
+    <div class="keys">
+      <span class="k">mouse</span><span><b>Right click</b> by your ball for the golf stance: you are lined up on the hole, pull the mouse back and swing it through. <b>Hold left mouse</b> to swing the club freely at anything, friends included.</span>
+      <span class="k"><kbd>WASD</kbd></span><span>run anywhere, and shuffle while you grip</span>
+      <span class="k"><kbd>1</kbd>–<kbd>5</kbd></span><span>hands, driver, wedge, putter, iron</span>
+      <span class="k"><kbd>E</kbd></span><span>your one golf cart is parked at the first tee. Lose it and you start again. The climb only counts once it is parked in the bay at the summit</span>
+      <span class="k">race</span><span>up to five golfers, and the fastest to the top wins: strokes do not count, the clock does. Clubs and carts hurt, so mind your health bar</span>
+      <span class="k"><kbd>K</kbd></span><span>voice chat with golfers near you (optional)</span>
+      <span class="k"><kbd>V</kbd></span><span>first-person view</span>
+      <span class="k"><kbd>H</kbd></span><span>all the controls</span>
+    </div>
+    <p class="small-print">Best with a mouse and sound on. Progress saves in this browser.</p>
+  </div>
+</div>
+
+<div class="hud chunk" id="vote" hidden></div>
+<div class="overlay" id="menu" hidden><div class="panel">
+  <h2>Menu</h2>
+  <label class="vol">Everything<input type="range" min="0" max="100" data-vol="master"><output></output></label>
+  <label class="vol">Effects<input type="range" min="0" max="100" data-vol="sfx"><output></output></label>
+  <label class="vol">Music<input type="range" min="0" max="100" data-vol="music"><output></output></label>
+  <label class="vol">Announcer<input type="range" min="0" max="100" data-vol="announcer"><output></output></label>
+  <label class="vol">Voice chat<input type="range" min="0" max="100" data-vol="chat"><output></output></label>
+  <div class="acts">
+    <button class="btn small" id="resetBall">Reset my ball</button>
+    <button class="btn small" id="resetCart">Reset my cart</button>
+    <button class="btn small" id="resetMap" style="grid-column:1/-1">Reset the map for everyone</button>
+  </div>
+  <p class="note">Ball: back on this hole's tee, +1 stroke. Cart: back in its bay at the first tee. Map: everyone back to the first tee for a fresh race, and every other golfer has to agree.</p>
+  <button class="btn" id="resume">Back to the game</button>
+</div></div>
+<div class="hud chunk" id="clickToPlay" hidden>Click to grab the club<small>Esc opens the menu</small></div>
+
+<div class="overlay" id="board" hidden><div class="panel"><h2 style="margin:0">The race up Mount Bogey</h2><div style="font-weight:800;color:#6a5f70" id="playerCount"></div>
+  <table><thead><tr><th>#</th><th>Golfer</th><th>Where</th><th>Time</th><th>Falls</th></tr></thead><tbody id="boardRows"></tbody></table></div></div>
+
+<div class="overlay" id="finish" hidden><div class="panel">
+  <h1>Summit!</h1><p class="sub" id="finNote">You conquered Mount Bogey. The crown is yours, and everyone can see it.</p>
+  <div class="bigstats"><div><b id="finTime">0</b><span>your time</span></div><div><b id="finPlace">1st</b><span>place</span></div><div><b id="finStrokes">0</b><span>strokes</span></div><div><b id="finFalls">0</b><span>falls</span></div></div>
+  <table class="standings"><thead><tr><th>#</th><th>Golfer</th><th>Where</th><th>Time</th><th>Falls</th></tr></thead><tbody id="finRows"></tbody></table>
+  <div style="display:flex;gap:10px;margin-top:16px"><button class="btn" id="stayTop" style="flex:1;background:#fff;color:var(--ink)">Stay up here</button><button class="btn" id="climbAgain" style="flex:1">Climb again</button></div>
+</div></div>
+
+<script>
+  // The module map and the game's entry point. A normal load uses the plain addresses. The automatic
+  // retry after a failed load asks for every script again under a new address, which goes round a bad
+  // copy in the browser's cache the way a hard reload does.
+  (function () {
+    var q = window.__load && window.__load.retry ? '?r=' + Date.now() : '';
+    var T = 'https://cdn.jsdelivr.net/npm/three@0.160.0/', J = T + 'examples/jsm/';
+    var imports = { three: T + 'build/three.module.js' + q, 'three/addons/': J };
+    if (q) {
+      ['loaders/GLTFLoader.js', 'geometries/RoundedBoxGeometry.js'].forEach(function (f) { imports['three/addons/' + f] = J + f + q; });
+      imports[J + 'utils/BufferGeometryUtils.js'] = J + 'utils/BufferGeometryUtils.js' + q;
+      var base = new URL('js/', location.href).href;
+      ['assets', 'audio', 'cart', 'course', 'fx', 'golfer', 'net', 'physics', 'sky', 'voice', 'wreck'].forEach(function (m) { imports[base + m + '.js'] = base + m + '.js' + q; });
+    }
+    var map = document.createElement('script'); map.type = 'importmap'; map.textContent = JSON.stringify({ imports: imports });
+    var main = document.createElement('script'); main.type = 'module'; main.src = 'js/main.js' + q;
+    document.currentScript.after(map, main);
+  })();
+</script>
+<script>
+  // Climb bar ticks, one per hole.
+  (function () { const t = document.getElementById('climbTrack'); for (let i = 0; i <= 9; i++) { const d = document.createElement('i'); d.className = 'tick'; d.style.bottom = (i / 9 * 100) + '%'; d.innerHTML = i && i < 9 ? '<b>' + (i + 1) + '</b>' : i === 0 ? '<b>1</b>' : ''; t.appendChild(d); } })();
+</script>
+</body>
+</html>
