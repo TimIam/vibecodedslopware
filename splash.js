@@ -458,6 +458,21 @@
     drawBlob(t); drawSparkles(t); drawTagline(t, tagline);
   }
 
+  // The goo mascot alone, shades on, on a transparent 64×64 canvas (for merch). Borrows the framebuffer for a moment.
+  function mascot() {
+    buildArt();
+    const keep = [W, H, fb, cx, oy];
+    W = 64; H = 64; fb = new Uint8Array(W * H); cx = 32; oy = -108;
+    try { drawBlob(T.exit - 1); } finally {
+      const img = new ImageData(W, H), px = img.data;
+      fb.forEach((v, i) => { if (!v) return; const [r, g, b] = PAL[v]; px.set([r << 3 | r >> 2, g << 3 | g >> 2, b << 3 | b >> 2, 255], i * 4); });
+      [W, H, fb, cx, oy] = keep;
+      const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
+      cv.getContext('2d').putImageData(img, 0, 0);
+      return cv;
+    }
+  }
+
   // ---- the overlay ----------------------------------------------------------
   let session = null;
 
@@ -687,5 +702,6 @@
     skip() { if (session) session.skip(); },
     seek(t) { if (session) session.seek(t); },
     get playing() { return !!session; },
+    mascot,
   };
 })();

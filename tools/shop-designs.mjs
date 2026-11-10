@@ -42,6 +42,15 @@ const HELPERS = `
     const g = s.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, 900, 1200);
     return { print: c.toDataURL('image/png'), preview: s.toDataURL('image/png') };
   };
+  // the smallest box around a canvas's opaque pixels
+  window.bbox = (cv) => {
+    const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let x0 = cv.width, y0 = cv.height, x1 = -1, y1 = -1;
+    for (let y = 0; y < cv.height; y++) for (let x = 0; x < cv.width; x++) if (d[(y * cv.width + x) * 4 + 3]) {
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+    }
+    return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+  };
   // drips of slop hanging from the bottom edge of whatever is drawn in colour col on layer g
   window.drips = (g, col, y0, x0, x1, seed) => {
     let s = seed; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
@@ -150,16 +159,48 @@ const HELPERS = `
 `;
 
 const DESIGNS = {
-  // The boss, facing you, over the title in its own 3×5 font.
+  // The boss, facing you, over the title in its own 3×5 font. (The id is still boss-hours, the game's old name:
+  // orders and the checkout find the print file by it.)
   "boss-hours": { url: "/the-endgame-is-me/", draw: async () => {
     const A = await import("/the-endgame-is-me/js/art.js");
     const [c, g] = layer();
-    const boss = A.makeBossSprites()[8][0];
-    g.drawImage(boss, 18, 22, 144, 144);
-    A.drawText(g, "BOSS HOURS", 90, 176, "gold", { scale: 3, align: "center" });
-    A.drawText(g, "I AM THE ENCOUNTER", 90, 200, "cream", { scale: 1, align: "center" });
+    const boss = A.makeBossSprites().get(8, 0), bb = bbox(boss), k = 3;   // direction 8 of 32 faces down the screen
+    g.imageSmoothingEnabled = false;
+    g.drawImage(boss, bb.x, bb.y, bb.w, bb.h, 90 - Math.round(bb.w * k / 2), 156 - bb.h * k, bb.w * k, bb.h * k);
+    A.drawText(g, "THE ENDGAME", 90, 164, "gold", { scale: 3, align: "center" });
+    A.drawText(g, "IS ME", 90, 183, "gold", { scale: 3, align: "center" });
+    A.drawText(g, "I AM THE ENCOUNTER", 90, 206, "cream", { scale: 1, align: "center" });
     A.drawText(g, "VIBECODEDSLOPWARE.COM", 90, 226, "hornD", { scale: 1, align: "center", shadow: false });
     return out(print(c));
+  } },
+
+  // The title screen's cut-stone logo, pulled apart: THE ENDGAME IS across the top, the boss, and ME underneath.
+  "endgame-logo": { url: "/the-endgame-is-me/", draw: async () => {
+    const A = await import("/the-endgame-is-me/js/art.js");
+    const T = await import("/the-endgame-is-me/js/title.js");
+    // createTitle bakes the stone once and draw() puts its four pieces down with drawImage, in the order
+    // THE, IS, ENDGAME, ME. A stand-in context collects them, landed and with ME fully cracked.
+    const got = [];
+    T.createTitle({ instant: true }).draw({ setTransform() {}, fillRect() {}, drawImage: (cv) => got.push(cv) });
+    if (got.length !== 4) throw new Error("the title drew " + got.length + " pieces, expected 4");
+    const [the, is, endgame, me] = got;
+    const [words, wg] = layer(the.width, the.height);
+    for (const p of [the, endgame, is]) wg.drawImage(p, 0, 0);
+    const boss = A.makeBossSprites().get(8, 0);
+    const wb = bbox(words), mb = bbox(me), bb = bbox(boss);
+
+    // in print pixels: the stone at 10 per logo pixel, the boss as big as fits between the two
+    const S = 10, top = 220, wordsH = wb.h * S, meH = mb.h * S, url = 226 * GRID;
+    const bossTop = top + wordsH + 140, bossBot = url - 200 - meH;
+    const k = Math.floor(Math.min(3000 / bb.w, (bossBot - bossTop) / bb.h));
+    const [c, g] = layer();
+    A.drawText(g, "VIBECODEDSLOPWARE.COM", 90, 226, "hornD", { scale: 1, align: "center", shadow: false });
+    return out(print(c, (p) => {
+      p.imageSmoothingEnabled = false;
+      p.drawImage(words, wb.x, wb.y, wb.w, wb.h, Math.round(W / 2 - wb.w * S / 2), top, wb.w * S, wordsH);
+      p.drawImage(boss, bb.x, bb.y, bb.w, bb.h, Math.round(W / 2 - bb.w * k / 2), bossBot - bb.h * k, bb.w * k, bb.h * k);
+      p.drawImage(me, mb.x, mb.y, mb.w, mb.h, Math.round(W / 2 - mb.w * S / 2), bossBot + 40, mb.w * S, meH);
+    }));
   } },
 
   // Logo, the Brightwater car, and the crew's motto.
@@ -202,6 +243,29 @@ const DESIGNS = {
   } },
 
   // The studio splash, drawn by /splash.js itself and frozen just after the shine, in a 4:3 screen.
+  // Version 2 of the house logo: the goo mascot from the studio splash, shades on, catching the drips.
+  "slopware-2": { url: "/pit-crew/", draw: async () => {
+    const F = await import("/pit-crew/js/font.js");
+    await new Promise((ok, fail) => { const s = document.createElement("script"); s.src = "/splash.js"; s.dataset.manual = ""; s.onload = ok; s.onerror = fail; document.head.append(s); });
+    const blob = SlopwareSplash.mascot(), mb = bbox(blob), k = 2;
+    const [c, g] = layer();
+    const line = (s, y, col, sc, deep) => {
+      for (let n = 3; n >= 1; n--) F.text(g, s, 90 + n, y + n, n === 1 ? deep : "#05060a", { scale: sc, align: "center" });
+      F.text(g, s, 90, y, col, { scale: sc, align: "center" });
+    };
+    line("VIBE", 6, "#ffe397", 5, "#7a5a12");
+    line("CODED", 46, "#f6f3e9", 4, "#46504b");
+    line("SLOPWARE", 82, "#8fc46a", 3, "#2c4a2c");
+    const half = Math.floor(F.measure("SLOPWARE", 3) / 2);
+    drips(g, "#8fc46a", 103, 90 - half + 1, 90 + half - 1, 7);
+    g.imageSmoothingEnabled = false;
+    g.drawImage(blob, mb.x, mb.y, mb.w, mb.h, 90 - Math.round(mb.w * k / 2), 192 - mb.h * k, mb.w * k, mb.h * k);
+    F.text(g, "MADE WITH VIBES.", 90, 198, "#f6f3e9", { align: "center", shadow: "#05060a" });
+    F.text(g, "SHIPPED WITH BUGS.", 90, 209, "#f6f3e9", { align: "center", shadow: "#05060a" });
+    F.text(g, "VIBECODEDSLOPWARE.COM", 90, 226, "#8c9b80", { align: "center" });
+    return out(print(c));
+  } },
+
   "splash": { url: "/pit-crew/", setup: async (page) => { await page.setViewportSize({ width: 320, height: 240 }); }, draw: async () => {
     const F = await import("/pit-crew/js/font.js");
     await new Promise((ok, fail) => { const s = document.createElement("script"); s.src = "/splash.js"; s.dataset.manual = ""; s.onload = ok; s.onerror = fail; document.head.append(s); });
