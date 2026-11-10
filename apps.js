@@ -996,8 +996,8 @@ window.SLOPWARE = {
   },
   "pit-crew": {
    "visits": 19,
-   "prompts": 11,
-   "tokens": 6904472,
+   "prompts": 12,
+   "tokens": 7446488,
    "sharedWith": null,
    "versions": [
     {
@@ -1067,8 +1067,8 @@ window.SLOPWARE = {
      "n": 10,
      "date": "2026-11-09T16:23:27-07:00",
      "note": "Rest On Your Laurels, hidden debug screen, flat Claw & Order, named minigame casts",
-     "prompts": 1,
-     "tokens": 578299
+     "prompts": 2,
+     "tokens": 1120315
     }
    ]
   },
@@ -1180,6 +1180,13 @@ window.SLOPWARE = {
      "n": 15,
      "date": "2026-11-09T21:54:28-07:00",
      "note": "golf race multiplayer, fighting swing and golf stance",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 16,
+     "date": "2026-11-09T23:18:50-07:00",
+     "note": "escape menu, voted map reset, fighting swing fix, lower walls",
      "prompts": 0,
      "tokens": 0
     }
