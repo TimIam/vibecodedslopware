@@ -118,6 +118,19 @@ window.SLOPWARE = {
     }
    ]
   },
+  "olympus-auto-invite": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-09T20:04:14-07:00",
+     "note": "a free Classic Forever addon, /ginv guild-invites whoever whispered you"
+    }
+   ]
+  },
   "psychic": {
    "visits": 72,
    "prompts": 8,
