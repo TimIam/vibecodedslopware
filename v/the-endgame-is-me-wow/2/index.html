@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Endgame is Me: the WoW addon · Vibe Coded Slopware</title>
+<meta name="description" content="The reverse boss fight game, playable in a window inside World of Warcraft: Classic Forever and retail. You are the raid boss. Free addon.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧩</text></svg>">
+<style>
+:root{--bg:#f4f0e6;--fg:#1f1d1a;--dim:#6b665c;--card:#fffdf7;--line:#ddd5c4;--accent:#3f7d4e;--accent-fg:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#15171a;--fg:#ece8df;--dim:#9a958a;--card:#1d2024;--line:#2e3238;--accent:#8fc46a;--accent-fg:#15171a}}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}
+main{max-width:760px;margin:0 auto;padding:40px 16px 120px}
+h1{font-size:clamp(38px,8vw,64px);line-height:1.02;margin:28px 0 12px;letter-spacing:-1.5px}
+.lede{font-size:clamp(18px,2.6vw,21px);margin:0 0 8px;max-width:600px}
+.hint{color:var(--dim);font-style:italic;font-family:Georgia,serif;margin:0 0 32px}
+.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:28px}
+.btn{display:inline-flex;flex-direction:column;padding:13px 20px;border-radius:12px;text-decoration:none;border:1px solid var(--line);color:inherit;background:var(--card);transition:transform .15s,border-color .15s}
+.btn:hover{transform:translateY(-2px);border-color:var(--accent)}
+.btn b{font-size:16.5px}
+.btn small{color:var(--dim);font-size:12.5px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.primary small{color:inherit;opacity:.8}
+.note{color:var(--dim);font-size:13.5px;max-width:600px;margin:-14px 0 26px}
+figure{margin:0 0 18px}
+figure img{display:block;width:100%;max-width:640px;height:auto;border-radius:12px;box-shadow:0 0 0 1px var(--line);image-rendering:pixelated}
+figcaption{color:var(--dim);font-size:13px;margin-top:6px}
+h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:36px 0 12px;font-weight:600}
+p{max-width:640px}
+ul,ol{margin:0;padding-left:22px}
+li{margin:7px 0}
+li b{font-weight:600}
+a{color:inherit}
+code{font:13.5px Consolas,monospace;border:1px solid var(--line);border-radius:5px;padding:1px 5px;background:var(--card);overflow-wrap:anywhere}
+.path{display:block;margin:6px 0;padding:8px 10px;width:fit-content;max-width:100%}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:15px}
+footer{margin-top:56px;color:var(--dim);font-size:13px}
+</style>
+<link rel="stylesheet" href="/site-nav.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<main>
+  <h1>The Endgame is Me: the WoW addon</h1>
+  <p class="lede">The whole reverse boss fight, in a window inside World of Warcraft. You are the raid boss, pacing between a rock and another rock, while your actual raid argues about loot. For Classic Forever and retail.</p>
+  <p class="hint">An early release. The browser game’s own code, translated to Lua and drawn on 57,600 very small squares.</p>
+
+  <div class="cta">
+    <a class="btn primary" href="/the-endgame-is-me-wow/TheEndgameIsMe-1.1.0.zip" download>
+      <b>Download for Classic Forever</b><small>v1.1.0 · 4.2 MB · free</small>
+    </a>
+    <a class="btn primary" href="/the-endgame-is-me-wow/TheEndgameIsMe-Retail-1.1.0.zip" download>
+      <b>Download for retail (Midnight)</b><small>v1.1.0 · 4.2 MB · free</small>
+    </a>
+    <a class="btn" href="/the-endgame-is-me/">
+      <b>Play it in a browser</b><small>the original, nothing to install</small>
+    </a>
+  </div>
+  <p class="note">Treat both as test releases. On Classic Forever it has been played in the live game as far as the Hoard, and the Controls panel works there; a run all the way to the castle has so far only been played against a stand-in for the game’s API. The retail build hasn’t been run in a live client yet.</p>
+
+  <figure>
+    <img src="/the-endgame-is-me-wow/preview.png" width="640" height="360" alt="A top-down pixel-art clearing ringed by standing stones. A large furry horned boss stands on a worn path between two rocks, inside a red circle that warns of a stomp, while a handful of tiny adventurers close in. The corner shows a score, a lap count and the boss’s health bar, named Old Bristles.">
+    <figcaption>Level one, the Clearing. Drawn by the addon’s own Lua, outside the game: not an in-game screenshot.</figcaption>
+  </figure>
+  <figure>
+    <img src="/the-endgame-is-me-wow/castle.png" width="640" height="360" alt="The same boss at the gate of a stone castle with blue-roofed towers, a moat and a wooden bridge. Dozens of tiny defenders line the walls.">
+    <figcaption>Level seven, the Castle. Every block of it has hit points.</figcaption>
+  </figure>
+
+  <h2>How to play</h2>
+  <ul>
+    <li><b>Type <code>/endgame</code></b> to open or close the window. There’s also a button under Options &gt; AddOns. Drag the window by its title bar.</li>
+    <li><b>WASD or the arrow keys</b> walk. <b>The mouse</b> aims.</li>
+    <li><b>Left click</b> swipes; hold it down to keep swiping. <b>Right click, Q, E and R</b> are your other abilities. <b>Space</b> shakes your fur.</li>
+    <li><b>Esc</b> pauses and hands the keyboard back to WoW. <b>M</b> mutes.</li>
+    <li><b>Want other keys?</b> Open <b>Controls</b> on the game’s menu or the pause menu, click the key you want to change, then press the new one or click a mouse button. The letters under the ability buttons follow along. Esc always pauses, whatever you choose.</li>
+    <li><b>More abilities than buttons?</b> A new ability takes a free button if there is one. To move one, click a slot in the Hoard and pick what goes on it. Only that slot changes; if your pick was on another button, the two trade places.</li>
+    <li>It’s the same game as <a href="/the-endgame-is-me/">the browser version</a>: seven levels, the Hoard between them, the quiet man on the horse, and New Game+ when the castle falls.</li>
+  </ul>
+
+  <h2>The first time you open it</h2>
+  <p>The picture is made of 57,600 tiny textures, and WoW is fussy about how it’s handed that many. So the first time the window opens it shows a test card and asks whether you can see coloured stripes, edge to edge, inside a white border.</p>
+  <ul>
+    <li><b>You can:</b> click <b>Yes, all of it</b>. It remembers, and you won’t be asked again.</li>
+    <li><b>You can’t:</b> click <b>No</b> and it tries another way.</li>
+    <li><b>Your whole interface vanishes:</b> press <b>Space</b>. That switches the picture off, which should bring the interface back, and the addon moves on to the next way. If it doesn’t come back, press Enter, type <code>/reload</code> and press Enter again.</li>
+  </ul>
+
+  <h2>Install</h2>
+  <ol>
+    <li><b>Exit World of Warcraft.</b> A brand new addon isn’t picked up by a reload.</li>
+    <li><b>Unzip the download.</b> You get a folder called <code>TheEndgameIsMe</code>.</li>
+    <li><b>Move that folder into the AddOns folder for your version of the game:</b>
+      <code class="path">Classic Forever: C:\Program Files (x86)\World of Warcraft\_forever_\Interface\AddOns</code>
+      <code class="path">Retail: C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns</code>
+      On a Mac, the folder starts with <code>/Applications/World of Warcraft/</code>. If you installed the game somewhere else, look there.
+    </li>
+    <li><b>Check the folder isn’t doubled.</b> This file should exist:
+      <code class="path">...\AddOns\TheEndgameIsMe\TheEndgameIsMe.toc</code>
+    </li>
+    <li><b>Start the game.</b> On the character select screen, click <b>AddOns</b> and make sure The Endgame is Me is ticked.</li>
+    <li><b>Try it.</b> Type <code>/endgame</code> in chat.</li>
+  </ol>
+  <p><b>Updating from an older version?</b> Same steps: with the game closed, replace the old <code>TheEndgameIsMe</code> folder with the new one. Your save, your best score and your keys live somewhere else and stay put. If you swap the folder while the game is running, <code>/reload</code> isn’t enough: the addon will ask you to restart the game.</p>
+
+  <h2>If it doesn’t show up</h2>
+  <ul>
+    <li><b>Not in the AddOns list?</b> Look for a doubled folder like <code>AddOns\TheEndgameIsMe\TheEndgameIsMe\</code>, and make sure the download matches the folder: the Classic Forever zip goes in <code>_forever_</code>, the retail zip in <code>_retail_</code>.</li>
+    <li><b>Marked out of date?</b> Tick <b>Load out of date AddOns</b> on the same screen.</li>
+    <li><b>The window opens but the picture is black?</b> Type <code>/endgame probe</code> to run the display test again.</li>
+    <li><b>Something else?</b> The addon prints its errors in chat, and <code>/endgame log</code> lists what it has been doing.</li>
+  </ul>
+
+  <h2>Commands</h2>
+  <div class="keys">
+    <span><code>/endgame</code></span><span>open or close the game (<code>/teim</code> works too)</span>
+    <span><code>/endgame keys</code></span><span>change the controls</span>
+    <span><code>/endgame scale 3</code></span><span>screen pixels per game pixel, 1 to 8; <code>auto</code> picks for you</span>
+    <span><code>/endgame fps 30</code></span><span>draw less often, if it drags your frame rate down</span>
+    <span><code>/endgame perf</code></span><span>show timings in the title bar</span>
+    <span><code>/endgame calm</code></span><span>screen shake on or off</span>
+    <span><code>/endgame mute</code></span><span>sound on or off</span>
+    <span><code>/endgame reset</code></span><span>move the window back to the middle of the screen</span>
+    <span><code>/endgame probe</code></span><span>run the display test again</span>
+  </div>
+
+  <h2>Good to know</h2>
+  <ul>
+    <li>While you’re playing, the game takes the keyboard, apart from keys it has no use for: Enter still opens chat. Esc gives it all back.</li>
+    <li>It pauses itself the moment you enter combat.</li>
+    <li>Your run is saved when a level starts, at the Hoard, on Save and quit, and when you log out. There’s one save, shared by your account, along with your best score, your boss’s look and New Game+.</li>
+    <li>Starting a level takes a few seconds. The ground is painted a pixel at a time, in Lua, a slice per frame so the game never freezes.</li>
+    <li>The sound is the browser game’s own, recorded to files. WoW’s sound and music sliders set the volume.</li>
+    <li>It reads nothing about your character or your party. The one thing it asks WoW is whether you’re in combat, so it can pause.</li>
+  </ul>
+
+  <h2>Not quite the browser game</h2>
+  <ul>
+    <li>No animated title and no fights behind the menu. The menu is a plain panel.</li>
+    <li>The Hoard lists your abilities with a description each. No demo reel, no icons.</li>
+    <li>Fur colour comes from a row of swatches.</li>
+    <li>Smoke is dotted, not see-through, to save frame time.</li>
+    <li>Each level’s music has a calm mix and a fighting mix. Switching between them starts the tune again.</li>
+  </ul>
+
+  <h2>What’s new</h2>
+  <ul>
+    <li><b>1.1.0:</b> change the controls. Any action can go on any key or mouse button, two each. And a fix for the Hoard: clicking a slot used to step through your abilities and shuffle the other buttons on the way. Now a slot puts up a list to pick from.</li>
+    <li><b>1.0.0:</b> the first release.</li>
+  </ul>
+
+  <footer>Made with questionable judgment and an AI pair programmer. Standing in your own fire is still on you.</footer>
+</main>
+</body>
+</html>

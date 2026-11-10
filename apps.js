@@ -151,6 +151,11 @@ window.SLOPWARE = {
      "n": 2,
      "date": "2026-11-10T10:46:44-07:00",
      "note": "change the controls, any action on any key or mouse button"
+    },
+    {
+     "n": 3,
+     "date": "2026-11-10T13:25:42-07:00",
+     "note": "faster, most of all on the last three levels"
     }
    ]
   },
@@ -1281,7 +1286,7 @@ window.SLOPWARE = {
   "puck-around": {
    "visits": 0,
    "prompts": 4,
-   "tokens": 537239,
+   "tokens": 542849,
    "sharedWith": null,
    "versions": [
     {
@@ -1303,7 +1308,7 @@ window.SLOPWARE = {
      "date": "2026-11-10T12:32:29-07:00",
      "note": "quitting a matchmade game goes back to the title",
      "prompts": 0,
-     "tokens": 8726
+     "tokens": 14336
     }
    ]
   },
