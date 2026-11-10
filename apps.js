@@ -146,6 +146,11 @@ window.SLOPWARE = {
      "n": 1,
      "date": "2026-11-09T23:34:18-07:00",
      "note": "a free addon for Classic Forever and retail, the whole game in a window"
+    },
+    {
+     "n": 2,
+     "date": "2026-11-10T10:46:44-07:00",
+     "note": "change the controls, any action on any key or mouse button"
     }
    ]
   },
