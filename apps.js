@@ -1175,6 +1175,13 @@ window.SLOPWARE = {
      "note": "raw face-forward swing, PIN-locked rooms, paved cart paths",
      "prompts": 1,
      "tokens": 85245
+    },
+    {
+     "n": 15,
+     "date": "2026-11-09T21:54:28-07:00",
+     "note": "golf race multiplayer, fighting swing and golf stance",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
