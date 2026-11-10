@@ -997,7 +997,7 @@ window.SLOPWARE = {
   "pit-crew": {
    "visits": 19,
    "prompts": 12,
-   "tokens": 7446488,
+   "tokens": 7497540,
    "sharedWith": null,
    "versions": [
     {
@@ -1067,8 +1067,15 @@ window.SLOPWARE = {
      "n": 10,
      "date": "2026-11-09T16:23:27-07:00",
      "note": "Rest On Your Laurels, hidden debug screen, flat Claw & Order, named minigame casts",
-     "prompts": 2,
-     "tokens": 1120315
+     "prompts": 1,
+     "tokens": 570655
+    },
+    {
+     "n": 11,
+     "date": "2026-11-09T23:22:29-07:00",
+     "note": "fair finishes, a strategy screen, post-race radio, arcade and office touches",
+     "prompts": 1,
+     "tokens": 600712
     }
    ]
   },
