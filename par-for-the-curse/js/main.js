@@ -699,7 +699,7 @@ function walkStep(dt) {
       if (!W.grounded && W.v.y < -5) { me.squash = 1; fx.dust(G_, 8, 0.6); }
       G_.y = g.y; W.v.y = 0; W.grounded = true;
       g.col.pointVel(G_, W.carry);
-      if (g.col.surf === 'mushroom') { W.v.y = 14; W.grounded = false; if (g.col.mesh) g.col.mesh.userData.sq = 1; A.play('boing', 1); }
+      if (g.col.surf === 'mushroom') { W.v.y = 10.5; W.grounded = false; if (g.col.mesh) g.col.mesh.userData.sq = 1; A.play('boing', 1); }
     } else if (W.grounded) { W.grounded = false; }
   }
   const spd = Math.hypot(W.v.x, W.v.z);

@@ -556,25 +556,29 @@ export class Course {
     this.block(H, 9, 30, -7, 7, 0);
     this.block(H, 56, 71, -7, 7, 7, 7, { rockDepth: 12 });
     this.shoulders(H, 9, 30, 7, 0); this.shoulders(H, 56, 71, 7, 7);
-    const shrooms = [[37, -2.5, -1.5], [47, 2.2, 2.2], [42, 5, 0.5]];
-    for (const [x, z, top] of shrooms) {
+    // A staircase of big mushrooms from the tee side up to the green: [along, across, height of the cap].
+    // Each is a short hop from the last for a golfer on foot, and a ball that lands on one is thrown on to
+    // the next and from the last onto the green, so the hard part is only getting a ball onto any of them.
+    const shrooms = [[35, -1.2, -1], [40.5, 1.2, 0.8], [46, -1.2, 2.6], [51.5, 1.2, 4.4]], BIG = 1.5, capR = 1.45 * BIG;
+    shrooms.forEach(([x, z, top], i) => {
       const m = make('mushroom', { outline: 0.04 });
-      const capTop = pm('mushroom').cap_top ?? 1.2;
-      m.position.set(x, top - capTop, z); H.group.add(m);
-      const isl = make('under_rock'); isl.position.set(x, top - capTop + 0.1, z); isl.scale.set(2.2, 5, 2.2); H.group.add(isl);
+      const capTop = (pm('mushroom').cap_top ?? 1.2) * BIG;
+      m.position.set(x, top - capTop, z); m.scale.setScalar(BIG); H.group.add(m);
+      const isl = make('under_rock'); isl.position.set(x, top - capTop + 0.1, z); isl.scale.set(2.2 * BIG, 5, 2.2 * BIG); H.group.add(isl);
       this.solidify(isl, { surf: 'rock', tag: 'cliff', hole: 3 });
-      const disk = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.35, 0.3, 20), terrainMat); disk.position.set(x, top - capTop + 0.05, z); H.group.add(disk);
-      const stemR = pm('mushroom').stem_radius ?? 0.4, foot = top - capTop;
+      const disk = new THREE.Mesh(new THREE.CylinderGeometry(1.25 * BIG, 1.35 * BIG, 0.3, 20), terrainMat); disk.position.set(x, top - capTop + 0.05, z); H.group.add(disk);
+      const stemR = (pm('mushroom').stem_radius ?? 0.4) * BIG, foot = top - capTop;
       this.world.add(new Collider('cyl', { pos: H.frame.w(x, (foot + top - 0.5) / 2, z), r: stemR, hh: (capTop - 0.5) / 2, surf: 'wood', hole: 3 }));
-      this.world.add(new Collider('cyl', { pos: H.frame.w(x, foot + 0.05, z), r: 1.35, hh: 0.15, surf: 'rough', tag: 'cliff', offCourse: true, hole: 3 }));
-      const col = this.world.add(new Collider('cyl', { pos: H.frame.w(x, top - 0.25, z), r: 1.45, hh: 0.25, surf: 'mushroom', tag: 'shroom', hole: 3 }));
+      this.world.add(new Collider('cyl', { pos: H.frame.w(x, foot + 0.05, z), r: 1.35 * BIG, hh: 0.15, surf: 'rough', tag: 'cliff', offCourse: true, hole: 3 }));
+      const next = shrooms[i + 1], relay = next ? H.frame.w(next[0], next[2], next[1]) : H.frame.w(60, 7, 0);
+      const col = this.world.add(new Collider('cyl', { pos: H.frame.w(x, top - 0.25, z), r: capR, hh: 0.25, surf: 'mushroom', tag: 'shroom', hole: 3, relay }));
       col.mesh = m;
       this.animators.push((t, dt) => {
         m.userData.sq = Math.max(0, (m.userData.sq || 0) - dt * 3);
         const s = m.userData.sq;
-        m.scale.set(1 + s * 0.25, 1 - s * 0.3 + Math.sin(s * 20) * s * 0.1, 1 + s * 0.25);
+        m.scale.set(1 + s * 0.25, 1 - s * 0.3 + Math.sin(s * 20) * s * 0.1, 1 + s * 0.25).multiplyScalar(BIG);
       });
-    }
+    });
     this.hits.set('shroom', (c, vn, p) => { c.mesh.userData.sq = 1; this.fx.sound('boing', 1, p); this.fx.event('shroom', { p }); });
     this.zone(H, 'sand', 63, -4, 1.8);
     this.prop(H, 'tree_round', 12, -5.5, { trunk: 0.35 }); this.prop(H, 'tree_round', 22, 5.8, { trunk: 0.35 });

@@ -45,6 +45,7 @@ export class Collider {
     this.hole = o.hole ?? -1;
     this.enabled = true;
     this.soft = o.soft || 0;             // no bounce: slows the ball while it is inside (foliage)
+    this.relay = o.relay || null;        // world point this surface throws the ball to (see collide)
     this.offCourse = !!o.offCourse;      // nobody can stand here, so a ball that stops on it is unplayable
     if (kind === 'mesh') this.initMesh(o);
     this.mat = new THREE.Matrix4(); this.inv = new THREE.Matrix4();
@@ -311,6 +312,12 @@ export class World {
           }
           _v.copy(_t).addScaledVector(_n, target);
           ball.v.addVectors(_v, _vc);
+          // A relay (the mushrooms) throws the ball on a clean arc to the next landing, whatever it came in with.
+          if (c.relay && _n.y > 0.5) {
+            const top = Math.max(p.y, c.relay.y) + (c.relayRise || 3), vy = Math.sqrt(2 * G * (top - p.y));
+            const t = vy / G + Math.sqrt(2 * (top - c.relay.y) / G);
+            ball.v.set((c.relay.x - p.x) / t, vy, (c.relay.z - p.z) / t); ball.spin = 0;
+          }
           if (this.onContact) this.onContact(c, -vn, _c, _n);
         }
         if (_n.y > 0.55 && (!gN || _n.y > gN.y)) { grounded = true; gN = (gN || new THREE.Vector3()).copy(_n); gCol = c; ball.gVel.copy(_vc); }

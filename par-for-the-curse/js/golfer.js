@@ -615,9 +615,13 @@ export class Swing {
     launch = clamp(launch, -0.05, 1.25);
     // The ball starts mostly where the face looks and takes some of the head's path; off the toe or heel
     // the head twists round the ball. The club cutting across its own face is sidespin.
-    const start = faceYaw + path * FACE_GRIP + toe * 0.12;
+    // In the golf stance the ball is teed a little ahead of the bottom of the arc, where the face has
+    // already begun to close and the head to come inside, by an amount that changes with the speed of
+    // the swing. That pulled every shot left, so there a hit off the middle flies down the aim line and
+    // only a toe or heel strike bends it.
+    const start = this.golf ? toe * 0.12 : faceYaw + path * FACE_GRIP + toe * 0.12;
     const v = V(Math.cos(start), 0, Math.sin(start)).multiplyScalar(Math.cos(launch) * speed); v.y = Math.sin(launch) * speed;
-    const spin = putter ? 0 : clamp(-path * 22 * (speed / 30), -9, 9);
+    const spin = putter || this.golf ? 0 : clamp(-path * 22 * (speed / 30), -9, 9);
     return done(v, kind, Math.abs(toe) < 0.4 ? 'middle' : toe > 0 ? 'toe' : 'heel', q, spin);
   }
 }
