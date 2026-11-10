@@ -215,6 +215,20 @@ kbd{display:inline-block;min-width:22px;padding:0 6px;border:2px solid var(--ink
 #menu .acts .btn{width:100%}
 #menu .note{margin:10px 0 0;font-weight:800;font-size:12px;color:#6a5f70}
 #menu #resume{width:100%;margin-top:14px}
+#menu h3{margin:14px 0 5px;font:400 17px "Lilita One"}
+#menu h3 small{font:800 11px Nunito,sans-serif;color:#6a5f70;margin-left:6px}
+#menu .seg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+#menu .seg button{font:900 14px Nunito,sans-serif;padding:8px 4px;border:2px solid var(--ink);border-radius:10px;background:#fff;color:var(--ink);cursor:pointer}
+#menu .seg button.on{background:var(--red);color:#fff}
+#menu .how{margin:6px 0 0;font-weight:800;font-size:12px;color:#6a5f70;min-height:32px}
+#menu .panel{max-height:94vh;overflow:auto}
+#meter{left:50%;bottom:138px;transform:translateX(-50%);width:min(420px,80vw);text-align:center}
+#meter .track{position:relative;height:22px;border:3px solid var(--ink);border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 3px 0 rgba(0,0,0,.25)}
+#meter .sweet{position:absolute;top:0;bottom:0;left:15%;width:4px;margin-left:-2px;background:var(--ink)}
+#meter.flick .sweet{left:50%}
+#meter .fill{position:absolute;top:0;bottom:0;left:0;width:0;background:linear-gradient(90deg,#7bd389,#ffd23f 60%,#ff5d73)}
+#meter .mark{position:absolute;top:-2px;bottom:-2px;width:8px;margin-left:-4px;background:#fff;border:2px solid var(--ink);border-radius:4px}
+#meter small{display:inline-block;margin-top:5px;padding:3px 10px;border-radius:9px;background:rgba(255,255,255,.92);font-weight:900;font-size:13px;color:var(--ink)}
 #vote{left:50%;top:64px;transform:translateX(-50%);padding:8px 14px;font-weight:900;font-size:15px;text-align:center;max-width:min(560px,92vw)}
 #clickToPlay small{display:block;font-family:Nunito;font-weight:800;font-size:13px;color:#6a5f70}
 #board .panel{width:min(520px,100%)}
@@ -267,6 +281,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 <div class="hud" id="holeCard"><span class="num" id="hcNum">Hole 1</span><h2 id="hcName">Warm-Up Wobble</h2><div class="par" id="hcPar">Par 3</div><p id="hcBlurb"></p></div>
 <div class="hud chunk" id="shot"></div>
 <div class="hud chunk" id="prompt" hidden></div>
+<div class="hud" id="meter" hidden><div class="track"><i class="fill" id="meterFill"></i><i class="sweet"></i><i class="mark" id="meterMark" hidden></i></div><small id="meterSay"></small></div>
 <div class="hud chunk" id="cannonUI" hidden><b>🎯 Time the cannon!</b><div class="ctrack"><i class="sweet"></i><i id="cneedle"></i></div><small>Press <kbd>E</kbd> to fire when the needle is in the red</small></div>
 <div class="hud" id="tip"><div class="tipcard chunk"><b>Your mouse is your hands.</b><span id="tipText"></span></div></div>
 <div class="hud" id="clubs">
@@ -379,6 +394,12 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
   <label class="vol">Music<input type="range" min="0" max="100" data-vol="music"><output></output></label>
   <label class="vol">Announcer<input type="range" min="0" max="100" data-vol="announcer"><output></output></label>
   <label class="vol">Voice chat<input type="range" min="0" max="100" data-vol="chat"><output></output></label>
+  <h3>Fighting <small>left mouse · <kbd>[</kbd> swaps</small></h3>
+  <div class="seg"><button data-ctl="fight:0">Raw</button><button data-ctl="fight:1">Slash</button><button data-ctl="fight:2">Brawler</button></div>
+  <p class="how" id="fightHow"></p>
+  <h3>Golf shot <small>right click by your ball · <kbd>]</kbd> swaps</small></h3>
+  <div class="seg"><button data-ctl="golf:0">Feel</button><button data-ctl="golf:1">Flick</button><button data-ctl="golf:2">Meter</button></div>
+  <p class="how" id="golfHow"></p>
   <div class="acts">
     <button class="btn small" id="resetBall">Reset my ball</button>
     <button class="btn small" id="resetCart">Reset my cart</button>
@@ -411,7 +432,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
       ['loaders/GLTFLoader.js', 'geometries/RoundedBoxGeometry.js'].forEach(function (f) { imports['three/addons/' + f] = J + f + q; });
       imports[J + 'utils/BufferGeometryUtils.js'] = J + 'utils/BufferGeometryUtils.js' + q;
       var base = new URL('js/', location.href).href;
-      ['assets', 'audio', 'cart', 'course', 'fx', 'golfer', 'net', 'physics', 'sky', 'voice', 'wreck'].forEach(function (m) { imports[base + m + '.js'] = base + m + '.js' + q; });
+      ['assets', 'audio', 'cart', 'course', 'fx', 'golfer', 'net', 'physics', 'sky', 'voice', 'wreck', 'controls'].forEach(function (m) { imports[base + m + '.js'] = base + m + '.js' + q; });
     }
     var map = document.createElement('script'); map.type = 'importmap'; map.textContent = JSON.stringify({ imports: imports });
     var main = document.createElement('script'); main.type = 'module'; main.src = 'js/main.js' + q;

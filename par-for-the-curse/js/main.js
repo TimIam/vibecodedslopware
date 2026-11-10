@@ -7,6 +7,7 @@ import { Golfer, Swing, CLUBS, SKINS, SHIRTS, PANTS, HATS, runPose, sitPose } fr
 import { Cart, collideBody, BUMP } from './cart.js';
 import { Particles, Confetti, Trail } from './fx.js';
 import { Wreck } from './wreck.js';
+import { Fight, Assist, FIGHT_MODES, GOLF_MODES, ASSIST } from './controls.js';
 import { Sky } from './sky.js';
 import * as A from './audio.js';
 import { joinRoom, newCode, cleanCode, cleanPin, MAX_PLAYERS } from './net.js';
@@ -52,7 +53,7 @@ function resize() {
 }
 
 /* ---------------- state ---------------- */
-let world, course, sky, fx, confetti, me, swing, ballMesh, ballShadow, trail, aimDots, ballBeam;
+let world, course, sky, fx, confetti, me, swing, fight, assist, ballMesh, ballShadow, trail, aimDots, ballBeam;
 let net = null;
 let carts = [];
 const W = { v: V(), carry: V(), grounded: true, phase: 0, amt: 0, ox: [V(0, 0.3, 0), V(0, 0.55, 0)] };
@@ -67,6 +68,9 @@ const S = {
 const ball = { p: V(), v: V(), spin: 0, grounded: false, gN: V(0, 1, 0), gVel: V(), lastGround: null, airT: 0, frozen: false, surfOverride: null, bite: false };
 const look = loadLook();
 try { S.tipDone = localStorage.getItem('pftc-tip') === '1'; S.fpv = localStorage.getItem('pftc-fpv') === '1'; } catch (e) {}
+// Control schemes (see controls.js): how the left button fights and how the golf stance plays a shot.
+S.fightMode = 0; S.golfMode = 0;
+try { const c = (localStorage.getItem('pftc-ctl') || '').split(','); S.fightMode = clamp(+c[0] || 0, 0, 2) | 0; S.golfMode = clamp(+c[1] || 0, 0, 2) | 0; } catch (e) {}
 let mouseDX = 0, mouseDY = 0;
 const keys = new Set();
 
@@ -266,11 +270,72 @@ function menuSetup() {
       setTimeout(() => { if (at && performance.now() - at >= 3900) { at = 0; b.textContent = label; } }, 4000);
     };
   };
+  for (const b of m.querySelectorAll('[data-ctl]')) b.onclick = () => { const [kind, i] = b.dataset.ctl.split(':'); setScheme(kind, +i); A.play('click'); };
+  schemeButtons();
   twice('resetBall', () => { resetBall(); showMenu(false); });
   twice('resetCart', () => { resetCart(); showMenu(false); });
   twice('resetMap', () => { askReset(); showMenu(false); });
   $('resume').onclick = () => showMenu(false);
   m.addEventListener('mousedown', e => { if (e.target === m) showMenu(false); });
+}
+/* ---------------- control schemes ---------------- */
+// Side cuts follow your eyes: looking down (camera pitch `low` or more) they sweep the turf, looking up (`high`) they are head height.
+const FIGHT_LOOK = { low: 0.5, high: -0.15, lift: 0.3 };
+function setScheme(kind, i, tell) {
+  if (kind === 'fight') { S.fightMode = i; if (fight) fight.cancel(); S.lmb = false; }
+  else { S.golfMode = i; if (assist && assist.phase !== 'down' && assist.phase !== 'follow') { assist.reset(); if (S.mode === 'address') swing.reset(); } }
+  try { localStorage.setItem('pftc-ctl', S.fightMode + ',' + S.golfMode); } catch (e) {}
+  schemeButtons(); updateHud();
+  const M = kind === 'fight' ? FIGHT_MODES[i] : GOLF_MODES[i];
+  if (tell) toast((kind === 'fight' ? '⚔️ Fighting: ' : '⛳ Golf shot: ') + '<b>' + M.name + '</b> · ' + M.how);
+}
+function schemeButtons() {
+  for (const b of document.querySelectorAll('[data-ctl]')) { const [kind, i] = b.dataset.ctl.split(':'); b.classList.toggle('on', +i === (kind === 'fight' ? S.fightMode : S.golfMode)); }
+  $('fightHow').textContent = FIGHT_MODES[S.fightMode].how; $('golfHow').textContent = GOLF_MODES[S.golfMode].how;
+}
+function fightPress() {
+  if (!S.fightMode || !fight || S.mode !== 'walk' || S.noClub || S.emote || S.intro || S.ko || S.hold) return;
+  fight.press(S.fightMode, S.t);
+}
+function assistPress() {
+  if (!S.golfMode || !assist || S.emote || S.ballLive || S.leaveAt || !ballMesh.visible) return;
+  assist.press(S.golfMode);
+  if (S.golfMode === 2 && assist.phase !== 'idle') A.play('click', 0.7);
+}
+// The Brawler's charged smash landing: turf flies, and anyone standing right there is knocked back.
+function groundSmash(charge) {
+  const at = localToWorld(swing.head, V()), f = fDir(bodyYaw()), w = wDir(bodyYaw()), pw = 0.6 + 0.6 * charge;
+  at.y = S.golferG.y + 0.05;
+  fx.dust(at, 10 + 14 * charge, 0.8 + charge * 0.6); fx.divot(at, w, pw); tearDivot(at, w, pw);
+  A.play('divot', 0.6 + 0.4 * charge); A.play('thud', 0.5 + 0.5 * charge); shake(0.1 + 0.2 * charge);
+  if (!net) return;
+  for (const [id, o] of others) {
+    if (o.down || o.G.distanceTo(at) > 1.5 + 0.6 * charge || (o.hitT && S.t - o.hitT < 0.45)) continue;
+    o.hitT = S.t;
+    const dir = V().subVectors(o.G, at).setY(0); if (dir.lengthSq() < 1e-4) dir.copy(w); dir.normalize();
+    const speed = 2.5 + 3.5 * charge, v = dir.multiplyScalar(4 + 5 * charge); v.y = 3 + 2 * charge;
+    net.event({ k: 'whack', to: id, v: v.toArray().map(x => +x.toFixed(2)), part: 'legs', s: +speed.toFixed(1) });
+    pop('SMASH!<small>-' + whackDamage('legs', speed) + '</small>', 'great', o.G.clone().add(V(0, 0.6, 0)));
+    if (window.__whacks) window.__whacks.push({ part: 'legs', s: +speed.toFixed(1), smash: true });
+  }
+}
+// The power bar for the button golf schemes.
+function meterHud() {
+  const el = $('meter'), on = S.mode === 'address' && S.golfMode !== 0 && !S.emote && $('menu').hidden;
+  if (el.hidden === on) el.hidden = !on;
+  if (!on) return;
+  const M = ASSIST.meter, flick = S.golfMode === 1, ph = assist.phase;
+  el.classList.toggle('flick', flick);
+  $('meterFill').style.width = (clamp(assist.power, 0, 1) * 100).toFixed(1) + '%';
+  const mark = $('meterMark');
+  let at = null;
+  if (flick) { if (ph === 'push') at = 0.5 + clamp(Math.atan2(assist.sideTrack, Math.max(20, assist.fwd)) / ASSIST.flick.wide, -1, 1) * 0.5; else if (ph === 'down' || ph === 'follow') at = 0.5 + assist.err * 0.5; }
+  else if (ph === 'acc') at = assist.mark; else if (ph === 'down' || ph === 'follow') at = clamp(M.sweet + assist.err * M.band, 0, 1);
+  mark.hidden = at === null; if (at !== null) mark.style.left = (at * 100).toFixed(1) + '%';
+  const say = S.ballLive || ph === 'down' || ph === 'follow' ? (Math.abs(assist.err) < ASSIST.pure ? 'Dead straight' : assist.err > 0 ? 'Pushed it' : 'Pulled it')
+    : flick ? (ph === 'idle' ? 'Hold left mouse and pull back' : ph === 'back' ? 'Pull back… then flick forward' : 'Straight through!')
+    : ph === 'idle' ? 'Click to start the swing' : ph === 'up' ? 'Click for power' : 'Click on the line!';
+  if (say !== meterHud.say) { meterHud.say = say; $('meterSay').textContent = say; }
 }
 function countdownTick() {
   if (!S.goAt) return;
@@ -330,6 +395,8 @@ async function boot() {
   LD.set('Warming up the swing'); await paint();
   swing = new Swing();
   swing.calibrate();
+  fight = new Fight(swing); assist = new Assist(swing);
+  fight.onSmash = groundSmash;
   carts = [new Cart(scene, course.cartSpots[0])];
   carts[0].addCollider(world);
   ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 24, 16), toon(0xffffff));
@@ -515,10 +582,11 @@ canvas.addEventListener('mousedown', e => {
   if (document.pointerLockElement !== canvas) lockPointer();
   // Right mouse: a thrust while the left button has the club, otherwise in and out of the golf stance.
   if (e.button === 2) { if (S.lmb || S.grip) S.aimHeld = true; else toggleGolf(); }
-  if (e.button === 0 && S.mode !== 'address') S.lmb = true;
+  if (e.button === 0 && S.mode !== 'address') { S.lmb = true; fightPress(); }
+  if (e.button === 0 && S.mode === 'address') assistPress();
   if (e.button === 0 && S.mode === 'drive') A.play('beep', 1);
 });
-addEventListener('mouseup', e => { if (e.button === 2) S.aimHeld = false; if (e.button === 0) S.lmb = false; });
+addEventListener('mouseup', e => { if (e.button === 2) S.aimHeld = false; if (e.button === 0) { S.lmb = false; if (fight) fight.release(); if (assist && S.mode === 'address') assist.release(S.golfMode); } });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('mousemove', e => {
   if (S.mode === 'title') return;
@@ -532,7 +600,7 @@ document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvas;
   // Letting go of the mouse (Esc) opens the menu; taking it back closes it.
   if (locked) { $('menu').hidden = true; $('clickToPlay').hidden = true; }
-  else { S.aimHeld = false; S.lmb = false; if (playing() && $('finish').hidden) showMenu(true); }
+  else { S.aimHeld = false; S.lmb = false; if (fight) fight.release(); if (assist && assist.phase !== 'down' && assist.phase !== 'follow') assist.reset(); if (playing() && $('finish').hidden) showMenu(true); }
 });
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
@@ -545,6 +613,8 @@ addEventListener('keydown', e => {
   if (k >= '1' && k <= '5') setSlot(+k - 1);
   if (k === 'q' && !S.grip) cycleClub(-1);
   if (k === 'h' && !e.repeat) S.showHit = !S.showHit;
+  if (k === '[' && !e.repeat) setScheme('fight', (S.fightMode + 1) % 3, true);
+  if (k === ']' && !e.repeat) setScheme('golf', (S.golfMode + 1) % 3, true);
   if (k === 'e' && !e.repeat && !S.grip) interact();
   if ((k === 'w' || k === 's') && S.mode === 'address' && !e.repeat) leaveAddress();
   if (k === 'm') { A.setMuted(!A.isMuted()); updateHud(); }
@@ -624,14 +694,14 @@ function toggleGolf() {
   if (S.noClub) { toast('Pick a club first: keys 2 to 5.'); return; }
   if (S.ballLive || ball.frozen || !ballMesh.visible) { toast('Wait for your ball to stop.'); return; }
   if (Math.hypot(S.golferG.x - ball.p.x, S.golferG.z - ball.p.z) > 3.5 || Math.abs(S.golferG.y - ball.p.y) > 1.5) { toast('Walk up to your ball, then right click to take your stance.'); return; }
-  S.leaveAt = 0; swing.golf = true;
+  S.leaveAt = 0; swing.golf = true; assist.reset();
   aimAt(courseTarget());
   settleGolfer(true); me.squash = 0.4;
   setMode('address'); updateHud();
 }
 function leaveAddress() {
   if (S.mode !== 'address') return;
-  S.leaveAt = 0;
+  S.leaveAt = 0; assist.reset();
   const f = fDir();
   S.walkYaw = yawFacing(f.x, f.z); S.camYaw = S.aim; S.camPitch = 0.22;
   W.v.set(0, 0, 0); W.carry.set(0, 0, 0); W.grounded = true;
@@ -679,7 +749,7 @@ function walkStep(dt) {
   let mx = fx_ * fw - fz_ * rt, mz = fz_ * fw + fx_ * rt;
   const ml = Math.hypot(mx, mz); if (ml > 0) { mx /= ml; mz /= ml; }
   const hands = S.noClub, run = keys.has('shift');
-  const top = S.emote || S.ko || S.hold ? 0 : S.grip ? 0.9 : (run ? (hands ? 7.8 : 6.5) : (hands ? 4 : 3.3));
+  const top = S.emote || S.ko || S.hold ? 0 : S.grip ? (S.fightMode ? 2.8 : 0.9) : (run ? (hands ? 7.8 : 6.5) : (hands ? 4 : 3.3));
   if (!S.emote && !S.ko && !S.hold && !S.grip && keys.has(' ') && W.grounded) { W.v.y = hands ? 7.2 : 6.4; W.grounded = false; me.squash = 0.5; A.play('pop', 0.3); }
   const n = 2, h = dt / n;
   for (let i = 0; i < n; i++) {
@@ -986,7 +1056,12 @@ function step(dt) {
   S.hold = held();
   swing.golf = S.mode === 'address';
   if (S.mode === 'address' && S.leaveAt && t > S.leaveAt) leaveAddress();
-  const wantGrip = !!S.lmb && S.mode === 'walk' && !S.noClub && !S.emote && !S.intro && !S.ko && !S.hold;
+  const canFight = S.mode === 'walk' && !S.noClub && !S.emote && !S.intro && !S.ko && !S.hold;
+  if (!canFight) fight.cancel();
+  fight.mouse(mouseDX, mouseDY, dt);
+  fight.lift = clamp((FIGHT_LOOK.low - S.camPitch) / (FIGHT_LOOK.low - FIGHT_LOOK.high), 0, 1) * FIGHT_LOOK.lift;
+  const wantGrip = canFight && (S.fightMode ? fight.update(S.fightMode, dt, t) : !!S.lmb);
+  const assisted = S.mode === 'address' && S.golfMode !== 0;
   if (wantGrip && !S.grip) { S.grip = true; S.gripT = 0; S.aim = S.walkYaw; swing.reset(); }
   else if (!wantGrip && S.grip) { S.grip = false; S.walkYaw = S.aim; }
   if (S.grip) {
@@ -1002,12 +1077,17 @@ function step(dt) {
   if (S.mode === 'address' && !S.emote) {
     if (aimKeys) { S.aim += aimKeys * dt * (keys.has('shift') ? 0.35 : 1.1); golferOrigin(S.golferG); S.aimViewT = 0.9; }
     if (keys.has('shift')) { S.aim -= mouseDX * 0.0035; golferOrigin(S.golferG); mouseDX = mouseDY = 0; }
+    else if (assisted && assist.aiming && !S.leaveAt && mouseDX) { S.aim -= mouseDX * 0.0024; golferOrigin(S.golferG); }
+  }
+  if (assisted && !S.emote) {
+    if (S.golfMode === 1 && !assist.aiming) assist.mouse(mouseDX * (S.flickSign || 1), mouseDY);
+    assist.update(S.golfMode, dt);
   }
   // Swing simulation (also runs during flight for the follow-through).
   const swinging = (S.mode === 'address' || S.grip) && !S.emote;
   // The hands go where the mouse goes on screen: right is the golfer's right, which is local -x.
-  if (swinging) swing.input(S.grip || S.fpCam ? -mouseDX : mouseDX, mouseDY, !!S.aimHeld && !!S.grip);
-  if (S.mode === 'walk' && !S.grip) { S.camYaw -= mouseDX * 0.0028; S.camPitch = clamp(S.camPitch + mouseDY * 0.0022, -0.55, 1.15); }
+  if (swinging && !assisted && (S.mode === 'address' || !S.fightMode)) swing.input(S.grip || S.fpCam ? -mouseDX : mouseDX, mouseDY, !!S.aimHeld && !!S.grip);
+  if (S.mode === 'walk' && (!S.grip || S.fightMode)) { S.camYaw -= mouseDX * 0.0028; S.camPitch = clamp(S.camPitch + mouseDY * 0.0022, -0.55, 1.15); }
   mouseDX = mouseDY = 0;
   const sub = 6, h = dt / sub;
   let maxHead = 0;
@@ -1026,7 +1106,10 @@ function step(dt) {
       }
     }
     // The ball is one more thing the club can touch: at rest, rolling or in the air, as often as you reach it.
-    if ((S.mode === 'address' && !S.ballLive) || (free && !ball.frozen && ballMesh.visible && Math.abs(bl.x) < 3 && Math.abs(bl.z) < 3 && Math.abs(bl.y) < 4)) {
+    if (assisted) {
+      // The button schemes: the shot leaves as the head comes through the ball, with the power and line you set.
+      if (assist.phase === 'down' && !S.ballLive && ((swing.prevHead.x < swing.ball.x && swing.head.x >= swing.ball.x) || assist.t > 0.7)) launch(assist.shot(PERFECT_HEAD[swing.ci]));
+    } else if ((S.mode === 'address' && !S.ballLive) || (free && !ball.frozen && ballMesh.visible && Math.abs(bl.x) < 3 && Math.abs(bl.z) < 3 && Math.abs(bl.y) < 4)) {
       const f = fDir(bodyYaw()), w = wDir(bodyYaw());
       const r = swing.strike(bl, free ? _bv.set(ball.v.dot(f), ball.v.y, ball.v.dot(w)) : undefined, ball.grounded);
       if (r) launch(r);
@@ -1281,7 +1364,7 @@ function updateCamera(dt) {
   const f = fDir(), w = wDir();
   let wantPos, wantLook, k = 4, pivot = null, clearRate = 7;
   S.aimViewT = Math.max(0, (S.aimViewT || 0) - dt);
-  const aimView = S.mode === 'address' && (keys.has('shift') || S.aimViewT > 0);
+  const aimView = S.mode === 'address' && (keys.has('shift') || S.aimViewT > 0 || S.golfMode !== 0);
   const viewHeld = aimView || keys.has('f');
   const fp = S.fpCam = S.fpv && !viewHeld && !S.intro && !S.emote && (S.mode === 'address' || S.mode === 'walk' || S.mode === 'drive');
   camera.layers[fp ? 'disable' : 'enable'](1);
@@ -1405,7 +1488,8 @@ function keepClear(pivot, pos, dt, rate = 7) {
 /* ---------------- predicted arcs ---------------- */
 // Only for the cannon while you time it: dots along the flight and a ring where it comes down. A swing
 // gets no preview.
-const PERFECT_HEAD = [0, 19.2, 20.5, 22.3];   // head speed of a full swing, m/s, by club (putter excluded)
+const PUTT_FULL = 9;      // head speed that stands for a full putt with the button schemes
+const PERFECT_HEAD = [PUTT_FULL, 19.2, 20.5, 22.3];   // head speed of a full swing, m/s, by club (putter excluded)
 let arcDots, arcRing, arcKey = '', arcShown = false;
 const arcPts = [];
 function predictArc(p0, v0) {
@@ -1433,7 +1517,9 @@ function updateArc() {
   }
   let p0 = null, v0 = null, color = 0xfff3a0;
   if (S.mode === 'address' && !S.emote && !S.ballLive && swing.ci > 0) {
-    const C = CLUBS[swing.ci], sp = PERFECT_HEAD[swing.ci] * C.smash * POWER, la = C.loft * 1.02 * Math.PI / 180, f = fDir();
+    // With a button scheme the preview shows the shot for the power you have on it right now.
+    const pw = S.golfMode && assist.power > 0.02 ? Math.sqrt(assist.power) : 1;
+    const C = CLUBS[swing.ci], sp = PERFECT_HEAD[swing.ci] * C.smash * POWER * pw, la = C.loft * 1.02 * Math.PI / 180, f = fDir();
     v0 = V(f.x * Math.cos(la) * sp, Math.sin(la) * sp, f.z * Math.cos(la) * sp);
     p0 = ball.p.clone();
   } else if (nearCannon()) {
@@ -1585,7 +1671,7 @@ function makeGuide() {
 }
 function updateGuide() {
   if (!guide) makeGuide();
-  const on = S.mode === 'address' && !S.emote && !S.ballLive && ball.grounded && ballMesh.visible;
+  const on = S.mode === 'address' && !S.emote && !S.ballLive && ball.grounded && ballMesh.visible && !S.golfMode;
   guide.root.visible = guide.ring.visible = guide.foot.visible = on; guide.arrow.visible = false;
   if (!on) return;
   const yaw = bodyYaw(), f = fDir(yaw), w = wDir(yaw), bl = worldToLocal(ball.p, V());
@@ -1731,19 +1817,22 @@ function promptText() {
     if (nearCannon()) return '<kbd>E</kbd> light the cannon when the needle is in the red';
     if (S.hold) return '🏁 Get ready…';
     if (S.down) return '💫 Knocked down. You will be back up in a moment.';
+    if (S.grip && S.fightMode) return S.fightMode === 1 ? 'Slash: <b>hold</b> to wind up, <b>let go</b> to cut · turn or flick the mouse as you press to pick the cut' : 'Brawler: <b>click</b> to chain cuts · <b>hold</b> and let go for a ground smash';
     if (S.grip) return 'The mouse is the club · <b>Right mouse</b> thrust · <kbd>Q</kbd><kbd>E</kbd> turn · <kbd>H</kbd> hit boxes';
     if (S.awaitPark) return '🅿️ Park the cart in the bay at the summit to finish';
     if (nearCart()) return '<kbd>E</kbd>: hop in the cart';
-    return (S.noClub ? '<kbd>2</kbd>–<kbd>5</kbd> pick a club' : '<b>Hold left mouse</b> to swing freely · <b>Right click</b> by your ball for the golf stance') + ' · <kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump';
+    return (S.noClub ? '<kbd>2</kbd>–<kbd>5</kbd> pick a club' : (S.fightMode === 1 ? '<b>Hold left mouse</b> to wind up, let go to cut' : S.fightMode === 2 ? '<b>Click</b> to attack, hold for a smash' : '<b>Hold left mouse</b> to swing freely') + ' · <b>Right click</b> by your ball for the golf stance') + ' · <kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump';
   }
   if (S.mode === 'drive' && S.awaitPark) return '🅿️ Stop in the bay at the summit to finish · <kbd>Space</kbd> brake';
   if (S.mode === 'drive') return '<kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> brake · <kbd>E</kbd> hop out';
+  if (S.mode === 'address' && S.golfMode === 1) return 'Flick: mouse aims · <b>hold left mouse</b>, pull back for power, flick forward to hit · <b>Right click</b> steps away';
+  if (S.mode === 'address' && S.golfMode === 2) return 'Meter: mouse aims · <b>click</b> to start, <b>click</b> for power, <b>click</b> on the line · <b>Right click</b> steps away';
   if (S.mode === 'address') return S.fpCam ? 'Golf stance: mouse right to wind up, left to swing through · <kbd>A</kbd><kbd>D</kbd> aim · <b>Right click</b> steps away'
     : 'Golf stance: mouse left to wind up, right to swing through · <kbd>A</kbd><kbd>D</kbd> aim · <b>Right click</b> steps away';
   return '';
 }
 function updateHudLive() {
-  flagMarker(); ballMarker();
+  flagMarker(); ballMarker(); meterHud();
   countdownTick(); voteTick();
   const clock = fmtTime(raceMs(), S.finished);
   if (clock !== S.clockShown) { S.clockShown = clock; $('hTime').textContent = clock; }
@@ -2101,7 +2190,7 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     setClub,
     fire: () => fireCannon(), get cannon() { return S.cannon; },
     tick: (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { S.realDt = dt; step(dt); } },
-    THREE, get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, get wreck() { return wreck; }, wreckHit, tearDivot, askReset, voteAnswer, get vote() { return vote; }, showMenu, resetBall, resetCart, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
+    THREE, get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, get wreck() { return wreck; }, wreckHit, tearDivot, askReset, voteAnswer, get vote() { return vote; }, showMenu, resetBall, resetCart, setScheme, fightPress, assistPress, get fight() { return fight; }, get assist() { return assist; }, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
     // Deterministic swing at 60 fps: back for `back` frames, pause, then through; runs until the ball rests.
     swingTest: (power = 1, back = 24, down = 10, club) => {
       if (club != null) setClub(club);
