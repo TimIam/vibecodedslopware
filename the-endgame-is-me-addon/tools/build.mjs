@@ -229,6 +229,7 @@ Play:    /endgame   (also /teim)
          Space shakes your fur, Esc pauses and gives the keyboard back to WoW.
 Keys:    Controls, on the game's menu and on the pause menu, puts any of that on other keys or mouse
          buttons (/endgame keys opens it). Esc always pauses.
+Slots:   in the Hoard, between levels, click a slot to pick which ability goes on that button.
 Options: /endgame scale 1-8 (or auto)   how many screen pixels per game pixel
          /endgame fps 30               draw less often, if it drags your frame rate down
          /endgame perf                 show timings in the title bar

@@ -156,6 +156,19 @@ function Stub.click(text)
   if not b then error("no visible button labelled " .. text, 2) end
   b.scripts.OnClick(b, "LeftButton")
 end
+-- the same, looking only at the buttons inside one frame: a list drawn over a panel that has a button of the same
+-- name (the stub knows nothing of what covers what, so the test has to say which one the player could reach)
+local function inside(f, root) while f do if f == root then return true end; f = f.parent end return false end
+function Stub.buttonIn(root, text)
+  for _, f in ipairs(Stub.frames) do
+    if f.kind == "Button" and visible(f) and inside(f, root) and f.label and f.label.text and f.label.text:find(text, 1, true) then return f end
+  end
+end
+function Stub.clickIn(root, text)
+  local b = Stub.buttonIn(root, text)
+  if not b then error("no visible button labelled " .. text .. " in that frame", 2) end
+  b.scripts.OnClick(b, "LeftButton")
+end
 -- the first visible button whose label is exactly this (the Controls panel's keys: "W" is also in "New game")
 function Stub.exact(text)
   for _, f in ipairs(Stub.frames) do

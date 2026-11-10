@@ -172,6 +172,28 @@ frames(90)
 shoot("play_changed", f, nil, nil, "the run again: the HUD names the new keys")
 Stub.key(view, "ESCAPE", true)
 shoot("options", Stub.showPage(true), 640, 470, "the page under Options > AddOns")
+Stub.showPage(false)
+Stub.click("Resume")
+
+-- the Hoard, on the keys changed above (Ability 4 has no key at all, so it goes by "slot 4")
+local g = A.g
+g.points = 500000
+g.store = true
+RT.push(g.events, "store")
+frames(2)
+assert(A.mode == "store", "the Hoard did not open")
+Stub.click("Lightning Beam"); Stub.click("Mutate")
+Stub.click("Tail Sweep"); Stub.click("Mutate")
+shoot("hoard", f, nil, nil, "the Hoard: a sixth ability learned with all five buttons in use")
+for _, name in ipairs({ "Call Adds", "Ice Floor", "Stun Charge", "Zoomies" }) do Stub.click(name); Stub.click("Mutate") end
+Stub.click("Q:")
+shoot("hoard_pick", f, nil, nil, "after clicking a slot: the list of everything owned (here all ten, the tallest it gets)")
+Stub.clickIn(A.ui.store.pick, "Lightning Beam")
+shoot("hoard_swapped", f, nil, nil, "after picking one that was on another button: those two traded places, nothing else moved")
+Stub.click("slot 4:"); Stub.clickIn(A.ui.store.pick, "Fire Breath")
+Stub.click("Q:"); Stub.clickIn(A.ui.store.pick, "(empty)")
+Stub.click("slot 4:"); Stub.clickIn(A.ui.store.pick, "Lightning Beam")
+shoot("hoard_replaced", f, nil, nil, "after picking one that had no button, for a slot with no key: the longest line it can say")
 
 local buf = {}
 json(shots, buf)

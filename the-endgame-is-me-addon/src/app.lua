@@ -409,6 +409,7 @@ local function endingDone() if A.mode == "ending" then showWon() end end
 
 function A.openStore()
   A.storeSel = A.storeSel or "summon"
+  A.storeMsg = nil
   A.setMode("store")
   Store.write(A.g, "store")
 end
@@ -930,9 +931,11 @@ build.store = function()
   pts:SetPoint("TOPRIGHT", p, "TOPRIGHT", -8, -8)
   local rows = {}
   local AB = World.ABILITIES
+  local names = {}
+  for i = 0, AB.length - 1 do names[AB[i].id] = AB[i].name end
   for i = 0, AB.length - 1 do
     local a = AB[i]
-    local b = button(p, "", 142, 10.5, function() A.storeSel = a.id; ui.store.refresh() end)
+    local b = button(p, "", 142, 10.5, function() A.storeSel, A.storeMsg = a.id, nil; ui.store.refresh() end)
     b:SetPoint("TOPLEFT", p, "TOPLEFT", 8, -22 - i * 11.5)
     b.label:ClearAllPoints(); b.label:SetPoint("LEFT", b, "LEFT", 3, 0); b.label:SetFont(D.FONT, 5, "")
     b.cost = D.text(b, 4.5, 0.86, 0.72, 0.36); b.cost:SetPoint("RIGHT", b, "RIGHT", -3, 0)
@@ -950,36 +953,116 @@ build.store = function()
     local o = World.abilityOffer(g, id)
     local ok
     if o.buyCost ~= nil then ok = World.buyAbility(g, id) else ok = World.upgradeAbility(g, id) end
-    if ok then ns.Sound.play("buy"); ui.store.refresh() end
+    if ok then
+      ns.Sound.play("buy")
+      -- a new ability takes the first free button; with all five in use it has none until the player gives it one
+      A.storeMsg = (not o.it.passive and RT.indexOf(g.slots, id) < 0) and (o.it.name .. " needs a button: click a slot.") or nil
+      ui.store.refresh()
+    end
   end)
   mutate:SetPoint("TOPLEFT", p, "TOPLEFT", 158, -86)
-  line(p, 4.5, "TOPLEFT", 158, -106, 0.62, 0.58, 0.5):SetText("Slots: click one to change what is on that button.")
+  local hint = line(p, 4.5, "TOPLEFT", 158, -106, 0.62, 0.58, 0.5)
+  -- what the player knows slot i by: the key it is on
+  local function keyOf(i)
+    local key = Keys.first("slot" .. i)
+    return key and Keys.short(key) or ("slot " .. (i + 1))
+  end
   local slots = {}
+  local openPick
   for i = 0, 4 do
-    local b = button(p, "", 138, 9, function()
-      -- step to the next thing you own; one already on another button swaps with this one
-      local g = A.g
-      local own = { false }
-      for k = 0, AB.length - 1 do if not AB[k].passive and RT.has(g.owned, AB[k].id) then own[#own + 1] = AB[k].id end end
-      local at = 1
-      for k = 1, #own do if own[k] == (g.slots[i] or false) then at = k end end
-      World.setSlot(g, i, own[at % #own + 1] or nil)
-      ui.store.refresh()
-    end)
+    local b = button(p, "", 138, 9, function() openPick(i) end)
     b:SetPoint("TOPLEFT", p, "TOPLEFT", 158, -113 - i * 9.5)
     b.label:SetFont(D.FONT, 4.5, "")
     slots[i] = b
   end
   local go = button(p, "Onward", 142, 14, function() A.closeStore() end)
   go:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 8, 6)
+
+  -- The list a slot puts up, as the browser game's drop-down does: everything owned that can go on a button, and
+  -- where each of them is now. Picking one changes that slot and nothing else, except that a pick which was on
+  -- another button trades places with what was here (World.setSlot). The veil behind the list takes every click
+  -- that misses it, so nothing under it can be pressed by accident; a click on the veil is Cancel. The list sits
+  -- on the left, clear of the slots, so the click that opened it (or its second half, for a double-clicker) can
+  -- never land on a row.
+  local pick = _G.CreateFrame("Frame", nil, p)
+  pick:SetFrameLevel(p:GetFrameLevel() + 20)
+  pick:SetAllPoints(p)
+  pick:EnableMouse(true)
+  D.solid(pick, "BACKGROUND", 0.04, 0.03, 0.02, 0.6):SetAllPoints(pick)
+  pick:SetScript("OnMouseDown", function() guard("the Hoard", ui.store.refresh) end)
+  local box = _G.CreateFrame("Frame", nil, pick)
+  box:SetFrameLevel(pick:GetFrameLevel() + 1)
+  box:SetPoint("LEFT", pick, "LEFT", 4, 0)
+  box:EnableMouse(true)
+  local rim = D.solid(box, "BACKGROUND", 0.86, 0.72, 0.36, 1)
+  rim:SetAllPoints(box)
+  local bg = D.solid(box, "BORDER", 0.1, 0.08, 0.06, 1)
+  bg:SetPoint("TOPLEFT", box, "TOPLEFT", 1, -1); bg:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -1, 1)
+  local title = line(box, 6.5, "TOP", 0, -6, 0.86, 0.72, 0.36)
+  line(box, 4.2, "TOP", 0, -16.5, 0.62, 0.58, 0.5):SetText("One that is on another button trades places.")
+  local function choose(id)
+    local g, i = A.g, pick.slot
+    local was = g.slots[i]
+    if id ~= was then
+      local from = id and RT.indexOf(g.slots, id) or -1
+      World.setSlot(g, i, id)
+      local new, old = id and names[id], was and names[was]
+      if not id then A.storeMsg = keyOf(i) .. " is empty. " .. old .. " has no button."
+      elseif from >= 0 then A.storeMsg = old and (new .. " and " .. old .. " traded places.") or (new .. " moved from " .. keyOf(from) .. " to " .. keyOf(i) .. ".")
+      else A.storeMsg = old and (new .. " replaced " .. old .. " on " .. keyOf(i) .. ".") or (new .. " is on " .. keyOf(i) .. ".") end
+      note("hoard: slot " .. i .. " = " .. tostring(id) .. " (was " .. tostring(was) .. (from >= 0 and (", traded with slot " .. from) or "") .. ")")
+    end
+    ui.store.refresh()
+  end
+  local function pickRow(text, id)
+    local b = button(box, text, 138, 9, function() choose(id) end)
+    b.label:ClearAllPoints(); b.label:SetPoint("LEFT", b, "LEFT", 3, 0); b.label:SetFont(D.FONT, 4.8, "")
+    b.where = D.text(b, 4.2, 0.86, 0.72, 0.36); b.where:SetPoint("RIGHT", b, "RIGHT", -3, 0)
+    return b
+  end
+  local pickRows = {}
+  for i = 0, AB.length - 1 do if not AB[i].passive then pickRows[AB[i].id] = pickRow(AB[i].name, AB[i].id) end end
+  local none = pickRow("(empty)", nil)
+  button(box, "Cancel", 60, 10, function() ui.store.refresh() end):SetPoint("BOTTOM", box, "BOTTOM", 0, 5)
+  openPick = function(i)
+    local g = A.g
+    pick.slot = i
+    title:SetText("WHAT GOES ON " .. keyOf(i):upper() .. "?")
+    local n = 0
+    local function place(b, here, where)
+      b:ClearAllPoints(); b:SetPoint("TOPLEFT", box, "TOPLEFT", 6, -25 - n * 9.6)
+      n = n + 1
+      b.sel = here
+      b.where:SetText(here and "here now" or where)
+      b:paint(false)
+      b:Show()
+    end
+    for k = 0, AB.length - 1 do
+      local id = AB[k].id
+      local b = pickRows[id]
+      if b then
+        if RT.has(g.owned, id) then
+          local at = RT.indexOf(g.slots, id)
+          place(b, at == i, at >= 0 and ("on " .. keyOf(at)) or "")
+        else b:Hide() end
+      end
+    end
+    place(none, g.slots[i] == nil, "")
+    box:SetSize(150, 44 + n * 9.6)
+    for k = 0, 4 do slots[k].sel = k == i; slots[k]:paint(false) end
+    pick:Show()
+  end
+  pick:Hide()
+  p.pick = pick
+
+  -- showing the panel as it stands always puts the list away
   p.refresh = function()
     local g = A.g
+    pick:Hide()
     pts:SetText(RT.commas(g.points) .. " points")
     go.label:SetText("Onward to level " .. (g.map.n + 1))
-    local names = {}
     for i = 0, AB.length - 1 do
       local a = AB[i]
-      names[a.id] = a.name
       local o, cost = mutateOffer(g, a.id)
       local b = rows[a.id]
       local owned = o.owned or (a.passive and o.lvl > 0)
@@ -995,12 +1078,19 @@ build.store = function()
     name:SetText(a.name)
     local where = RT.indexOf(g.slots, a.id)
     tag:SetText(a.passive and (o.lvl > 0 and ("level " .. o.lvl) or "not grown")
-      or o.owned and (where >= 0 and ("on " .. Keys.short(Keys.first("slot" .. where))) or "owned, not on a button") or "not owned")
+      or o.owned and (where >= 0 and ("on " .. keyOf(where)) or "owned, not on a button") or "not owned")
     desc:SetText((a.id == "summon" and o.owned and o.lvl > 0) and a.ups[o.lvl - 1] or a.desc)
     what:SetText(cost == nil and "Nothing left to grow." or ("Mutate: " .. tostring(text)))
     mutate.label:SetText(cost == nil and "Fully mutated" or ("Mutate   " .. RT.commas(cost)))
     mutate:able(cost ~= nil and g.points >= cost)
-    for i = 0, 4 do slots[i].label:SetText(Keys.short(Keys.first("slot" .. i)) .. ":  " .. (g.slots[i] and names[g.slots[i]] or "(empty)")) end
+    if A.storeMsg then hint:SetText(A.storeMsg); hint:SetTextColor(1, 0.75, 0.5)
+    else hint:SetText("Slots: click one to pick what goes on it."); hint:SetTextColor(0.62, 0.58, 0.5) end
+    for i = 0, 4 do
+      local b = slots[i]
+      b.label:SetText(keyOf(i) .. ":  " .. (g.slots[i] and names[g.slots[i]] or "(empty)"))
+      b.sel = false
+      b:paint(false)
+    end
   end
 end
 

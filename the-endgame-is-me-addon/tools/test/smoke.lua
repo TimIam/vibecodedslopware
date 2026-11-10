@@ -352,14 +352,84 @@ g.store = true; g.events.push = nil
 RT.push(g.events, "store")
 frames(2)
 assert(A.mode == "store", "the Hoard did not open")
+-- what is on the five buttons, LMB RMB Q E R
+local function bar(of)
+  local t = {}
+  for i = 0, 4 do t[#t + 1] = tostring((of or g).slots[i] or "-") end
+  return table.concat(t, " ")
+end
+assert(bar() == "swipe stomp breath roar -", "a run should start with the boss's own four abilities: " .. bar())
 Stub.click("Lightning Beam")
 Stub.click("Mutate")
 assert(RT.has(g.owned, "beam"), "buying an ability did not work")
+assert(bar() == "swipe stomp breath roar beam", "a new ability should take the free button: " .. bar())
 Stub.click("Mutate")
 assert((g.lvl.beam or 0) == 1, "upgrading an ability did not work")
-Stub.click("LMB:")
 local texts = table.concat(Stub.texts(), " | ")
 assert(texts:find("THE HOARD", 1, true) and texts:find("points", 1, true), "the Hoard panel is missing its text")
+-- a sixth ability has no free button: nothing moves, and the Hoard says what to do about it
+Stub.click("Tail Sweep")
+Stub.click("Mutate")
+assert(RT.has(g.owned, "tail") and bar() == "swipe stomp breath roar beam", "learning with all five buttons in use should move nothing: " .. bar())
+assert(shownText("Tail Sweep needs a button") and shownText("owned, not on a button"), "the Hoard should say the new ability has no button")
+-- a slot puts up a list of what is owned, and picking from it changes that slot only
+local pick = A.ui.store.pick
+local function listed()
+  local n = 0
+  for _, b in ipairs(Stub.frames) do if b.kind == "Button" and b.where and Stub.visible(b) then n = n + 1 end end
+  return n
+end
+assert(not Stub.visible(pick), "the list should be away until a slot is clicked")
+Stub.click("Q:")
+assert(Stub.visible(pick) and pick.slot == 2 and shownText("WHAT GOES ON Q?"), "clicking a slot should put up the list for it")
+assert(pick.mouse and pick.points.ALL and pick.points.ALL.rel == A.ui.store and pick.level > A.ui.store:GetFrameLevel(),
+  "the veil behind the list should cover the whole panel, above its buttons, and take the clicks")
+local listBox = Stub.buttonIn(pick, "Cancel").parent
+assert(listBox.points.LEFT and listBox.points.LEFT.x + listBox.w <= Stub.button("Q:").points.TOPLEFT.x,
+  "the list must sit clear of the slots, or the second half of a double click on a slot lands on a row")
+assert(Stub.button("Q:").sel and not Stub.button("E:").sel, "the slot being changed should be marked")
+assert(listed() == 7, "the list should hold the six abilities owned and (empty), not " .. listed() .. " rows")
+assert(Stub.buttonIn(pick, "Fire Breath").sel and Stub.buttonIn(pick, "Fire Breath").where.text == "here now", "the list should mark what is on the slot")
+assert(Stub.buttonIn(pick, "Roar").where.text == "on E" and Stub.buttonIn(pick, "Tail Sweep").where.text == "", "the list should say where each ability is")
+assert(not Stub.buttonIn(pick, "Ice Floor") and not Stub.buttonIn(pick, "Thicker Fur"), "the list should leave out what is not owned and what is never cast")
+Stub.clickIn(pick, "Tail Sweep")
+assert(bar() == "swipe stomp tail roar beam", "picking from the list should change that slot and no other: " .. bar())
+assert(not Stub.visible(pick) and shownText("Tail Sweep replaced Fire Breath on Q."), "a pick should put the list away and say what happened")
+assert(not Stub.button("Q:").sel, "the mark on the slot should go when the list does")
+-- one that is on another button trades places with what was here
+Stub.click("LMB:"); Stub.clickIn(pick, "Roar")
+assert(bar() == "roar stomp tail swipe beam" and shownText("Roar and Swipe traded places."), "a pick from another button should trade places: " .. bar())
+-- (empty), and a move to an empty slot
+Stub.click("R:"); Stub.clickIn(pick, "(empty)")
+assert(bar() == "roar stomp tail swipe -" and shownText("R is empty. Lightning Beam has no button."), "(empty) should clear that slot: " .. bar())
+Stub.click("R:")
+assert(Stub.buttonIn(pick, "(empty)").sel and listed() == 7, "an empty slot's list should mark (empty)")
+Stub.clickIn(pick, "Swipe")
+assert(bar() == "roar stomp tail - swipe" and shownText("Swipe moved from E to R."), "a pick for an empty slot should leave its old slot empty: " .. bar())
+Stub.click("E:"); Stub.clickIn(pick, "Fire Breath")
+assert(bar() == "roar stomp tail breath swipe" and shownText("Fire Breath is on E."), "an ability with no button should go on an empty one: " .. bar())
+-- picking what is already there, Cancel, and a click beside the list all change nothing
+local kept = bar()
+Stub.click("E:"); Stub.clickIn(pick, "Fire Breath")
+assert(bar() == kept and not Stub.visible(pick), "picking what is already there should change nothing")
+Stub.click("E:"); Stub.clickIn(pick, "Cancel")
+assert(bar() == kept and not Stub.visible(pick), "Cancel should change nothing")
+Stub.click("E:"); pick.scripts.OnMouseDown(pick, "LeftButton")
+assert(bar() == kept and not Stub.visible(pick), "a click beside the list should put it away and change nothing")
+-- choosing another ability on the left puts the list away too
+Stub.click("E:"); Stub.click("Ice Floor")
+assert(bar() == kept and not Stub.visible(pick), "the list should not outlive a change of selection")
+-- the bar comes back from a save and a /reload as it was left, a hole in the middle included
+Stub.click("RMB:"); Stub.clickIn(pick, "(empty)")
+assert(bar() == "roar - tail breath swipe")
+assert(ns.Store.write(g, "store"), "the Hoard could not be saved")
+local saved = {}
+dump(TheEndgameIsMeDB.save, saved, 0)
+TheEndgameIsMeDB.save = assert(loadstring("return " .. table.concat(saved)))()
+local reread = ns.Store.read()
+assert(reread and reread.slots.length == 5 and bar(reread) == bar(), "the buttons did not survive a save: " .. tostring(reread and bar(reread)))
+Stub.click("RMB:"); Stub.clickIn(pick, "Stomp")
+assert(bar() == "roar stomp tail breath swipe")
 plain(TheEndgameIsMeDB, 0)
 
 -- every level: load it, play a while with keys held, scroll, check the picture
@@ -370,6 +440,19 @@ for lv = 2, 7 do
   local took = os.clock() - t
   assert(A.mode == "play" and g.map.n == lv, "expected level " .. lv)
   g.boss.maxhp = 1e9; g.boss.hp = 1e9
+  if lv == 2 then
+    -- the keys cast what the Hoard left on them: Q has Tail Sweep now, and Fire Breath went to E
+    assert(g.slots[2] == "tail" and g.slots[3] == "breath")
+    local function finish() for _ = 1, 900 do if not g.boss.act then return end; frames(1) end; error("the boss never finished its cast") end
+    Stub.key(view, "Q", true); Stub.key(view, "Q", false)
+    frames(2)
+    assert(g.boss.act and g.boss.act.kind == "tail", "Q did not cast what the Hoard put on it")
+    finish()
+    Stub.key(view, "E", true); Stub.key(view, "E", false)
+    frames(2)
+    assert(g.boss.act and g.boss.act.kind == "breath", "E did not cast what the Hoard put on it")
+    finish()
+  end
   -- put the boss mid-map on the sideways levels, so the camera has to scroll both ways while it walks
   if g.map.scroll == "x" then g.boss.x = math.min(g.map.w - 200, 430) end
   local keys = lv % 2 == 0 and { "D", "W" } or { "A", "S" }

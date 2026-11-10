@@ -92,7 +92,11 @@ These need a Lua 5.1 interpreter (`lua5.1`, `luac5.1`); none of them needs the g
 ## What differs from the browser game
 
 - No studio splash, animated title or attract-mode fights; the menu is a plain panel.
-- The Hoard has no demo reel, and no icons: abilities are a list with a description.
+- The Hoard has no demo reel, and no icons: abilities are a list with a description. Where the browser game has a
+  drop-down on each slot, clicking a slot puts up a list of what is owned (`pick` in `build.store`). Either way only
+  that slot changes, and a pick that was on another button trades places with it. Do not go back to stepping through
+  the abilities on each click: every step is a trade, so by the time the wanted one comes up the other buttons have
+  been shuffled (that was 1.0.0's Hoard).
 - Fur colour is a row of swatches, not the colour triangle. No music picker or volume sliders (WoW has its own).
 - Smoke is dithered instead of blended, and the ending has no warm wash, both to save frame time.
 - Music is two mixes per level (calm, fighting) that cross-fade; changing mix restarts the loop.
