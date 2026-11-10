@@ -1249,6 +1249,13 @@ window.SLOPWARE = {
      "note": "three more fighting and golf shot schemes",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 22,
+     "date": "2026-11-10T10:20:56-07:00",
+     "note": "Charge golf shot, one fighting swing, a sparring partner",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
