@@ -128,6 +128,11 @@ window.SLOPWARE = {
      "n": 1,
      "date": "2026-11-09T20:04:14-07:00",
      "note": "a free Classic Forever addon, /ginv guild-invites whoever whispered you"
+    },
+    {
+     "n": 2,
+     "date": "2026-11-09T23:28:34-07:00",
+     "note": "a settings panel and keyword auto invite"
     }
    ]
   },
@@ -997,7 +1002,7 @@ window.SLOPWARE = {
   "pit-crew": {
    "visits": 19,
    "prompts": 12,
-   "tokens": 7497540,
+   "tokens": 7503596,
    "sharedWith": null,
    "versions": [
     {
@@ -1075,7 +1080,7 @@ window.SLOPWARE = {
      "date": "2026-11-09T23:22:29-07:00",
      "note": "fair finishes, a strategy screen, post-race radio, arcade and office touches",
      "prompts": 1,
-     "tokens": 600712
+     "tokens": 606768
     }
    ]
   },
