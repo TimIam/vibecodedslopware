@@ -1281,7 +1281,7 @@ window.SLOPWARE = {
   "puck-around": {
    "visits": 0,
    "prompts": 4,
-   "tokens": 528513,
+   "tokens": 532652,
    "sharedWith": null,
    "versions": [
     {
@@ -1296,7 +1296,7 @@ window.SLOPWARE = {
      "date": "2026-11-10T12:27:57-07:00",
      "note": "Elo ratings, matchmaking, mouse controls",
      "prompts": 2,
-     "tokens": 115383
+     "tokens": 119522
     }
    ]
   },
@@ -1326,6 +1326,13 @@ window.SLOPWARE = {
      "note": "Slopware 16-Bit, the studio splash on a shirt",
      "prompts": 0,
      "tokens": 6780
+    },
+    {
+     "n": 4,
+     "date": "2026-11-10T12:27:52-07:00",
+     "note": "rename the Endgame shirt, add Endgame Logo and Slopware 2 shirts",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
