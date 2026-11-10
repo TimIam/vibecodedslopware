@@ -15,7 +15,10 @@ main{padding:64px 16px 48px;display:grid;grid-template-columns:minmax(260px,1fr)
 main>*{grid-column:2;min-width:0}
 h1{font-size:clamp(34px,7vw,56px);line-height:1.05;margin:0 0 12px;letter-spacing:-1px}
 h1 span{color:var(--accent)}
-.lede{color:var(--dim);font-size:18px;margin:0 0 28px;max-width:560px}
+.lede{color:var(--dim);font-size:18px;margin:0 0 14px;max-width:560px}
+.bucket{margin:0 0 28px;color:var(--dim);font-size:14.5px}
+.bucket a{display:inline-block;margin-right:6px;padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--fg);font-weight:600;text-decoration:none}
+.bucket a:hover,.bucket a:focus-visible{border-color:var(--accent)}
 .grid{display:grid;gap:14px}
 a.card{position:relative;display:grid;grid-template-columns:64px 1fr auto;gap:16px;align-items:center;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:inherit;text-decoration:none;transition:transform .15s,border-color .15s}
 a.card:hover{transform:translateY(-2px);border-color:var(--accent)}
@@ -87,6 +90,7 @@ a.card:hover~.star,.star:hover{transform:translateY(-2px)}
 <main>
   <h1>vibe coded <span>slopware</span></h1>
   <p class="lede">Small, weird, lovingly vibe-coded things. No warranty. No roadmap. Some assembly required.</p>
+  <p class="bucket"><a href="https://github.com/TimIam/vibecodedslopware" target="_blank" rel="noopener" aria-label="The Slop Bucket: the source code on GitHub (opens in a new tab)"><span aria-hidden="true">🪣</span> The Slop Bucket</a> All of the code is public on GitHub now. Dig in.</p>
   <div class="sortbar" role="group" aria-label="Sort">Sort:
     <button type="button" data-sort="latest">Latest update</button>
     <button type="button" data-sort="first">First release</button>
