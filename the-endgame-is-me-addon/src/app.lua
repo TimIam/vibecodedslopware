@@ -431,20 +431,29 @@ end
 
 local function onUpdate(self, elapsed)
   if not A.ticked then A.ticked = true; note("first OnUpdate, elapsed " .. tostring(elapsed)) end
+  -- the client's own frame rate with the window open, logged now and then: it is the number that says whether
+  -- 57,600 textures are affordable
+  A.fpsN, A.fpsT = (A.fpsN or 0) + 1, (A.fpsT or 0) + elapsed
+  if A.fpsT >= 3 then
+    A.fps = A.fpsN / A.fpsT
+    A.fpsNotes = (A.fpsNotes or 0) + 1
+    if A.fpsNotes <= 40 then note(string.format("client at %.0f fps in mode %s", A.fps, tostring(A.mode))) end
+    A.fpsN, A.fpsT = 0, 0
+  end
   if A.job then
     local job = A.job
     job.frames = job.frames + 1
-    if job.frames % 120 == 1 then
-      note(string.format("loading '%s': frame %d, %.1f s, progress %s, coroutine %s", tostring(A.loadLabel), job.frames, (now() - job.t0) / 1000,
-        tostring(D.progress), coroutine.status(job.co)))
-    end
-    local ok, err = slice(job.co, 11)
+    -- Half of each frame goes to the work. If the client is slow anyway, a fixed few milliseconds a frame would
+    -- stretch a four-second job into minutes, so the slice grows with the frame time.
+    local ms = math.max(11, math.min(80, elapsed * 1000 * 0.6))
+    local ok, err = slice(job.co, ms)
     if not ok then fail(err) return end
     -- the title bar says what is going on even if nothing over the picture can be seen
-    local dots = string.rep(".", floor(job.frames / 20) % 4)
+    local secs = (now() - job.t0) / 1000
+    local dots = string.format("  %d s", secs)
     local text = (A.loadLabel or "LOADING") .. (D.progress and string.format("  %d%%", D.progress * 100) or dots)
     D.info:SetText(text)
-    if ui.loading and ui.loading.status then ui.loading.status:SetText(D.progress and string.format("%d%%", D.progress * 100) or ("painting pixels" .. dots)) end
+    if ui.loading and ui.loading.status then ui.loading.status:SetText(D.progress and string.format("%d%%", D.progress * 100) or string.format("painting pixels, %d s so far", secs)) end
     if coroutine.status(job.co) == "dead" then
       A.job = nil
       D.info:SetText("")
@@ -794,9 +803,38 @@ ev:RegisterEvent("PLAYER_LOGOUT")
 ev:RegisterEvent("PLAYER_REGEN_DISABLED")
 ev:RegisterEvent("UI_SCALE_CHANGED")
 ev:RegisterEvent("DISPLAY_SIZE_CHANGED")
+-- a page in the client's Options > AddOns list: what the addon is and how to open it
+local function settingsPage()
+  local S = _G.Settings
+  if not (S and S.RegisterCanvasLayoutCategory and S.RegisterAddOnCategory) then return end
+  local page = _G.CreateFrame("Frame")
+  page.name = "The Endgame is Me"
+  local function text(size, y, str, r, g, b)
+    local fs = page:CreateFontString(nil, "OVERLAY")
+    fs:SetFont(D.FONT, size, "")
+    fs:SetTextColor(r or 0.93, g or 0.89, b or 0.78)
+    fs:SetPoint("TOPLEFT", page, "TOPLEFT", 16, y)
+    fs:SetWidth(560); fs:SetJustifyH("LEFT")
+    fs:SetText(str)
+    return fs
+  end
+  text(22, -16, "The Endgame is Me", 0.86, 0.72, 0.36)
+  text(13, -50, "A reverse boss fight in a window: you are the boss, the raids are the content.")
+  text(13, -80, "/endgame  opens and closes the game (also /teim).\nWASD or the arrows walk, the mouse aims, left and right click, Q, E and R are your abilities, Space shakes your fur. Esc pauses and gives the keyboard back to WoW.")
+  text(13, -150, "/endgame scale 1-8    screen pixels per game pixel (or: auto)\n/endgame fps 30         draw less often\n/endgame perf            timings in the title bar\n/endgame calm           screen shake on or off\n/endgame mute           sound on or off\n/endgame reset          move the window back to the middle\n/endgame log              what the addon has been doing", 0.7, 0.67, 0.6)
+  local b = _G.CreateFrame("Button", nil, page)
+  b:SetSize(160, 28)
+  b:SetPoint("TOPLEFT", page, "TOPLEFT", 16, -290)
+  local bg = b:CreateTexture(nil, "BACKGROUND"); bg:SetColorTexture(0.33, 0.24, 0.13, 1); bg:SetAllPoints(b)
+  local bl = b:CreateFontString(nil, "OVERLAY"); bl:SetFont(D.FONT, 14, ""); bl:SetPoint("CENTER", b, "CENTER", 0, 0); bl:SetText("Open the game")
+  b:SetScript("OnClick", function() if not (D.frame and D.frame:IsShown()) then A.toggle() end end)
+  local cat = S.RegisterCanvasLayoutCategory(page, page.name)
+  S.RegisterAddOnCategory(cat)
+end
+
 ev:SetScript("OnEvent", function(self, event, arg1)
   if event == "ADDON_LOADED" then
-    if arg1 == ADDON then Store.init(); ns.Sound.init() end
+    if arg1 == ADDON then Store.init(); ns.Sound.init(); guard("the options page", settingsPage) end
   elseif event == "PLAYER_LOGOUT" then
     A.saveNow()
   elseif event == "UI_SCALE_CHANGED" or event == "DISPLAY_SIZE_CHANGED" then
