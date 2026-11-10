@@ -443,6 +443,7 @@ export class Course {
       lines.forEach((t, i) => { g.font = `900 ${sizes[i] || 34}px "Trebuchet MS", system-ui`; g.fillText(t, w / 2, yy); yy += (sizes[i] || 34) + 18; });
     });
     tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.flipY = false;      // the Blender board's UVs run the glTF way up; without this every sign reads upside down
     const face = new THREE.MeshToonMaterial({ map: tex, gradientMap });
     let found = false;
     board.traverse(o => { if (o.isMesh && !o.userData.isOutline && /face/i.test(o.material.name || '')) { o.material = face; found = true; } });
@@ -757,46 +758,96 @@ export class Course {
   }
 
   // Background: the spire, distant islands. (Sky, sea, clouds and balloons live in sky.js.)
-  // A narrow road through hole-local points [x, y, z]: flat round landings at the points, joined by tilted
-  // slabs that start and end at the landings' rims, so there is no lip anywhere. o.kicker leaves the last
-  // landing off and ends in the open on the slope, as a ramp to jump from. o.cones: [segment, 0..1, side].
+  // A cart path through hole-local points [x, y, z]: one continuous paved ribbon that curves through
+  // them, with a rock pillar under each point. Both ends run a little way onto the ground they meet.
+  // o.kicker ends it in the open on the slope instead, as a ramp to jump from. o.cones: [segment, 0..1, side].
   road(H, pts, w, o = {}) {
-    const F = H.frame, thick = 0.5, r = w * 0.46, last = pts.length - 1;
-    // Roads sit flush with the terrain they start and end on; polygon offset stops the two flickering, and
-    // the slabs are pushed further forward than the round landings they overlap.
-    const roadMat = this._roadMat || (this._roadMat = toon(0xffffff, { params: { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, map: canvasTex(128, 128, (g, cw, ch) => {
-      g.fillStyle = '#c9a26b'; g.fillRect(0, 0, cw, ch);
-      for (let i = 0; i < 260; i++) { g.fillStyle = Math.random() < 0.5 ? 'rgba(120,85,45,.3)' : 'rgba(240,215,165,.35)'; g.fillRect(Math.random() * cw, Math.random() * ch, 2 + Math.random() * 9, 1 + Math.random() * 3); }
-      g.fillStyle = '#efe2c2'; g.fillRect(0, 0, cw, 9); g.fillRect(0, ch - 9, cw, 9);
-      g.fillStyle = '#ff5d73'; for (let i = 0; i < 2; i++) { g.fillRect(i * 64, 0, 30, 9); g.fillRect(i * 64, ch - 9, 30, 9); }
+    const F = H.frame, thick = 0.5, last = pts.length - 1, V3 = THREE.Vector3;
+    const pathMat = this._pathMat || (this._pathMat = toon(0xffffff, { params: { side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, map: canvasTex(128, 128, (g, cw, ch) => {
+      // Poured concrete: pale slabs with a joint across each one and a darker kerb down both edges.
+      g.fillStyle = '#d9d3c5'; g.fillRect(0, 0, cw, ch);
+      for (let i = 0; i < 320; i++) { g.fillStyle = Math.random() < 0.5 ? 'rgba(120,112,98,.22)' : 'rgba(255,252,244,.3)'; g.fillRect(Math.random() * cw, Math.random() * ch, 1 + Math.random() * 3, 1 + Math.random() * 3); }
+      g.fillStyle = 'rgba(96,90,80,.55)'; g.fillRect(0, 0, 3, ch);
+      g.fillStyle = '#b3ac9c'; g.fillRect(0, 0, cw, 11); g.fillRect(0, ch - 11, cw, 11);
+      g.fillStyle = '#857f72'; g.fillRect(0, 11, cw, 2); g.fillRect(0, ch - 13, cw, 2);
     }) } }));
-    const nodeMat = toon(0xc9a26b, { params: { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 } });
+    const sideMat = this._pathSide || (this._pathSide = toon(0xa9a293));
+    const curve = new THREE.CatmullRomCurve3(pts.map(p => new V3(p[0], p[1], p[2])), false, 'centripetal');
+    const line = curve.getSpacedPoints(Math.max(2, Math.ceil(curve.getLength() / 0.6)));
+    // Run the ends onto the ground, level, the way they were heading.
+    const lead = (a, b) => { const d = new V3(a.x - b.x, 0, a.z - b.z).normalize(); return new V3(a.x + d.x * 0.9, a.y, a.z + d.z * 0.9); };
+    line.unshift(lead(line[0], line[1]));
+    if (!o.kicker) line.push(lead(line[line.length - 1], line[line.length - 2]));
+    const n = line.length, side = [], dist = [0];
+    for (let i = 0; i < n; i++) {
+      const a = line[Math.max(0, i - 1)], b = line[Math.min(n - 1, i + 1)], t = new V3(b.x - a.x, 0, b.z - a.z).normalize();
+      side.push(new V3(-t.z, 0, t.x));
+      if (i) dist.push(dist[i - 1] + line[i].distanceTo(line[i - 1]));
+    }
+    // Top and the two edges as strips; the ends are buried in the ground or hang in the open.
+    const strip = (off0, off1, y0, y1, uv) => {
+      const pos = [], uvs = [], idx = [];
+      for (let i = 0; i < n; i++) {
+        const p = line[i], s = side[i];
+        pos.push(p.x + s.x * off0, p.y + y0, p.z + s.z * off0, p.x + s.x * off1, p.y + y1, p.z + s.z * off1);
+        uvs.push(dist[i] / 2.5, uv ? 0 : 0.5, dist[i] / 2.5, uv ? 1 : 0.5);
+        if (i) { const k = i * 2; idx.push(k - 2, k, k - 1, k - 1, k, k + 1); }
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.setIndex(idx); geo.computeVertexNormals();
+      return geo;
+    };
+    const top = new THREE.Mesh(strip(-w / 2, w / 2, 0, 0, true), pathMat); top.receiveShadow = true; H.group.add(top);
+    for (const s of [-1, 1]) { const m = new THREE.Mesh(strip(s * w / 2, s * w / 2, 0, -thick, false), sideMat); m.material.side = THREE.DoubleSide; addOutline(m, 0.05); H.group.add(m); }
+    const under = new THREE.Mesh(strip(-w / 2, w / 2, -thick, -thick, false), sideMat); H.group.add(under);
+    // What the cart and the ball roll on: short slabs along the ribbon, each overlapping the next.
+    for (let i = 0; i < n - 1; i++) {
+      const a = line[i], b = line[i + 1], run = Math.hypot(b.x - a.x, b.z - a.z), rise = b.y - a.y, L = Math.hypot(run, rise);
+      if (L < 1e-4) continue;
+      const lq = new THREE.Quaternion().setFromAxisAngle(UP, -Math.atan2(b.z - a.z, b.x - a.x)).multiply(new THREE.Quaternion().setFromAxisAngle(new V3(0, 0, 1), Math.atan2(rise, run)));
+      const cl = new V3((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2).add(new V3(0, -thick / 2, 0).applyQuaternion(lq));
+      this.world.add(new Collider('box', { pos: F.w(cl.x, cl.y, cl.z), quat: F.q.clone().multiply(lq), half: new V3(L / 2 + 0.12, thick / 2, w / 2), surf: 'fairway', hole: H.i, tag: 'road' }));
+    }
     pts.forEach(([x, y, z], i) => {
       if (o.kicker && i === last) return;
-      this.world.add(new Collider('cyl', { pos: F.w(x, y - thick / 2, z), r, hh: thick / 2, surf: 'fairway', hole: H.i, tag: 'road' }));
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, thick, 28), nodeMat);
-      m.position.set(x, y - thick / 2, z); m.receiveShadow = true; addOutline(m, 0.05); H.group.add(m);
-      const rock = make('under_rock'); rock.position.set(x, y - thick + 0.05, z); rock.scale.set(r * 1.25, 3.5, r * 1.25); H.group.add(rock);
+      const rock = make('under_rock'); rock.position.set(x, y - thick + 0.05, z); rock.scale.set(w * 0.5, 3.5, w * 0.5); H.group.add(rock);
       this.solidify(rock, { surf: 'rock', tag: 'cliff', hole: H.i });
     });
-    for (let i = 0; i < last; i++) {
-      const [ax, ay, az] = pts[i], [bx, by, bz] = pts[i + 1], run0 = Math.hypot(bx - ax, bz - az);
-      const dx = (bx - ax) / run0, dz = (bz - az) / run0, inA = r * 0.92, inB = o.kicker && i + 1 === last ? 0 : r * 0.92;
-      const x0 = ax + dx * inA, z0 = az + dz * inA, x1 = bx - dx * inB, z1 = bz - dz * inB;
-      const run = Math.hypot(x1 - x0, z1 - z0), rise = by - ay, L = Math.hypot(run, rise);
-      const lq = new THREE.Quaternion().setFromAxisAngle(UP, -Math.atan2(dz, dx)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.atan2(rise, run)));
-      const cl = new THREE.Vector3((x0 + x1) / 2, (ay + by) / 2, (z0 + z1) / 2).add(new THREE.Vector3(0, -thick / 2, 0).applyQuaternion(lq));
-      this.world.add(new Collider('box', { pos: F.w(cl.x, cl.y, cl.z), quat: F.q.clone().multiply(lq), half: new THREE.Vector3(L / 2, thick / 2, w / 2), surf: 'fairway', hole: H.i, tag: 'road' }));
-      const geo = new RoundedBoxGeometry(L, thick, w, 2, 0.08), uv = geo.attributes.uv;
-      for (let k = 0; k < uv.count; k++) uv.setX(k, uv.getX(k) * L / 2.5);
-      const m = new THREE.Mesh(geo, roadMat);
-      m.position.copy(cl); m.quaternion.copy(lq); m.receiveShadow = true; addOutline(m, 0.05); H.group.add(m);
-      for (const [seg, t, side] of o.cones || []) {
-        if (seg !== i) continue;
-        const cx = x0 + (x1 - x0) * t - dz * side * (w / 2 - 0.3), cz = z0 + (z1 - z0) * t + dx * side * (w / 2 - 0.3), cy = ay + (by - ay) * t;
-        this.cone(H, cx, cy, cz);
-      }
+    for (const [seg, t, sd] of o.cones || []) {
+      const u = (seg + t) / last, p = curve.getPoint(u), tg = curve.getTangent(u); tg.y = 0; tg.normalize();
+      this.cone(H, p.x - tg.z * sd * (w / 2 - 0.3), p.y, p.z + tg.x * sd * (w / 2 - 0.3));
     }
+  }
+  // Where the cart has to end up: a painted bay with a P in it, kerb stops at the far end and a sign.
+  // Hole-local centre (x, z), length along x. this.parking is what main.js checks the cart against.
+  parkingBay(H, x, y, z, len = 3.8, wid = 2.4) {
+    const tex = canvasTex(256, 160, (g, cw, ch) => {
+      g.translate(0, ch); g.scale(1, -1);      // the plane's v runs the other way to the canvas
+      g.fillStyle = '#5f6670'; g.fillRect(0, 0, cw, ch);
+      for (let i = 0; i < 500; i++) { g.fillStyle = Math.random() < 0.5 ? 'rgba(30,34,40,.25)' : 'rgba(190,196,204,.18)'; g.fillRect(Math.random() * cw, Math.random() * ch, 2, 2); }
+      g.strokeStyle = '#fff'; g.lineWidth = 10; g.strokeRect(9, 9, cw - 18, ch - 18);
+      g.fillStyle = '#ffd23f'; for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(cw - 60 + i * 12, 14); g.lineTo(cw - 52 + i * 12, 14); g.lineTo(cw - 72 + i * 12, ch - 14); g.lineTo(cw - 80 + i * 12, ch - 14); g.fill(); }
+      g.fillStyle = '#5f6670'; g.fillRect(cw - 12, 0, 12, ch); g.strokeRect(9, 9, cw - 18, ch - 18);
+      g.fillStyle = '#fff'; g.font = '900 110px "Trebuchet MS", system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.translate(cw * 0.38, ch / 2 + 6); g.scale(-1, 1); g.fillText('P', 0, 0);
+    });
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    const pad = new THREE.Mesh(new THREE.PlaneGeometry(len, wid).rotateX(-Math.PI / 2), toon(0xffffff, { params: { map: tex, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 } }));
+    pad.position.set(x, y + 0.012, z); pad.receiveShadow = true; H.group.add(pad);
+    // A glow that main.js switches on while the bay is waiting for the cart.
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(len + 0.5, wid + 0.5).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0, depthWrite: false }));
+    glow.position.set(x, y + 0.03, z); glow.renderOrder = 2; H.group.add(glow);
+    for (const s of [-1, 1]) {
+      const stop = new THREE.Mesh(new RoundedBoxGeometry(0.22, 0.16, 0.8, 2, 0.05), toon(0xffd23f)); stop.position.set(x + len / 2 - 0.25, y + 0.08, z + s * 0.55); stop.castShadow = true; addOutline(stop, 0.02); H.group.add(stop);
+    }
+    this.world.add(new Collider('box', { pos: H.frame.w(x + len / 2 - 0.25, y + 0.08, z), quat: H.frame.q.clone(), half: new THREE.Vector3(0.11, 0.08, 0.95), surf: 'stone', hole: H.i, tag: 'kerb' }));
+    this.parking = { frame: H.frame, x, y, z, hx: len / 2, hz: wid / 2, glow };
+  }
+  // Is this world position inside the bay?
+  inBay(p) {
+    const B = this.parking; if (!B) return false;
+    const l = B.frame.local(p, new THREE.Vector3());
+    return Math.abs(l.x - B.x) < B.hx && Math.abs(l.z - B.z) < B.hz && Math.abs(l.y - B.y) < 1;
   }
   // A big fat traffic cone you have to steer round.
   cone(H, x, y, z) {
@@ -807,25 +858,26 @@ export class Course {
     H.group.add(g);
     this.world.add(new Collider('cyl', { pos: H.frame.w(x, y + 0.45, z), r: 0.22, hh: 0.45, surf: 'stone', hole: H.i, tag: 'cone' }));
   }
-  // The hard way up: skinny unfenced roads round every hole you can't otherwise cross. The caverns need a
-  // run-up: hit the kicker fast enough to clear the gap, then swerve up the far side.
+  // The hard way up: skinny unfenced cart paths round every hole you can't otherwise cross. Only hole 8's
+  // still has a gap in it (hit the kicker fast enough to clear it), and the last one ends at the bay
+  // where the cart has to be parked.
   cartPaths() {
     const [, H2, H3, , , , H7, H8, H9] = this.H;
     this.road(H2, [[13, -0.35, -9], [18, -0.35, -13], [28.5, 3.15, -13], [33, 3.15, -9]], 1.8);
     this.road(H2, [[35, 3.15, -9], [39.5, 3.15, -13], [50, 6.65, -13], [54, 6.65, -9]], 1.8);
     this.sign(H2, 12, -10.2, -0.35, ['CART PATH', 'keep left. or right.'], 0.5);
-    this.road(H3, [[20, -0.35, -9], [31, 2.2, -9]], 1.9, { kicker: true });
-    this.road(H3, [[38.5, 1.6, -9], [44, 2.6, -9], [48, 3.9, -12.5], [51.5, 5.5, -8.5], [55.4, 6.65, -10]], 2, { cones: [[1, 0.5, 1], [2, 0.5, -1]] });
-    this.sign(H3, 18, -6.6, -0.05, ['BUILD SPEED', 'do not look down'], 0.5);
-    this.road(H7, [[29, 0, -5], [39.5, 2, -5]], 1.9, { kicker: true });
-    this.road(H7, [[46.5, 1.2, -5], [52.5, 3.2, -5], [56, 4.8, -8.7], [59, 6.05, -5.6], [62.7, 7, -5.4]], 2, { cones: [[1, 0.5, -1], [2, 0.5, 1]] });
-    this.sign(H7, 27, -6.6, 0, ['FULL THROTTLE', 'then hairpins'], 0.5);
+    this.road(H3, [[20, -0.35, -9], [31, 1.3, -9], [38.5, 2, -9], [44, 2.6, -9], [48, 3.9, -12.5], [51.5, 5.5, -8.5], [55.4, 6.65, -10]], 2, { cones: [[3, 0.5, 1], [4, 0.5, -1]] });
+    this.sign(H3, 18, -6.6, -0.05, ['CART PATH', 'do not look down'], 0.5);
+    this.road(H7, [[29, 0, -5], [39.5, 1.3, -5], [46.5, 2.3, -5], [52.5, 3.2, -5], [56, 4.8, -8.7], [59, 6.05, -5.6], [62.7, 7, -5.4]], 2, { cones: [[3, 0.5, -1], [4, 0.5, 1]] });
+    this.sign(H7, 27, -6.6, 0, ['HAIRPINS AHEAD', 'brake. or do not.'], 0.5);
     // Hole 8's road has a hole in it: hit the kicker with some speed.
     this.road(H8, [[14, 0, -4], [26, 1.2, -10.5], [36, 3.6, -11]], 1.8, { kicker: true });
     this.road(H8, [[41.5, 3, -11], [52, 5.5, -11], [61, 7, -5]], 2, { cones: [[0, 0.5, 1]] });
     this.sign(H8, 12, -5.6, 0, ['ROAD OUT', 'floor it'], 0.5);
     this.road(H9, [[22, 0, -5.5], [30, 2.2, -9], [38, 3.6, -5.5], [46, 5.8, -9], [51.5, 7, -7.4], [52.5, 7, -5]], 1.7, { cones: [[1, 0.5, 1], [2, 0.55, -1]] });
     this.sign(H9, 20, -6.2, 0, ['LAST ROAD', 'no pressure'], 0.5);
+    this.parkingBay(H9, 62.6, RISE, -4.5);
+    this.sign(H9, 65.4, -5.4, RISE, ['CART PARKING', 'park it to finish'], -1.2);
   }
   decorate() {
     const sp = make('spire', { outline: 0.15 });

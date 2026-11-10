@@ -8,7 +8,7 @@ import { Cart, collideBody } from './cart.js';
 import { Particles, Confetti, Trail } from './fx.js';
 import { Sky } from './sky.js';
 import * as A from './audio.js';
-import { joinRoom } from './net.js';
+import { joinRoom, newCode, cleanCode, cleanPin } from './net.js';
 
 const $ = id => document.getElementById(id);
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -23,6 +23,7 @@ let QV = {};
 const canvas = $('game');
 // The loading watchdog lives in index.html; these are no-ops if it is missing.
 const LD = window.__load || { set() {}, ok() {}, fail() {} };
+const DEBUG = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 // Let the loading message paint before a heavy synchronous stage (a hidden tab gets no frames, so skip).
 const paint = () => document.hidden ? Promise.resolve() : new Promise(r => { const t = setTimeout(r, 80); requestAnimationFrame(() => { clearTimeout(t); setTimeout(r, 0); }); });
 const renderer = (() => {
@@ -58,7 +59,7 @@ const S = {
   hole: 1, holeStrokes: 0, strokes: 0, falls: 0, lost: 0, rage: 0, best: 0, finished: false, crown: false,
   aim: 0, shotFrom: V(), shotHole: 1, shotY: 0, restT: 0, flightT: 0, shotInfo: null,
   golferG: V(), lookAt: V(), emote: null, emoteT: 0, camMode: 'swing', aimHeld: false, overview: false,
-  startedAt: 0, firstLand: true, fallingWhistle: false, whiffArmed: false, maxHead: 0, sinkHole: 0,
+  startedAt: 0, firstLand: true, fallingWhistle: false, sinkHole: 0, gripT: 0, shoulder: 0,
 };
 const ball = { p: V(), v: V(), spin: 0, grounded: false, gN: V(0, 1, 0), gVel: V(), lastGround: null, airT: 0, frozen: false, surfOverride: null, bite: false };
 const look = loadLook();
@@ -73,7 +74,7 @@ function loadLook() {
 }
 function saveLook() { try { localStorage.setItem('pftc-look', JSON.stringify(look)); } catch (e) {} }
 function save() {
-  try { localStorage.setItem('pftc-save', JSON.stringify({ hole: S.hole, strokes: S.strokes, holeStrokes: S.holeStrokes, falls: S.falls, lost: Math.round(S.lost), best: S.best, finished: S.finished, crown: S.crown, ball: ball.p.toArray().map(v => +v.toFixed(3)), aim: S.aim, startedAt: S.startedAt, g: S.golferG.toArray().map(v => +v.toFixed(2)), cart: [...carts[0].pos.toArray().map(v => +v.toFixed(2)), +carts[0].yaw.toFixed(3)] })); } catch (e) {}
+  try { localStorage.setItem('pftc-save', JSON.stringify({ hole: S.hole, strokes: S.strokes, holeStrokes: S.holeStrokes, falls: S.falls, lost: Math.round(S.lost), best: S.best, finished: S.finished, crown: S.crown, park: !!S.awaitPark, ball: ball.p.toArray().map(v => +v.toFixed(3)), aim: S.aim, startedAt: S.startedAt, g: S.golferG.toArray().map(v => +v.toFixed(2)), cart: [...carts[0].pos.toArray().map(v => +v.toFixed(2)), +carts[0].yaw.toFixed(3)] })); } catch (e) {}
 }
 function loadSave() { try { return JSON.parse(localStorage.getItem('pftc-save') || 'null'); } catch (e) { return null; } }
 
@@ -87,9 +88,7 @@ const Q = {
   splash: ['Splish splash. One stroke penalty.', 'Plop.', 'That is wet, and also a penalty.'],
   sand: ['Beach day!', 'Welcome to the sandbox.', 'It is coarse, and it gets everywhere.'],
   lip: ['Lipped out! Oh, the humanity.', 'So close. So very close.', 'The cup said no.', 'Around the rim and out. Cruel.'],
-  whiff: ['Air shot. Very aerodynamic.', 'You missed. The ball is still there, judging you.', 'A lovely practice swing.'],
   topped: ['Topped it. Worm burner!', 'Thin. Very thin.', 'That ball has seen things.'],
-  fat: ['Fat! You hit the planet first.', 'Big divot. The groundskeeper weeps.'],
   pure: ['Pured it!', 'Oh, that is sweet.', 'Right off the screws.', 'Now that is a golf shot.'],
   goose: ['HONK.', 'The goose has spoken.', 'Do not anger the goose.'],
   sail: ['Windmilled!', 'The windmill sends its regards.', 'Swatted.'],
@@ -106,7 +105,6 @@ const Q = {
   bogey: ['Bogey. Mount Bogey approves.', 'Bogey. Could be worse.'],
   double: ['Double bogey. We have all been there.', 'Double. Breathe.'],
   worse: ['{n} strokes. We will not speak of this.', 'That took {n}. The mountain is laughing.', 'Finally. {n} strokes.'],
-  idle: ['Any time now.', 'The ball is not going to hit itself.', 'Take your time. It is not like the wind is getting stronger.'],
   swim: ['Golfers cannot swim. Noted. Back to your cart.', 'You fell in. The cart waited.'],
   cartSea: ['Cart overboard! Back to the first tee.', 'That is coming out of your deposit. Start again.', 'All the way down. Enjoy the drive back.'],
   tantrum: ['Let it out.', 'Very mature.', 'Use your words.'],
@@ -114,7 +112,6 @@ const Q = {
   drop: ['Unplayable lie. One stroke.'],
   nodrop: ['No take-backs after a fall. That is the rule. I just made it up.'],
   summit: ['You conquered Mount Bogey! Champion of the curse!'],
-  firstSwing: ['Pull the mouse back. Then swing it through.'],
 };
 function quip(kind, vars = {}, speak = true) {
   QV = vars;
@@ -161,7 +158,7 @@ async function boot() {
   camera.layers.enable(1); sun.shadow.camera.layers.enable(1);
   LD.set('Warming up the swing'); await paint();
   swing = new Swing();
-  swing.calibrate();
+  if (DEBUG) swing.calibrate();   // only the headless tests need it
   carts = [new Cart(scene, course.cartSpots[0])];
   carts[0].addCollider(world);
   ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 24, 16), toon(0xffffff));
@@ -186,6 +183,7 @@ async function boot() {
       if (num(sv.g)) S.savedG = sv.g;
       if (num(sv.cart)) { carts[0].pos.set(sv.cart[0], sv.cart[1], sv.cart[2]); carts[0].yaw = +sv.cart[3] || 0; carts[0].sync(); } else S.cartToBall = true;
       if (S.crown) me.setCrown(true);
+      if (sv.park && !S.finished) { S.awaitPark = true; ball.frozen = true; }
       settleGolfer(true);
       $('continueNote').hidden = false;
       $('continueNote').textContent = `Picking up on hole ${S.hole}, ${S.strokes} strokes in.`;
@@ -254,16 +252,60 @@ function setupTitle() {
   $('name').value = look.name || '';
   $('name').oninput = () => { look.name = $('name').value.replace(/[^\p{L}\p{N} _.'-]/gu, '').slice(0, 16); saveLook(); };
   $('randomize').onclick = () => { Object.assign(look, { skin: pick(SKINS), shirt: pick(SHIRTS), pants: pick(PANTS), hat: pick(SHIRTS), hatType: pick(HATS), stache: Math.random() < 0.35 }); me.setLook(look); if (S.crown) me.setCrown(true); saveLook(); setupTitle(); A.play('poof'); };
-  const params = new URLSearchParams(location.search);
-  S.room = (params.get('room') || 'mountain').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24) || 'mountain';
-  $('roomName').textContent = S.room === 'mountain' ? 'Public mountain: everyone here climbs together' : `Private mountain: ${S.room}`;
-  $('newRoom').onclick = () => { location.href = location.pathname + '?room=' + Math.random().toString(36).slice(2, 8); };
-  $('copyInvite').onclick = () => { const u = location.origin + location.pathname + (S.room === 'mountain' ? '' : '?room=' + S.room); navigator.clipboard.writeText(u).then(() => toast('Invite link copied'), () => toast(escapeHtml(u))); };
-  $('play').onclick = start;
+  setupRoom();
+  $('play').onclick = teeOff;
   $('restartClimb').onclick = () => { if (confirm('Start the climb over from hole 1? Your stroke count resets.')) { resetClimb(); start(); } };
 }
+/* ---------------- rooms: invite codes and PINs ---------------- */
+// No code is the public mountain. A code is a private room; a 4-digit PIN locks it (see net.js for how).
+// The invite link carries the code and never the PIN.
+const roomCode = () => S.room.toUpperCase();
+function roomLabel(note, bad) {
+  const priv = S.room !== 'mountain';
+  $('roomName').textContent = priv ? 'Private room ' + roomCode() + (S.pin ? ' 🔒' : '') : 'Public mountain';
+  const el = $('roomNote');
+  el.textContent = note || (!priv ? 'Everyone here climbs together. To play with friends, type their invite code or make a private room.'
+    : S.pin ? 'Friends need the code ' + roomCode() + ' and the PIN ' + S.pin + '.'
+    : 'Friends join with the code ' + roomCode() + '. Add a 4-digit PIN to lock it.');
+  el.classList.toggle('bad', !!bad);
+  $('roomPin').disabled = !priv;
+}
+function setupRoom() {
+  if (S.room) return roomLabel();      // the title is being redrawn (Random look); keep what is typed
+  const codeEl = $('roomCode'), pinEl = $('roomPin');
+  S.room = cleanCode(new URLSearchParams(location.search).get('room')) || 'mountain'; S.pin = '';
+  try { S.pin = S.room === 'mountain' ? '' : cleanPin(sessionStorage.getItem('pftc-pin:' + S.room)); } catch (e) {}
+  codeEl.value = S.room === 'mountain' ? '' : roomCode(); pinEl.value = S.pin;
+  const typed = () => {
+    S.room = cleanCode(codeEl.value) || 'mountain';
+    const digits = pinEl.value.replace(/\D/g, '').slice(0, 4); if (pinEl.value !== digits) pinEl.value = digits;
+    S.pin = S.room === 'mountain' ? '' : cleanPin(digits);
+    try { history.replaceState(null, '', location.pathname + (S.room === 'mountain' ? '' : '?room=' + roomCode())); } catch (e) {}
+    roomLabel();
+  };
+  codeEl.oninput = pinEl.oninput = typed;
+  $('newRoom').onclick = () => { codeEl.value = newCode(); typed(); pinEl.focus(); A.play('click'); };
+  $('copyInvite').onclick = () => {
+    const u = location.origin + location.pathname + (S.room === 'mountain' ? '' : '?room=' + roomCode());
+    const done = () => toast(S.pin ? 'Invite link copied. Tell them the PIN yourself: it is not in the link.' : 'Invite link copied');
+    navigator.clipboard.writeText(u).then(done, () => toast(escapeHtml(u)));
+  };
+  roomLabel();
+}
+// A private room is checked before you start, so a wrong PIN leaves you on this screen to try again.
+async function teeOff() {
+  if (S.room === 'mountain' || net) return start();
+  if ($('roomPin').value && !S.pin) { roomLabel('A PIN is 4 digits.', true); $('roomPin').focus(); return; }
+  const btn = $('play'), label = btn.textContent;
+  A.initAudio();
+  btn.disabled = true; btn.textContent = 'Checking the room…';
+  const ok = await connect();
+  btn.disabled = false; btn.textContent = label;
+  if (ok) start();
+}
+
 function resetClimb() {
-  Object.assign(S, { strokes: 0, holeStrokes: 0, falls: 0, lost: 0, rage: 0, finished: false, startedAt: 0 });
+  Object.assign(S, { strokes: 0, holeStrokes: 0, falls: 0, lost: 0, rage: 0, finished: false, startedAt: 0, awaitPark: false });
   S.savedG = null; S.cartToBall = false; if (S.cart) { S.cart = null; A.engine(0); } carts[0].reset();
   placeOnTee(1); settleGolfer(true); save();
 }
@@ -346,7 +388,7 @@ addEventListener('keyup', e => { const k = e.key.toLowerCase(); keys.delete(k); 
 function toggleView() {
   S.fpv = !S.fpv;
   try { localStorage.setItem('pftc-fpv', S.fpv ? '1' : '0'); } catch (e) {}
-  toast(S.fpv ? '👁 First person: mouse right takes it back, left swings through' : '🎥 Third person view');
+  toast(S.fpv ? '👁 First person view' : '🎥 Third person view');
   updateHud();
 }
 // Number keys 1-5: bare hands, driver, wedge, putter, iron (values are CLUBS indices, -1 for none).
@@ -375,7 +417,6 @@ function nearCart() {
 }
 const yawFacing = (hx, hz) => Math.atan2(hz, -hx);   // body yaw whose chest points along (hx, hz)
 const bodyYaw = () => ((S.mode === 'walk' && !S.grip) || S.mode === 'drive' ? S.walkYaw : S.aim);
-const ballInReach = () => Math.hypot(S.golferG.x - ball.p.x, S.golferG.z - ball.p.z) < 1.4 && Math.abs(S.golferG.y - ball.p.y) < 1;
 function lookAtBall() {
   const dx = ball.p.x - S.golferG.x, dz = ball.p.z - S.golferG.z;
   if (Math.hypot(dx, dz) < 0.05) return;
@@ -563,7 +604,8 @@ function launch(r) {
   ball.v.set(0, 0, 0).addScaledVector(f, r.v.x).addScaledVector(UP, r.v.y).addScaledVector(w, r.v.z);
   ball.spin = r.spin; ball.bite = r.bite; ball.plug = false; ball.frozen = false;
   ball.p.y += 0.005;
-  S.shotFrom.copy(ball.p); S.shotHole = S.hole; S.shotY = ball.p.y;
+  // Hitting a ball that is still moving is a stroke too, but a penalty still takes it back to where it last lay.
+  if (!S.ballLive) { S.shotFrom.copy(ball.p); S.shotHole = S.hole; S.shotY = ball.p.y; }
   S.strokes++; S.holeStrokes++;
   S.flightT = 0; S.restT = 0; S.firstLand = true; S.fallingWhistle = false; S.cupCheck = true;
   S.shotInfo = r;
@@ -604,17 +646,8 @@ function ballRested() {
   if (z && z.type === 'sand' && Math.random() < 0.6) quip('sand');
   aimAt(courseTarget());
   course.rerollWind();
-  if (!S.grip && S.mode === 'walk') {
-    if (S.pendingClub != null) { if (S.pendingClub < 0) setBareHands(); else setClub(S.pendingClub); S.pendingClub = null; }
-    else autoClub();
-  }
+  if (!S.grip && S.mode === 'walk' && S.pendingClub != null) { if (S.pendingClub < 0) setBareHands(); else setClub(S.pendingClub); S.pendingClub = null; }
   updateHud(); save();
-}
-function autoClub() {
-  const z = course.zoneAt(ball.p);
-  const d = ball.p.distanceTo(courseTarget());
-  if (z && z.type === 'green' && d < 14) setClub(0);
-  else if (swing.ci === 0 && !(z && z.type === 'green')) setClub(d < 22 ? 1 : 2);
 }
 function penalty(kind) {
   S.ballLive = false;
@@ -646,11 +679,19 @@ function holed(h) {
   addRage(diff <= 0 ? -40 : -15);
   sendEv({ k: 'sink', h, n, par });
   setTimeout(() => {
-    if (h === NHOLES) return finish();
-    placeOnTee(h + 1); if (S.mode === 'walk' && !S.grip) setClub(3); showHoleCard(); updateHud(); save();
+    if (h === NHOLES) return cartParked() ? finish() : needPark();
+    placeOnTee(h + 1); showHoleCard(); updateHud(); save();
   }, 2800);
 }
+// The cart has to make it too: the climb is not over until it is standing in the bay at the top.
+const cartParked = () => { const c = carts[0]; return course.inBay(c.pos) && c.grounded && Math.abs(c.speed) < 0.4; };
+function needPark() {
+  S.awaitPark = true; save();
+  pop('Now park the cart<small>in the bay at the top</small>', 'big meh');
+  toast('🅿️ Ball is in. The climb counts once your cart is parked in the bay at the summit.');
+}
 function finish() {
+  S.awaitPark = false;
   S.finished = true; S.crown = true; me.setCrown(true);
   quip('summit', {}, true);
   A.play('fanfare'); A.play('cheer');
@@ -675,7 +716,7 @@ function showHoleCard(fly = false) {
 
 /* ---------------- frame ---------------- */
 let last = performance.now();
-const tmpBallLocal = V();
+const _bl = V(), _bv = V();
 function frame(now) {
   requestAnimationFrame(frame);
   let dt = Math.min(0.05, (now - last) / 1000); last = now;
@@ -686,16 +727,20 @@ function frame(now) {
 function step(dt) {
   S.t += dt; S.modeT += dt;
   const t = S.t;
-  // Hold the left button to grip: the golfer stands side-on to wherever the camera is looking and the
-  // mouse becomes the hands. Nothing lines the golfer up with the ball; you have to walk into position.
+  // Hold the left button and the mouse stops looking and becomes the club. The golfer squares up to
+  // wherever the camera faces, as in Half Sword, and that is all: nothing lines anything up with the
+  // ball and nothing shows where it will go. Local +x (the way the face looks) is the golfer's left.
   if (S.ko > 0) S.ko = Math.max(0, S.ko - dt);
   const wantGrip = !!S.lmb && S.mode === 'walk' && !S.noClub && !S.emote && !S.intro && !S.ko;
-  if (wantGrip && !S.grip) { S.grip = true; S.aim = S.camYaw; swing.reset(); S.whiffArmed = false; S.fat = false; }
+  if (wantGrip && !S.grip) { S.grip = true; S.gripT = 0; S.aim = S.walkYaw; swing.reset(); }
   else if (!wantGrip && S.grip) { S.grip = false; S.walkYaw = S.aim; }
   if (S.grip) {
-    // Q and E pivot the golfer on the spot, and the shot direction with them.
+    S.gripT += dt;
+    // Q and E turn you on the spot.
     const spin = (keys.has('q') ? 1 : 0) - (keys.has('e') ? 1 : 0);
-    if (spin) { S.aim += spin * dt * 1.3; S.camYaw = S.aim; }
+    if (spin) S.camYaw += spin * dt * 1.3;
+    let da = S.camYaw + Math.PI / 2 - S.aim; da = Math.atan2(Math.sin(da), Math.cos(da));
+    S.aim += da * (1 - Math.exp(-dt * 18));
   }
   // Aim.
   const aimKeys = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0);
@@ -705,8 +750,8 @@ function step(dt) {
   }
   // Swing simulation (also runs during flight for the follow-through).
   const swinging = (S.mode === 'address' || S.grip) && !S.emote;
-  // In first person you look down from the golfer's eyes, so screen-right is away from the target.
-  if (swinging && (S.mode === 'address' || S.grip)) swing.input(S.fpCam ? -mouseDX : mouseDX, mouseDY, !!S.aimHeld && !!S.grip);
+  // The hands go where the mouse goes on screen: right is the golfer's right, which is local -x.
+  if (swinging) swing.input(S.grip ? -mouseDX : mouseDX, mouseDY, !!S.aimHeld && !!S.grip);
   if (S.mode === 'walk' && !S.grip) { S.camYaw -= mouseDX * 0.0028; S.camPitch = clamp(S.camPitch + mouseDY * 0.0022, -0.55, 1.15); }
   mouseDX = mouseDY = 0;
   const sub = 6, h = dt / sub;
@@ -714,34 +759,21 @@ function step(dt) {
   for (let i = 0; i < sub && swinging; i++) {
     const hv = swing.step(h, true);
     maxHead = Math.max(maxHead, hv.length());
-    const free = S.mode === 'walk' && S.grip, bl = free ? worldToLocal(ball.p, V()) : swing.ball;
-    if (swing.groundHit > 4 && (S.mode === 'address' || free)) {
-      const hp = localToWorld(swing.head, V());
-      if (!S.divotT || t - S.divotT > 0.4) {
-        S.divotT = t;
-        const z = course.zoneAt(ball.p);
-        if (z && z.type === 'sand') { fx.sand(hp, 1); A.play('sand', 0.8); } else { fx.divot(hp, fDir(), clamp(swing.groundHit / 15, 0.3, 1.2)); A.play('divot', clamp(swing.groundHit / 15, 0.3, 1)); }
-        // Fat: digging in properly behind the ball before reaching it.
-        if (swing.groundHit > 6 && swing.groundDepth > 0.022 && swing.head.x < bl.x - 0.04 && swing.head.x > bl.x - 0.6 && Math.abs(swing.head.z - bl.z) < 0.3) S.fat = true;
-      }
+    const free = S.mode === 'walk' && S.grip, bl = free ? worldToLocal(ball.p, _bl) : swing.ball;
+    // Digging the head into the ground throws turf (or sand) and costs the swing its speed.
+    if (swing.groundHit > 4 && (!S.divotT || t - S.divotT > 0.3)) {
+      S.divotT = t;
+      const hp = localToWorld(swing.head, V()), z = course.zoneAt(hp), f = fDir(bodyYaw()), w = wDir(bodyYaw());
+      if (z && z.type === 'sand') { fx.sand(hp, 1); A.play('sand', 0.8); }
+      else { fx.divot(hp, V().addScaledVector(f, swing.headV.x).addScaledVector(w, swing.headV.z).normalize(), clamp(swing.groundHit / 15, 0.3, 1.2)); A.play('divot', clamp(swing.groundHit / 15, 0.3, 1)); }
     }
-    if (S.mode === 'address' || (free && !S.ballLive && !ball.frozen && ball.grounded && ball.v.distanceTo(ball.gVel) < 0.25)) {
-      const r = swing.strike(bl);
-      if (r) {
-        if (S.fat) { r.v.multiplyScalar(0.55); r.kind = 'fat'; quip('fat'); addRage(5); }
-        launch(r); S.fat = false;
-      }
+    // The ball is one more thing the club can touch: at rest, rolling or in the air, as often as you reach it.
+    if ((S.mode === 'address' && !S.ballLive) || (free && !ball.frozen && ballMesh.visible && Math.abs(bl.x) < 3 && Math.abs(bl.z) < 3 && Math.abs(bl.y) < 4)) {
+      const f = fDir(bodyYaw()), w = wDir(bodyYaw());
+      const r = swing.strike(bl, free ? _bv.set(ball.v.dot(f), ball.v.y, ball.v.dot(w)) : undefined, ball.grounded);
+      if (r) launch(r);
     }
     if (S.grip) meleeCheck();
-  }
-  if ((S.mode === 'address' || (S.grip && ballInReach())) && swing.armed) {
-    // A big swing that never touched the ball is a whiff.
-    if (maxHead > 9) S.whiffArmed = true;
-    const bx = S.grip ? worldToLocal(ball.p, V()).x : swing.ball.x;
-    const pastBall = swing.head.x > bx + 0.25 && swing.headV.x > 4;
-    if (S.whiffArmed && pastBall) { S.whiffArmed = false; pop('whiff', 'bad', ball.p.clone().add(V(0, 0.5, 0))); quip('whiff'); addRage(8); S.fat = false; }
-    if (maxHead < 1 && swing.head.x < bx) { S.whiffArmed = false; S.fat = false; }
-    if (S.modeT > 40 && (!S.lastQuip || t - S.lastQuip > 40)) quip('idle', {}, false);
   }
   A.whoosh(maxHead);
   // Ball physics (always advance the world so movers keep moving).
@@ -770,6 +802,8 @@ function step(dt) {
   }
   if (S.ballLive) flight(dt);
   if (S.cannon) cannonTick(S.realDt || dt);
+  if (S.awaitPark && !S.finished && cartParked()) finish();
+  if (course.parking) course.parking.glow.material.opacity = S.awaitPark ? 0.25 + Math.sin(t * 5) * 0.15 : 0;
   if (S.mode === 'walk') walkStep(dt);
   if (S.mode === 'drive') driveStep(dt);
   idleCarts(dt);
@@ -948,15 +982,17 @@ function poseMe(dt) {
   } else if (S.mode === 'drive') {
     sitPose(s, S.cartSteer || 0);
   } else {
-    s.hands[0].copy(swing.hand);
-    s.club.subVectors(swing.head, swing.hand).normalize();
+    // The first instant of a grip eases out of the carry pose instead of popping (looks only).
+    const ease = S.grip && S.gripT < 0.16 ? 1 - Math.exp(-dt * 28) : 1;
+    s.hands[0].lerp(swing.hand, ease);
+    s.club.lerp(_c.subVectors(swing.head, swing.hand).normalize(), ease).normalize();
     s.faceRef = swing.faceAt(swing.hand, V());
-    s.hands[1].copy(swing.hand).addScaledVector(s.club, 0.075);
+    s.hands[1].copy(s.hands[0]).addScaledVector(s.club, 0.075);
     const a = swing.alpha || 0;
     s.turn = clamp(a * 0.6, -1.3, 1.15);
     s.shift = a < 0 ? Math.max(-0.04, a * 0.02) : Math.min(0.07, a * 0.05);
     s.knee = 0.035 + Math.abs(a) * 0.01;
-    s.look = S.grip && ballInReach() ? worldToLocal(ball.p, V()) : swing.ball.clone();
+    s.look = S.grip ? swing.head.clone() : swing.ball.clone();
   }
   me.pose(s, dt, S.t);
   if (S.mode === 'drive' && S.cart) me.root.quaternion.copy(S.cart.mesh.quaternion);
@@ -965,6 +1001,7 @@ function poseMe(dt) {
 
 /* ---------------- camera ---------------- */
 const cam = { pos: V(130, 60, 130), look: V(0, 20, 0), fov: 55 };
+const CAM_GRIP = { close: 0.9, up: 0.6, side: -1.25, near: 1.2, drop: 0.45 };   // the over-the-shoulder shift while gripping
 const viewDir = () => V(Math.sin(S.camYaw) * Math.cos(S.camPitch), -Math.sin(S.camPitch), Math.cos(S.camYaw) * Math.cos(S.camPitch));
 function updateCamera(dt) {
   const f = fDir(), w = wDir();
@@ -980,9 +1017,9 @@ function updateCamera(dt) {
     // First person: from the golfer's eyes, watching the ball (and the hands and club below them).
     const eye = me.p.eyes.getWorldPosition(V()).addScaledVector(w, -0.03).add(V(0, 0.09, 0));
     // At address aim between the ball and the hands so both gloves and the club are in shot.
-    const tgt = S.grip ? localToWorld(swing.head.clone().lerp(swing.hand, 0.35), V()) : S.mode === 'address' ? ball.p.clone().lerp(localToWorld(swing.hand, V()), 0.4).addScaledVector(f, 0.15) : ball.p.clone();
+    const tgt = S.mode === 'address' ? ball.p.clone().lerp(localToWorld(swing.hand, V()), 0.4).addScaledVector(f, 0.15) : ball.p.clone();
     cam.pos.copy(eye);
-    if (S.mode === 'walk' && !S.grip) cam.look.copy(eye).add(viewDir());
+    if (S.mode === 'walk') cam.look.copy(eye).add(viewDir());      // gripping or not, you look where you were looking
     else if (S.mode === 'drive' && S.cart) { const H = S.cart.heading(); cam.look.copy(eye).addScaledVector(H, 10).add(V(0, -1.2, 0)); }
     else cam.look.lerp(tgt, 1 - Math.exp(-dt * (S.mode === 'address' ? 20 : 6)));
     camera.position.copy(cam.pos);
@@ -1012,10 +1049,13 @@ function updateCamera(dt) {
     const d = ball.p.distanceTo(tgt);
     wantLook = mid; wantPos = mid.clone().addScaledVector(f, -d * 0.3).add(V(0, 12 + d * 0.5, 0)).addScaledVector(w, d * 0.2);
     k = 3;
-  } else if (S.mode === 'walk' && !S.grip) {
-    const P = S.golferG.clone().add(V(0, 0.65, 0)), v = viewDir();
-    wantPos = P.clone().addScaledVector(v, -3.1).add(V(0, 0.25, 0));
-    wantLook = P.clone().addScaledVector(v, 3);
+  } else if (S.mode === 'walk') {
+    // One camera for walking and swinging. Gripping only pulls it in over the left shoulder and lifts it,
+    // so the club and whatever is in front of it are not hidden behind the golfer.
+    const P = S.golferG.clone().add(V(0, 0.65, 0)), v = viewDir(), sh = S.shoulder = lerp(S.shoulder, S.grip ? 1 : 0, 1 - Math.exp(-dt * 9));
+    const right = V(-Math.cos(S.camYaw), 0, Math.sin(S.camYaw));
+    wantPos = P.clone().addScaledVector(v, -3.1 + CAM_GRIP.close * sh).add(V(0, 0.25 + CAM_GRIP.up * sh, 0)).addScaledVector(right, CAM_GRIP.side * sh);
+    wantLook = P.clone().addScaledVector(v, 3 - CAM_GRIP.near * sh).add(V(0, -CAM_GRIP.drop * sh, 0));
     pivot = P; k = 16; clearRate = 22;
   } else if (S.mode === 'drive' && S.cart) {
     const c = S.cart, H = c.heading();
@@ -1089,9 +1129,8 @@ function keepClear(pivot, pos, dt, rate = 7) {
 }
 
 /* ---------------- predicted arcs ---------------- */
-// For a full, perfectly struck shot with the current club (and the current wind), or for the cannon
-// while you time it: dots along the flight and a ring where it comes down.
-const PERFECT_HEAD = [0, 19.2, 20.5, 22.3];   // head speed of a full swing, m/s, by club (putter excluded)
+// Only for the cannon while you time it: dots along the flight and a ring where it comes down. A swing
+// gets no preview.
 let arcDots, arcRing, arcKey = '', arcShown = false;
 const arcPts = [];
 function predictArc(p0, v0) {
@@ -1118,11 +1157,7 @@ function updateArc() {
     scene.add(arcDots, arcRing);
   }
   let p0 = null, v0 = null, color = 0xfff3a0;
-  if ((S.mode === 'address' || (S.grip && ballInReach())) && !S.emote && swing.ci > 0) {
-    const C = CLUBS[swing.ci], sp = PERFECT_HEAD[swing.ci] * C.smash * POWER, la = C.loft * 1.02 * Math.PI / 180, f = fDir();
-    v0 = V(f.x * Math.cos(la) * sp, Math.sin(la) * sp, f.z * Math.cos(la) * sp);
-    p0 = ball.p.clone();
-  } else if (nearCannon()) {
+  if (nearCannon()) {
     v0 = V(); p0 = cannonShot(S.cannon.sn, v0);
     color = Math.abs(S.cannon.off) < CANNON.sweet ? 0xffd23f : 0xff7a5c;
   }
@@ -1190,58 +1225,9 @@ function takeHit(nm, e) {
   S.ko = Math.max(S.ko || 0, hard ? 1.6 : 0.6);
 }
 
-/* ---------------- strike guide ---------------- */
-// While gripping near the ball: a lane on the turf showing the strip the middle of the face travels along
-// on a full swing and how wide the face is, a ring round the ball that says whether it is in that strip, an
-// arrow toward the lane when it isn't, and the head's real footprint sliding over the grass.
-let guide, hitbox;
-const GUIDE_GOOD = 0x3ddc84, GUIDE_OK = 0xffd23f, GUIDE_BAD = 0xff4d4d, LOCAL_BALL = BALL_R / ACTOR;
-const _gm = new THREE.Matrix4();
-function makeGuide() {
-  const plane = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-  const mat = (color, opacity) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide });
-  const flat = (color, opacity) => { const m = new THREE.Mesh(plane, mat(color, opacity)); m.renderOrder = 2; return m; };
-  const lane = flat(0xffffff, 0.28), mid = flat(0xffffff, 0.8), foot = flat(0xffffff, 0.5);
-  const root = new THREE.Group(); root.add(lane, mid);
-  const ring = new THREE.Mesh(new THREE.RingGeometry(1, 1.3, 40).rotateX(-Math.PI / 2), mat(GUIDE_GOOD, 0.95)); ring.renderOrder = 3;
-  const tri = new THREE.Shape(); tri.moveTo(-0.5, 0); tri.lineTo(0.5, 0); tri.lineTo(0, 1); tri.closePath();
-  const arrow = new THREE.Mesh(new THREE.ShapeGeometry(tri).rotateX(Math.PI / 2), mat(GUIDE_BAD, 0.95)); arrow.renderOrder = 3;
-  scene.add(root, ring, foot, arrow);
-  guide = { root, lane, mid, foot, ring, arrow, box: {} };
-}
-function updateGuide() {
-  if (!guide) makeGuide();
-  const on = !!S.grip && ballInReach() && !S.emote && ball.grounded;
-  guide.root.visible = guide.ring.visible = guide.foot.visible = on; guide.arrow.visible = false;
-  updateHitboxes();
-  if (!on) return;
-  const yaw = bodyYaw(), f = fDir(yaw), w = wDir(yaw), bl = worldToLocal(ball.p, V());
-  const line = swing.zero[swing.ci].z, box = swing.headBox(guide.box), half = box.h.x + box.r;
-  const ground = ball.p.y - BALL_R + 0.018, across = Math.atan2(w.x, w.z);
-  // The lane, centred on the ball along the swing and on the face's line across it.
-  localToWorld(V(bl.x, 0, line), guide.root.position); guide.root.position.y = ground;
-  guide.root.rotation.set(0, across, 0);
-  guide.lane.scale.set(1.5 * ACTOR, 1, 2 * half * ACTOR); guide.mid.scale.set(1.5 * ACTOR, 1, 0.022 * ACTOR);
-  // Is the ball in it?
-  const off = bl.z - line, reach = half + LOCAL_BALL;
-  const color = Math.abs(off) < half * 0.5 && Math.abs(bl.x) < 0.3 ? GUIDE_GOOD : Math.abs(off) < reach ? GUIDE_OK : GUIDE_BAD;
-  guide.ring.material.color.setHex(color); guide.mid.material.color.setHex(color); guide.lane.material.color.setHex(color);
-  guide.ring.position.set(ball.p.x, ground, ball.p.z); guide.ring.scale.setScalar(BALL_R * (1.35 + Math.sin(S.t * 6) * 0.06));
-  if (Math.abs(off) >= half * 0.5) {
-    const dir = off > 0 ? 1 : -1;     // the way to shuffle
-    guide.arrow.visible = true;
-    guide.arrow.position.copy(guide.ring.position).addScaledVector(w, BALL_R * 1.9);
-    guide.arrow.rotation.set(0, Math.atan2(w.x * dir, w.z * dir), 0);
-    guide.arrow.scale.setScalar(BALL_R * 1.4);
-  }
-  // The head's footprint: brightest as it reaches the ball, gone when the club is up in the air.
-  const tw = V().addScaledVector(f, box.toe.x).addScaledVector(w, box.toe.z);
-  localToWorld(box.c, guide.foot.position); guide.foot.position.y = ground + 0.002;
-  guide.foot.rotation.set(0, Math.atan2(tw.x, tw.z), 0);
-  guide.foot.scale.set(2 * (box.h.z + box.r) * ACTOR, 1, 2 * half * ACTOR);
-  const near = clamp(1 - Math.hypot(box.c.x - bl.x, box.c.z - bl.z) / 0.7, 0, 1), low = clamp(1 - (box.c.y - 0.05) / 0.45, 0, 1);
-  guide.foot.material.opacity = low * (0.3 + near * 0.6);
-}
+/* ---------------- hit boxes ---------------- */
+let hitbox;
+const _gm = new THREE.Matrix4(), _hb = {};
 // H: draw the real colliders over everything.
 function updateHitboxes() {
   const on = !!S.showHit && (!!S.grip || S.mode === 'address') && !S.noClub;
@@ -1258,7 +1244,7 @@ function updateHitboxes() {
   }
   hitbox.root.visible = true;
   const yaw = bodyYaw(), f = fDir(yaw), w = wDir(yaw), toW = d => V().addScaledVector(f, d.x).addScaledVector(UP, d.y).addScaledVector(w, d.z);
-  const box = swing.headBox(guide.box), a = toW(box.toe), b = toW(box.up), c = V().crossVectors(a, b);
+  const box = swing.headBox(_hb), a = toW(box.toe), b = toW(box.up), c = V().crossVectors(a, b);
   localToWorld(box.c, hitbox.head.position);
   hitbox.head.quaternion.setFromRotationMatrix(_gm.makeBasis(a, b, c));
   hitbox.head.scale.set(2 * (box.h.x + box.r) * ACTOR, 2 * (box.h.y + box.r) * ACTOR, 2 * (box.h.z + box.r) * ACTOR);
@@ -1280,8 +1266,8 @@ function render(dt) {
   } else ballShadow.visible = false;
   // Aim dots.
   updateArc();
-  updateGuide();
-  aimDots.visible = (S.mode === 'address' || (S.grip && ballInReach())) && !S.emote;
+  updateHitboxes();
+  aimDots.visible = S.mode === 'address' && !S.emote;
   if (aimDots.visible) {
     const f = fDir();
     // Dots run 20-odd metres down the aim line, hugging the ground, and stop where it falls away.
@@ -1309,7 +1295,7 @@ function updateHud() {
   [...$('clubs').children].forEach((el, i) => el.classList.toggle('on', SLOTS[i] === (S.noClub ? -1 : swing.ci)));
   $('mute').textContent = A.isMuted() ? '🔇 M' : '🔊 M';
   $('view').textContent = S.fpv ? '🎥 V third person' : '👁 V first person';
-  $('tipText').innerHTML = S.fpv ? 'Wind up <em>→ right</em>, then sweep <em>← left</em> through the ball. Up lifts the club. Faster swing, longer shot, and it hits friends too.' : 'Wind up <em>← left</em>, then sweep <em>→ right</em> through the ball. Up lifts the club. Faster swing, longer shot, and it hits friends too.';
+  $('tipText').innerHTML = 'The club goes where the mouse goes. Wind up <em>→ right</em>, then rip <em>← left</em>: whatever the face meets flies off to your left. Nothing aims for you.';
   renderBoard();
 }
 const climbMarks = [];
@@ -1350,10 +1336,12 @@ function ballMarker() {
 function promptText() {
   if (S.mode === 'walk') {
     if (nearCannon()) return '<kbd>E</kbd> light the cannon when the needle is in the red';
-    if (S.grip) return 'Sweep, lift, cut · <b>Right mouse</b> thrust · <kbd>Q</kbd><kbd>E</kbd> turn · <kbd>H</kbd> hit boxes';
+    if (S.grip) return 'The mouse is the club · <b>Right mouse</b> thrust · <kbd>Q</kbd><kbd>E</kbd> turn · <kbd>H</kbd> hit boxes';
+    if (S.awaitPark) return '🅿️ Park the cart in the bay at the summit to finish';
     if (nearCart()) return '<kbd>E</kbd>: hop in the cart';
     return (S.noClub ? '<kbd>2</kbd>–<kbd>5</kbd> pick a club' : '<b>Hold left mouse</b> to grip the club') + ' · <kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump';
   }
+  if (S.mode === 'drive' && S.awaitPark) return '🅿️ Stop in the bay at the summit to finish · <kbd>Space</kbd> brake';
   if (S.mode === 'drive') return '<kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> brake · <kbd>E</kbd> hop out';
   if (S.mode === 'address' && S.modeT < 5) return '<kbd>E</kbd> step away';
   return '';
@@ -1390,14 +1378,30 @@ function updateHudLive() {
 
 /* ---------------- multiplayer ---------------- */
 const others = new Map();
+// Resolves false only when a locked room kept us out; if the network is simply down you play alone.
 async function connect() {
+  const typedPin = S.pin;
   try {
-    net = await joinRoom(S.room, presenceInfo());
-  } catch (e) { console.warn('multiplayer unavailable', e); $('netStatus').textContent = 'solo (offline)'; return; }
-  net.on('connection', c => { $('netStatus').textContent = c ? 'live' : 'reconnecting…'; if (c) net.presence(presenceInfo()); });
+    net = await joinRoom(S.room, S.pin, presenceInfo());
+  } catch (e) {
+    if (e.code === 'pin-needed') { roomLabel('Room ' + roomCode() + ' is locked. Type its 4-digit PIN.', true); $('roomPin').focus(); return false; }
+    if (e.code === 'pin-wrong') { roomLabel('That is not the PIN for room ' + roomCode() + '.', true); $('roomPin').select(); return false; }
+    console.warn('multiplayer unavailable', e); $('netStatus').textContent = 'solo (offline)'; return true;
+  }
+  S.pin = net.pin;
+  try { if (net.pin) sessionStorage.setItem('pftc-pin:' + S.room, net.pin); else sessionStorage.removeItem('pftc-pin:' + S.room); } catch (e) {}
+  if (typedPin && !net.pin) toast('Room ' + roomCode() + ' was already open, so it has no PIN.');
+  roomLabel(); netLabel();
+  net.on('connection', c => { netLabel(); if (c) net.presence(presenceInfo()); });
   net.on('join', p => { toast(`👋 <b>${escapeHtml(p.presence.nm || 'A golfer')}</b> started climbing`); renderBoard(); });
   net.on('leave', p => { const o = others.get(p.id); if (o) { if (o.cart) scene.remove(o.cart.mesh); scene.remove(o.golfer.root); scene.remove(o.ball); o.trail.mesh.removeFromParent(); o.tag.remove(); others.delete(p.id); } p.dot?.remove(); renderBoard(); });
   net.on('event', (p, e) => remoteEvent(p, e));
+  return true;
+}
+function netLabel() {
+  if (!net) return;
+  const where = S.room === 'mountain' ? '' : roomCode() + (net.pin ? ' 🔒' : '') + ' · ';
+  $('netStatus').textContent = where + (net.connected() ? 'live' : 'reconnecting…') + (net.peers.size ? ` · ${net.peers.size + 1} here` : '');
 }
 function presenceInfo() { return { nm: myName(), lk: { skin: look.skin, shirt: look.shirt, pants: look.pants, hat: look.hat, hatType: look.hatType, stache: !!look.stache }, hole: S.hole, st: S.strokes, fa: S.falls, best: S.best, done: S.finished, crown: S.crown }; }
 let netAcc = 0, presAcc = 0;
@@ -1409,7 +1413,7 @@ function netTick(dt) {
     const r2 = n => Math.round(n * 100) / 100, r3 = n => Math.round(n * 1000) / 1000;
     net.state({ b: ball.p.toArray().map(r2), g: [r2(S.golferG.x), r2(S.golferG.y), r2(S.golferG.z), r3(bodyYaw())], wk: S.mode === 'walk' && !S.grip ? (Math.hypot(W.v.x, W.v.z) > 0.2 ? 2 : 1) : 0, air: S.mode === 'walk' && !S.grip && !W.grounded ? 1 : 0, ct: S.mode === 'drive' && S.cart ? [r2(S.cart.pos.x), r2(S.cart.pos.y), r2(S.cart.pos.z), r3(S.cart.yaw), r3(S.cart.pitch), r3(S.cart.roll), r2(S.cartSteer || 0)] : 0, h: swing.hand.toArray().map(r3), hd: swing.head.toArray().map(r3), ko: r2(S.ko || 0), c: heldClub(), e: S.emote || 0, et: r2(S.emoteT), m: S.ballLive ? 1 : 0, rd: Math.round(me.redness * 10) / 10, bv: ballMesh.visible ? 1 : 0 });
   }
-  if (presAcc > 2) { presAcc = 0; net.presence(presenceInfo()); if (!$('board').hidden) renderBoard(); $('netStatus').textContent =(net.connected() ? 'live' : 'reconnecting…') + (net.peers.size ? ` · ${net.peers.size + 1} here` : ''); }
+  if (presAcc > 2) { presAcc = 0; net.presence(presenceInfo()); if (!$('board').hidden) renderBoard(); netLabel(); }
 }
 function sendEv(e) { if (net) net.event(e); if (e.k === 'sink' || e.k === 'fall' || e.k === 'finish') net && net.presence(presenceInfo()); }
 function remoteEvent(p, e) {
@@ -1552,7 +1556,8 @@ function renderBoard() {
   if (net) for (const p of net.peers.values()) { const q = p.presence || {}; rows.push({ nm: q.nm || 'Golfer', hole: q.hole || 1, st: q.st || 0, fa: q.fa || 0, best: q.best || 0, done: q.done, crown: q.crown, shirt: q.lk?.shirt }); }
   rows.sort((a, b) => (b.done - a.done) || (b.best - a.best) || (b.hole - a.hole) || (a.st - b.st));
   $('boardRows').innerHTML = rows.map((r, i) => `<tr><td>${i + 1}</td><td><i class="dot" style="background:${escapeHtml(r.shirt || '#999')}"></i>${r.crown ? '👑 ' : ''}${escapeHtml(r.nm)}</td><td>${r.done ? 'Summit!' : 'Hole ' + (+r.hole || 1)}</td><td>${+r.st || 0}</td><td>${+r.fa || 0}</td></tr>`).join('');
-  $('playerCount').textContent = rows.length === 1 ? 'just you (so far)' : `${rows.length} golfers on the mountain`;
+  $('playerCount').textContent = (rows.length === 1 ? 'just you (so far)' : `${rows.length} golfers on the mountain`)
+    + (S.room === 'mountain' ? ' · public mountain' : ' · room ' + roomCode() + (S.pin ? ' · PIN ' + S.pin : ''));
 }
 
 /* ---------------- debug hooks for headless testing (localhost only) ---------------- */
@@ -1566,8 +1571,8 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     aimAt: (x, z) => { aimAt(V(x, 0, z)); golferOrigin(S.golferG); },
     setClub,
     fire: () => fireCannon(), get cannon() { return S.cannon; },
-    tick: n => { for (let i = 0; i < n; i++) { S.realDt = 1 / 60; step(1 / 60); } },
-    THREE, get others() { return others; }, takeHit, get net() { return net; }, get guide() { return guide; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
+    tick: (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { S.realDt = dt; step(dt); } },
+    THREE, get others() { return others; }, takeHit, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
     // Deterministic swing at 60 fps: back for `back` frames, pause, then through; runs until the ball rests.
     swingTest: (power = 1, back = 24, down = 10, club) => {
       if (club != null) setClub(club);

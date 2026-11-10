@@ -96,7 +96,7 @@ export const PANTS = ['#f4f1e8', '#2b2d42', '#8d6e63', '#3fa7ff', '#ff5d73', '#5
 export const HATS = ['cap', 'bucket', 'beanie', 'visor', 'tophat', 'viking', 'none'];
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
-const _f3 = V(), _a = V(), _b = V(), _c = V(), _d = V(), _e = V(), _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
+const _f3 = V(), _a = V(), _b = V(), _c = V(), _d = V(), _e = V(), _g = V(), _h = V(), _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
 const DOWN = V(0, -1, 0), UPV = V(0, 1, 0), XV = V(1, 0, 0), PLANE_N = V(0, 0.89, 0.46);
 
 // Body geometry (overridden by the Blender manifest when present).
@@ -131,7 +131,7 @@ function aim(mesh, from, to, len) {
   const s = Math.max(1, l / len); mesh.scale.set(1 + (s - 1) * -0.3, s, 1 + (s - 1) * -0.3);
 }
 
-const SHAFT_R = 0.014, START_FACE = 0.7;
+const SHAFT_R = 0.014;
 const newFrame = () => ({ hand: V(), head: V(), o: V(), x: V(), y: V(), z: V() });
 const _f0 = newFrame(), _f1 = newFrame(), _f2 = newFrame();
 const _s = V(), _r = V(), _c0 = V(), _ct = V(), _cu = V(), _cf = V(), _s0 = V(), _s1 = V(), _sd = V();
@@ -303,7 +303,18 @@ export function sitPose(s, steer = 0) {
 // follow used by active ragdolls (see ashleve/ActiveRagdoll, MIT: PD error, then ClampMagnitude), so the
 // club's weight is what you feel. The head is a mass on a wrist spring, so it lags and whips. Wind up the
 // other way first or you get no speed. The same swing strikes a ball or a friend.
-const V_DEAD = 0.14, VERT_SENS = 0.75, MAX_ARC = 2.3, MOUSE = 0.0048, MIN_LIFT = -V_DEAD;   // the hands can't go below the level of a normal swing
+//
+// Nothing helps: the mouse maps straight onto the hands with no dead band, the turf is only something the
+// head can scrape along or dig into, and a ball leaves the club by plain collision (see strike).
+const VERT_SENS = 1, MAX_ARC = 2.3, MOUSE = 0.0048;
+const MIN_LIFT = -0.45;     // how far the hands can press down and in toward the body
+const TURF_MU = 0.6;        // turf friction on the sole
+const FACE_GRIP = 0.3;      // how much of the club's path, as against where its face looks, the ball starts along
+const REST_GAP = 0.012;     // the head hangs this far off the turf when nothing is pressing it down
+const SOLID = 0.03;          // the head can be this far above or below that and still meet the ball squarely
+const TEST_BALL_X = 0.3;    // test rigs: the ball sits this far along from the resting head
+const HIT_COOL = 0.2;       // seconds before the same club can strike the ball again
+const ZERO = new THREE.Vector3();
 export class Swing {
   constructor() {
     this.R = rig();
@@ -318,9 +329,9 @@ export class Swing {
     this.hand = V(); this.handV = V(); this.reach = 0.995;
     this.target = new THREE.Vector2();  // where the hands are headed: x sweeps toward the target, y lifts (radians from address)
     this.head = V(); this.headV = V(); this.prevHead = V(); this.prevHand = V(); this.lastDt = 1 / 360;
-    this.zero = CLUBS.map(() => ({ z: null, path: 0, face: 0, v: 0 }));   // what a clean full swing does, per club
+    this.zero = CLUBS.map(() => ({ z: null }));   // test rigs only, see calibrate
     this.club = CLUBS[3];
-    this.speedHist = 0;
+    this.cool = 0; this.lean = 0;
     this.setClub(3);
   }
   setClub(i) {
@@ -331,16 +342,15 @@ export class Swing {
     this.reachZ = this.gripAddr.z + Math.sqrt(Math.max(0.01, L * L - drop * drop));
     this.d0 = V(0, -drop, this.reachZ - this.gripAddr.z).normalize();
     this.e2c = V(0, this.d0.z, -this.d0.y).normalize();
-    this.ball = V(0.05, LOCAL_BALL_R, this.zero[i].z ?? this.reachZ);
+    this.ball = V(TEST_BALL_X, LOCAL_BALL_R, this.zero[i].z ?? this.reachZ);
     this.reset();
   }
-  // Run clean swings of several strengths for each club against a test ball and remember what they do: the
-  // line the middle of the face travels along on a full swing (the strike lane on the turf shows it), and
-  // the head's natural path, face angle and strike height at each speed, which count as straight and centred.
+  // Test rigs only (the game never uses this): run one level full swing per club and note the line the
+  // middle of the face crosses, so a headless test can put a ball exactly there.
   calibrate() {
-    const swingOnce = (power, onStep) => {
+    const swingOnce = onStep => {
       this.reset();
-      const dt = 1 / 360, frames = [[24, -14, 0], [14, 0, 0], [10, 60 * power, 0], [6, 10, 0]];
+      const dt = 1 / 360, frames = [[24, -14, 0], [14, 0, 0], [10, 60, 0], [6, 10, 0]];
       for (const [n, dx, dy] of frames) for (let f = 0; f < n; f++) {
         this.input(dx, dy);
         for (let i = 0; i < 6; i++) { this.step(dt, true); if (onStep() === false) return; }
@@ -348,34 +358,16 @@ export class Swing {
     };
     for (let i = 0; i < CLUBS.length; i++) {
       this.setClub(i);
-      const rows = [];
-      for (const power of [1, 0.6, 0.4, 0.25]) {
-        // First find where the head crosses the ball, then exactly how it meets one there.
-        let z = null;
-        swingOnce(power, () => { if (this.prevHead.x < -0.07 && this.head.x >= -0.07 && this.headV.x > 0) { z = this.head.z; return false; } });
-        if (z === null) continue;
-        const ball = V(0.05, LOCAL_BALL_R, z);
-        let hit = null;
-        swingOnce(power, () => { if (this.headV.x > 0.4) hit = this.probe(ball); if (hit && !hit.overlap) return false; hit = null; });
-        if (!hit) continue;
-        const p = hit.vel, fv = hit.frameFace;
-        rows.push({ hs: Math.hypot(p.x, p.z), z: z - hit.u, path: Math.atan2(p.z, p.x), face: Math.atan2(fv.z, fv.x), v: hit.v });
+      let z = null, hit = null;
+      const at = TEST_BALL_X - 0.12;
+      swingOnce(() => { if (this.prevHead.x < at && this.head.x >= at && this.headV.x > 0) { z = this.head.z; return false; } });
+      if (z !== null) {
+        const ball = V(TEST_BALL_X, LOCAL_BALL_R, z);
+        swingOnce(() => { if (this.headV.x > 0.4) hit = this.probe(ball); if (hit && !hit.overlap) return false; hit = null; });
       }
-      rows.sort((a, b) => a.hs - b.hs);
-      this.zero[i] = { z: rows.length ? rows[rows.length - 1].z : this.reachZ, rows };
+        this.zero[i] = { z: z === null ? this.reachZ : z - (hit ? hit.u : 0) };
     }
     this.setClub(3);
-  }
-  // What a clean swing at this head speed does with the current club.
-  cleanAt(hs) {
-    const rows = this.zero[this.ci].rows || [];
-    if (!rows.length) return { path: 0, face: 0, v: 0 };
-    if (hs <= rows[0].hs) return rows[0];
-    for (let i = 1; i < rows.length; i++) if (hs <= rows[i].hs) {
-      const a = rows[i - 1], b = rows[i], k = (hs - a.hs) / Math.max(1e-6, b.hs - a.hs), mix = n => a[n] + (b[n] - a[n]) * k;
-      return { path: mix('path'), face: mix('face'), v: mix('v') };
-    }
-    return rows[rows.length - 1];
   }
   // Position of the club at the fraction t of the last physics step.
   frameAt(t, f) {
@@ -447,20 +439,19 @@ export class Swing {
     return out;
   }
   reset() {
-    // Address with the head a little behind the ball (the putter, with locked wrists, needs more room).
-    this.target.set((this.club.cock ? -0.02 : -0.05) / this.rA, 0);
+    // Hands in front, club hanging to the turf.
+    this.target.set(0, 0);
     this.reach = 0.995;
     this.handAt(this.target.x, this.target.y, this.reach, this.hand);
     this.handV.set(0, 0, 0);
     this.prefDir(_a);
     this.head.copy(this.hand).addScaledVector(_a, this.club.len);
-    this.prevHead.copy(this.head); this.headV.set(0, 0, 0);
-    this.hit = false; this.armed = true; this.maxHeadSpeed = 0;
+    this.prevHead.copy(this.head); this.prevHand.copy(this.hand); this.headV.set(0, 0, 0);
+    this.cool = 0; this.lean = 0; this.groundHit = 0;
   }
-  // Where the hands are for a sweep angle u and lift v. The lift has a small dead band and comes in gently, so
-  // mouse wobble can't change the bottom of a level swing and a diagonal swing flattens out as it reaches the ball.
-  handAt(u, v, reach, out) {
-    const x = Math.max(0, Math.abs(v) - V_DEAD), lift = Math.sign(v) * x * x / (x + 0.5), th = Math.hypot(u, lift), r = this.rA * reach;
+  // Where the hands are for a sweep angle u and lift v: straight onto the shell, no dead band, no easing.
+  handAt(u, lift, reach, out) {
+    const th = Math.hypot(u, lift), r = this.rA * reach;
     if (th < 1e-6) return out.copy(this.S).addScaledVector(this.a0, r);
     const k = Math.sin(th) / th;
     return out.copy(this.S).addScaledVector(this.a0, r * Math.cos(th)).addScaledVector(XV, r * k * u).addScaledVector(this.e2, r * k * lift);
@@ -522,60 +513,75 @@ export class Swing {
     this.headV.addScaledVector(hacc, dt);
     this.head.addScaledVector(this.headV, dt);
     const sh = _b.subVectors(this.head, this.hand); sh.setLength(C.len); this.head.copy(this.hand).add(sh);
-    // Ground: the sole can't go below the turf. Hitting it hard drags the head (a fat shot).
-    this.groundHit = 0; this.groundDepth = HEAD_R - this.head.y;
+    // Ground: the sole rides on the turf. The turf takes whatever speed the head brings down into it (a
+    // landing, or the wrists pressing it in) and drags the head by that much: brushing the grass costs
+    // almost nothing, digging in costs a lot. groundHit is the sliding speed while it is really digging.
+    this.groundHit = 0;
+    if (this.cool > 0) this.cool -= dt;
+    if (this.lean > 0) this.lean -= dt;
     if (ground && this.head.y < HEAD_R) {
+      const into = Math.max(0, -this.headV.y), slide = Math.hypot(this.headV.x, this.headV.z), drag = Math.min(slide, TURF_MU * into);
       this.head.y = HEAD_R;
-      const sp = this.headV.length();
-      if (sp > 2.5) { this.groundHit = sp; this.headV.multiplyScalar(0.86); }
-      if (this.headV.y < 0) this.headV.y = 0;
+      if (slide > 1e-6) { this.head.x -= this.headV.x / slide * drag * dt; this.head.z -= this.headV.z / slide * drag * dt; }
+      if (drag > 25 * dt) this.groundHit = slide;
     }
     this.headV.subVectors(this.head, this.prevHead).divideScalar(dt);
     return this.headV;
   }
-  // Did the club hit the ball during this physics step? Returns launch info in local coords or null.
-  // Everything comes from the real contact: which part of the club touched the ball, where on the face,
-  // and how that point of the club was moving.
-  strike(ball) {
-    if (!this.armed) return null;
+  // Did the club hit the ball during this physics step? Returns the ball's new velocity (local frame) or null.
+  // Everything comes from this one contact, and nothing is compared with an ideal swing. Off the face the
+  // ball starts where the face is looking, with some of the club's path, at the club's loft (a little more
+  // or less with the angle of attack and how thin it was caught), as fast as the club was closing on it
+  // that way. Off the middle it loses speed and the head twists. The shaft, the ends and the back of the
+  // head just shove it. bv is the ball's own velocity, so a rolling or flying ball can be hit too.
+  strike(ball, bv = ZERO, grounded = true) {
+    if (this.cool > 0) return null;
     const hit = this.probe(ball);
     if (!hit) return null;
-    const vp = hit.vel, arrive = vp.dot(hit.n);
-    // A club already resting on the ball or easing up to it doesn't play a shot: the ball stays put and the
-    // club stops against it instead of passing through.
-    if (hit.overlap || arrive < 0.4) {
+    const rel = _g.subVectors(hit.vel, bv), arrive = rel.dot(hit.n);
+    // A club resting on the ball or easing up to it doesn't play a shot: it stops against the ball. Once it
+    // is leaning there it has to come off the ball before it can strike it, so the wrists springing it back
+    // (or the golfer turning with the club against the ball) never count as a shot.
+    if (hit.overlap || arrive < 0.4 || this.lean > 0) {
+      if (bv.lengthSq() > 0.25) return null;      // a ball passing through is not being leaned on
       if (hit.overlap) this.head.addScaledVector(hit.n, -(hit.depth + 0.002));
       else this.head.copy(hit.headAt).addScaledVector(hit.n, -0.002);
-      this.headV.set(0, 0, 0);
+      this.headV.set(0, 0, 0); this.lean = 0.12;
       return null;
     }
-    this.armed = false;
-    const C = this.club, col = fitClub(this.ci).col, hs = Math.hypot(vp.x, vp.z), clean = this.cleanAt(hs);
-    const path = Math.atan2(vp.z, vp.x) - clean.path, attack = Math.atan2(vp.y, hs);
-    const faceYaw = Math.atan2(hit.frameFace.z, hit.frameFace.x) - clean.face;
-    const toe = THREE.MathUtils.clamp(hit.u / (col.h.x + col.r), -2, 2);
-    const low = hit.v - clean.v;         // + the ball met the face higher than a clean strike, so the head was low
-    const dyN = THREE.MathUtils.clamp(low / 0.1, -1, 1);
-    const putter = C.id === 'putter', info = { path, club: C.id, contact: hit.q.clone(), headSpeed: vp.length() };
-    // The shaft or the very end of the head: the ball goes the way the geometry pushes it, and not fast.
-    if (hit.part === 'shaft' || Math.abs(hit.du) > 0.72 || hit.dw < 0.2) {
-      const kind = hit.part === 'shaft' ? 'shank' : Math.abs(hit.du) > 0.72 ? (hit.du > 0 ? 'toe' : 'heel') : hit.dw < -0.2 ? 'backhand' : hit.dv < 0 ? 'topped' : 'skied';
-      const v = hit.n.clone().multiplyScalar(Math.max(arrive, 0) * (kind === 'shank' ? 0.55 : 0.75) * C.smash);
-      if (v.y < 0) v.y = 0.3;
-      return { ...info, v, spin: 0, quality: 0, kind: putter ? 'putt' : kind, launch: Math.atan2(v.y, Math.hypot(v.x, v.z)), bite: false, where: kind };
+    this.cool = HIT_COOL;
+    const C = this.club, col = fitClub(this.ci).col, putter = C.id === 'putter';
+    const info = { club: C.id, contact: hit.q.clone(), headSpeed: rel.length(), n: hit.n.clone(), at: [hit.du, hit.dv, hit.dw], off: [hit.u, hit.v], rel: rel.clone() };
+    const done = (v, kind, where, q, spin) => {
+      // A ball sitting on the ground can't be driven into it: it squirts out low instead.
+      if (grounded && v.y < 0) { v.y *= -0.35; v.x *= 0.8; v.z *= 0.8; if (kind === 'pure' || kind === 'ok') kind = 'topped'; }
+      v.add(bv);
+      return { ...info, v, spin, quality: q, kind: putter && (kind === 'pure' || kind === 'ok') ? 'putt' : kind, launch: Math.atan2(v.y, Math.hypot(v.x, v.z)), bite: !!C.bite && q > 0, where };
+    };
+    // Closing speed the way the face looks. Without any, the face didn't strike it: something else did.
+    const face = hit.frameFace, fl = Math.hypot(face.x, face.z) || 1, hs = (rel.x * face.x + rel.z * face.z) / fl;
+    if (hit.part === 'shaft' || Math.abs(hit.du) > 0.72 || hit.dw < 0.2 || hs < 0.4) {
+      const kind = hit.part === 'shaft' ? 'shank' : Math.abs(hit.du) > 0.72 ? (hit.du > 0 ? 'toe' : 'heel') : hit.dw < -0.2 ? 'backhand' : hit.dv < 0 ? 'topped' : hit.dw < 0.2 ? 'skied' : 'nudge';
+      return done(hit.n.clone().multiplyScalar(arrive * (kind === 'shank' ? 0.55 : 0.75) * C.smash), kind, kind, 0, 0);
     }
-    let launch = C.loft * Math.PI / 180 * (0.95 + 0.2 * dyN) + attack * 0.15;
-    let q = (1 - Math.min(1, Math.abs(dyN) * 0.9)) * (1 - 0.45 * Math.min(1, Math.abs(toe) * 0.5));
-    let speed = hs * C.smash * (0.72 + 0.28 * q);
-    let kind = q > 0.88 ? 'pure' : 'ok';
-    if (low < -0.035 && !putter) { launch = Math.min(launch, 0.04); speed *= 0.62; kind = 'topped'; }
-    if (putter) { launch = Math.max(0.0, Math.min(launch, 0.09)); speed = hs * C.smash; kind = 'putt'; }
-    launch = THREE.MathUtils.clamp(launch, -0.05, 1.25);
+    const clamp = THREE.MathUtils.clamp, toe = clamp(hit.u / (col.h.x + col.r), -2, 2);
+    // How high the head is above where it sits with its sole level with the bottom of the ball. Anywhere
+    // from there up to the middle of the ball is a solid hit; higher is thin, then topped; lower is skied.
+    const high = (hit.headAt.y - HEAD_R) - (ball.y - LOCAL_BALL_R) - REST_GAP;
+    const thin = high > SOLID ? high - SOLID : high < -SOLID ? high + SOLID : 0, dy = clamp(-thin / 0.06, -1, 1);
+    const flat = Math.hypot(rel.x, rel.z);
+    const faceYaw = Math.atan2(face.z, face.x), across = flat > 0.5 ? Math.atan2(rel.z, rel.x) - faceYaw : 0;
+    const path = Math.atan2(Math.sin(across), Math.cos(across)), attack = Math.atan2(rel.y, flat);
+    const q = (1 - Math.min(1, Math.abs(dy) * 0.9)) * (1 - 0.45 * Math.min(1, Math.abs(toe) * 0.5));
+    let launch = C.loft * Math.PI / 180 * (0.95 + 0.2 * dy) + attack * 0.15, speed = hs * C.smash * (0.72 + 0.28 * q), kind = q > 0.88 ? 'pure' : 'ok';
+    if (thin > 0.03 && !putter) { launch = Math.min(launch, 0.04); speed *= 0.62; kind = 'topped'; }
+    if (putter) { launch = clamp(launch, 0, 0.09); speed = hs * C.smash; }
+    launch = clamp(launch, -0.05, 1.25);
     // The ball starts mostly where the face looks and takes some of the head's path; off the toe or heel
-    // the head twists round the ball.
-    const start = faceYaw * START_FACE + path * (1 - START_FACE) + toe * 0.12;
+    // the head twists round the ball. The club cutting across its own face is sidespin.
+    const start = faceYaw + path * FACE_GRIP + toe * 0.12;
     const v = V(Math.cos(start), 0, Math.sin(start)).multiplyScalar(Math.cos(launch) * speed); v.y = Math.sin(launch) * speed;
-    const spin = putter ? 0 : THREE.MathUtils.clamp(-(path - faceYaw) * 22 * (speed / 30), -9, 9);
-    return { ...info, v, spin, quality: q, kind, launch, bite: !!C.bite, where: Math.abs(toe) < 0.4 ? 'middle' : toe > 0 ? 'toe' : 'heel' };
+    const spin = putter ? 0 : clamp(-path * 22 * (speed / 30), -9, 9);
+    return done(v, kind, Math.abs(toe) < 0.4 ? 'middle' : toe > 0 ? 'toe' : 'heel', q, spin);
   }
 }

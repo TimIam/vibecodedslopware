@@ -166,10 +166,19 @@ body.gripping #shot{opacity:0}
 .btn:hover{transform:translateY(-2px)}
 .btn:active{transform:translateY(3px);box-shadow:0 2px 0 var(--ink)}
 .btn.small{font-size:14px;padding:6px 12px;border-radius:11px;box-shadow:0 3px 0 var(--ink);background:#fff;color:var(--ink)}
-.btn.go{width:100%;margin-top:14px;font-size:26px}
+.btn.go{width:100%;margin-top:14px;font-size:26px;position:sticky;bottom:2px;z-index:2}
 .room{margin-top:12px;padding:10px 12px;border:3px dashed rgba(43,34,51,.3);border-radius:14px;font-size:13px}
 .room b{display:block;font-size:14px}
 .room .btns{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.room #roomNote.bad{color:var(--red);font-weight:900}
+.room .codes{display:flex;gap:8px;margin-top:8px}
+.room input{min-width:0;padding:7px 10px;border:3px solid var(--ink);border-radius:11px;font:900 15px Nunito;background:#fff;color:var(--ink);outline:none;letter-spacing:.12em;text-transform:uppercase}
+.room input::placeholder{letter-spacing:0;text-transform:none;font-weight:700;color:#9a90a0}
+.room input:focus{border-color:var(--red)}
+.room input:disabled{opacity:.45}
+#roomCode{flex:1}
+#roomPin{width:84px;text-align:center}
+.btn:disabled{opacity:.6;cursor:progress}
 #continueNote{margin:8px 0 0;font-weight:900;color:#14a35a}
 .keys{margin-top:12px;display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13px;align-items:center}
 .keys .k{justify-self:end;white-space:nowrap}
@@ -236,9 +245,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 <div class="hud chunk" id="help" hidden>
   <h3>How to swing</h3>
   <div class="keys">
-    <span class="k">hold left mouse</span><span>grip the club: side-on to where you are looking, mouse is your hands. Left and right sweep, up lifts, anything between is a cut. Hits the ball and your friends</span>
-    <span class="k"><kbd>A</kbd><kbd>D</kbd></span><span>aim (<kbd>Shift</kbd> for fine)</span>
-    <span class="k">right mouse</span><span>look down the line, mouse aims</span>
+    <span class="k">hold left mouse</span><span>the mouse stops looking and becomes the club. You face where you were looking and the club goes where the mouse goes: right, left, up, down. Whatever the face meets flies off to your left, ball or friend. Nothing aims for you</span>
     <span class="k"><kbd>WASD</kbd></span><span>run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump</span>
     <span class="k"><kbd>E</kbd></span><span>get in or out of the cart</span>
     <span class="k"><kbd>Q</kbd> <kbd>E</kbd></span><span>while gripping: turn on the spot</span>
@@ -259,10 +266,12 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 <script>
   // Loading watchdog. The game module reports its stage here, and anything that breaks before the
   // title screen (a file that did not arrive, no WebGL, a bad save) is shown instead of a frozen bar.
-  // A first failure reloads once by itself, which is all a half-finished deploy needs.
+  // A first failure reloads once by itself, and that retry fetches every script afresh (see the module
+  // map below), which is all a half-finished deploy or a bad cached file needs.
   (function () {
     var msg = document.getElementById('loadmsg'), box = msg.parentNode, slow = 0, btn = null, KEY = 'pftc-retry';
-    var L = window.__load = { stage: 'Fetching the game', done: false, failed: false };
+    var L = window.__load = { stage: 'Fetching the game', done: false, failed: false, retry: false };
+    try { L.retry = Date.now() - (+sessionStorage.getItem(KEY) || 0) < 60000; } catch (e) {}
     function reloadBtn() {
       if (btn) return;
       btn = document.createElement('button'); btn.className = 'btn small'; btn.textContent = 'Reload';
@@ -296,20 +305,26 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
     <p class="sub">Multiplayer rage golf up Mount Bogey: nine floating holes, one physical swing, and a very long way down. Fall off and you play from wherever you land.</p>
     <p id="continueNote" hidden></p>
     <div class="row"><label for="name">Your name</label><input type="text" id="name" maxlength="16" placeholder="Golfer" autocomplete="off" spellcheck="false"></div>
+    <div class="room">
+      <b id="roomName">Public mountain</b><span id="roomNote" role="status"></span>
+      <div class="codes">
+        <input type="text" id="roomCode" maxlength="24" placeholder="Invite code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Invite code">
+        <input type="text" id="roomPin" maxlength="4" inputmode="numeric" placeholder="PIN" autocomplete="off" aria-label="Four digit room PIN">
+      </div>
+      <div class="btns"><button class="btn small" id="newRoom">New private room</button><button class="btn small" id="copyInvite">Copy invite link</button><button class="btn small" id="restartClimb">Restart climb</button></div>
+    </div>
     <div class="row"><label>Skin</label><div class="sws" id="skinSw"></div></div>
     <div class="row"><label>Shirt</label><div class="sws" id="shirtSw"></div></div>
     <div class="row"><label>Shorts</label><div class="sws" id="pantsSw"></div></div>
     <div class="row"><label>Hat</label><div class="chips" id="hatType"></div><div class="sws" id="hatSw" style="margin-top:6px"></div></div>
     <div class="row" style="display:flex;justify-content:space-between;align-items:center"><label class="check"><input type="checkbox" id="stache"> Magnificent moustache</label><button class="btn small" id="randomize">🎲 Random</button></div>
-    <div class="room"><b id="roomName">Public mountain</b>Everyone on this page climbs the same mountain live. Make a private one for just your friends.<div class="btns"><button class="btn small" id="copyInvite">Copy invite link</button><button class="btn small" id="newRoom">New private mountain</button><button class="btn small" id="restartClimb">Restart climb</button></div></div>
     <button class="btn go" id="play">Tee off ⛳</button>
     <div class="keys">
-      <span class="k">mouse</span><span><b>Hold left mouse</b> to grip, then the mouse is your hands. Wind up one way, sweep through the other, lift to change the angle. Nothing lines you up: walk up to the ball, or your friend, and hit it.</span>
-      <span class="k"><kbd>A</kbd><kbd>D</kbd></span><span>aim · right mouse to look down the line</span>
-      <span class="k"><kbd>WASD</kbd></span><span>run anywhere</span>
+      <span class="k">mouse</span><span><b>Hold left mouse</b> and the mouse is the club. Drag right to wind up, rip left to hit: the ball goes to your left, so stand with the hole on your left. Nothing lines you up and nothing shows where it will go.</span>
+      <span class="k"><kbd>WASD</kbd></span><span>run anywhere, and shuffle while you grip</span>
       <span class="k"><kbd>1</kbd>–<kbd>5</kbd></span><span>hands, driver, wedge, putter, iron</span>
-      <span class="k"><kbd>E</kbd></span><span>your one golf cart is parked at the first tee. Lose it and you start again</span>
-      <span class="k"><kbd>V</kbd></span><span>first-person view, Half Sword style</span>
+      <span class="k"><kbd>E</kbd></span><span>your one golf cart is parked at the first tee. Lose it and you start again. The climb only counts once it is parked in the bay at the summit</span>
+      <span class="k"><kbd>V</kbd></span><span>first-person view</span>
       <span class="k"><kbd>H</kbd></span><span>all the controls</span>
     </div>
     <p class="small-print">Best with a mouse and sound on. Progress saves in this browser.</p>
@@ -327,13 +342,25 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
   <div style="display:flex;gap:10px;margin-top:16px"><button class="btn" id="stayTop" style="flex:1;background:#fff;color:var(--ink)">Stay up here</button><button class="btn" id="climbAgain" style="flex:1">Climb again</button></div>
 </div></div>
 
-<script type="importmap">
-{ "imports": {
-  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-} }
+<script>
+  // The module map and the game's entry point. A normal load uses the plain addresses. The automatic
+  // retry after a failed load asks for every script again under a new address, which goes round a bad
+  // copy in the browser's cache the way a hard reload does.
+  (function () {
+    var q = window.__load && window.__load.retry ? '?r=' + Date.now() : '';
+    var T = 'https://cdn.jsdelivr.net/npm/three@0.160.0/', J = T + 'examples/jsm/';
+    var imports = { three: T + 'build/three.module.js' + q, 'three/addons/': J };
+    if (q) {
+      ['loaders/GLTFLoader.js', 'geometries/RoundedBoxGeometry.js'].forEach(function (f) { imports['three/addons/' + f] = J + f + q; });
+      imports[J + 'utils/BufferGeometryUtils.js'] = J + 'utils/BufferGeometryUtils.js' + q;
+      var base = new URL('js/', location.href).href;
+      ['assets', 'audio', 'cart', 'course', 'fx', 'golfer', 'net', 'physics', 'sky'].forEach(function (m) { imports[base + m + '.js'] = base + m + '.js' + q; });
+    }
+    var map = document.createElement('script'); map.type = 'importmap'; map.textContent = JSON.stringify({ imports: imports });
+    var main = document.createElement('script'); main.type = 'module'; main.src = 'js/main.js' + q;
+    document.currentScript.after(map, main);
+  })();
 </script>
-<script type="module" src="js/main.js"></script>
 <script>
   // Climb bar ticks, one per hole.
   (function () { const t = document.getElementById('climbTrack'); for (let i = 0; i <= 9; i++) { const d = document.createElement('i'); d.className = 'tick'; d.style.bottom = (i / 9 * 100) + '%'; d.innerHTML = i && i < 9 ? '<b>' + (i + 1) + '</b>' : i === 0 ? '<b>1</b>' : ''; t.appendChild(d); } })();
