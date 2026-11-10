@@ -343,6 +343,9 @@ export function transpile(src, opts) {
     }
     let body;
     if (n.body.type === 'BlockStatement') body = block(n.body.body, inner, true);
+    // (v, a, b) => v < a ? a : v > b ? b : v  as an if/else, like a return statement: the closure E() would wrap it in
+    // is made anew on every call, and clamp() is called thousands of times a frame
+    else if (n.body.type === 'ConditionalExpression' && !luaTruthy(n.body.consequent, inner)) body = condAssign(n.body, v => `do return ${v} end;`, inner);
     else body = `return ${E(n.body, inner)};`;
     return `function(${ps.join(', ')}) ${pre.join(' ')}\n${body}\nend`;
   }

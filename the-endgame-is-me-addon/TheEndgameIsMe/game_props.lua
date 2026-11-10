@@ -635,7 +635,7 @@ M.CRITTER_DEFAULTS = {r=2, hp=30, spd=20, flee=40, fear=50, value={pts=50, venge
 M.API = nil;
 -- props:23
 M.clamp = function(v, a, b) 
-return (function() if (v < a) then return a; elseif (v > b) then return b; else return v; end; end)();
+if (v < a) then do return a end; elseif (v > b) then do return b end; else do return v end; end;
 end;
 -- props:24
 M.TAU = (math.pi * 2);

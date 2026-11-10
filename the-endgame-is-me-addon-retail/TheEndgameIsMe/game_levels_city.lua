@@ -1464,7 +1464,7 @@ end;
 M.TAU = (math.pi * 2);
 -- levels/city:10
 M.clamp = function(v, a, b) 
-return (function() if (v < a) then return a; elseif (v > b) then return b; else return v; end; end)();
+if (v < a) then do return a end; elseif (v > b) then do return b end; else do return v end; end;
 end;
 -- levels/city:11
 M.INK = "#14100c";

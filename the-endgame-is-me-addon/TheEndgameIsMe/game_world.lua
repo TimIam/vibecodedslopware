@@ -1641,7 +1641,7 @@ end;
 M.nearestExit = function(u) 
 local opts = {[0]={x=((M.V.x or __NaN) - 12), y=u.y}, {x=(((M.V.x or __NaN) + M.W) + 12), y=u.y}, {x=u.x, y=((M.V.y or __NaN) - 12)}, {x=u.x, y=(((M.V.y or __NaN) + M.H) + 12)}, length=4};
 do return __reduce(opts, function(a, c) 
-return (function() if (__hypot(((c.x or __NaN) - (u.x or __NaN)), ((c.y or __NaN) - (u.y or __NaN))) < __hypot(((a.x or __NaN) - (u.x or __NaN)), ((a.y or __NaN) - (u.y or __NaN)))) then return c; else return a; end; end)();
+if (__hypot(((c.x or __NaN) - (u.x or __NaN)), ((c.y or __NaN) - (u.y or __NaN))) < __hypot(((a.x or __NaN) - (u.x or __NaN)), ((a.y or __NaN) - (u.y or __NaN)))) then do return c end; else do return a end; end;
 end) end;
 end;
 -- world:1147
@@ -2650,7 +2650,7 @@ return __startsWith(m.kind, "skel");
 end).length < M.MAX_SKELETONS)) then
 local c;
 local raises = function(c) 
-return (function() if __T(c.critter) then return __I0.CRITTERS[c.critter].raise; else return ((c.cls ~= "pet") and "skeleton"); end; end)();
+if __T(c.critter) then do return __I0.CRITTERS[c.critter].raise end; else do return ((c.cls ~= "pet") and "skeleton") end; end;
 end;
 c = __sort(__filter(g.corpses, function(c) 
 return (__T(raises(c)) and (__hypot(((c.x or __NaN) - (a.x or __NaN)), ((c.y or __NaN) - (a.y or __NaN))) < 90));
@@ -2893,7 +2893,7 @@ b.hp = b.maxhp;
 b.dead = false;
 b.evade = nil;
 local near = __reduce(live, function(a, u) 
-return (function() if ((not __T(a)) or (__hypot(((u.x or __NaN) - (b.x or __NaN)), ((u.y or __NaN) - (b.y or __NaN))) < __hypot(((a.x or __NaN) - (b.x or __NaN)), ((a.y or __NaN) - (b.y or __NaN))))) then return u; else return a; end; end)();
+if ((not __T(a)) or (__hypot(((u.x or __NaN) - (b.x or __NaN)), ((u.y or __NaN) - (b.y or __NaN))) < __hypot(((a.x or __NaN) - (b.x or __NaN)), ((a.y or __NaN) - (b.y or __NaN))))) then do return u end; else do return a end; end;
 end, nil);
 local aim = (__T(near) and {x=near.x, y=near.y} or {x=((b.x or __NaN) + 40), y=b.y});
 local inp = {mx=aim.x, my=aim.y, ax=0, ay=0, press={}, hold={}};
@@ -3202,7 +3202,7 @@ M.BARK = {raidIdle={[0]="HEALERS READY?", "BUFFS PLS", "DONT PULL", "WHO HAS FOO
 M.TAU = (math.pi * 2);
 -- world:146
 M.clamp = function(v, a, b) 
-return (function() if (v < a) then return a; elseif (v > b) then return b; else return v; end; end)();
+if (v < a) then do return a end; elseif (v > b) then do return b end; else do return v end; end;
 end;
 -- world:147
 M.angDiff = function(a, b) 
@@ -3231,7 +3231,7 @@ M.AR = M.ARENA;
 M.V = {x=0, y=0};
 -- world:229
 M.destRock = function(g) 
-return (function() if (g.lastMark == "A") then return g.map.B; else return g.map.A; end; end)();
+if (g.lastMark == "A") then do return g.map.B end; else do return g.map.A end; end;
 end;
 -- world:268
 M.ARRAYS = {[0]="units", "parties", "corpses", "ghosts", "fires", "ice", "bolts", "parts", "texts", "barks", "rings", "adds", "steps", "props", "critters", "ashes", length=16};

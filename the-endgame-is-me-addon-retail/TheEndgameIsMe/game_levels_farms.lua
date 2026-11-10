@@ -215,7 +215,7 @@ a[((y * W) + x)] = __orv(fill(x, y), nil);
 end;
 end;
 local at = function(x, y) 
-return (function() if ((((x < 0) or (y < 0)) or (x >= W)) or (y >= H)) then return nil; else return a[((y * W) + x)]; end; end)();
+if ((((x < 0) or (y < 0)) or (x >= W)) or (y >= H)) then do return nil end; else do return a[((y * W) + x)] end; end;
 end;
 for y = 0, __mceil(H) - 1 do
 for x = 0, __mceil(W) - 1 do
@@ -377,7 +377,7 @@ end;
 do return Wp[M.clamp(__mfloor((((2.6 + (side * 0.8)) + ((hash(((x * 5) + seed), (y * 3)) - 0.5) * 1.4)) - ((y == 1) and 0.8 or 0)) + 0.5), 1, 4)] end;
 end;
 M.paint(c, W, H, function(x, y) 
-return (function() if (y <= eave) then return roofAt(x, y); else return wallAt(x, ((y - eave) - 1)); end; end)();
+if (y <= eave) then do return roofAt(x, y) end; else do return wallAt(x, ((y - eave) - 1)) end; end;
 end);
 if (o.chimney ~= nil) then
 c.fillStyle = M.INK;
@@ -905,7 +905,7 @@ M.TAU = (math.pi * 2);
 M.INK = "#14100c";
 -- levels/farms:11
 M.clamp = function(v, a, b) 
-return (function() if (v < a) then return a; elseif (v > b) then return b; else return v; end; end)();
+if (v < a) then do return a end; elseif (v > b) then do return b end; else do return v end; end;
 end;
 -- levels/farms:15
 M.CROP = {r=2, flammable=true, burnTime=3, spread=0.45, crushShare=0.5, slow=0.3, slowR=4};

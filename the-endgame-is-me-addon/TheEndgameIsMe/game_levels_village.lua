@@ -286,7 +286,7 @@ c.fillStyle = __I1.PLANK[3];
 c:fillRect(0, 5, 1, 5);
 c:fillRect(11, 5, 1, 5);
 __I1.paint(c, 13, 6, function(px, py) 
-return (function() if ((py < 5) and (__mabs((px - 6)) <= (2 + py))) then return (function() if (py == 4) then return __I1.SHINGLE[0]; else return __I1.SHINGLE[M.clamp(((4 - ((px > 6) and 1 or 0)) - ((py > 2) and 1 or 0)), 1, 4)]; end; end)(); else return nil; end; end)();
+if ((py < 5) and (__mabs((px - 6)) <= (2 + py))) then do return (function() if (py == 4) then return __I1.SHINGLE[0]; else return __I1.SHINGLE[M.clamp(((4 - ((px > 6) and 1 or 0)) - ((py > 2) and 1 or 0)), 1, 4)]; end; end)() end; else do return nil end; end;
 end);
 c.fillStyle = __I1.PLANK[1];
 c:fillRect(1, 6, 11, 1);
@@ -647,7 +647,7 @@ end;
 M.TAU = (math.pi * 2);
 -- levels/village:10
 M.clamp = function(v, a, b) 
-return (function() if (v < a) then return a; elseif (v > b) then return b; else return v; end; end)();
+if (v < a) then do return a end; elseif (v > b) then do return b end; else do return v end; end;
 end;
 -- levels/village:14
 M.BUILDING = {solid=true, flammable=true, crushShare=0.5, spread=0.3};

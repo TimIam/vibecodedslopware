@@ -438,7 +438,7 @@ M.shade = function(p, F)
 local light = ((((-(p.sx or __NaN)) * 0.55) - ((p.sy or __NaN) * 0.8)) / 14);
 local n = M.hash((__mfloor((((p.lx or __NaN) * 0.9) + ((p.ly or __NaN) * 0.35)) + 0.5) + 40), (__mfloor((((p.ly or __NaN) * 0.85) - ((p.lx or __NaN) * 0.12)) + 0.5) + 90));
 local two = function(hi, lo) 
-return (function() if (light > 0.15) then return hi; else return lo; end; end)();
+if (light > 0.15) then do return hi end; else do return lo end; end;
 end;
 local lvl;
 do
