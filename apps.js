@@ -1201,6 +1201,13 @@ window.SLOPWARE = {
      "note": "escape menu, voted map reset, fighting swing fix, lower walls",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 17,
+     "date": "2026-11-09T23:53:08-07:00",
+     "note": "wreckable scenery, divots and a pin pointer",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
