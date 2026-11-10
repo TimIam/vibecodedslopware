@@ -1280,8 +1280,8 @@ window.SLOPWARE = {
   },
   "puck-around": {
    "visits": 0,
-   "prompts": 2,
-   "tokens": 422376,
+   "prompts": 4,
+   "tokens": 528513,
    "sharedWith": null,
    "versions": [
     {
@@ -1289,7 +1289,14 @@ window.SLOPWARE = {
      "date": "2026-11-10T11:43:33-07:00",
      "note": "arcade hockey to play online with friends",
      "prompts": 2,
-     "tokens": 422376
+     "tokens": 413130
+    },
+    {
+     "n": 2,
+     "date": "2026-11-10T12:27:57-07:00",
+     "note": "Elo ratings, matchmaking, mouse controls",
+     "prompts": 2,
+     "tokens": 115383
     }
    ]
   },
