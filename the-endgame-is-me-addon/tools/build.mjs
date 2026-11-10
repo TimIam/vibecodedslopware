@@ -2,10 +2,12 @@
 // ../src beside them, and writes one addon folder per client (same Lua, different TOC).
 //   node tools/build.mjs            build both addon folders
 //   node tools/build.mjs --check    transpile only, into ../build (for the headless tests)
+//   node tools/build.mjs --zip      also pack each addon folder into ../dist/*.zip, ready to unzip into Interface\AddOns
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import zlib from 'zlib';
 import { transpile } from './js2lua.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -137,8 +139,8 @@ export function fileList() {
 
 // One addon folder per client. The Lua is the same; only the TOC's Interface number differs.
 export const CLIENTS = [
-  { dir: path.join(root, ADDON), interface: 16001, client: 'WoW Classic Forever' },
-  { dir: path.resolve(root, '../the-endgame-is-me-addon-retail', ADDON), interface: 120105, client: 'World of Warcraft (retail)' },
+  { dir: path.join(root, ADDON), interface: 16001, client: 'WoW Classic Forever', zip: `${ADDON}-${VERSION}.zip` },
+  { dir: path.resolve(root, '../the-endgame-is-me-addon-retail', ADDON), interface: 120105, client: 'World of Warcraft (retail)', zip: `${ADDON}-Retail-${VERSION}.zip` },
 ];
 
 function soundManifest() {
@@ -154,6 +156,46 @@ function soundManifest() {
     `  music = { ${music.map(t => `[${t.stage}] = { id = "${t.id}", seconds = ${t.seconds} }`).join(', ')} },`,
     '};', ''].join('\n');
   return { lua, files: [...sfx.map(n => n + '.ogg'), ...music.flatMap(t => [t.id + '_calm.ogg', t.id + '_fight.ogg'])], dir };
+}
+
+// A plain zip of one addon folder, with the folder itself as the top entry (what an AddOns folder wants). No
+// dependencies: deflate from zlib, and the three record types of the zip format written by hand.
+function zipFolder(dir, top, out) {
+  const files = [];
+  (function walk(d, rel) {
+    for (const name of fs.readdirSync(d).sort()) {
+      const full = path.join(d, name), r = rel + '/' + name;
+      if (fs.statSync(full).isDirectory()) walk(full, r); else files.push([r, full]);
+    }
+  })(dir, top);
+  const now = new Date();
+  const time = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const date = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  const parts = [], central = [];
+  let offset = 0;
+  for (const [name, full] of files) {
+    const data = fs.readFileSync(full), nm = Buffer.from(name, 'utf8');
+    const packed = zlib.deflateRawSync(data, { level: 9 });
+    const stored = packed.length >= data.length;   // the OGG files do not shrink
+    const body = stored ? data : packed, crc = zlib.crc32(data);
+    const head = Buffer.alloc(30);
+    head.writeUInt32LE(0x04034b50, 0); head.writeUInt16LE(20, 4); head.writeUInt16LE(0, 6); head.writeUInt16LE(stored ? 0 : 8, 8);
+    head.writeUInt16LE(time, 10); head.writeUInt16LE(date, 12); head.writeUInt32LE(crc, 14); head.writeUInt32LE(body.length, 18);
+    head.writeUInt32LE(data.length, 22); head.writeUInt16LE(nm.length, 26); head.writeUInt16LE(0, 28);
+    const cd = Buffer.alloc(46);
+    cd.writeUInt32LE(0x02014b50, 0); cd.writeUInt16LE(20, 4); cd.writeUInt16LE(20, 6); cd.writeUInt16LE(0, 8); cd.writeUInt16LE(stored ? 0 : 8, 10);
+    cd.writeUInt16LE(time, 12); cd.writeUInt16LE(date, 14); cd.writeUInt32LE(crc, 16); cd.writeUInt32LE(body.length, 20);
+    cd.writeUInt32LE(data.length, 24); cd.writeUInt16LE(nm.length, 28); cd.writeUInt32LE(offset, 42);
+    parts.push(head, nm, body);
+    central.push(cd, nm);
+    offset += 30 + nm.length + body.length;
+  }
+  const cdBuf = Buffer.concat(central), end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(files.length, 8); end.writeUInt16LE(files.length, 10);
+  end.writeUInt32LE(cdBuf.length, 12); end.writeUInt32LE(offset, 16);
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, Buffer.concat([...parts, cdBuf, end]));
+  return { files: files.length, bytes: offset + cdBuf.length + 22 };
 }
 
 function release(mods) {
@@ -192,6 +234,10 @@ The game_*.lua files are generated from the game's JavaScript. Do not edit them 
       for (const f of sounds.files) fs.copyFileSync(path.join(sounds.dir, f), path.join(c.dir, 'Sounds', f));
     }
     console.log(`${c.client}: ${path.relative(path.resolve(root, '..'), c.dir)} (Interface ${c.interface}, ${fileList().length} Lua files, ${sounds.files.length} sounds)`);
+    if (process.argv.includes('--zip')) {
+      const out = path.join(root, 'dist', c.zip), z = zipFolder(c.dir, ADDON, out);
+      console.log(`  zipped: ${path.relative(path.resolve(root, '..'), out)} (${z.files} files, ${(z.bytes / 1024 / 1024).toFixed(1)} MB)`);
+    }
   }
 }
 

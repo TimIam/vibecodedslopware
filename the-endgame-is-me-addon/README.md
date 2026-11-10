@@ -41,11 +41,17 @@ the client never freezes; see `RT.breathe` and the loader in `app.lua`.
 cd the-endgame-is-me-addon/tools
 npm install                 # acorn (parser); fengari and playwright-core are only for tests and the audio bake
 node build.mjs              # transpile, and write both addon folders
+node build.mjs --zip        # the same, plus dist/TheEndgameIsMe-<version>.zip and dist/TheEndgameIsMe-Retail-<version>.zip
 node build.mjs --check      # transpile only, into ../build
 node bake-audio.mjs         # only when the game's sounds change: needs Chrome and ffmpeg (PATH or WSL)
 ```
 
-To install, copy `TheEndgameIsMe/` into the client's `Interface\AddOns`.
+To install, copy `TheEndgameIsMe/` into the client's `Interface\AddOns` (or unzip the matching file from `dist/` there).
+The folder name is the same for both clients, so each client's AddOns folder gets its own copy.
+
+The first time the window opens in a client it runs a display test: the picture is 57,600 textures, and how many the
+client's renderer will draw at once depends on how they are grouped. The test shows a card each way, asks which one
+is visible, and remembers the answer (`/endgame probe` runs it again). See `Display.setMode` in `src/display.lua`.
 
 ## Tests
 

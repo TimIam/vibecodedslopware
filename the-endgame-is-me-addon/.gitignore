@@ -1,4 +1,5 @@
 build/
+dist/
 sounds/*.wav
 # the built addon gets a copy of ../sounds from tools/build.mjs; one copy in git is enough
 /TheEndgameIsMe/Sounds/
