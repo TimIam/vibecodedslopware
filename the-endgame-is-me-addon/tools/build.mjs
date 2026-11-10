@@ -14,7 +14,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const game = path.resolve(root, '../the-endgame-is-me/js');
 export const ADDON = 'TheEndgameIsMe';
-export const VERSION = '1.1.0';
+export const VERSION = '1.1.1';
 
 // in load order: a module comes after everything it imports
 export const MODULES = ['props', 'smoke', 'art', 'levels/forest', 'levels/clearing', 'levels/farms', 'levels/village', 'levels/wall', 'levels/city',
