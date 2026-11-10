@@ -1281,7 +1281,7 @@ window.SLOPWARE = {
   "puck-around": {
    "visits": 0,
    "prompts": 4,
-   "tokens": 532652,
+   "tokens": 537239,
    "sharedWith": null,
    "versions": [
     {
@@ -1296,7 +1296,14 @@ window.SLOPWARE = {
      "date": "2026-11-10T12:27:57-07:00",
      "note": "Elo ratings, matchmaking, mouse controls",
      "prompts": 2,
-     "tokens": 119522
+     "tokens": 115383
+    },
+    {
+     "n": 3,
+     "date": "2026-11-10T12:32:29-07:00",
+     "note": "quitting a matchmade game goes back to the title",
+     "prompts": 0,
+     "tokens": 8726
     }
    ]
   },
