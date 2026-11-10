@@ -1,7 +1,8 @@
 ## Interface: 16001
 ## Title: Olympus Auto Invite
-## Notes: /ginv sends a guild invite to the last person who whispered you.
+## Notes: Guild-invites anyone who whispers your keyword. /ginv invites the last person who whispered you.
 ## Author: timiam
-## Version: 1.0.0
+## Version: 1.1.0
+## SavedVariables: OlympusAutoInviteDB
 
 OlympusAutoInvite.lua

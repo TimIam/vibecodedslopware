@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Olympus Auto Invite · Vibe Coded Slopware</title>
-<meta name="description" content="A tiny World of Warcraft addon for Classic Forever: type /ginv to send a guild invite to the last person who whispered you. Free download.">
+<meta name="description" content="A tiny World of Warcraft addon for Classic Forever: pick a keyword, and anyone who whispers it gets a guild invite. Free download.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>">
 <style>
 :root{--bg:#f4f0e6;--fg:#1f1d1a;--dim:#6b665c;--card:#fffdf7;--line:#ddd5c4;--accent:#3f7d4e;--accent-fg:#fff}
@@ -46,21 +46,30 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
 <script src="/site-nav.js"></script>
 <main>
   <h1>Olympus Auto Invite</h1>
-  <p class="lede">Someone whispers you for a guild invite. Type <code>/ginv</code> and they get one. A tiny addon for World of Warcraft: Classic Forever.</p>
+  <p class="lede">Pick a keyword. Anyone who whispers it to you gets a guild invite. A tiny addon for World of Warcraft: Classic Forever.</p>
   <p class="hint">No more retyping a name with three accents in it.</p>
 
   <div class="cta">
-    <a class="btn primary" href="/olympus-auto-invite/OlympusAutoInvite-1.0.0.zip" download>
-      <b>Download for Classic Forever</b><small>v1.0.0 · 2 KB · free</small>
+    <a class="btn primary" href="/olympus-auto-invite/OlympusAutoInvite-1.1.0.zip" download>
+      <b>Download for Classic Forever</b><small>v1.1.0 · 3 KB · free</small>
     </a>
   </div>
-  <p class="note">A first release. It has been tested against a stand-in for the game’s API, not yet in a live guild.</p>
+  <p class="note">An early release. It has been tested against a stand-in for the game’s API, not yet in a live guild.</p>
+
+  <h2>Set it up</h2>
+  <ol>
+    <li>Open <b>Options &gt; AddOns &gt; Olympus Auto Invite</b>, or type <code>/ginv options</code>.</li>
+    <li>Type a <b>whisper keyword</b>, like <code>inv</code>.</li>
+    <li>Tick <b>Send a guild invite to anyone who whispers the keyword</b>.</li>
+  </ol>
 
   <h2>Commands</h2>
   <div class="keys">
     <span><code>/ginv</code></span><span>guild-invite the last person who whispered you</span>
     <span><code>/ginv Name</code></span><span>guild-invite that character instead</span>
-    <span><code>/ginv ?</code></span><span>show who <code>/ginv</code> would invite right now</span>
+    <span><code>/ginv on</code> <code>/ginv off</code></span><span>turn auto invite on or off</span>
+    <span><code>/ginv ?</code></span><span>show whether auto invite is on, and who <code>/ginv</code> would invite</span>
+    <span><code>/ginv options</code></span><span>open the settings</span>
   </div>
 
   <h2>Install</h2>
@@ -79,10 +88,13 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
 
   <h2>Good to know</h2>
   <ul>
-    <li>It remembers whispers from this session only. After a reload or relog, wait for a new whisper or use <code>/ginv Name</code>.</li>
-    <li>It tells you in chat who the invite went to, or why it didn’t send: nobody has whispered you yet, you’re not in a guild, or your rank can’t invite.</li>
+    <li>Auto invite is off until you turn it on, and does nothing while the keyword is blank.</li>
+    <li>The whisper has to be the keyword and nothing else. Capitals don’t matter, so <code>INV</code> matches <code>inv</code>, but <code>inv please</code> doesn’t.</li>
+    <li>The same person can’t set off a second invite for 10 seconds.</li>
+    <li>It tells you in chat who was invited, or why an invite didn’t send: you’re not in a guild, or your rank can’t invite.</li>
     <li>Battle.net whispers count too, when that friend is on a character in the same version of the game.</li>
-    <li>Nothing is invited automatically. An invite only goes out when you type the command.</li>
+    <li><code>/ginv</code> on its own remembers whispers from this session only. After a reload or relog, wait for a new whisper or use <code>/ginv Name</code>.</li>
+    <li>Your keyword and the on/off setting are kept between sessions.</li>
   </ul>
 
   <footer>Made with questionable judgment and an AI pair programmer. Recruitment standards are your problem.</footer>
