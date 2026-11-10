@@ -136,6 +136,19 @@ window.SLOPWARE = {
     }
    ]
   },
+  "the-endgame-is-me-wow": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-09T23:34:18-07:00",
+     "note": "a free addon for Classic Forever and retail, the whole game in a window"
+    }
+   ]
+  },
   "psychic": {
    "visits": 72,
    "prompts": 8,
