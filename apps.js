@@ -1221,6 +1221,13 @@ window.SLOPWARE = {
      "note": "wreckable scenery, divots and a pin pointer",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 18,
+     "date": "2026-11-10T09:08:43-07:00",
+     "note": "stance shots fly straight, Mushroom Gorge is a staircase",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
