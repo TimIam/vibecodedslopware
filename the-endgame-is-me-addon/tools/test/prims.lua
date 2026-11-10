@@ -1,7 +1,8 @@
 -- Which drawing primitives a frame's time goes to, and on whose behalf: wraps the Screen's fillRect and drawImage and
 -- the art module's drawText, and charges each call to the renderer function that is running (drawHud, drawWater...).
---   lua5.1 tools/test/prims.lua level [steps]
-local level, steps = tonumber(arg[1] or 1), tonumber(arg[2] or 700)
+--   lua5.1 tools/test/prims.lua level [steps] [burn]     burn: set fire to everything near the boss every second,
+--                                                         which is what a real run looks like by its second minute
+local level, steps, burn = tonumber(arg[1] or 1), tonumber(arg[2] or 700), arg[3] == "burn"
 local ns = dofile("tools/test/host.lua")
 ns.loadAll()
 local RT = ns.RT
@@ -53,6 +54,7 @@ if level > 1 then W.jumpToLevel(g, level) end
 g.points = 1e9
 for _, id in ipairs({ "summon", "beam", "ice", "charge", "haste", "tail", "fur" }) do W.buyAbility(g, id) end
 local total, tr = 0, 0
+cells = 0
 for i = 0, steps - 1 do
   local b, m = g.boss, g.map
   local ax, ay
@@ -69,14 +71,24 @@ for i = 0, steps - 1 do
   W.step(g, { mx = b.x + ax * 30 + i % 7, my = b.y + ay * 30 + 1, ax = ax, ay = ay, press = press, hold = { slot0 = true } }, 1 / 60)
   RT.setlen(g.events, 0)
   g.store, g.won, g.over = false, false, false
-  if i == 120 then for k in pairs(t) do t[k], n[k] = 0, 0 end; total = clock(); tr = 0 end
+  if burn and i % 60 == 0 then
+    local P = RT.modules.props
+    for j = 0, g.props.length - 1 do
+      local p = g.props[j]
+      if math.abs(p.x - b.x) < 220 and math.abs(p.y - b.y) < 130 then P.ignite(g, p) end
+    end
+  end
+  if i == (burn and 500 or 120) then for k in pairs(t) do t[k], n[k] = 0, 0 end; total = clock(); tr = 0 end
   local t0 = clock()
   R.render(g, { mx = 100, my = 60, cursor = true })
   tr = tr + clock() - t0
-  RT.Screen.present(nil)
+  local sent = RT.Screen.present(nil)
+  cells = (cells or 0) + (i > (burn and 500 or 120) and sent or 0)
 end
-local frames = steps - 121
-print(string.format("level %d: render %.2f ms a frame (timers included)", level, tr / frames * 1000))
+local frames = steps - (burn and 501 or 121)
+local sm = g.smoke and g.smoke.clouds
+print(string.format("fires %d, smoke clouds %d, burning props %d", g.fires.length, sm and sm.length or 0, (function() local n = 0; for j = 0, g.props.length - 1 do if g.props[j].burning then n = n + 1 end end; return n end)()))
+print(string.format("level %d: render %.2f ms a frame (timers included), %d cells recoloured a frame", level, tr / frames * 1000, cells / frames))
 local names = {}
 for k in pairs(t) do names[#names + 1] = k end
 table.sort(names, function(a, b) return t[a] > t[b] end)

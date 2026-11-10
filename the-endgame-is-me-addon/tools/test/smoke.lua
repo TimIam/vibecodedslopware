@@ -568,6 +568,11 @@ Stub.click("Defaults")
 Stub.click("Done")
 assert(A.mode == "paused" and TheEndgameIsMeDB.keys == nil)
 
+-- the benchmark runs, and puts the picture back
+TheEndgameIsMeDB.perf = true; frames(130); TheEndgameIsMeDB.perf = false
+SlashCmdList["THEENDGAMEISME"]("bench")
+assert(tostring(TheEndgameIsMeDB.log[#TheEndgameIsMeDB.log]):find("bench: recolour"), "the benchmark did not report")
+say("bench: " .. tostring(TheEndgameIsMeDB.log[#TheEndgameIsMeDB.log]))
 for _, l in ipairs(TheEndgameIsMeDB.log or {}) do assert(not l:find("ERROR", 1, true), "the addon logged an error: " .. l) end
 for k in pairs(_G) do assert(before[k] or allowed[k], "the addon leaked a global: " .. tostring(k)) end
 

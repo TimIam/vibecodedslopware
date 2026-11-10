@@ -28,7 +28,7 @@ local A = { mode = "closed", acc = 0, keys = {}, press = {}, sinceDraw = 0 }
 ns.App = A
 local ui = {}
 A.ui = ui
-local stats = { sim = 0, draw = 0, cells = 0, frames = 0, steps = 0, t = 0, line = "" }
+local stats = { sim = 0, draw = 0, send = 0, move = 0, moved = 0, cells = 0, frames = 0, steps = 0, t = 0, line = "" }
 
 local now = _G.debugprofilestop or function() return (_G.GetTime and _G.GetTime() or os.clock()) * 1000 end
 RT.perfNow = now
@@ -513,8 +513,12 @@ local function playFrame(elapsed)
     RT.spriteBudget, RT.fillSheets = 0, true
     A.R.render(g, { mx = mx, my = my, cursor = true, muted = ns.DB.mute })
     RT.fillSheets = false
+    local t15 = now()
     local sent = D.present()
     stats.cells = stats.cells + sent
+    -- "draw" is the game painting its frame in Lua; "send" and "scroll" are what the client charges to show it
+    stats.send, stats.move, stats.moved = stats.send + D.sendMs, stats.move + D.moveMs, stats.moved + D.moved
+    stats.draw = stats.draw - (now() - t15)
     A.drawn = (A.drawn or 0) + 1
     if A.drawn <= 3 or A.drawn % 600 == 0 then note(string.format("play frame %d: %d cells sent, sim+draw %.1f ms, boss at %.0f,%.0f", A.drawn, sent, now() - t0, g.boss.x, g.boss.y)) end
   end
@@ -632,11 +636,16 @@ local function onUpdate(self, elapsed)
   stats.t = stats.t + elapsed
   if stats.t >= 1 then
     if ns.DB.perf and stats.frames > 0 then
-      D.info:SetText(string.format("sim %.1f ms x%.1f   draw %.1f ms   %d px/frame   %d fps", stats.sim / max(1, stats.steps), stats.steps / stats.frames,
-        stats.draw / stats.frames, stats.cells / stats.frames, floor(stats.frames / stats.t + 0.5)))
+      local line = string.format("sim %.1f x%.1f  draw %.1f  send %.1f (%d px)  scroll %.1f (%d)  %d fps", stats.sim / max(1, stats.steps), stats.steps / stats.frames,
+        stats.draw / stats.frames, stats.send / stats.frames, stats.cells / stats.frames, stats.move / stats.frames, stats.moved / stats.frames,
+        floor(stats.frames / stats.t + 0.5))
+      D.info:SetText(line)
+      -- and into the log now and then, so the numbers can be read after a /reload
+      stats.said = (stats.said or 0) + 1
+      if stats.said % 5 == 1 and A.mode == "play" then note("perf: " .. line .. (A.g and A.g.map and ("  level " .. A.g.map.n) or "")) end
     elseif A.mode == "error" then D.info:SetText("error: see chat, or /endgame log")
     elseif D.info:GetText() ~= "" then D.info:SetText("") end
-    stats.sim, stats.draw, stats.cells, stats.frames, stats.steps, stats.t = 0, 0, 0, 0, 0, 0
+    stats.sim, stats.draw, stats.send, stats.move, stats.moved, stats.cells, stats.frames, stats.steps, stats.t = 0, 0, 0, 0, 0, 0, 0, 0, 0
   end
 end
 
@@ -1283,7 +1292,7 @@ local function settingsPage()
   local left, right = text(12, 16, -140, 270, ""), text(12, 300, -140, 270, "")
   press("Open the game", 16, -246, 160, function() if not (D.frame and D.frame:IsShown()) then A.toggle() end end)
   press("Change the controls", 188, -246, 190, function() A.showKeys() end)
-  text(13, 16, -292, 560, "/endgame keys             change the controls\n/endgame scale 1-8    screen pixels per game pixel (or: auto)\n/endgame fps 30         draw less often\n/endgame perf            timings in the title bar\n/endgame calm           screen shake on or off\n/endgame mute           sound on or off\n/endgame reset          move the window back to the middle\n/endgame log              what the addon has been doing", 0.7, 0.67, 0.6)
+  text(13, 16, -292, 560, "/endgame keys             change the controls\n/endgame scale 1-8    screen pixels per game pixel (or: auto)\n/endgame fps 30         draw less often\n/endgame perf            timings in the title bar (bench: cost per pixel)\n/endgame calm           screen shake on or off\n/endgame mute           sound on or off\n/endgame reset          move the window back to the middle\n/endgame log              what the addon has been doing", 0.7, 0.67, 0.6)
   -- the keys as they are now, in two columns; filled in each time the page is shown
   local function refresh()
     local cols = { {}, {} }
@@ -1332,6 +1341,10 @@ _G.SlashCmdList["THEENDGAMEISME"] = function(msg)
   elseif cmd == "perf" then
     ns.DB.perf = not ns.DB.perf
     RT.print("timings in the title bar: " .. (ns.DB.perf and "on" or "off"))
+  elseif cmd == "bench" then
+    local line = D.bench()
+    note("bench: " .. line)
+    RT.print(line)
   elseif cmd == "fps" then
     local n = tonumber(arg)
     ns.DB.fps = (n and n >= 10 and n <= 240) and floor(n) or 60

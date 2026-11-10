@@ -257,6 +257,7 @@ local function layout()
       local gx = wx % W
       if colX[gx] ~= wx then
         colX[gx] = wx
+        D.moved = D.moved + H
         for gy = 0, H - 1 do tex[gy * W + gx + 1]:SetPoint("TOPLEFT", D.grid, "TOPLEFT", wx, -rowY[gy]) end
       end
     end
@@ -267,6 +268,7 @@ local function layout()
       local gy = wy % H
       if rowY[gy] ~= wy then
         rowY[gy] = wy
+        D.moved = D.moved + W
         local base = gy * W + 1
         for gx = 0, W - 1 do tex[base + gx]:SetPoint("TOPLEFT", D.grid, "TOPLEFT", colX[gx], -wy) end
       end
@@ -289,10 +291,46 @@ local function setCell(i, v)
 end
 
 -- shows the frame the Screen holds; returns how many cells changed colour
+-- D.moveMs and D.sendMs say what the two halves cost (moving textures for the camera, recolouring them), and
+-- D.moved how many textures were moved: /endgame perf shows them
+D.moved, D.moveMs, D.sendMs = 0, 0, 0
 function D.present()
   if not D.built then return 0 end
+  local clock = RT.perfNow
+  local t0 = clock()
+  D.moved = 0
   layout()
-  return Screen.present(setCell)
+  local t1 = clock()
+  local n = Screen.present(setCell)
+  D.moveMs, D.sendMs = t1 - t0, clock() - t1
+  return n
+end
+
+-- What the client charges for the three things a frame is made of, measured where it runs: recolouring a texture,
+-- moving one, and plain Lua. Returns a line to print. The picture is resent afterwards.
+function D.bench()
+  if not D.built then return "open the game first" end
+  local clock = RT.perfNow
+  local n = 20000
+  local t0 = clock()
+  for i = 1, n do local k = (i % 7) / 7; tex[i]:SetVertexColor(k, 0.3, 1 - k) end
+  local colour = (clock() - t0) / n * 1000
+  t0 = clock()
+  for i = 1, n do tex[i]:SetVertexColor(0.5, 0.3, 0.5) end
+  for i = 1, n do tex[i]:SetVertexColor(0.5, 0.3, 0.5) end
+  local same = (clock() - t0) / (2 * n) * 1000
+  t0 = clock()
+  for i = 1, n do
+    local gx, gy = (i - 1) % W, floor((i - 1) / W)
+    tex[i]:SetPoint("TOPLEFT", D.grid, "TOPLEFT", colX[gx], -rowY[gy])
+  end
+  local move = (clock() - t0) / n * 1000
+  t0 = clock()
+  local t, acc = {}, 0
+  for i = 1, 1000000 do local v = (i * 7) % 1024; t[v] = i; acc = acc + floor(v / 16) end
+  local lua = clock() - t0
+  Screen.invalidate()
+  return string.format("recolour %.2f us each (%.2f when unchanged), move %.2f us each, a million Lua steps %.0f ms (about 25 on this PC outside the game)", colour, same, move, lua)
 end
 
 -- where the mouse is, in game pixels (0..320, 0..180), and whether it is over the picture
