@@ -78,14 +78,14 @@ for i = 0, steps - 1 do
       if math.abs(p.x - b.x) < 220 and math.abs(p.y - b.y) < 130 then P.ignite(g, p) end
     end
   end
-  if i == (burn and 500 or 120) then for k in pairs(t) do t[k], n[k] = 0, 0 end; total = clock(); tr = 0 end
+  if i == (burn and steps - 400 or 120) then for k in pairs(t) do t[k], n[k] = 0, 0 end; total = clock(); tr = 0 end
   local t0 = clock()
   R.render(g, { mx = 100, my = 60, cursor = true })
   tr = tr + clock() - t0
   local sent = RT.Screen.present(nil)
-  cells = (cells or 0) + (i > (burn and 500 or 120) and sent or 0)
+  cells = (cells or 0) + (i > (burn and steps - 400 or 120) and sent or 0)
 end
-local frames = steps - (burn and 501 or 121)
+local frames = burn and 399 or steps - 121
 local sm = g.smoke and g.smoke.clouds
 print(string.format("fires %d, smoke clouds %d, burning props %d", g.fires.length, sm and sm.length or 0, (function() local n = 0; for j = 0, g.props.length - 1 do if g.props[j].burning then n = n + 1 end end; return n end)()))
 print(string.format("level %d: render %.2f ms a frame (timers included), %d cells recoloured a frame", level, tr / frames * 1000, cells / frames))
