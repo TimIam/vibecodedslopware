@@ -568,6 +568,12 @@ Stub.click("Defaults")
 Stub.click("Done")
 assert(A.mode == "paused" and TheEndgameIsMeDB.keys == nil)
 
+-- light effects: by hand, and back to automatic
+SlashCmdList["THEENDGAMEISME"]("effects light")
+assert(ns.RT.lean == true and TheEndgameIsMeDB.effects == "light", "/endgame effects light did not take")
+frames(60)
+SlashCmdList["THEENDGAMEISME"]("effects auto")
+assert(ns.RT.lean == false and TheEndgameIsMeDB.effects == nil, "/endgame effects auto did not take")
 -- the benchmark runs, and puts the picture back
 TheEndgameIsMeDB.perf = true; frames(130); TheEndgameIsMeDB.perf = false
 SlashCmdList["THEENDGAMEISME"]("bench")

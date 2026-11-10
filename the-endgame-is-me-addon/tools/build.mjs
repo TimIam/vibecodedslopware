@@ -72,6 +72,11 @@ export function pathDist(`],
     ["  ctx.fillStyle = PAL.tele;\n  for (let py = y0; py <= y1; py++) for (let px = x0; px <= x1; px++) {\n    const dx = px + 0.5 - b.x, dy = py + 0.5 - b.y, dist = Math.hypot(dx, dy);\n    if (dist > R || dist < 8) continue;\n    let edge = dist > R - 1;\n    if (k !== 'stomp') {\n      const ad = Math.abs(angDiff(Math.atan2(dy, dx), face));\n      if (ad > half) continue;\n      if ((half - ad) * dist < 1) edge = true;\n    }\n    let al;\n    if (edge) al = channel ? 0.35 : 0.85;\n    else if (dist < 8 + (R - 8) * prog) al = ((px + py + blink) & 1) ? (channel ? 0.12 : 0.42) : (channel ? 0.04 : 0.16);\n    else al = ((px + py) & 1) ? 0.12 : 0;\n    if (!al) continue;\n    ctx.globalAlpha = al;\n    ctx.fillRect(px, py, 1, 1);\n  }\n", `  ctx.fillStyle = PAL.tele;
   teleArc(ctx, b.x, b.y, R, x0, x1, y0, y1, k !== 'stomp', half, face, prog, blink, channel);
 `],
+    // light effects: no see-through panel behind the HUD (7,500 blended cells a frame; the text has its own shadow)
+    [`ctx.fillRect(0, 0, 136, 36); ctx.fillRect(W - Math.max(108, textWidth(b.name) + 8), 0, Math.max(108, textWidth(b.name) + 8), 24);`,
+      `if (!lean()) { ctx.fillRect(0, 0, 136, 36); ctx.fillRect(W - Math.max(108, textWidth(b.name) + 8), 0, Math.max(108, textWidth(b.name) + 8), 24); }`],
+    // light effects (src/gfx.lua): the telegraph's fill stops blinking
+    [`const blink = Math.floor(g.t * (prog > 0.6 ? 24 : 10)) & 1;`, `const blink = lean() ? 0 : Math.floor(g.t * (prog > 0.6 ? 24 : 10)) & 1;`],
     // thousands separators without a regular expression
     [`function fmt(n) { return Math.floor(n).toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g, ','); }`, `function fmt(n) { return commas(n); }`],
   ],

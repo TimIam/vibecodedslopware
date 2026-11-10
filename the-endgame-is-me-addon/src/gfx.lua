@@ -277,12 +277,20 @@ RT.host.teleArc = function(ctx, bx, by, R, x0, x1, y0, y1, wedge, half, face, pr
   end
 end
 
+-- Light effects (RT.lean). What costs most in a busy scene is whatever repaints a wide area many times a second: the
+-- attack telegraph's fill blinks 10 to 24 times a second over a thousand cells, and every fire reshuffles ten times
+-- a second, and the panel behind the HUD is 7,500 blended cells every frame. With this on the telegraph holds
+-- still, fires flicker half as often and the HUD has no panel. app.lua switches it on for the
+-- rest of a level when frames get slow (/endgame effects).
+RT.lean = false
+RT.host.lean = function() return RT.lean end
 local FIRE = { PAL.fire0, PAL.fire1, PAL.fire2, PAL.fire3 }
 -- render.js drawFires. The flicker is a hash of where and when, and "when" moves ten times a second, so a fire's
 -- pixels are worked out once per flicker and drawn from the list on the frames between (while it is not fading).
 local firePx = setmetatable({}, { __mode = "k" })   -- a fire → { fr, fade, cx, cy, r, n, x, y, colour, ... }
 function RT.drawFires(ctx, g)
   local fr = floor(g.t * 10)
+  if RT.lean then fr = fr - fr % 2 end   -- light effects: the flicker changes five times a second, not ten
   local fires = g.fires
   local fill = ctx.fillRect
   local vx, vy = RT.Screen.vx, RT.Screen.vy

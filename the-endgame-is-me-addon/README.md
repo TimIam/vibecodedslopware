@@ -99,6 +99,12 @@ time there even where stock Lua does not show it.
 
 ## What differs from the browser game
 
+- **Light effects.** When the addon's own share of a frame passes 14 ms for two seconds running, the rest of that
+  level is drawn with less: the attack telegraph's fill stops blinking, fires flicker five times a second instead of
+  ten, and the HUD loses its see-through panel. `/endgame effects full`, `light` or `auto` (the default).
+- **Smoke** is dithered, and the dither pattern is tied to the ground rather than the screen, so a cloud does not
+  shimmer (and cost a recolour per cell) every time the camera moves.
+
 - No studio splash, animated title or attract-mode fights; the menu is a plain panel.
 - The Hoard has no demo reel, and no icons: abilities are a list with a description. Where the browser game has a
   drop-down on each slot, clicking a slot puts up a list of what is owned (`pick` in `build.store`). Either way only

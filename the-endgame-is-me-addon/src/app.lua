@@ -155,6 +155,7 @@ local function slice(co, ms)
 end
 
 function A.load(label, job, done)
+  RT.lean = ns.DB.effects == "light"   -- a new level starts with full effects unless the player said otherwise
   A.job = { co = coroutine.create(job), done = done, t0 = now(), frames = 0 }
   A.loadLabel = label
   A.setMode("loading")
@@ -641,10 +642,21 @@ local function onUpdate(self, elapsed)
         floor(stats.frames / stats.t + 0.5))
       D.info:SetText(line)
       -- and into the log now and then, so the numbers can be read after a /reload
+      if RT.lean then D.info:SetText(line .. "  light") end
       stats.said = (stats.said or 0) + 1
       if stats.said % 5 == 1 and A.mode == "play" then note("perf: " .. line .. (A.g and A.g.map and ("  level " .. A.g.map.n) or "")) end
     elseif A.mode == "error" then D.info:SetText("error: see chat, or /endgame log")
     elseif D.info:GetText() ~= "" then D.info:SetText("") end
+    -- Slow frames: go to light effects for the rest of the level. "Slow" is what the addon itself spends on a
+    -- frame, so a client that is slow for its own reasons does not trigger it.
+    if A.mode == "play" and not RT.lean and (ns.DB.effects or "auto") == "auto" and stats.frames > 0
+      and (stats.sim + stats.draw + stats.send + stats.move) / stats.frames > 14 then
+      stats.slow = (stats.slow or 0) + 1
+      if stats.slow >= 2 then
+        RT.lean = true
+        note(string.format("light effects on: %.1f ms a frame", (stats.sim + stats.draw + stats.send + stats.move) / stats.frames))
+      end
+    else stats.slow = 0 end
     stats.sim, stats.draw, stats.send, stats.move, stats.moved, stats.cells, stats.frames, stats.steps, stats.t = 0, 0, 0, 0, 0, 0, 0, 0, 0
   end
 end
@@ -1349,6 +1361,12 @@ _G.SlashCmdList["THEENDGAMEISME"] = function(msg)
     local n = tonumber(arg)
     ns.DB.fps = (n and n >= 10 and n <= 240) and floor(n) or 60
     RT.print("drawing at most about " .. ns.DB.fps .. " frames a second. Lower it if the game drags your frame rate down.")
+  elseif cmd == "effects" then
+    if arg == "full" or arg == "light" or arg == "auto" then
+      ns.DB.effects = arg ~= "auto" and arg or nil
+      RT.lean = arg == "light"
+    end
+    RT.print("effects: " .. (ns.DB.effects or "auto") .. ". light = the attack marker holds still, fires flicker half as often and the HUD has no dark panel; auto = light when frames are slow. /endgame effects full, light or auto")
   elseif cmd == "calm" then
     ns.DB.calm = not ns.DB.calm
     RT.print("screen shake: " .. (ns.DB.calm and "off" or "on"))

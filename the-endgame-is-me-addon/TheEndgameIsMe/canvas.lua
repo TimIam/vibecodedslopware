@@ -426,6 +426,7 @@ local function blit(self, img, dx, dy, thresh)
   local ga = thresh and 1 or self.globalAlpha
   if ga <= 0.002 then return end
   local plain = ga >= 0.998 and not img.hasAlpha and not thresh
+  local bx = Screen.vx or 0
   local f, m = frame, mask
   local r0, r1 = 0, SH - 1
   if dy < 0 then r0 = -dy end
@@ -436,7 +437,9 @@ local function blit(self, img, dx, dy, thresh)
       local sy = dy + r
       local row = ((sy + oy) % H) * W + 1
       local srow = r * SW + 1
-      local brow = thresh and (sy % 4) * 4 + 1
+      -- the dither pattern belongs to the ground, not the glass: tied to the screen, every cell of every cloud would
+      -- change colour each time the camera moved a pixel
+      local brow = thresh and ((sy + (Screen.vy or 0)) % 4) * 4 + 1
       for k = 1, #list, 2 do
         local s, e = list[k], list[k + 1]
         local sx0, sx1 = dx + s, dx + e
@@ -460,7 +463,7 @@ local function blit(self, img, dx, dy, thresh)
             else
               for j = 0, cnt - 1 do
                 local i = i0 + j
-                if not (m and m[i]) and not (thresh and BAYER[brow + (sx0 + (pass == 1 and j or j + first)) % 4] >= thresh) then
+                if not (m and m[i]) and not (thresh and BAYER[brow + (sx0 + bx + (pass == 1 and j or j + first)) % 4] >= thresh) then
                   local v = spx[si + j]
                   if mark[i] ~= f then mark[i] = f; nNow = nNow + 1; now[nNow] = i end
                   if v < A1 then
@@ -625,13 +628,17 @@ function Screen.present(set)
   for pass = 1, 3 do
     local list, cnt = touched, nTouched
     if pass == 2 then list, cnt = prev, nPrev elseif pass == 3 then list, cnt = now, nNow end
+    local f = pass == 2 and frame or nil
     for k = 1, cnt do
       local i = list[k]
-      local v = cur[i]
-      if shown[i] ~= v then
-        shown[i] = v
-        n = n + 1
-        if set then set(i, v) end
+      -- a cell drawn last frame and this one (most of the HUD) is looked at once, in the third pass
+      if mark[i] ~= f then
+        local v = cur[i]
+        if shown[i] ~= v then
+          shown[i] = v
+          n = n + 1
+          if set then set(i, v) end
+        end
       end
     end
   end

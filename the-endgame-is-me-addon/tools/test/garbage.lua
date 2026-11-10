@@ -1,8 +1,8 @@
 -- Where a frame's garbage comes from. The client collects in step with what is thrown away, so memory churn is frame
 -- time there even when stock Lua does not show it. Plays a level with the collector stopped and, every few hundred
 -- VM instructions, charges the memory that appeared since the last look to the line that is running.
---   lua5.1 tools/test/garbage.lua level [frames]
-local level, frames = tonumber(arg[1] or 1), tonumber(arg[2] or 200)
+--   lua5.1 tools/test/garbage.lua level [frames] [burn]     burn: everything near the boss is set alight every second
+local level, frames, burn = tonumber(arg[1] or 1), tonumber(arg[2] or 200), arg[3] == "burn"
 local ns = dofile("tools/test/host.lua")
 ns.loadAll()
 local RT = ns.RT
@@ -22,6 +22,10 @@ local function frame(i)
     ax = d.x - b.x > 1 and 1 or d.x - b.x < -1 and -1 or 0
     ay = d.y - b.y > 1 and 1 or d.y - b.y < -1 and -1 or 0
   else ax = floor(i / 200) % 3 - 1; ay = floor(i / 300) % 3 - 1 end
+  if burn and i % 60 == 0 then
+    local P = RT.modules.props
+    for j = 0, g.props.length - 1 do local p = g.props[j]; if math.abs(p.x - b.x) < 220 and math.abs(p.y - b.y) < 130 then P.ignite(g, p) end end
+  end
   local press = {}
   if i % 300 == 150 then press.slot1 = true end
   if i % 400 == 100 then press.slot2 = true end
@@ -34,7 +38,8 @@ local function frame(i)
   RT.Screen.present(nil)
 end
 
-for i = 0, 299 do frame(i) end   -- the level painted, the sprites made
+local warm = burn and 900 or 300
+for i = 0, warm - 1 do frame(i) end   -- the level painted, the sprites made
 collectgarbage(); collectgarbage("stop")
 local byLine, byFunc = {}, {}
 local count = collectgarbage
@@ -60,7 +65,7 @@ debug.sethook(function()
   last = count("count")
 end, "", 200)
 local before = count("count")
-for i = 300, 300 + frames - 1 do frame(i) end
+for i = warm, warm + frames - 1 do frame(i) end
 debug.sethook()
 local total = count("count") - before
 print(string.format("level %d (%s): %.0f KB of garbage a frame", level, tostring(g.map.name), total / frames))
@@ -71,5 +76,5 @@ local function top(t, title, n)
   print(title)
   for i = 1, math.min(n, #names) do print(string.format("  %7.1f KB/frame  %s", t[names[i]] / frames, names[i])) end
 end
-top(byLine, "by the line that allocated:", 14)
+top(byLine, "by the line that allocated:", 24)
 top(byFunc, "by the nearest line of game code:", 22)

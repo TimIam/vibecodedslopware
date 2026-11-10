@@ -1065,7 +1065,7 @@ local x0 = __mmax((M.VIEW.x or __NaN), __mfloor(((b.x or __NaN) - R)));
 local x1 = __mmin((((M.VIEW.x or __NaN) + __I1.W) - 1), __mceil(((b.x or __NaN) + R)));
 local y0 = __mmax((M.VIEW.y or __NaN), __mfloor(((b.y or __NaN) - R)));
 local y1 = __mmin((((M.VIEW.y or __NaN) + __I1.H) - 1), __mceil(((b.y or __NaN) + R)));
-local blink = __band(__mfloor(((g.t or __NaN) * ((prog > 0.6) and 24 or 10))), 1);
+local blink = (__T(RT.host.lean()) and 0 or __band(__mfloor(((g.t or __NaN) * ((prog > 0.6) and 24 or 10))), 1));
 local half = ((d.arc or __NaN) / 2);
 local face = __I1.zoneFace(g, k);
 local channel = a.fired;
@@ -1080,7 +1080,7 @@ local b = g.boss;
 local c = __mcos((b.face or __NaN));
 local s = __msin((b.face or __NaN));
 local R = ((d.range or __NaN) + 4);
-local blink = __band(__mfloor(((g.t or __NaN) * ((prog > 0.6) and 24 or 10))), 1);
+local blink = (__T(RT.host.lean()) and 0 or __band(__mfloor(((g.t or __NaN) * ((prog > 0.6) and 24 or 10))), 1));
 ctx.fillStyle = __I0.PAL.tele;
 for py = __mfloor(((b.y or __NaN) - R)), __mceil(((b.y or __NaN) + R)) do
 for qx = __mfloor(((b.x or __NaN) - R)), __mceil(((b.x or __NaN) + R)) do
@@ -1514,8 +1514,10 @@ M.drawHud = function(ctx, g, view)
 local b = g.boss;
 ctx.fillStyle = __I0.PAL.ink;
 ctx.globalAlpha = 0.28;
+if (not __T(RT.host.lean())) then
 ctx:fillRect(0, 0, 136, 36);
 ctx:fillRect((__I1.W - __mmax(108, (__I0.textWidth(b.name) + 8))), 0, __mmax(108, (__I0.textWidth(b.name) + 8)), 24);
+end;
 ctx.globalAlpha = 1;
 __I0.drawText(ctx, M.fmt(g.score), 4, 3, __I0.PAL.cream, {scale=2});
 local mc;
