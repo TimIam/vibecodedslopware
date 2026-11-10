@@ -149,7 +149,9 @@ h1,h2,h3,.lil{font-family:"Lilita One",Nunito,sans-serif;font-weight:400;letter-
 body.gripping #clubs{opacity:.4;bottom:-44px}
 body.gripping #shot{opacity:0}
 #flagMark i{display:none;font-style:normal;color:var(--red);font-size:16px}
-#flagMark.off i{display:inline-block}
+#flagMark.off i{display:inline-block;font-size:24px;line-height:1}
+#flagMark.off{transform:translate(-50%,-50%);padding:5px 13px;background:var(--sun);font-size:16px;animation:pinPulse .7s ease-in-out infinite alternate}
+@keyframes pinPulse{to{box-shadow:0 3px 0 var(--ink),0 0 0 6px rgba(255,210,63,.35)}}
 /* name tags */
 #tags{position:fixed;inset:52px 0 0;pointer-events:none;z-index:4;overflow:hidden}
 .tag{position:absolute;transform:translate(-50%,-100%);padding:2px 9px;border-radius:9px;background:rgba(43,34,51,.78);color:#fff;font-weight:900;font-size:12px;white-space:nowrap}
@@ -409,7 +411,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
       ['loaders/GLTFLoader.js', 'geometries/RoundedBoxGeometry.js'].forEach(function (f) { imports['three/addons/' + f] = J + f + q; });
       imports[J + 'utils/BufferGeometryUtils.js'] = J + 'utils/BufferGeometryUtils.js' + q;
       var base = new URL('js/', location.href).href;
-      ['assets', 'audio', 'cart', 'course', 'fx', 'golfer', 'net', 'physics', 'sky', 'voice'].forEach(function (m) { imports[base + m + '.js'] = base + m + '.js' + q; });
+      ['assets', 'audio', 'cart', 'course', 'fx', 'golfer', 'net', 'physics', 'sky', 'voice', 'wreck'].forEach(function (m) { imports[base + m + '.js'] = base + m + '.js' + q; });
     }
     var map = document.createElement('script'); map.type = 'importmap'; map.textContent = JSON.stringify({ imports: imports });
     var main = document.createElement('script'); main.type = 'module'; main.src = 'js/main.js' + q;

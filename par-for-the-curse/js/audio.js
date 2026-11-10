@@ -82,6 +82,9 @@ export function play(name, vol = 1, opt = {}) {
     case 'poof': burst(0.25, 0.3 * v, 1500, 'lowpass', t, 0.5, 300); break;
     case 'pop': tone('sine', 600, 1400, 0.08, 0.3 * v, t); break;
     case 'firework': burst(0.4, 0.5 * v, 900, 'lowpass', t, 0.5, 100); for (let i = 0; i < 10; i++) burst(0.02, 0.12 * v, 5000, 'highpass', t + 0.15 + Math.random() * 0.6); break;
+    case 'rustle': burst(0.2, 0.3 * v, 5200, 'highpass', t, 0.5, 2600); burst(0.12, 0.2 * v, 3000, 'bandpass', t + 0.05, 1); break;
+    case 'rock': tone('triangle', 950, 320, 0.05, 0.3 * v, t); burst(0.05, 0.5 * v, 2600, 'bandpass', t, 1.5); tone('sine', 170, 80, 0.1, 0.35 * v, t); break;
+    case 'crumble': burst(0.6, 0.6 * v, 520, 'lowpass', t, 0.6, 120); for (let i = 0; i < 9; i++) burst(0.03, 0.22 * v, 1700, 'bandpass', t + Math.random() * 0.45, 2); tone('sine', 90, 40, 0.3, 0.5 * v, t); break;
     case 'click': tone('sine', 1200, 1200, 0.03, 0.15 * v, t); break;
     case 'chat': tone('sine', 660, 990, 0.08, 0.15 * v, t); break;
     case 'rage': tone('sawtooth', 120, 90, 0.5, 0.12 * v, t); burst(0.5, 0.2 * v, 400, 'bandpass', t, 2); break;

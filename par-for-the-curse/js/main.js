@@ -6,6 +6,7 @@ import { Course, frames, NHOLES, CUP_R, SEA_Y, RISE, padPos } from './course.js'
 import { Golfer, Swing, CLUBS, SKINS, SHIRTS, PANTS, HATS, runPose, sitPose } from './golfer.js';
 import { Cart, collideBody, BUMP } from './cart.js';
 import { Particles, Confetti, Trail } from './fx.js';
+import { Wreck } from './wreck.js';
 import { Sky } from './sky.js';
 import * as A from './audio.js';
 import { joinRoom, newCode, cleanCode, cleanPin, MAX_PLAYERS } from './net.js';
@@ -319,6 +320,10 @@ async function boot() {
   confetti = new Confetti(scene);
   course.fx.sound = (n, v, p) => A.play(n, v * proximity(p));
   course.fx.event = (k, d) => worldEvent(k, d);
+  wreck = new Wreck(scene, course.things, {
+    sound: (n, v, p) => A.play(n, v * proximity(p)), dust: (p, n, s) => fx.dust(p, n, s), sparks: (p, n) => fx.sparks(p, n),
+    blocked: (p, r) => ball.p.distanceTo(p) < r + 0.2 || S.golferG.distanceTo(p) < r + 0.6 || carts.some(c => c.pos.distanceTo(p) < r + 1.4) || [...others.values()].some(o => o.G.distanceTo(p) < r + 0.6),
+  });
   me = new Golfer(look); scene.add(me.root); me.setClub(3);
   for (const part of [me.p.head, me.p.eyes, me.p.stache, me.crown, ...Object.values(me.hats)]) part.traverse(o => o.layers.set(1));
   camera.layers.enable(1); sun.shadow.camera.layers.enable(1);
@@ -773,7 +778,61 @@ function shout(text, mine) {
 function startEmote(e, dur) { S.emote = e; S.emoteT = 0; S.emoteDur = dur; if (e === 'tantrum') A.play('rage'); }
 
 /* ---------------- world events (from the course) ---------------- */
+/* ---------------- wrecking the scenery ---------------- */
+// Clubs, balls and carts all go through here. Whoever does the damage tells the room, so everyone sees the
+// same bush go flat; every client mends its own copy on its own clock.
+let wreck;
+const ZONES = ['plant', 'trunk', 'foliage', 'rock'], sceneryNear = [], _near = [], _tl = V();
+function wreckHit(i, zone, dir, power, at, tell = true) {
+  const th = course.things[i]; if (!th) return;
+  wreck.hit(i, zone, dir, power, at);
+  if (tell && net && S.t - (th.toldT ?? -9) > 0.25) { th.toldT = S.t; net.event({ k: 'th', i, z: ZONES.indexOf(zone), d: [+dir.x.toFixed(2), +dir.z.toFixed(2)], p: +power.toFixed(2) }); }
+}
+function tearDivot(p, dir, power, tell = true) {
+  const g = world.groundAt(p.x, p.y + 0.4, p.z, 1.2);
+  const at = V(p.x, g ? g.y : p.y, p.z);
+  wreck.divot(at, dir, power);
+  if (tell && net) net.event({ k: 'dv', p: at.toArray().map(n => +n.toFixed(2)), d: [+dir.x.toFixed(2), +dir.z.toFixed(2)], w: +power.toFixed(2) });
+}
+// The club against the scenery, on the same swept collider that strikes the ball.
+function sceneryCheck(things) {
+  for (const th of things) {
+    if (S.t - th.hitT < 0.3 || th.gone) continue;
+    for (const z of th.zones) {
+      const hit = swing.probe(worldToLocal(z.c, _tl), z.r / ACTOR);
+      const soft = z.zone === 'plant' || z.zone === 'foliage';      // leaves can be swished from inside; stone and timber need a real arrival
+      if (!hit || (hit.overlap && !soft)) continue;
+      const speed = hit.vel.length() * ACTOR;
+      if (speed < (soft ? 2.5 : 1.5)) continue;
+      const f = fDir(bodyYaw()), w = wDir(bodyYaw()), dir = V().addScaledVector(f, hit.vel.x).addScaledVector(UP, hit.vel.y).addScaledVector(w, hit.vel.z).normalize();
+      const at = localToWorld(hit.q, V()), hard = z.zone === 'rock' || z.zone === 'trunk';
+      wreckHit(th.i, z.zone, dir, clamp(speed / 9, 0.15, 1), at);
+      // Stone and timber stop the club dead and rattle your arms; leaves only slow it.
+      swing.handV.multiplyScalar(hard ? 0.25 : 0.8);
+      if (hard) { shake(Math.min(0.3, speed * 0.03)); pop(z.zone === 'rock' ? 'CLACK!' : 'THWOCK!', 'meh', at.clone().add(V(0, 0.3, 0))); }
+      break;
+    }
+  }
+}
+// Running through the plants rustles them; a cart flattens them and shakes the trees it hits.
+function sceneryBrush() {
+  if (S.mode === 'drive' && S.cart) {
+    const c = S.cart;
+    if (Math.abs(c.speed) > 1.5) for (const th of wreck.near(c.pos, 1.1, _near)) {
+      if (S.t - th.hitT < 0.5 || th.kind === 'rock') continue;
+      wreckHit(th.i, th.kind === 'tree' ? 'trunk' : 'plant', c.heading(V()).multiplyScalar(Math.sign(c.speed)), clamp(Math.abs(c.speed) / 8, 0.35, 1), null);
+    }
+  } else if (S.mode === 'walk' && Math.hypot(W.v.x, W.v.z) > 1) {
+    for (const th of wreck.near(S.golferG, 0.15, _near)) if (th.kind === 'bush' || th.kind === 'flowers') wreck.brush(th);
+  }
+}
 function worldEvent(k, d) {
+  if (k === 'thing') {
+    // The ball ran into something hittable.
+    const th = course.things[d.i]; if (!th || S.t - th.hitT < 0.2) return;
+    wreckHit(d.i, d.zone, ball.v.lengthSq() > 0.01 ? ball.v.clone().normalize() : V(1, 0, 0), clamp(d.vn / 14, 0.15, 1), d.p);
+    return;
+  }
   if (k === 'sail' || k === 'goose' || k === 'bumper' || k === 'sweeper' || k === 'pin' || k === 'shroom') {
     if (!S.ballLive) return;
     fx.sparks(d.p, 12);
@@ -961,7 +1020,10 @@ function step(dt) {
       S.divotT = t;
       const hp = localToWorld(swing.head, V()), z = course.zoneAt(hp), f = fDir(bodyYaw()), w = wDir(bodyYaw());
       if (z && z.type === 'sand') { fx.sand(hp, 1); A.play('sand', 0.8); }
-      else { fx.divot(hp, V().addScaledVector(f, swing.headV.x).addScaledVector(w, swing.headV.z).normalize(), clamp(swing.groundHit / 15, 0.3, 1.2)); A.play('divot', clamp(swing.groundHit / 15, 0.3, 1)); }
+      else {
+        const dir = V().addScaledVector(f, swing.headV.x).addScaledVector(w, swing.headV.z).normalize(), pw = clamp(swing.groundHit / 15, 0.3, 1.2);
+        fx.divot(hp, dir, pw); tearDivot(hp, dir, pw); A.play('divot', clamp(swing.groundHit / 15, 0.3, 1));
+      }
     }
     // The ball is one more thing the club can touch: at rest, rolling or in the air, as often as you reach it.
     if ((S.mode === 'address' && !S.ballLive) || (free && !ball.frozen && ballMesh.visible && Math.abs(bl.x) < 3 && Math.abs(bl.z) < 3 && Math.abs(bl.y) < 4)) {
@@ -970,7 +1032,10 @@ function step(dt) {
       if (r) launch(r);
     }
     if (S.grip) meleeCheck();
+    if (i === 0) wreck.near(S.golferG, 2.6, sceneryNear);
+    sceneryCheck(sceneryNear);
   }
+  sceneryBrush();
   A.whoosh(maxHead);
   // Ball physics (always advance the world so movers keep moving).
   const wind = V();
@@ -1022,7 +1087,7 @@ function step(dt) {
   poseMe(dt);
   course.update(t, dt);
   sky.update(t, dt);
-  fx.update(dt); confetti.update(dt, t);
+  fx.update(dt); confetti.update(dt, t); wreck.update(dt, t);
   updateOthers(dt);
   voiceTick();
   netTick(dt);
@@ -1040,7 +1105,12 @@ function flight(dt) {
     S.firstLand = false;
     const z = course.zoneAt(ball.p);
     if (z && z.type === 'sand') { fx.sand(ball.p, 1.2); A.play('sand', 0.9); }
-    else if (sp > 4) fx.dust(ball.p, 8, 0.6);
+    else if (sp > 4) {
+      fx.dust(ball.p, 8, 0.6);
+      // A pitch mark where it came down.
+      const d = V(ball.v.x, 0, ball.v.z);
+      if (sp > 7 && d.lengthSq() > 0.01) tearDivot(V(ball.p.x, ball.p.y - BALL_R, ball.p.z), d.normalize(), clamp(sp / 40, 0.15, 0.5));
+    }
     if (ball.bite || ball.plug) { const vn = ball.v.dot(ball.gN); _a.copy(ball.v).addScaledVector(ball.gN, -vn).multiplyScalar(ball.plug ? 0.12 : 0.45); ball.v.copy(_a).addScaledVector(ball.gN, ball.plug ? Math.min(vn, 1.2) : vn); }
     if (ball.plug) { ball.plug = false; fx.dust(ball.p, 16, 1); A.play('thud', 1); shake(0.25); }
   }
@@ -1622,15 +1692,20 @@ function flagMarker() {
   const el = $('flagMark'), H = course.holes[S.hole];
   const show = ['address', 'walk', 'drive'].includes(S.mode) && H && H.cup && !S.intro;
   el.hidden = !show; if (!show) return;
-  const p = H.cup.clone().add(V(0, 2.5, 0)).project(camera);
-  const behind = p.z > 1;
+  const top = H.cup.clone().add(V(0, 2.5, 0)), c = top.clone().applyMatrix4(camera.matrixWorldInverse), p = top.project(camera);
+  const behind = c.z > 0;
   let x = (p.x + 1) / 2, y = (1 - p.y) / 2;
-  if (behind) { x = 1 - x; y = 0.9; }
-  const off = behind || x < 0.04 || x > 0.96 || y < 0.12 || y > 0.9;
-  const cx = clamp(x, 0.04, 0.96), cy = clamp(y, 0.12, 0.9);
-  el.style.left = (cx * 100) + '%'; el.style.top = (cy * 100) + '%';
+  const off = behind || x < 0.05 || x > 0.95 || y < 0.14 || y > 0.9;
+  if (off) {
+    // Out of view: slide to the edge of the screen along the way you would have to turn to see it.
+    let dx = c.x, dy = -c.y; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+    if (behind) { dx = Math.sign(dx || 1) * Math.max(Math.abs(dx), 0.75); dy = 0.5; const m = Math.hypot(dx, dy); dx /= m; dy /= m; }      // behind you: low on the side to turn toward
+    const k = Math.min(dx ? 0.45 / Math.abs(dx) : 9, dy ? (dy > 0 ? 0.4 : 0.36) / Math.abs(dy) : 9);
+    x = 0.5 + dx * k; y = 0.5 + dy * k;
+    $('flagArrow').style.transform = 'rotate(' + Math.atan2(dy, dx) + 'rad)';
+  }
+  el.style.left = (x * 100) + '%'; el.style.top = (y * 100) + '%';
   el.classList.toggle('off', off);
-  $('flagArrow').style.transform = 'rotate(' + Math.atan2(y - 0.5, x - 0.5) + 'rad)';
   const d = Math.hypot(H.cup.x - ball.p.x, H.cup.z - ball.p.z), dy = H.cup.y - (ball.p.y - BALL_R);
   $('flagDist').textContent = Math.round(d) + ' m' + (Math.abs(dy) > 1.5 ? (dy > 0 ? '  ↑' : '  ↓') + Math.round(Math.abs(dy)) : '');
 }
@@ -1784,6 +1859,8 @@ function remoteEvent(p, e) {
   else if (e.k === 'sea') toast(`🌊 ${nm} hit it into the sea`);
   else if (e.k === 'finish') toast(`👑 ${nm} FINISHED THE CLIMB in ${fmtTime(clamp(+e.ms || 0, 0, 1e9), true)}!`);
   else if (e.k === 'rv') voteEvent(p, e, nm);
+  else if (e.k === 'th') { if (course.things[e.i | 0] && ZONES[e.z | 0] && nums(e.d, 2)) wreckHit(e.i | 0, ZONES[e.z | 0], V(e.d[0], 0, e.d[1]), clamp(+e.p || 0.3, 0.1, 1), null, false); }
+  else if (e.k === 'dv') { if (nums(e.p, 3) && nums(e.d, 2) && o && V(e.p[0], e.p[1], e.p[2]).distanceTo(o.G) < 60) wreck.divot(V(e.p[0], e.p[1], e.p[2]), V(e.d[0], 0, e.d[1]).normalize(), clamp(+e.w || 0.3, 0.15, 1.2)); }
   else if (e.k === 'rtc') { if (e.to === net.me && voice && o) voice.signal(p.id, e.d); }
   else if (e.k === 'ram' && e.to === net.me && o) {
     // The golfer we ran down tells us so: the cart feels it too.
@@ -2024,7 +2101,7 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     setClub,
     fire: () => fireCannon(), get cannon() { return S.cannon; },
     tick: (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { S.realDt = dt; step(dt); } },
-    THREE, get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, askReset, voteAnswer, get vote() { return vote; }, showMenu, resetBall, resetCart, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
+    THREE, get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, get wreck() { return wreck; }, wreckHit, tearDivot, askReset, voteAnswer, get vote() { return vote; }, showMenu, resetBall, resetCart, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
     // Deterministic swing at 60 fps: back for `back` frames, pause, then through; runs until the ball rests.
     swingTest: (power = 1, back = 24, down = 10, club) => {
       if (club != null) setClub(club);

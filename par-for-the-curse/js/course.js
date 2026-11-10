@@ -153,6 +153,7 @@ export class Course {
     this.cartSpots = [];
     this.holes = []; this.zones = []; this.animators = []; this.winds = []; this.sensors = [];
     this.fx = { sound: () => {}, event: () => {} };
+    this.things = [];      // rocks, plants and trees that can be hit: see wreck.js
     this.t = 0;
     this.build();
     world.onContact = (c, vn, p) => this.contact(c, vn, p);
@@ -246,14 +247,26 @@ export class Course {
     p.rotation.y = o.rot ?? Math.random() * Math.PI * 2;
     const s = o.scale ?? (0.85 + Math.random() * 0.3); p.scale.setScalar(s);
     H.group.add(p);
+    // Rocks, bushes, flowers and trees can be hit by a club, a ball or a cart (wreck.js). Each of their
+    // colliders says which thing it belongs to, and which part of it.
+    const kind = /^rock_/.test(name) ? 'rock' : /^tree_/.test(name) ? 'tree' : name === 'bush' || name === 'flowers' ? name : null;
+    const thing = kind ? { kind, name, obj: p, s, trunk: o.trunk, fol: [] } : null, ti = this.things.length;
+    if (thing) this.things.push(thing);
     if (o.trunk) {
       const w = H.frame.w(x, y + 1.5, z);
-      this.world.add(new Collider('cyl', { pos: w, r: o.trunk * s, hh: 1.5, surf: 'wood', hole: H.i, tag: 'tree' }));
+      const tc = this.world.add(new Collider('cyl', { pos: w, r: o.trunk * s, hh: 1.5, surf: 'wood', hole: H.i, tag: 'tree' }));
+      if (thing) { tc.thing = ti; tc.zone = 'trunk'; }
     }
     // Foliage slows a ball down and lets it drop; rocks, lamps, poles and markers are solid.
     const c = Math.cos(p.rotation.y), sn = Math.sin(p.rotation.y);
-    for (const [lx, ly, lz, r] of FOLIAGE[name] || []) this.world.add(new Collider('sph', { pos: H.frame.w(x + (lx * c + lz * sn) * s, y + ly * s, z + (-lx * sn + lz * c) * s), r: r * s, surf: 'rough', soft: 7, tag: 'leaf', hole: H.i }));
-    if (/^(rock_|lamp|tee_marker|windsock)/.test(name)) this.solidify(p, { surf: /^rock/.test(name) ? 'rock' : 'metal', hole: H.i });
+    for (const [lx, ly, lz, r] of FOLIAGE[name] || []) {
+      const col = this.world.add(new Collider('sph', { pos: H.frame.w(x + (lx * c + lz * sn) * s, y + ly * s, z + (-lx * sn + lz * c) * s), r: r * s, surf: 'rough', soft: 7, tag: 'leaf', hole: H.i }));
+      if (thing) { col.thing = ti; col.zone = kind === 'tree' ? 'foliage' : 'plant'; if (kind === 'tree') thing.fol.push([col.pos.clone(), r * s]); }
+    }
+    if (/^(rock_|lamp|tee_marker|windsock)/.test(name)) {
+      const col = this.solidify(p, { surf: /^rock/.test(name) ? 'rock' : 'metal', hole: H.i });
+      if (kind === 'rock') { thing.col = col; col.thing = ti; col.zone = 'rock'; }
+    }
     return p;
   }
   // Ground decals for greens, bunkers, ponds and tees, plus the zones the physics reads.
@@ -323,6 +336,7 @@ export class Course {
 
   /* ----- contact effects ----- */
   contact(c, vn, p) {
+    if (c.thing != null && vn > 1.5) this.fx.event('thing', { i: c.thing, zone: c.zone, p, vn });
     if (c.tag && this.hits.has(c.tag)) this.hits.get(c.tag)(c, vn, p);
     else if (vn > 2) this.fx.sound(c.surf === 'wood' ? 'wood' : c.surf === 'sand' ? 'sand' : 'thud', Math.min(1, vn / 14), p);
   }
