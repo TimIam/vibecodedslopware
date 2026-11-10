@@ -750,7 +750,22 @@ end
 
 -- ------------------------------------------------------------------------------------------------ opening and closing
 
+-- The client's Options and game menu cover the screen and hide the rest of the interface while they are up, so a
+-- window opened from there would sit underneath, unseen. Put them away first (not possible in combat).
+local function clearTheWay()
+  if _G.InCombatLockdown and _G.InCombatLockdown() then return end
+  for _, name in ipairs({ "SettingsPanel", "GameMenuFrame" }) do
+    local panel = _G[name]
+    if panel and panel.IsShown and panel:IsShown() then
+      note("closing " .. name .. " to show the window")
+      if _G.HideUIPanel then _G.HideUIPanel(panel) else panel:Hide() end
+    end
+  end
+end
+
 function A.open()
+  guard("closing the client's menus", clearTheWay)
+  note("open: UIParent shown " .. tostring(_G.UIParent:IsShown()) .. ", alpha " .. tostring(_G.UIParent.GetAlpha and _G.UIParent:GetAlpha()))
   note("open: client build " .. tostring(_G.GetBuildInfo and select(4, _G.GetBuildInfo())) .. ", screen " .. tostring(_G.GetPhysicalScreenSize and table.concat({ _G.GetPhysicalScreenSize() }, "x")))
   local f = D.create()
   note(string.format("window made: scale %s (%d px per game px), effective %.4f, UIParent %.4f", tostring(f:GetScale()), D.scale, f:GetEffectiveScale(), _G.UIParent:GetEffectiveScale()))
@@ -766,6 +781,8 @@ function A.open()
     f:SetScript("OnUpdate", onUpdate)
   end
   f:Show()
+  note(string.format("window shown: visible %s, left %s, bottom %s, size %sx%s, strata %s", tostring(f.IsVisible and f:IsVisible()), tostring(f:GetLeft()), tostring(f:GetBottom()),
+    tostring(f.GetWidth and f:GetWidth()), tostring(f.GetHeight and f:GetHeight()), tostring(f.GetFrameStrata and f:GetFrameStrata())))
   if not D.built then
     note("opening for the first time this session")
     A.load("SETTING UP THE SCREEN", function()
