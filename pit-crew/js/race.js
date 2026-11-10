@@ -79,12 +79,47 @@ function planStops(laps, from, min = 0) {
   return Array.from({ length: n }, (_, k) => from + Math.round(left * (k + 1) / (n + 1)));
 }
 
+// The stop plan a car starts with: even stints, our second car a lap behind unless the track stacks them.
+function basePlan(track, i, player) {
+  const laps = track.laps, base = planStops(laps, 0, 2);
+  const shift = player && i === 1 && !track.mods.includes('doubleStack') ? 1 : 0;
+  let plans = base.map(p => Math.max(2, Math.min(laps - 1, p + shift)));
+  const legs = [plans[0], ...plans.slice(1).map((p, k) => p - plans[k]), laps - plans[plans.length - 1]];
+  if (legs.some(l => l > STINT + 0.2 || l < 1)) plans = base.slice();
+  return plans;
+}
+const stintCompound = s => s > 5.5 ? 'hard' : s > 4 ? 'medium' : 'soft';
+
+// How many laps a set of tyres lasts here before Dev wants it off (the worst tyre at 95%),
+// on a dry track at racing speed.
+const curveCache = new Map();
+export function tyreLaps(track, compound) {
+  if (!curveCache.has(track.id)) curveCache.set(track.id, curveTable(track.map));
+  const cv = curveCache.get(track.id);
+  let worst = 0;
+  for (let i = 0; i < 4; i++) { let m = 0; for (let s = 0; s < SAMPLES; s++) m += cv.mult(s / SAMPLES, i); worst = Math.max(worst, m / SAMPLES); }
+  return 0.95 / (COMPOUNDS[compound].wear * worst);
+}
+
+// What Dev would start a player car on (i: 0 for car 7, 1 for car 11): fuel in laps, and a compound.
+export function startPlan(track, i) {
+  const first = basePlan(track, i, true)[0];
+  return { fuel: Math.min(TANK, Math.round((first + START_FUEL_MARGIN) * 2) / 2), compound: stintCompound(first), firstStop: first };
+}
+// The first stop that a chosen fuel load and compound allow, then even stints after it.
+export function plansFrom(track, fuel, compound) {
+  const laps = track.laps;
+  const first = Math.max(1, Math.min(laps - 1, Math.floor(Math.min(fuel - 0.1, tyreLaps(track, compound)))));
+  return [first, ...planStops(laps, first, 1)];
+}
+
 const INCIDENTS = ['crash', 'crash', 'crash', 'stranded', 'debris', 'animal', 'oil'];
 const RETIRES = { crash: true, stranded: true };
 
 export class Race {
   // flagChance: odds of one white-flag incident this race
-  constructor(track, { seed = 1, round = 0, flagChance = 0.25 } = {}) {
+  // start: { 0: { fuel, compound }, 1: {...} } for our two cars, set before the race.
+  constructor(track, { seed = 1, round = 0, flagChance = 0.25, start = null } = {}) {
     this.track = track;
     this.laps = track.laps;
     this.r = rng(seed);
@@ -102,26 +137,30 @@ export class Race {
     this.flag = null;
     const r = this.r;
     this.flagPlan = r() < flagChance ? { lap: this.laps * (0.25 + r() * 0.5), kind: INCIDENTS[Math.floor(r() * INCIDENTS.length)] } : null;
-    const base = planStops(this.laps, 0, 2);
     // Grid: rough pace order with shuffle; our cars land mid-pack.
     const grid = DRIVERS.map((d, i) => ({ i, k: TEAMS[d.team].pace + d.skill * 0.6 + (r() - 0.5) * 0.35 - (d.team === 0 ? round * 0.02 : 0) }))
       .sort((a, b) => a.k - b.k).map(o => o.i);
     this.cars = DRIVERS.map((d, i) => {
       const team = TEAMS[d.team];
       const player = d.team === 0;
-      // our second car runs a lap behind on strategy unless the track stacks them
-      const shift = player ? (i === 1 && !track.mods.includes('doubleStack') ? 1 : 0) : Math.round((r() - 0.5) * 2);
-      let plans = base.map(p => Math.max(2, Math.min(this.laps - 1, p + shift)));
-      // never shift a stint past what a tank can do
-      const legs = [plans[0], ...plans.slice(1).map((p, k) => p - plans[k]), this.laps - plans[plans.length - 1]];
-      if (legs.some(l => l > STINT + 0.2 || l < 1)) plans = base.slice();
+      const own = player && start && start[i];
+      let plans;
+      if (own) plans = plansFrom(track, own.fuel, own.compound);
+      else if (player) plans = basePlan(track, i, true);
+      else {
+        const base = planStops(this.laps, 0, 2), shift = Math.round((r() - 0.5) * 2);
+        plans = base.map(p => Math.max(2, Math.min(this.laps - 1, p + shift)));
+        // never shift a stint past what a tank can do
+        const legs = [plans[0], ...plans.slice(1).map((p, k) => p - plans[k]), this.laps - plans[plans.length - 1]];
+        if (legs.some(l => l > STINT + 0.2 || l < 1)) plans = base.slice();
+      }
       const slot = grid.indexOf(i);
       return {
         i, d, team, player,
         code: d.code, num: d.num,
         base: team.pace * (1 + d.skill * 0.01) + (player ? -round * 0.03 : 0),
         dist: -slot * 0.012,
-        compound: 'medium', tw: [0, 0, 0, 0], wear: 0, fuel: Math.min(TANK, plans[0] + START_FUEL_MARGIN + (player ? 0 : 0.3)),
+        compound: own ? own.compound : 'medium', tw: [0, 0, 0, 0], wear: 0, fuel: own ? Math.min(TANK, own.fuel) : Math.min(TANK, plans[0] + START_FUEL_MARGIN + (player ? 0 : 0.3)),
         damage: 0, puncture: false, state: 'run', stateT: 0, box: false, plans, called: -1,
         stops: 0, penalty: 0, finish: null, dnf: false, cold: 0, bonus: 0, outOfFuel: false,
         aiStop: 0, react: r() * 1.3, noise: r() * 100, pos: slot + 1, lapsDone: 0, dmgRoll: 0,
@@ -176,23 +215,32 @@ export class Race {
 
     // Order: finished cars by finish time, then by distance, retirements last
     const prev = this.order.map(c => c.i);
-    this.order = this.cars.slice().sort((a, b) => {
-      if (a.dnf !== b.dnf) return a.dnf ? 1 : -1;
-      if (a.finish != null && b.finish != null) return a.finish - b.finish;
-      if (a.finish != null) return -1;
-      if (b.finish != null) return 1;
-      return b.dist - a.dist;
-    });
+    this.order = this.cars.slice().sort((a, b) => this.rank(a, b));
     this.order.forEach((c, k) => {
       const was = prev.indexOf(c.i) + 1;
       c.pos = k + 1;
       if (c.player && this.time > 3 && c.state === 'run' && was !== c.pos) this.emit(c.pos < was ? 'gain' : 'lose', c, { from: was, to: c.pos });
     });
-    if (this.chequered && this.cars.every(c => c.finish != null || c.dnf)) this.finishAll();
-    if (this.chequered && this.cars.filter(c => c.player).every(c => c.finish != null || c.dnf)) {
+    // The race runs until every car still running has taken the flag. A car crawling home out
+    // of fuel gets a long while; after that the rest are classified where they are.
+    if (this.chequered) {
       this.overT += dt;
-      if (this.overT > 2.5) this.finishAll();
+      if (this.cars.every(c => c.finish != null || c.dnf) || this.overT > 90) this.finishAll();
     }
+  }
+
+  // Finishing order: more laps first. After the flag a running car will finish the lap it is
+  // on, so it counts that lap; at the same laps, those already home come first, by time.
+  lapsOf(c) { return c.finish != null ? c.finLaps : this.chequered ? Math.floor(c.dist) + 1 : c.dist; }
+  rank(a, b) {
+    if (a.dnf !== b.dnf) return a.dnf ? 1 : -1;
+    if (a.dnf) return b.dist - a.dist;
+    const la = this.lapsOf(a), lb = this.lapsOf(b);
+    if (this.chequered && la !== lb) return lb - la;
+    if (a.finish != null && b.finish != null) return a.finish - b.finish;
+    if (a.finish != null) return -1;
+    if (b.finish != null) return 1;
+    return b.dist - a.dist;
   }
 
   // White flag: an incident slows the whole field for about a lap and a half, which
@@ -219,7 +267,8 @@ export class Race {
 
   step(c, dt, r) {
     if (c.dnf) return;
-    if (c.finish != null) { c.dist += dt / 22; return; }
+    // home: a cool-down lap at white-flag pace
+    if (c.finish != null) { c.dist += dt / (c.base * FLAG_SLOW); return; }
     c.stateT += dt;
     const laps = this.laps;
     if (c.state === 'run') {
@@ -295,14 +344,15 @@ export class Race {
     }
     if (lap >= this.laps) {
       if (!this.chequered) { this.chequered = true; this.emit('chequered', c); }
-      c.finish = this.time;
+      c.finish = this.time; c.finLaps = lap;
       if (c.state === 'in' || c.state === 'wait') c.state = 'run';
       if (c.player) this.emit('finish', c);
       return;
     }
     if (this.chequered) {
-      // Everyone behind the leader finishes the next time they cross.
-      c.finish = this.time;
+      // Everyone behind the leader finishes the next time they cross, laps down or not.
+      c.finish = this.time; c.finLaps = lap;
+      if (c.state === 'in' || c.state === 'wait') c.state = 'run';
       if (c.player) this.emit('finish', c);
       return;
     }
@@ -398,9 +448,14 @@ export class Race {
     if (this.over) return;
     // Anyone still out there finishes in their projected order; retirements last.
     const left = this.cars.filter(c => c.finish == null && !c.dnf).sort((a, b) => b.dist - a.dist);
-    for (const c of left) c.finish = this.time + (this.laps - c.dist) * this.lapTime(c) + (c.state === 'box' ? 3 : 0);
-    const key = c => c.dnf ? 1e12 - c.dist : c.finish + c.penalty;
-    this.result = this.cars.slice().sort((a, b) => key(a) - key(b));
+    for (const c of left) { c.finLaps = Math.floor(c.dist) + 1; c.finish = this.time + (c.finLaps - c.dist) * this.lapTime(c) + (c.state === 'box' ? 3 : 0); }
+    // classified by laps, then by time with any penalty added
+    this.result = this.cars.slice().sort((a, b) => {
+      if (a.dnf !== b.dnf) return a.dnf ? 1 : -1;
+      if (a.dnf) return b.dist - a.dist;
+      if (a.finLaps !== b.finLaps) return b.finLaps - a.finLaps;
+      return a.finish + a.penalty - b.finish - b.penalty;
+    });
     this.result.forEach((c, k) => { c.final = k + 1; });
     this.over = true;
     this.emit('over');

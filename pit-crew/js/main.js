@@ -2,7 +2,7 @@
 import { W, H, canvas as mkCanvas, rect, ellipse, panel, bar, tyreIcon, portrait, carSprite, wheelSprite, crew, shade, WHEELS } from './gfx.js';
 import { text, wrap, measure } from './font.js';
 import { TEAMS, DRIVERS, TRACKS, COMPOUNDS, COMPOUND_ORDER, PEOPLE, POINTS, MOD_INFO, TV } from './data.js';
-import { Race, rng, IN_T, OUT_T, TANK } from './race.js';
+import { Race, rng, IN_T, OUT_T, TANK, startPlan, tyreLaps } from './race.js';
 import { PitStop } from './stop.js';
 import { bake, bakeMap, Y, BOX_X, theme, straightCar } from './scene.js';
 import { Director, LINES, rename, pepTalk, pickFresh, saveHeard, setConditions, setLapsDone } from './banter.js';
@@ -473,7 +473,6 @@ const calendarScene = {
     if (save.round < cal().length) button(324, 230, 176, 22, `GO TO ROUND ${save.round + 1}`, nextRace, { hot: true });
     else button(324, 230, 176, 22, 'SEASON REVIEW', () => go(seasonScene), { hot: true });
     button(12, 230, 100, 22, 'TITLE', () => go(titleScene), { color: '#5c6a8a' });
-    button(118, 230, 110, 22, 'TEAM SETUP', () => go(setupScene), { color: '#5c6a8a' });
   },
   key(k) {
     if (k === 'enter' || k === 'space') nextRace();
@@ -526,22 +525,133 @@ const briefingScene = {
     text(g, person.name, 64, py + 8, '#ffd23a');
     ql.forEach((l, i) => text(g, l, 64, py + 20 + i * 10, '#e8e6dc'));
     const by = Math.max(240, py + ph + 8);
-    button(W / 2 - 70, by, 140, 22, 'LIGHTS OUT', () => go(raceScene(tr, save.round)), { hot: true, color: '#d42a24' });
+    button(W / 2 - 70, by, 140, 22, 'STRATEGY', () => go(strategyScene(tr, save.round)), { hot: true, color: '#d42a24' });
     button(20, by, 80, 22, 'BACK', () => go(calendarScene), { color: '#5c6a8a' });
   },
-  key(k) { if (k === 'enter' || k === 'space') go(raceScene(this.tr, save.round)); if (k === 'esc') go(calendarScene); },
+  key(k) { if (k === 'enter' || k === 'space') go(strategyScene(this.tr, save.round)); if (k === 'esc') go(calendarScene); },
 };
+
+// ===== strategy: fuel and tyres for the start, between the briefing and the lights
+const START_TYRES = ['soft', 'medium', 'hard'];
+const clampN = (v, a, b) => Math.max(a, Math.min(b, v));
+function strategyScene(track, round) {
+  const rec = [startPlan(track, 0), startPlan(track, 1)];
+  const pick = rec.map(r => ({ fuel: r.fuel, compound: r.compound }));
+  const life = Object.fromEntries(START_TYRES.map(c => [c, tyreLaps(track, c)]));
+  const ROWS = ['f0', 't0', 'f1', 't1', 'reset', 'go'];
+  let sel = 5, t = 0;
+  const firstStop = k => clampN(Math.floor(Math.min(pick[k].fuel - 0.1, life[pick[k].compound])), 1, track.laps - 1);
+  const lightsOut = () => go(raceScene(track, round, { start: { 0: { ...pick[0] }, 1: { ...pick[1] } } }));
+  const fuelStep = (k, d) => { const v = clampN(pick[k].fuel + d * 0.5, 1, TANK); if (v !== pick[k].fuel) { pick[k].fuel = v; A.sfx('move'); } };
+  const reset = () => { rec.forEach((r, k) => { pick[k].fuel = r.fuel; pick[k].compound = r.compound; }); A.sfx('select'); };
+  const TNAME = { soft: 'SOFT', medium: 'MED', hard: 'HARD' };
+  const first = c => DRIVERS[c].name.split(' ')[0];
+  // what the Crew Chief and the Chief Engineer make of it
+  function devSays() {
+    return [0, 1].map(k => {
+      const f = pick[k].fuel, L = life[pick[k].compound], n = first(k), tn = COMPOUNDS[pick[k].compound].name.toLowerCase(), fs = firstStop(k);
+      let s;
+      if (f - 0.1 <= L - 1.5) s = `${n} stops for fuel on lap ${fs}, and the ${tn}s would have gone to lap ${Math.floor(L)}. Rubber wasted.`;
+      else if (L <= f - 1.6) s = `${n}'s ${tn}s are done by lap ${Math.floor(L)}, so ${(f - L).toFixed(1)} laps of fuel ride round for nothing.`;
+      else s = `${n}: fuel and ${tn}s both run out around lap ${fs}. Tidy.`;
+      if (f < rec[k].fuel - 0.75) s += ' Light car, quick start, an extra stop.';
+      else if (f > rec[k].fuel + 0.75) s += ' Heavy car. Slower until it burns off.';
+      return s;
+    }).join('\n');
+  }
+  function magsSays() {
+    const out = [], has = m => track.mods.includes(m), cs = pick.map(p => p.compound), wet = track.weather.find(w => w.wet);
+    if (wet) out.push(`Rain due around lap ${Math.ceil(wet.lap)}. Whatever we start on comes off for wets then, so don't overbuy.`);
+    if (has('doubleStack')) out.push(firstStop(0) === firstStop(1) ? `Both cars stop on lap ${firstStop(0)}. Double stack. We reset fast or we queue.` : 'Different first stops on a double-stack track. Nobody queues, for once.');
+    if (has('heat') && cs.includes('soft')) out.push('Softs in this heat will go off quick. Watch the rears.');
+    if (has('cold') && cs.includes('hard')) out.push('Hards take an age to warm up up here. First lap will be a slide.');
+    if (cs[0] === 'soft' && cs[1] === 'soft') out.push("Softs on both. Quick and short-lived, like Toby's enthusiasm.");
+    else if (cs[0] === 'hard' && cs[1] === 'hard') out.push('Hards on both. Long and dull. I like long and dull.');
+    else if (cs[0] !== cs[1]) out.push("Split tyres. If one call's wrong, the other one's right.");
+    else out.push('Same tyres on both cars. Safe. Boring, but safe.');
+    return rename(out.slice(0, 2).join(' '));
+  }
+  function carPanel(k, y) {
+    const d = DRIVERS[k], p = pick[k], on = r => ROWS[sel] === r;
+    panel(g, 6, y, 500, 68);
+    g.drawImage(portrait(PEOPLE[k ? 'sanna' : 'nico']), 12, y + 6);
+    text(g, `CAR ${d.num}`, 12, y + 42, '#ff8a1e');
+    text(g, d.name.split(' ')[1].toUpperCase(), 12, y + 52, '#ffffff');
+    // fuel
+    const fy = y + 10;
+    text(g, 'FUEL', 58, fy + 3, on('f' + k) ? '#ffd23a' : '#8a96b0');
+    button(96, fy, 14, 13, '-', () => { sel = ROWS.indexOf('f' + k); fuelStep(k, -1); }, { color: '#5c6a8a', small: true });
+    rect(g, 114, fy + 3, 102, 7, '#05060a'); rect(g, 115, fy + 4, Math.round(100 * p.fuel / TANK), 5, on('f' + k) ? '#ffd23a' : '#4ad8a0');
+    rect(g, 115 + Math.round(100 * rec[k].fuel / TANK), fy + 1, 1, 11, '#7cff8a');
+    button(220, fy, 14, 13, '+', () => { sel = ROWS.indexOf('f' + k); fuelStep(k, 1); }, { color: '#5c6a8a', small: true });
+    text(g, `${p.fuel.toFixed(1)} LAPS OF FUEL`, 242, fy + 3, '#ffffff');
+    if (on('f' + k)) rect(g, 54, fy + 14, 300, 1, '#ffd23a');
+    // tyres
+    const ty = y + 30;
+    text(g, 'TYRES', 58, ty + 4, on('t' + k) ? '#ffd23a' : '#8a96b0');
+    START_TYRES.forEach((c, i) => {
+      const bx = 96 + i * 46, chosen = p.compound === c;
+      rect(g, bx, ty, 42, 16, '#05060a'); rect(g, bx + 1, ty + 1, 40, 14, chosen ? '#2a3a5a' : '#161a26');
+      if (chosen) { rect(g, bx + 1, ty + 1, 40, 1, '#ffd23a'); rect(g, bx + 1, ty + 14, 40, 1, '#ffd23a'); }
+      if (rec[k].compound === c) rect(g, bx + 1, ty + 14, 40, 1, '#7cff8a');
+      tyreIcon(g, bx + 8, ty + 8, c, 4);
+      text(g, TNAME[c], bx + 15, ty + 5, chosen ? '#ffffff' : '#9aa8c8');
+      ui.push({ x: bx, y: ty, w: 42, h: 16, fn: () => { sel = ROWS.indexOf('t' + k); p.compound = c; } });
+    });
+    text(g, `LAST ABOUT ${life[p.compound].toFixed(1)} LAPS`, 242, ty + 4, '#ffffff');
+    if (on('t' + k)) rect(g, 54, ty + 18, 300, 1, '#ffd23a');
+    // the plan that follows from it
+    rect(g, 362, y + 6, 1, 56, '#2a3040');
+    text(g, 'FIRST STOP', 372, y + 10, '#8a96b0');
+    text(g, `LAP ${firstStop(k)}`, 372, y + 20, '#ffd23a', { scale: 2 });
+    text(g, `OF ${track.laps}`, 372 + measure(`LAP ${firstStop(k)}`, 2) + 5, y + 27, '#6a7898');
+    text(g, `DEV: ${rec[k].fuel.toFixed(1)}, ${TNAME[rec[k].compound]}`, 372, y + 48, '#7cff8a');
+  }
+  function thought(who, x, y, w, said) {
+    const p = PEOPLE[who];
+    g.drawImage(portrait(p, t < 1.2 && Math.floor(t * 8) % 2 ? 1 : 0), x, y + 4);
+    text(g, p.name, x + 38, y + 4, '#ffd23a');
+    text(g, p.role.toUpperCase(), x + 44 + measure(p.name), y + 4, '#6a7898');
+    wrap(said, w).slice(0, 7).forEach((l, i) => text(g, l, x + 38, y + 15 + i * 9, '#e8e6dc'));
+  }
+  return {
+    enter() { t = 0; setConditions(track); },
+    update(dt) { t += dt; },
+    draw() {
+      g.drawImage(bgFor(track), 0, 0);
+      g.globalAlpha = 0.86; rect(g, 0, 0, W, H, '#05060a'); g.globalAlpha = 1;
+      topBar(`ROUND ${round + 1} OF ${cal().length}`, `${track.name.toUpperCase()}: STRATEGY`, `${track.laps} LAPS`);
+      carPanel(0, 15);
+      panel(g, 6, 86, 500, 102, { fill: '#10141f' });
+      thought('mags', 12, 88, 200, magsSays());
+      thought('dev', 258, 88, 204, devSays());
+      carPanel(1, 191);
+      button(6, 264, 80, 20, 'BACK', () => go(briefingScene), { color: '#5c6a8a' });
+      button(W / 2 - 66, 264, 132, 20, "DEV'S CALL", () => { sel = 4; reset(); }, { hot: sel === 4, color: '#3a6a9a' });
+      button(W - 146, 264, 140, 20, 'LIGHTS OUT', lightsOut, { hot: sel === 5, color: '#d42a24' });
+    },
+    key(k) {
+      if (k === 'esc') return go(briefingScene);
+      if (k === 'up') { sel = (sel + ROWS.length - 1) % ROWS.length; A.sfx('move'); }
+      if (k === 'down') { sel = (sel + 1) % ROWS.length; A.sfx('move'); }
+      const r = ROWS[sel], d = k === 'left' ? -1 : k === 'right' ? 1 : 0;
+      if (d && r[0] === 'f') fuelStep(+r[1], d);
+      if (d && r[0] === 't') { const p = pick[+r[1]]; p.compound = START_TYRES[clampN(START_TYRES.indexOf(p.compound) + d, 0, 2)]; A.sfx('move'); }
+      if (k === 'enter' || k === 'space') { if (r === 'reset') reset(); else lightsOut(); }
+    },
+  };
+}
 
 // ===== race
 const BOXES = { brw: BOX_X, ros: 96, krn: 416, azv: 640, grh: 760 };
 const firstName = c => c.d.name.split(' ')[0];
 const drvKey = c => c.i === 0 ? 'nico' : 'sanna';
 
-function raceScene(track, round, { practice = false } = {}) {
+function raceScene(track, round, { practice = false, start = null } = {}) {
   setConditions(track);
   const seed = (Date.now() & 0xffff) + round * 7919;
   const r = rng(seed);
-  const race = new Race(track, { seed, round, flagChance: practice ? 0 : 1.5 / cal().length });
+  const race = new Race(track, { seed, round, flagChance: practice ? 0 : 1.5 / cal().length, start });
   const bg = bgFor(track);
   const map = bakeMap(track, 96, 60);
   const dir = new Director(PEOPLE, r);
@@ -567,7 +677,7 @@ function raceScene(track, round, { practice = false } = {}) {
     if (pick === 'none' && c.puncture) pick = race.recommend(c);
     S.stop = new PitStop({
       car: c, track, compound: pick === 'none' ? c.compound : pick, keepTyres: pick === 'none', fuelNow: Math.max(0, c.fuel), fuelNeed: race.fuelNeed(c), rng: r,
-      sfx: (n, p) => A.sfx(n, p), hints: track.hints || round === 0,
+      sfx: (n, p) => A.sfx(n, p), hints: track.hints || round === 0, synthetic: false,
       external: () => laneCars().filter(o => o.moving).map(o => o.x),
     });
     A.duck(true);
@@ -653,6 +763,17 @@ function raceScene(track, round, { practice = false } = {}) {
           break;
         }
         case 'flagEnd': dir.sayFrom(LINES.FLAG.CLEAR, {}, 2); toast('GREEN FLAG', '#7cff8a'); break;
+        case 'finish': {
+          // once both our cars are home, the radio talks about the better of them
+          const ours = race.cars.filter(q => q.player);
+          if (S.postSaid || !ours.every(q => q.finish != null || q.dnf)) break;
+          S.postSaid = true;
+          const fin = ours.filter(q => !q.dnf).sort((a, b) => a.pos - b.pos), top = fin[0], other = fin[1];
+          if (!top) break;
+          const pool = other && other.pos <= 3 ? 'DOUBLE' : top.pos === 1 ? 'WIN' : top.pos <= 3 ? 'PODIUM' : top.pos <= 7 ? 'MIDDLE' : 'POOR';
+          dir.sayFrom(LINES.POST[pool], { ...vars(top), e: other ? firstName(other) : '', q: other ? other.pos : '' }, 2);
+          break;
+        }
         case 'over': break;
       }
     }
@@ -743,6 +864,7 @@ function raceScene(track, round, { practice = false } = {}) {
       else if (c.finish != null) right = ['FIN', '#7cff8a'];
       else if (c.dnf) right = ['OUT', '#ff6a5a'];
       else if (k === 0) right = ['LEAD', '#ffd23a'];
+      else if (!race.chequered && race.order[0].dist - c.dist >= 1) right = ['+' + Math.floor(race.order[0].dist - c.dist) + ' LAP', '#9aa8c8'];
       else right = ['+' + (race.gapToLeader(c) * TV).toFixed(1), '#9aa8c8'];
       text(g, right[0], x0 + w - 3, y, right[1], { align: 'right' });
       tyreIcon(g, x0 + 42, y + 3, c.compound, 1.5);
@@ -913,7 +1035,8 @@ function raceScene(track, round, { practice = false } = {}) {
       setLapsDone(Math.floor(race.order[0].dist));
       dir.update(dt, !!S.stop && S.stop.phase !== 'arrive', S.go ? idlePool : null);
       A.setRain(race.wet);
-      if (race.over) { S.overT += dt; if (S.overT > 2.4) { saveHeard(); endRace(); } }
+      // after the last car home, let the radio finish what it is saying
+      if (race.over) { S.overT += dt; if (S.overT > 2.4 && (!dir.talking || S.overT > 16)) { saveHeard(); endRace(); } }
       if (DEV && window.__pc.bot) for (const c of race.cars) if (c.player && c.state === 'run' && !c.box && ((c.compound !== 'wet' && race.wet > 0.5) || (c.compound === 'wet' && race.wetTarget === 0 && race.wet < 0.4))) race.toggleBox(c);
     },
     draw() {
@@ -989,13 +1112,13 @@ function raceScene(track, round, { practice = false } = {}) {
 
   function pauseMenu() {
     g.globalAlpha = 0.7; rect(g, 0, 0, W, H, '#05060a'); g.globalAlpha = 1;
-    panel(g, W / 2 - 80, 62, 160, 126);
-    text(g, 'PAUSED', W / 2, 72, '#ffd23a', { align: 'center', scale: 2 });
-    ['RESUME', practice ? 'NEW PRACTICE' : 'RESTART RACE', 'OPTIONS', 'QUIT TO TITLE'].forEach((l, i) => button(W / 2 - 60, 102 + i * 22, 120, 18, l, () => pauseAct(i), { hot: S.pauseSel === i }));
+    panel(g, W / 2 - 80, 54, 160, 146);
+    text(g, 'PAUSED', W / 2, 66, '#ffd23a', { align: 'center', scale: 2 });
+    ['RESUME', practice ? 'NEW PRACTICE' : 'RESTART RACE', 'OPTIONS', 'QUIT TO TITLE'].forEach((l, i) => button(W / 2 - 60, 94 + i * 22, 120, 18, l, () => pauseAct(i), { hot: S.pauseSel === i }));
   }
   function pauseAct(i) {
     if (i === 0) S.paused = false;
-    if (i === 1) go(practice ? practiceScene : raceScene(track, round));
+    if (i === 1) go(practice ? practiceScene : raceScene(track, round, { start }));
     if (i === 2) openOptions(obj);
     if (i === 3) go(titleScene);
   }
@@ -1058,7 +1181,8 @@ function resultsScene(track, race, log, pts, round) {
         text(g, String(k + 1), 30, y, k < 3 ? '#ffd23a' : '#9aa8c8', { align: 'right' });
         text(g, c.d.name, 36, y, c.player ? '#ffffff' : '#c8ccd4');
         text(g, '#' + c.num, 132, y, '#6a7898');
-        const gap = c.dnf ? 'DNF' : k === 0 ? 'WINNER' : '+' + ((c.finish + c.penalty - lead.finish - lead.penalty) * TV).toFixed(2);
+        const down = (lead.finLaps || 0) - (c.finLaps || 0);
+        const gap = c.dnf ? 'DNF' : k === 0 ? 'WINNER' : down > 0 ? `+${down} LAP${down > 1 ? 'S' : ''}` :'+' + ((c.finish + c.penalty - lead.finish - lead.penalty) * TV).toFixed(2);
         text(g, gap, 222, y, '#9aa8c8', { align: 'right' });
         if (c.penalty) text(g, 'P', 228, y, '#ff6a5a');
         text(g, pts[c.i] ? '+' + pts[c.i] : '', 250, y, '#7cff8a', { align: 'right' });
@@ -1353,7 +1477,7 @@ const optionsScene = (() => {
 const LAUREL_T = 10;
 function openLaurels() { laurelsBack = seasonScene; go(laurelsScene); }
 const seasonScene = {
-  enter() { A.music('title'); this.t = 0; this.sel = 0; const s = standings(); this.champ = s[0].i === 0; this.pos = s.findIndex(x => x.i === 0) + 1; if (this.champ) A.sfx('cheer'); },
+  enter() { A.music('title'); this.t = 0; this.sel = 2; const s = standings(); this.champ = s[0].i === 0; this.pos = s.findIndex(x => x.i === 0) + 1; if (this.champ) A.sfx('cheer'); },
   update(dt) { this.t += dt; },
   draw() {
     rect(g, 0, 0, W, H, '#0a0c14');
@@ -1376,18 +1500,23 @@ const seasonScene = {
     });
     const q = rename(this.champ ? 'Mags: "Brake dust. It is just brake dust, Toby."' : 'Mags: "Next year. Gloves on, same as always."');
     text(g, q, W / 2, 230, '#9ad8ff', { align: 'center' });
-    button(W / 2 - 150, 250, 140, 20, 'NEW SHORT SEASON', () => newSeason('short'), { hot: true });
-    button(W / 2 + 10, 250, 140, 20, 'NEW LONG SEASON', () => newSeason('long'));
-    // ten seconds of looking at the table, then this fades up
+    button(W / 2 - 150, 246, 140, 18, 'NEW SHORT SEASON', () => newSeason('short'), { hot: this.sel === 0 });
+    button(W / 2 + 10, 246, 140, 18, 'NEW LONG SEASON', () => newSeason('long'), { hot: this.sel === 1 });
+    button(W / 2 - 60, 268, 120, 16, 'TITLE SCREEN', () => go(titleScene), { hot: this.sel === 2, color: '#5c6a8a' });
+    // ten seconds of looking at the table, then this fades up in the corner
     if (this.t > LAUREL_T) {
       g.globalAlpha = Math.min(1, (this.t - LAUREL_T) / 1.5);
-      button(W / 2 - 90, 272, 180, 15, 'REST ON YOUR LAURELS', openLaurels, { hot: this.sel === 1, color: '#b8902a' });
+      button(6, 268, 150, 16, 'REST ON YOUR LAURELS', openLaurels, { hot: this.sel === 3, color: '#b8902a' });
       g.globalAlpha = 1;
     }
   },
   key(k) {
-    if (this.t > LAUREL_T && (k === 'down' || k === 'up')) { this.sel = k === 'down' ? 1 : 0; A.sfx('move'); return; }
-    if (k === 'enter' || k === 'space') { if (this.sel === 1) openLaurels(); else go(titleScene); }
+    const n = this.t > LAUREL_T ? 4 : 3;
+    if (k === 'up' || k === 'left') { this.sel = (this.sel + n - 1) % n; A.sfx('move'); }
+    if (k === 'down' || k === 'right') { this.sel = (this.sel + 1) % n; A.sfx('move'); }
+    if (this.sel >= n) this.sel = 2;
+    if (k === 'enter' || k === 'space') [() => newSeason('short'), () => newSeason('long'), () => go(titleScene), openLaurels][this.sel]();
+    if (k === 'esc') go(titleScene);
   },
 };
 
@@ -1487,12 +1616,19 @@ const breakScene = makeBreak({ g, button, mouse: () => mouse, onContinue: () => 
 // ===== Rest On Your Laurels, after the season review (or from the debug screen)
 // One trophy for each race with a car on the podium, and the big cup for the constructors' title.
 function trophies() {
-  const tiers = save.results.filter(Boolean).map(r => Math.min(r.a, r.b)).filter(p => p <= 3);
+  const races = cal(), list = [];
+  save.results.forEach((r, i) => {
+    if (!r) return;
+    [[r.a, 0], [r.b, 1]].forEach(([pos, k]) => { if (pos <= 3) list.push({ tier: pos, round: i + 1, track: races[i] ? races[i].name : '', driver: DRIVERS[k].name }); });
+  });
   const top = standings()[0];
   const champ = top.i === 0 && top.pts > 0;
   // the debug screen can come here before any racing: dress the case so there is something to see
-  if (laurelsBack === debugScene && !tiers.length) return { tiers: [1, 3, 2, 1, 2, 3, 1, 1], champ: true };
-  return { tiers, champ };
+  if (laurelsBack === debugScene && !list.length) {
+    const demo = [[1, 0, 0], [3, 1, 0], [2, 2, 1], [1, 3, 0], [3, 3, 1], [2, 4, 0], [1, 5, 1], [2, 5, 0]];
+    return { list: demo.map(([tier, i, k]) => ({ tier, round: i + 1, track: TRACKS[i].name, driver: DRIVERS[k].name })), champ: true, year: 2026 };
+  }
+  return { list, champ, year: 2026 };
 }
 let laurelsBack = null;
 const laurelsScene = makeBreak({

@@ -116,7 +116,7 @@ export function sfx(name, p = 0) {
     case 'brake': tone(t, 0.22, 'sine', 1900, 0.06, 1500); noise(t, 0.2, 'highpass', 3000, 1, 0.15); break;
     case 'clunk': tone(t, 0.07, 'square', 320, 0.12, 160); break;
     case 'mew': { const f = p || 720; tone(t, 0.16, 'triangle', f, 0.12, f * 1.4); tone(t + 0.12, 0.2, 'triangle', f * 1.35, 0.1, f * 0.75); break; }
-    case 'purr': noise(t, 0.09, 'lowpass', 170, 1, 0.5); tone(t, 0.08, 'sawtooth', 46, 0.06); break;
+    case 'purr': noise(t, 0.1, 'lowpass', 190, 1, 1.1); tone(t, 0.09, 'sawtooth', 46, 0.16); tone(t, 0.09, 'triangle', 92, 0.08); break;
     case 'ding': tone(t, 0.3, 'sine', 1318, 0.2); break;
     case 'tick': tone(t, 0.05, 'square', 600 + p * 700, 0.1); break;
     case 'blip': tone(t, 0.035, 'square', p || 220, 0.035); break;

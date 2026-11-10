@@ -26,7 +26,7 @@ const s = p => p <= 1 ? p * (1.5 - 0.5 * p) : 1 + (1 - Math.exp(-(p - 1) * 2.2))
 const smooth = t => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
 
 export class PitStop {
-  constructor({ car, track, compound, fuelNow, fuelNeed, rng, sfx = () => {}, hints = false, external = () => [], keepTyres = false }) {
+  constructor({ car, track, compound, fuelNow, fuelNeed, rng, sfx = () => {}, hints = false, external = () => [], keepTyres = false, synthetic = true }) {
     this.car = car;
     this.team = TEAMS[0];
     this.track = track;
@@ -39,6 +39,8 @@ export class PitStop {
     this.sfx = sfx;
     this.hints = hints;
     this.external = external;
+    // In a race the pit lane only has the cars that are really in it; practice invents traffic.
+    this.synthetic = synthetic;
     this.t = 0;
     this.phase = 'arrive';
     this.clock = 0;
@@ -408,7 +410,7 @@ export class PitStop {
   }
 
   updateTraffic(dt) {
-    if (this.phase !== 'arrive' && this.phase !== 'done') {
+    if (this.synthetic && this.phase !== 'arrive' && this.phase !== 'done') {
       this.nextTraffic -= dt;
       if (this.nextTraffic <= 0) {
         const team = TEAMS[1 + Math.floor(this.r() * 4)];

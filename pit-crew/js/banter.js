@@ -11,6 +11,7 @@ import * as FLAG from './lines/flags.js';
 import * as SHUTDOWN from './lines/shutdown.js';
 import * as NEON_DAY from './lines/neonday.js';
 import { DRY_VISIT } from './lines/dryvisit.js';
+import * as POST from './lines/postrace.js';
 
 const IDLE = [
   [['toby', 'Mags, how many wheel nuts have you done in your career?'], ['mags', 'All of them, Toby.']],
@@ -189,6 +190,7 @@ export const LINES = {
   FLAG,
   SHUTDOWN,
   DRY_VISIT,
+  POST,
 };
 
 // Race lengths change with the season, so lines say {L} (or {LL} to open a sentence) for this

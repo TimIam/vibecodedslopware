@@ -3,7 +3,7 @@
 // pick up a kitten, press L for the laser pointer.
 // The cat's face is 16x16, half the size of the 32x32 crew portraits; a kitten's is 9x8.
 import { rect, ellipse, poly, shade, mix, dith, canvas, carSprite } from '../gfx.js';
-import { text, measure } from '../font.js';
+import { text, measure, wrap } from '../font.js';
 import { TEAMS } from '../data.js';
 import { rename } from '../banter.js';
 
@@ -67,6 +67,19 @@ const PALS = {
 };
 
 // ---------------------------------------------------------------- the room
+// Where each trophy stands: one per podium finish (both cars can earn one in the same race),
+// along the middle shelf, then the bottom one, bunching up as the season fills them.
+// The constructors' cup gets the top shelf to itself.
+function trophySlots(data) {
+  const list = (data && data.list) || [], out = [];
+  const rows = list.length <= 6 ? [list] : [list.slice(0, Math.ceil(list.length / 2)), list.slice(Math.ceil(list.length / 2))];
+  rows.forEach((row, r) => {
+    const n = row.length, sp = Math.min(31, 180 / Math.max(1, n - 1 || 1)), y = r ? 120 : 88;
+    row.forEach((tr, i) => out.push({ ...tr, x: Math.round(256 + (i - (n - 1) / 2) * sp), y, big: 1 }));
+  });
+  if (data && data.champ) out.push({ champ: true, x: 256, y: 54, big: 1.4, tier: 1 });
+  return out;
+}
 function cup(b, cx, base, tier, big = 1) {
   const col = big > 1 || tier === 1 ? '#ffd23a' : tier === 2 ? '#d8dce4' : '#c8804a';
   const dk = shade(col, -0.32), hi = shade(col, 0.55), s = big;
@@ -109,12 +122,9 @@ function bakeRoom(data) {
   rect(b, 158, 18, 196, 2, '#0e0806'); rect(b, 158, 124, 196, 2, '#0e0806'); rect(b, 158, 18, 2, 108, '#0e0806'); rect(b, 352, 18, 2, 108, '#0e0806');
   for (let x = 184; x < 340; x += 44) { rect(b, x, 20, 10, 2, '#fff2c0'); rect(b, x + 2, 22, 6, 1, '#d8c080'); }
   for (const y of [54, 88, 120]) { rect(b, 160, y, 192, 2, '#9ab0b8'); rect(b, 160, y, 192, 1, '#d8e4e8'); rect(b, 160, y + 2, 192, 1, 'rgba(0,0,0,.35)'); }
-  const { tiers = [], champ = false } = data || {};
-  const rows = [tiers.slice(0, 6), tiers.slice(6, 12)];
   // the big one on the top shelf, or the place it would have gone
-  if (champ) cup(b, 256, 54, 1, 1.4);
-  else { rect(b, 238, 48, 36, 6, '#4a1a24'); rect(b, 238, 48, 36, 1, '#6a2a34'); }
-  rows.forEach((row, r) => { const y = r ? 120 : 88, n = row.length; row.forEach((tier, i) => cup(b, Math.round(256 + (i - (n - 1) / 2) * 31), y, tier)); });
+  if (!(data && data.champ)) { rect(b, 238, 48, 36, 6, '#4a1a24'); rect(b, 238, 48, 36, 1, '#6a2a34'); }
+  for (const s of trophySlots(data)) cup(b, s.x, s.y, s.tier, s.big);
   // glass
   poly(b, [[176, 20], [204, 20], [168, 122], [160, 122], [160, 66]], 'rgba(255,255,255,.05)');
   poly(b, [[318, 20], [330, 20], [292, 122], [280, 122]], 'rgba(255,255,255,.04)');
@@ -140,6 +150,16 @@ function bakeRoom(data) {
   }
   // moonlight through the window, lying across the boards and the rug
   for (let y = 174; y < 262; y++) { const k = (y - 174) / 88, x0 = Math.round(52 + k * 66), w = 80; for (let x = x0; x < x0 + w; x++) if (dith(x, y, 0.2)) rect(b, x, y, 1, 1, '#7a92c8'); }
+  // food on one side of the room, water on the other: cats won't eat where they drink
+  ellipse(b, FOOD.x, FOOD.y + 1, 10, 4, INK); ellipse(b, FOOD.x, FOOD.y, 9, 3.5, '#c8402a'); ellipse(b, FOOD.x, FOOD.y - 1, 7, 2.5, '#5a2a14');
+  for (let i = 0; i < 9; i++) rect(b, FOOD.x - 5 + (i * 7) % 11, FOOD.y - 2 + (i % 2), 2, 1, i % 3 ? '#9a6a3a' : '#c88a4a');
+  ellipse(b, WATER.x, WATER.y + 1, 10, 4, INK); ellipse(b, WATER.x, WATER.y, 9, 3.5, '#2a6ab0'); ellipse(b, WATER.x, WATER.y - 1, 7, 2.5, '#7ab8e8'); rect(b, WATER.x - 3, WATER.y - 2, 3, 1, '#d8f0ff');
+  // the walk-in litter box beside the trophy case: a hooded tray with a door in the front
+  { const x = BOX.x, y = BOX.y;
+    rect(b, x - 18, y - 24, 36, 25, INK); rect(b, x - 17, y - 23, 34, 23, '#7a8a96'); ellipse(b, x, y - 22, 17, 6, '#7a8a96'); ellipse(b, x, y - 23, 15, 4, '#9aaab6');
+    rect(b, x - 17, y - 4, 34, 4, '#5a6874'); rect(b, x - 17, y - 23, 34, 1, '#b8c6d0');
+    ellipse(b, x, y - 9, 8, 8, INK); rect(b, x - 8, y - 9, 17, 9, INK); ellipse(b, x, y - 9, 7, 7, '#1a1a20'); rect(b, x - 7, y - 9, 15, 9, '#1a1a20');
+    rect(b, x + 11, y - 18, 4, 2, '#5a6874'); }
   // the side table, its lamp, the decanter (the glass is drawn live)
   ellipse(b, 396, 186, 26, 9, INK); ellipse(b, 396, 184, 25, 8, '#4a2c18'); ellipse(b, 396, 183, 24, 7, '#6a4022'); rect(b, 392, 190, 8, 62, '#2e1c10'); rect(b, 392, 190, 2, 62, '#4a2c18'); ellipse(b, 396, 254, 16, 5, '#2e1c10');
   rect(b, 402, 164, 3, 18, '#b89838'); rect(b, 397, 180, 13, 3, '#b89838');
@@ -167,6 +187,7 @@ function bakeRoom(data) {
 }
 
 // ---------------------------------------------------------------- the cats
+const FOOD = { x: 40, y: 200 }, WATER = { x: 356, y: 262 }, BOX = { x: 126, y: 186 };
 const CHASING = new Set(['notice', 'stalk', 'chase', 'wiggle', 'pounce', 'bat']);
 function newCat(kid, pal, x, y) {
   return { kid, P: kid ? KID : MUM, pal, heads: bakeHeads(kid ? KIT_FACE : CAT_FACE, pal), x, y, z: 0, vz: 0, vx: 0, vy: 0, jx: 0, flip: Math.random() < 0.5, s: 'sit', t: 1 + Math.random() * 2, step: 0, lag: 0.15 + Math.random() * 0.5, cool: 0, tx: x, ty: y };
@@ -177,12 +198,12 @@ export default function make(ctx) {
   const { g, W, H, A } = ctx;
   const sfx = (n, p) => { try { A.sfx(n, p); } catch (e) {} };
   const room = bakeRoom(ctx.data);
-  const sparkles = (() => {
-    const { tiers = [], champ = false } = ctx.data || {}, out = [];
-    [tiers.slice(0, 6), tiers.slice(6, 12)].forEach((row, r) => row.forEach((_, i) => out.push([Math.round(256 + (i - (row.length - 1) / 2) * 31) - 3, (r ? 120 : 88) - 19])));
-    if (champ) out.push([250, 26]);
-    return out;
-  })();
+  const slots = trophySlots(ctx.data);
+  const sparkles = slots.map(s => [s.x - Math.round(3 * s.big), s.y - Math.round(19 * s.big)]);
+  const year = (ctx.data && ctx.data.year) || 2026;
+  const ORD = { 1: 'WINNER', 2: 'SECOND', 3: 'THIRD' };
+  const captionOf = s => s.champ ? ['CONSTRUCTORS CHAMPIONS', `${TEAMS[0].name.toUpperCase()}, ${year}`] : [`ROUND ${s.round}: ${s.track.toUpperCase()}`, `${ORD[s.tier]}: ${s.driver.toUpperCase()}`];
+  const slotAt = (x, y) => slots.slice().reverse().find(s => Math.abs(x - s.x) <= 9 * s.big && y >= s.y - 23 * s.big && y <= s.y);
   const mum = newCat(false, PALS.mum, 170, 236);
   const kids = [newCat(true, PALS.ginger, 120, 250), newCat(true, PALS.snow, 214, 256), newCat(true, PALS.smoke, 250, 222), newCat(true, PALS.patch, 92, 216)];
   const cats = [mum, ...kids];
@@ -224,12 +245,27 @@ export default function make(ctx) {
   }
   function idleBrain(c, dt) {
     const P = c.P;
+    if (c.s.startsWith('go-')) {
+      if (moveTo(c, c.tx, c.ty, P.walk, dt) || c.t <= 0) {
+        const job = c.s.slice(3);
+        if (job === 'box') { say(c, 'inbox', 3 + Math.random() * 3); if (!c.kid) note('The board is in closed session.'); }
+        else { c.flip = job === 'eat'; say(c, job, 3 + Math.random() * 3); }
+      }
+      return;
+    }
+    if (c.s === 'inbox' && c.t <= 0) { c.y = BOX.y + 8; say(c, 'sit', 1.5); sfx('tick', 0); return; }
     if (c.t > 0) {
+      if (c.s === 'eat' && Math.random() < dt * 3) sfx('tick', -0.5);
       if (c.s === 'walk' || c.s === 'zoom') { if (moveTo(c, c.tx, c.ty, c.s === 'zoom' ? P.run * 0.8 : P.walk, dt)) c.t = 0; }
       if (c.s === 'nap' && Math.random() < dt * 0.7) zs.push({ x: c.x + 6, y: c.y - P.bh - 8, t: 0 });
       return;
     }
     const roomX = () => FX0 + 16 + Math.random() * (FX1 - FX0 - 32), roomY = () => FY0 + Math.random() * (FY1 - FY0);
+    // now and then: a meal, a drink, or a visit to the box
+    const errand = Math.random();
+    if (errand < 0.09) { c.tx = FOOD.x + (c.kid ? 10 : 16); c.ty = FOOD.y + 2; c.flip = true; say(c, 'go-eat', 8); return; }
+    if (errand < 0.16) { c.tx = WATER.x - (c.kid ? 10 : 16); c.ty = WATER.y - 2; c.flip = false; say(c, 'go-drink', 8); return; }
+    if (errand < 0.2) { c.tx = BOX.x; c.ty = BOX.y + 2; say(c, 'go-box', 8); return; }
     if (!c.kid) {
       const r = Math.random();
       if (r < 0.34) { c.tx = roomX(); c.ty = roomY(); say(c, 'walk', 6); }
@@ -316,8 +352,9 @@ export default function make(ctx) {
           if (c.s === 'pounce') { c.x += c.jx * dt; c.y += c.jy * dt; }
           if (c.z <= 0) { c.z = 0; c.vz = 0; }
         }
-        c.x = clamp(c.x, FX0, FX1); c.y = clamp(c.y, FY0, FY1);
+        c.x = clamp(c.x, FX0, FX1); c.y = clamp(c.y, c.s.startsWith('go-') || c.s === 'eat' || c.s === 'inbox' ? 180 : FY0, FY1);
         if (c.s === 'pet') continue;
+        if (c.s === 'inbox' && dot) { c.y = BOX.y + 8; say(c, 'sit', 0.2); }
         if (c.s === 'tumble' || c.s === 'swat') { if (c.t <= 0) say(c, 'sit', 0.8); continue; }
         if (dot && !(c === mum && grumpy > 0)) chaseBrain(c, dot, dt);
         else if (CHASING.has(c.s)) say(c, 'lost', 1 + Math.random());
@@ -346,7 +383,7 @@ export default function make(ctx) {
       const fill = Math.round(8 * level);
       if (fill > 0) { rect(g, glassX - 4, glassY + 9 - fill, 8, fill, '#b86a1e'); rect(g, glassX - 4, glassY + 9 - fill, 8, 1, '#f0b860'); }
       rect(g, glassX - 3, glassY + 2, 3, 3, '#e8f0f8'); rect(g, glassX - 5, glassY + 9, 10, 2, '#c8d8e8');
-      const list = [...cats].sort((a, b) => a.y - b.y).filter(c => c !== held);
+      const list = [...cats].sort((a, b) => a.y - b.y).filter(c => c !== held && c.s !== 'inbox');
       for (const c of list) drawCat(c, T);
       if (held) drawCat(held, T);
       for (const z of zs) { g.globalAlpha = Math.max(0, 1 - z.t / 1.8); text(g, 'z', z.x + z.t * 8, z.y - z.t * 16, '#c8d4f0'); g.globalAlpha = 1; }
@@ -359,6 +396,13 @@ export default function make(ctx) {
       for (const c of cats) if (c.s === 'lost') text(g, '?', c.x, c.y - c.P.bh - c.P.leg - c.P.hs - 8, '#ffd23a', { align: 'center', outline: INK });
       // the laser, from his hand to wherever the mouse is
       if (laser) drawDot();
+      // a caption for whichever trophy the pointer is over
+      const hov = slotAt(lastMouse.x, lastMouse.y);
+      if (hov) {
+        const [a, b2] = captionOf(hov), w = Math.max(measure(a), measure(b2)) + 12, x = clamp(Math.round(lastMouse.x + 10), 4, W - w - 4), y = clamp(Math.round(lastMouse.y + 12), 4, H - 30);
+        rect(g, x - 1, y - 1, w + 2, 26, INK); rect(g, x, y, w, 24, '#2a1c10'); rect(g, x, y, w, 1, '#b89838');
+        text(g, a, x + 6, y + 4, '#ffd23a'); text(g, b2, x + 6, y + 14, '#f0e4c8');
+      }
       // laser switch
       rect(g, CHIP.x, CHIP.y, CHIP.w, CHIP.h, INK); rect(g, CHIP.x + 1, CHIP.y + 1, CHIP.w - 2, CHIP.h - 2, laser ? '#5a1414' : '#241a16');
       rect(g, CHIP.x + 3, CHIP.y + 2, 11, 11, '#ffffff'); rect(g, CHIP.x + 3, CHIP.y + 11, 11, 2, '#9aa0aa'); text(g, 'L', CHIP.x + 9, CHIP.y + 4, '#0a0a10', { align: 'center' });
@@ -403,6 +447,13 @@ export default function make(ctx) {
       B(-half, -bh - (kid ? 1 : 3), bw, bh + (kid ? 1 : 3), o);
       for (let i = 0; i < 3; i++) B(-half + (kid ? 2 : 5) + i * (kid ? 3 : 9), -bh - (kid ? 1 : 3), kid ? 1 : 3, kid ? 3 : 8, dk);
       hx = dir * (half - (kid ? 2 : 4)); hy = -bh - P.hs + (kid ? 3 : 6); eye = 'closed';
+    } else if (s === 'eat' || s === 'drink') {
+      const by = -P.leg - bh;
+      tail(-half, by + 1, 0.6);
+      B(-half, by, bw, bh, o); B(-half + 2, by + bh - 2, bw - 4, 2, li);
+      for (const lx of [-half + 1, -half + (kid ? 4 : 10), half - (kid ? 6 : 13), half - (kid ? 3 : 6)]) B(lx, by + bh, kid ? 2 : 4, P.leg, lx < 0 ? dk : o);
+      for (let i = 0; i < 3; i++) B(-half + (kid ? 2 : 5) + i * (kid ? 4 : 10), by, kid ? 1 : 3, kid ? 3 : 7, dk);
+      hx = dir * (half + (kid ? 2 : 4)); hy = by + Math.round(P.hs * 0.2) + (Math.floor(T * 6) % 2); eye = 'closed';
     } else if (s === 'tumble') {
       if (Math.floor(T * 12) % 2) dir = -dir;
       B(-half, -bh - 2, bw, bh, li);
@@ -421,7 +472,7 @@ export default function make(ctx) {
       hx = dir * (half + (kid ? 3 : 6)); hy = by - P.hs * 0.55; eye = 'wide';
     } else {
       // standing, walking, stalking
-      const moving = s === 'walk' || s === 'zoom' || s === 'chase' || s === 'stalk';
+      const moving = s === 'walk' || s === 'zoom' || s === 'chase' || s === 'stalk' || s.startsWith('go-');
       const low = s === 'stalk' || s === 'wiggle' ? (kid ? 1 : 5) : 0, leg = P.leg - low, by = -leg - bh;
       const wig = s === 'wiggle' ? Math.round(Math.sin(T * 44)) * (kid ? 1 : 2) : 0;
       const stepA = moving ? Math.round(Math.sin(c.step) * (kid ? 1 : 3)) : 0;

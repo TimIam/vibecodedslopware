@@ -13,6 +13,7 @@ const ACCENT = ['#e8348c', '#18c8d8', '#f2c218', '#8a5cf0', '#ff8a1e'];
 
 // What survives leaving the scene and coming back: high scores, tokens, the prize shelf, the heap.
 const SESSION = { hi: {}, won: [], tokens: 5, change: 0, heap: null };
+export const __session = SESSION; // dev: lets tests fill the shelf and empty the claw
 
 // The cabinets' games come from micro.js, which may not be there yet: placeholders stand in.
 let CABS = [];
@@ -121,7 +122,7 @@ function bakeCab(col, dead) {
   }
   return c;
 }
-function bakeClawSprite() {
+function bakeClawSprite(level = 3) {
   const [c, b] = canvas(54, 72);
   rect(b, 2, 0, 50, 72, INK);
   rect(b, 3, 1, 44, 70, '#3a1a68'); rect(b, 47, 1, 4, 70, '#22103e');
@@ -131,8 +132,16 @@ function bakeClawSprite() {
   rect(b, 6, 38, 38, 8, '#1a1040');
   let s = 91;
   const r = n => { s = (s * 16807) % 2147483647; return Math.floor(s / 2147483647 * n); };
-  const cols = ['#4cc84a', '#ffd23a', '#16b3a3', '#ff7aa8', '#b0703e', '#2c2c34'];
-  for (let i = 0; i < 40; i++) rect(b, 7 + r(34), 34 + r(11), 3, 3, cols[i % 6]);
+  const cols = ['#4cc84a', '#ffd23a', '#16b3a3', '#ff7aa8', '#b0703e', '#f4f4fa'];
+  // the heap, built up in rows from the floor of the well, left of the chute
+  const rows = [0, 1, 2, 4][level];
+  for (let row = 0; row < rows; row++) for (let x = 7 + (row % 2) * 2; x < 33; x += 4) {
+    if (level === 1 && (x * 7 + row) % 3) continue; // a few stragglers
+    if (row === rows - 1 && level > 1 && (x * 5) % 3 === 0) continue;
+    const c = cols[r(6)];
+    rect(b, x, 43 - row * 3, 3, 3, c); rect(b, x, 43 - row * 3, 3, 1, shade(c, 0.4));
+  }
+  rect(b, 36, 32, 1, 14, '#a8c0e8'); rect(b, 36, 32, 1, 1, '#ffd23a');
   rect(b, 24, 14, 1, 9, '#9aa0aa'); rect(b, 21, 23, 7, 2, '#c8ccd4'); rect(b, 20, 25, 2, 3, '#c8ccd4'); rect(b, 27, 25, 2, 3, '#c8ccd4');
   rect(b, 8, 15, 2, 12, '#ffffff'); rect(b, 12, 15, 1, 8, '#ffffff');
   rect(b, 4, 49, 42, 8, '#5a3a98'); rect(b, 4, 49, 42, 1, '#7a5ab8');
@@ -140,17 +149,29 @@ function bakeClawSprite() {
   rect(b, 32, 58, 12, 11, '#120a26'); rect(b, 33, 59, 10, 4, '#2a2040');
   return c;
 }
+// Diet Apricot: one flavour, a backlit plastic front with an apricot on it, buttons down the side.
 function bakeFridge() {
   const [c, b] = canvas(36, 62);
   rect(b, 2, 0, 32, 62, INK);
-  rect(b, 3, 1, 26, 60, '#c8d0dc'); rect(b, 29, 1, 4, 60, '#8a94a4');
-  rect(b, 5, 3, 22, 7, '#e8342c'); text(b, 'SODA', 16, 3, '#ffffff', { align: 'center' });
-  rect(b, 5, 12, 22, 40, '#66c8f0'); rect(b, 6, 13, 20, 38, '#9ae0ff');
-  const cans = ['#e8342c', '#ff8a1e', '#38d860', '#f2c218', '#2457d6'];
-  for (let y = 0; y < 4; y++) { rect(b, 6, 21 + y * 9, 20, 1, '#6a7a8a'); for (let x = 0; x < 5; x++) { rect(b, 7 + x * 4, 15 + y * 9, 3, 6, cans[(x + y * 2) % 5]); rect(b, 7 + x * 4, 15 + y * 9, 3, 1, '#e8eef6'); } }
-  rect(b, 8, 13, 2, 38, 'rgba(255,255,255,.45)');
-  rect(b, 25, 28, 2, 12, '#5a6470');
-  rect(b, 5, 54, 22, 5, '#5a6470');
+  rect(b, 3, 1, 26, 60, '#ece4d6'); rect(b, 29, 1, 4, 60, '#b8ae9c'); rect(b, 3, 1, 26, 1, '#ffffff');
+  // the lit panel, brightest in the middle like a lamp behind plastic
+  for (let y = 4; y < 49; y++) for (let x = 5; x < 24; x++) {
+    const d = Math.hypot((x - 14.5) / 11, (y - 26) / 26);
+    rect(b, x, y, 1, 1, d < 0.45 ? '#ffe2a8' : d < 0.7 ? (dith(x, y, (0.7 - d) * 4) ? '#ffe2a8' : '#ffc070') : d < 0.95 ? (dith(x, y, (0.95 - d) * 4) ? '#ffc070' : '#ff9a3a') : '#f07a28');
+  }
+  rect(b, 4, 3, 25, 10, '#e8542a'); rect(b, 4, 12, 25, 1, '#a8341a');
+  text(b, 'DIET', 16, 5, '#ffffff', { align: 'center' });
+  // the apricot, with its blush and a leaf
+  ellipse(b, 14, 30, 7, 7, '#c8501e'); ellipse(b, 14, 30, 6, 6, '#ff9a3a'); ellipse(b, 16, 31, 4, 4, '#e8642a'); ellipse(b, 12, 27, 2, 2, '#ffd8a0');
+  rect(b, 14, 23, 1, 2, '#6a4a1a'); poly(b, [[15, 23], [20, 20], [17, 24]], '#5aa83a');
+  // a few big bubbles printed on, the live ones rise over the top
+  for (const [x, y, r] of [[8, 40, 2], [20, 37, 1.5], [10, 18, 1.5], [21, 44, 1]]) { ellipse(b, x, y, r + 0.5, r + 0.5, '#fff6e0'); ellipse(b, x, y, r - 0.5, r - 0.5, '#ffd090'); }
+  rect(b, 5, 49, 19, 1, '#c8bca8');
+  // buttons and coin slot down the side
+  for (let i = 0; i < 4; i++) { rect(b, 25, 15 + i * 5, 3, 4, '#2a2420'); rect(b, 25, 15 + i * 5, 3, 3, i ? '#ff9a3a' : '#ffffff'); }
+  rect(b, 25, 36, 3, 6, '#5a5248'); rect(b, 26, 37, 1, 4, '#14121a');
+  // the flap you reach into
+  rect(b, 5, 52, 19, 7, '#2a2420'); rect(b, 6, 53, 17, 4, '#14121a'); rect(b, 6, 53, 17, 1, '#4a4238');
   return c;
 }
 function bakeChange() {
@@ -303,9 +324,11 @@ export default function make({ g, W: SW, H: SH, A }) {
   const myName = () => PEOPLE[me].name;
   const others = ['lou', 'toby', 'pip'].filter(k => k !== me);
   const cabSpr = ACCENT.map(c => bakeCab(c, false)), deadSpr = bakeCab('#555566', true);
-  const clawSpr = bakeClawSprite(), fridgeSpr = bakeFridge(), changeSpr = bakeChange();
+  const clawSprs = [0, 1, 2, 3].map(bakeClawSprite), fridgeSpr = bakeFridge(), changeSpr = bakeChange();
+  const clawSpr = clawSprs[3];
+  const clawLevel = () => { const n = SESSION.heap ? SESSION.heap.length : 99; return n >= 20 ? 3 : n >= 8 ? 2 : n > 0 ? 1 : 0; };
   const M = [
-    { kind: 'soda', x: 42, y: 78, spr: fridgeSpr, hw: 16, hh: 12, label: 'SODA FRIDGE', col: '#3a9ae0' },
+    { kind: 'soda', x: 42, y: 78, spr: fridgeSpr, hw: 16, hh: 12, label: 'DIET APRICOT', col: '#ff9a3a' },
     { kind: 'cab', i: 0, x: 94, y: 78, spr: cabSpr[0], hw: 15, hh: 12, col: ACCENT[0] },
     { kind: 'cab', i: 1, x: 134, y: 78, spr: cabSpr[1], hw: 15, hh: 12, col: ACCENT[1] },
     { kind: 'cab', i: 2, x: 174, y: 78, spr: cabSpr[2], hw: 15, hh: 12, col: ACCENT[2] },
@@ -387,22 +410,37 @@ export default function make({ g, W: SW, H: SH, A }) {
     g.drawImage(room, 0, 0);
     const flick = (T * 3.7) % 11 < 0.3;
     text(g, 'TOKEN GESTURE', 204, 3, flick ? '#6a3a5a' : '#ff5ab4', { align: 'center', scale: 2, shadow: flick ? null : '#5a1a50' });
-    // the prize shelf
+    // the prize shelf: the front row fills first and bunches up; later rows sit behind it,
+    // higher, smaller and darker
     if (!SESSION.won.length) text(g, 'NOTHING YET', 456, 47, '#7a6aa0', { align: 'center' });
     text(g, shelfT, 456, 22, '#a898c8', { align: 'center' });
-    SESSION.won.slice(0, 16).forEach((d, i) => g.drawImage(plushSpr(d), 414 + (i % 8) * 11, i < 8 ? 28 : 46));
-    if (SESSION.won.length > 16) text(g, '+' + (SESSION.won.length - 16), 500, 48, '#ffd23a', { align: 'right', shadow: INK });
+    const ROWS = [{ y: 56, s: 10, tone: 0 }, { y: 51, s: 8, tone: 2 }, { y: 47, s: 6, tone: 4 }], CAP = 18;
+    for (let r = 2; r >= 0; r--) {
+      const list = SESSION.won.slice(r * CAP, (r + 1) * CAP), { y, s, tone } = ROWS[r];
+      if (!list.length) continue;
+      const x0 = 412 + r * 4, x1 = 500 - r * 4 - s, step = list.length > 1 ? Math.min(s + 1, (x1 - x0) / (list.length - 1)) : 0;
+      list.forEach((d, i) => g.drawImage(plushSpr(d, tone), Math.round(x0 + i * step), y - s, s, s));
+    }
     const all = [...M.map(m => ({ y: m.y, m })), ...NPC.map(n => ({ y: n.y, n })), { y: hero.y, hero: true }].sort((a, b) => a.y - b.y);
     for (const a of all) {
       if (a.m) {
-        const m = a.m, sx = m.x - m.spr.width / 2 + (m.kind === 'change' && shake ? (Math.sin(T * 60) * 2 | 0) : 0), sy = m.y - m.spr.height;
+        const m = a.m;
+        if (m.kind === 'claw') m.spr = clawSprs[clawLevel()];
+        const sx = m.x - m.spr.width / 2 + (m.kind === 'change' && shake ? (Math.sin(T * 60) * 2 | 0) : 0), sy = m.y - m.spr.height;
         g.drawImage(m.spr, Math.round(sx), sy);
+        if (m.kind === 'soda') for (let i = 0; i < 5; i++) { const k = (T * 0.22 + i * 0.2) % 1, bx = Math.round(sx + 7 + ((i * 7) % 14) + Math.sin(T * 3 + i) * 0.8), by = Math.round(sy + 46 - k * 38); rect(g, bx, by, 1, 1, '#fff6e0'); if (i % 2) { rect(g, bx - 1, by + 1, 1, 1, '#fff6e0'); rect(g, bx + 1, by + 1, 1, 1, '#fff6e0'); rect(g, bx, by + 2, 1, 1, '#fff6e0'); } }
         if (m.kind === 'cab') { attract(g, sx + 7, sy + 18, 18, 14, m.i, T, ACCENT[m.i]); if (T * 1.2 % 1 < 0.5) rect(g, sx + 6, sy + 8, 2, 2, '#ffffff'); }
       } else if (a.n) person(g, a.n.x, a.n.y + (Math.sin(T * 2 + a.n.phase) > 0.6 ? -1 : 0), a.n.dir, 0, a.n.look);
       else person(g, hero.x, hero.y, hero.dir, hero.walk, LOOK[me]());
     }
     for (const c of coins) rect(g, c.x, c.y, 3, 3, '#ffd23a');
     const talker = NPC.find(n => Math.hypot(n.x - hero.x, n.y - hero.y) < 30);
+    if (say) bubble(g, hero.x, hero.y - 30, say.line);
+    else if (talker) bubble(g, talker.x, talker.y - 30, talker.says(), talker.head());
+    rect(g, 4, 4, 110, 11, INK); rect(g, 5, 5, 108, 9, '#14182a');
+    text(g, 'TOKENS ' + SESSION.tokens, 8, 6, '#ffd23a');
+    text(g, 'WON ' + SESSION.won.length, 110, 6, '#c858ff', { align: 'right' });
+    // the floating name plate sits over everything in the room, under only the host's button
     if (near) {
       const r = plate(near), t = label(near);
       rect(g, r.x - 1, r.y - 1, r.w + 2, r.h + 2, INK); rect(g, r.x, r.y, r.w, r.h, '#14182a');
@@ -411,11 +449,6 @@ export default function make({ g, W: SW, H: SH, A }) {
       rect(g, kx, r.y + 2, 33, 9, T * 2 % 1 < 0.6 ? '#ffd23a' : '#c89418');
       text(g, 'SPACE', kx + 2, r.y + 3, '#14182a');
     }
-    if (say) bubble(g, hero.x, hero.y - 30, say.line);
-    else if (talker) bubble(g, talker.x, talker.y - 30, talker.says(), talker.head());
-    rect(g, 4, 4, 110, 11, INK); rect(g, 5, 5, 108, 9, '#14182a');
-    text(g, 'TOKENS ' + SESSION.tokens, 8, 6, '#ffd23a');
-    text(g, 'WON ' + SESSION.won.length, 110, 6, '#c858ff', { align: 'right' });
     if (!hero.moved) text(g, 'WASD OR ARROWS TO WALK', SW / 2, 259, '#ffffff', { align: 'center', outline: INK });
   }
 

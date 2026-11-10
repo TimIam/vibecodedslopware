@@ -438,7 +438,8 @@ function scaffold() {
   const G = [[0, 45, 64, 45], [3, 33, 27, 37], [36, 37, 60, 33], [9, 27, 30.5, 23], [30.5, 23, 54, 27], [31, 15, 60, 10]];
   const surf = (s, x) => s[1] + (s[3] - s[1]) * (x - s[0]) / (s[2] - s[0]);
   const LADDERS = [[24, 0, 1], [50, 0, 2], [14, 1, 3], [44, 2, 4], [36, 4, 5]].map(([x, lo, up]) => ({ x, top: surf(G[up], x), bot: surf(G[lo], x) }));
-  const TOP = G[5], TROPHY = 52, STACK = 58, JUMP = 44, GRAV = 176;
+  // JUMP clears 6.5 px: one more head's height than it used to.
+  const TOP = G[5], TROPHY = 52, STACK = 58, JUMP = Math.sqrt(2 * 176 * 6.5), GRAV = 176;
   let p, tyres, shed, lives, round, pause, hurt, clock, roundT;
   // The first girder at column x whose surface lies between y heights a and b, or -1.
   const girderAt = (x, a, b, skip = -1) => {
@@ -451,6 +452,18 @@ function scaffold() {
     return best;
   };
   const place = () => { p = { x: 5, y: 45, vx: 0, vy: 0, air: false, lad: null, walk: 0 }; tyres = []; shed = 0.8; hurt = false; roundT = 0; };
+  // Hit tests use the exact pixels each sprite is drawn with (see paint()).
+  const playerPix = () => {
+    const x = Math.round(p.x), y = Math.round(p.y), step = Math.floor(p.walk * 8) % 2;
+    const px = [[x, y - 5], [x - 1, y - 4], [x, y - 4], [x + 1, y - 4], [x - 1, y - 3], [x, y - 3], [x + 1, y - 3], [x - 1, y - 2], [x + 1, y - 2]];
+    px.push(step ? [x + 1, y - 1] : [x - 1, y - 1]);
+    return px;
+  };
+  const RING = [[0, 0], [1, 0], [2, 0], [0, 1], [2, 1], [0, 2], [1, 2], [2, 2]];
+  const touches = t => {
+    const x0 = Math.floor(t.x - 1.5), y0 = Math.floor(t.y - 3), mine = new Set(playerPix().map(([a, b]) => a + ',' + b));
+    return RING.some(([a, b]) => mine.has((x0 + a) + ',' + (y0 + b)));
+  };
   const interval = () => Math.max(0.85, 2.1 - round * 0.2) * rnd(0.8, 1.3);
   const movePlayer = (dt, io) => {
     const mx = moveX(io), my = moveY(io);
@@ -526,7 +539,7 @@ function scaffold() {
       for (const t of tyres) {
         const dx = Math.abs(p.x - t.x), gap = t.y - p.y;
         if (t.y < p.y - 1 && !p.lad && !t.air) continue; // on the girder overhead: no bumping heads through steel
-        if (dx < 2.5 && p.y > t.y - 3 && p.y - 5 < t.y) { lives--; hurt = true; pause = 1.1; return true; }
+        if (touches(t)) { lives--; hurt = true; pause = 1.1; return true; }
         if (p.air && !t.jumped && dx < 2 && gap >= 3 && gap < 9) { t.jumped = true; g.score += 20; }
       }
       if (Math.abs(p.x - TROPHY) < 3 && Math.abs(p.y - surf(TOP, TROPHY)) < 6) {
