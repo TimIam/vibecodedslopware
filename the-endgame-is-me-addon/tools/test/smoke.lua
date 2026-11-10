@@ -50,9 +50,10 @@ local function checkPicture(where)
   local gp = grid.points.TOPLEFT
   local seen, bad = {}, 0
   local all = {}
-  for _, strip in ipairs(grid.children) do
+  for _, strip in ipairs(D.strips) do
+    assert(Stub.visible(strip), where .. ": a strip of the picture is hidden")
     assert(#strip.regions * 4 <= 65535, "a strip of the grid has too many vertices for one batch")
-    for _, t in ipairs(strip.regions) do all[#all + 1] = t end
+    for _, t in ipairs(strip.regions) do assert(t.shown, where .. ": a cell of the picture is hidden"); all[#all + 1] = t end
   end
   for _, t in ipairs(all) do
     local p = t.points.TOPLEFT
@@ -79,7 +80,32 @@ assert(f and f:IsShown(), "the slash command did not open the window")
 local t = os.clock()
 local n = settle("building the screen")
 say(string.format("screen built in %d frames (%.2f s of Lua), %d textures", n, os.clock() - t, Stub.textures))
+-- First run: the display check. Say no to both ways, sit through both measurements, then run it again and say yes.
+assert(A.mode == "check", "a first run should start with the display check, got " .. A.mode)
+local function shown() local n = 0; for _, strip in ipairs(D.strips) do for _, t in ipairs(strip.regions) do if t.shown then n = n + 1 end end end return n end
+assert(shown() == 57600 and D.strips[1].clips == true, "the first card should be up, strips clipping")
+Stub.click("No: black")
+assert(A.mode == "check" and D.strips[1].buffer == true and D.strips[1].clips == false and shown() == 57600, "the second card should use buffers")
+Stub.key(D.view, "SPACE", true)   -- "my interface vanished"
+assert(A.mode == "count" and shown() == 0, "after both ways fail it should offer to measure, with nothing showing")
+Stub.click("Start measuring")
+frames(300)
+assert(shown() > 3840 and shown() < 57600, "measuring A should be part way up")
+local partway = shown()
+Stub.key(D.view, "SPACE", true)
+assert(shown() == 0, "SPACE during a measurement must hide every cell")
+frames(200)   -- the pause, then B runs
+assert(D.strips[1].parent == D.clipAll, "measurement B puts every strip under one clipping frame")
+frames(60 * 30)   -- nobody presses anything: B runs to the end and times out
+assert(A.mode == "nodisplay" and shown() == 0, "expected the dead end, got " .. A.mode)
+assert(TheEndgameIsMeDB.probe.counts.plain == partway and tostring(TheEndgameIsMeDB.probe.counts.oneclip):find("none"), "the measurements were not recorded")
+assert(TheEndgameIsMeDB.display == nil)
+SlashCmdList["THEENDGAMEISME"]("probe")
+assert(A.mode == "check", "/endgame probe should start the check again")
+Stub.click("Yes, all of it")
+assert(TheEndgameIsMeDB.display == "clip" and D.strips[1].clips == true and D.strips[1].parent == D.view, "yes should settle on clipped strips")
 assert(A.mode == "menu", "expected the menu, got " .. A.mode)
+assert(shown() == 57600, "the picture should be showing behind the menu")
 assert(not D.view.keyboard, "the menu should not take the keyboard")
 assert(not Stub.button("Continue").on, "Continue should be off with no save")
 

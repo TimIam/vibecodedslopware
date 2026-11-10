@@ -148,17 +148,19 @@ function D.create()
   return f
 end
 
--- Makes the 57,600 textures. Meant to run inside the loader coroutine: it pauses (RT.breathe) every few hundred.
+-- Makes the 57,600 textures, hidden, eight rows to a frame ("strip"). Meant to run inside the loader coroutine: it
+-- pauses (RT.breathe) after every row. Nothing is shown until showCount / showAll.
+local strips = {}
+D.strips = strips
 function D.build()
   if D.built then return end
-  local grid = D.grid
+  local grid, view = D.grid, D.view
   local strip = nil
   for gy = 0, H - 1 do
-    -- Eight rows to a frame. One frame holding every texture would be 230,000 vertices in a single batch, more than
-    -- a 16-bit index can address, and a frame's textures also get slower to add the more it already has.
     if gy % 8 == 0 then
-      strip = _G.CreateFrame("Frame", nil, grid)
-      strip:SetAllPoints(grid)
+      strip = _G.CreateFrame("Frame", nil, view)
+      strip:SetAllPoints(view)
+      strips[#strips + 1] = strip
     end
     D.progress = gy / H
     for gx = 0, W - 1 do
@@ -168,6 +170,7 @@ function D.build()
       t:SetSize(1, 1)
       t:SetPoint("TOPLEFT", grid, "TOPLEFT", gx, -gy)
       t:SetVertexColor(0.078, 0.102, 0.07)
+      t:Hide()
       tex[gy * W + gx + 1] = t
     end
     RT.breathe()
@@ -176,7 +179,73 @@ function D.build()
   for gx = 0, W - 1 do colX[gx] = gx end
   for gy = 0, H - 1 do rowY[gy] = gy end
   laidX, laidY = 0, 0
+  D.shown = 0
   D.built = true
+  Screen.invalidate()
+end
+
+-- How the strips are handed to the client's renderer. This matters more than it should: in the client, 57,600
+-- textures under ONE clipping frame drew nothing at all (the rest of the interface was fine), and 57,600 textures
+-- with no clipping made the client stop drawing its whole interface. So the picture is cut into groups the renderer
+-- treats separately, and the addon asks the player which way actually shows up (see the display check in app.lua).
+--   "clip"     every strip is its own clipping frame the size of the picture
+--   "buffer"   every strip is drawn into its own off-screen buffer
+--   "plain"    nothing special (what took the interface down; only used to measure where the limit is)
+--   "oneclip"  all the strips inside one clipping frame (what drew nothing; only used to measure)
+function D.canBuffer()
+  local v = D.view
+  return v ~= nil and v.SetIsFrameBuffer ~= nil and v.SetFlattensRenderLayers ~= nil
+end
+function D.setMode(mode)
+  D.mode = mode
+  local view = D.view
+  if mode == "oneclip" and not D.clipAll then
+    D.clipAll = _G.CreateFrame("Frame", nil, view)
+    D.clipAll:SetAllPoints(view)
+    if D.clipAll.SetClipsChildren then D.clipAll:SetClipsChildren(true) end
+  end
+  local parent = mode == "oneclip" and D.clipAll or view
+  for _, strip in ipairs(strips) do
+    if strip.SetClipsChildren then strip:SetClipsChildren(mode == "clip") end
+    if D.canBuffer() then
+      strip:SetFlattensRenderLayers(mode == "buffer")
+      strip:SetIsFrameBuffer(mode == "buffer")
+    end
+    strip:SetParent(parent)
+    strip:ClearAllPoints()
+    strip:SetAllPoints(view)
+    strip:Show()
+  end
+end
+
+-- shows the first n cells, in reading order, and hides the rest
+function D.showCount(n)
+  local from = D.shown or 0
+  if n > W * H then n = W * H end
+  if n < 0 then n = 0 end
+  if n > from then for i = from + 1, n do tex[i]:Show() end
+  else for i = n + 1, from do tex[i]:Hide() end end
+  D.shown = n
+end
+function D.showAll() D.showCount(W * H) end
+function D.hideAll() D.showCount(0) end
+
+-- the test card: a white border, and a band of colour for every strip, so a missing strip is a dark band
+local BARS = { { 0.90, 0.30, 0.25 }, { 0.95, 0.75, 0.25 }, { 0.35, 0.75, 0.35 }, { 0.30, 0.65, 0.90 }, { 0.65, 0.45, 0.85 }, { 0.90, 0.60, 0.75 } }
+function D.pattern()
+  for gy = 0, H - 1 do
+    local c = BARS[floor(gy / 8) % #BARS + 1]
+    local k = 0.65 + 0.35 * ((gy % 8) / 7)
+    for gx = 0, W - 1 do
+      local t = tex[gy * W + gx + 1]
+      if gx < 2 or gx >= W - 2 or gy < 2 or gy >= H - 2 then t:SetVertexColor(1, 1, 1) else t:SetVertexColor(c[1] * k, c[2] * k, c[3] * k) end
+    end
+  end
+  Screen.invalidate()
+end
+-- every cell back to night; the next frame the game shows resends them all
+function D.blank()
+  for i = 1, W * H do tex[i]:SetVertexColor(0.078, 0.102, 0.07) end
   Screen.invalidate()
 end
 

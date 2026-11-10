@@ -52,7 +52,19 @@ function Frame:SetFrameLevel(n) self.level = n end
 function Frame:GetFrameLevel() return self.level or 1 end
 function Frame:StartMoving() self.moving = true end
 function Frame:StopMovingOrSizing() self.moving = false end
-Frame.SetFrameStrata, Frame.SetClampedToScreen, Frame.RegisterForDrag, Frame.SetClipsChildren = noop, noop, noop, noop
+Frame.SetFrameStrata, Frame.SetClampedToScreen, Frame.RegisterForDrag = noop, noop, noop
+function Frame:SetClipsChildren(on) self.clips = on and true or false end
+function Frame:SetIsFrameBuffer(on) self.buffer = on and true or false end
+function Frame:SetFlattensRenderLayers(on) self.flat = on and true or false end
+function Frame:SetParent(p)
+  if self.parent then for i, c in ipairs(self.parent.children) do if c == self then table.remove(self.parent.children, i); break end end end
+  self.parent = p
+  if p then p.children[#p.children + 1] = self end
+end
+function Frame:GetWidth() return self.w or 0 end
+function Frame:GetHeight() return self.h or 0 end
+function Frame:GetFrameStrata() return "HIGH" end
+function Frame:GetAlpha() return 1 end
 -- only a frame anchored by its bottom left to UIParent, or centred, needs working out here
 function Frame:GetLeft()
   if next(self.points) == nil then return nil end   -- not placed yet: the client says nil too

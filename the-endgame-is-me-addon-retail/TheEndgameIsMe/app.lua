@@ -36,7 +36,9 @@ local function trace(err)
 end
 -- runs fn; an error is printed and logged instead of vanishing (the client hides Lua errors by default)
 local function guard(what, fn, ...)
-  local ok, err = xpcall(fn, trace, ...)
+  local a, b, c = ...
+  -- Lua 5.1's xpcall hands no arguments on, so they go in through a closure
+  local ok, err = xpcall(function() return fn(a, b, c) end, trace)
   if not ok then
     note("ERROR in " .. what .. ": " .. tostring(err))
     RT.print("error in " .. what .. ": " .. tostring(err))
@@ -97,17 +99,18 @@ end
 
 -- ------------------------------------------------------------------------------------------------ modes
 
-local PANELS = { "menu", "pause", "over", "won", "store", "look", "loading", "error" }
+local PANELS = { "menu", "pause", "over", "won", "store", "look", "loading", "error", "check", "count", "nodisplay" }
 local build = {}   -- name → function that makes that panel the first time it is wanted
 
 function A.setMode(mode)
   note("mode " .. tostring(mode))
   A.mode = mode
-  local shown = ({ menu = "menu", paused = "pause", over = "over", won = "won", store = "store", look = "look", loading = "loading", error = "error" })[mode]
+  local shown = ({ menu = "menu", paused = "pause", over = "over", won = "won", store = "store", look = "look", loading = "loading", error = "error",
+    check = "check", count = "count", nodisplay = "nodisplay" })[mode]
   if shown and not ui[shown] then build[shown]() end
   for _, n in ipairs(PANELS) do if ui[n] then if n == shown then ui[n]:Show() else ui[n]:Hide() end end end
-  if ui.dim then if shown and shown ~= "loading" and shown ~= "look" then ui.dim:Show() else ui.dim:Hide() end end
-  local playing = mode == "play" or mode == "ending"
+  if ui.dim then if shown and shown ~= "loading" and shown ~= "look" and shown ~= "check" and shown ~= "count" then ui.dim:Show() else ui.dim:Hide() end end
+  local playing = mode == "play" or mode == "ending" or mode == "check" or mode == "count"
   A.keys, A.press, A.mouseL = {}, {}, false
   local view = D.view
   view:EnableKeyboard(playing)
@@ -156,6 +159,122 @@ local function firstFrame(g, bare)
   A.R.render(g, { bare = bare, mx = 160, my = 90 })
   RT.fillSheets = false
   if RT.prefillBoss then RT.prefillBoss(32, true) end   -- one sprite for every heading before the fight starts
+end
+
+-- ------------------------------------------------------------------------------------------------ the display check
+
+-- The picture is 57,600 textures, and this client's renderer has limits nobody documents: handed over one way it
+-- draws nothing, another way it stops drawing the whole interface (see Display.setMode). The addon cannot see what
+-- reached the screen, so the first time it opens it shows a test card each way and asks. The answer is remembered
+-- (DB.display). If no way works it measures where the limits are, so the numbers can be read from the saved log.
+local C = nil   -- the check in progress
+
+local function afterDisplay()
+  D.blank()
+  D.showAll()
+  A.setMode("menu")
+  note("display ready in mode " .. tostring(D.mode))
+end
+
+local function tryMode()
+  local mode = C.modes[C.i]
+  note("display check: trying '" .. mode .. "'")
+  D.hideAll()
+  D.setMode(mode)
+  D.pattern()
+  D.showAll()
+  C.phase, C.t = "ask", 0
+  A.setMode("check")
+end
+
+local function measureIntro()
+  D.hideAll()
+  C.phase = "intro"
+  A.setMode("count")
+end
+
+function A.startCheck(measureOnly)
+  local modes = { "clip" }
+  if D.canBuffer() then modes[#modes + 1] = "buffer" end
+  C = { modes = modes, i = 1, answers = {}, counts = {}, fps = {} }
+  A.check = C
+  ns.DB.display = nil
+  note("display check started; buffer frames available: " .. tostring(D.canBuffer()))
+  if measureOnly then measureIntro() else tryMode() end
+end
+
+-- the player's verdict on the card that is up: "yes", "no", or "space" (their interface vanished)
+local function answer(how)
+  if not C or C.phase ~= "ask" then return end
+  local mode = C.modes[C.i]
+  C.answers[mode] = how
+  C.fps[mode] = A.fps
+  note(string.format("display check: '%s' answered %s after %.1f s, client at %s fps", mode, how, C.t, tostring(A.fps and floor(A.fps))))
+  if how == "yes" then
+    ns.DB.display = mode
+    ns.DB.probe = { answers = C.answers, fps = C.fps }
+    C = nil; A.check = nil
+    afterDisplay()
+    return
+  end
+  D.hideAll()
+  C.i = C.i + 1
+  if C.modes[C.i] then tryMode() else measureIntro() end
+end
+
+-- Measuring: cells are switched on four rows at a time until the player says something vanished.
+local STAGES = { { mode = "plain", label = "A" }, { mode = "oneclip", label = "B" } }
+local function startStage(n)
+  local st = STAGES[n]
+  if not st then
+    D.hideAll()
+    ns.DB.probe = { answers = C.answers, fps = C.fps, counts = C.counts }
+    note("display check finished: no way of drawing works; counts plain=" .. tostring(C.counts.plain) .. " oneclip=" .. tostring(C.counts.oneclip))
+    C.phase = "done"
+    A.setMode("nodisplay")
+    return
+  end
+  C.stage, C.phase, C.count, C.t, C.hold = n, "run", 0, 0, 0
+  D.hideAll()
+  D.setMode(st.mode)
+  D.pattern()
+  note("measuring " .. st.label .. " (" .. st.mode .. ")")
+  if ui.count then ui.count.refresh() end
+end
+local function stageOver(result)
+  local st = STAGES[C.stage]
+  C.counts[st.mode] = result
+  note(string.format("measured %s (%s): %s, client at %s fps", st.label, st.mode, tostring(result), tostring(A.fps and floor(A.fps))))
+  D.hideAll()
+  C.phase, C.t = "pause", 0
+  if ui.count then ui.count.refresh() end
+end
+local function checkTick(elapsed)
+  if not C then return end
+  C.t = (C.t or 0) + elapsed
+  if C.phase == "run" then
+    if C.count < GW * GH then
+      if C.t >= 0.3 then
+        C.t = 0
+        -- a row at a time to begin with: if a group gives up early, the count says how early
+        C.count = C.count + (C.count < GW * 12 and GW or GW * 4)
+        D.showCount(C.count)
+        D.info:SetText("test " .. STAGES[C.stage].label .. ": " .. RT.commas(C.count) .. " squares")
+        if ui.count then ui.count.refresh() end
+      end
+    else
+      -- everything is up; give the player a few seconds to say it vanished
+      C.hold = C.hold + elapsed
+      if C.hold > 5 then stageOver("none up to " .. (GW * GH)) end
+    end
+  elseif C.phase == "pause" then
+    if C.t > 2.5 then startStage(C.stage + 1) end
+  end
+end
+local function checkSpace()
+  if not C then return end
+  if C.phase == "ask" then answer("space")
+  elseif C.phase == "run" then stageOver(C.count) end
 end
 
 -- ------------------------------------------------------------------------------------------------ flow
@@ -297,7 +416,9 @@ local MOVE = { W = true, A = true, S = true, D = true, UP = true, DOWN = true, L
 
 local function onKeyDown(self, key)
   local used = true
-  if A.mode == "ending" then
+  if A.mode == "check" or A.mode == "count" then
+    if key == "SPACE" then guard("the display check", checkSpace) else used = false end
+  elseif A.mode == "ending" then
     if key == "ENTER" or key == "SPACE" or key == "ESCAPE" then endingDone() else used = false end
   elseif A.mode == "play" then
     if key == "ESCAPE" or key == "P" then A.pause()
@@ -473,6 +594,7 @@ local function onUpdate(self, elapsed)
       if not ok then fail(err) return end
     end
   end
+  if mode == "check" or mode == "count" then guard("the display check", checkTick, elapsed) end
   if mode ~= "look" and A.lookPlain then
     A.lookPlain = false
     Render.previews = RT.Map()   -- let go of the preview sheets
@@ -503,6 +625,51 @@ build.loading = function()
   s:SetText("painting pixels")
   p.status = s
   p.refresh = function() t:SetText(A.loadLabel or "LOADING") end
+end
+
+build.check = function()
+  local p = panel("check", 214, 70)
+  local title = line(p, 7, "TOP", 0, -5, 1, 0.9, 0.6)
+  local body = line(p, 5, "TOP", 0, -16, 0.93, 0.89, 0.78)
+  body:SetWidth(204)
+  body:SetText("Is the picture behind this box filled with coloured stripes, edge to edge, inside a white border?")
+  button(p, "Yes, all of it", 92, 13, function() answer("yes") end):SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 10, 14)
+  button(p, "No: black or patchy", 92, 13, function() answer("no") end):SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -10, 14)
+  line(p, 4.5, "BOTTOM", 0, 4, 1, 0.75, 0.5):SetText("If your whole interface vanishes, press SPACE to bring it back.")
+  p.refresh = function() if C then title:SetText("DISPLAY TEST " .. C.i .. " OF " .. #C.modes) end end
+end
+
+build.count = function()
+  local p = panel("count", 250, 62)
+  p:ClearAllPoints(); p:SetPoint("BOTTOM", D.over, "BOTTOM", 0, 6)
+  local title = line(p, 7, "TOP", 0, -5, 1, 0.9, 0.6)
+  local body = line(p, 4.8, "TOP", 0, -16, 0.93, 0.89, 0.78)
+  body:SetWidth(240)
+  local start = button(p, "Start measuring", 100, 13, function() startStage(1) end)
+  start:SetPoint("BOTTOM", p, "BOTTOM", 0, 5)
+  p.refresh = function()
+    if not C then return end
+    if C.phase == "intro" then
+      title:SetText("NEITHER WAY SHOWED THE PICTURE")
+      body:SetText("Two short measurements will find out why. Stripes fill the picture from the top. The moment they vanish, or your whole interface vanishes, press SPACE. If they never appear, press SPACE. If nothing goes wrong, just wait.")
+      start:Show()
+    else
+      start:Hide()
+      local st = STAGES[C.stage]
+      title:SetText("MEASURING " .. (st and st.label or "") .. " OF B")
+      if C.phase == "pause" then body:SetText("Noted. The next one starts in a moment.")
+      else body:SetText(RT.commas(C.count or 0) .. " squares showing. Press SPACE the moment the stripes, or your whole interface, vanish.") end
+    end
+  end
+end
+
+build.nodisplay = function()
+  local p = panel("nodisplay", 240, 62)
+  line(p, 7, "TOP", 0, -6, 1, 0.9, 0.6):SetText("THE PICTURE CANNOT BE DRAWN YET")
+  local body = line(p, 5, "TOP", 0, -18, 0.93, 0.89, 0.78)
+  body:SetWidth(228)
+  body:SetText("This client would not show the game's picture either way. The measurements are saved when you type /reload. Do that, then tell Claude it is done.")
+  button(p, "Close", 70, 12, function() A.close() end):SetPoint("BOTTOM", p, "BOTTOM", 0, 5)
 end
 
 build.error = function()
@@ -791,9 +958,19 @@ function A.open()
       A.R = Render.createRenderer()
       Render.setCalm(false)   -- the window does the shaking (see display.lua), so the renderer's own switch stays on
       note("renderer made")
-    end, function() A.setMode("menu"); note("menu panel shown: " .. tostring(ui.menu and ui.menu:IsShown()) .. ", visible " .. tostring(ui.menu and ui.menu.IsVisible and ui.menu:IsVisible())) end)
+    end, function()
+      local mode = ns.DB.display
+      if mode == "clip" or (mode == "buffer" and D.canBuffer()) then
+        D.setMode(mode)
+        afterDisplay()
+      else
+        A.startCheck(A.measureFirst)
+        A.measureFirst = nil
+      end
+    end)
   elseif A.mode == "closed" then
-    A.setMode(A.wasMode == "paused" and "paused" or A.wasMode == "store" and "store" or "menu")
+    if not ns.DB.display then A.startCheck(A.measureFirst); A.measureFirst = nil
+    else A.setMode(A.wasMode == "paused" and "paused" or A.wasMode == "store" and "store" or "menu") end
   end
 end
 
@@ -891,10 +1068,15 @@ _G.SlashCmdList["THEENDGAMEISME"] = function(msg)
     ns.DB.pos = nil
     if D.frame then D.frame:ClearAllPoints(); D.frame:SetPoint("CENTER", _G.UIParent, "CENTER", 0, 20); D.snap() end
     RT.print("window moved back to the middle.")
+  elseif cmd == "probe" or cmd == "measure" then
+    -- run the display check again (probe), or go straight to measuring the renderer's limits (measure)
+    ns.DB.display = nil
+    if D.built and D.frame and D.frame:IsShown() and not A.job then guard("the display check", A.startCheck, cmd == "measure")
+    else A.measureFirst = cmd == "measure"; if not (D.frame and D.frame:IsShown()) then A.toggle() end end
   elseif cmd == "log" then
     for _, l in ipairs(ns.DB.log or {}) do RT.print(l) end
   elseif cmd == "help" or cmd == "?" then
-    RT.print("/endgame opens and closes the game.  /endgame scale <1-8 or auto>,  fps <10-240>,  perf,  calm,  mute,  reset,  log")
+    RT.print("/endgame opens and closes the game.  /endgame scale <1-8 or auto>,  fps <10-240>,  perf,  calm,  mute,  reset,  log,  probe")
   else
     A.toggle()
   end
