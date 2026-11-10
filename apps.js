@@ -1256,6 +1256,13 @@ window.SLOPWARE = {
      "note": "Charge golf shot, one fighting swing, a sparring partner",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 23,
+     "date": "2026-11-10T10:58:34-07:00",
+     "note": "active ragdolls on Rapier",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
