@@ -31,7 +31,7 @@ const SESSIONS = {
   "pit-crew": ["1aea2484"], "the-endgame-is-me": ["30bbe722"], "projection-mayhem": ["9aea4264"],
   "binding-order": ["73ca41e4"], "hostile-fauna": ["f0033dac"], shop: ["18796b08"], "park-inspector": ["2108b4e3"],
   wasteland: ["4c2439ef"], antfarm: ["bb8a5495"], snowglobe: ["f7ab5567"], "dit-happens": ["4219778b"],
-  arcade: ["81fba3dd"], "puck-around": ["71ed36ab"],
+  arcade: ["81fba3dd"], "puck-around": ["71ed36ab"], reviewbomb: ["116b7a55"],
 };
 // Built in the same session as another game: its prompts and tokens are counted there.
 // Games whose folder was renamed: new name -> old name. History before the move is read from the old folder, and

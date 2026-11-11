@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Reviewbomb the Slop</title>
+<meta name="description" content="Log into a stranger's Vapor account and review a game that disclosed AI. Read the store page, read the disclosure, pick what to say. Fair, specific reviews go viral. Going nuclear on two lines of autocomplete gets you ratio'd.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💣</text></svg>">
+<link rel="stylesheet" href="/site-nav.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <button class="mute" id="mute" type="button" aria-label="Toggle sound">♪ Sound on</button>
+  <a class="site-coffee" style="margin-left:0" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<main id="app">
+  <div id="stage">
+    <canvas id="room" aria-hidden="true"></canvas>
+    <div id="screen" role="application" aria-label="Vapor"></div>
+    <div id="card" hidden></div>
+    <div id="fade"></div>
+  </div>
+</main>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
