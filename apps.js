@@ -1280,6 +1280,13 @@ window.SLOPWARE = {
      "note": "PIN prompt, leave to the title, ragdoll drawing fixes",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 25,
+     "date": "2026-11-11T06:46:48-07:00",
+     "note": "less springy ragdolls, arms keep up and don't wedge",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
