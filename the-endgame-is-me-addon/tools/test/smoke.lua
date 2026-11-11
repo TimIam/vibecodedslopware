@@ -89,6 +89,20 @@ local function checkPicture(where)
       assert(z == e.z, where .. ": a prop texture is on draw layer " .. z .. " and should be on " .. e.z)
     end
   end
+  -- the panes: one texture each, under the strips, where the Screen put them
+  local want, nf = RT.Screen.panes.n, D.paneFrame
+  local lit = 0
+  for _, t in ipairs(nf.regions) do if t.shown then lit = lit + 1 end end
+  assert(lit == want, where .. ": " .. lit .. " panes are up and the Screen asked for " .. want)
+  assert(want == 0 or G, where .. ": a pane with no ground image under it")
+  for k = 1, want do
+    local pn, t = RT.Screen.panes[k], D.panes[k].tex
+    local p = t.points.TOPLEFT
+    assert(t.shown and t.w == pn.w and t.h == pn.h and p.rel == grid and gp.x + p.x - (D.sx or 0) == pn.x and -(gp.y + p.y) - (D.sy or 0) == pn.y, where .. ": a pane is the wrong size or in the wrong place")
+    assert(math.abs(t.va - pn.a) < 1e-9 and math.abs(t.vr * 255 - math.floor(pn.rgb / 65536)) < 0.01, where .. ": a pane is the wrong colour")
+    for _, strip in ipairs(D.strips) do assert(strip:GetFrameLevel() > nf:GetFrameLevel(), where .. ": a strip is not above the panes") end
+    assert(nf:GetFrameLevel() > D.propFrame:GetFrameLevel() and (nf.clips or nf.buffer), where .. ": the pane frame is under the props or not cut to the picture")
+  end
   local hidden = 0
   for _, t in ipairs(all) do
     local p = t.points.TOPLEFT

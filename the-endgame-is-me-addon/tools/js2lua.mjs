@@ -15,7 +15,7 @@ const BUILTIN_METHODS = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 's
 const METHOD_ALIAS = Object.assign(Object.create(null), { repeat: 'rep' });
 // host objects (canvases and their contexts) are Lua objects with real methods: called with a colon
 const COLON_METHODS = new Set(['fillRect', 'drawImage', 'clearRect', 'getContext', 'putImageData', 'createImageData', 'getImageData', 'setTransform', 'translate',
-  'createLinearGradient', 'addColorStop', 'beginPath', 'drawDithered']);
+  'createLinearGradient', 'addColorStop', 'beginPath', 'drawDithered', 'pane']);
 const BOOL_METHODS = new Set(['some', 'every', 'includes', 'has', 'startsWith', 'endsWith']);
 const NUM_METHODS = new Set(['indexOf', 'findIndex', 'push', 'charCodeAt', 'unshift']);
 const STR_METHODS = new Set(['charAt', 'join', 'toFixed', 'toUpperCase', 'toLowerCase', 'trim', 'padStart', 'padEnd', 'toString', 'replace', 'replaceAll', 'repeat']);

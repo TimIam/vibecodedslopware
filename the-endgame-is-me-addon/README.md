@@ -135,6 +135,14 @@ per level and only shown or hidden after that).
   thing it overlaps, up to 48 (three layers of sixteen sublevels). Props piled deeper than that stay in the grid.
 - `RT.propImages = false` (in `src/gfx.lua`) turns it off; `/endgame ground off` turns both off.
 
+## Panes
+
+The dark see-through panel behind the HUD was 7,500 blended cells a frame, 13% of the grid, all of them showing. Over
+a ground image it is one flat texture the client lays under the grid (`ctx.pane` in `src/canvas.lua`,
+`Screen.panes`, `syncPanes` in `src/display.lua`). Only cells that already hold something are tinted in Lua: a
+solid one is blended as before, and a see-through one keeps its alpha and takes the tint in its colour, which over
+the pane beneath comes to exactly what the pane over the cell would have. Painted grounds still get it the old way.
+
 ## What differs from the browser game
 
 - **No footprints.** The boss does not wear dark marks into the path; the build takes that code out.

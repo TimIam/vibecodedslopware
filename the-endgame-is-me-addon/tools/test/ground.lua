@@ -61,7 +61,9 @@ local function play(level, images, shots)
     assert((RT.Screen.ground ~= nil) == images, "level " .. level .. ": the Screen " .. (images and "was not given" or "was given") .. " a ground image")
     if i % 41 == 0 or i == steps - 1 then
       local snap = RT.Screen.snapshot()
-      local shot = { snap = snap, vx = RT.Screen.vx, vy = RT.Screen.vy, i = i, props = {} }
+      local shot = { snap = snap, vx = RT.Screen.vx, vy = RT.Screen.vy, i = i, props = {}, panes = {} }
+      for k = 1, RT.Screen.panes.n do local pn = RT.Screen.panes[k]; shot.panes[k] = { x = pn.x, y = pn.y, w = pn.w, h = pn.h, rgb = pn.rgb, a = pn.a } end
+      assert(images or #shot.panes == 0, "a pane asked for while images are off")
       local ps = RT.Screen.props
       if ps then
         assert(images, "prop textures asked for while images are off")
@@ -146,6 +148,9 @@ for level = 1, 7 do
         local wx, wy = sx + b.vx, sy + b.vy
         local under = (wx >= 0 and wy >= 0 and wx < G.w and wy < G.h) and (img.at(wx, wy)) or 0x141a12
         if layer[k] then under = propOver(under, layer[k]) end
+        for _, pn in ipairs(b.panes) do
+          if sx >= pn.x and sx < pn.x + pn.w and sy >= pn.y and sy < pn.y + pn.h then under = blend(under, pn.rgb, pn.a) end
+        end
         if v == nil then r, gg, bb = floor(under / 65536), floor(under / 256) % 256, under % 256
         else
           local al = floor(v / 16777216) / 255

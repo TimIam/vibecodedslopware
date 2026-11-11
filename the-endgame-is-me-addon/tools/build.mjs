@@ -90,7 +90,7 @@ export function pathDist(`],
 `],
     // light effects: no see-through panel behind the HUD (7,500 blended cells a frame; the text has its own shadow)
     [`ctx.fillRect(0, 0, 136, 36); ctx.fillRect(W - Math.max(108, textWidth(b.name) + 8), 0, Math.max(108, textWidth(b.name) + 8), 24);`,
-      `if (!lean()) { ctx.fillRect(0, 0, 136, 36); ctx.fillRect(W - Math.max(108, textWidth(b.name) + 8), 0, Math.max(108, textWidth(b.name) + 8), 24); }`],
+      `if (!lean()) { ctx.pane(0, 0, 136, 36); ctx.pane(W - Math.max(108, textWidth(b.name) + 8), 0, Math.max(108, textWidth(b.name) + 8), 24); }`],
     // light effects (src/gfx.lua): the telegraph's fill stops blinking
     [`const blink = Math.floor(g.t * (prog > 0.6 ? 24 : 10)) & 1;`, `const blink = lean() ? 0 : Math.floor(g.t * (prog > 0.6 ? 24 : 10)) & 1;`],
     // thousands separators without a regular expression

@@ -335,6 +335,7 @@ local touched, nTouched = {}, 0          -- cells whose ground changed
 local mask = nil                         -- cells under the tree canopy, while things are being drawn beneath it
 local maskData = {}
 local frame = 1
+local imageMode = false                  -- a ground image lies under the grid (Screen.begin): cells may be empty
 local ox, oy = 0, 0                      -- the camera, modulo the screen
 for i = 1, W * H do cur[i] = NIGHT; shown[i] = -1; base[i] = NIGHT; mark[i] = 0 end
 
@@ -435,6 +436,65 @@ function SMeta:fillRect(x, y, w, h)
   end
 end
 
+-- A see-through pane over a wide stretch of the picture: the panel behind the HUD. Painted, it is thousands of
+-- blended cells, every one a texture the client must show. Over a ground image it is instead one texture the client
+-- lays under the grid (Screen.panes, see display.lua), and only the cells that already hold something are tinted
+-- here; an empty cell lets the pane show from beneath.
+Screen.panes = { n = 0 }
+function SMeta:pane(x, y, w, h)
+  if not imageMode then return self:fillRect(x, y, w, h) end
+  local style = self.fillStyle
+  if style ~= lastStyle then
+    local c = parseColor(style)
+    lastStyle, lastRgb, lastA = style, c.rgb, c.a
+  end
+  local a = lastA * self.globalAlpha
+  if a <= 0.002 then return end
+  local rgb = lastRgb
+  x, y = x + self.tx, y + self.ty
+  local x0, y0 = floor(x + 0.5), floor(y + 0.5)
+  local x1, y1 = floor(x + w + 0.5) - 1, floor(y + h + 0.5) - 1
+  if x0 < 0 then x0 = 0 end
+  if y0 < 0 then y0 = 0 end
+  if x1 >= W then x1 = W - 1 end
+  if y1 >= H then y1 = H - 1 end
+  if x1 < x0 or y1 < y0 then return end
+  local panes = Screen.panes
+  local k = panes.n + 1
+  local pn = panes[k]
+  if not pn then pn = {}; panes[k] = pn end
+  panes.n = k
+  pn.x, pn.y, pn.w, pn.h, pn.rgb, pn.a = x0, y0, x1 - x0 + 1, y1 - y0 + 1, rgb, a
+  local n = x1 - x0 + 1
+  local gx = (x0 + ox) % W
+  local first = W - gx
+  if first > n then first = n end
+  local memo = blendsFor(rgb, a)
+  local f, m = frame, mask
+  for sy = y0, y1 do
+    local row = ((sy + oy) % H) * W + 1
+    local i0, i1 = row + gx, row + gx + first - 1
+    for pass = 1, 2 do
+      for i = i0, i1 do
+        local d = cur[i]
+        if d ~= nil and not (m and m[i]) then
+          if mark[i] ~= f then mark[i] = f; nNow = nNow + 1; now[nNow] = i end
+          local v = memo[d]
+          if not v then
+            -- A see-through cell keeps its alpha and takes the tint in its colour: over the pane beneath, that comes
+            -- to exactly what the pane laid over the cell would have.
+            if d < A1 then v = mix(d, rgb, a) else local da = floor(d / A1); v = da * A1 + mix(d - da * A1, rgb, a) end
+            memo[d] = v
+          end
+          cur[i] = v
+        end
+      end
+      if first >= n then break end
+      i0, i1 = row, row + n - first - 1
+    end
+  end
+end
+
 -- a sprite onto the screen: straight, blended (globalAlpha below 1), or dithered (thresh: skip cells the pattern says to)
 local BAYER = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 }
 for i = 1, 16 do BAYER[i] = (BAYER[i] + 0.5) / 16 end
@@ -513,7 +573,6 @@ end
 
 -- the ground at one world pixel: the painted level, then scorch marks and footprints
 local bgC, trailC, fgC, waterC = nil, nil, nil, nil
-local imageMode = false
 local WATER_TINT = 0.35   -- the one see-through thing in a water layer: the wash over a filled-in cell (see gfx.lua)
 local viewX, viewY = 0, 0
 -- With a ground image (bgC.image, see gfx.lua) there is no ground colour to start from: a cell is nil where only the
@@ -588,6 +647,7 @@ local lastBg, lastTrail, lastFg, lastWater = nil, nil, nil, nil
 local sendAll, unshown = false, false
 local function newFrame()
   frame = frame + 1
+  Screen.panes.n = 0
   nTouched = 0
   if unshown then sendAll = true end
   unshown = true

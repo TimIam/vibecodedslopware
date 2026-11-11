@@ -171,12 +171,17 @@ function D.build()
   pf:SetAllPoints(view)
   pf:SetFrameLevel(level + 2)
   D.propFrame = pf
+  -- and over the props, still under the strips, the see-through panes (the HUD's panel)
+  local nf = _G.CreateFrame("Frame", nil, view)
+  nf:SetAllPoints(view)
+  nf:SetFrameLevel(level + 3)
+  D.paneFrame = nf
   local strip = nil
   for gy = 0, H - 1 do
     if gy % 8 == 0 then
       strip = _G.CreateFrame("Frame", nil, view)
       strip:SetAllPoints(view)
-      strip:SetFrameLevel(level + 3)
+      strip:SetFrameLevel(level + 4)
       strips[#strips + 1] = strip
     end
     D.progress = gy / H
@@ -224,7 +229,7 @@ function D.setMode(mode)
   end
   local parent = mode == "oneclip" and D.clipAll or view
   -- the ground image is cut to the picture the same way a strip is
-  for _, gf in ipairs({ D.groundFrame, D.propFrame }) do
+  for _, gf in ipairs({ D.groundFrame, D.propFrame, D.paneFrame }) do
     if gf.SetClipsChildren then gf:SetClipsChildren(mode == "clip" or mode == "oneclip") end
     if D.canBuffer() then
       gf:SetFlattensRenderLayers(mode == "buffer")
@@ -398,6 +403,36 @@ local function syncProps()
 end
 D.propsLit = lit
 
+-- The Screen's panes (canvas.lua): each a flat see-through rectangle under the grid. They are in screen pixels and
+-- the grid is not (it slides with the camera and jumps with the shake, and the HUD must jump with it), so each is
+-- pinned to the grid at wherever that puts it on the screen this frame.
+local panes = {}
+local function syncPanes()
+  local list = Screen.panes
+  local n = list.n
+  local vx, vy = Screen.vx or 0, Screen.vy or 0
+  for k = 1, n do
+    local pn, t = list[k], panes[k]
+    if not t then
+      t = { tex = D.paneFrame:CreateTexture(nil, "ARTWORK"), on = false }
+      t.tex:SetColorTexture(1, 1, 1, 1)
+      if t.tex.SetSnapToPixelGrid then t.tex:SetSnapToPixelGrid(false); t.tex:SetTexelSnappingBias(0) end
+      t.tex:Hide()
+      panes[k] = t
+    end
+    if t.rgb ~= pn.rgb or t.a ~= pn.a then
+      t.rgb, t.a = pn.rgb, pn.a
+      t.tex:SetVertexColor(floor(pn.rgb / 65536) * K, floor(pn.rgb / 256) % 256 * K, (pn.rgb % 256) * K, pn.a)
+    end
+    if t.w ~= pn.w or t.h ~= pn.h then t.w, t.h = pn.w, pn.h; t.tex:SetSize(pn.w, pn.h) end
+    local x, y = pn.x + vx, pn.y + vy
+    if t.x ~= x or t.y ~= y then t.x, t.y = x, y; t.tex:SetPoint("TOPLEFT", D.grid, "TOPLEFT", x, -y) end
+    if not t.on then t.tex:Show(); t.on = true end
+  end
+  for k = n + 1, #panes do local t = panes[k]; if t.on then t.tex:Hide(); t.on = false end end
+end
+D.panes = panes
+
 -- D.moveMs and D.sendMs say what the two halves cost (moving textures for the camera, recolouring them), and
 -- D.moved how many textures were moved: /endgame perf shows them
 D.moved, D.moveMs, D.sendMs = 0, 0, 0
@@ -408,6 +443,7 @@ function D.present()
   D.moved = 0
   if Screen.ground ~= D.groundNow then D.setGround(Screen.ground) end
   syncProps()
+  syncPanes()
   layout()
   local t1 = clock()
   local n = Screen.present(setCell)

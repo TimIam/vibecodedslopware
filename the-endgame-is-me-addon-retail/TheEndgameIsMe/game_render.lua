@@ -1509,8 +1509,8 @@ local b = g.boss;
 ctx.fillStyle = __I0.PAL.ink;
 ctx.globalAlpha = 0.28;
 if (not __T(RT.host.lean())) then
-ctx:fillRect(0, 0, 136, 36);
-ctx:fillRect((__I1.W - __mmax(108, (__I0.textWidth(b.name) + 8))), 0, __mmax(108, (__I0.textWidth(b.name) + 8)), 24);
+ctx:pane(0, 0, 136, 36);
+ctx:pane((__I1.W - __mmax(108, (__I0.textWidth(b.name) + 8))), 0, __mmax(108, (__I0.textWidth(b.name) + 8)), 24);
 end;
 ctx.globalAlpha = 1;
 __I0.drawText(ctx, M.fmt(g.score), 4, 3, __I0.PAL.cream, {scale=2});
