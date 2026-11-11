@@ -5,7 +5,8 @@
 //
 // What counts toward that 90% (see SHARE and setShares) is a fixed amount per thing, added up, with no cap: raze the
 // lot and it comes to well over 300%. Each of the nine outer towers is 10%, the keep's tower 60% (paid all at once when
-// it falls; the square base it stands on, which has to come down first, pays nothing itself), each of the seven
+// it is felled: it can't be hit itself, so the round drum it stands on is chopped through like a tree until it goes
+// over, see baseHit; the drum pays nothing itself), each of the seven
 // buildings in the yard 3%, each segment of the curtain wall 1% (a segment is one block along the wall, both blocks of
 // its thickness: the slice that opens a breach when it goes), the gatehouse 2% (it stands in two segments' place), and
 // each block of the keep round the tower 1%. However far the count has got, the game is not won while the keep's tower
@@ -17,6 +18,7 @@
 // the wrecking down without all piling in at once. A tower that falls takes its garrison with it, or sends it running.
 
 import * as P from '../props.js';
+import { newCanvas } from '../art.js';
 import { INK, STONEP, ROOF_PAL, rubbleSprite, steerHeroes, shade, paintGround, fillZone, sideWall } from './city.js';
 
 const TAU = Math.PI * 2;
@@ -32,7 +34,13 @@ export const WIN_PCT = 90;      // more than this, shown as a whole percent, and
 export const SHARE = { tower: 0.10, keepTower: 0.60, base: 0, house: 0.03, wallSeg: 0.01, gate: 0.02, keep: 0.01 };
 const SHARE_V = 2;              // bumped when the shares change: a save with another number has its shares recomputed
 const YARD_BUILDINGS = { city_chapel: 1, city_inn: 1, city_shop: 1, city_pub: 1, city_house: 1 };
-const DONJON_HP = 800, BASE_LIFT = 24, DONJON_L = 22, DROP_T = 0.3;      // the keep's tower and its base: 800 + 800 = the old 1600
+// The keep's tower stands on a round drum, which stands on a square plinth as high as the keep's roof. The tower can't be
+// hit; the drum is chopped like a tree trunk: it is SECT wedges round, each hit bites the wedge facing whoever hit it (or
+// the nearest one still there), and once more than half of them are gone the tower falls toward the cut, leaving the
+// rest of the drum as a stump of broken rooms (and, when it went over the back, a bit of clean tower wall on top).
+const DONJON_HP = 800, DONJON_L = 22, DONJON_W = 28;
+const PLINTH = 12, DRUM = 14, BASE_LIFT = PLINTH + DRUM, DRUM_R = 19, STUB = 6;
+const SECT = 16, SECT_HP = 150;
 // towers: top-left cell, size in cells, roof ('cone' or 'flat'), lift (how tall it stands)
 const TOWERS = [
   { c: -1, r: -1, n: 3, roof: 'cone' }, { c: 22, r: -1, n: 3, roof: 'cone' }, { c: -1, r: 26, n: 3, roof: 'cone' }, { c: 22, r: 26, n: 3, roof: 'cone' },
@@ -50,9 +58,12 @@ export const kinds = {
   castle_wall: { ...BLOCK, hp: 170, value: { pts: 110, venge: 0.05, chaos: 1 } },
   castle_keep: { ...BLOCK, hp: 210, value: { pts: 140, venge: 0.06, chaos: 1 } },
   castle_tower: { ...BLOCK, w: 30, h: 30, hp: 1000, rubbleN: 4, value: { pts: 900, venge: 0.35, chaos: 4 }, onDown: towerDown, onHit: towerHit },
-  // the square base under the keep's tower: half of what that tower was worth (the tower itself pays the other half)
-  castle_base: { ...BLOCK, w: 40, h: 40, hp: DONJON_HP, rubbleN: 4, value: { pts: 450, venge: 0.175, chaos: 2 }, onDown: baseDown },
-  castle_gate: { ...BLOCK, w: 20, h: 20, hp: 520, flammable: true, burnTime: 10, crushShare: 0.6, value: { pts: 600, venge: 0.3, chaos: 2 } },
+  // the drum (and its plinth) under the keep's tower: half of what that tower was worth (the tower itself pays the other
+  // half). Its hit points are only for show: it comes down by its wedges (see baseHit)
+  castle_base: { ...BLOCK, w: 40, h: 40, hp: DONJON_HP, rubbleN: 4, value: { pts: 450, venge: 0.175, chaos: 2 }, onHit: baseHit },
+  // what is left once the tower is felled: in the way, and past hurting
+  castle_stump: { r: DRUM_R, solid: true, onHit: () => true, value: { pts: 0, venge: 0, chaos: 0 } },
+  castle_gate: { ...BLOCK, w: 20, h: 20, hp: 520, flammable: true, burnTime: 10, value: { pts: 600, venge: 0.3, chaos: 2 } },
   castle_rubble: { r: 3, push: true, fill: 2, value: { pts: 0, venge: 0, chaos: 0 } },
 };
 const LIFT = { castle_wall: 7, castle_keep: 12, castle_gate: 7, castle_tower: 16, castle_base: BASE_LIFT };
@@ -61,19 +72,60 @@ function blockDown(g, p) {
   (g.ruins ||= []).push({ x: p.x, y: p.y, w: p.w, h: p.h, seed: p.seed, castle: true });
   for (let i = 0; i < 6; i++) { const a = g.rng() * TAU; g.cs?.dust.push({ x: p.x + Math.cos(a) * 4, y: p.y + Math.sin(a) * 4, vx: Math.cos(a) * 10, vy: Math.sin(a) * 6 - 4, t: 0, life: 0.8 + g.rng() * 0.6 }); }
 }
-// the keep's tower can't be touched while its base stands under it (true: the hit is swallowed)
+// the keep's tower can't be touched while its drum stands under it (true: the hit is swallowed)
 function towerHit(g, p) { return !!p.donjon && g.cs?.base?.state === 'up'; }
-// the base gives way: the tower on top of it drops into the hole, still standing
-function baseDown(g, p) {
-  blockDown(g, p);
-  if (g.cs) g.cs.dropT = 0;
-}
 // a tower doesn't just crumble: it falls over, away from whatever pushed it, and lands on things
 function towerDown(g, p) {
   blockDown(g, p);
   g.cs?.fallen.push(p);
   const len = p.donjon ? 58 : 46;
-  g.cs?.topples.push({ x: p.x, y: p.y, ang: p.fallA, len, t: 0, hit: false, seed: p.seed, roof: p.roof, donjon: p.donjon, r: p.w / 2 });
+  g.cs?.topples.push({ x: p.x, y: p.y, ang: p.fallA, len, t: 0, hit: false, seed: p.seed, roof: p.roof, donjon: p.donjon, r: p.donjon ? DONJON_W / 2 : p.w / 2, lift: p.donjon ? BASE_LIFT : 0 });
+}
+
+// ---------------------------------------------------------------------------------------------- chopping the drum
+
+const sectorOf = a => Math.floor((((a % TAU) + TAU) % TAU) / TAU * SECT) % SECT;
+const cutsOf = p => (p.cuts ||= new Array(SECT).fill(SECT_HP));
+const cutCount = cuts => cuts.reduce((n, v) => n + (v <= 0 ? 1 : 0), 0);
+// a hit on the drum: ang is the way the blow travels, so the face it lands on looks back the other way
+function baseHit(g, p, dmg, ang) {
+  if (p.felled || !g.cs) return true;
+  const cuts = cutsOf(p), k0 = sectorOf(ang + Math.PI);
+  let k = -1;
+  for (let d = 0; d <= SECT / 2 && k < 0; d++) for (const s of d ? [k0 + d, k0 - d] : [k0]) { const j = (s + SECT) % SECT; if (cuts[j] > 0) { k = j; break; } }
+  if (k < 0) return true;
+  cuts[k] -= dmg;
+  p.hitT = 0.12;
+  p.hp = p.maxhp * cuts.reduce((s, v) => s + Math.max(0, v), 0) / (SECT * SECT_HP);
+  (g.cs.chips ||= []).push({ k, broke: cuts[k] <= 0 });
+  return true;
+}
+// which way it goes: toward the middle of the cut
+function cutAngle(cuts) {
+  let sx = 0, sy = 0;
+  for (let k = 0; k < SECT; k++) if (cuts[k] <= 0) { const a = (k + 0.5) / SECT * TAU; sx += Math.cos(a); sy += Math.sin(a); }
+  return Math.atan2(sy, sx);
+}
+// the chips flying off the drum, and the fall once more than half of it is cut through
+function chopDrum(g, api) {
+  const cs = g.cs, p = cs.base;
+  if (!cs.chips?.length || !p) return;
+  for (const c of cs.chips) {
+    const a = (c.k + 0.5) / SECT * TAU, x = p.x + Math.cos(a) * DRUM_R, y = p.y + Math.sin(a) * DRUM_R - PLINTH;
+    for (let i = 0; i < (c.broke ? 10 : 3); i++) api.part(g, x, y, Math.cos(a) * (15 + g.rng() * 30) + (g.rng() - 0.5) * 20, Math.sin(a) * 15 - 10 - g.rng() * 20, 0.5 + g.rng() * 0.3, g.rng() < 0.5 ? 'dust' : 'splinter');
+    api.sound(g, c.broke ? 'crunch' : 'thump');
+    if (c.broke) g.shake = Math.max(g.shake, 0.15);
+  }
+  cs.chips.length = 0;
+  if (p.felled || p.state !== 'up' || cutCount(cutsOf(p)) <= SECT / 2) return;
+  // timber
+  const ang = cutAngle(p.cuts), t = keepTower(cs);
+  p.felled = true;
+  P.addProp(g, 'castle_stump', p.x, p.y, { cuts: p.cuts.slice(), fellA: ang, back: Math.sin(ang) < -0.5, sortY: 20 });
+  P.knockDown(g, p, ang);
+  if (t && t.state === 'up') P.knockDown(g, t, ang);
+  g.shake = Math.max(g.shake, 0.6);
+  api.text(g, p.x, p.y - 46, 'TIMBER!', 'gold', 2.2);
 }
 
 // ---------------------------------------------------------------------------------------------- build
@@ -81,7 +133,7 @@ function towerDown(g, p) {
 function build(g, rng) {
   g.ruins = [];
   const cs = g.cs = { cell: new Array(COLS * ROWS + 200).fill(null), orig: new Uint8Array(COLS * ROWS), blocks: [], topples: [], falls: [], dust: [], won: false, crumbleT: 0, share: 0,
-    fallen: [], garrisons: [], king: null, manned: false, base: null, donjon: null, houses: [], dropT: -1, hintT: 0, keepSaid: false };
+    fallen: [], garrisons: [], king: null, manned: false, base: null, donjon: null, houses: [], chips: [], hintT: 0, keepSaid: false };
   const key = (c, r) => c >= 0 && r >= 0 && c < COLS && r < ROWS ? r * COLS + c : -1;
   const taken = new Set();
   const block = (kind, c, r, n = 1, extra = {}) => {
@@ -96,7 +148,7 @@ function build(g, rng) {
     return p;
   };
   for (const t of TOWERS) {
-    // the keep's tower stands on its base (same footprint): drawn after it, and paying the half the base doesn't
+    // the keep's tower stands on its drum (same footprint): drawn after it, and paying the half the drum doesn't
     if (t.donjon) cs.base = block('castle_base', t.c, t.r, t.n);
     const p = block('castle_tower', t.c, t.r, t.n, { roof: t.roof, banner: !!t.banner, donjon: !!t.donjon, ...(t.donjon ? { hp: DONJON_HP, paid: 0.5, sortY: 0.5 } : {}) });
     if (t.donjon) cs.donjon = p;
@@ -362,17 +414,8 @@ function update(g, dt, api) {
   for (const d of cs.dust) { d.t += dt; d.x += d.vx * dt; d.y += d.vy * dt; d.vx *= 0.96; d.vy *= 0.96; }
   if (cs.dust.length > 60 || cs.dust.some(d => d.t > d.life)) cs.dust = cs.dust.filter(d => d.t < d.life).slice(-60);
 
-  // the keep's tower, dropping into the hole its base left
-  if (cs.dropT >= 0 && cs.dropT < DROP_T) {
-    cs.dropT += dt;
-    const t = keepTower(cs);
-    if (cs.dropT >= DROP_T && t && t.state === 'up') {
-      g.shake = Math.max(g.shake, 0.5);
-      api.sound(g, 'collapse');
-      api.text(g, t.x, t.y - 34, 'THE KEEP TOWER DROPS', 'gold', 1.8);
-      for (let i = 0; i < 18; i++) { const a = g.rng() * TAU; api.part(g, t.x + Math.cos(a) * 16, t.y + 8 + Math.sin(a) * 8, Math.cos(a) * 40, Math.sin(a) * 18 - 12, 0.5 + g.rng() * 0.4, 'dust'); }
-    }
-  }
+  // the keep's tower: its drum chopped through like a tree
+  chopDrum(g, api);
 
   // the win: more than 90% of the castle down, and the keep's tower among it. Neither is enough alone.
   if (cs.shareV !== SHARE_V) setShares(g);
@@ -591,56 +634,9 @@ function blockSprite(h, kind, mask, stage, v, rv = 0) {
   });
 }
 
-// the square base the keep's tower stands on: a block of the keep twice as tall as the rest, with a corbelled parapet
-// round its top. Two storeys of rooms show through the breaches as it is knocked about.
-function baseSprite(h, p, stage) {
-  const W = Math.round(p.w), D = Math.round(p.h), L = BASE_LIFT, O = 2, SW = W + O * 2;
-  return h.sprite(`cbase|${W}|${stage}`, SW, D + L, c => {
-    const seed = 53, slab = D + 13;   // the floor between its two storeys
-    const holes = stage === 0 ? [] : stage === 1 ? [[O + 11, D + 9, 4.4]] : [[O + 11, D + 9, 6.6], [O + 29, D + 10, 5.6], [O + 20, D + 19, 5.2]];
-    const hole = (x, y) => {
-      if (x < O + 1 || x >= O + W - 1 || y < D + 4 || y >= D + L - 1) return false;
-      for (const [hx, hy, r] of holes) if (Math.hypot(x - hx, (y - hy) * 1.1) + (h.hash(x + seed, y) - 0.5) * 1.1 < r) return true;
-      return false;
-    };
-    // the top: flagstones inside the parapet
-    for (let y = 0; y < D; y++) for (let x = 0; x < SW; x++) {
-      const e = Math.min(x, y, SW - 1 - x, D - 1 - y), m = ((y < 2 || y >= D - 2 ? x : y) % 4) < 2, row = Math.floor(y / 3);
-      put(c, x, y, e === 0 ? (m ? STONEP[4] : INK) : e === 1 ? (m ? STONEP[5] : STONEP[1]) : (x + row * 2) % 5 === 0 || y % 3 === 2 ? STONEP[1] : STONEP[2 + (h.hash(Math.floor((x + row * 2) / 5) + seed, row) > 0.6 ? 1 : 0)]);
-    }
-    // the rooms behind the face, where it is breached
-    if (stage > 0) {
-      for (let i = 0; i < 4; i++) {
-        paintRoom(c, h, O + i * 10, D + 4, 10, slab - D - 4, true, ((i * 3 + 1) % ROOMS) * 2 + (i % 2), seed + i);
-        paintRoom(c, h, O + i * 10, slab + 1, 10, D + L - 2 - slab, true, ((i * 5 + 6) % ROOMS) * 2 + ((i + 1) % 2), seed + i + 4);
-      }
-      rect(c, O, slab, W, 1, STONEP[0]);
-    }
-    // the face: a corbelled band under the parapet, then ashlar down to the ground
-    for (let y = D; y < D + L; y++) for (let x = 0; x < SW; x++) {
-      const yy = y - D;
-      if (yy < 4) { put(c, x, y, yy === 0 ? INK : yy === 3 ? ((x % 4) < 2 ? STONEP[2] : INK) : STONEP[x < 3 ? 4 : x > SW - 4 ? 2 : 3]); continue; }
-      if (x < O || x >= O + W || hole(x, y)) continue;
-      const course = Math.floor(yy / 4), mortar = yy % 4 === 3 || (x + course * 5) % 8 === 0;
-      const l = 2 + (x < O + 3 ? 1 : 0) - (x >= O + W - 3 ? 1 : 0) - (yy > L - 4 ? 1 : 0);
-      put(c, x, y, x === O || x === O + W - 1 ? INK : mortar ? STONEP[1] : STONEP[clamp(l + (h.hash(x + seed, course) > 0.8 ? 1 : 0), 0, 5)]);
-    }
-    // windows on the upper floor, a door at the foot
-    for (const wx of [O + 8, O + 30]) if (!hole(wx, D + 8) && !hole(wx + 1, D + 10)) { rect(c, wx, D + 7, 2, 5, SLIT); put(c, wx, D + 8, LITW); }
-    if (!hole(O + 20, D + L - 5)) { rect(c, O + 16, D + L - 9, 8, 8, INK); rect(c, O + 17, D + L - 8, 6, 7, '#5a3a22'); rect(c, O + 20, D + L - 8, 1, 7, '#2a1a0e'); put(c, O + 17, D + L - 8, INK); put(c, O + 22, D + L - 8, INK); }
-    // damage: cracks down the face, and the ragged stone round each breach
-    for (let i = 0; i < stage * 3; i++) {
-      let x = O + 3 + Math.floor(h.hash(i, seed + 3) * (W - 6)), y = D + 4 + Math.floor(h.hash(seed, i) * 6);
-      for (let k = 0; k < 10 + stage * 3 && y + k < D + L - 1; k++) { if (!hole(x, y + k)) put(c, x, y + k, '#1c1814'); if (h.hash(k, i + seed) > 0.6) x = clamp(x + (h.hash(i, k + seed) > 0.5 ? 1 : -1), O + 1, O + W - 2); }
-    }
-    for (let y = D + 4; y < D + L - 1; y++) for (let x = O + 1; x < O + W - 1; x++) if (!hole(x, y) && (hole(x - 1, y) || hole(x + 1, y) || hole(x, y - 1) || hole(x, y + 1))) put(c, x, y, h.hash(x, y + seed) > 0.5 ? '#1c1814' : STONEP[1]);
-    rect(c, O, D + L - 1, W, 1, INK);
-  });
-}
-
 // a round tower: a cylinder of stone, topped with a crenellated walk or a cone of slate
-function towerSprite(h, p, stage) {
-  const S = p.w, L = p.donjon ? DONJON_L : LIFT.castle_tower, R = S / 2 - 1, roof = p.roof, donjon = p.donjon;
+function towerSprite(h, p, stage, S = p.w) {
+  const L = p.donjon ? DONJON_L : LIFT.castle_tower, R = S / 2 - 1, roof = p.roof, donjon = p.donjon;
   const key = `tw|${S}|${roof}|${donjon ? 1 : 0}|${p.banner ? 1 : 0}|${stage}`;
   return h.sprite(key, S, S + L + (roof === 'cone' ? 8 : 0), c => {
     const top = roof === 'cone' ? 8 : 0, cx = S / 2 - 0.5, cy = top + S / 2 - 0.5;
@@ -765,29 +761,144 @@ function drawBlock(ctx, p, g, h) {
   if (p.burning) { ctx.globalAlpha = Math.min(0.85, p.burnT / 10); ctx.drawImage(h.tinted(spr, '#1a120c'), x, y); ctx.globalAlpha = 1; }
   if (p.hitT > 0) { ctx.globalAlpha = 0.5; ctx.drawImage(h.tinted(spr, '#ffffff'), x, y); ctx.globalAlpha = 1; }
 }
+// The keep's tower's footing: a square plinth (keep roof on top, ashlar face) with a round drum on it. mask has a '1'
+// for every wedge of the drum chopped away. Where the cut opens the drum up, the rooms inside show; where nothing is
+// left behind it, whatever is behind shows instead. stump: what is left once the tower has gone over, with a short
+// broken ring of the tower's own wall on top (back: it fell over the back, so the wall we see is untouched).
+const maskOf = cuts => cuts ? cuts.map(v => v <= 0 ? '1' : '0').join('') : '0'.repeat(SECT);
+function drumSprite(h, mask, stump = false, back = false) {
+  const W = 40, D = 40, OY = stump ? STUB + 2 : 0;
+  return h.sprite(`cdrum|${mask}|${stump ? (back ? 2 : 1) : 0}`, W, OY + BASE_LIFT + D, c => {
+    const seed = 53, cut = a => mask[sectorOf(a)] === '1';
+    const R = DRUM_R, CX = 20, cyT = OY + 20, py = OY + DRUM;
+    // the plinth: a square of the keep's lead roof on an ashlar face with two lit slits
+    for (let y = 0; y < D; y++) for (let x = 0; x < W; x++) {
+      const e = Math.min(x, y, W - 1 - x, D - 1 - y);
+      put(c, x, py + y, e === 0 ? INK : (x + y * 3) % 7 === 0 ? '#3e4650' : y % 4 === 0 ? '#454e58' : '#525c66');
+    }
+    for (let y = 0; y < PLINTH; y++) for (let x = 0; x < W; x++) {
+      const course = Math.floor(y / 3), mortar = y % 3 === 2 || (x + course * 4) % 6 === 0;
+      const l = 2 + (x < 2 ? 1 : 0) - (y > PLINTH - 3 ? 1 : 0) + (y === 0 ? 1 : 0);
+      put(c, x, py + D + y, x === 0 || x === W - 1 || y === PLINTH - 1 ? INK : mortar ? STONEP[1] : STONEP[clamp(l + (h.hash(x + seed, course) > 0.8 ? 1 : 0), 0, 5)]);
+    }
+    for (const wx of [4, 34]) { rect(c, wx, py + D + 3, 2, 5, SLIT); put(c, wx, py + D + 4, LITW); }
+
+    // the rooms inside the drum, painted flat, then bent round it wherever the cut lays them open
+    const band = newCanvas(W, DRUM), bc = band.getContext('2d');
+    for (let i = 0; i < 4; i++) paintRoom(bc, h, i * 10, 0, 10, DRUM, true, ((i * 3 + 2) % ROOMS) * 2 + (i % 2), seed + i);
+    const bd = bc.getImageData(0, 0, W, DRUM).data;
+    const room = (x, r) => { const i = (clamp(r, 0, DRUM - 1) * W + x) * 4; return `rgb(${bd[i]},${bd[i + 1]},${bd[i + 2]})`; };
+
+    // the drum, column by column: its top, and below it the curve of its face
+    const topAt = (x, y) => { const dx = x + 0.5 - CX, dy = y + 0.5 - cyT; return Math.hypot(dx, dy) <= R && !cut(Math.atan2(dy, dx)); };
+    for (let x = 0; x < W; x++) {
+      const dx = x + 0.5 - CX;
+      if (Math.abs(dx) > R) continue;
+      const hh = Math.sqrt(R * R - dx * dx), front = !cut(Math.atan2(hh, dx));
+      let behind = false;   // is any of the drum left further back along this column?
+      for (let yy = -hh; yy < hh; yy += 1) if (!cut(Math.atan2(yy, dx))) { behind = true; break; }
+      const lx = dx / R, l = lx < -0.55 ? 4 : lx < -0.1 ? 3 : lx < 0.5 ? 2 : 1;
+      for (let y = Math.floor(cyT + hh); y < Math.ceil(cyT + hh + DRUM); y++) {
+        const f = y + 0.5 - (cyT + hh);
+        if (f < 0 || f > DRUM) continue;
+        if (front) {
+          const edge = Math.abs(dx) > R - 1 || f > DRUM - 1, course = Math.floor(f / 3), mortar = Math.floor(f) % 3 === 2 || (Math.round(dx * 1.4) + course * 3 + 40) % 6 === 0;
+          put(c, x, y, edge ? INK : mortar ? STONEP[Math.max(0, l - 2)] : STONEP[l]);
+        } else if (behind) put(c, x, y, room(x, Math.floor(f)));
+      }
+      // the top: flagstones inside a crenellated rim; where it is cut, the rooms below (if anything is left behind)
+      for (let y = Math.floor(cyT - hh); y < Math.ceil(cyT + hh); y++) {
+        const dy = y + 0.5 - cyT, d = Math.hypot(dx, dy);
+        if (d > R) continue;
+        if (topAt(x, y)) {
+          const ang = Math.atan2(dy, dx), rim = d > R - 2.5;
+          let col;
+          if (d > R - 0.7) col = INK;
+          else if (rim) col = Math.floor((ang + 4) * 6) % 2 ? (dx + dy < 0 ? STONEP[5] : STONEP[3]) : STONEP[1];
+          else { const row = Math.floor((y - OY) / 3); col = (x + row * 2) % 5 === 0 || (y - OY) % 3 === 2 ? STONEP[1] : STONEP[2 + (h.hash(Math.floor((x + row * 2) / 5) + seed, row) > 0.6 ? 1 : 0)]; }
+          // the broken lip along the cut
+          if (!topAt(x - 1, y) || !topAt(x + 1, y) || !topAt(x, y - 1) || !topAt(x, y + 1)) if (d < R - 0.7) col = h.hash(x + seed, y) > 0.5 ? '#2a2620' : STONEP[1];
+          put(c, x, y, col);
+        } else {
+          let left = false;
+          for (let yy = -hh; yy < dy; yy += 1) if (!cut(Math.atan2(yy, dx))) { left = true; break; }
+          if (left) put(c, x, y, room(x, Math.round((dy + hh) / (2 * hh) * (DRUM - 1))));
+        }
+      }
+      // the ragged edge of the face where the cut starts
+      if (front && x > 0) {
+        const odx = dx - 1, ohh = Math.sqrt(Math.max(0, R * R - odx * odx));
+        if (Math.abs(odx) <= R && cut(Math.atan2(ohh, odx))) for (let y = Math.floor(cyT + hh); y < cyT + hh + DRUM - 1; y++) if (h.hash(y, x + seed) > 0.3) put(c, x, y, '#1c1814');
+      }
+      if (front && x < W - 1) {
+        const odx = dx + 1, ohh = Math.sqrt(Math.max(0, R * R - odx * odx));
+        if (Math.abs(odx) <= R && cut(Math.atan2(ohh, odx))) for (let y = Math.floor(cyT + hh); y < cyT + hh + DRUM - 1; y++) if (h.hash(x + seed, y) > 0.3) put(c, x, y, '#1c1814');
+      }
+    }
+    if (!stump) return;
+    // a stump has been through a lot: cracks down what is left of the face
+    for (let i = 0; i < 5; i++) {
+      let x = 3 + Math.floor(h.hash(i, seed + 3) * (W - 6));
+      for (let k = 0; k < DRUM - 2; k++) {
+        const dx = x + 0.5 - CX, hh = Math.sqrt(Math.max(0, R * R - dx * dx)), y = Math.floor(cyT + hh) + 1 + k;
+        if (Math.abs(dx) < R - 1 && !cut(Math.atan2(hh, dx))) put(c, x, y, '#1c1814');
+        if (h.hash(k, i + seed) > 0.6) x = clamp(x + (h.hash(i, k + seed) > 0.5 ? 1 : -1), 1, W - 2);
+      }
+    }
+    // and on top, the foot of the tower's wall where it snapped off: a broken ring, whole on the side that stayed
+    const Rt = DONJON_W / 2 - 1, cyS = cyT - STUB;
+    const ringAt = (x, y, jag) => { const dx = x + 0.5 - CX, dy = y + 0.5 - (cyS + jag), d = Math.hypot(dx, dy); return d <= Rt && d > Rt - 2.5 && !cut(Math.atan2(dy, dx)); };
+    for (let x = 0; x < W; x++) {
+      const dx = x + 0.5 - CX;
+      if (Math.abs(dx) > Rt) continue;
+      const hh = Math.sqrt(Rt * Rt - dx * dx), jag = Math.floor(h.hash(x + seed, 77) * 3), front = !cut(Math.atan2(hh, dx));
+      let behind = false;
+      for (let yy = -hh; yy < hh; yy += 1) if (!cut(Math.atan2(yy, dx))) { behind = true; break; }
+      const lx = dx / Rt, l = lx < -0.55 ? 4 : lx < -0.1 ? 3 : lx < 0.5 ? 2 : 1;
+      for (let y = Math.floor(cyS + jag + hh); y < Math.ceil(cyT + hh); y++) {
+        const f = y + 0.5 - (cyS + jag + hh);
+        if (f < 0) continue;
+        if (front) {
+          const course = Math.floor((y - cyS) / 3), mortar = Math.floor(y - cyS) % 3 === 2 || (Math.round(dx * 1.4) + course * 3 + 40) % 6 === 0;
+          put(c, x, y, Math.abs(dx) > Rt - 1 ? INK : mortar ? STONEP[Math.max(0, l - 2)] : STONEP[l]);
+        } else if (behind) put(c, x, y, ROOM.wall[f < 1 ? 2 : (x + y) % 5 === 0 ? 0 : 1]);
+      }
+      for (let y = Math.floor(cyS + jag - hh); y < Math.ceil(cyS + jag + hh); y++) {
+        if (!ringAt(x, y, jag)) continue;
+        put(c, x, y, front && !back && h.hash(x, y + seed) > 0.7 ? '#2a2620' : h.hash(x + seed, y) > 0.6 ? STONEP[4] : STONEP[3]);
+      }
+    }
+  });
+}
 function drawBase(ctx, p, g, h) {
   if (p.state !== 'up') return;
-  const L = BASE_LIFT, x = Math.round(p.x - p.w / 2) - 2 + (p.hitT > 0.07 ? 1 : 0), y = Math.round(p.y - p.h / 2) - L;
-  const spr = baseSprite(h, p, p.hp / p.maxhp < 0.34 ? 2 : p.hp / p.maxhp < 0.67 ? 1 : 0);
-  ctx.globalAlpha = 0.3; ctx.fillStyle = '#05080a'; ctx.fillRect(x + 6, y + L + 3, p.w, p.h); ctx.globalAlpha = 1;
+  const x = Math.round(p.x - p.w / 2) + (p.hitT > 0.07 ? 1 : 0), y = Math.round(p.y - p.h / 2) - BASE_LIFT;
+  const spr = drumSprite(h, maskOf(p.cuts));
+  ctx.globalAlpha = 0.3; ctx.fillStyle = '#05080a'; ctx.fillRect(x + 6, y + BASE_LIFT + 3, p.w, p.h); ctx.globalAlpha = 1;
   ctx.drawImage(spr, x, y);
   if (p.hitT > 0) { ctx.globalAlpha = 0.5; ctx.drawImage(h.tinted(spr, '#ffffff'), x, y); ctx.globalAlpha = 1; }
 }
-// how far off the ground the keep's tower stands: on top of its base, or part of the way down once the base has gone
-function donjonLift(g) {
-  const cs = g.cs;
-  if (!cs || !cs.base) return 0;
-  if (cs.base.state === 'up') return BASE_LIFT + 2;
-  const k = cs.dropT >= 0 ? Math.min(1, cs.dropT / DROP_T) : 1;
-  return Math.round((BASE_LIFT + 2) * (1 - k * k));
+function drawStump(ctx, p, g, h) {
+  const spr = drumSprite(h, maskOf(p.cuts), true, !!p.back);
+  const x = Math.round(p.x - 20), y = Math.round(p.y - 20) - BASE_LIFT - (STUB + 2);
+  ctx.globalAlpha = 0.3; ctx.fillStyle = '#05080a'; ctx.fillRect(x + 6, y + STUB + 2 + BASE_LIFT + 3, 40, 40); ctx.globalAlpha = 1;
+  ctx.drawImage(spr, x, y);
 }
 function drawTower(ctx, p, g, h) {
   if (p.state !== 'up') return;
-  const L = p.donjon ? DONJON_L : LIFT.castle_tower, top = p.roof === 'cone' ? 8 : 0, up = p.donjon ? donjonLift(g) : 0;
-  const st = p.hp / p.maxhp < 0.34 ? 2 : p.hp / p.maxhp < 0.67 ? 1 : 0;
-  const spr = towerSprite(h, p, st);
-  const x = Math.round(p.x - p.w / 2) + (p.hitT > 0.07 ? 1 : 0), y = Math.round(p.y - p.h / 2) - L - top + Math.round(p.w / 2 - (p.w / 2 - 1) / 2) - up;
-  ctx.globalAlpha = up ? 0 : 0.3; ctx.fillStyle = '#05080a';
+  const top = p.roof === 'cone' ? 8 : 0, st = p.hp / p.maxhp < 0.34 ? 2 : p.hp / p.maxhp < 0.67 ? 1 : 0;
+  if (p.donjon) {
+    // the keep's tower: narrower, standing on the drum's top (on the ground, in a save from before the drum)
+    const S = DONJON_W, L = DONJON_L, spr = towerSprite(h, p, st, S), onDrum = g.cs?.base?.state === 'up';
+    const cy = Math.round(p.y - p.h / 2) - (onDrum ? BASE_LIFT : 0) + 20;
+    const x = Math.round(p.x - S / 2) + (p.hitT > 0.07 ? 1 : 0), y = Math.round(cy - (top + S / 2 - 0.5 + L));
+    ctx.drawImage(spr, x, y);
+    if (p.hitT > 0) { ctx.globalAlpha = 0.5; ctx.drawImage(h.tinted(spr, '#ffffff'), x, y); ctx.globalAlpha = 1; }
+    return;
+  }
+  const L = LIFT.castle_tower, spr = towerSprite(h, p, st);
+  const x = Math.round(p.x - p.w / 2) + (p.hitT > 0.07 ? 1 : 0), y = Math.round(p.y - p.h / 2) - L - top + Math.round(p.w / 2 - (p.w / 2 - 1) / 2);
+  ctx.globalAlpha = 0.3; ctx.fillStyle = '#05080a';
   for (let k = -4; k <= 4; k++) { const hw = Math.round(p.w / 2 * Math.sqrt(1 - (k / 5) ** 2)); ctx.fillRect(Math.round(p.x) + 5 - hw, Math.round(p.y + p.h / 2) - 2 + k, hw * 2, 1); }
   ctx.globalAlpha = 1;
   ctx.drawImage(spr, x, y);
@@ -872,7 +983,8 @@ function over(ctx, g, h) {
     const k = Math.min(1, t.t / 0.42), e = k * k, ca = Math.cos(t.ang), sa = Math.sin(t.ang);
     const n = Math.ceil(t.len / 3);
     for (let i = 0; i <= n; i++) {
-      const s = (i / n) * t.len * e, lift = (1 - e) * (16 + i * 0.6) * (i / n);
+      // (the keep's tower pivots on top of its stump, so its foot stays up there while its top comes down)
+      const s = (i / n) * t.len * e, lift = (1 - e) * (16 + i * 0.6) * (i / n) + (t.lift || 0) * (1 - e * i / n);
       const x = Math.round(t.x + ca * s), y = Math.round(t.y + sa * s - lift), r = Math.max(3, t.r - 2 - i * 0.12);
       disc(ctx, x, y, r + 1, INK);
       disc(ctx, x, y, r, i === n ? (t.roof === 'cone' ? (t.donjon ? '#9a4028' : '#4f6072') : STONEP[4]) : STONEP[i % 3 === 0 ? 2 : 3]);
@@ -893,5 +1005,5 @@ export default {
   kinds,
   build(g, rng) { return build(g, rng); },
   update, hud, hudWon,
-  art: { ground, under, over, props: { castle_wall: drawBlock, castle_keep: drawBlock, castle_gate: drawBlock, castle_tower: drawTower, castle_base: drawBase, castle_rubble: drawRubble }, canopy: false, theme: { leash: false } },
+  art: { ground, under, over, props: { castle_wall: drawBlock, castle_keep: drawBlock, castle_gate: drawBlock, castle_tower: drawTower, castle_base: drawBase, castle_stump: drawStump, castle_rubble: drawRubble }, canopy: false, theme: { leash: false } },
 };

@@ -34,7 +34,17 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     if (go === 'plus') return 'Every ability you own, back at the rocks. The heroes have been practising.';
     return 'Your name, sound, music, and which horns.';
   }
-  function setHint(go) { $('menuHint').dataset.at = go; $('menuHint').textContent = hint(go); }
+  // The hint shows at once whenever it changes, and stays up while the mouse is on a menu item; with the mouse
+  // anywhere else it fades out over 2 s (#menuHint.fade in index.html).
+  const hintEl = $('menuHint');
+  const overItem = () => !!list.querySelector('.mi:hover');
+  function fadeHint(go) {
+    hintEl.classList.remove('fade');
+    if (!go) return;
+    void hintEl.offsetWidth;   // so the fade starts from fully shown
+    hintEl.classList.add('fade');
+  }
+  function setHint(go) { hintEl.dataset.at = go; hintEl.textContent = hint(go); fadeHint(!overItem()); }
 
   function disarm() {
     if (!armed) return;
@@ -68,7 +78,13 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     setHint(b.dataset.go);
   });
   list.addEventListener('focusout', disarm);
-  list.addEventListener('pointerover', e => e.target.closest('button:not(:disabled)')?.focus({ preventScroll: true }));
+  list.addEventListener('pointerover', e => {
+    const b = e.target.closest('.mi');
+    if (!b) return;
+    fadeHint(false);
+    if (!b.disabled) b.focus({ preventScroll: true });
+  });
+  list.addEventListener('pointerout', e => { if (e.target.closest('.mi') && !e.relatedTarget?.closest?.('.mi')) fadeHint(true); });
   list.addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b || b.disabled) return;

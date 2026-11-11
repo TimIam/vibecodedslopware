@@ -1326,6 +1326,21 @@ window.SLOPWARE = {
     }
    ]
   },
+  "reviewbomb": {
+   "visits": 0,
+   "prompts": 4,
+   "tokens": 337365,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-11T14:16:40-07:00",
+     "note": "review AI-disclosed games on Vapor",
+     "prompts": 4,
+     "tokens": 337365
+    }
+   ]
+  },
   "shop": {
    "visits": 48,
    "prompts": 3,
@@ -1514,6 +1529,13 @@ window.SLOPWARE = {
      "n": 15,
      "date": "2026-11-11T09:42:57-07:00",
      "note": "necromancers raise the dead, new final powers, castle past 100%",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 16,
+     "date": "2026-11-11T14:36:03-07:00",
+     "note": "fell the keep tower like a tree, crushing pays in full, debug Hoard",
      "prompts": 0,
      "tokens": 0
     }

@@ -2281,26 +2281,37 @@ export function spend(g, n) {
   return true;
 }
 
-export function buyAbility(g, id) {
+// (free: the debug mode's Hoard, which charges nothing)
+export function buyAbility(g, id, free = false) {
   const o = abilityOffer(g, id);
-  if (o.buyCost == null || !spend(g, o.buyCost)) return false;
+  if (o.buyCost == null || !(free || spend(g, o.buyCost))) return false;
   g.owned.add(id);
-  const free = g.slots.indexOf(null);
-  if (free >= 0) g.slots[free] = id;
+  const slot = g.slots.indexOf(null);
+  if (slot >= 0) g.slots[slot] = id;
   return true;
 }
 
-export function upgradeAbility(g, id) {
+export function upgradeAbility(g, id, free = false) {
   const o = abilityOffer(g, id);
-  if (o.upCost == null || !spend(g, o.upCost)) return false;
+  if (o.upCost == null || !(free || spend(g, o.upCost))) return false;
   g.lvl[id] = (g.lvl[id] || 0) + 1;
   applyLevels(g);
   return true;
 }
 
+// debug only: takes a level of mutation back off (an ability you learnt keeps its slot; it is never unlearnt here)
+export function unmutateAbility(g, id) {
+  if (!(g.lvl[id] > 0)) return false;
+  g.lvl[id]--;
+  applyLevels(g);
+  return true;
+}
+
 // puts an owned ability in slot i; if it was already in another slot, the two swap
+// a slot can be given something or swapped, never emptied: moving an ability onto an empty key only swaps the empty
+// slot round, so everything you own stays on a key
 export function setSlot(g, i, id) {
-  if (id && (!g.owned.has(id) || id === 'roar')) return;   // Roar has Space; it takes no slot
+  if (!id || !g.owned.has(id) || id === 'roar') return;   // Roar has Space; it takes no slot
   const j = id ? g.slots.indexOf(id) : -1;
   if (j >= 0) g.slots[j] = g.slots[i];
   g.slots[i] = id || null;
