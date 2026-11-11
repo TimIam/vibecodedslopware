@@ -447,6 +447,8 @@ function commit() {
 }
 
 function gitIdentity() {
+  // only on the runner: locally .git/config is shared by every worktree, and this would sign everyone's commits as the bot
+  if (!process.env.GITHUB_ACTIONS) return;
   git('config', 'user.name', process.env.GIT_NAME || 'addon-watch[bot]');
   git('config', 'user.email', process.env.GIT_EMAIL || '41898282+github-actions[bot]@users.noreply.github.com');
 }
