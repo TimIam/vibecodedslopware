@@ -26,8 +26,15 @@ function Region:IsVisible() local f = self; while f do if not f.shown then retur
 
 local Texture = setmetatable({}, { __index = Region })
 function Texture:SetColorTexture(r, g, b, a) assert(type(r) == "number" and type(g) == "number" and type(b) == "number", "SetColorTexture"); self.color = { r, g, b, a or 1 } end
-function Texture:SetVertexColor(r, g, b, a) assert(r >= 0 and r <= 1 and g >= 0 and g <= 1 and b >= 0 and b <= 1, "SetVertexColor range"); self.vr, self.vg, self.vb = r, g, b; Stub.colourCalls = (Stub.colourCalls or 0) + 1 end
+function Texture:SetVertexColor(r, g, b, a) assert(r >= 0 and r <= 1 and g >= 0 and g <= 1 and b >= 0 and b <= 1, "SetVertexColor range"); assert(a == nil or (a >= 0 and a <= 1), "SetVertexColor alpha"); self.vr, self.vg, self.vb, self.va = r, g, b, a or 1; Stub.colourCalls = (Stub.colourCalls or 0) + 1 end
 Texture.SetSnapToPixelGrid, Texture.SetTexelSnappingBias = noop, noop
+function Texture:SetTexture(file, wrapH, wrapV, filter)
+  assert(type(file) == "string" and file:find("^Interface\\AddOns\\", 1), "SetTexture wants a path under Interface/AddOns")
+  assert((wrapH == nil or wrapH == "CLAMP" or wrapH == "REPEAT") and (wrapV == nil or wrapV == "CLAMP" or wrapV == "REPEAT"), "SetTexture wrap mode")
+  assert(filter == nil or filter == "NEAREST" or filter == "LINEAR" or filter == "TRILINEAR", "SetTexture filter mode")
+  self.file, self.filter = file, filter
+end
+function Texture:SetTexCoord(l, r, t, b) assert(l >= 0 and r <= 1 and t >= 0 and b <= 1 and l < r and t < b, "SetTexCoord"); self.coord = { l, r, t, b } end
 
 local FontString = setmetatable({}, { __index = Region })
 function FontString:SetFont(path, size, flags) assert(type(path) == "string" and type(size) == "number" and size > 0, "SetFont"); self.font = size; return true end

@@ -16,6 +16,7 @@ local EDGE = 2          -- window border
 local D = { built = false, scale = 3 }
 ns.Display = D
 local tex = {}
+local vis = {}          -- whether each cell's texture is showing: a cell with nothing on it over a ground image is hidden
 local colX, rowY = {}, {}
 local laidX, laidY = nil, nil
 
@@ -155,11 +156,22 @@ D.strips = strips
 function D.build()
   if D.built then return end
   local grid, view = D.grid, D.view
+  -- the level's ground, when it ships as an image: one texture under every strip, sliding with the grid
+  local level = view:GetFrameLevel()
+  local gf = _G.CreateFrame("Frame", nil, view)
+  gf:SetAllPoints(view)
+  gf:SetFrameLevel(level + 1)
+  D.groundFrame = gf
+  local gt = gf:CreateTexture(nil, "ARTWORK")
+  if gt.SetSnapToPixelGrid then gt:SetSnapToPixelGrid(false); gt:SetTexelSnappingBias(0) end
+  gt:Hide()
+  D.groundTex = gt
   local strip = nil
   for gy = 0, H - 1 do
     if gy % 8 == 0 then
       strip = _G.CreateFrame("Frame", nil, view)
       strip:SetAllPoints(view)
+      strip:SetFrameLevel(level + 2)
       strips[#strips + 1] = strip
     end
     D.progress = gy / H
@@ -172,6 +184,7 @@ function D.build()
       t:SetVertexColor(0.078, 0.102, 0.07)
       t:Hide()
       tex[gy * W + gx + 1] = t
+      vis[gy * W + gx + 1] = false
     end
     RT.breathe()
   end
@@ -205,6 +218,15 @@ function D.setMode(mode)
     if D.clipAll.SetClipsChildren then D.clipAll:SetClipsChildren(true) end
   end
   local parent = mode == "oneclip" and D.clipAll or view
+  -- the ground image is cut to the picture the same way a strip is
+  local gf = D.groundFrame
+  if gf then
+    if gf.SetClipsChildren then gf:SetClipsChildren(mode == "clip" or mode == "oneclip") end
+    if D.canBuffer() then
+      gf:SetFlattensRenderLayers(mode == "buffer")
+      gf:SetIsFrameBuffer(mode == "buffer")
+    end
+  end
   for _, strip in ipairs(strips) do
     if strip.SetClipsChildren then strip:SetClipsChildren(mode == "clip") end
     if D.canBuffer() then
@@ -223,8 +245,11 @@ function D.showCount(n)
   local from = D.shown or 0
   if n > W * H then n = W * H end
   if n < 0 then n = 0 end
-  if n > from then for i = from + 1, n do tex[i]:Show() end
-  else for i = n + 1, from do tex[i]:Hide() end end
+  if n > from then for i = from + 1, n do tex[i]:Show(); vis[i] = true end
+  else for i = n + 1, from do tex[i]:Hide(); vis[i] = false end end
+  -- cells the game hid or showed one at a time (over a ground image) are put back in step
+  for i = 1, n do if not vis[i] then tex[i]:Show(); vis[i] = true end end
+  for i = n + 1, W * H do if vis[i] then tex[i]:Hide(); vis[i] = false end end
   D.shown = n
 end
 function D.showAll() D.showCount(W * H) end
@@ -238,14 +263,14 @@ function D.pattern()
     local k = 0.65 + 0.35 * ((gy % 8) / 7)
     for gx = 0, W - 1 do
       local t = tex[gy * W + gx + 1]
-      if gx < 2 or gx >= W - 2 or gy < 2 or gy >= H - 2 then t:SetVertexColor(1, 1, 1) else t:SetVertexColor(c[1] * k, c[2] * k, c[3] * k) end
+      if gx < 2 or gx >= W - 2 or gy < 2 or gy >= H - 2 then t:SetVertexColor(1, 1, 1, 1) else t:SetVertexColor(c[1] * k, c[2] * k, c[3] * k, 1) end
     end
   end
   Screen.invalidate()
 end
 -- every cell back to night; the next frame the game shows resends them all
 function D.blank()
-  for i = 1, W * H do tex[i]:SetVertexColor(0.078, 0.102, 0.07) end
+  for i = 1, W * H do tex[i]:SetVertexColor(0.078, 0.102, 0.07, 1) end
   Screen.invalidate()
 end
 
@@ -284,10 +309,37 @@ local function layout()
 end
 
 local K = 1 / 255
+local A1 = 16777216
+-- v is what the Screen holds for the cell: nil (nothing: the ground image shows through), 0xRRGGBB, or that with an
+-- alpha in the byte above (a shadow or a pane of smoke, which the client blends over the image)
 local function setCell(i, v)
+  local t = tex[i]
+  if v == nil then
+    if vis[i] then t:Hide(); vis[i] = false end
+    return
+  end
+  local a = 1
+  if v >= A1 then a = floor(v / A1) * K; v = v % A1 end
   local r = floor(v / 65536)
   local g = floor(v / 256) % 256
-  tex[i]:SetVertexColor(r * K, g * K, (v % 256) * K)
+  t:SetVertexColor(r * K, g * K, (v % 256) * K, a)
+  if not vis[i] then t:Show(); vis[i] = true end
+end
+
+-- Puts the level's ground image under the grid, or takes it away (G is an entry of ns.Ground, or nil). The image is
+-- padded to powers of two, so the texture coordinates pick out the part that is the level.
+local DIR = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
+function D.setGround(G)
+  D.groundNow = G
+  local gt = D.groundTex
+  if not gt then return end
+  if not G then gt:Hide() return end
+  gt:SetTexture(DIR .. G.file, "CLAMP", "CLAMP", "NEAREST")
+  gt:SetTexCoord(0, G.w / G.tw, 0, G.h / G.th)
+  gt:SetSize(G.w, G.h)
+  gt:ClearAllPoints()
+  gt:SetPoint("TOPLEFT", D.grid, "TOPLEFT", 0, 0)
+  gt:Show()
 end
 
 -- shows the frame the Screen holds; returns how many cells changed colour
@@ -299,6 +351,7 @@ function D.present()
   local clock = RT.perfNow
   local t0 = clock()
   D.moved = 0
+  if Screen.ground ~= D.groundNow then D.setGround(Screen.ground) end
   layout()
   local t1 = clock()
   local n = Screen.present(setCell)

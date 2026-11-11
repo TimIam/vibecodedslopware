@@ -5,7 +5,7 @@ local M = RT.module("world");
 local __I0 = RT.module("props");
 local __I1 = RT.module("smoke");
 local __I2 = RT.module("levels/index");
-local __Set, __T, __add, __assign, __assignKV, __band, __every, __filter, __find, __findIndex, __forEach, __fromEntries, __has, __hypot, __indexOf, __it, __map, __objKeys, __orv, __pairs, __push, __reduce, __sarr, __setlen, __shift, __shr, __sign, __slice, __some, __sort, __splice, __startsWith, __str, __toFixed, __u32 = RT["Set"], RT["T"], RT["add"], RT["assign"], RT["assignKV"], RT["band"], RT["every"], RT["filter"], RT["find"], RT["findIndex"], RT["forEach"], RT["fromEntries"], RT["has"], RT["hypot"], RT["indexOf"], RT["it"], RT["map"], RT["objKeys"], RT.orv, pairs, RT["push"], RT["reduce"], RT["sarr"], RT["setlen"], RT["shift"], RT["shr"], RT["sign"], RT["slice"], RT["some"], RT["sort"], RT["splice"], RT["startsWith"], RT["str"], RT["toFixed"], RT["u32"];
+local __Set, __T, __add, __assign, __assignKV, __every, __filter, __find, __findIndex, __forEach, __fromEntries, __has, __hypot, __indexOf, __it, __map, __objKeys, __orv, __pairs, __push, __reduce, __sarr, __setlen, __shift, __shr, __sign, __slice, __some, __sort, __splice, __startsWith, __str, __toFixed, __u32 = RT["Set"], RT["T"], RT["add"], RT["assign"], RT["assignKV"], RT["every"], RT["filter"], RT["find"], RT["findIndex"], RT["forEach"], RT["fromEntries"], RT["has"], RT["hypot"], RT["indexOf"], RT["it"], RT["map"], RT["objKeys"], RT.orv, pairs, RT["push"], RT["reduce"], RT["sarr"], RT["setlen"], RT["shift"], RT["shr"], RT["sign"], RT["slice"], RT["some"], RT["sort"], RT["splice"], RT["startsWith"], RT["str"], RT["toFixed"], RT["u32"];
 local __NaN = 0 / 0;
 local __mabs, __matan2, __mceil, __mcos, __mexp, __mfloor, __mfmod, __mmax, __mmin, __mrandom, __msin, __msqrt = math.abs, math.atan2, math.ceil, math.cos, math.exp, math.floor, math.fmod, math.max, math.min, math.random, math.sin, math.sqrt;
 
@@ -134,6 +134,11 @@ end;
 -- world:271
 M.loadLevel = function(g, n) 
 local L = __I2.levelFor(n);
+local fixedRng = RT.host.layoutRng(n);
+local runRng = g.rng;
+if __T(fixedRng) then
+g.rng = fixedRng;
+end;
 do
 local __t11, __t12 = __it(M.ARRAYS), 0;
 while __t12 < __t11.length do
@@ -167,13 +172,19 @@ total = (total + (__I0.CRITTERS[c.kind].value.chaos or __NaN));
 end;
 end;
 m.chaosNeed = __mmax(1, (total * 0.55));
+if __T(fixedRng) then
+m.layout = RT.host.layoutSeed(n);
+end;
 g.map = m;
 g.levelT0 = g.t;
 M.placeBoss(g);
 M.updateCam(g, 0, true);
 M.syncView(g);
+if __T(fixedRng) then
+g.rng = runRng;
 end;
--- world:292
+end;
+-- world:296
 M.updateCam = function(g, dt, snap) 
 if (__T(g.walkoff) and (not __T(snap))) then
 do return end;
@@ -188,7 +199,7 @@ local k = (__T(snap) and 1 or (1 - __mexp(((-6) * dt))));
 g.cam.x = ((g.cam.x or __NaN) + ((tx - (g.cam.x or __NaN)) * k));
 g.cam.y = ((g.cam.y or __NaN) + ((ty - (g.cam.y or __NaN)) * k));
 end;
--- world:302
+-- world:306
 M.nextMap = function(g) 
 local n = ((g.map.n or __NaN) + 1);
 local b = g.boss;
@@ -203,13 +214,13 @@ g.dir = {next=((g.t or __NaN) + 8), n=0, lastRaid=g.t, raids=0, final=false};
 M.banner(g, ("LEVEL " .. __str(n) .. ": " .. __str(g.map.level.name)), (__T(g.map.level.sub) and g.map.level.sub or ""), 4);
 __push(g.events, "newmap");
 end;
--- world:315
+-- world:319
 M.jumpToLevel = function(g, n) 
 g.map.n = (n - 1);
 g.store = true;
 M.nextMap(g);
 end;
--- world:320
+-- world:324
 M.step = function(g, inp, dt) 
 if __T(g.store) then
 do return end;
@@ -296,12 +307,12 @@ __push(g.events, "store");
 end;
 end;
 end;
--- world:355
+-- world:359
 M.addScore = function(g, n) 
 g.score = ((g.score or __NaN) + n);
 g.points = ((g.points or __NaN) + n);
 end;
--- world:358
+-- world:362
 M.vengeance = function(g, v) 
 if (g.map.mode == "patrol") then
 do return end;
@@ -309,7 +320,7 @@ end;
 g.mult = __mmin(M.MULT_MAX, ((g.mult or __NaN) + v));
 g.vengeT = 0;
 end;
--- world:363
+-- world:367
 M.addChaos = function(g, c) 
 if (g.map.mode ~= "chaos") then
 do return end;
@@ -323,7 +334,7 @@ if ((before < 1) and ((g.chaos or __NaN) >= 1)) then
 M.text(g, g.boss.x, ((g.boss.y or __NaN) - 26), "CHAOS 100%", "gold", 1.6);
 end;
 end;
--- world:370
+-- world:374
 M.sound = function(g, e) 
 local last = (function() if not __T(g.sndT) then g.sndT = {} end; return g.sndT end)()[e];
 if ((last ~= nil) and (((g.t or __NaN) - last) < 0.06)) then
@@ -332,7 +343,7 @@ end;
 g.sndT[e] = g.t;
 __push(g.events, e);
 end;
--- world:403
+-- world:407
 M.updateBoss = function(g, inp, dt) 
 local b = g.boss;
 local m = g.map;
@@ -429,9 +440,6 @@ b.moving = (moved > 0.01);
 if __T(b.moving) then
 local before = __mfloor(((b.walk or __NaN) / 4));
 b.walk = ((b.walk or __NaN) + (moved * 0.3));
-if (__mfloor(((b.walk or __NaN) / 4)) ~= before) then
-__push(g.steps, {x=b.x, y=b.y, face=b.face, side=__band(__mfloor(((b.walk or __NaN) / 4)), 1)});
-end;
 end;
 if (m.mode ~= "patrol") then
 g.onPatrol = false;
@@ -496,7 +504,7 @@ g.thought = {s=M.pick(g, (function() if (m.mode == "patrol") then return M.BARK.
 end;
 end;
 end;
--- world:515
+-- world:519
 M.moveBoss = function(g, x, y) 
 local b = g.boss;
 local m = g.map;
@@ -531,7 +539,7 @@ end;
 end;
 end;
 end;
--- world:532
+-- world:536
 M.startEvade = function(g) 
 local b = g.boss;
 local p = M.pathNearest(g.map, b.x, b.y);
@@ -559,7 +567,7 @@ end;
 end;
 end;
 end;
--- world:548
+-- world:552
 M.walkOff = function(g, o) if o == nil then o = {} end;
 local b = g.boss;
 if (((__T(g.walkoff) or __T(g.clear)) or __T(g.won)) or __T(b.dead)) then
@@ -569,7 +577,7 @@ g.walkoff = {x=(o.x == nil and b.x or o.x), t=0, off=false};
 __assignKV(b, "act", nil, "queue", nil, "evade", nil, "taunt", nil, "haste", 0);
 M.levelCleared(g, o.title, o.sub);
 end;
--- world:555
+-- world:559
 M.walkOffStep = function(g, dt) 
 local b = g.boss;
 local w = g.walkoff;
@@ -587,15 +595,12 @@ local moved = __hypot(((b.x or __NaN) - ox), ((b.y or __NaN) - oy));
 b.moving = (moved > 0.01);
 local before = __mfloor(((b.walk or __NaN) / 4));
 b.walk = ((b.walk or __NaN) + (moved * 0.3));
-if ((__mfloor(((b.walk or __NaN) / 4)) ~= before) and ((b.y or __NaN) > 0)) then
-__push(g.steps, {x=b.x, y=b.y, face=b.face, side=__band(__mfloor(((b.walk or __NaN) / 4)), 1)});
-end;
 if ((not __T(w.off)) and ((b.y or __NaN) < ((M.V.y or __NaN) - 26))) then
 w.off = true;
 __push(g.events, "walkoff");
 end;
 end;
--- world:572
+-- world:576
 M.tryCast = function(g, k) 
 local b = g.boss;
 if ((((__T(b.act) or __T(b.evade)) or __T(b.dead)) or ((b.cd[k] or __NaN) > 0)) or __T(g.clear)) then
@@ -655,7 +660,7 @@ M.advanceAct(g, 0);
 end;
 do return true end;
 end;
--- world:601
+-- world:605
 M.advanceAct = function(g, dt) 
 local b = g.boss;
 local a = b.act;
@@ -747,7 +752,7 @@ if ((a.t or __NaN) >= ((d.wind or __NaN) + (d.dur or __NaN))) then
 b.act = nil;
 end;
 end;
--- world:647
+-- world:651
 M.beamEnd = function(g) 
 local b = g.boss;
 local d = g.abil.beam;
@@ -766,7 +771,7 @@ len = __mmin(len, ((((M.V.y or __NaN) - 4) - (b.y or __NaN)) / s));
 end;
 do return {x=((b.x or __NaN) + (c * len)), y=((b.y or __NaN) + (s * len)), len=len} end;
 end;
--- world:655
+-- world:659
 M.fire = function(g, k) 
 local b = g.boss;
 local d = g.abil[k];
@@ -917,7 +922,7 @@ elseif (k == "beam") then
 g.shake = 0.3;
 end;
 end;
--- world:713
+-- world:717
 M.chargeStep = function(g, a, d, dt) 
 local b = g.boss;
 if (not __T(a.back)) then
@@ -991,7 +996,7 @@ if (((dist <= 0.5) or (s < 0.01)) or (__hypot(((b.x or __NaN) - ox), ((b.y or __
 b.act = nil;
 end;
 end;
--- world:750
+-- world:754
 M.stun = function(g, u, t) 
 if (u.role == "rider") then
 if __T(u.mounted) then
@@ -1006,7 +1011,7 @@ end;
 u.stun = t;
 u.cast = 0;
 end;
--- world:762
+-- world:766
 M.inZone = function(g, k, x, y, pad) if pad == nil then pad = 0 end;
 local b = g.boss;
 local d = g.abil[k];
@@ -1033,7 +1038,7 @@ do return true end;
 end;
 do return (__mabs(M.angDiff(__matan2(dy, dx), M.zoneFace(g, k))) < (((d.arc or __NaN) / 2) + (pad / dist))) end;
 end;
--- world:778
+-- world:782
 M.telegraph = function(g) 
 local a = g.boss.act;
 if (not __T(a)) then
@@ -1047,7 +1052,7 @@ do return a.kind end;
 end;
 do return nil end;
 end;
--- world:786
+-- world:790
 M.hurtBoss = function(g, amt, u) 
 local b = g.boss;
 if ((__T(b.evade) or __T(b.dead)) or __T(g.walkoff)) then
@@ -1082,7 +1087,7 @@ end;
 end;
 end;
 end;
--- world:804
+-- world:808
 M.edgeSpot = function(g, avoid) 
 do
 local tries = 0;
@@ -1110,7 +1115,7 @@ tries = tries + 1;
 end;
 end;
 end;
--- world:820
+-- world:824
 M.director = function(g) 
 local d = g.dir;
 local mode = g.map.mode;
@@ -1164,14 +1169,14 @@ end;
 d.n = (d.n or __NaN) + 1;
 d.next = ((g.t or __NaN) + ((__mmax(14, ((30 - ((d.n or __NaN) * 1.2)) - ((g.map.n or __NaN) * 2))) + (g.rng() * 8)) / (1 + (M.NG_PACE * (g.ng or __NaN)))));
 end;
--- world:842
+-- world:846
 M.newParty = function(g, type) 
 local power = ((type == "rider") and 1 or ((1 + (((g.map.n or __NaN) - 1) * 0.28)) + ((type == "raid") and ((g.dir.raids or __NaN) * 0.05) or ((g.dir.n or __NaN) * 0.05))));
 local p = {id=(function() local __t93 = g.nextId; g.nextId = __t93 + 1; return __t93 end)(), type=type, power=power, units={length=0}, skill=M.SKILL[type], engaged=false, done=false, fleeing=false, t=0, brez=0, deadList={length=0}, barkT=3};
 __push(g.parties, p);
 do return p end;
 end;
--- world:850
+-- world:854
 M.mkUnit = function(g, p, cls, x, y) 
 local c = M.CLASS[cls];
 local u = {id=(function() local __t94 = g.nextId; g.nextId = __t94 + 1; return __t94 end)(), party=p, cls=cls, role=c.role, x=x, y=y, hp=(((c.hp or __NaN) * (p.power or __NaN)) * (1 + (M.NG_HP * (g.ng or __NaN)))), maxhp=(((c.hp or __NaN) * (p.power or __NaN)) * (1 + (M.NG_HP * (g.ng or __NaN)))), spd=c.spd, atk=(g.rng() * (c.rate or __NaN)), cast=0, state="travel", kx=0, ky=0, hit=0, dead=false, gone=false, moving=false, fx=1, walk=(g.rng() * 10), slotA=0, slotD=0, fear=0, stun=0, slow=1, react=math.huge, willDodge=false, inFire=false, fireOk=false, tauntCd=(4 + (g.rng() * 6))};
@@ -1179,7 +1184,7 @@ __push(g.units, u);
 __push(p.units, u);
 do return u end;
 end;
--- world:861
+-- world:865
 M.spawnDungeon = function(g, quiet) 
 local p = M.newParty(g, "dungeon");
 local e = M.edgeSpot(g, true);
@@ -1209,7 +1214,7 @@ M.banner(g, "A 5-MAN HAS ZONED IN", "TANK, HEALER, THREE DPS. ONE IS AFK.");
 end;
 __push(g.events, "horn");
 end;
--- world:883
+-- world:887
 M.spawnRaid = function(g, size, final) 
 local p = M.newParty(g, "raid");
 p.final = (not (not __T(final)));
@@ -1261,7 +1266,7 @@ M.banner(g, ("A " .. __str(size) .. "-MAN RAID HAS ENTERED"), "THEY HAVE WATCHED
 end;
 __push(g.events, "raidhorn");
 end;
--- world:917
+-- world:921
 M.spawnRider = function(g) 
 local p = M.newParty(g, "rider");
 local e = M.edgeSpot(g, false);
@@ -1275,7 +1280,7 @@ p.engaged = true;
 M.banner(g, "A QUIET MAN ON A HORSE", "HE WANTS TO CLIMB YOUR FUR.");
 __push(g.events, "neigh");
 end;
--- world:929
+-- world:933
 M.raidComp = function(size) 
 local tanks = (2 + __mfloor(((size - 25) / 15)));
 local healers = __mfloor((size * 0.2) + 0.5);
@@ -1294,7 +1299,7 @@ __push(comp, (function() if (__mfmod(i, 2) ~= 0) then return ranged[__mfmod(__sh
 end;
 do return comp end;
 end;
--- world:940
+-- world:944
 M.garrison = function(g, o) 
 local size = ((o.size ~= 0) and o.size or 5);
 local raid = (size > 5);
@@ -1344,7 +1349,7 @@ end);
 p.leader = p.units[0];
 do return p end;
 end;
--- world:967
+-- world:971
 M.spawnKing = function(g, o) 
 local p = M.newParty(g, "dungeon");
 p.king = true;
@@ -1358,7 +1363,7 @@ u.post = {x=o.x, y=o.y};
 u.king = true;
 do return u end;
 end;
--- world:977
+-- world:981
 M.scatter = function(g, p) 
 p.fleeing = true;
 do
@@ -1371,7 +1376,7 @@ u.fear = 0;
 end;
 end;
 end;
--- world:986
+-- world:990
 M.engage = function(g, p, why) 
 if __T(p.engaged) then
 do return end;
@@ -1396,7 +1401,7 @@ if __T(u) then
 M.bark(g, u, (function() if (why == "pet") then return M.pick(g, M.BARK.pet); elseif (why == "early") then return M.pick(g, M.BARK.pull); elseif (p.type == "raid") then return "GO GO GO"; else return "GOGO"; end; end)());
 end;
 end;
--- world:996
+-- world:1000
 M.updateParty = function(g, p, dt) 
 p.t = ((p.t or __NaN) + dt);
 local live = M.alive(p);
@@ -1536,7 +1541,7 @@ p.fleeT = 12;
 end;
 end;
 end;
--- world:1077
+-- world:1081
 M.finishParty = function(g, p) 
 p.done = true;
 if __T(p.king) then
@@ -1571,7 +1576,7 @@ g.wipes[p.type] = (g.wipes[p.type] or __NaN) + 1;
 M.banner(g, ((p.type == "raid") and "RAID WIPED" or "PARTY WIPED"), (("+" .. __str(pts)) .. ((p.type == "raid") and "  SEE YOU NEXT RESET" or "")));
 __push(g.events, "wipe");
 end;
--- world:1102
+-- world:1106
 M.mapCleared = function(g, esc) 
 if __T(g.clear) then
 do return end;
@@ -1586,7 +1591,7 @@ M.banner(g, "LEVEL CLEARED", ((pts ~= 0) and ("+" .. __str(pts) .. ". THE HOARD 
 __push(g.events, "clear");
 M.sendHome(g);
 end;
--- world:1113
+-- world:1117
 M.levelCleared = function(g, title, sub) if title == nil then title = "LEVEL CLEARED" end; if sub == nil then sub = "THE HOARD OPENS IN A MOMENT." end;
 if (__T(g.clear) or __T(g.won)) then
 do return end;
@@ -1596,7 +1601,7 @@ M.banner(g, title, sub, 5);
 __push(g.events, "clear");
 M.sendHome(g);
 end;
--- world:1122
+-- world:1126
 M.winGame = function(g) 
 if __T(g.won) then
 do return end;
@@ -1608,7 +1613,7 @@ M.banner(g, "THE KINGDOM IS RUBBLE", "EVERY HERO LEFT IS RUNNING. YOU WIN.", 7);
 __push(g.events, "clear");
 M.sendHome(g);
 end;
--- world:1130
+-- world:1134
 M.sendHome = function(g) 
 g.boss.act = nil;
 g.boss.taunt = nil;
@@ -1637,14 +1642,14 @@ until true;
 end;
 end;
 end;
--- world:1140
+-- world:1144
 M.nearestExit = function(u) 
 local opts = {[0]={x=((M.V.x or __NaN) - 12), y=u.y}, {x=(((M.V.x or __NaN) + M.W) + 12), y=u.y}, {x=u.x, y=((M.V.y or __NaN) - 12)}, {x=u.x, y=(((M.V.y or __NaN) + M.H) + 12)}, length=4};
 do return __reduce(opts, function(a, c) 
 if (__hypot(((c.x or __NaN) - (u.x or __NaN)), ((c.y or __NaN) - (u.y or __NaN))) < __hypot(((a.x or __NaN) - (u.x or __NaN)), ((a.y or __NaN) - (u.y or __NaN)))) then do return c end; else do return a end; end;
 end) end;
 end;
--- world:1147
+-- world:1151
 M.moveTo = function(u, tx, ty, spd, dt) 
 spd = (spd * (u.slow == nil and 1 or u.slow));
 local dx = (tx - (u.x or __NaN));
@@ -1664,7 +1669,7 @@ end;
 u.walk = ((u.walk or __NaN) + (s * 0.5));
 do return (d < 2) end;
 end;
--- world:1158
+-- world:1162
 M.moveDir = function(u, dx, dy, spd, dt) 
 spd = (spd * (u.slow == nil and 1 or u.slow));
 local d = ((__hypot(dx, dy) ~= 0) and __hypot(dx, dy) or 1);
@@ -1676,12 +1681,12 @@ u.fx = ((dx > 0) and 1 or (-1));
 end;
 u.walk = ((u.walk or __NaN) + ((spd * dt) * 0.5));
 end;
--- world:1166
+-- world:1170
 M.clampArena = function(u) 
 u.x = M.clamp(u.x, M.AR.x0, M.AR.x1);
 u.y = M.clamp(u.y, ((M.AR.y0 or __NaN) - 6), ((M.AR.y1 or __NaN) + 8));
 end;
--- world:1172
+-- world:1176
 M.knock = function(u, b, kb) 
 local dx = ((u.x or __NaN) - (b.x or __NaN));
 local dy = ((u.y or __NaN) - (b.y or __NaN));
@@ -1689,7 +1694,7 @@ local d = ((__hypot(dx, dy) ~= 0) and __hypot(dx, dy) or 1);
 u.kx = ((u.kx or __NaN) + (((dx / d) * kb) * 5));
 u.ky = ((u.ky or __NaN) + (((dy / d) * kb) * 5));
 end;
--- world:1177
+-- world:1181
 M.escapeDir = function(g, k, u) 
 local b = g.boss;
 local d = g.abil[k];
@@ -1713,7 +1718,7 @@ do return {x=((-__msin(f)) * s), y=(__mcos(f) * s)} end;
 end;
 do return {x=(dx / dist), y=(dy / dist)} end;
 end;
--- world:1190
+-- world:1194
 M.fireAt = function(g, x, y) 
 do
 local __t119, __t120 = __it(g.fires), 0;
@@ -1726,7 +1731,7 @@ end;
 end;
 do return nil end;
 end;
--- world:1194
+-- world:1198
 M.onIce = function(g, x, y) 
 do
 local __t122, __t123 = __it(g.ice), 0;
@@ -1739,7 +1744,7 @@ end;
 end;
 do return false end;
 end;
--- world:1199
+-- world:1203
 M.fightSpot = function(g, u) 
 local b = g.boss;
 local a;
@@ -1756,7 +1761,7 @@ d = u.slotD;
 end;
 do return {x=M.clamp(((b.x or __NaN) + (__mcos(a) * d)), M.AR.x0, M.AR.x1), y=M.clamp(((b.y or __NaN) + (__msin(a) * d)), M.AR.y0, M.AR.y1)} end;
 end;
--- world:1208
+-- world:1212
 M.updateUnit = function(g, u, dt) 
 local b = g.boss;
 local p = u.party;
@@ -1976,7 +1981,7 @@ end;
 u.swing = __mmax(0, ((__T(u.swing) and u.swing or 0) - dt));
 u.glow = __mmax(0, ((__T(u.glow) and u.glow or 0) - dt));
 end;
--- world:1358
+-- world:1362
 M.updateRider = function(g, u, dt) 
 local b = g.boss;
 local h = u.horse;
@@ -2155,7 +2160,7 @@ h.ty = M.clamp(((h.y or __NaN) + ((g.rng() - 0.5) * 20)), ((M.AR.y0 or __NaN) + 
 end;
 end;
 end;
--- world:1469
+-- world:1473
 M.shakeRider = function(g, u) 
 local b = g.boss;
 u.grip = ((u.grip or __NaN) - (30 + (g.rng() * 18)));
@@ -2189,7 +2194,7 @@ u.vy = (wy * 110);
 M.text(g, u.x, ((u.y or __NaN) - 8), "SHAKEN OFF", "cream", 1.2);
 __push(g.events, "fling");
 end;
--- world:1492
+-- world:1496
 M.hurt = function(g, u, amt) 
 if (not M.hittable(u)) then
 do return end;
@@ -2207,7 +2212,7 @@ elseif ((not __T(u.party.engaged)) and (amt > 5)) then
 M.engage(g, u.party, "early");
 end;
 end;
--- world:1501
+-- world:1505
 M.kill = function(g, u) 
 u.dead = true;
 local p = u.party;
@@ -2244,7 +2249,7 @@ __push(g.ghosts, {x=u.x, y=((u.y or __NaN) - 2), t=0, vx=0});
 __push(g.parts, {horse=true, x=h.x, y=h.y, vx=((((h.x or __NaN) < ((M.V.x or __NaN) + (M.W / 2))) and (-1) or 1) * 70), vy=0, t=0, life=4, face=(((h.x or __NaN) < ((M.V.x or __NaN) + (M.W / 2))) and math.pi or 0), walk=h.walk});
 end;
 end;
--- world:1527
+-- world:1531
 M.updateBolts = function(g, dt) 
 local b = g.boss;
 do
@@ -2291,7 +2296,7 @@ g.bolts = __filter(g.bolts, function(o)
 return (not __T(o.done));
 end);
 end;
--- world:1551
+-- world:1555
 M.updateFx = function(g, dt) 
 do
 local __t135, __t136 = __it(g.parts), 0;
@@ -2394,7 +2399,7 @@ g.banner = nil;
 end;
 end;
 end;
--- world:1571
+-- world:1575
 M.separate = function(g) 
 local us = g.units;
 for i = 0, (us.length or #us) - 1 do
@@ -2481,7 +2486,7 @@ end;
 end;
 end;
 end;
--- world:1603
+-- world:1607
 M.pickFoe = function(g, u) 
 if (u.role == "healer") then
 do return nil end;
@@ -2507,7 +2512,7 @@ end;
 end;
 do return best end;
 end;
--- world:1616
+-- world:1620
 M.fightAdd = function(g, u, a, dt) 
 local c = M.CLASS[u.cls];
 local d = __orv(__hypot(((u.x or __NaN) - (a.x or __NaN)), ((u.y or __NaN) - (a.y or __NaN))), 1);
@@ -2541,7 +2546,7 @@ end;
 M.clampArena(u);
 u.swing = __mmax(0, ((__T(u.swing) and u.swing or 0) - dt));
 end;
--- world:1638
+-- world:1642
 M.hurtAdd = function(g, a, amt) 
 if __T(a.dead) then
 do return end;
@@ -2560,7 +2565,7 @@ M.part(g, a.x, ((a.y or __NaN) - 1), (__mcos(k) * s), (__msin(k) * s), 0.45, (__
 end;
 __push(g.events, "adddie");
 end;
--- world:1650
+-- world:1654
 M.summon = function(g) 
 local lvl = (__T(g.lvl.summon) and g.lvl.summon or 0);
 local kinds = ((lvl == 0) and {[0]="gnasher", "gnasher", length=2} or ((lvl == 1) and {[0]="spitter", "spitter", length=2} or {[0]="necro", length=1}));
@@ -2583,7 +2588,7 @@ end;
 end;
 g.shake = __mmax((g.shake or __NaN), 0.2);
 end;
--- world:1661
+-- world:1665
 M.spawnAdd = function(g, kind, x, y) 
 local b = g.boss;
 local D = M.ADDS[kind];
@@ -2613,7 +2618,7 @@ end;
 __push(g.events, (__startsWith(kind, "skel") and "rise" or "summon"));
 do return a end;
 end;
--- world:1684
+-- world:1688
 M.updateAdd = function(g, a, dt) 
 local b = g.boss;
 local D = M.ADDS[a.kind];
@@ -2722,7 +2727,7 @@ end;
 end;
 M.clampArena(a);
 end;
--- world:1749
+-- world:1753
 M.applyLevels = function(g) 
 local L = function(k) 
 return (__T(g.lvl[k]) and g.lvl[k] or 0);
@@ -2754,7 +2759,7 @@ local old = b.maxhp;
 b.maxhp = (M.BOSS_HP * (1 + (0.25 * L("fur"))));
 b.hp = __mmax(1, (((b.hp or __NaN) + (b.maxhp or __NaN)) - old));
 end;
--- world:1767
+-- world:1771
 M.abilityOffer = function(g, id) 
 local it = __find(M.ABILITIES, function(a) 
 return (a.id == id);
@@ -2773,7 +2778,7 @@ local upText;
 if __T(it.ups) then upText = it.ups[lvl]; else upText = it.up; end;
 do return {it=it, owned=owned, lvl=lvl, max=max, buyCost=(function() if owned then return nil; else return it.cost; end; end)(), upCost=upCost, upText=upText} end;
 end;
--- world:1779
+-- world:1783
 M.spend = function(g, n) 
 if ((g.points or __NaN) < n) then
 do return false end;
@@ -2782,7 +2787,7 @@ g.points = ((g.points or __NaN) - n);
 g.spent = ((g.spent or __NaN) + n);
 do return true end;
 end;
--- world:1785
+-- world:1789
 M.buyAbility = function(g, id) 
 local o = M.abilityOffer(g, id);
 if ((o.buyCost == nil) or (not M.spend(g, o.buyCost))) then
@@ -2795,7 +2800,7 @@ g.slots[free] = id;
 end;
 do return true end;
 end;
--- world:1794
+-- world:1798
 M.upgradeAbility = function(g, id) 
 local o = M.abilityOffer(g, id);
 if ((o.upCost == nil) or (not M.spend(g, o.upCost))) then
@@ -2805,7 +2810,7 @@ g.lvl[id] = ((__T(g.lvl[id]) and g.lvl[id] or 0) + 1);
 M.applyLevels(g);
 do return true end;
 end;
--- world:1803
+-- world:1807
 M.setSlot = function(g, i, id) 
 if (__T(id) and (not __has(g.owned, id))) then
 do return end;
@@ -2816,7 +2821,7 @@ g.slots[j] = g.slots[i];
 end;
 g.slots[i] = (__T(id) and id or nil);
 end;
--- world:1815
+-- world:1819
 M.createDemo = function(look) 
 local d = M.createGame(7, look);
 d.dir.final = true;
@@ -2824,7 +2829,7 @@ __assignKV(d.map, "plain", true, "A", {x=(-400), y=(-400)}, "B", {x=(-300), y=(-
 d.demo = {id="swipe", t=0, cycle=0};
 do return d end;
 end;
--- world:1824
+-- world:1828
 M.demoSet = function(d, id, lvl, look) 
 do
 local __t186, __t187 = __it({[0]="units", "parties", "corpses", "ghosts", "fires", "ice", "bolts", "parts", "texts", "barks", "rings", "adds", "ashes", length=13}), 0;
@@ -2855,7 +2860,7 @@ d.banner = nil;
 d.thought = nil;
 M.demoParty(d);
 end;
--- world:1840
+-- world:1844
 M.demoParty = function(d) 
 local p = M.newParty(d, "dungeon");
 p.power = 0.6;
@@ -2870,7 +2875,7 @@ u.slotD = ((u.role == "healer") and 50 or ((u.role == "ranged") and 42 or 2));
 u.home = {x=x, y=y};
 end);
 end;
--- world:1854
+-- world:1858
 M.demoStep = function(d, dt) 
 local dm = d.demo;
 local b = d.boss;
@@ -2944,17 +2949,17 @@ d.thought = nil;
 d.clear = nil;
 d.store = false;
 end;
--- world:1893
+-- world:1897
 M.part = function(g, x, y, vx, vy, life, kind) 
 if ((g.parts.length or #g.parts) < 400) then
 __push(g.parts, {x=x, y=y, vx=vx, vy=vy, t=0, life=life, kind=kind});
 end;
 end;
--- world:1894
+-- world:1898
 M.text = function(g, x, y, s, col, life) if life == nil then life = 1.1 end;
 __push(g.texts, {x=x, y=y, s=s, col=col, t=0, life=life});
 end;
--- world:1895
+-- world:1899
 M.bark = function(g, u, s) 
 g.barks = __filter(g.barks, function(k) 
 return (k.u ~= u);
@@ -2964,11 +2969,11 @@ __shift(g.barks);
 end;
 __push(g.barks, {u=(function() if __T(u.dead) then return nil; else return u; end; end)(), x=u.x, y=u.y, s=s, t=0, life=2});
 end;
--- world:1900
+-- world:1904
 M.banner = function(g, s, sub, dur) if dur == nil then dur = 3.2 end;
 g.banner = {s=s, sub=sub, t=0, dur=dur};
 end;
--- world:1903
+-- world:1907
 M.newGamePlus = function(prev, look) 
 local g = M.createGame(nil, look);
 g.ng = ((__T(prev.ng) and prev.ng or 0) + 1);
@@ -2979,7 +2984,7 @@ M.applyLevels(g);
 g.boss.hp = g.boss.maxhp;
 do return g end;
 end;
--- world:1921
+-- world:1925
 M.createEnding = function(look) 
 local e = M.createGame(11, look);
 e.dir.final = true;
@@ -2990,7 +2995,7 @@ e.lastMark = "A";
 e["end"] = {wp={[0]={x=(M.W - 70), y=(M.H - 46)}, {x=((B.x or __NaN) + 40), y=((B.y or __NaN) + 22)}, length=2}, t=0, phase="walk", caption=M.ENDING_LINES[0][1], capT=0, hearts={length=0}, at=nil, done=false};
 do return e end;
 end;
--- world:1930
+-- world:1934
 M.endingStep = function(e, dt) 
 local en = e["end"];
 local b = e.boss;
@@ -3235,7 +3240,7 @@ if (g.lastMark == "A") then do return g.map.B end; else do return g.map.A end; e
 end;
 -- world:268
 M.ARRAYS = {[0]="units", "parties", "corpses", "ghosts", "fires", "ice", "bolts", "parts", "texts", "barks", "rings", "adds", "steps", "props", "critters", "ashes", length=16};
--- world:313
+-- world:317
 M.isLastLevel = function(g) 
 return ((g.map.n or __NaN) >= __I2.lastLevel());
 end;
@@ -3244,7 +3249,7 @@ __I0.setWorldApi({addScore=M.addScore, text=M.text, part=M.part, hurt=function(g
 return M.hurt(g, u, a);
 end, sound=M.sound, vengeance=M.vengeance, chaos=M.addChaos});
 end;
--- world:379
+-- world:383
 M.LAPI = {endLevel=function(g, title, sub) 
 return M.levelCleared(g, title, sub);
 end, win=function(g) 
@@ -3274,25 +3279,25 @@ return M.bark(g, u, s);
 end, alive=function(p) 
 return M.alive(p);
 end};
--- world:760
+-- world:764
 M.zoneFace = function(g, k) 
 return ((g.boss.face or __NaN) + (__T(g.abil[k].back) and math.pi or 0));
 end;
--- world:984
+-- world:988
 M.alive = function(p) 
 return __filter(p.units, function(u) 
 return ((not __T(u.dead)) and (not __T(u.gone)));
 end);
 end;
--- world:1170
+-- world:1174
 M.hittable = function(u) 
 return (((not __T(u.dead)) and (not __T(u.gone))) and (not ((u.role == "rider") and (u.state == "climb"))));
 end;
--- world:1746
+-- world:1750
 M.maxLevel = function(id) 
 return ((id == "summon") and 2 or 3);
 end;
--- world:1814
+-- world:1818
 M.DEMO_AT = {x=110, y=96};
--- world:1916
+-- world:1920
 M.ENDING_LINES = {[0]={[0]=0, "THE KINGDOM IS RUBBLE.", length=2}, {[0]=2.8, "THE HEROES HAVE ALL LOGGED OFF.", length=2}, {[0]=5.6, "AND AT LAST, THE LONG WALK HOME.", length=2}, length=3};

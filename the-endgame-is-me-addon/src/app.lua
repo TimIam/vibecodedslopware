@@ -32,6 +32,7 @@ local stats = { sim = 0, draw = 0, send = 0, move = 0, moved = 0, cells = 0, fra
 
 local now = _G.debugprofilestop or function() return (_G.GetTime and _G.GetTime() or os.clock()) * 1000 end
 RT.perfNow = now
+RT.fixedLayouts = true   -- levels whose ground ships as an image are laid out from the image's seed (src/gfx.lua)
 RT.now = function() return (_G.GetTime and _G.GetTime() or 0) * 1000 end
 RT.print = function(...) _G.print("|cffd8b45cThe Endgame is Me:|r", ...) end
 
@@ -156,6 +157,7 @@ end
 
 function A.load(label, job, done)
   RT.lean = ns.DB.effects == "light"   -- a new level starts with full effects unless the player said otherwise
+  RT.groundImages = ns.DB.ground ~= false
   A.job = { co = coroutine.create(job), done = done, t0 = now(), frames = 0 }
   A.loadLabel = label
   A.setMode("loading")
@@ -1361,6 +1363,9 @@ _G.SlashCmdList["THEENDGAMEISME"] = function(msg)
     local n = tonumber(arg)
     ns.DB.fps = (n and n >= 10 and n <= 240) and floor(n) or 60
     RT.print("drawing at most about " .. ns.DB.fps .. " frames a second. Lower it if the game drags your frame rate down.")
+  elseif cmd == "ground" then
+    if arg == "on" then ns.DB.ground = nil elseif arg == "off" then ns.DB.ground = false end
+    RT.print("ground images: " .. (ns.DB.ground == false and "off (the ground is painted a pixel at a time, as it used to be)" or "on") .. ". It takes effect at the next level. /endgame ground on or off")
   elseif cmd == "effects" then
     if arg == "full" or arg == "light" or arg == "auto" then
       ns.DB.effects = arg ~= "auto" and arg or nil

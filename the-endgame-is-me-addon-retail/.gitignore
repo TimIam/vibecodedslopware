@@ -1,2 +1,4 @@
 # copied in from ../the-endgame-is-me-addon/sounds by its tools/build.mjs; one copy in git is enough
 /TheEndgameIsMe/Sounds/
+# and of ../the-endgame-is-me-addon/art (the baked ground images)
+/TheEndgameIsMe/Art/

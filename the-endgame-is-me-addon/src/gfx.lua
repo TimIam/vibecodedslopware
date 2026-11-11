@@ -337,3 +337,27 @@ function RT.drawFires(ctx, g)
   end
   ctx.globalAlpha = 1
 end
+
+-- ------------------------------------------------------------------------------------------------ ground images
+
+-- Painting a level's ground in Lua took seconds, and then every bare pixel of it was one of the 57,600 textures. A
+-- level's ground now ships as an image (Art/ground_N.tga, made by tools/bake-ground.lua and listed in ns.Ground by
+-- the build): the client draws it as one texture under the grid, and the grid only shows the cells that have
+-- something on them. For the image to match, the level must be laid out exactly as it was when the image was made,
+-- so such a level is built from the image's seed instead of the run's (the patches to world.js in tools/build.mjs).
+--   RT.fixedLayouts   on in the addon; off under the tests that compare with the browser game, which has no such thing
+--   RT.groundImages   off: lay levels out the fixed way but paint the ground in Lua as before (/endgame ground off)
+RT.fixedLayouts, RT.groundImages = false, true
+local function baked(n) return RT.fixedLayouts and ns.Ground and ns.Ground[n] or nil end
+RT.host.layoutRng = function(n)
+  local G = baked(n)
+  return G and RT.mulberry32(G.seed) or nil
+end
+RT.host.layoutSeed = function(n) local G = baked(n); return G and G.seed or nil end
+local NOPX = {}
+-- what the renderer hands the Screen in place of a painted ground: its size and which file it is
+RT.host.groundImage = function(m)
+  local G = baked(m.n)
+  if not (G and G.file and RT.groundImages) or m.plain or m.layout ~= G.seed then return nil end
+  return { image = G, width = G.w, height = G.h, px = NOPX }
+end

@@ -402,8 +402,8 @@ function SMeta:fillRect(x, y, w, h)
           if opaque then cur[i] = rgb
           else
             local d = cur[i]
-            local v = memo[d]
-            if not v then v = mix(d, rgb, a); memo[d] = v end
+            local v = d and memo[d]
+            if not v then v = over(d, rgb, a); if d then memo[d] = v end end
             cur[i] = v
           end
         end
@@ -467,10 +467,10 @@ local function blit(self, img, dx, dy, thresh)
                   local v = spx[si + j]
                   if mark[i] ~= f then mark[i] = f; nNow = nNow + 1; now[nNow] = i end
                   if v < A1 then
-                    if ga >= 0.998 then cur[i] = v else cur[i] = mix(cur[i], v, ga) end
+                    if ga >= 0.998 then cur[i] = v else cur[i] = over(cur[i], v, ga) end
                   else
                     local va = floor(v / A1)
-                    cur[i] = mix(cur[i], v - va * A1, va / 255 * ga)
+                    cur[i] = over(cur[i], v - va * A1, va / 255 * ga)
                   end
                 end
               end
@@ -491,10 +491,15 @@ end
 
 -- the ground at one world pixel: the painted level, then scorch marks and footprints
 local bgC, trailC, fgC, waterC = nil, nil, nil, nil
+local imageMode = false
 local WATER_TINT = 0.35   -- the one see-through thing in a water layer: the wash over a filled-in cell (see gfx.lua)
 local viewX, viewY = 0, 0
+-- With a ground image (bgC.image, see gfx.lua) there is no ground colour to start from: a cell is nil where only the
+-- image shows, and a see-through pixel stays see-through (alpha in the top byte, as in a canvas) for the client to
+-- blend over the image.
 local function groundAt(wx, wy)
   local v = NIGHT
+  if imageMode then v = nil end
   if wx >= 0 and wy >= 0 and wx < bgC.width and wy < bgC.height then
     local b = bgC.px[wy * bgC.width + wx + 1]
     if b ~= nil then
@@ -503,13 +508,13 @@ local function groundAt(wx, wy)
     if wx < trailC.width and wy < trailC.height then
       local t = trailC.px[wy * trailC.width + wx + 1]
       if t ~= nil then
-        if t < A1 then v = t else local a = floor(t / A1); v = mix(v, t - a * A1, a / 255) end
+        if t < A1 then v = t else local a = floor(t / A1); v = over(v, t - a * A1, a / 255) end
       end
     end
     if waterC and wx < waterC.width and wy < waterC.height then
       local t = waterC.px[wy * waterC.width + wx + 1]
       if t ~= nil then
-        if t < A1 then v = t else v = mix(v, t % A1, WATER_TINT) end
+        if t < A1 then v = t else v = over(v, t % A1, WATER_TINT) end
       end
     end
   end
@@ -548,6 +553,8 @@ function Screen.begin(bg, trail, vx, vy, fg, water)
   local full = bg ~= lastBg or trail ~= lastTrail or fg ~= lastFg or water ~= lastWater or trail.logAll
   if not full and (math.abs(vx - viewX) >= W or math.abs(vy - viewY) >= H) then full = true end
   bgC, trailC, fgC, waterC = bg, trail, fg or nil, water
+  imageMode = bg.image ~= nil
+  Screen.ground = bg.image or nil
   local px, py = viewX, viewY
   viewX, viewY = vx, vy
   ox, oy = vx % W, vy % H
@@ -606,6 +613,7 @@ function Screen.beginPlain(rgb)
   nPrev, nNow = 0, 0
   mask = nil
   lastBg, waterC = nil, nil
+  imageMode, Screen.ground = false, nil
   ox, oy, viewX, viewY = 0, 0, 0, 0
   SCtx.tx, SCtx.ty, SCtx.globalAlpha = 0, 0, 1
   Screen.ox, Screen.oy, Screen.vx, Screen.vy, Screen.shakeX, Screen.shakeY = 0, 0, 0, 0, 0, 0

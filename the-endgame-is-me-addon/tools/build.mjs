@@ -14,7 +14,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const game = path.resolve(root, '../the-endgame-is-me/js');
 export const ADDON = 'TheEndgameIsMe';
-export const VERSION = '1.1.1';
+export const VERSION = '1.2.0';
 
 // in load order: a module comes after everything it imports
 export const MODULES = ['props', 'smoke', 'art', 'levels/forest', 'levels/clearing', 'levels/farms', 'levels/village', 'levels/wall', 'levels/city',
@@ -23,6 +23,14 @@ export const MODULES = ['props', 'smoke', 'art', 'levels/forest', 'levels/cleari
 // What the build changes in the game's source before translating it, and why.
 const PATCHES = {
   world: [
+    // No footprints: they were a few dark pixels worn into the path, and they cost a stamp into the ground every step.
+    ["    if (Math.floor(b.walk / 4) !== before) g.steps.push({ x: b.x, y: b.y, face: b.face, side: Math.floor(b.walk / 4) & 1 });", ''],
+    ["  if (Math.floor(b.walk / 4) !== before && b.y > 0) g.steps.push({ x: b.x, y: b.y, face: b.face, side: Math.floor(b.walk / 4) & 1 });", ''],
+    // A level whose ground ships as an image (art/, see tools/bake-ground.lua) has to be laid out the same way every
+    // time, so it is built from that image's seed instead of the run's. layoutRng() is nil for any other level.
+    ["  const L = levelFor(n);\n  for (const k of ARRAYS) g[k] = [];", "  const L = levelFor(n);\n  const fixedRng = layoutRng(n), runRng = g.rng;\n  if (fixedRng) g.rng = fixedRng;\n  for (const k of ARRAYS) g[k] = [];"],
+    ["  g.map = m;\n  g.levelT0 = g.t;", "  if (fixedRng) m.layout = layoutSeed(n);\n  g.map = m;\n  g.levelT0 = g.t;"],
+    ["  updateCam(g, 0, true);\n  syncView(g);\n}\n\n// the camera follows the boss", "  updateCam(g, 0, true);\n  syncView(g);\n  if (fixedRng) g.rng = runRng;\n}\n\n// the camera follows the boss"],
     // the king has no attack rate; JS shrugs (undefined * n is NaN), Lua stops. Same number, said out loud.
     [`king:      { role: 'king',   col: 'gold',   hp: 30,  spd: 14 }`, `king:      { role: 'king',   col: 'gold',   hp: 30,  spd: 14, rate: NaN }`],
     // a save can't hold 57,600 path distances, so the field is something a map can rebuild
@@ -46,6 +54,11 @@ const PATCHES = {
 export function pathDist(`],
   ],
   render: [
+    // no footprints (see world, above)
+    ["    // footprints wear the path in over time\n    for (const st of g.steps) {\n      const px = -Math.sin(st.face), py = Math.cos(st.face), sd = st.side ? 6 : -6;\n      tctx.fillStyle = 'rgba(40,30,18,0.16)';\n      tctx.fillRect(Math.round(st.x + px * sd + Math.cos(st.face) * 3), Math.round(st.y + py * sd + Math.sin(st.face) * 3), 2, 2);\n    }\n    g.steps.length = 0;\n", ''],
+    // the ground of a level that ships as an image is not painted at all: the Screen is told which image lies under it
+    ["      bg = m.mode === 'patrol' ? makeBackground(m) : makeGround(m);\n      if (art.decorate && !m.plain) art.decorate(bg.getContext('2d'), m, H_ART);",
+     "      bg = groundImage(m);\n      if (!bg) {\n        bg = m.mode === 'patrol' ? makeBackground(m) : makeGround(m);\n        if (art.decorate && !m.plain) art.decorate(bg.getContext('2d'), m, H_ART);\n      }"],
     // The frame goes to the addon's Screen (src/canvas.lua): the ground is a retained layer, so instead of repainting
     // it every frame the renderer hands it over, and the screen shake becomes an offset the window applies.
     [`const buf = newCanvas(W, H), ctx = buf.getContext('2d');`, `const buf = makeScreen(W, H), ctx = buf.getContext('2d');`],
@@ -172,7 +185,7 @@ export function fileList() {
   const g = name => [luaName(name), 'game'];
   return [['rt.lua', 'src'], ['canvas.lua', 'src'], g('props'), g('smoke'), g('art'), ['gfx.lua', 'src'],
     ...MODULES.filter(m => m.startsWith('levels/')).map(g), g('world'), g('render'), g('save'),
-    ['sound_manifest.lua', 'made'], ['saves.lua', 'src'], ['keys.lua', 'src'], ['display.lua', 'src'], ['sound.lua', 'src'], ['app.lua', 'src']];
+    ['sound_manifest.lua', 'made'], ['ground.lua', 'ground'], ['saves.lua', 'src'], ['keys.lua', 'src'], ['display.lua', 'src'], ['sound.lua', 'src'], ['app.lua', 'src']];
 }
 
 // One addon folder per client. The Lua is the same; only the TOC's Interface number differs.
@@ -180,6 +193,20 @@ export const CLIENTS = [
   { dir: path.join(root, ADDON), interface: 16001, client: 'WoW Classic Forever', zip: `${ADDON}-${VERSION}.zip` },
   { dir: path.resolve(root, '../the-endgame-is-me-addon-retail', ADDON), interface: 120105, client: 'World of Warcraft (retail)', zip: `${ADDON}-Retail-${VERSION}.zip` },
 ];
+
+function groundManifest() {
+  // the levels whose ground has been baked to an image (tools/bake-ground.lua); with none, every ground is painted in Lua
+  const dir = path.join(root, 'art');
+  let list = [];
+  try { list = JSON.parse(fs.readFileSync(path.join(dir, 'ground.json'), 'utf8')); } catch {}
+  list = list.filter(g => fs.existsSync(path.join(dir, g.file)));
+  const lua = ['-- Generated by tools/build.mjs: the levels whose ground ships as an image in Art/, the size of each (w, h) inside',
+    '-- its power-of-two file (tw, th), and the seed the level is laid out from so that it matches the image.',
+    'local ADDON, ns = ...;', 'ns.Ground = {',
+    ...list.map(g => `  [${g.n}] = { file = "${g.file}", w = ${g.w}, h = ${g.h}, tw = ${g.tw}, th = ${g.th}, seed = ${g.seed} },`),
+    '};', ''].join('\n');
+  return { lua, files: list.map(g => g.file), dir };
+}
 
 function soundManifest() {
   // which baked sound files exist (see tools/bake-audio.mjs); with none, the addon is simply silent
@@ -237,7 +264,7 @@ function zipFolder(dir, top, out) {
 }
 
 function release(mods) {
-  const sounds = soundManifest();
+  const sounds = soundManifest(), ground = groundManifest();
   for (const c of CLIENTS) {
     fs.rmSync(c.dir, { recursive: true, force: true });
     fs.mkdirSync(c.dir, { recursive: true });
@@ -245,7 +272,7 @@ function release(mods) {
       '## Author: timiam', `## Version: ${VERSION}`, '## SavedVariables: TheEndgameIsMeDB', '## AddonCompartmentFunc: TheEndgameIsMe_OnCompartmentClick',
       `## X-Website: https://vibecodedslopware.com/the-endgame-is-me-wow/`, ''];
     for (const [file, from] of fileList()) {
-      const text = from === 'src' ? fs.readFileSync(path.join(root, 'src', file), 'utf8') : from === 'made' ? sounds.lua
+      const text = from === 'src' ? fs.readFileSync(path.join(root, 'src', file), 'utf8') : from === 'made' ? sounds.lua : from === 'ground' ? ground.lua
         : mods[MODULES.find(m => luaName(m) === file)];
       fs.writeFileSync(path.join(c.dir, file), text.replace(/\r\n/g, '\n'));
       toc.push(file);
@@ -267,6 +294,7 @@ Slots:   in the Hoard, between levels, click a slot to pick which ability goes o
 Options: /endgame scale 1-8 (or auto)   how many screen pixels per game pixel
          /endgame fps 30               draw less often, if it drags your frame rate down
          /endgame perf                 show timings in the title bar
+         /endgame ground off           paint the ground a pixel at a time instead of using the images in Art
          /endgame calm, /endgame mute, /endgame reset (moves the window back to the middle)
 
 The game_*.lua files are generated from the game's JavaScript. Do not edit them by hand.
@@ -275,7 +303,11 @@ The game_*.lua files are generated from the game's JavaScript. Do not edit them 
       fs.mkdirSync(path.join(c.dir, 'Sounds'));
       for (const f of sounds.files) fs.copyFileSync(path.join(sounds.dir, f), path.join(c.dir, 'Sounds', f));
     }
-    console.log(`${c.client}: ${path.relative(path.resolve(root, '..'), c.dir)} (Interface ${c.interface}, ${fileList().length} Lua files, ${sounds.files.length} sounds)`);
+    if (ground.files.length) {
+      fs.mkdirSync(path.join(c.dir, 'Art'));
+      for (const f of ground.files) fs.copyFileSync(path.join(ground.dir, f), path.join(c.dir, 'Art', f));
+    }
+    console.log(`${c.client}: ${path.relative(path.resolve(root, '..'), c.dir)} (Interface ${c.interface}, ${fileList().length} Lua files, ${sounds.files.length} sounds, ${ground.files.length} ground images)`);
     if (process.argv.includes('--zip')) {
       const out = path.join(root, 'dist', c.zip), z = zipFolder(c.dir, ADDON, out);
       console.log(`  zipped: ${path.relative(path.resolve(root, '..'), out)} (${z.files} files, ${(z.bytes / 1024 / 1024).toFixed(1)} MB)`);

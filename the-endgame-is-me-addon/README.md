@@ -97,7 +97,28 @@ time there even where stock Lua does not show it.
 
 `tools/wsl.sh` runs a command in WSL with an unpacked `lua5.1` on the path, for Windows machines without one.
 
+## Ground images
+
+Each level's ground is painted once, at build time, and ships as an image (`art/ground_N.tga`, copied to `Art/` in
+the built folders). The client draws it as one texture under the grid; the grid shows only the cells with something
+on them, and a see-through cell (a shadow, the HUD's panel) carries its alpha for the client to blend. Levels load
+in a few frames instead of seconds, and half to two thirds of the 57,600 textures are hidden at any moment.
+
+- **`lua5.1 tools/bake-ground.lua`** (after a build, then build again) makes the images and `art/ground.json`.
+  Run it whenever the game's ground art changes. The files are 32-bit uncompressed TGA padded to powers of two.
+- **A baked level is always laid out the same way.** A ground depends on where the level put its roads and fields,
+  so the level is built from the seed its image was made with (`SEEDS` in the bake tool, `ns.Ground` in the
+  addon, the `layoutRng` patches to `world.js` in the build). The run's own random numbers still decide
+  everything that happens after that. A save from before this has no such layout and is painted the old way.
+- **`/endgame ground off`** paints the ground in Lua as before (same layouts), in case a client will not show the
+  image. `RT.fixedLayouts` is off under `exact.sh`, which compares with the browser game.
+- **`lua5.1 tools/test/ground.lua`** plays every level both ways and compares the picture over the image file's
+  own pixels with the painted one.
+
 ## What differs from the browser game
+
+- **No footprints.** The boss does not wear dark marks into the path; the build takes that code out.
+- **Levels 1 to 7 are the same place every run** (see Ground images).
 
 - **Light effects.** When the addon's own share of a frame passes 14 ms for two seconds running, the rest of that
   level is drawn with less: the attack telegraph's fill stops blinking, fires flicker five times a second instead of

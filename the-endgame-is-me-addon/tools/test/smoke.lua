@@ -53,8 +53,21 @@ local function checkPicture(where)
   for _, strip in ipairs(D.strips) do
     assert(Stub.visible(strip), where .. ": a strip of the picture is hidden")
     assert(#strip.regions * 4 <= 65535, "a strip of the grid has too many vertices for one batch")
-    for _, t in ipairs(strip.regions) do assert(t.shown, where .. ": a cell of the picture is hidden"); all[#all + 1] = t end
+    for _, t in ipairs(strip.regions) do all[#all + 1] = t end
   end
+  -- the ground image: up exactly when the Screen says a level's ground is one, cut to the picture, under every strip
+  local G, gt, gf = RT.Screen.ground, D.groundTex, D.groundFrame
+  assert((gt.shown and true or false) == (G ~= nil), where .. ": the ground image is " .. (gt.shown and "showing" or "hidden") .. " and should not be")
+  if G then
+    assert(gt.file == "Interface\\AddOns\\TheEndgameIsMe\\Art\\" .. G.file and gt.filter == "NEAREST", where .. ": wrong ground file or filter: " .. tostring(gt.file))
+    assert(io.open(dir .. "/Art/" .. G.file, "rb"), where .. ": the ground image is not in the addon folder")
+    assert(gt.w == G.w and gt.h == G.h and gt.coord[1] == 0 and gt.coord[3] == 0 and gt.coord[2] == G.w / G.tw and gt.coord[4] == G.h / G.th, where .. ": the ground image is the wrong size")
+    local p = gt.points.TOPLEFT
+    assert(p and p.rel == grid and p.x == 0 and p.y == 0, where .. ": the ground image is not pinned to the grid")
+    assert(Stub.visible(gf) and (gf.clips or gf.buffer), where .. ": the ground image's frame is hidden or not cut to the picture")
+    for _, strip in ipairs(D.strips) do assert(strip:GetFrameLevel() > gf:GetFrameLevel(), where .. ": a strip is not above the ground image") end
+  end
+  local hidden = 0
   for _, t in ipairs(all) do
     local p = t.points.TOPLEFT
     local sx, sy = gp.x + p.x - (D.sx or 0), -(gp.y + p.y) - (D.sy or 0)
@@ -63,14 +76,25 @@ local function checkPicture(where)
       assert(not seen[i], where .. ": two textures on one pixel")
       seen[i] = true
       local v = snap[i]
-      local r, g, b = math.floor(v / 65536), math.floor(v / 256) % 256, v % 256
-      if math.abs(t.vr * 255 - r) > 0.01 or math.abs(t.vg * 255 - g) > 0.01 or math.abs(t.vb * 255 - b) > 0.01 then bad = bad + 1 end
+      if v == nil then
+        -- nothing on this pixel: the ground image shows, so the cell must be out of the way
+        assert(G, where .. ": an empty cell with no ground image under it")
+        if t.shown then bad = bad + 1 end
+        hidden = hidden + 1
+      else
+        local a = 255
+        if v >= 16777216 then a = math.floor(v / 16777216); v = v % 16777216 end
+        local r, g, b = math.floor(v / 65536), math.floor(v / 256) % 256, v % 256
+        if not t.shown or math.abs(t.vr * 255 - r) > 0.01 or math.abs(t.vg * 255 - g) > 0.01 or math.abs(t.vb * 255 - b) > 0.01 or math.abs(t.va * 255 - a) > 0.01 then bad = bad + 1 end
+        assert(G or a == 255, where .. ": a see-through cell with no ground image under it")
+      end
     end
   end
   local n = 0
   for _ in pairs(seen) do n = n + 1 end
   assert(n == 320 * 180, where .. ": the grid covers " .. n .. " of 57600 pixels")
   assert(bad == 0, where .. ": " .. bad .. " pixels on the grid differ from the frame")
+  return hidden
 end
 
 -- open the window
@@ -434,6 +458,9 @@ plain(TheEndgameIsMeDB, 0)
 
 -- every level: load it, play a while with keys held, scroll, check the picture
 for lv = 2, 7 do
+  -- level 4 with ground images switched off: painted in Lua as it used to be, every cell showing
+  if lv == 4 then SlashCmdList["THEENDGAMEISME"]("ground off") end
+  if lv == 5 then SlashCmdList["THEENDGAMEISME"]("ground on") end
   Stub.click("Onward")
   t = os.clock()
   n = settle("loading level " .. lv)
@@ -471,7 +498,10 @@ for lv = 2, 7 do
   for _, k in ipairs(keys) do Stub.key(view, k, false) end
   view.scripts.OnMouseUp(view, "LeftButton")
   if A.mode == "play" then
-    checkPicture("level " .. lv)
+    local hidden = checkPicture("level " .. lv)
+    assert((RT.Screen.ground ~= nil) == (lv ~= 4), "level " .. lv .. ": ground image " .. (lv == 4 and "used while switched off" or "not used"))
+    assert(g.map.layout == ns.Ground[lv].seed, "level " .. lv .. " was not laid out from its image's seed")
+    if lv ~= 4 then assert(hidden > 57600 * 0.25, "level " .. lv .. ": only " .. hidden .. " cells are hidden over the ground image") else assert(hidden == 0) end
     if g.map.scroll == "x" then assert(RT.Screen.vx > 0, "level " .. lv .. " never scrolled") end
   end
   say(string.format("level %d (%s): loaded in %d frames (%.2f s), then %.1f ms a frame, camera at %d,%d", lv, tostring(g.map.name), n, took, per, RT.Screen.vx, RT.Screen.vy))

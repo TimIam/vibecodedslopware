@@ -783,6 +783,9 @@ local function deep(v)
 end
 RT.deep = deep
 RT.host = {
+  -- a level is laid out from the run's own random numbers unless gfx.lua says its ground ships as an image
+  layoutRng = function() return nil end,
+  layoutSeed = function() return nil end,
   JSON = {
     stringify = function(v) return { __json = deep(v) } end,
     parse = function(s)

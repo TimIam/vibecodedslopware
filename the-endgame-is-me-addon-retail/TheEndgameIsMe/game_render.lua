@@ -6,7 +6,7 @@ local __I0 = RT.module("art");
 local __I1 = RT.module("world");
 local __I2 = RT.module("levels/index");
 local __I3 = RT.module("props");
-local __Map, __Set, __T, __assign, __band, __ch, __charAt, __fill, __find, __forEach, __get, __has, __hypot, __it, __join, __map, __orv, __pack, __padStart, __parseInt, __push, __sarr, __set, __setlen, __slice, __some, __sort, __split, __str, __toFixed, __typed, __unpack = RT["Map"], RT["Set"], RT["T"], RT["assign"], RT["band"], RT["ch"], RT["charAt"], RT["fill"], RT["find"], RT["forEach"], RT["get"], RT["has"], RT["hypot"], RT["it"], RT["join"], RT["map"], RT.orv, RT["pack"], RT["padStart"], RT["parseInt"], RT["push"], RT["sarr"], RT["set"], RT["setlen"], RT["slice"], RT["some"], RT["sort"], RT["split"], RT["str"], RT["toFixed"], RT["typed"], RT["unpack"];
+local __Map, __Set, __T, __assign, __band, __ch, __charAt, __fill, __find, __forEach, __get, __has, __hypot, __it, __join, __map, __orv, __pack, __padStart, __parseInt, __push, __sarr, __set, __slice, __some, __sort, __split, __str, __toFixed, __typed, __unpack = RT["Map"], RT["Set"], RT["T"], RT["assign"], RT["band"], RT["ch"], RT["charAt"], RT["fill"], RT["find"], RT["forEach"], RT["get"], RT["has"], RT["hypot"], RT["it"], RT["join"], RT["map"], RT.orv, RT["pack"], RT["padStart"], RT["parseInt"], RT["push"], RT["sarr"], RT["set"], RT["slice"], RT["some"], RT["sort"], RT["split"], RT["str"], RT["toFixed"], RT["typed"], RT["unpack"];
 local __NaN = 0 / 0;
 local __mabs, __matan2, __mceil, __mcos, __mfloor, __mfmod, __mmax, __mmin, __msin = math.abs, math.atan2, math.ceil, math.cos, math.floor, math.fmod, math.max, math.min, math.sin;
 
@@ -68,9 +68,12 @@ end;
 local m = g.map;
 local art = (__T(m.level.art) and m.level.art or {});
 if (bgFor ~= m) then
+bg = RT.host.groundImage(m);
+if (not __T(bg)) then
 if (m.mode == "patrol") then bg = M.makeBackground(m); else bg = M.makeGround(m); end;
 if (__T(art.decorate) and (not __T(m.plain))) then
 art.decorate(bg:getContext("2d"), m, M.H_ART);
+end;
 end;
 if __T(art.canopy) then fg = M.makeForeground(m.theme.id); else fg = nil; end;
 bgFor = m;
@@ -97,18 +100,6 @@ M.stampAsh(tctx, a);
 end;
 end;
 end;
-do
-local __t8, __t9 = __it(g.steps), 0;
-while __t9 < __t8.length do
-local st = __t8[__t9]; __t9 = __t9 + 1;
-local px = (-__msin((st.face or __NaN)));
-local py = __mcos((st.face or __NaN));
-local sd = (__T(st.side) and 6 or (-6));
-tctx.fillStyle = "rgba(40,30,18,0.16)";
-tctx:fillRect(__mfloor((((st.x or __NaN) + (px * sd)) + (__mcos((st.face or __NaN)) * 3)) + 0.5), __mfloor((((st.y or __NaN) + (py * sd)) + (__msin((st.face or __NaN)) * 3)) + 0.5), 2, 2);
-end;
-end;
-__setlen(g.steps, 0);
 buf.begin(bg, trail, M.VIEW.x, M.VIEW.y, fg, RT.host.waterLayer(g, M.VIEW.x, M.VIEW.y));
 ctx:translate((-(M.VIEW.x or __NaN)), (-(M.VIEW.y or __NaN)));
 if __T(g.water) then
@@ -116,27 +107,27 @@ M.drawWater(ctx, g);
 end;
 if art.under then art.under(ctx, g, M.H_ART); end;
 do
-local __t11, __t12 = __it(g.ice), 0;
-while __t12 < __t11.length do
-local i = __t11[__t12]; __t12 = __t12 + 1;
+local __t8, __t9 = __it(g.ice), 0;
+while __t9 < __t8.length do
+local i = __t8[__t9]; __t9 = __t9 + 1;
 M.drawIce(ctx, i, g);
 end;
 end;
 M.drawFires(ctx, g);
 M.drawTelegraph(ctx, g);
 do
-local __t14, __t15 = __it(g.corpses), 0;
-while __t15 < __t14.length do
-local c = __t14[__t15]; __t15 = __t15 + 1;
+local __t11, __t12 = __it(g.corpses), 0;
+while __t12 < __t11.length do
+local c = __t11[__t12]; __t12 = __t12 + 1;
 if M.onScreen(c.x, c.y) then
 M.drawCorpse(ctx, c);
 end;
 end;
 end;
 do
-local __t17, __t18 = __it(g.rings), 0;
-while __t18 < __t17.length do
-local r = __t17[__t18]; __t18 = __t18 + 1;
+local __t14, __t15 = __it(g.rings), 0;
+while __t15 < __t14.length do
+local r = __t14[__t15]; __t15 = __t15 + 1;
 if (r.col ~= "slash") then
 M.drawRing(ctx, r);
 end;
@@ -148,9 +139,9 @@ M.drawMarker(ctx, g, false);
 end;
 local list = {length=0};
 do
-local __t20, __t21 = __it(g.units), 0;
-while __t21 < __t20.length do
-local u = __t20[__t21]; __t21 = __t21 + 1;
+local __t17, __t18 = __it(g.units), 0;
+while __t18 < __t17.length do
+local u = __t17[__t18]; __t18 = __t18 + 1;
 if (u.role == "rider") then
 if (not __T(u.mounted)) then
 __push(list, {y=u.horse.y, f=function() 
@@ -170,9 +161,9 @@ end;
 end;
 end;
 do
-local __t23, __t24 = __it(g.parts), 0;
-while __t24 < __t23.length do
-local p = __t23[__t24]; __t24 = __t24 + 1;
+local __t20, __t21 = __it(g.parts), 0;
+while __t21 < __t20.length do
+local p = __t20[__t21]; __t21 = __t21 + 1;
 if __T(p.horse) then
 __push(list, {y=p.y, f=function() 
 return M.drawHorse(ctx, p.x, p.y, p.face, p.walk, false, g.t);
@@ -181,19 +172,19 @@ end;
 end;
 end;
 do
-local __t26, __t27 = __it(g.adds), 0;
-while __t27 < __t26.length do
-local a = __t26[__t27]; __t27 = __t27 + 1;
+local __t23, __t24 = __it(g.adds), 0;
+while __t24 < __t23.length do
+local a = __t23[__t24]; __t24 = __t24 + 1;
 __push(list, {y=a.y, f=function() 
 return M.drawAdd(ctx, a, g);
 end});
 end;
 end;
 do
-local __t29, __t30 = __it(g.props), 0;
-while __t30 < __t29.length do
+local __t26, __t27 = __it(g.props), 0;
+while __t27 < __t26.length do
 repeat
-local p = __t29[__t30]; __t30 = __t30 + 1;
+local p = __t26[__t27]; __t27 = __t27 + 1;
 if ((p.state == "gone") or (not M.onScreen(p.x, p.y, 40))) then
 do break end;
 end;
@@ -211,9 +202,9 @@ until true;
 end;
 end;
 do
-local __t32, __t33 = __it(g.critters), 0;
-while __t33 < __t32.length do
-local c = __t32[__t33]; __t33 = __t33 + 1;
+local __t29, __t30 = __it(g.critters), 0;
+while __t30 < __t29.length do
+local c = __t29[__t30]; __t30 = __t30 + 1;
 if M.onScreen(c.x, c.y) then
 __push(list, {y=c.y, f=function() 
 return ((__T(M.CRITTER_ART[c.kind]) and M.CRITTER_ART[c.kind] or M.drawCritter))(ctx, c, g, M.H_ART);
@@ -228,16 +219,16 @@ __sort(list, function(a, b)
 return ((a.y or __NaN) - (b.y or __NaN));
 end);
 do
-local __t35, __t36 = __it(list), 0;
-while __t36 < __t35.length do
-local d = __t35[__t36]; __t36 = __t36 + 1;
+local __t32, __t33 = __it(list), 0;
+while __t33 < __t32.length do
+local d = __t32[__t33]; __t33 = __t33 + 1;
 d.f();
 end;
 end;
 do
-local __t38, __t39 = __it(g.units), 0;
-while __t39 < __t38.length do
-local u = __t38[__t39]; __t39 = __t39 + 1;
+local __t35, __t36 = __it(g.units), 0;
+while __t36 < __t35.length do
+local u = __t35[__t36]; __t36 = __t36 + 1;
 if ((u.role == "rider") and (u.state == "climb")) then
 M.drawClimber(ctx, u, g);
 end;
@@ -249,25 +240,25 @@ M.drawMarker(ctx, g, true);
 end;
 M.drawBeam(ctx, g);
 do
-local __t41, __t42 = __it(g.bolts), 0;
-while __t42 < __t41.length do
-local o = __t41[__t42]; __t42 = __t42 + 1;
+local __t38, __t39 = __it(g.bolts), 0;
+while __t39 < __t38.length do
+local o = __t38[__t39]; __t39 = __t39 + 1;
 M.drawBolt(ctx, o);
 end;
 end;
 do
-local __t44, __t45 = __it(g.rings), 0;
-while __t45 < __t44.length do
-local r = __t44[__t45]; __t45 = __t45 + 1;
+local __t41, __t42 = __it(g.rings), 0;
+while __t42 < __t41.length do
+local r = __t41[__t42]; __t42 = __t42 + 1;
 if (r.col == "slash") then
 M.drawSlash(ctx, r);
 end;
 end;
 end;
 do
-local __t47, __t48 = __it(g.parts), 0;
-while __t48 < __t47.length do
-local p = __t47[__t48]; __t48 = __t48 + 1;
+local __t44, __t45 = __it(g.parts), 0;
+while __t45 < __t44.length do
+local p = __t44[__t45]; __t45 = __t45 + 1;
 if ((not __T(p.horse)) and M.onScreen(p.x, p.y, 4)) then
 M.drawPart(ctx, p);
 end;
@@ -276,25 +267,25 @@ end;
 buf.maskOff();
 M.drawSmoke(ctx, g);
 do
-local __t50, __t51 = __it(g.ghosts), 0;
-while __t51 < __t50.length do
-local o = __t50[__t51]; __t51 = __t51 + 1;
+local __t47, __t48 = __it(g.ghosts), 0;
+while __t48 < __t47.length do
+local o = __t47[__t48]; __t48 = __t48 + 1;
 M.drawGhost(ctx, o);
 end;
 end;
 do
-local __t53, __t54 = __it(g.texts), 0;
-while __t54 < __t53.length do
-local t = __t53[__t54]; __t54 = __t54 + 1;
+local __t50, __t51 = __it(g.texts), 0;
+while __t51 < __t50.length do
+local t = __t50[__t51]; __t51 = __t51 + 1;
 local k = ((t.t or __NaN) / (t.life or __NaN));
 local a = ((k > 0.7) and ((1 - k) / 0.3) or 1);
 __I0.drawText(ctx, t.s, t.x, ((t.y or __NaN) - (k * 10)), t.col, {align="center", alpha=a});
 end;
 end;
 do
-local __t56, __t57 = __it(g.barks), 0;
-while __t57 < __t56.length do
-local k = __t56[__t57]; __t57 = __t57 + 1;
+local __t53, __t54 = __it(g.barks), 0;
+while __t54 < __t53.length do
+local k = __t53[__t54]; __t54 = __t54 + 1;
 M.drawBark(ctx, k);
 end;
 end;
@@ -399,7 +390,7 @@ tctx:clearRect(0, 0, __I1.W, __I1.H);
 end;
 do return {buf=buf, render=render, reset=reset} end;
 end;
--- render:207
+-- render:203
 M.bossPreview = function(look, dir, frame) if frame == nil then frame = 0 end;
 local k = __I0.bossKey(look);
 if (not __has(M.previews, k)) then
@@ -407,7 +398,7 @@ __set(M.previews, k, __I0.makeBossSprites(look));
 end;
 do return __get(__get(M.previews, k), dir, frame) end;
 end;
--- render:215
+-- render:211
 M.markerPreview = function(style, t) 
 if not __T(M.markerCv) then M.markerCv = __I0.newCanvas(__I0.BOSS_SIZE, __I0.BOSS_SIZE) end;
 local c = M.markerCv:getContext("2d");
@@ -419,16 +410,16 @@ M.drawRock(c, x, y, 6.2, 1, 3);
 M.markerAt(c, style, x, y, t, true, "42 M");
 do return M.markerCv end;
 end;
--- render:231
+-- render:227
 M.makeGround = function(m) 
 local c = __I0.newCanvas(m.w, m.h);
 local x = c:getContext("2d");
 x.fillStyle = __I0.PAL.grass1;
 x:fillRect(0, 0, m.w, m.h);
-local __t60 = (m.level.art and (m.level.art.ground and m.level.art.ground(x, m, M.H_ART)));
+local __t57 = (m.level.art and (m.level.art.ground and m.level.art.ground(x, m, M.H_ART)));
 do return c end;
 end;
--- render:238
+-- render:234
 M.stampAsh = function(c, a) 
 local R = (__mceil((a.r or __NaN)) + 1);
 for py = (-R), R do
@@ -451,7 +442,7 @@ end;
 end;
 -- drawWater: replaced by the build
 M.drawWater = RT.drawWater;
--- render:272
+-- render:268
 M.drawFlames = function(ctx, p, t) 
 local w = (__T(p.w) and p.w or (((p.r or __NaN) * 2) + 4));
 local top = ((p.y or __NaN) - ((p.state == "up") and (__T(p.h) and (((p.h or __NaN) / 2) + 3) or 9) or 2));
@@ -465,7 +456,7 @@ if (h > 0.75) then ctx.fillStyle = __I0.PAL.fire3; elseif (h > 0.4) then ctx.fil
 ctx:fillRect(x, y, 1, ((h > 0.5) and 2 or 1));
 end;
 end;
--- render:284
+-- render:280
 M.drawCritter = function(ctx, c) 
 local x = __mfloor((c.x or __NaN) + 0.5);
 local y = __mfloor((c.y or __NaN) + 0.5);
@@ -473,7 +464,7 @@ ctx.fillStyle = (((c.hitT or __NaN) > 0) and "#ffffff" or __I0.PAL.brown);
 ctx:fillRect((x - 1), (y - 2), 3, 2);
 M.px(ctx, (x + (c.fx or __NaN)), (y - 3), __I0.PAL.ink);
 end;
--- render:292
+-- render:288
 M.makeBackground = function(m) 
 local T = M.THEME_PAL[m.theme.id];
 local c = __I0.newCanvas(__I1.W, __I1.H);
@@ -553,14 +544,14 @@ if __T(m.plain) then
 do return c end;
 end;
 local A, B;
-local __t71 = m; A = __t71.A; B = __t71.B;
+local __t68 = m; A = __t68.A; B = __t68.B;
 M.drawRock(x, __mfloor((A.x or __NaN) + 0.5), __mfloor((A.y or __NaN) + 0.5), 6.2, 1, 3);
 M.drawRock(x, __mfloor((B.x or __NaN) + 0.5), __mfloor((B.y or __NaN) + 0.5), 5.6, 2, 7);
 __I0.drawText(x, "ROCK", A.x, ((A.y or __NaN) + 10), __I0.PAL.rock3, {align="center", alpha=0.75});
 __I0.drawText(x, "OTHER ROCK", B.x, ((B.y or __NaN) + 10), __I0.PAL.rock3, {align="center", alpha=0.75});
 do return c end;
 end;
--- render:343
+-- render:339
 M.drawRock = function(x, cx, cy, R, kind, sd) 
 local shapeR = function(a) 
 return (R + (((__I0.hash((__mfloor(((a + 4) * 3) + 0.5) + sd), sd) - 0.5) * 2.2) * ((kind == 1) and 1.4 or 0.8)));
@@ -613,7 +604,7 @@ py = py + 1;
 end;
 end;
 end;
--- render:360
+-- render:356
 M.makeForeground = function(theme) 
 local T = M.THEME_PAL[theme];
 local c = __I0.newCanvas(__I1.W, __I1.H);
@@ -683,7 +674,7 @@ end;
 end;
 do return c end;
 end;
--- render:393
+-- render:389
 M.makeShadow = function() 
 local c = __I0.newCanvas(28, 22);
 local x = c:getContext("2d");
@@ -699,7 +690,7 @@ end;
 end;
 do return c end;
 end;
--- render:406
+-- render:402
 M.drawIce = function(ctx, i, g) 
 local fade = (((i.t or __NaN) < 0.2) and ((i.t or __NaN) / 0.2) or (((i.t or __NaN) > ((i.life or __NaN) - 1.2)) and __mmax(0, (((i.life or __NaN) - (i.t or __NaN)) / 1.2)) or 1));
 local R = __mceil((i.r or __NaN));
@@ -731,7 +722,7 @@ end;
 end;
 ctx.globalAlpha = 1;
 end;
--- render:425
+-- render:421
 M.drawBeam = function(ctx, g) 
 local b = g.boss;
 local a = b.act;
@@ -779,7 +770,7 @@ end;
 end;
 ctx.globalAlpha = 1;
 end;
--- render:457
+-- render:453
 M.drawMarker = function(ctx, g, over) 
 local R = __I1.destRock(g);
 local style = (__T(g.look.marker) and g.look.marker or 0);
@@ -792,7 +783,7 @@ label = ((left < 20) and "ARRIVE" or (__str(left) .. " M"));
 end;
 M.markerAt(ctx, style, __mfloor((R.x or __NaN) + 0.5), __mfloor((R.y or __NaN) + 0.5), g.t, over, label);
 end;
--- render:466
+-- render:462
 M.markerAt = function(ctx, style, x, y, t, over, label) 
 if (style == 0) then
 if (not __T(over)) then
@@ -923,7 +914,7 @@ end;
 end;
 end;
 end;
--- render:542
+-- render:538
 M.smokeSprite = function(R, db, v) 
 local S = ((2 * R) + 5);
 do return M.sprite(("smoke|" .. __str(R) .. "|" .. __str(db) .. "|" .. __str(v)), S, S, function(c) 
@@ -950,9 +941,9 @@ local dy = (y - o);
 local h = (-1);
 local lit = 0;
 do
-local __t103, __t104 = __it(L), 0;
-while __t104 < __t103.length do
-local l = __t103[__t104]; __t104 = __t104 + 1;
+local __t100, __t101 = __it(L), 0;
+while __t101 < __t100.length do
+local l = __t100[__t101]; __t101 = __t101 + 1;
 local lx = (dx - (l.x or __NaN));
 local ly = (dy - (l.y or __NaN));
 local k = (1 - (__hypot(lx, ly) / (l.r or __NaN)));
@@ -986,26 +977,26 @@ end;
 c:putImageData(img, 0, 0);
 end) end;
 end;
--- render:576
+-- render:572
 M.drawSmoke = function(ctx, g) 
 local cs = (g.smoke and g.smoke.clouds);
 if ((not __T(cs)) or (not ((cs.length or #cs) ~= 0))) then
 do return end;
 end;
 do
-local __t106, __t107 = __it(cs), 0;
-while __t107 < __t106.length do
+local __t103, __t104 = __it(cs), 0;
+while __t104 < __t103.length do
 repeat
-local c = __t106[__t107]; __t107 = __t107 + 1;
+local c = __t103[__t104]; __t104 = __t104 + 1;
 if (not M.onScreen(c.x, c.y, ((c.r or __NaN) + 4))) then
 do break end;
 end;
 local dn = __mmin(1, ((c.m or __NaN) / ((c.r or __NaN) * (c.r or __NaN))));
 local R = M.SMOKE_R[0];
 do
-local __t109, __t110 = __it(M.SMOKE_R), 0;
-while __t110 < __t109.length do
-local r = __t109[__t110]; __t110 = __t110 + 1;
+local __t106, __t107 = __it(M.SMOKE_R), 0;
+while __t107 < __t106.length do
+local r = __t106[__t107]; __t107 = __t107 + 1;
 if (__mabs((r - (c.r or __NaN))) < __mabs((R - (c.r or __NaN)))) then
 R = r;
 end;
@@ -1021,7 +1012,7 @@ ctx.globalAlpha = 1;
 end;
 -- drawFires: replaced by the build
 M.drawFires = RT.drawFires;
--- render:610
+-- render:606
 M.drawTelegraph = function(ctx, g) 
 local b = g.boss;
 local a = b.act;
@@ -1073,7 +1064,7 @@ ctx.fillStyle = __I0.PAL.tele;
 RT.host.teleArc(ctx, b.x, b.y, R, x0, x1, y0, y1, (k ~= "stomp"), half, face, prog, blink, channel);
 ctx.globalAlpha = 1;
 end;
--- render:636
+-- render:632
 M.drawLane = function(ctx, g, range, width, prog) 
 local d = {range=range, width=width};
 local b = g.boss;
@@ -1104,7 +1095,7 @@ end;
 end;
 ctx.globalAlpha = 1;
 end;
--- render:653
+-- render:649
 M.ring = function(ctx, cx, cy, r, col, alpha) 
 ctx.fillStyle = col;
 ctx.globalAlpha = alpha;
@@ -1123,7 +1114,7 @@ ly = y;
 end;
 ctx.globalAlpha = 1;
 end;
--- render:666
+-- render:662
 M.drawRing = function(ctx, r) 
 local k = ((r.t or __NaN) / 0.45);
 local rr = ((r.r or __NaN) + (((r.max or __NaN) - (r.r or __NaN)) * (1 - ((1 - k) * (1 - k)))));
@@ -1138,7 +1129,7 @@ M.ring(ctx, r.x, r.y, rr, __I0.PAL.cream, ((1 - k) * 0.8));
 M.ring(ctx, r.x, r.y, (rr * 0.7), __I0.PAL.cream, ((1 - k) * 0.45));
 end;
 end;
--- render:674
+-- render:670
 M.drawSlash = function(ctx, r) 
 local k = ((r.t or __NaN) / 0.18);
 ctx.fillStyle = ((k < 0.5) and "#ffffff" or __I0.PAL.cream);
@@ -1156,12 +1147,12 @@ end;
 end;
 ctx.globalAlpha = 1;
 end;
--- render:689
+-- render:685
 M.px = function(ctx, x, y, col) 
 ctx.fillStyle = col;
 ctx:fillRect(x, y, 1, 1);
 end;
--- render:691
+-- render:687
 M.drawUnit = function(ctx, u, g) 
 local b = g.boss;
 local x = __mfloor((u.x or __NaN) + 0.5);
@@ -1253,7 +1244,7 @@ if (((u.hp or __NaN) / (u.maxhp or __NaN)) > 0.4) then ctx.fillStyle = __I0.PAL.
 ctx:fillRect((x - 1), ((y - tall) - 3), w, 1);
 end;
 end;
--- render:742
+-- render:738
 M.drawHorse = function(ctx, hx, hy, face, walk, rider, t) 
 local c = __mcos(face);
 local s = __msin(face);
@@ -1278,9 +1269,9 @@ do return "mane" end;
 end;
 local ph = ({[0]=0, 1, 0, (-1), length=4})[gait];
 do
-local __t117, __t118 = __it({[0]={[0]=2.3, 1, 1, length=3}, {[0]=2.3, (-1), (-1), length=3}, {[0]=(-2.4), 1, (-1), length=3}, {[0]=(-2.4), (-1), 1, length=3}, length=4}), 0;
-while __t118 < __t117.length do
-local __t120 = __t117[__t118]; __t118 = __t118 + 1; local fx, sy, sw; fx = __t120[0]; sy = __t120[1]; sw = __t120[2];
+local __t114, __t115 = __it({[0]={[0]=2.3, 1, 1, length=3}, {[0]=2.3, (-1), (-1), length=3}, {[0]=(-2.4), 1, (-1), length=3}, {[0]=(-2.4), (-1), 1, length=3}, length=4}), 0;
+while __t115 < __t114.length do
+local __t117 = __t114[__t115]; __t115 = __t115 + 1; local fx, sy, sw; fx = __t117[0]; sy = __t117[1]; sw = __t117[2];
 if (__hypot(((lx - fx) - (ph * sw)), (ly - (sy * 2))) < 0.75) then
 do return "leg" end;
 end;
@@ -1301,19 +1292,19 @@ __push(cells, {[0]=qx, py, m, length=3});
 end;
 end;
 end;
-local has = __Set(__map(cells, function(__t123) local a, b; a = __t123[0]; b = __t123[1];
+local has = __Set(__map(cells, function(__t120) local a, b; a = __t120[0]; b = __t120[1];
 return ((__str(a) .. ",") .. __str(b));
 end));
 do
-local __t124, __t125 = __it(cells), 0;
-while __t125 < __t124.length do
-local __t127 = __t124[__t125]; __t125 = __t125 + 1; local qx, py, m; qx = __t127[0]; py = __t127[1]; m = __t127[2];
+local __t121, __t122 = __it(cells), 0;
+while __t122 < __t121.length do
+local __t124 = __t121[__t122]; __t122 = __t122 + 1; local qx, py, m; qx = __t124[0]; py = __t124[1]; m = __t124[2];
 local edge = ((m ~= "leg") and ((((not __has(has, ((__str((qx - 1)) .. ",") .. __str(py)))) or (not __has(has, ((__str((qx + 1)) .. ",") .. __str(py))))) or (not __has(has, ((__str(qx) .. ",") .. __str((py - 1)))))) or (not __has(has, ((__str(qx) .. ",") .. __str((py + 1)))))));
 M.px(ctx, (cx + qx), ((cy + py) - 1), (function() if edge then return __I0.PAL.ink; elseif (m == "mane") then return __I0.PAL.mane; elseif (m == "leg") then return __I0.PAL.horseD; else return __I0.PAL.horse; end; end)());
 end;
 end;
 end;
--- render:770
+-- render:766
 M.drawRider = function(ctx, u, g) 
 local flash;
 local x = __mfloor((u.x or __NaN) + 0.5);
@@ -1353,7 +1344,7 @@ ctx:fillRect((x - 1), (y - 2), 3, 2);
 M.px(ctx, x, (y - 3), C(__I0.PAL.hair));
 M.px(ctx, (x + ((u.fx or __NaN) * 2)), (y - 3), C(__I0.PAL.steelHi));
 end;
--- render:797
+-- render:793
 M.drawClimber = function(ctx, u, g) 
 local x = __mfloor((u.x or __NaN) + 0.5);
 local y = __mfloor((u.y or __NaN) + 0.5);
@@ -1378,7 +1369,7 @@ ctx:fillRect((gx - 1), (gy - 1), (w + 2), 3);
 ctx.fillStyle = __I0.PAL.gold;
 ctx:fillRect(gx, gy, __mmax(0, __mfloor(((w * (u.grip or __NaN)) / 100) + 0.5)), 1);
 end;
--- render:821
+-- render:817
 M.drawAdd = function(ctx, a, g) 
 local x = __mfloor((a.x or __NaN) + 0.5);
 local y = __mfloor((a.y or __NaN) + 0.5);
@@ -1415,7 +1406,7 @@ ctx.fillStyle = __I0.PAL.gold;
 ctx:fillRect(bx, by, __mmax(1, __mfloor(((bw * (a.hp or __NaN)) / (a.maxhp or __NaN)) + 0.5)), 1);
 end;
 end;
--- render:838
+-- render:834
 M.drawCorpse = function(ctx, c) 
 local a = (((c.t or __NaN) > 30) and ((40 - (c.t or __NaN)) / 10) or 1);
 ctx.globalAlpha = (__mmax(0, a) * 0.85);
@@ -1441,7 +1432,7 @@ M.px(ctx, (x - 1), y, __I0.PAL.blood);
 end;
 ctx.globalAlpha = 1;
 end;
--- render:855
+-- render:851
 M.drawGhost = function(ctx, o) 
 local a = ((1 - ((o.t or __NaN) / 3.5)) * 0.7);
 ctx.globalAlpha = a;
@@ -1454,7 +1445,7 @@ M.px(ctx, (x - 1), (y + 1), __I0.PAL.ghost);
 M.px(ctx, (x + 1), (y + 1), __I0.PAL.ghost);
 ctx.globalAlpha = 1;
 end;
--- render:864
+-- render:860
 M.drawBolt = function(ctx, o) 
 local col = __I0.PAL[o.kind];
 local x = __mfloor((o.x or __NaN) + 0.5);
@@ -1468,7 +1459,7 @@ if (o.kind == "arrow") then
 M.px(ctx, __mfloor(((o.x or __NaN) - (((o.vx or __NaN) / l) * 2.5)) + 0.5), __mfloor(((o.y or __NaN) - (((o.vy or __NaN) / l) * 2.5)) + 0.5), __I0.PAL.tan);
 end;
 end;
--- render:873
+-- render:869
 M.drawPart = function(ctx, p) 
 local k = ((p.t or __NaN) / (p.life or __NaN));
 local col = (__T(__I0.PAL[p.kind]) and __I0.PAL[p.kind] or p.kind);
@@ -1479,7 +1470,7 @@ ctx.globalAlpha = (((p.kind == "heal") or (p.kind == "dust")) and (1 - k) or 1);
 M.px(ctx, __mfloor((p.x or __NaN) + 0.5), __mfloor((p.y or __NaN) + 0.5), col);
 ctx.globalAlpha = 1;
 end;
--- render:882
+-- render:878
 M.bubble = function(ctx, s, x, y, bg, fg, alpha) if alpha == nil then alpha = 1 end;
 local w = __I0.textWidth(s);
 local bx = __mmax(((M.VIEW.x or __NaN) + 2), __mmin(((((M.VIEW.x or __NaN) + __I1.W) - w) - 6), __mfloor(((x - (w / 2)) - 2) + 0.5)));
@@ -1491,12 +1482,12 @@ ctx:fillRect(__mfloor(x + 0.5), (by + 7), 1, 1);
 ctx.globalAlpha = 1;
 __I0.drawText(ctx, s, (bx + 2), (by + 1), fg, {shadow=false, alpha=alpha});
 end;
--- render:892
+-- render:888
 M.drawBark = function(ctx, k) 
 local a = (((k.t or __NaN) < 0.1) and ((k.t or __NaN) / 0.1) or (((k.t or __NaN) > ((k.life or __NaN) - 0.3)) and (((k.life or __NaN) - (k.t or __NaN)) / 0.3) or 1));
 M.bubble(ctx, k.s, k.x, ((k.y or __NaN) - 14), __I0.PAL.ink, __I0.PAL.cream, a);
 end;
--- render:897
+-- render:893
 M.drawThought = function(ctx, g) 
 local b = g.boss;
 local t = g.thought;
@@ -1509,7 +1500,7 @@ ctx.globalAlpha = 1;
 end;
 -- fmt: replaced by the build
 M.fmt = RT.commas;
--- render:910
+-- render:906
 M.drawHud = function(ctx, g, view) 
 local b = g.boss;
 ctx.fillStyle = __I0.PAL.ink;
@@ -1655,24 +1646,24 @@ __I0.drawText(ctx, g.banner.sub, (__I1.W / 2), 47, __I0.PAL.rock4, {align="cente
 end;
 end;
 end;
--- render:997
+-- render:993
 M.drawCursor = function(ctx, mx, my, g) 
 local x = __mfloor(mx + 0.5);
 local y = __mfloor(my + 0.5);
 local col;
 if __T(g.boss.act) then col = __I0.PAL.gold; else col = __I0.PAL.cream; end;
 do
-local __t132, __t133 = __it({[0]={[0]=(-3), 0, length=2}, {[0]=(-2), 0, length=2}, {[0]=2, 0, length=2}, {[0]=3, 0, length=2}, {[0]=0, (-3), length=2}, {[0]=0, (-2), length=2}, {[0]=0, 2, length=2}, {[0]=0, 3, length=2}, length=8}), 0;
-while __t133 < __t132.length do
-local __t135 = __t132[__t133]; __t133 = __t133 + 1; local dx, dy; dx = __t135[0]; dy = __t135[1];
+local __t129, __t130 = __it({[0]={[0]=(-3), 0, length=2}, {[0]=(-2), 0, length=2}, {[0]=2, 0, length=2}, {[0]=3, 0, length=2}, {[0]=0, (-3), length=2}, {[0]=0, (-2), length=2}, {[0]=0, 2, length=2}, {[0]=0, 3, length=2}, length=8}), 0;
+while __t130 < __t129.length do
+local __t132 = __t129[__t130]; __t130 = __t130 + 1; local dx, dy; dx = __t132[0]; dy = __t132[1];
 ctx.fillStyle = __I0.PAL.ink;
 ctx:fillRect(((x + dx) + 1), ((y + dy) + 1), 1, 1);
 end;
 end;
 do
-local __t136, __t137 = __it({[0]={[0]=(-3), 0, length=2}, {[0]=(-2), 0, length=2}, {[0]=2, 0, length=2}, {[0]=3, 0, length=2}, {[0]=0, (-3), length=2}, {[0]=0, (-2), length=2}, {[0]=0, 2, length=2}, {[0]=0, 3, length=2}, length=8}), 0;
-while __t137 < __t136.length do
-local __t139 = __t136[__t137]; __t137 = __t137 + 1; local dx, dy; dx = __t139[0]; dy = __t139[1];
+local __t133, __t134 = __it({[0]={[0]=(-3), 0, length=2}, {[0]=(-2), 0, length=2}, {[0]=2, 0, length=2}, {[0]=3, 0, length=2}, {[0]=0, (-3), length=2}, {[0]=0, (-2), length=2}, {[0]=0, 2, length=2}, {[0]=0, 3, length=2}, length=8}), 0;
+while __t134 < __t133.length do
+local __t136 = __t133[__t134]; __t134 = __t134 + 1; local dx, dy; dx = __t136[0]; dy = __t136[1];
 M.px(ctx, (x + dx), (y + dy), col);
 end;
 end;
@@ -1711,29 +1702,29 @@ M.TAU = (math.pi * 2);
 M.THEME_PAL = {clearing={grass={[0]=__I0.PAL.grass0, __I0.PAL.grass1, __I0.PAL.grass2, __I0.PAL.grass3, length=4}, tuft={[0]=__I0.PAL.tuft, __I0.PAL.tuftHi, length=2}, canopy={[0]=__I0.PAL.canopy0, __I0.PAL.canopy1, __I0.PAL.canopy2, __I0.PAL.canopy3, length=4}, dirt={[0]=__I0.PAL.dirt0, __I0.PAL.dirt1, __I0.PAL.dirt2, __I0.PAL.dirt3, length=4}, flowers={[0]=__I0.PAL.cream, __I0.PAL.yellow, __I0.PAL.pink, __I0.PAL.frost, length=4}}, autumn={grass={[0]="#3a2a16", "#4a3519", "#5c4220", "#6e5126", length=4}, tuft={[0]="#8a5a22", "#b06f26", length=2}, canopy={[0]="#1c0e08", "#4a1a0e", "#7a2c12", "#b0501c", length=4}, dirt={[0]="#33251a", "#4a3825", "#5e4830", "#72583a", length=4}, flowers={[0]=__I0.PAL.gold, __I0.PAL.red, __I0.PAL.orange, length=3}}, ash={grass={[0]="#24221e", "#2c2a25", "#35322c", "#3f3b34", length=4}, tuft={[0]="#4a463e", "#5a554b", length=2}, canopy={[0]="#0b0a09", "#161412", "#211e1b", "#2e2a25", length=4}, dirt={[0]="#1a1714", "#26221e", "#322d27", "#3e3830", length=4}, flowers={[0]="#ff6a2a", "#ffb02e", "#c0392b", length=3}}, snow={grass={[0]="#aab8c3", "#bccad4", "#cfdbe3", "#e2eaf0", length=4}, tuft={[0]="#93a5b3", "#a3b4c1", length=2}, canopy={[0]="#0b1812", "#13261d", "#1d382a", "#dfe8ee", length=4}, dirt={[0]="#6e6459", "#83786b", "#968a7c", "#a99d8e", length=4}, flowers={[0]="#ffffff", "#9fd8ff", length=2}}};
 -- render:56
 M.calm = false;
--- render:206
+-- render:202
 M.previews = __Map();
--- render:214
+-- render:210
 M.markerCv = nil;
--- render:228
+-- render:224
 M.H_ART = {px=function(ctx, x, y, c) 
 return M.px(ctx, x, y, c);
 end, PAL=__I0.PAL, hash=__I0.hash, vnoise=M.vnoise, drawText=__I0.drawText, sprite=M.sprite, tinted=__I0.tinted, ring=function(...) local a = __pack(...);
 return M.ring(__unpack(__it(a)));
 end, textWidth=__I0.textWidth, VIEW=M.VIEW, W=__I1.W, H=__I1.H};
--- render:538
+-- render:534
 M.SMOKE_R = {[0]=2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 19, 22, 26, 30, length=15};
--- render:539
+-- render:535
 M.SMOKE_COL = {[0]="#3a3733", "#55514a", __I0.PAL.smoke, "#8a857a", "#aba69a", "#c9c4b6", length=6};
--- render:540
+-- render:536
 M.SMOKE_RGB = __map(M.SMOKE_COL, function(h) 
 return {[0]=__parseInt(__slice(h, 1, 3), 16), __parseInt(__slice(h, 3, 5), 16), __parseInt(__slice(h, 5, 7), 16), length=3};
 end);
--- render:541
+-- render:537
 M.BAYER = __map({[0]=0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5, length=16}, function(v) 
 return ((v + 0.5) / 16);
 end);
--- render:812
+-- render:808
 M.ADD_ART = {gnasher={[0]={[0]=".h..h.", "kFFFFk", "kfFFek", "kfffFk", ".k..k.", length=5}, {[0]=".h..h.", "kFFFFk", "kfFFek", "kfffFk", "..kk..", length=5}, length=2}, spitter={[0]={[0]="..kkk..", ".kRRRk.", "kRrRRek", "kRrRRmk", "kRRrRRk", ".kkkkk.", length=6}, {[0]="..kkk..", ".kRRRk.", "kRrRRek", "kRrRMMM", "kRRrRRk", ".kkkkk.", length=6}, length=2}, necro={[0]={[0]="..kkk..s", ".kPPPk.s", ".kPgPk.s", "kPPPPPks", "kPpPPPks", "kPPPPPk.", ".kk.kk..", length=7}, {[0]="..kkk..G", ".kPPPk.s", ".kPgPk.s", "kPPPPPks", "kPpPPPks", "kPPPPPk.", ".kk.kk..", length=7}, length=2}, skeleton={[0]={[0]=".b.", "bbb", ".b.", "b.b", length=4}, {[0]=".b.", "bbb", ".b.", ".b.", length=4}, length=2}};
--- render:818
+-- render:814
 M.ADD_COL = {k=__I0.PAL.ink, F=__I0.PAL.fur3, f=__I0.PAL.fur2, e=__I0.PAL.eye, h=__I0.PAL.horn, R="#b8452a", r="#7e2a18", m="#3a120a", M=__I0.PAL.fire3, P="#4a2a5e", p="#2e1a3c", g=__I0.PAL.heal, s=__I0.PAL.brown, G=__I0.PAL.heal, b=__I0.PAL.bone};
