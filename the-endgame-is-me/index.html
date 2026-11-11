@@ -139,6 +139,7 @@ button.quiet:hover{background:#3a2c1e}
 .mi:focus::before,.mi:focus::after{opacity:1}
 .titleSide{position:absolute;right:1.9%;top:72.8%;width:31%;height:24.5%;padding:.5em .7em;background:rgba(10,8,6,.55);display:flex;flex-direction:column;justify-content:space-between;text-align:left}
 #menuHint{margin:0;font-size:6.2em;line-height:1.25;color:#f4ecd2}
+#menuHint.fade{opacity:0;transition:opacity 2s linear}
 #best{margin:0;font-size:6.2em;line-height:1.2;color:#ffd75a;min-height:0}
 .titleSide .note{margin:0;font-size:5.4em}
 #panel{background:rgba(10,12,8,.84)}
@@ -323,7 +324,7 @@ fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
 <div id="store" class="overlay" hidden>
   <div class="card store">
     <h2 style="color:#ffd75a">The Hoard</h2>
-    <p class="loot">Points: <b id="storePts">0</b> <span>Level <i id="storeMap">1</i> cleared. Spend what you earned, then on to the next one.</span></p>
+    <p class="loot">Points: <b id="storePts">0</b> <span id="storeSub">Level <i id="storeMap">1</i> cleared. Spend what you earned, then on to the next one.</span></p>
     <div class="tabs" role="tablist">
       <button type="button" role="tab" data-tab="abil">Abilities</button>
       <button type="button" role="tab" data-tab="slots">Loadout</button>

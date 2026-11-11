@@ -37,7 +37,7 @@ const BANDS = [
 // ---------------------------------------------------------------------------------------------- kinds
 
 const STONE = { solid: true, rubble: 'city_rubble', rubbleN: 2, onDown: ruinOf };
-const TIMBER = { ...STONE, flammable: true, fireVenge: false, spread: 0.3, crushShare: 0.75, rubbleN: 1 };
+const TIMBER = { ...STONE, flammable: true, fireVenge: false, spread: 0.3, rubbleN: 1 };
 const FRONTK = { solid: true, rubble: 'city_rubble', rubbleN: 3, value: { pts: 0, venge: 0, chaos: 0 } };
 export const kinds = {
   cf_wall: { ...FRONTK, w: 45, h: 74, hp: HITS.cf_wall * BASH },
@@ -49,8 +49,8 @@ export const kinds = {
   city_pub: { ...TIMBER, w: 30, h: 24, hp: 220, burnTime: 8, spread: 0.4, value: { pts: 280, venge: 0.16, chaos: 1 } },
   city_inn: { ...TIMBER, w: 40, h: 48, hp: 380, burnTime: 12, rubbleN: 3, value: { pts: 450, venge: 0.25, chaos: 2 } },
   city_fountain: { ...STONE, r: 8, w: 0, h: 0, hp: 260, rubbleN: 3, value: { pts: 300, venge: 0.16, chaos: 1 } },
-  city_tent: { w: 14, h: 10, hp: 1, flammable: true, fireVenge: false, burnTime: 3, spread: 0.35, crushShare: 0.8, value: { pts: 70, venge: 0.05, chaos: 0.3 } },
-  city_stall: { w: 10, h: 6, hp: 1, flammable: true, fireVenge: false, burnTime: 3, spread: 0.3, crushShare: 0.8, value: { pts: 40, venge: 0.03, chaos: 0.2 } },
+  city_tent: { w: 14, h: 10, hp: 1, flammable: true, fireVenge: false, burnTime: 3, spread: 0.35, value: { pts: 70, venge: 0.05, chaos: 0.3 } },
+  city_stall: { w: 10, h: 6, hp: 1, flammable: true, fireVenge: false, burnTime: 3, spread: 0.3, value: { pts: 40, venge: 0.03, chaos: 0.2 } },
   city_lamp: { r: 1.5, hp: 1, value: { pts: 15, venge: 0.015, chaos: 0.05 } },
   city_rubble: { r: 3, push: true, fill: 2, value: { pts: 0, venge: 0, chaos: 0 } },
 };

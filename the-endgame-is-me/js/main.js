@@ -1,7 +1,7 @@
 // The page: input, the fixed-step loop, scaling the 320×180 buffer to the window, the between-maps store,
 // overlays, saves and the best score.
 
-import { createGame, step, nextMap, W, H, ABILITIES, SLOT_KEYS, abilityOffer, buyAbility, upgradeAbility, setSlot, createDemo, demoSet, demoStep, newGamePlus, createEnding, endingStep, jumpToLevel, migrate } from './world.js';
+import { createGame, step, nextMap, W, H, ABILITIES, SLOT_KEYS, abilityOffer, buyAbility, upgradeAbility, unmutateAbility, setSlot, createDemo, demoSet, demoStep, newGamePlus, createEnding, endingStep, jumpToLevel, migrate } from './world.js';
 import { createRenderer, setCalm } from './render.js';
 import { ICONS, PAL, drawText } from './art.js';
 import { createAudio } from './audio.js';
@@ -114,6 +114,9 @@ const debug = createDebug({
     freeze() { const was = mode; if (mode === 'play') pause(); $('paused').hidden = true; return was; },
     thaw(was) { if (was === 'play') resume(); else { $('paused').hidden = false; $('resume').focus({ preventScroll: true }); } },
     jump(n) { jumpToLevel(g, n); R.reset(); audio.setStage(g.map.n); },
+    store(t, back) { openStore({ tab: t, debug: { back } }); },
+    closeStore: () => closeStore(),
+    get storeOpen() { return mode === 'store'; },
   },
 });
 // a boss named after the debug keys cannot be hurt, and is told the keys on the pause screen
@@ -326,17 +329,26 @@ $('resume').addEventListener('click', resume);
 let tab = 'abil', sel = 'summon', demo = null, demoRaf = 0;
 const PR = createRenderer();   // the demo reel's own renderer
 
-function openStore() {
+// The debug mode can open the Hoard (or its Loadout tab) over a stopped level at any time: there everything is free,
+// mutations can be taken back off, nothing is saved, and the button goes back to the level instead of on to the next.
+let storeDebug = null;   // while the debug mode has the Hoard open: { back() }
+function openStore(opts = {}) {
+  storeDebug = opts.debug || null;
   mode = 'store';
   keys.clear(); mouse.l = false;
-  $('storeMap').textContent = g.map.n;
-  tab = 'abil';
+  $('storeSub').dataset.text ??= $('storeSub').innerHTML;
+  $('storeSub').innerHTML = storeDebug ? `Debug: level ${g.map.n} is on hold. Everything here is free, and Unmutate takes a level back off.` : $('storeSub').dataset.text;
+  $('storeMap') && ($('storeMap').textContent = g.map.n);
+  tab = opts.tab || 'abil';
   if (!ABILITIES.some(a => a.id === sel)) sel = 'summon';
   demo ||= createDemo(g.look);
   showDemo();
   drawStore();
+  $('store').classList.toggle('dbg', !!storeDebug);
+  $('storeGo').dataset.label ??= $('storeGo').innerHTML;
+  $('storeGo').innerHTML = storeDebug ? 'Back to the level' : $('storeGo').dataset.label;
   $('store').hidden = false;
-  writeSave(g, 'store');
+  if (!storeDebug) writeSave(g, 'store');
   cancelAnimationFrame(demoRaf);
   let then = performance.now(), acc = 0;
   const tick = now => {
@@ -353,6 +365,7 @@ function openStore() {
 function closeStore() {
   cancelAnimationFrame(demoRaf);
   $('store').hidden = true;
+  if (storeDebug) { const d = storeDebug; storeDebug = null; mode = 'paused'; d.back(); return; }
   nextMap(g);
   R.reset();
   mode = 'play';
@@ -388,15 +401,17 @@ function drawAbilities() {
     const { o, cost } = mutateOffer(a.id);
     const pips = `<span class="pips">${Array.from({ length: o.max }, (_, i) => `<i class="${i < o.lvl ? 'on' : ''}"></i>`).join('')}</span>`;
     const owned = o.owned || (a.passive && o.lvl > 0);
-    const line = cost == null ? '<span class="cost dim">maxed</span>' : `<span class="cost ${g.points < cost ? 'dim' : ''}">${owned ? 'upgrade' : 'learn'} ${fmt(cost)}</span>`;
+    const line = cost == null ? '<span class="cost dim">maxed</span>' : `<span class="cost ${g.points < cost && !storeDebug ? 'dim' : ''}">${owned ? 'upgrade' : 'learn'} ${storeDebug ? 'free' : fmt(cost)}</span>`;
     return `<button type="button" class="item ${owned ? 'owned' : ''} ${a.id === sel ? 'sel' : ''}" data-sel="${a.id}" aria-pressed="${a.id === sel}">${icon(a.id)}<b class="nm">${a.name}</b>${pips}${line}</button>`;
   }).join('');
-  const { o, cost, what } = mutateOffer(sel), a = o.it;
+  const { o, cost: price, what } = mutateOffer(sel), a = o.it;
+  const cost = storeDebug && price != null ? 0 : price;
+  const back = storeDebug && o.lvl > 0 ? `<button type="button" class="mutate" id="abilUnmutate"><span>Unmutate <small>debug: one level back off</small></span><b>${o.lvl}</b></button>` : '';
   const tag = a.passive ? (o.lvl ? `level ${o.lvl}` : 'not grown') : a.space ? 'always on SPACE' : o.owned ? (g.slots.includes(a.id) ?`on ${SLOT_KEYS[g.slots.indexOf(a.id)]}` : 'owned, not slotted') : 'not owned';
   const desc = a.id === 'summon' && o.owned && o.lvl > 0 ? a.ups[o.lvl - 1] : a.desc;
   $('abilInfo').innerHTML = `<b class="nm">${icon(a.id)} ${a.name}</b><span class="up">${tag}</span><span class="desc">${desc}</span>` +
     (cost == null ? `<span class="up">Fully mutated${a.ups && !a.passive && a.id !== 'summon' ? ': ' + a.ups[a.ups.length - 1][0].toLowerCase() + a.ups[a.ups.length - 1].slice(1) : ''}. Nothing left to grow.</span>`
-      : `<button type="button" class="mutate" id="abilMutate" ${g.points < cost ? 'aria-disabled="true"' : ''}><span>Mutate <small>${what}</small></span><b>${fmt(cost)}</b></button>`);
+      : `<button type="button" class="mutate" id="abilMutate" ${g.points < cost ? 'aria-disabled="true"' : ''}><span>Mutate <small>${what}</small></span><b>${storeDebug ? 'FREE' : fmt(cost)}</b></button>`) + back;
 }
 
 // the demo reel: the selected ability (at the level Mutate would give you), cast on a loop at a 5-man
@@ -415,9 +430,14 @@ function paintDemo() {
 
 function drawSlots() {
   const owned = ABILITIES.filter(a => !a.passive && !a.space && g.owned.has(a.id));
-  $('tabSlots').innerHTML = `<p class="hint">Five slots. Pick what goes where; picking something already in another slot swaps them. Roar needs no slot: it is always on <kbd>Space</kbd>, which shakes your fur instead while somebody is in it.</p>` +
+  // each choice shows the key it is already on, to the left of its name; a slot can be changed but never emptied
+  // (a slot is only empty while there is not yet anything to put in it)
+  const keyOf = id => { const j = g.slots.indexOf(id); return j >= 0 ? SLOT_KEYS[j] : ''; };
+  const pad = Math.max(...SLOT_KEYS.map(k => k.length));
+  const label = a => `${(keyOf(a.id) || '').padEnd(pad, ' ')} ${a.name}`;
+  $('tabSlots').innerHTML = `<p class="hint">Five slots. Pick what goes where; picking something already on another key swaps them, and the key each one is on shows on its left. Roar needs no slot: it is always on <kbd>Space</kbd>, which shakes your fur instead while somebody is in it.</p>` +
     g.slots.map((id, i) => `<label class="slot"><kbd>${SLOT_KEYS[i]}</kbd>${icon(id || 'empty')}
-      <select data-slot="${i}"><option value="">(empty)</option>${owned.map(a => `<option value="${a.id}" ${a.id === id ? 'selected' : ''}>${a.name}</option>`).join('')}</select></label>`).join('');
+      <select data-slot="${i}" ${owned.length ? '' : 'disabled'}>${id ? '' : '<option value="" selected disabled hidden>(empty)</option>'}${owned.map(a => `<option value="${a.id}" ${a.id === id ? 'selected' : ''}>${label(a)}</option>`).join('')}</select></label>`).join('');
 }
 
 $('store').addEventListener('click', e => {
@@ -429,14 +449,15 @@ $('store').addEventListener('click', e => {
   let ok = false;
   if (t.id === 'abilMutate') {
     const o = abilityOffer(g, sel);
-    ok = o.buyCost != null ? buyAbility(g, sel) : upgradeAbility(g, sel);
+    ok = o.buyCost != null ? buyAbility(g, sel, !!storeDebug) : upgradeAbility(g, sel, !!storeDebug);
     if (ok) showDemo();
   }
+  if (t.id === 'abilUnmutate' && storeDebug) { ok = unmutateAbility(g, sel); if (ok) showDemo(); }
   if (ok) { audio.play('buy'); drawStore(); }
 });
 $('store').addEventListener('change', e => {
   const s = e.target.closest('select[data-slot]');
-  if (s) { setSlot(g, +s.dataset.slot, s.value || null); drawStore(); }
+  if (s && s.value) { setSlot(g, +s.dataset.slot, s.value); drawStore(); }
 });
 
 // ---------------------------------------------------------------------------------------------- loop

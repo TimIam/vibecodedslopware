@@ -1,7 +1,8 @@
 // Debug mode. Holding Shift and Ctrl and pressing comma then period stops the level where it stands and turns the
 // screen into an inspector: every actor and piece of scenery gets an outline in its affiliation's colour, a click
 // selects the nearest one and opens a window on it (picture, name, archetype, stats, affiliation, editable numbers),
-// a checkbox draws the hitboxes, and a pull-down drops straight into any level. Nothing here is mentioned in the game.
+// a checkbox draws the hitboxes, a pull-down drops straight into any level, and two buttons open the Hoard or its
+// Loadout tab over the stopped level (free, with mutations that can be taken back off). Nothing here is mentioned in the game.
 // All of its state lives in this module: the saved game only ever sees the edits themselves.
 
 import { CLASS, ADDS, BOSS_SPEED, ROCK_R, W, H } from './world.js';
@@ -41,6 +42,8 @@ const CSS = `
 #dbgBar .key span{margin-right:6px}
 #dbgBar .key i{width:10px;height:10px;box-shadow:0 0 0 1px #14100c}
 #dbgBar small{color:#aeac9b;flex-basis:100%;text-align:center}
+#dbgBar .btns{display:flex;gap:6px}
+#dbgBar .btns button{margin:0;padding:3px 7px 2px;font-size:11px}
 #dbgWin{top:64px;width:270px;max-height:calc(100dvh - 80px);overflow:auto;padding:8px 10px 10px}
 #dbgWin[hidden]{display:none}
 #dbgWin header{display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -288,8 +291,9 @@ export function createDebug({ canvas, host }) {
     bar.innerHTML = `<b>Debug</b>
       <label>Level <select id="dbgLevel">${LEVELS.map((L, i) => `<option value="${i + 1}">${i + 1}. ${esc(L.name)}</option>`).join('')}</select></label>
       <label class="chk"><input id="dbgHit" type="checkbox"><span>Hitboxes</span></label>
+      <span class="btns"><button type="button" id="dbgHoard">Hoard</button><button type="button" id="dbgSlots">Loadout</button></span>
       <div class="key">${Object.values(AFF).map(a => `<i style="background:${a.col}"></i><span>${a.name}</span>`).join('')}</div>
-      <small>The level is stopped. Click anything; click again for what is under it. Arrows look around. Esc leaves.</small>`;
+      <small>The level is stopped. Click anything; click again for what is under it. Arrows look around. Hoard and Loadout cost nothing here. Esc leaves.</small>`;
     win = document.createElement('div');
     win.id = 'dbgWin';
     win.hidden = true;
@@ -299,6 +303,13 @@ export function createDebug({ canvas, host }) {
     document.body.append(bar, win);
     bar.querySelector('#dbgHit').addEventListener('change', e => { hitboxes = e.target.checked; });
     bar.querySelector('#dbgLevel').addEventListener('change', e => jump(+e.target.value));
+    // the Hoard and its Loadout tab, over the stopped level, free; closing it comes back here
+    const store = t => {
+      bar.hidden = true; win.hidden = true;
+      host.store(t, () => { bar.hidden = false; if (sel) fillWindow(true); canvas.focus(); });
+    };
+    bar.querySelector('#dbgHoard').addEventListener('click', () => store('abil'));
+    bar.querySelector('#dbgSlots').addEventListener('click', () => store('slots'));
     win.querySelector('#dbgClose').addEventListener('click', () => { select(null); canvas.focus(); });
     // numbers typed into the window go straight onto the thing
     win.querySelector('.edit').addEventListener('input', e => {
@@ -362,6 +373,10 @@ export function createDebug({ canvas, host }) {
       if (!/^(Shift|Control)/.test(e.code)) armed = false;
     } else armed = false;
     if (!on) return false;
+    if (host.storeOpen) {   // the Hoard opened from here: Esc shuts it, every other key is the Hoard's
+      if (e.code === 'Escape') { e.preventDefault(); host.closeStore(); return true; }
+      return false;
+    }
     if (e.code === 'Escape') { e.preventDefault(); leave(); return true; }
     if (e.target.closest?.('#dbgBar, #dbgWin')) return true;   // typing a number, picking a level
     const pan = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.code];
