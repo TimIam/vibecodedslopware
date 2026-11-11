@@ -42,6 +42,7 @@ got as far as committing, so a failed run is simply tried again.
 | Secret | Used for | Where to get it |
 | --- | --- | --- |
 | `VERCEL_TOKEN` | production deploy | vercel.com > Account Settings > Tokens, scoped to the "timiam's projects" team |
+| (all three) | every run starts with `watch.mjs keys`, one read-only call per service, so a dead secret fails the run and opens an issue before a patch needs it | |
 | `CURSEFORGE_TOKEN` | uploads to Heal Pie | authors.curseforge.com > Account > API Tokens |
 | `ANTHROPIC_API_KEY` | the fix step (only runs when an API changed) | console.anthropic.com > API Keys |
 

@@ -8,6 +8,7 @@
 //   node tools/addon-watch/watch.mjs commit     commit, stamp versions (tools/versions.mjs) and push to main
 //   node tools/addon-watch/watch.mjs curseforge upload the new files to CurseForge   (needs CURSEFORGE_TOKEN)
 //   node tools/addon-watch/watch.mjs deploy     production deploy of main on Vercel    (needs VERCEL_TOKEN)
+//   node tools/addon-watch/watch.mjs keys       one read-only call per service to prove the three secrets still work
 //   node tools/addon-watch/watch.mjs baseline   record today's clients and APIs as already handled (first run only)
 //
 // What counts as a change, per client (config.json):
@@ -509,13 +510,15 @@ async function curseforge() {
 
 // ---------------------------------------------------------------- Vercel
 
+const VERCEL_TEAM = 'team_Eha9A9JR9tDUGanSeW7NIiFd', VERCEL_PROJECT = 'prj_3aXdB5VQyRqHYxF6oHbDdQ1yZ4Gg';
+
 async function deploy() {
   const token = process.env.VERCEL_TOKEN, plan = readPlan();
   if (!token) throw new Error('VERCEL_TOKEN is not set');
-  const team = 'team_Eha9A9JR9tDUGanSeW7NIiFd', sha = plan.sha || git('rev-parse', 'origin/main').trim();
+  const team = VERCEL_TEAM, sha = plan.sha || git('rev-parse', 'origin/main').trim();
   const r = await fetch(`https://api.vercel.com/v13/deployments?teamId=${team}&skipAutoDetectionConfirmation=1`, {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'vibecodedslopware', project: 'prj_3aXdB5VQyRqHYxF6oHbDdQ1yZ4Gg', target: 'production',
+    body: JSON.stringify({ name: 'vibecodedslopware', project: VERCEL_PROJECT, target: 'production',
       gitSource: { type: 'github', org: 'TimIam', repo: 'vibecodedslopware', ref: 'main', sha } }),
   });
   const d = await r.json();
@@ -535,6 +538,29 @@ async function deploy() {
   }
 }
 
+// ---------------------------------------------------------------- keys
+
+// One read-only call per service, every run, so a revoked or expired secret shows up long before a patch needs it.
+// Nothing is uploaded, deployed or billed (listing Anthropic models is free).
+async function keys() {
+  const bad = [], env = process.env;
+  const tryIt = async (name, url, headers) => {
+    if (!headers) return bad.push(`${name} is not set`);
+    try {
+      const r = await fetch(url, { headers });
+      if (!r.ok) bad.push(`${name}: ${url} answered ${r.status} ${(await r.text()).slice(0, 200)}`);
+      else log(`keys: ${name} works`);
+    } catch (e) { bad.push(`${name}: ${e.message}`); }
+  };
+  await tryIt('VERCEL_TOKEN', `https://api.vercel.com/v9/projects/${VERCEL_PROJECT}?teamId=${VERCEL_TEAM}`,
+    env.VERCEL_TOKEN && { Authorization: `Bearer ${env.VERCEL_TOKEN}` });
+  await tryIt('CURSEFORGE_TOKEN', 'https://wow.curseforge.com/api/game/version-types',
+    env.CURSEFORGE_TOKEN && { 'X-Api-Token': env.CURSEFORGE_TOKEN });
+  await tryIt('ANTHROPIC_API_KEY', 'https://api.anthropic.com/v1/models?limit=1',
+    env.ANTHROPIC_API_KEY && { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' });
+  if (bad.length) throw new Error('secrets that do not work:\n  ' + bad.join('\n  '));
+}
+
 // ---------------------------------------------------------------- baseline
 
 async function baseline() {
@@ -552,7 +578,7 @@ async function baseline() {
   log('wrote ' + path.relative(root, statePath));
 }
 
-const cmds = { check, apply, build, test, site, commit, curseforge, deploy, baseline };
+const cmds = { check, apply, build, test, site, commit, curseforge, deploy, keys, baseline };
 const cmd = process.argv[2];
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (!cmds[cmd]) { console.error('usage: watch.mjs ' + Object.keys(cmds).join('|')); process.exit(2); }

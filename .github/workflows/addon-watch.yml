@@ -38,6 +38,13 @@ jobs:
       - name: Lua 5.1
         run: sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1
 
+      - name: Do the secrets still work?
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node tools/addon-watch/watch.mjs keys
+
       - name: What changed?
         id: check
         run: node tools/addon-watch/watch.mjs check
