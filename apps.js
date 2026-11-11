@@ -1326,6 +1326,21 @@ window.SLOPWARE = {
     }
    ]
   },
+  "reviewbomb": {
+   "visits": 0,
+   "prompts": 3,
+   "tokens": 318004,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-11T14:16:40-07:00",
+     "note": "review AI-disclosed games on Vapor",
+     "prompts": 3,
+     "tokens": 318004
+    }
+   ]
+  },
   "shop": {
    "visits": 48,
    "prompts": 3,
