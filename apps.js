@@ -1287,6 +1287,13 @@ window.SLOPWARE = {
      "note": "less springy ragdolls, arms keep up and don't wedge",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 26,
+     "date": "2026-11-11T12:15:08-07:00",
+     "note": "Space kicks with the lead leg while holding the club",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
