@@ -22,3 +22,5 @@ tools/
 # Not part of the public site: its download page is the-endgame-is-me-wow/, which ships the two zips.
 the-endgame-is-me-addon/
 the-endgame-is-me-addon-retail/
+party-health-pie-addon/
+.github/

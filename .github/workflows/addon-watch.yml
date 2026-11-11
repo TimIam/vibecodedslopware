@@ -1,0 +1,107 @@
+# Keeps the site's WoW addons current with the game clients, unattended. See tools/addon-watch/README.md.
+name: Addon watch
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'   # every six hours; Blizzard patches land on Tuesdays, hotfix builds any day
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build and test, but do not push, deploy or upload'
+        type: boolean
+        default: true
+      force_interface:
+        description: 'Test only: pretend a client moved to an Interface number, e.g. forever=16002'
+        required: false
+
+concurrency:
+  group: addon-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # tools/versions.mjs reads the whole history
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Lua 5.1
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1
+
+      - name: What changed?
+        id: check
+        run: node tools/addon-watch/watch.mjs check
+        env:
+          FORCE_INTERFACE: ${{ inputs.force_interface }}
+
+      - name: Fix code for Blizzard API changes (Claude Code)
+        if: steps.check.outputs.needs_fix == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          cat tools/addon-watch/fix-prompt.md tools/addon-watch/.work/fix-brief.md > /tmp/prompt.md
+          claude -p "$(cat /tmp/prompt.md)" --model claude-opus-5-5 --max-turns 80 --dangerously-skip-permissions
+          git status --short
+
+      - name: Bump versions
+        id: apply
+        run: node tools/addon-watch/watch.mjs apply
+
+      - name: Build
+        if: steps.apply.outputs.release == 'true'
+        run: node tools/addon-watch/watch.mjs build
+
+      - name: Test
+        if: steps.apply.outputs.release == 'true'
+        run: node tools/addon-watch/watch.mjs test
+
+      - name: Update the download pages
+        if: steps.apply.outputs.release == 'true'
+        run: node tools/addon-watch/watch.mjs site
+
+      - name: Keep the zips from this run
+        if: steps.apply.outputs.release == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: addon-zips
+          path: tools/addon-watch/.work/dist/
+
+      - name: Commit and push to main
+        id: commit
+        if: (steps.apply.outputs.release == 'true' || steps.check.outputs.needs_fix == 'true') && inputs.dry_run != true
+        run: node tools/addon-watch/watch.mjs commit
+
+      - name: Deploy the site
+        if: steps.apply.outputs.release == 'true' && inputs.dry_run != true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: node tools/addon-watch/watch.mjs deploy
+
+      - name: Upload to CurseForge
+        if: inputs.dry_run != true
+        env:
+          CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
+        run: node tools/addon-watch/watch.mjs curseforge
+
+      - name: Open an issue when something went wrong
+        if: failure() && inputs.dry_run != true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          body="The addon watch failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          [ -f tools/addon-watch/.work/test-failures.txt ] && body="$body"$'\n\nTests:\n```\n'"$(cat tools/addon-watch/.work/test-failures.txt)"$'\n```'
+          [ -f tools/addon-watch/.work/fix-brief.md ] && body="$body"$'\n\n'"$(cat tools/addon-watch/.work/fix-brief.md)"
+          existing=$(gh issue list --state open --label addon-watch --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then gh issue comment "$existing" --body "$body"
+          else gh label create addon-watch --color B60205 2>/dev/null || true; gh issue create --title "Addon watch needs a look" --label addon-watch --body "$body"; fi

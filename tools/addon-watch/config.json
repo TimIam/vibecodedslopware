@@ -1,0 +1,56 @@
+{
+  "clients": {
+    "forever": {
+      "label": "Classic Forever",
+      "product": "wowf",
+      "uiBranch": "forever",
+      "curseforgeType": "forever"
+    },
+    "retail": {
+      "label": "retail",
+      "product": "wow",
+      "uiBranch": "live",
+      "curseforgeType": "retail|^wow$|mainline"
+    }
+  },
+  "addons": {
+    "endgame": {
+      "name": "The Endgame is Me",
+      "kind": "endgame",
+      "root": "the-endgame-is-me-addon",
+      "versionFile": "the-endgame-is-me-addon/tools/build.mjs",
+      "versionPattern": "export const VERSION = '([0-9.]+)';",
+      "page": "the-endgame-is-me-wow",
+      "curseforge": null,
+      "builds": {
+        "forever": {
+          "folder": "the-endgame-is-me-addon/TheEndgameIsMe",
+          "interfaceFiles": ["the-endgame-is-me-addon/tools/build.mjs"],
+          "zip": "TheEndgameIsMe-{v}.zip"
+        },
+        "retail": {
+          "folder": "the-endgame-is-me-addon-retail/TheEndgameIsMe",
+          "interfaceFiles": ["the-endgame-is-me-addon/tools/build.mjs"],
+          "zip": "TheEndgameIsMe-Retail-{v}.zip"
+        }
+      }
+    },
+    "pie": {
+      "name": "Party Health Pie",
+      "kind": "folder",
+      "root": "party-health-pie-addon",
+      "page": "party-health-pie",
+      "curseforge": { "project": 1792480, "releaseType": { "forever": "release", "retail": "beta" } },
+      "builds": {
+        "forever": {
+          "folder": "party-health-pie-addon/forever/PartyHealthPie",
+          "zip": "PartyHealthPie-{v}.zip"
+        },
+        "retail": {
+          "folder": "party-health-pie-addon/retail/PartyHealthPie",
+          "zip": "PartyHealthPie-Retail-{v}.zip"
+        }
+      }
+    }
+  }
+}
