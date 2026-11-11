@@ -338,6 +338,26 @@ local frame = 1
 local ox, oy = 0, 0                      -- the camera, modulo the screen
 for i = 1, W * H do cur[i] = NIGHT; shown[i] = -1; base[i] = NIGHT; mark[i] = 0 end
 
+-- Where anything is, coarsely: the screen in tiles of 10 pixels. A prop that ships as an image is drawn by the client
+-- as a texture under the grid (gfx.lua), which is only right while no cell over it holds something that belongs
+-- behind it. Screen.clear() answers that from these two tables without looking at a single cell.
+local TILE = 10
+local TW, TH = W / TILE, H / TILE
+local occ = {}        -- screen tile → the frame something was last drawn in it
+local baseCnt = {}    -- torus tile → how many of its cells have a retained colour (scorch, rubble, canopy)
+local ttile = {}      -- cell → its torus tile
+for t = 1, TW * TH do occ[t] = 0; baseCnt[t] = TILE * TILE end
+for gy = 0, H - 1 do for gx = 0, W - 1 do ttile[gy * W + gx + 1] = floor(gy / TILE) * TW + floor(gx / TILE) + 1 end end
+local occOn = false
+local function markRect(x0, y0, x1, y1)
+  local f = frame
+  local tx0, tx1 = floor(x0 / TILE), floor(x1 / TILE)
+  for ty = floor(y0 / TILE), floor(y1 / TILE) do
+    local r = ty * TW + 1
+    for tx = tx0, tx1 do occ[r + tx] = f end
+  end
+end
+
 local Screen = { width = W, height = H, shakeX = 0, shakeY = 0 }
 local SCtx = { canvas = Screen, fillStyle = "#000000", globalAlpha = 1, globalCompositeOperation = "source-over", tx = 0, ty = 0 }
 local SMeta = {}
@@ -385,6 +405,7 @@ function SMeta:fillRect(x, y, w, h)
   if x1 >= W then x1 = W - 1 end
   if y1 >= H then y1 = H - 1 end
   if x1 < x0 or y1 < y0 then return end
+  if occOn then markRect(x0, y0, x1, y1) end
   local n = x1 - x0 + 1
   local gx = (x0 + ox) % W
   local first = W - gx
@@ -431,6 +452,7 @@ local function blit(self, img, dx, dy, thresh)
   local r0, r1 = 0, SH - 1
   if dy < 0 then r0 = -dy end
   if dy + r1 >= H then r1 = H - 1 - dy end
+  if occOn and r1 >= r0 then markRect(dx < 0 and 0 or dx, dy + r0, dx + SW > W and W - 1 or dx + SW - 1, dy + r1) end
   for r = r0, r1 do
     local list = spans[r]
     if list then
@@ -527,10 +549,38 @@ local function rebase(wx, wy)
     local f = fgC.px[(wy - viewY) * W + (wx - viewX) + 1]
     if f ~= nil then v = f < A1 and f or v; maskData[i] = true else maskData[i] = nil end
   end
+  local was = base[i]
+  if (was == nil) ~= (v == nil) then local t = ttile[i]; baseCnt[t] = baseCnt[t] + (v == nil and -1 or 1) end
   base[i] = v
   if cur[i] ~= v then cur[i] = v end
   nTouched = nTouched + 1; touched[nTouched] = i
 end
+
+-- Is there nothing, drawn so far this frame or retained, on the cells under this world rectangle? (Tiles, so "no"
+-- sometimes means "nothing, but something near".)
+function Screen.clear(wx, wy, w, h)
+  local x0, y0 = wx - viewX, wy - viewY
+  local x1, y1 = x0 + w - 1, y0 + h - 1
+  if x0 < 0 then x0 = 0 end
+  if y0 < 0 then y0 = 0 end
+  if x1 >= W then x1 = W - 1 end
+  if y1 >= H then y1 = H - 1 end
+  if x1 < x0 or y1 < y0 then return true end
+  local f = frame
+  local tx0, tx1 = floor(x0 / TILE), floor(x1 / TILE)
+  for ty = floor(y0 / TILE), floor(y1 / TILE) do
+    local r = ty * TW + 1
+    for tx = tx0, tx1 do if occ[r + tx] == f then return false end end
+  end
+  tx0, tx1 = floor((x0 + ox) / TILE), floor((x1 + ox) / TILE)
+  for ty = floor((y0 + oy) / TILE), floor((y1 + oy) / TILE) do
+    local r = (ty % TH) * TW + 1
+    for tx = tx0, tx1 do if baseCnt[r + tx % TW] > 0 then return false end end
+  end
+  return true
+end
+-- gfx.lua switches the bookkeeping on only while a level has props that ship as images
+function Screen.occupancy(on) occOn = on and true or false end
 
 local lastBg, lastTrail, lastFg, lastWater = nil, nil, nil, nil
 -- A frame that was drawn but never shown (the one painted behind a loading screen) leaves the display out of step
@@ -608,12 +658,15 @@ end
 function Screen.beginPlain(rgb)
   newFrame()
   for i = 1, W * H do
-    if base[i] ~= rgb or cur[i] ~= rgb then base[i] = rgb; cur[i] = rgb; nTouched = nTouched + 1; touched[nTouched] = i end
+    if base[i] ~= rgb or cur[i] ~= rgb then
+      if base[i] == nil then local t = ttile[i]; baseCnt[t] = baseCnt[t] + 1 end
+      base[i] = rgb; cur[i] = rgb; nTouched = nTouched + 1; touched[nTouched] = i
+    end
   end
   nPrev, nNow = 0, 0
   mask = nil
   lastBg, waterC = nil, nil
-  imageMode, Screen.ground = false, nil
+  imageMode, Screen.ground, Screen.props = false, nil, nil
   ox, oy, viewX, viewY = 0, 0, 0, 0
   SCtx.tx, SCtx.ty, SCtx.globalAlpha = 0, 0, 1
   Screen.ox, Screen.oy, Screen.vx, Screen.vy, Screen.shakeX, Screen.shakeY = 0, 0, 0, 0, 0, 0

@@ -26,6 +26,7 @@ game_render.lua
 game_save.lua
 sound_manifest.lua
 ground.lua
+props.lua
 saves.lua
 keys.lua
 display.lua

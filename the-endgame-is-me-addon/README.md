@@ -104,16 +104,36 @@ the built folders). The client draws it as one texture under the grid; the grid 
 on them, and a see-through cell (a shadow, the HUD's panel) carries its alpha for the client to blend. Levels load
 in a few frames instead of seconds, and half to two thirds of the 57,600 textures are hidden at any moment.
 
-- **`lua5.1 tools/bake-ground.lua`** (after a build, then build again) makes the images and `art/ground.json`.
-  Run it whenever the game's ground art changes. The files are 32-bit uncompressed TGA padded to powers of two.
+- **`lua5.1 tools/bake-art.lua`** (after a build, then build again) makes the images, `art/ground.json` and
+  `art/props.json`. Run it whenever the game's art or level layouts change. The files are 32-bit uncompressed TGA
+  padded to powers of two. It takes a few minutes.
 - **A baked level is always laid out the same way.** A ground depends on where the level put its roads and fields,
   so the level is built from the seed its image was made with (`SEEDS` in the bake tool, `ns.Ground` in the
   addon, the `layoutRng` patches to `world.js` in the build). The run's own random numbers still decide
   everything that happens after that. A save from before this has no such layout and is painted the old way.
 - **`/endgame ground off`** paints the ground in Lua as before (same layouts), in case a client will not show the
   image. `RT.fixedLayouts` is off under `exact.sh`, which compares with the browser game.
-- **`lua5.1 tools/test/ground.lua`** plays every level both ways and compares the picture over the image file's
-  own pixels with the painted one.
+- **`lua5.1 tools/test/ground.lua`** plays every level both ways and compares the two pictures: the one the
+  client would make (the ground file's pixels, the prop textures asked for from the sheet file, then the cells) and
+  the one painted the old way.
+
+## Prop images
+
+A tree or a cottage nobody has touched looks the same every frame, and a baked level has the same ones in the same
+places every run. The bake tool paints each standing prop once into a sheet per level (`art/props_N.tga`) and the
+client draws it as a texture between the ground image and the grid (`D.setProps`, one texture per prop, made once
+per level and only shown or hidden after that).
+
+- **A prop is a texture only while** it is as it was made (standing, full health, not burning, not moved) **and**
+  nothing has been drawn on the cells under it yet this frame (`Screen.clear`, a coarse map of where things are).
+  The frame is drawn back to front, so anything already there belongs behind the prop, which a texture under the
+  grid could not cover; then the level's own art paints the prop into the grid as before. Anything drawn later is
+  in front, and the grid is on top anyway. The two ways look the same, so the switch does not show.
+- **Which props are baked** is decided by painting each at two dozen moments with the camera in different places:
+  one that ever differs (a lamp that flickers, a flag) is left to the grid. So is one too big for the screen.
+- **Who is in front** among the textures is the draw layer: the tool gives each prop a layer one above the deepest
+  thing it overlaps, up to 48 (three layers of sixteen sublevels). Props piled deeper than that stay in the grid.
+- `RT.propImages = false` (in `src/gfx.lua`) turns it off; `/endgame ground off` turns both off.
 
 ## What differs from the browser game
 

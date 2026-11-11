@@ -1,9 +1,9 @@
 [
-  { "n": 1, "file": "ground_1.tga", "w": 320, "h": 180, "tw": 512, "th": 256, "seed": 1101, "props": 0 },
-  { "n": 2, "file": "ground_2.tga", "w": 960, "h": 180, "tw": 1024, "th": 256, "seed": 2202, "props": 195 },
-  { "n": 3, "file": "ground_3.tga", "w": 1140, "h": 180, "tw": 2048, "th": 256, "seed": 3303, "props": 402 },
-  { "n": 4, "file": "ground_4.tga", "w": 1200, "h": 180, "tw": 2048, "th": 256, "seed": 4404, "props": 130 },
-  { "n": 5, "file": "ground_5.tga", "w": 1280, "h": 180, "tw": 2048, "th": 256, "seed": 5505, "props": 78 },
-  { "n": 6, "file": "ground_6.tga", "w": 320, "h": 900, "tw": 512, "th": 1024, "seed": 6606, "props": 188 },
-  { "n": 7, "file": "ground_7.tga", "w": 320, "h": 452, "tw": 512, "th": 512, "seed": 7707, "props": 257 }
+  { "n": 1, "file": "ground_1.tga", "w": 320, "h": 180, "tw": 512, "th": 256, "seed": 1101 },
+  { "n": 2, "file": "ground_2.tga", "w": 960, "h": 180, "tw": 1024, "th": 256, "seed": 2202 },
+  { "n": 3, "file": "ground_3.tga", "w": 1140, "h": 180, "tw": 2048, "th": 256, "seed": 3303 },
+  { "n": 4, "file": "ground_4.tga", "w": 1200, "h": 180, "tw": 2048, "th": 256, "seed": 4404 },
+  { "n": 5, "file": "ground_5.tga", "w": 1280, "h": 180, "tw": 2048, "th": 256, "seed": 5505 },
+  { "n": 6, "file": "ground_6.tga", "w": 320, "h": 900, "tw": 512, "th": 1024, "seed": 6606 },
+  { "n": 7, "file": "ground_7.tga", "w": 320, "h": 452, "tw": 512, "th": 512, "seed": 7707 }
 ]

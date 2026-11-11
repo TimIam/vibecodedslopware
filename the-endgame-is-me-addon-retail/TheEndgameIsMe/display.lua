@@ -166,12 +166,17 @@ function D.build()
   if gt.SetSnapToPixelGrid then gt:SetSnapToPixelGrid(false); gt:SetTexelSnappingBias(0) end
   gt:Hide()
   D.groundTex = gt
+  -- and over it, under the strips, the level's untouched props, a texture each (D.setProps)
+  local pf = _G.CreateFrame("Frame", nil, view)
+  pf:SetAllPoints(view)
+  pf:SetFrameLevel(level + 2)
+  D.propFrame = pf
   local strip = nil
   for gy = 0, H - 1 do
     if gy % 8 == 0 then
       strip = _G.CreateFrame("Frame", nil, view)
       strip:SetAllPoints(view)
-      strip:SetFrameLevel(level + 2)
+      strip:SetFrameLevel(level + 3)
       strips[#strips + 1] = strip
     end
     D.progress = gy / H
@@ -219,8 +224,7 @@ function D.setMode(mode)
   end
   local parent = mode == "oneclip" and D.clipAll or view
   -- the ground image is cut to the picture the same way a strip is
-  local gf = D.groundFrame
-  if gf then
+  for _, gf in ipairs({ D.groundFrame, D.propFrame }) do
     if gf.SetClipsChildren then gf:SetClipsChildren(mode == "clip" or mode == "oneclip") end
     if D.canBuffer() then
       gf:SetFlattensRenderLayers(mode == "buffer")
@@ -343,6 +347,57 @@ function D.setGround(G)
 end
 
 -- shows the frame the Screen holds; returns how many cells changed colour
+-- The level's props that ship as images (P is an entry of ns.Props, or nil): a texture for each, cut from the
+-- level's sheet, pinned to the grid where the prop stands, and hidden until the game says that prop is untouched and
+-- has nothing behind it this frame (Screen.props, see gfx.lua). Who is in front of whom is the draw layer: the
+-- sheet was made so that no more than 48 ever lie on one another.
+local LAYER = { [0] = "BORDER", "ARTWORK", "OVERLAY" }
+local pool, lit, stamp = {}, {}, 0
+function D.setProps(P)
+  D.propsNow = P
+  for k = 1, #lit do lit[k].on = false; lit[k].tex:Hide(); lit[k] = nil end
+  if not P then return end
+  local pf, file = D.propFrame, DIR .. P.file
+  for k = 1, #P.list do
+    local e = P.list[k]
+    local t = pool[k]
+    if not t then
+      t = pf:CreateTexture(nil, "ARTWORK")
+      if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false); t:SetTexelSnappingBias(0) end
+      pool[k] = t
+    end
+    t:Hide()
+    t:SetTexture(file, "CLAMP", "CLAMP", "NEAREST")
+    t:SetTexCoord(e.u / P.tw, (e.u + e.w) / P.tw, e.v / P.th, (e.v + e.h) / P.th)
+    t:SetSize(e.w, e.h)
+    t:SetDrawLayer(LAYER[floor(e.z / 16)], e.z % 16 - 8)
+    t:ClearAllPoints()
+    t:SetPoint("TOPLEFT", D.grid, "TOPLEFT", e.x, -e.y)
+    e.tex, e.on, e.stamp = t, false, 0
+    RT.breathe()
+  end
+end
+local function syncProps()
+  local ps = Screen.props
+  local P = ps and ps.P or nil
+  if P ~= D.propsNow then D.setProps(P) end
+  if not ps then return end
+  stamp = stamp + 1
+  for k = 1, ps.n do
+    local e = ps[k]
+    e.stamp = stamp
+    if not e.on then e.tex:Show(); e.on = true; lit[#lit + 1] = e end
+  end
+  -- the ones that were up and are not wanted this frame
+  local j = 0
+  for k = 1, #lit do
+    local e = lit[k]
+    if e.stamp == stamp then j = j + 1; lit[j] = e else e.tex:Hide(); e.on = false end
+  end
+  for k = #lit, j + 1, -1 do lit[k] = nil end
+end
+D.propsLit = lit
+
 -- D.moveMs and D.sendMs say what the two halves cost (moving textures for the camera, recolouring them), and
 -- D.moved how many textures were moved: /endgame perf shows them
 D.moved, D.moveMs, D.sendMs = 0, 0, 0
@@ -352,6 +407,7 @@ function D.present()
   local t0 = clock()
   D.moved = 0
   if Screen.ground ~= D.groundNow then D.setGround(Screen.ground) end
+  syncProps()
   layout()
   local t1 = clock()
   local n = Screen.present(setCell)

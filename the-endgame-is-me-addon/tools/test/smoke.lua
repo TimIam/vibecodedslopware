@@ -67,6 +67,28 @@ local function checkPicture(where)
     assert(Stub.visible(gf) and (gf.clips or gf.buffer), where .. ": the ground image's frame is hidden or not cut to the picture")
     for _, strip in ipairs(D.strips) do assert(strip:GetFrameLevel() > gf:GetFrameLevel(), where .. ": a strip is not above the ground image") end
   end
+  -- the prop textures: exactly the ones the game asked for this frame are up, each cut from the level's sheet and
+  -- pinned where its prop stands, in a frame between the ground and the strips
+  local ps, pf = RT.Screen.props, D.propFrame
+  local up = 0
+  for _, t in ipairs(pf.regions) do if t.shown then up = up + 1 end end
+  assert(up == (ps and ps.n or 0), where .. ": " .. up .. " prop textures are up and the game asked for " .. (ps and ps.n or 0))
+  if ps then
+    assert(G, where .. ": prop textures with no ground image under them")
+    assert(io.open(dir .. "/Art/" .. ps.P.file, "rb"), where .. ": the prop sheet is not in the addon folder")
+    assert(Stub.visible(pf) and (pf.clips or pf.buffer) and pf:GetFrameLevel() > gf:GetFrameLevel(), where .. ": the prop frame is hidden, uncut or under the ground")
+    for _, strip in ipairs(D.strips) do assert(strip:GetFrameLevel() > pf:GetFrameLevel(), where .. ": a strip is not above the props") end
+    for k = 1, ps.n do
+      local e = ps[k]
+      local t, p = e.tex, e.tex.points.TOPLEFT
+      assert(t.shown and t.file == "Interface\\AddOns\\TheEndgameIsMe\\Art\\" .. ps.P.file and t.filter == "NEAREST", where .. ": a prop texture is hidden or from the wrong file")
+      assert(t.w == e.w and t.h == e.h and p.rel == grid and p.x == e.x and p.y == -e.y, where .. ": a prop texture is the wrong size or in the wrong place")
+      assert(math.abs(t.coord[1] * ps.P.tw - e.u) < 1e-6 and math.abs(t.coord[3] * ps.P.th - e.v) < 1e-6 and math.abs(t.coord[2] * ps.P.tw - e.u - e.w) < 1e-6 and math.abs(t.coord[4] * ps.P.th - e.v - e.h) < 1e-6,
+        where .. ": a prop texture shows the wrong part of the sheet")
+      local z = ({ BORDER = 0, ARTWORK = 16, OVERLAY = 32 })[t.layer] + t.sub + 8
+      assert(z == e.z, where .. ": a prop texture is on draw layer " .. z .. " and should be on " .. e.z)
+    end
+  end
   local hidden = 0
   for _, t in ipairs(all) do
     local p = t.points.TOPLEFT
@@ -94,7 +116,7 @@ local function checkPicture(where)
   for _ in pairs(seen) do n = n + 1 end
   assert(n == 320 * 180, where .. ": the grid covers " .. n .. " of 57600 pixels")
   assert(bad == 0, where .. ": " .. bad .. " pixels on the grid differ from the frame")
-  return hidden
+  return hidden, up
 end
 
 -- open the window
@@ -456,6 +478,7 @@ Stub.click("RMB:"); Stub.clickIn(pick, "Stomp")
 assert(bar() == "roar stomp tail breath swipe")
 plain(TheEndgameIsMeDB, 0)
 
+local propsUp = 0
 -- every level: load it, play a while with keys held, scroll, check the picture
 for lv = 2, 7 do
   -- level 4 with ground images switched off: painted in Lua as it used to be, every cell showing
@@ -498,7 +521,9 @@ for lv = 2, 7 do
   for _, k in ipairs(keys) do Stub.key(view, k, false) end
   view.scripts.OnMouseUp(view, "LeftButton")
   if A.mode == "play" then
-    local hidden = checkPicture("level " .. lv)
+    local hidden, up = checkPicture("level " .. lv)
+    propsUp = propsUp + up
+    assert(lv ~= 4 or up == 0, "prop textures up on a level painted the old way")
     assert((RT.Screen.ground ~= nil) == (lv ~= 4), "level " .. lv .. ": ground image " .. (lv == 4 and "used while switched off" or "not used"))
     assert(g.map.layout == ns.Ground[lv].seed, "level " .. lv .. " was not laid out from its image's seed")
     if lv ~= 4 then assert(hidden > 57600 * 0.25, "level " .. lv .. ": only " .. hidden .. " cells are hidden over the ground image") else assert(hidden == 0) end
@@ -512,6 +537,7 @@ for lv = 2, 7 do
   end
 end
 
+assert(propsUp > 0, "no level ever showed a prop as a texture")
 -- win: the walk home, the card, New Game+
 assert(A.mode == "play")
 g.won = true

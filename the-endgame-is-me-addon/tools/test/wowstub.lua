@@ -34,6 +34,11 @@ function Texture:SetTexture(file, wrapH, wrapV, filter)
   assert(filter == nil or filter == "NEAREST" or filter == "LINEAR" or filter == "TRILINEAR", "SetTexture filter mode")
   self.file, self.filter = file, filter
 end
+function Texture:SetDrawLayer(layer, sub)
+  assert(layer == "BACKGROUND" or layer == "BORDER" or layer == "ARTWORK" or layer == "OVERLAY", "SetDrawLayer: " .. tostring(layer))
+  assert(sub == nil or (sub >= -8 and sub <= 7 and sub == math.floor(sub)), "SetDrawLayer sublevel")
+  self.layer, self.sub = layer, sub or 0
+end
 function Texture:SetTexCoord(l, r, t, b) assert(l >= 0 and r <= 1 and t >= 0 and b <= 1 and l < r and t < b, "SetTexCoord"); self.coord = { l, r, t, b } end
 
 local FontString = setmetatable({}, { __index = Region })

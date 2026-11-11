@@ -341,7 +341,7 @@ end
 -- ------------------------------------------------------------------------------------------------ ground images
 
 -- Painting a level's ground in Lua took seconds, and then every bare pixel of it was one of the 57,600 textures. A
--- level's ground now ships as an image (Art/ground_N.tga, made by tools/bake-ground.lua and listed in ns.Ground by
+-- level's ground now ships as an image (Art/ground_N.tga, made by tools/bake-art.lua and listed in ns.Ground by
 -- the build): the client draws it as one texture under the grid, and the grid only shows the cells that have
 -- something on them. For the image to match, the level must be laid out exactly as it was when the image was made,
 -- so such a level is built from the image's seed instead of the run's (the patches to world.js in tools/build.mjs).
@@ -360,4 +360,62 @@ RT.host.groundImage = function(m)
   local G = baked(m.n)
   if not (G and G.file and RT.groundImages) or m.plain or m.layout ~= G.seed then return nil end
   return { image = G, width = G.w, height = G.h, px = NOPX }
+end
+
+-- ------------------------------------------------------------------------------------------------ prop images
+
+-- A tree or a cottage that nobody has touched looks the same every frame, and a level laid out from a fixed seed has
+-- the same ones in the same places every time. tools/bake-art.lua paints each of them once into a sheet per level
+-- (Art/props_N.tga, listed in ns.Props), and the client draws them as textures between the ground image and the
+-- grid. A prop is drawn that way only while both of these hold; otherwise the level's own art paints it into the
+-- grid as before, which looks the same:
+--   it is as it was made: standing, full health, not burning, not flashing from a hit, not moved
+--   nothing is on the cells under it yet (Screen.clear). The frame is drawn back to front, so whatever is there
+--   belongs behind the prop, and a texture under the grid cannot cover it. Whatever comes later is in front, and
+--   the grid is on top anyway.
+RT.propImages = true
+local Screen = RT.Screen
+local sheet = nil     -- { map, P, by = { [prop] = entry } } for the level being drawn
+local function bind(g, P)
+  local by, props = {}, g.props
+  local n = props.length
+  for k = 1, #P.list do
+    local e = P.list[k]
+    local p = props[e.i]
+    -- the prop this entry was painted from: the same place in the list unless something has been taken out of it
+    if not (p and p.x == e.px and p.y == e.py and p.kind == e.kind) then
+      p = nil
+      for j = 0, n - 1 do
+        local q = props[j]
+        if q.x == e.px and q.y == e.py and q.kind == e.kind then p = q; break end
+      end
+    end
+    if p then by[p] = e end
+  end
+  return { map = g.map, P = P, by = by }
+end
+local wanted = { n = 0 }
+-- once a frame, after the Screen has begun it and before the things on the ground are drawn
+RT.host.propsBegin = function(g)
+  local m = g.map
+  local P = RT.fixedLayouts and RT.propImages and Screen.ground and ns.Props and m.layout and ns.Props[m.n]
+  if not (P and P.file and P.seed == m.layout) then
+    if sheet then sheet = nil; Screen.occupancy(false) end
+    Screen.props = nil
+    return
+  end
+  if not sheet or sheet.map ~= m or sheet.P ~= P then sheet = bind(g, P); Screen.occupancy(true) end
+  wanted.n, wanted.P = 0, P
+  Screen.props = wanted
+end
+-- a prop's turn to be drawn: true if its texture will do
+RT.host.propDraw = function(p)
+  if not sheet then return false end
+  local e = sheet.by[p]
+  if not e then return false end
+  if p.state ~= "up" or p.burning or p.hitT > 0 or p.hp ~= e.hp or p.x ~= e.px or p.y ~= e.py or p.fallA ~= 0 or p.broken then return false end
+  if not Screen.clear(e.x, e.y, e.w, e.h) then return false end
+  local n = wanted.n + 1
+  wanted.n, wanted[n] = n, e
+  return true
 end
