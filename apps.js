@@ -1502,6 +1502,13 @@ window.SLOPWARE = {
      "note": "Endgame Logo shirt with each line bent evenly",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 15,
+     "date": "2026-11-11T09:42:57-07:00",
+     "note": "necromancers raise the dead, new final powers, castle past 100%",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
