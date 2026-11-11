@@ -1,7 +1,7 @@
 // Draws a game state into a 320×180 buffer. Everything lands on whole pixels.
 
 import { PAL, drawText, textWidth, ICONS, makeBossSprites, bossKey, BOSS_DIRS, BOSS_SIZE, tinted, hash, newCanvas } from './art.js';
-import { W, H, LEASH, CLASS, ADDS, SLOT_KEYS, RAID_LAPS, FINAL_LAPS, angDiff, pathDist, pathNearest, zoneFace, beamEnd, destRock } from './world.js';
+import { W, H, LEASH, CLASS, ADDS, SLOT_KEYS, RAID_LAPS, FINAL_LAPS, BALL, angDiff, pathDist, pathNearest, zoneFace, beamEnd, destRock, spaceKey } from './world.js';
 import { LEVELS } from './levels/index.js';
 import { KINDS, CRITTERS } from './props.js';
 
@@ -83,15 +83,7 @@ export function createRenderer() {
     ctx.drawImage(bg, 0, 0);
     // scorch marks are painted into the persistent ground layer once
     for (const a of g.ashes) if (!a.stamped) { a.stamped = true; stampAsh(tctx, a); }
-
-    // footprints wear the path in over time
-    for (const st of g.steps) {
-      const px = -Math.sin(st.face), py = Math.cos(st.face), sd = st.side ? 6 : -6;
-      tctx.fillStyle = 'rgba(40,30,18,0.16)';
-      tctx.fillRect(Math.round(st.x + px * sd + Math.cos(st.face) * 3), Math.round(st.y + py * sd + Math.sin(st.face) * 3), 2, 2);
-    }
-    g.steps.length = 0;
-    ctx.drawImage(trail, 0, 0);
+    if (g.ashes.length) ctx.drawImage(trail, 0, 0);
 
     if (g.water) drawWater(ctx, g);
     art.under?.(ctx, g, H_ART);
@@ -121,9 +113,11 @@ export function createRenderer() {
       list.push({ y: p.state === 'down' ? p.y - 40 : p.y + (p.h ? p.h / 2 : 0) + (p.sortY || 0), f: () => { draw(ctx, p, g, H_ART); if (p.burning) drawFlames(ctx, p, g.t); } });
     }
     for (const c of g.critters) if (onScreen(c.x, c.y)) list.push({ y: c.y, f: () => (CRITTER_ART[c.kind] || drawCritter)(ctx, c, g, H_ART) });
+    if (g.balls) for (const o of g.balls) if (onScreen(o.x, o.y, 8)) list.push({ y: o.y + 1, f: () => drawBall(ctx, o, g) });
     list.push({ y: g.boss.y + 2, f: () => drawBoss(ctx, g) });
     list.sort((a, b) => a.y - b.y);
     for (const d of list) d.f();
+    if (g.balls && g.balls.length) drawBallLight(ctx, g);
     for (const u of g.units) if (u.role === 'rider' && u.state === 'climb') drawClimber(ctx, u, g);
     art.over?.(ctx, g, H_ART);
     if (patrol && !g.clear) drawMarker(ctx, g, true);
@@ -134,6 +128,7 @@ export function createRenderer() {
     for (const p of g.parts) if (!p.horse && onScreen(p.x, p.y, 4)) drawPart(ctx, p);
     if (fg) ctx.drawImage(fg, VIEW.x, VIEW.y);
     drawSmoke(ctx, g);
+    if (g.steam) for (const s of g.steam) if (onScreen(s.x, s.y, 20)) drawSteam(ctx, s);
     for (const o of g.ghosts) drawGhost(ctx, o);
     for (const t of g.texts) {
       const k = t.t / t.life, a = k > 0.7 ? (1 - k) / 0.3 : 1;
@@ -158,6 +153,7 @@ export function createRenderer() {
     let lift = 0, jx = 0;
     if (act?.kind === 'stomp' && !act.fired) lift = -Math.round(act.t / g.abil.stomp.wind * 3);
     if (act?.kind === 'charge' && !act.fired) jx = -Math.round(Math.cos(b.face) * 2);
+    if (act?.kind === 'charge' && act.z > 0) lift = -Math.round(act.z);   // the leap back; the shadow stays on the ground
     if (act?.kind === 'shake') { jx = (Math.floor(act.t * 30) % 2) ? 1 : -1; frame = Math.floor(act.t * 20) % 4; }
     if (act?.kind === 'beam' && !act.fired) jx = (Math.floor(act.t * 24) % 2) ? 1 : 0;
     const x = Math.round(b.x) - BOSS_SIZE / 2 + jx, y = Math.round(b.y) - BOSS_SIZE / 2;
@@ -194,6 +190,15 @@ export function createRenderer() {
       ctx.globalAlpha = climbed ? 0.9 : 0.55 + pulse * 0.3;
       ctx.fillRect(sx, sy, 1, 1);
       if (pulse) { ctx.globalAlpha *= 0.5; ctx.fillRect(sx - 1, sy, 1, 1); ctx.fillRect(sx + 1, sy, 1, 1); ctx.fillRect(sx, sy - 1, 1, 1); ctx.fillRect(sx, sy + 1, 1, 1); }
+      ctx.globalAlpha = 1;
+    }
+    // the bone priests' ward: a see-through blue bubble with a soft glow, brighter the fuller it is
+    if (b.ward > 0 && !b.dead) {
+      const k = Math.min(1, b.ward / (b.maxhp * 0.1)), beat = 0.85 + 0.15 * Math.sin(g.t * 3);
+      const wx = Math.round(b.x) - WARD_R - 4, wy = Math.round(b.y) - 1 - WARD_R - 4 + lift;
+      ctx.globalAlpha = (0.3 + 0.3 * k) * beat; ctx.drawImage(wardSprite(true), wx, wy);
+      ctx.globalAlpha = (0.55 + 0.45 * k) * beat; ctx.drawImage(wardSprite(false), wx, wy);
+      if (b.wardHit > 0) { ctx.globalAlpha = 0.5; ctx.drawImage(tinted(wardSprite(false), '#ffffff'), wx, wy); }
       ctx.globalAlpha = 1;
     }
   }
@@ -440,6 +445,20 @@ function drawBeam(ctx, g) {
       ctx.fillRect(px, py, 1, 1);
     }
   }
+  // the last level's side columns: as wide as the beam again on each side, and fainter, for half the damage
+  if (g.abil.beam.side) {
+    for (let l = 10; l < e.len; l += 1) {
+      const bx = b.x + c * l, by = b.y + s * l;
+      for (let k = w + 0.5; k <= w * 3; k += 1) for (let sd = -1; sd <= 1; sd += 2) {
+        const px = Math.round(bx - s * k * sd), py = Math.round(by + c * k * sd);
+        const h = hash(px * 3 + fr * 7, py * 5 + fr);
+        if (((px + py + fr) & 1) && h < 0.975) continue;
+        ctx.globalAlpha = fade * (h > 0.975 ? 0.7 : k > w * 3 - 1.5 ? 0.5 : 0.34);
+        ctx.fillStyle = h > 0.975 ? PAL.spark : k > w * 3 - 1.5 ? PAL.beam : PAL.blue;
+        ctx.fillRect(px, py, 1, 1);
+      }
+    }
+  }
   // forks
   ctx.fillStyle = PAL.spark;
   for (let f = 0; f < 4; f++) {
@@ -590,6 +609,69 @@ function drawSmoke(ctx, g) {
   ctx.globalAlpha = 1;
 }
 
+// A fireball: a roiling ball about the size of a Spitter. It has no shadow; it lights the ground and whoever is near
+// it instead (drawBallLight, added on top of the scene once everything that stands on the ground is drawn).
+function ballSprite(f) {
+  const S = BALL.r * 2 + 1;
+  return sprite(`ball|${f}`, S, S, c => {
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const d = Math.hypot(x - BALL.r, y - BALL.r) / (BALL.r + 0.3), h = hash(x * 7 + f * 13, y * 11 + f * 5);
+      if (d > 1 || (d > 0.9 && h < 0.2)) continue;
+      // a white-hot middle, and a dark red rind so a heap of them still reads as separate balls
+      c.fillStyle = d < 0.35 ? (h > 0.3 ? PAL.fire3 : '#ffffff') : d < 0.62 ? (h > 0.25 ? PAL.fire2 : PAL.fire3) : d < 0.84 ? (h > 0.4 ? PAL.fire1 : PAL.fire2) : h > 0.5 ? PAL.fire0 : '#4a0e08';
+      c.fillRect(x, y, 1, 1);
+    }
+  });
+}
+const BALL_GLOW = 15;
+function ballGlow() {
+  const S = BALL_GLOW * 2 + 1;
+  return sprite('ball|glow', S, S, c => {
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const d = Math.hypot(x - BALL_GLOW, (y - BALL_GLOW) * 1.25) / BALL_GLOW;
+      if (d >= 1 || Math.hypot(x - BALL_GLOW, y - BALL_GLOW) < BALL.r + 0.6) continue;   // (it does not light itself)
+      // three steps of warm light, dithered where one gives way to the next
+      const v = (1 - d) * 3 + (BAYER[(y & 3) * 4 + (x & 3)] - 0.5) * 0.9, a = v > 2.1 ? 0.32 : v > 1.2 ? 0.2 : v > 0.4 ? 0.1 : 0;
+      if (!a) continue;
+      c.fillStyle = `rgba(255,${v > 2.1 ? 170 : 120},${v > 2.1 ? 70 : 30},${a})`;
+      c.fillRect(x, y, 1, 1);
+    }
+  });
+}
+const ballFade = o => Math.min(1, (BALL.life - o.t) / 0.5, o.t / 0.08 + 0.4);
+function drawBall(ctx, o, g) {
+  ctx.globalAlpha = Math.max(0, ballFade(o));
+  ctx.drawImage(ballSprite((Math.floor(g.t * 14) + o.seed) % 4), Math.round(o.x) - BALL.r, Math.round(o.y) - BALL.r);
+  ctx.globalAlpha = 1;
+}
+function drawBallLight(ctx, g) {
+  const glow = ballGlow();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const o of g.balls) {
+    if (!onScreen(o.x, o.y, BALL_GLOW + 2)) continue;
+    ctx.globalAlpha = Math.max(0, ballFade(o)) * (0.8 + 0.2 * hash(Math.floor(g.t * 12), o.seed));
+    ctx.drawImage(glow, Math.round(o.x) - BALL_GLOW, Math.round(o.y) - BALL_GLOW);
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+}
+
+// the cloud of steam a fireball makes of water: a few white billows that swell, drift up and thin out over its life
+function drawSteam(ctx, s) {
+  const k = s.t / s.life, a = (k < 0.12 ? k / 0.12 : 1 - (k - 0.12) / 0.88) * 0.85;
+  for (let i = 0; i < 6; i++) {
+    const ang = i / 6 * TAU + hash(i, s.seed) * 1.2, far = (1.5 + hash(s.seed, i * 3) * 4) * (0.5 + k * 1.6), want = 2.5 + i % 3 + k * 4.5;
+    let R = SMOKE_R[0];
+    for (const r of SMOKE_R) if (Math.abs(r - want) < Math.abs(R - want)) R = r;
+    // the smoke's own billow, washed nearly white, so the lumps keep their shading
+    const spr = smokeSprite(R, 1 + i % 2, i % 3), x = Math.round(s.x + Math.cos(ang) * far) - R - 2, y = Math.round(s.y + Math.sin(ang) * far * 0.6 - k * 10 - i) - R - 2;
+    const al = Math.max(0, a) * (0.6 + 0.4 * hash(i * 5, s.seed));
+    ctx.globalAlpha = al; ctx.drawImage(spr, x, y);
+    ctx.globalAlpha = al * 0.72; ctx.drawImage(tinted(spr, '#f4f9fb'), x, y);
+  }
+  ctx.globalAlpha = 1;
+}
+
 function drawFires(ctx, g) {
   const fr = Math.floor(g.t * 10);
   for (const f of g.fires) {
@@ -615,7 +697,12 @@ function drawTelegraph(ctx, g) {
   const k = a.kind, d = g.abil[k];
   if (k === 'shake') return;
   if (k === 'charge') { if (!a.fired) drawLane(ctx, g, d.range, d.width, a.t / d.wind); return; }
-  if (k === 'beam') { if (!a.fired) drawLane(ctx, g, beamEnd(g).len, d.width, a.t / d.wind); return; }
+  if (k === 'beam') {
+    if (a.fired) return;
+    if (d.side) drawLane(ctx, g, beamEnd(g).len, d.width * 3, a.t / d.wind, 0.5);   // the side columns, fainter
+    drawLane(ctx, g, beamEnd(g).len, d.width, a.t / d.wind);
+    return;
+  }
   if (k === 'summon' || k === 'ice' || k === 'haste') return;
   if (k === 'roar') {
     if (a.fired) return;
@@ -651,7 +738,7 @@ function drawTelegraph(ctx, g) {
   ctx.globalAlpha = 1;
 }
 
-function drawLane(ctx, g, range, width, prog) {
+function drawLane(ctx, g, range, width, prog, dim = 1) {
   const d = { range, width };
   const b = g.boss, c = Math.cos(b.face), s = Math.sin(b.face), R = d.range + 4;
   const blink = Math.floor(g.t * (prog > 0.6 ? 24 : 10)) & 1;
@@ -662,7 +749,7 @@ function drawLane(ctx, g, range, width, prog) {
     const edge = lx > d.range - 1 || Math.abs(ly) > d.width - 1;
     const al = edge ? 0.85 : lx < 8 + (d.range - 8) * prog ? (((qx + py + blink) & 1) ? 0.42 : 0.16) : (((qx + py) & 1) ? 0.12 : 0);
     if (!al) continue;
-    ctx.globalAlpha = al;
+    ctx.globalAlpha = al * dim;
     ctx.fillRect(qx, py, 1, 1);
   }
   ctx.globalAlpha = 1;
@@ -693,11 +780,14 @@ function drawSlash(ctx, r) {
   const k = r.t / 0.18;
   ctx.fillStyle = k < 0.5 ? '#ffffff' : PAL.cream;
   ctx.globalAlpha = 1 - k;
+  // (the tail's arcs reach as far as the tail does, and a second sweep comes back the other way)
+  const far = r.big && r.reach ? r.reach : 0, dir = r.flip ? -1 : 1;
   for (let j = 0; j < 3; j++) {
-    const rad = (r.big ? 16 : 17) + j * (r.big ? 5 : 4), sweep = r.big ? 2.2 : 1.9;
-    for (let i = 0; i <= 18; i++) {
-      const a = r.face - sweep / 2 + i / 18 * sweep + j * 0.08;
-      if (i / 18 > k * 1.6 + 0.2) break;
+    const rad = far ? far * (0.55 + j * 0.2) : (r.big ? 16 : 17) + j * (r.big ? 5 : 4), sweep = r.big ? 2.2 : 1.9;
+    const n = far ? Math.ceil(rad * sweep * 0.8) : 18;
+    for (let i = 0; i <= n; i++) {
+      const a = r.face + dir * (-sweep / 2 + i / n * sweep + j * 0.08);
+      if (i / n > k * 1.6 + 0.2) break;
       ctx.fillRect(Math.round(r.x + Math.cos(a) * rad), Math.round(r.y + Math.sin(a) * rad), 1, 1);
     }
   }
@@ -705,6 +795,26 @@ function drawSlash(ctx, r) {
 }
 
 function px(ctx, x, y, col) { ctx.fillStyle = col; ctx.fillRect(x, y, 1, 1); }
+
+// the ward bubble, painted once: a thin bright rim, a faint fill that thickens towards the edge, a highlight top
+// left; and (glow) the soft halo that sits around it
+const WARD_R = 18;
+function wardSprite(glow) {
+  const S = WARD_R * 2 + 9, c = S / 2 - 0.5;
+  return sprite(glow ? 'ward|glow' : 'ward|bubble', S, S, x => {
+    for (let py = 0; py < S; py++) for (let qx = 0; qx < S; qx++) {
+      const d = Math.hypot(qx - c, py - c);
+      let a = 0, col = '91,140,255';
+      if (glow) { if (d > WARD_R - 3 && d < WARD_R + 4) a = 0.5 * (1 - Math.abs(d - WARD_R) / 4); col = '159,216,255'; }
+      else if (d <= WARD_R) {
+        a = 0.1 + 0.22 * (d / WARD_R) ** 3;
+        if (d > WARD_R - 1.2) { a = 0.8; col = '159,216,255'; }
+        else if (Math.abs(d - (WARD_R - 4)) < 0.8 && qx < c - 3 && py < c - 3) { a = 0.7; col = '235,246,255'; }
+      }
+      if (a > 0) { x.fillStyle = `rgba(${col},${a.toFixed(3)})`; x.fillRect(qx, py, 1, 1); }
+    }
+  });
+}
 
 function drawUnit(ctx, u, g) {
   const b = g.boss;
@@ -714,6 +824,22 @@ function drawUnit(ctx, u, g) {
   const C = c => flash ? '#ffffff' : c;
   const col = C(PAL[CLASS[u.cls].col]);
   ctx.fillStyle = 'rgba(8,10,6,.4)'; ctx.fillRect(x - 1, Math.round(u.y) + 1, 3, 1);
+  if (u.cls === 'voidwalker') {
+    // a warlock's voidwalker: a legless blue-black blob with two pale eyes and a ragged hem
+    const wob = Math.floor(g.t * 4 + u.id) % 2;
+    ctx.fillStyle = C('#2c2f7e'); ctx.fillRect(x - 1, y - 3, 3, 3);
+    px(ctx, x, y - 4, C('#4a50c0')); px(ctx, x - 1 + wob * 2, y, C('#2c2f7e'));
+    px(ctx, x + fx, y - 3, C(PAL.frost)); px(ctx, x, y - 3, C('#4a50c0'));
+    if (u.swing > 0) px(ctx, x + fx * 2, y - 2, C('#4a50c0'));
+    return;
+  }
+  if (u.cls === 'imp') {
+    // a warlock's imp: a red scrap with horns and a tail, and a flame in its hand when it throws
+    px(ctx, x, y, C(PAL.red)); px(ctx, x, y - 1, C(PAL.red)); px(ctx, x, y - 2, C(PAL.orange));
+    px(ctx, x - 1, y - 3, C(PAL.ink)); px(ctx, x + 1, y - 3, C(PAL.ink)); px(ctx, x - fx, y, C(PAL.fire0));
+    if (u.cast > 0.3) px(ctx, x + fx, y - 2, Math.floor(g.t * 10) % 2 ? PAL.fire3 : PAL.fire2);
+    return;
+  }
   if (u.role === 'pet') {
     const st = u.moving ? Math.floor(u.walk * 1.5) % 2 : 0;
     px(ctx, x - 1, y, C(PAL.ink)); px(ctx, x + 1, y - st, C(PAL.ink));
@@ -749,6 +875,13 @@ function drawUnit(ctx, u, g) {
   }
   if (u.state === 'afk') { const z = Math.floor(g.t * 2) % 3; drawText(ctx, 'Z', x + 2 + z, y - 9 - z * 2, PAL.cream, { shadow: false, alpha: 0.7 }); }
   if (u.inFire && u.fireOk) px(ctx, x, y - tall - 2, PAL.fire2);
+  // stunned: stars round the head. Rooted: feet frozen to the ice.
+  if (u.stun > 0) {
+    const a = g.t * 6 + u.id;
+    px(ctx, Math.round(x + Math.cos(a) * 3), Math.round(y - tall - 3 + Math.sin(a)), PAL.gold);
+    px(ctx, Math.round(x - Math.cos(a) * 3), Math.round(y - tall - 3 - Math.sin(a)), PAL.gold);
+  }
+  if (u.root > 0) { px(ctx, x - 1, y + 1, '#ffffff'); px(ctx, x, y + 1, PAL.ice1); px(ctx, x + 1, y + 1, '#ffffff'); }
   if (u.hp < u.maxhp && u.party.engaged) {
     const w = Math.max(0, Math.ceil(3 * u.hp / u.maxhp));
     ctx.fillStyle = PAL.hpBg; ctx.fillRect(x - 1, y - tall - 3, 3, 1);
@@ -832,9 +965,17 @@ const ADD_ART = {
   spitter: [['..kkk..', '.kRRRk.', 'kRrRRek', 'kRrRRmk', 'kRRrRRk', '.kkkkk.'], ['..kkk..', '.kRRRk.', 'kRrRRek', 'kRrRMMM', 'kRRrRRk', '.kkkkk.']],
   necro: [['..kkk..s', '.kPPPk.s', '.kPgPk.s', 'kPPPPPks', 'kPpPPPks', 'kPPPPPk.', '.kk.kk..'], ['..kkk..G', '.kPPPk.s', '.kPgPk.s', 'kPPPPPks', 'kPpPPPks', 'kPPPPPk.', '.kk.kk..']],
   skeleton: [['.b.', 'bbb', '.b.', 'b.b'], ['.b.', 'bbb', '.b.', '.b.']],
+  // a hero's skeleton shows what the hero was: two walking frames, then (if there is one) the frame for a swing or a cast
+  skel_tank: [['..S..', '.bbbS', '.bbbS', '..b.S', '.b.b.'], ['..S..', '.bbbS', '.bbbS', '..b.S', '..b..']],   // helm and shield
+  skel_melee: [['..b.S', '.bbbS', '..b..', '.b.b.'], ['..b.S', '.bbbS', '..b..', '..b..'], ['..b..', '.bbbS', '..b.S', '.b.b.']],   // a blade
+  skel_caster: [['..b.c', '.bbbs', '.VVVs', '.VVVs'], ['..b.c', '.bbbs', '.VVVs', '.V.Vs'], ['..b.W', '.bbbs', '.VVVs', '.VVVs']],   // robe and staff
+  skel_healer: [['..b..', '.bbbg', '.HHH.', '.HHH.'], ['..b..', '.bbbg', '.HHH.', '.H.H.'], ['..b.g', '.bbbg', '.HHH.', '.HHH.']],   // green robe, a light in hand
+  skel_rider: [['.TTT.', '..b..', '.bbbS', '..b..', '.b.b.'], ['.TTT.', '..b..', '.bbbS', '..b..', '..b..']],   // his hat, his knife, no horse
+  skel_king: [['.YCY.', '..b..', 'KYYY.', 'KYyY.', '.b.b.'], ['.YCY.', '..b..', 'KYYY.', 'KYyY.', '..b..']],   // crown, gold plate, cape
 };
 const ADD_COL = { k: PAL.ink, F: PAL.fur3, f: PAL.fur2, e: PAL.eye, h: PAL.horn, R: '#b8452a', r: '#7e2a18', m: '#3a120a', M: PAL.fire3,
-  P: '#4a2a5e', p: '#2e1a3c', g: PAL.heal, s: PAL.brown, G: PAL.heal, b: PAL.bone };
+  P: '#4a2a5e', p: '#2e1a3c', g: PAL.heal, s: PAL.brown, G: PAL.heal, b: PAL.bone,
+  S: PAL.steelHi, c: PAL.shadow, W: '#ffffff', V: '#3a3f8e', H: '#2f7a48', T: PAL.tan, Y: PAL.gold, y: '#c8962a', C: '#e0403a', K: '#8a1e18' };
 
 function drawAdd(ctx, a, g) {
   const x = Math.round(a.x), y = Math.round(a.y), flip = a.fx < 0, flash = a.hit > 0;
@@ -842,12 +983,17 @@ function drawAdd(ctx, a, g) {
   if (LEVEL_ADD_ART[a.kind]) LEVEL_ADD_ART[a.kind](ctx, a, g, H_ART);
   else {
     const frames = ADD_ART[a.kind];
-    const map = a.kind === 'spitter' || a.kind === 'necro' ? frames[a.swing > 0 ? 1 : 0] : frames[a.moving ? Math.floor(a.walk) % 2 : 0];
-    const w = map[0].length, h = map.length, ox = x - Math.floor(w / 2), oy = y - h + 1 - (a.kind === 'gnasher' && a.swing > 0 ? 1 : 0);
+    const map = a.kind === 'spitter' || a.kind === 'necro' ? frames[a.swing > 0 ? 1 : 0]
+      : a.swing > 0 && frames[2] ? frames[2] : frames[a.moving ? Math.floor(a.walk) % 2 : 0];
+    // (a leaping skeleton leaves its shadow on the ground)
+    const w = map[0].length, h = map.length, ox = x - Math.floor(w / 2), oy = y - h + 1 - (a.kind === 'gnasher' && a.swing > 0 ? 1 : 0) - Math.round(a.z || 0);
     map.forEach((row, ry) => { for (let rx = 0; rx < w; rx++) { const ch = row[flip ? w - 1 - rx : rx]; if (ch !== '.') px(ctx, ox + rx, oy + ry, flash ? '#ffffff' : ADD_COL[ch]); } });
+    if (a.kind === 'skel_king' && (Math.floor(g.t * 2.3 + a.id) % 5) === 0) px(ctx, x, y - 2, '#ffffff');   // the glint
   }
+  // a necromancer's raise charges: two pips over his head, lit when ready
+  if (a.kind === 'necro') for (let i = 0; i < 2; i++) px(ctx, x - 2 + i * 2, y - 8, (a.charges || 0) > i ? PAL.heal : '#2e1a3c');
   if (a.hp < a.maxhp) {
-    const bw = 5, bx = x - 2, by = y - (a.kind === 'necro' ? 9 : 7);
+    const bw = 5, bx = x - 2, by = y - (a.kind === 'necro' ? 10 : 7);
     ctx.fillStyle = PAL.ink; ctx.fillRect(bx, by, bw, 1);
     ctx.fillStyle = PAL.gold; ctx.fillRect(bx, by, Math.max(1, Math.round(bw * a.hp / a.maxhp)), 1);
   }
@@ -863,8 +1009,9 @@ function drawCorpse(ctx, c) {
     ctx.globalAlpha = 1;
     return;
   }
-  ctx.fillStyle = PAL[CLASS[c.cls].col]; ctx.fillRect(x - 1, y - 1, c.cls === 'pet' ? 2 : 3, 1);
-  px(ctx, x + 2, y - 1, c.cls === 'pet' ? PAL.brown : PAL.skin);
+  const small = CLASS[c.cls].pet || c.cls === 'pet';
+  ctx.fillStyle = PAL[CLASS[c.cls].col]; ctx.fillRect(x - 1, y - 1, small ? 2 : 3, 1);
+  px(ctx, x + 2, y - 1, small ? PAL.brown : PAL.skin);
   px(ctx, x, y, PAL.blood);
   if (c.t < 8) px(ctx, x - 1, y, PAL.blood);
   ctx.globalAlpha = 1;
@@ -936,10 +1083,13 @@ function drawHud(ctx, g, view) {
   const mp = g.map, L = mp.level;
   drawText(ctx, `${mp.mode === 'patrol' ? 'AIMLESS' : 'VENGEANCE'} X${g.mult.toFixed(2)}`, 4, 15, mc);
   // where this level is up to: laps or Chaos to the 25-man and the 40-man, or the level's own goal
-  const goal = g.won ? 'YOU WIN' : g.clear ? 'LEVEL CLEARED' : L.hud ? L.hud(g) : g.dir.final ? 'BEAT THE 40-MAN'
+  const goal = g.won ? (L.hudWon ? L.hudWon(g) : 'YOU WIN') : g.clear ? 'LEVEL CLEARED' : L.hud ? L.hud(g) : g.dir.final ? 'BEAT THE 40-MAN'
     : mp.mode === 'patrol' ? (g.lapsMap < RAID_LAPS ? `LAP ${g.lapsMap}/${RAID_LAPS} TO THE RAID` : `LAP ${g.lapsMap}/${FINAL_LAPS} TO THE BIG ONE`)
     : `CHAOS ${Math.floor(g.chaos * 100)}%  ${g.chaos < 0.5 ? 'RAID AT 50' : 'BIG ONE AT 100'}`;
-  drawText(ctx, `LV ${mp.n}  ${goal}`, 4, 22, g.dir.final ? PAL.red : PAL.rock3);
+  const line = `LV ${mp.n}  ${goal}`, lw = textWidth(line) + 8;
+  // a long goal line (the castle's SEIZE YOUR VENGEANCE) gets its backing stretched to fit
+  if (lw > 136) { ctx.fillStyle = PAL.ink; ctx.globalAlpha = 0.28; ctx.fillRect(136, 21, lw - 136, 9); ctx.globalAlpha = 1; }
+  drawText(ctx, line, 4, 22, g.dir.final ? PAL.red : PAL.rock3);
   if (mp.mode === 'chaos') {
     // the Chaos meter, with a tick at the 25-man
     const cx = 8 + textWidth('HOARD ' + fmt(g.points));
@@ -958,9 +1108,13 @@ function drawHud(ctx, g, view) {
   ctx.fillStyle = PAL.hpLo; ctx.fillRect(bx, by, fw, 5);
   ctx.fillStyle = PAL.hpHi; ctx.fillRect(bx, by, fw, 3);
   if (b.flash > 0) { ctx.fillStyle = '#ffffff'; ctx.fillRect(bx + fw - 1, by, 1, 5); }
+  // the ward sits over the right-hand end of the bar, in blue
+  const ww = b.ward > 0 ? Math.max(1, Math.round(bw * b.ward / b.maxhp)) : 0;
+  if (ww) { ctx.fillStyle = PAL.frost; ctx.fillRect(bx + bw - ww, by, ww, 2); }
   ctx.fillStyle = PAL.ink;
   for (let i = 1; i < 10; i++) ctx.fillRect(bx + i * 10, by + 4, 1, 1);
   drawText(ctx, `${Math.ceil(b.hp)} / ${b.maxhp}`, W - 4, 17, PAL.rock3, { align: 'right' });
+  if (ww) drawText(ctx, `WARD ${Math.ceil(b.ward)}`, bx, 17, PAL.frost);
 
   // patrol status
   const blink = Math.floor(g.t * 3) % 2;
@@ -973,9 +1127,9 @@ function drawHud(ctx, g, view) {
   drawText(ctx, `${m}:${String(s).padStart(2, '0')}`, W - 4, 170, PAL.rock3, { align: 'right' });
   if (view.muted) drawText(ctx, 'MUTED', W - 4, 163, PAL.rock2, { align: 'right' });
 
-  // the five ability slots, then shake, which is always on Space
+  // the five ability slots, then Space: Roar, or Shake for as long as somebody is in the fur
   const n = 6, bs = 14, gap = 3, x0 = Math.round(W / 2 - (n * bs + (n - 1) * gap) / 2), y0 = 160;
-  [...g.slots, 'shake'].forEach((k, i) => {
+  [...g.slots.slice(0, 5).map(k => k === 'roar' ? null : k), spaceKey(g)].forEach((k, i) => {
     const x = x0 + i * (bs + gap), key = i < 5 ? SLOT_KEYS[i] : 'SPC';
     ctx.fillStyle = PAL.ink; ctx.globalAlpha = 0.8; ctx.fillRect(x, y0, bs, bs); ctx.globalAlpha = 1;
     if (!k) {
@@ -1020,3 +1174,12 @@ function drawCursor(ctx, mx, my, g) {
   }
   for (const [dx, dy] of [[-3, 0], [-2, 0], [2, 0], [3, 0], [0, -3], [0, -2], [0, 2], [0, 3]]) px(ctx, x + dx, y + dy, col);
 }
+
+// one thing at a time with the game's own art, for the Humanstiary's portraits and debug.js
+export const drawThing = {
+  unit: drawUnit, rider: drawRider, add: drawAdd,
+  horse: (ctx, o, g) => drawHorse(ctx, o.x, o.y, o.face, o.walk, false, g.t),
+  critter: (ctx, c, g) => (CRITTER_ART[c.kind] || drawCritter)(ctx, c, g, H_ART),
+  prop: (ctx, p, g) => { const draw = PROP_ART[p.kind]; if (draw) draw(ctx, p, g, H_ART); },
+  rock: (ctx, x, y, other) => other ? drawRock(ctx, x, y, 5.6, 2, 7) : drawRock(ctx, x, y, 6.2, 1, 3),
+};

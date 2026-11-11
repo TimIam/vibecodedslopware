@@ -55,7 +55,7 @@ export const kinds = {
   city_rubble: { r: 3, push: true, fill: 2, value: { pts: 0, venge: 0, chaos: 0 } },
 };
 export const critters = {
-  city_folk: { r: 2, hp: 15, spd: 12, flee: 34, fear: 44, value: { pts: 35, venge: 0.025, chaos: 0.1 } },
+  city_folk: { r: 2, hp: 15, spd: 12, flee: 34, fear: 44, raise: 'skeleton', value: { pts: 35, venge: 0.025, chaos: 0.1 } },
 };
 
 // a stone building that comes down leaves the stubs of its walls behind, drawn under everything

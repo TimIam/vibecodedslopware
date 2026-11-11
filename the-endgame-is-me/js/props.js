@@ -119,8 +119,11 @@ export function knockDown(g, p, ang = 0) {
   if (d.onDown) d.onDown(g, p);
 }
 
+// (a kind's onHit(g, p, dmg, ang) may swallow the hit by returning true: a tower held up by something else, say)
 export function hitProp(g, p, dmg, ang) {
   if (p.state !== 'up') return;
+  const hook = KINDS[p.kind].onHit;
+  if (hook && hook(g, p, dmg, ang)) return;
   p.hp -= dmg;
   p.hitT = 0.12;
   if (p.hp <= 0) knockDown(g, p, ang);

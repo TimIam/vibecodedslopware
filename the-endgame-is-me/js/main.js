@@ -1,7 +1,7 @@
 // The page: input, the fixed-step loop, scaling the 320×180 buffer to the window, the between-maps store,
 // overlays, saves and the best score.
 
-import { createGame, step, nextMap, W, H, ABILITIES, SLOT_KEYS, abilityOffer, buyAbility, upgradeAbility, setSlot, createDemo, demoSet, demoStep, newGamePlus, createEnding, endingStep } from './world.js';
+import { createGame, step, nextMap, W, H, ABILITIES, SLOT_KEYS, abilityOffer, buyAbility, upgradeAbility, setSlot, createDemo, demoSet, demoStep, newGamePlus, createEnding, endingStep, jumpToLevel, migrate } from './world.js';
 import { createRenderer, setCalm } from './render.js';
 import { ICONS, PAL, drawText } from './art.js';
 import { createAudio } from './audio.js';
@@ -10,6 +10,7 @@ import { createMenu } from './menu.js';
 import { createAttract } from './attract.js';
 import { createAppearance, currentLook, bossName } from './appearance.js';
 import { writeSave, readSave, saveInfo, clearSave, unlockPlus, plusData } from './save.js';
+import { createDebug, isSecretName } from './debug.js';
 
 const canvas = document.getElementById('game');
 const out = canvas.getContext('2d');
@@ -82,7 +83,7 @@ setCalm(calm); title.calm = calm;
 const appearance = createAppearance({
   audio,
   onLook(look) { g.look = look; attract.g.look = look; if (demo) demo.look = look; },
-  onName(name) { g.boss.name = name; },
+  onName(name) { g.boss.name = name; secretHint(); },
 });
 const menu = createMenu({
   audio, appearance, title: () => title,
@@ -104,20 +105,45 @@ const menu = createMenu({
 });
 audio.setStage(1);
 
+// debug.js stops the level and inspects it; this is all it needs from the page
+const debug = createDebug({
+  canvas,
+  host: {
+    game: () => g,
+    can: () => (mode === 'play' || mode === 'paused') && !menu.open,
+    freeze() { const was = mode; if (mode === 'play') pause(); $('paused').hidden = true; return was; },
+    thaw(was) { if (was === 'play') resume(); else { $('paused').hidden = false; $('resume').focus({ preventScroll: true }); } },
+    jump(n) { jumpToLevel(g, n); R.reset(); audio.setStage(g.map.n); },
+  },
+});
+// a boss named after the debug keys cannot be hurt, and is told the keys on the pause screen
+const unkillable = () => isSecretName(bossName());
+function secretHint() {
+  const on = unkillable();
+  $('pausedSecret').hidden = !on;
+  $('pausedSecret').textContent = on ? 'Nothing can hurt you. Hold Shift and Ctrl, press , then . to see why.' : '';
+}
+
 // ---------------------------------------------------------------------------------------------- input
 
 const keys = new Set();
 const mouse = { x: W / 2 + 40, y: H / 2, l: false };
 const press = {};
-const KEYMAP = { KeyJ: 'slot0', KeyK: 'slot1', KeyF: 'slot1', KeyQ: 'slot2', KeyE: 'slot3', KeyR: 'slot4', Space: 'shake' };
+const KEYMAP = { KeyJ: 'slot0', KeyK: 'slot1', KeyF: 'slot1', KeyQ: 'slot2', KeyE: 'slot3', KeyR: 'slot4', Space: 'space' };   // Space roars, or shakes while somebody is in the fur (world.js decides)
 
 addEventListener('keydown', e => {
+  if (debug.key(e)) return;
   if (menu.key(e, mode)) return;
   if (mode === 'over' && e.code === 'KeyR') { e.preventDefault(); respawn(); return; }
   if (e.target.closest?.('a, button, select')) return;
   if (mode === 'over' && e.code === 'Enter') { e.preventDefault(); respawn(); return; }
   if (mode === 'won' && e.code === 'Enter') { e.preventDefault(); newRun(plusData()); return; }
-  if (mode === 'ending' && ['Enter', 'Space', 'Escape'].includes(e.code)) { e.preventDefault(); endingDone(); return; }
+  if (mode === 'ending') {   // any key at all (bar the modifiers, the F keys and browser shortcuts) moves the ending on
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || /^(Shift|Control|Alt|Meta|CapsLock|Tab|F\d+)$/.test(e.key)) return;
+    if (['Enter', 'Space', 'Escape'].includes(e.code)) e.preventDefault();
+    endingDone();
+    return;
+  }
   if (e.code === 'KeyM') { audio.toggleMute(); return; }
   if (mode === 'store') return;
   if (e.code === 'Escape' || e.code === 'KeyP') { if (mode === 'play') pause(); else if (mode === 'paused') resume(); return; }
@@ -139,7 +165,8 @@ addEventListener('pointermove', toBuffer);
 canvas.addEventListener('pointerdown', e => {
   toBuffer(e);
   canvas.focus();
-  if (mode === 'ending' && ending.end.t > 1) { endingDone(); return; }
+  if (debug.on) { if (e.button === 0) debug.click(mouse.x, mouse.y); return; }
+  if (mode === 'ending') { endingDone(); return; }
   if (mode !== 'play') return;
   if (e.button === 0) { press.slot0 = true; mouse.l = true; }
   if (e.button === 2) press.slot1 = true;
@@ -184,6 +211,7 @@ function saveNow() {
 }
 // back into a saved run: at the Hoard if that's where it left off, otherwise on break so nobody gets jumped
 function resumeFrom({ g: run, phase }) {
+  migrate(run);   // a save from before Roar moved to Space, or from before fireballs
   run.look = currentLook();
   run.boss.name = bossName();
   start(run);
@@ -208,7 +236,7 @@ function goTitle() {
   $('title').hidden = false;
   menu.reveal();
 }
-function pause() { mode = 'paused'; $('paused').hidden = false; $('resume').focus({ preventScroll: true }); }
+function pause() { mode = 'paused'; secretHint(); $('paused').hidden = false; $('resume').focus({ preventScroll: true }); }
 function resume() { mode = 'play'; $('paused').hidden = true; last = performance.now(); canvas.focus(); }
 
 const LINES = {
@@ -253,11 +281,20 @@ function gameWon() {
   R.reset();
   acc = 0;
 }
+// The ending never moves on by itself: it takes a key, a click or a tap, and only once its last part (the boss patting
+// its rocks) is looping. A press before that skips ahead to the last part instead. Behind the card the loop carries on.
+const ENDING_PROMPT = 5, ENDING_HOLD = 0.5;   // seconds into the loop: when "any key" fades up, and when a press first counts
 function endingDone() {
   if (mode !== 'ending') return;
-  // the boss stays home with its rocks behind the card
   const en = ending.end;
-  if (en.phase !== 'home') { const { A, B } = ending.map; Object.assign(ending.boss, { x: (A.x + B.x) / 2, y: A.y + 14, face: Math.PI / 2 }); en.phase = 'home'; en.at = en.t; }
+  if (en.phase !== 'home') {
+    if (en.t < 1) return;
+    const { A, B } = ending.map;
+    Object.assign(ending.boss, { x: (A.x + B.x) / 2, y: A.y + 3, face: Math.PI / 2, act: null, queue: null });
+    Object.assign(en, { phase: 'home', at: en.t, caption: 'TOGETHER AGAIN. AS IT SHOULD BE.', capT: 0 });
+    return;
+  }
+  if (en.t - en.at < ENDING_HOLD) return;   // a press meant as a skip must not also dismiss the scene
   showWon();
 }
 function showWon() {
@@ -355,10 +392,10 @@ function drawAbilities() {
     return `<button type="button" class="item ${owned ? 'owned' : ''} ${a.id === sel ? 'sel' : ''}" data-sel="${a.id}" aria-pressed="${a.id === sel}">${icon(a.id)}<b class="nm">${a.name}</b>${pips}${line}</button>`;
   }).join('');
   const { o, cost, what } = mutateOffer(sel), a = o.it;
-  const tag = a.passive ? (o.lvl ? `level ${o.lvl}` : 'not grown') : o.owned ? (g.slots.includes(a.id) ? `on ${SLOT_KEYS[g.slots.indexOf(a.id)]}` : 'owned, not slotted') : 'not owned';
+  const tag = a.passive ? (o.lvl ? `level ${o.lvl}` : 'not grown') : a.space ? 'always on SPACE' : o.owned ? (g.slots.includes(a.id) ?`on ${SLOT_KEYS[g.slots.indexOf(a.id)]}` : 'owned, not slotted') : 'not owned';
   const desc = a.id === 'summon' && o.owned && o.lvl > 0 ? a.ups[o.lvl - 1] : a.desc;
   $('abilInfo').innerHTML = `<b class="nm">${icon(a.id)} ${a.name}</b><span class="up">${tag}</span><span class="desc">${desc}</span>` +
-    (cost == null ? `<span class="up">Fully mutated. Nothing left to grow.</span>`
+    (cost == null ? `<span class="up">Fully mutated${a.ups && !a.passive && a.id !== 'summon' ? ': ' + a.ups[a.ups.length - 1][0].toLowerCase() + a.ups[a.ups.length - 1].slice(1) : ''}. Nothing left to grow.</span>`
       : `<button type="button" class="mutate" id="abilMutate" ${g.points < cost ? 'aria-disabled="true"' : ''}><span>Mutate <small>${what}</small></span><b>${fmt(cost)}</b></button>`);
 }
 
@@ -377,8 +414,8 @@ function paintDemo() {
 }
 
 function drawSlots() {
-  const owned = ABILITIES.filter(a => !a.passive && g.owned.has(a.id));
-  $('tabSlots').innerHTML = `<p class="hint">Five slots. Pick what goes where; picking something already in another slot swaps them. Shake your fur stays on <kbd>Space</kbd>.</p>` +
+  const owned = ABILITIES.filter(a => !a.passive && !a.space && g.owned.has(a.id));
+  $('tabSlots').innerHTML = `<p class="hint">Five slots. Pick what goes where; picking something already in another slot swaps them. Roar needs no slot: it is always on <kbd>Space</kbd>, which shakes your fur instead while somebody is in it.</p>` +
     g.slots.map((id, i) => `<label class="slot"><kbd>${SLOT_KEYS[i]}</kbd>${icon(id || 'empty')}
       <select data-slot="${i}"><option value="">(empty)</option>${owned.map(a => `<option value="${a.id}" ${a.id === id ? 'selected' : ''}>${a.name}</option>`).join('')}</select></label>`).join('');
 }
@@ -451,8 +488,12 @@ function paintEnding(card = false) {
   c.fillStyle = '#0a0806'; c.fillRect(0, 0, W, Math.round(16 * k)); c.fillRect(0, H - Math.round(22 * k), W, 22);
   c.globalAlpha = warm; c.fillStyle = '#ff9a4a'; c.fillRect(0, 16, W, H - 38); c.globalAlpha = 1;
   if (en.caption) drawText(c, en.caption.slice(0, Math.floor(en.capT * 28)), W / 2, H - 15, PAL.cream, { align: 'center' });
-  if (en.t > 2) drawText(c, 'CLICK TO SKIP', W - 4, 5, '#6b665c', { align: 'right', shadow: false });
-  if (en.done || en.phase === 'home' && en.t - (en.at || 0) > 7.5) { c.globalAlpha = Math.min(1, (en.t - en.at - 7.5) / 1); c.fillStyle = '#000'; c.fillRect(0, 0, W, H); c.globalAlpha = 1; }
+  if (en.phase !== 'home') { if (en.t > 2) drawText(c, 'CLICK TO SKIP', W - 4, 5, '#6b665c', { align: 'right', shadow: false }); }
+  else {
+    // the last part loops until the player moves on: the prompt fades up in the lower right corner 5 s into the loop
+    const a = Math.min(1, (en.t - en.at - ENDING_PROMPT) / 1.5);
+    if (a > 0) drawText(c, 'ANY KEY TO CONTINUE...', W - 4, H - 8, PAL.cream, { align: 'right', alpha: a });
+  }
   out.imageSmoothingEnabled = false;
   out.drawImage(buf, 0, 0, canvas.width, canvas.height);
 }
@@ -477,6 +518,7 @@ function paint() {
     return;
   }
   const buf = R.render(g, { mx: mouse.x, my: mouse.y, cursor: mode === 'play', muted: audio.muted });
+  debug.draw(buf);
   out.imageSmoothingEnabled = false;
   out.drawImage(buf, 0, 0, canvas.width, canvas.height);
 }
@@ -487,6 +529,7 @@ function frame(now) {
   if (mode === 'play' && !frozen) {
     acc += dt;
     while (acc >= DT && mode === 'play') {
+      if (unkillable()) g.boss.hp = g.boss.maxhp;
       step(g, readInput(), DT);
       for (const k in press) delete press[k];
       acc -= DT;
@@ -509,11 +552,10 @@ function frame(now) {
   if (mode === 'ending') {
     acc += dt;
     while (acc >= DT && mode === 'ending') {
-      const more = endingStep(ending, DT);
+      endingStep(ending, DT);   // (it never ends by itself: see endingDone)
       for (const e of ending.events) audio.play(e);
       ending.events.length = 0;
       acc -= DT;
-      if (!more) endingDone();
     }
     if (mode === 'ending') { paintEnding(); requestAnimationFrame(frame); return; }
   }
@@ -531,6 +573,7 @@ if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
   window.__bh = {
     get g() { return g; },
     get mode() { return mode; },
+    debug,
     get title() { return title; },
     goTitle,
     start,
@@ -560,7 +603,7 @@ if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
     aim(x, y) { mouse.x = x; mouse.y = y; },
     // steps n frames with the given input (and renders once at the end)
     step(n = 60, inp = {}) {
-      for (let i = 0; i < n; i++) { step(g, { mx: g.boss.x + 30, my: g.boss.y, ax: 0, ay: 0, press: {}, hold: {}, ...inp }, DT); inp = { ...inp, press: {} }; }
+      for (let i = 0; i < n; i++) { if (unkillable()) g.boss.hp = g.boss.maxhp; step(g, { mx: g.boss.x + 30, my: g.boss.y, ax: 0, ay: 0, press: {}, hold: {}, ...inp }, DT); inp = { ...inp, press: {} }; }
       drain();
       paint();
       return { t: g.t, score: Math.round(g.score), hp: Math.round(g.boss.hp), units: g.units.length, mult: g.mult };
