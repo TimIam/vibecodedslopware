@@ -224,14 +224,24 @@ const setView = (u, v) => gl.uniform4f(u.uView, v.wx, v.ww, v.wh, 0);
 // Turtles are their own animal: a rigid shell with a telescoping neck and limbs, and a live pool in place of the dish.
 
 const SPECIES = {
-  gecko:  { name: 'Leopard gecko', len: .40, prof: [[0,.004,.004],[.02,.026,.03],[.05,.047,.062],[.095,.060,.084],[.135,.046,.050],[.21,.060,.076],[.33,.074,.094],[.44,.066,.082],[.53,.056,.058],[.60,.060,.062],[.74,.046,.046],[.90,.020,.020],[1,.002,.002]], leg: .62, head: 1, walk: 1, scale: 4.6, gloss: .55, eye: [.82,.76,.55], tb: 1 },
-  beardie:{ name: 'Bearded dragon', len: .50, prof: [[0,.006,.006],[.025,.026,.038],[.06,.040,.066],[.095,.050,.078],[.13,.046,.066],[.21,.052,.092],[.32,.060,.112],[.42,.050,.090],[.52,.033,.042],[.70,.022,.026],[.90,.011,.012],[1,.002,.002]], leg: .78, head: 1.05, walk: .85, scale: 5.5, gloss: .4, eye: [.6,.42,.12], tb: 2 },
-  anole:  { name: 'Green anole', len: .46, prof: [[0,.003,.003],[.02,.012,.015],[.05,.019,.025],[.085,.025,.033],[.115,.022,.024],[.19,.028,.032],[.30,.032,.038],[.38,.028,.032],[.46,.016,.018],[.65,.010,.011],[.88,.005,.005],[1,.001,.001]], leg: .9, head: .85, walk: 1.5, scale: 2.2, gloss: .75, eye: [.45,.28,.08], tb: 0 },
-  skink:  { name: 'Blue-tongued skink', len: .52, prof: [[0,.006,.006],[.022,.026,.034],[.055,.040,.055],[.095,.054,.070],[.13,.054,.066],[.25,.066,.080],[.40,.072,.086],[.52,.066,.076],[.62,.056,.058],[.78,.034,.034],[.92,.014,.014],[1,.002,.002]], leg: .34, head: 1.0, walk: .65, scale: 7, gloss: .9, eye: [.22,.15,.08], tb: 0, tongue: 1 },
+  // prof is [t, half height, half width] down the body as fractions of length, snout (0) to tail tip (1)
+  gecko:  { name: 'Leopard gecko', len: .40, prof: [[0,.012,.014],[.025,.022,.030],[.05,.031,.048],[.085,.040,.066],[.11,.039,.062],[.14,.034,.043],[.20,.047,.066],[.32,.055,.086],[.43,.052,.078],[.50,.045,.054],[.57,.050,.056],[.67,.045,.049],[.80,.031,.033],[.93,.014,.015],[1,.003,.003]], leg: .62, head: 1, walk: 1, scale: 4.2, gloss: .42, eye: [.62,.62,.55], tb: 1 },
+  beardie:{ name: 'Bearded dragon', len: .50, prof: [[0,.012,.016],[.025,.024,.034],[.055,.033,.054],[.09,.041,.070],[.12,.043,.077],[.15,.038,.058],[.22,.047,.094],[.33,.054,.114],[.43,.047,.094],[.50,.033,.050],[.65,.023,.029],[.85,.012,.013],[1,.002,.002]], leg: .78, head: 1.05, walk: .85, scale: 5, gloss: .32, eye: [.55,.36,.10], tb: 2 },
+  anole:  { name: 'Green anole', len: .46, prof: [[0,.006,.007],[.03,.011,.014],[.06,.016,.021],[.09,.021,.028],[.115,.021,.026],[.14,.018,.021],[.20,.025,.030],[.30,.029,.034],[.37,.026,.030],[.42,.017,.019],[.60,.010,.011],[.85,.005,.005],[1,.001,.001]], leg: .74, head: .85, walk: 1.5, scale: 2.2, gloss: .55, eye: [.40,.24,.07], tb: 0 },
+  skink:  { name: 'Blue-tongued skink', len: .52, prof: [[0,.012,.014],[.025,.024,.032],[.055,.036,.052],[.09,.045,.066],[.12,.047,.066],[.16,.051,.072],[.27,.062,.086],[.40,.064,.090],[.52,.059,.078],[.62,.050,.062],[.78,.032,.036],[.92,.014,.014],[1,.003,.003]], leg: .34, head: 1.0, walk: .65, scale: 6.5, gloss: .82, eye: [.16,.10,.06], tb: 0, tongue: 1 },
   // turtles: len is the shell, everything else is a fraction of it
   box:    { name: 'Box turtle', turtle: 1, len: .215, wid: .78, dome: .50, rim: .095, neck: .50, head: .26, leg: .085, limb: 1, walk: .22, swim: .2, gloss: .62, scale: 5.5, eye: [.74,.17,.05], pad: .072, claws: 4 },
   slider: { name: 'Red-eared slider', turtle: 1, len: .24, wid: .80, dome: .30, rim: .08, neck: .52, head: .24, leg: .07, limb: .78, walk: .30, swim: .36, gloss: .86, scale: 4.5, eye: [.74,.60,.12], pad: .095, claws: 5, web: 1 },
 };
+// lizard anatomy for the mesh: belly flatness, how square the cross-section is, where the head ends and how far the jaw
+// flares, the eye, where the shoulders and hips sit, limb and toe sizes; all fractions of body length
+const ANAT = {
+  gecko:   { flat: .58, sq: .80, headEnd: .14, jaw: .13, eyeT: .066, eyeR: .0145, sh: .20, hip: .45, arm: .022, thigh: .028, toe: .046, toeR: .0046, pad: 0 },
+  beardie: { flat: .50, sq: .74, headEnd: .15, jaw: .20, eyeT: .068, eyeR: .0110, sh: .21, hip: .45, arm: .019, thigh: .025, toe: .052, toeR: .0050, pad: 0, spikes: 1 },
+  anole:   { flat: .80, sq: .92, headEnd: .14, jaw: .08, eyeT: .060, eyeR: .0098, sh: .19, hip: .385, arm: .013, thigh: .017, toe: .062, toeR: .0030, pad: 1, dewlap: 1 },
+  skink:   { bh: .8, flat: .60, sq: .80, headEnd: .14, jaw: .10, eyeT: .056, eyeR: .0080, sh: .20, hip: .54, arm: .021, thigh: .025, toe: .026, toeR: .0055, pad: 0 },
+};
+for (const k in ANAT) SPECIES[k].an = ANAT[k];
 const HABITATS = { desert: { name: 'Desert sandstone' }, jungle: { name: 'Tropical forest floor' } };
 const LIGHTS = { day: { name: 'Lamps on', k: 1 }, dusk: { name: 'Dusk', k: .55 }, night: { name: 'Night, moon lamp', k: 0 }, cycle: { name: 'Day and night cycle', k: 1 } };
 
@@ -414,10 +424,14 @@ void main(){float ty=vB.x,tint=vB.y,seed=vB.z;float x=vP.x,v=(vP.y+1.)*.5;float 
  o=vec4(tone(c*uDown)*a,a);}`;
 
 // the live animals
-const meshVS = HEAD + `layout(location=0)in vec3 aP;layout(location=1)in vec3 aN;layout(location=2)in vec2 aU;layout(location=3)in vec2 aM;uniform vec4 uView;uniform float uYB,uD,uTime;out vec3 vP;out vec3 vN;out vec2 vU;flat out vec2 vM;
+const meshVS = HEAD + `layout(location=0)in vec3 aP;layout(location=1)in vec3 aN;layout(location=2)in vec2 aU;layout(location=3)in vec2 aM;uniform vec4 uView;uniform float uYB,uD,uTime;out vec3 vP;out vec3 vN;out vec2 vU;out vec2 vM;
 void main(){vP=aP;vN=aN;vU=aU;vM=aM;float wy=min(aP.y,0.);float cam=aP.z*${CY.toFixed(4)}+aP.y*${KZ.toFixed(4)};vec2 s=vec2(aP.x+sin(aP.z*.031+uTime*2.1)*wy*.05,uYB+aP.z*${KZ.toFixed(4)}-(aP.y-wy*.28)*${CY.toFixed(4)});gl_Position=vec4((s.x-uView.x)/uView.y*2.-1.,1.-s.y/uView.z*2.,-cam/(uD*2.)*.9,1.);}`;
-const meshFS = HEAD + NOISE + `in vec3 vP;in vec3 vN;in vec2 vU;flat in vec2 vM;uniform vec3 uBaseC,uAltC,uBelly,uKey,uAmb,uEye,uSkin,uSkin2;uniform float uScale,uGloss,uPat,uLen,uTime;out vec4 o;
+const meshFS = HEAD + NOISE + `in vec3 vP;in vec3 vN;in vec2 vU;in vec2 vM;uniform vec3 uBaseC,uAltC,uBelly,uKey,uAmb,uEye,uSkin,uSkin2,uGnd;uniform vec4 uAn;uniform float uScale,uGloss,uPat,uLen,uTime;out vec4 o;
 vec3 voroId(vec2 p){vec2 ip=floor(p),fp=fract(p);float f1=9.,f2=9.;vec2 id=vec2(0.);for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){vec2 g=vec2(i,j),r=g+h22(ip+g)-fp;float d=dot(r,r);if(d<f1){f2=f1;f1=d;id=ip+g;}else if(d<f2)f2=d;}return vec3(sqrt(f2)-sqrt(f1),h12(id),sqrt(f1));}
+// a scale cell: distance to its centre, to its border, a hash; rel is the point from the centre, cen the centre
+vec3 cellS(vec2 p,float jit,out vec2 rel,out vec2 cen){vec2 ip=floor(p);float f1=9.,f2=9.;vec2 br=vec2(0),bc=vec2(0),bi=vec2(0);for(int j=-1;j<=1;j++)for(int i=-1;i<=1;i++){vec2 c=ip+vec2(i,j),o=c+.5+vec2(.5*mod(c.y,2.)-.25,0.)+(h22(c)-.5)*jit,r=o-p;float d=dot(r,r);if(d<f1){f2=f1;f1=d;br=r;bc=o;bi=c;}else if(d<f2)f2=d;}rel=-br;cen=bc;return vec3(sqrt(f1),sqrt(f2)-sqrt(f1),h12(bi+.5));}
+// bump from a height in world px, by surface gradient
+vec3 bumpN(vec3 N,float h){vec3 px=dFdx(vP),py=dFdy(vP);float hx=dFdx(h),hy=dFdy(h);vec3 r1=cross(py,N),r2=cross(N,px);float det=dot(px,r1);vec3 g=sign(det)*(hx*r1+hy*r2);return normalize(abs(det)*N-g);}
 vec3 bumped(vec3 N,float h,float k){vec3 dp=vec3(dFdx(h),dFdy(h),0.);vec3 g=dFdx(vP)*dp.y-dFdy(vP)*dp.x;vec3 c1=cross(dFdx(vP),dFdy(vP));float side=sign(dot(normalize(c1),N));return normalize(N+cross(g,N)*(-side)/max(.5,length(c1))*k);}
 // carapace plates: five vertebrals and four costals a side as a mirrored Voronoi, a ring of marginals round the edge. d is the distance to the plate's own border
 void scute(vec2 q,out float d,out float id,out vec2 cen){vec2 p=vec2(q.x,abs(q.y));p+=.014*vec2(sin(p.y*17.+q.x*6.),sin(p.x*19.+1.));float rho=length(p);const float M=.86;
@@ -426,37 +440,62 @@ void scute(vec2 q,out float d,out float id,out vec2 cen){vec2 p=vec2(q.x,abs(q.y
  int n=0;float b=1e9;for(int i=0;i<9;i++){vec2 r=p-S[i];float dd=dot(r,r);if(dd<b){b=dd;n=i;}}
  d=1e9;for(int i=0;i<9;i++){if(i==n)continue;vec2 m=.5*(S[i]+S[n]),e=normalize(S[n]-S[i]);d=min(d,dot(p-m,e));}
  d=min(d,M-rho);id=float(n);cen=S[n];}
-void main(){int m=int(vM.x);float light=vM.y;vec3 N=normalize(vN),V=normalize(vec3(0.,.36,.933));vec3 L=normalize(vec3(.06,.86,.44));vec3 c;
- if(m==0){ // skin: scales as cells on the body surface
-  float s=vU.x,a=vU.y;float t=s/uLen;float sc=uScale;vec3 v=voroId(vec2(s,a)/sc+vec2(.5*floor(a/sc),0.));float bump=smoothstep(.0,.42,v.x);
-  vec3 tb=voroId(vec2(s,a)/(sc*2.9)+11.);float tub=(uPat<.5||uPat>1.5&&uPat<2.5)?smoothstep(.65,.15,tb.z)*step(.45,tb.y):0.;
-  float h=bump*.32+tub*.72;vec3 dp=vec3(dFdx(h),dFdy(h),0.);vec3 g=dFdx(vP)*dp.y-dFdy(vP)*dp.x;vec3 Tn=normalize(cross(dFdx(vP),dFdy(vP)));float side=sign(dot(Tn,N));vec3 bumpN=normalize(N+cross(g,N)*(-side)/max(.5,length(cross(dFdx(vP),dFdy(vP))))*1.5);
-  float belly=smoothstep(-.1,-.72,N.y);
-  float blot=fbm(vec2(s,a*1.1)/(uLen*.040)+v.y*.08);float band=sin(s/uLen*40.)*.5+.5;
-  vec3 alb=uBaseC;
-  if(uPat<.5){ // leopard gecko: pale yellow, black spots, banded tail
-   float spot=smoothstep(.57,.60,fbm(vec2(s,a)/(uLen*.052)+v.y*.03))*(.8+.2*v.y);float tailB=t>.54?smoothstep(.3,.6,sin(t*42.)):0.;alb=mix(uBaseC,uAltC,clamp(spot+tailB*.8,0.,1.));float nape=smoothstep(.15,.08,t);alb=mix(alb,uBaseC*vec3(1.1,1.02,.9),nape*.35);alb=mix(alb,vec3(.85,.72,.55)*1.4,smoothstep(.6,.2,tub)*.0);alb+=vec3(.5,.3,.08)*smoothstep(.3,.7,fbm(vec2(s,a)/(uLen*.09)+3.))*.22;
-  } else if(uPat<1.5){ // bearded dragon: sandy chevrons down the back, dark beard
-   float ch=smoothstep(.55,.9,sin(t*22.-abs(a)/uLen*30.)+.3*(blot-.5));alb=mix(uBaseC,uAltC,ch*smoothstep(.0,.5,N.y+.1));float beard=smoothstep(.15,.10,t)*smoothstep(0.,-.4,N.y);alb=mix(alb,vec3(.05,.04,.04),beard);alb*=.82+.4*blot;
-  } else if(uPat<2.5){ // anole: emerald with lime mottling, pale throat
-   alb=mix(uBaseC,uAltC,smoothstep(.45,.7,blot));float dew=smoothstep(.13,.08,t)*smoothstep(-.1,-.6,N.y);alb=mix(alb,vec3(.8,.22,.20),dew);
-  } else { // skink: wide charcoal bands over tan
-   float bb=sin(t*52.+blot*2.)*.5+.5;alb=mix(uBaseC,uAltC,smoothstep(.45,.7,bb)*.92);
+void main(){int m=int(vM.x+.02);float aoV=clamp(1.-(vM.x-float(m))/.9,0.,1.);float light=vM.y;vec3 N=normalize(vN),V=normalize(vec3(0.,.36,.933));vec3 L=normalize(vec3(.06,.86,.44));vec3 c;
+ if(m==0){ // lizard skin: each scale modelled and coloured on its own, lit by the lamp with a soft wrap, the sky and the sand's bounce
+  float s=vU.x,t=s/uLen,rr=uLen*.06,a=vU.y/rr,aa=abs(a),sc=uScale;
+  vec2 q=vec2(s,vU.y)/sc,rel,cen,r2,c2;float jit=uPat<.5?.8:uPat<1.5?.7:uPat<2.5?.8:.3;vec3 C=cellS(q,jit,rel,cen);float id=C.z;
+  float fw=fwidth(q.x)+fwidth(q.y),fine=smoothstep(1.2,.4,fw),edge=smoothstep(0.,.09+fw*.4,C.y),dome=sqrt(max(0.,1.-C.x*C.x*2.6));float h;
+  if(uPat<.5){vec3 T=cellS(q*.36+7.3,.9,r2,c2);float tub=step(.5,T.z)*step(aa,1.75)*smoothstep(.12,.2,t)*smoothstep(.95,.7,t)*sqrt(max(0.,1.-T.x*T.x*4.5));h=dome*.5*edge+tub*1.7;}
+  else if(uPat<1.5){float keel=1.-smoothstep(0.,.2,abs(rel.y));vec3 T=cellS(q*.4+3.1,.9,r2,c2);h=(dome*.55+keel*dome*.55)*edge+step(.6,T.z)*step(aa,2.)*sqrt(max(0.,1.-T.x*T.x*7.))*1.5;}
+  else if(uPat<2.5){h=dome*.55*edge;}
+  else{h=(.3+.7*clamp(.5+rel.x*1.15,0.,1.))*edge;} // skink: smooth plates whose back edges overlap the next row
+  h*=fine;vec3 Nf=bumpN(N,h*sc*.2);
+  // colour is decided at the scale's own centre, so pattern edges follow the scales like the real thing
+  vec2 cp=cen*sc;float ct=cp.x/uLen,ca=abs(cp.y/rr);float belly=smoothstep(1.8,2.5,ca),hk=smoothstep(uAn.x,uAn.x*.7,ct);
+  float n1=fbm(cp/(uLen*.03)),n2=fbm(cp/(uLen*.011)+5.3);vec3 alb;
+  if(uPat<.5){ // leopard gecko: warm yellow, paler flanks, black spots, a paler tail
+   vec3 base=mix(uBaseC,uBaseC*vec3(1.1,1.05,.88)+.03,smoothstep(1.1,1.8,ca));base=mix(base,vec3(.60,.53,.40),smoothstep(.5,.57,ct)*.35);base*=.92+.16*n2;
+   vec2 rD,cD;vec3 Dt=cellS(cp/(uLen*.03),.9,rD,cD);float rad=.24+.2*h12(cD*1.7)+.12*(fbm(cp/(uLen*.01))-.5);
+   vec2 rE,cE;vec3 Et=cellS(cp/(uLen*.013)+5.,.9,rE,cE);
+   float sp=step(.3,h12(cD*3.1+.7))*smoothstep(rad+.04,rad-.03,Dt.x)+hk*step(.4,h12(cE*2.3))*smoothstep(.34,.27,Et.x);
+   alb=mix(base,uAltC,clamp(sp,0.,1.)*step(ca,2.1));
+  } else if(uPat<1.5){ // bearded dragon: sandy, pale paired ovals down the back, darker flank blotches, a dark beard
+   vec3 base=uBaseC*(.82+.34*n1);float ov=smoothstep(.6,.72,fbm(vec2(ct*30.,ca*2.4)+3.))*step(.15,ct)*step(ct,.55)*smoothstep(1.25,.55,ca);
+   base=mix(base,base*.42,smoothstep(.48,.6,fbm(vec2(ct*22.,ca*1.7)+11.))*step(ca,2.)*.9);base=mix(base,base*.6,smoothstep(1.3,1.6,ca)*smoothstep(2.,1.7,ca)*step(.15,ct)*.7);base=mix(base,vec3(.70,.52,.30),ov*.7);base=mix(base,uAltC,smoothstep(.54,.62,n1)*smoothstep(1.,1.5,ca)*step(ca,2.1)*.75);
+   alb=mix(base,vec3(.09,.08,.07),hk*smoothstep(1.9,2.4,ca)*.85);
+  } else if(uPat<2.5){ // green anole: emerald with fine pale flecks, a pale lip line, browner toward the tail tip
+   vec3 base=mix(uBaseC,uAltC,smoothstep(.45,.7,n1)*.6);base=mix(base,base*vec3(1.5,.85,.6),smoothstep(.55,1.,ct)*.55);base+=vec3(.04,.06,.02)*step(.82,id);
+   alb=mix(base,vec3(.58,.60,.48),hk*smoothstep(.16,.02,abs(ca-uAn.z+.15))*.8);
+  } else { // blue-tongued skink: silvery tan crossed by broad dark bands, ragged scale by scale; a dark stripe behind the eye
+   float bd=smoothstep(.1,.45,sin(ct*58.+n1*2.2+id*.7))*step(.13,ct)*step(ca,2.05);alb=mix(uBaseC*(.84+.32*n2),uAltC,bd*.92);
+   alb=mix(alb,uAltC,smoothstep(.17,.1,ct)*smoothstep(.45,.15,abs(ca-1.25))*step(uAn.y*.8,ct)*.85);
   }
-  alb*=mix(.82,1.1,v.y*.7+.3*bump);alb=mix(alb,uBelly*(.8+.4*v.y),belly);
-  alb=mix(alb,alb*.42,smoothstep(.22,.0,v.x)*.6);
-  vec3 Nf=normalize(mix(N,bumpN,.92));float ndl=max(0.,dot(Nf,L));float wrap=max(0.,dot(N,L)*.55+.45);float ao=mix(.45,1.,smoothstep(-.82,.0,N.y));float rough=1.-uGloss;
-  vec3 H=normalize(L+V);float sp=pow(max(0.,dot(Nf,H)),mix(120.,18.,rough))*(uGloss+.05)*1.4;float ndv=max(0.,dot(N,V));float F=.04+.96*pow(1.-ndv,5.);
-  c=alb*(uAmb*ao*1.0+uKey*light*(ndl*.70+wrap*.20)*ao);
-  c+=alb*vec3(1.1,.5,.25)*uKey*light*.14*pow(1.-ndv,2.);
-  c+=uKey*light*sp*.6*bump;c+=uAmb*F*.55*(.5+.5*bump);
- } else if(m==1){ // eye: vU is the point on the sphere
-  vec2 q=vU;float r=length(q);vec3 iris=uEye*(.55+.9*fbm(q*vec2(26.,9.)+1.));float lid=smoothstep(.86,.97,r);float pup=smoothstep(.17,.11,abs(q.x)/max(.02,1.-q.y*q.y)*1.);pup=uPat<.5?pup:smoothstep(.42,.36,r);
-  iris=mix(iris,vec3(.008),pup);float rim=smoothstep(.72,.98,r);iris=mix(iris,vec3(.012),max(rim,lid));
-  float ndv=max(0.,dot(N,V));vec3 H=normalize(vec3(-.3,.78,.54)+V);float sp=pow(max(0.,dot(N,H)),380.);float sp2=pow(max(0.,dot(N,normalize(vec3(.5,.3,.8)))),140.);
-  c=iris*(uAmb+uKey*light*.65)*mix(.75,1.,ndv);c+=uKey*light*sp*2.4+uAmb*sp2*.7;
- } else if(m==2){ // tongue
-  c=uBaseC*(uAmb+uKey*light)+uKey*light*pow(max(0.,dot(N,normalize(L+V))),60.)*.5;
+  alb=mix(alb,uBelly*(.9+.15*n2),belly);alb*=.95+.1*id;
+  // the head: mouth line rising to the jaw corner, pale lip scales, nostrils, ear openings
+  float mA=uAn.z-.22*smoothstep(0.,uAn.y*1.4,t),hm=smoothstep(uAn.y*1.7,uAn.y*1.35,t)*step(.006,t);
+  float mouth=smoothstep(.06+fwidth(a)*1.5,.0,abs(aa-mA))*hm,lip=smoothstep(.0,.05,mA-aa)*smoothstep(.32,.12,mA-aa)*hm;
+  float nos=smoothstep(1.,.55,length(vec2((t-.014)/.006,(aa-.72)/.2)));
+  float ear=smoothstep(1.,.6,length(vec2((t-uAn.y-uAn.w*3.2)/(uAn.w*.85),(aa-1.55)/.24)));
+  alb=mix(alb,mix(alb,uBelly,.5),lip*.6);alb=mix(alb,vec3(.025,.018,.015),max(mouth*.9,max(nos,ear*.85)));
+  float sock=smoothstep(2.4,1.1,length(vec2((t-uAn.y)*uLen,(aa-1.1)*rr))/(uAn.w*uLen));
+  // light: GGX lobe per scale, a warm wrap where light bleeds through skin, sky from above and sand bounce from below
+  float cav=mix(.62,1.,mix(1.,edge,fine)),ao=aoV*(1.-.3*sock);vec3 H=normalize(L+V);float ndl=dot(Nf,L),ndv=max(dot(Nf,V),.04);
+  float rough=clamp((1.-uGloss)*(.85+.3*id),.3,.95),a2=rough*rough*rough*rough,dd=max(dot(normalize(N+Nf),H),0.);dd=dd*dd*(a2-1.)+1.;float D=a2/(3.1416*dd*dd);
+  float Fs=.04+.96*pow(1.-max(dot(V,H),0.),5.),spec=min(D*Fs*.32*max(ndl,0.),12.),diff=max(ndl,0.),wrap=max(0.,(dot(N,L)+.5)/1.5)-diff;
+  vec3 sky=uAmb*(.6+.4*Nf.y)*1.15,bounce=uGnd*(uKey*light*.22+uAmb*.6)*(.5-.5*Nf.y);
+  vec3 R=reflect(-V,Nf);float Fe=.04+.96*pow(1.-ndv,5.);vec3 env=mix(uGnd*(uKey*light*.12+uAmb*.4),uAmb*1.5+uKey*light*.12,smoothstep(-.25,.5,R.y));
+  c=alb*((sky+bounce)*ao*cav+uKey*light*(diff*mix(.45,1.,ao)+wrap*vec3(1.,.5,.3)*.35));
+  c+=uKey*light*spec*cav*mix(.3,1.,ao)+env*Fe*(1.-rough)*ao*cav*.9;
+ } else if(m==1){ // eye: vU is the point on the ball seen down its axis; fibrous iris, slit or round pupil, a wet cornea
+  vec2 q=vU;float r=length(q),ang=atan(q.y,q.x);float fib=fbm(vec2(ang*7.,r*5.))*.6+fbm(q*18.)*.4;vec3 iris=uEye*(.45+.95*fib);
+  if(uPat<.5)iris=mix(iris*1.15,vec3(.04),smoothstep(.55,.62,fbm(q*11.+2.))*.55);
+  iris*=mix(1.,.5,smoothstep(.5,.85,r));
+  float pup=uPat<.5?smoothstep(.1,.06,abs(q.x)/max(.05,sqrt(max(0.,1.-q.y*q.y/.8)))):smoothstep(.36,.31,r);
+  iris=mix(iris,vec3(.005),pup);iris=mix(iris,vec3(.01),smoothstep(.84,.98,r));
+  float ndv=max(0.,dot(N,V));vec3 H=normalize(L+V);float sp=pow(max(0.,dot(N,H)),600.)*6.+pow(max(0.,dot(N,H)),60.)*.25;vec3 R=reflect(-V,N);
+  c=iris*(uAmb*1.2+uKey*light*.55)*mix(.7,1.,ndv);c+=uKey*light*sp+(uAmb*1.4+uKey*light*.1)*smoothstep(-.1,.7,R.y)*(.04+.96*pow(1.-ndv,5.))*.8;
+ } else if(m==2){ // tongue: the skink's is famously blue
+  c=(uPat>2.5&&uPat<3.5?vec3(.06,.12,.46):vec3(.6,.22,.22))*(uAmb+uKey*light)+uKey*light*pow(max(0.,dot(N,normalize(L+V))),60.)*.5;
  } else if(m==3){ // cricket: tan body, dark head, glossy
   float ndl=max(0.,dot(N,L));float s=vU.x;vec3 alb=mix(vec3(.05,.035,.02),vec3(.27,.17,.08),smoothstep(.0,.55,s))*(.8+.5*sin(s*50.));float ndv=max(0.,N.z);c=alb*(uAmb+uKey*light*ndl*1.1)+uKey*light*pow(max(0.,dot(N,normalize(L+V))),40.)*.4;
  } else if(m==4){ // cricket legs, antennae
@@ -467,10 +506,10 @@ void main(){int m=int(vM.x);float light=vM.y;vec3 N=normalize(vN),V=normalize(ve
   float rings=.5+.5*sin(d*(uPat<4.5?215.:150.)+fbm(vU*6.)*2.5);float areola=smoothstep(.06,.16,rad);vec3 alb;
   if(uPat<4.5){float ray=sin(ang*(5.+mod(id,3.))+id*2.1+fbm(vU*11.)*3.);float streak=smoothstep(.3,.85,ray)*smoothstep(.04,.24,rad)*(.55+.45*smoothstep(.4,.7,fbm(vU*19.+id)));alb=mix(uBaseC,uAltC,clamp(streak,0.,1.));alb=mix(alb,uAltC*.6,.35*(1.-areola));}
   else{float vein=sin((vU.x*.7+abs(vU.y)*1.25+id*.41)*23.+fbm(vU*7.)*7.5);float streak=smoothstep(.58,.97,vein)*step(id,8.5)*smoothstep(.0,.05,d);alb=mix(uBaseC,uAltC,streak*.9);alb*=.75+.35*smoothstep(.3,.7,fbm(vU*14.+id*3.));}
-  alb*=mix(.76,1.12,rings)*(.8+.36*idh);alb=mix(alb*.10,alb,groove);alb*=mix(.74,1.,smoothstep(.0,.05,d));
+  alb*=mix(.76,1.12,rings)*(.8+.36*idh);alb=mix(alb*(length(vU)>.86?.3:.16),alb,groove);alb*=mix(.74,1.,smoothstep(.0,.05,d));
   float rho=length(vU);float h=smoothstep(.0,.06,d)*.75+rings*.04+fbm(vU*70.)*.018;vec3 Nf=bumped(N,h,2.4);
-  float ndl=max(0.,dot(Nf,L)),wrap=dot(N,L)*.5+.5,ao=mix(.5,1.,smoothstep(1.02,.7,rho));vec3 H=normalize(L+V);float ndv=max(0.,dot(N,V)),F=.04+.96*pow(1.-ndv,5.);float ndh=max(0.,dot(normalize(mix(N,Nf,.4)),H));float sp=pow(ndh,240.)*uGloss*2.2+pow(ndh,30.)*uGloss*.16;
-  c=alb*(uAmb*ao*1.25+uKey*light*(ndl*.85+wrap*.22)*ao);c+=uKey*light*sp*groove;c+=uAmb*F*.55*(.4+uGloss)*min(1.,light);
+  float ndl=max(0.,dot(Nf,L)),wrap=dot(N,L)*.5+.5,ao=mix(.5,1.,smoothstep(1.02,.7,rho));vec3 H=normalize(L+V);float ndv=max(0.,dot(N,V)),F=.04+.96*pow(1.-ndv,5.);float ndh=max(0.,dot(normalize(mix(N,Nf,.4)),H));float sp=pow(ndh,110.)*uGloss*.85*(.35+.9*smoothstep(.35,.75,fbm(vU*9.+vec2(0.,id))))+pow(ndh,18.)*uGloss*.12;
+  c=alb*(uAmb*ao*1.25+uKey*light*(ndl*.85+wrap*.22)*ao+uGnd*(uKey*light*.2+uAmb*.5)*(.5-.5*Nf.y)*ao);c+=uKey*light*sp*groove;c+=uAmb*F*.55*(.4+uGloss)*min(1.,light);
  } else if(m==6||m==7){ // turtle skin: 6 neck, legs and tail with px uv, 7 head with uv (0..1 along, angle round)
   bool head=m==7;vec2 cu=head?vec2(vU.x*11.,vU.y*3.3):vU/(uScale*1.5);vec3 v=voroId(cu+vec2(.5*floor(cu.y),0.));float bump=smoothstep(.0,.46,v.x);vec3 alb=uSkin*(.62+.75*v.y);
   if(uPat<4.5){vec3 b=voroId(cu*.42+9.);float fl=smoothstep(.45,.2,b.z)*step(.45,b.y);alb=mix(alb,uSkin2*(.8+.5*b.y),fl*(head?.92:.7));if(head){float pale=smoothstep(.35,.05,abs(abs(vU.y)-3.));alb=mix(alb,uSkin2*.75,pale*.4);}}
@@ -478,7 +517,7 @@ void main(){int m=int(vM.x);float light=vM.y;vec3 N=normalize(vN),V=normalize(ve
   if(head)alb=mix(alb,vec3(.15,.12,.08),smoothstep(.86,.95,vU.x)*smoothstep(2.6,1.8,abs(vU.y)));
   float belly=smoothstep(-.2,-.75,N.y);alb=mix(alb,uBelly*(.7+.5*v.y),belly*.75);alb=mix(alb,alb*.4,smoothstep(.2,.0,v.x)*.65);
   vec3 Nf=bumped(N,bump*.5,1.1);float ndl=max(0.,dot(Nf,L)),wrap=dot(N,L)*.5+.5,ao=mix(.5,1.,smoothstep(-.8,.1,N.y));vec3 H=normalize(L+V);float sp=pow(max(0.,dot(Nf,H)),60.)*.5,ndv=max(0.,dot(N,V));
-  c=alb*(uAmb*ao+uKey*light*(ndl*.72+wrap*.22)*ao);c+=uKey*light*sp*.45*bump;c+=alb*vec3(1.,.55,.3)*uKey*light*.12*pow(1.-ndv,2.);
+  c=alb*(uAmb*ao*(.6+.4*Nf.y)*1.15+uKey*light*(ndl*.72+wrap*.22)*ao+uGnd*(uKey*light*.22+uAmb*.6)*(.5-.5*Nf.y));c+=uKey*light*sp*.45*bump;c+=alb*vec3(1.,.55,.3)*uKey*light*.12*pow(1.-ndv,2.);
  } else if(m==8){ // plastron: pale horn, seams, a few dark blotches
   vec2 q=vU;float seam=min(abs(q.y)*1.1,min(abs(q.x-.55),min(abs(q.x-.16),min(abs(q.x+.2),abs(q.x+.58)))));float gr=smoothstep(.005,.022,seam);float bl=smoothstep(.55,.7,fbm(q*5.+3.));vec3 alb=mix(uBelly,uBelly*.34,bl*(uPat<4.5?.8:.55))*(.78+.34*fbm(q*22.));alb=mix(alb*.4,alb,gr);
   float ndl=max(0.,dot(N,L)),wrap=dot(N,L)*.5+.5;c=alb*(uAmb*1.1+uKey*light*(ndl*.6+wrap*.42));c+=uKey*light*pow(max(0.,dot(N,normalize(L+V))),40.)*.22;
@@ -489,6 +528,9 @@ void main(){int m=int(vM.x);float light=vM.y;vec3 N=normalize(vN),V=normalize(ve
  } else if(m==11){ // strawberry: red, glossy, seeds
   vec3 v=voroId(vU*vec2(7.,4.));float seed=smoothstep(.24,.14,v.z)*step(.25,v.y);vec3 alb=mix(vec3(.62,.035,.03),vec3(.78,.09,.05),fbm(vU*3.));alb=mix(alb,vec3(.86,.60,.16),seed);alb=mix(alb,vec3(.88,.70,.42),smoothstep(.0,-.4,vU.x));
   float h=smoothstep(.14,.0,v.z)*step(.25,v.y)*-.5;vec3 Nf=bumped(N,h,1.);float ndl=max(0.,dot(Nf,L));c=alb*(uAmb*1.2+uKey*light*(ndl*.8+.28));c+=uKey*light*pow(max(0.,dot(Nf,normalize(L+V))),90.)*1.4;
+ } else if(m==13){ // anole dewlap: thin pink-red skin in rows of pale scales, glowing when lit through
+  float rows=smoothstep(.55,.9,sin(vU.x*2.6+vU.y*.5)*.5+.5)*smoothstep(.4,.6,fbm(vU*.9));vec3 alb=mix(vec3(.58,.08,.07),vec3(.80,.62,.50),rows*.55)*(.85+.3*fbm(vU*.4));vec3 Nn=N*(gl_FrontFacing?1.:-1.);
+  c=alb*(uAmb*1.2+uKey*light*(abs(dot(Nn,L))*.55+.5));c+=uKey*light*pow(max(0.,dot(Nn,normalize(L+V))),50.)*.25;
  } else { // lettuce: frilled leaf, pale ribs
   float a=vU.y,r=vU.x;float rib=smoothstep(.09,.0,abs(fract(a*2.4+r*.6)-.5))*smoothstep(1.,.25,r);vec3 alb=mix(vec3(.07,.24,.035),vec3(.30,.47,.10),smoothstep(.15,1.,r)*.75+fbm(vec2(r*4.,a*3.)+vP.xz*.03)*.45);alb=mix(alb,vec3(.56,.68,.30),rib*.5);
   vec3 Nf=normalize(N*(gl_FrontFacing?1.:-1.));Nf=normalize(Nf+vec3(sin(a*7.+r*18.)*.35,0.,cos(a*5.+r*13.)*.35));float ndl=abs(dot(Nf,L));c=alb*(uAmb*1.25+uKey*light*(ndl*.85+.18));c+=alb*vec3(.9,1.,.4)*uKey*light*.2*(1.-ndl);c+=uKey*light*pow(max(0.,dot(Nf,normalize(L+V))),40.)*.18;
@@ -572,10 +614,11 @@ function newLizard(sp, x, z) {
   const L = sp.len * unit * S.size, seg = L / (NODES - 1), nx = new Float32Array(NODES), nz = new Float32Array(NODES), ny = new Float32Array(NODES), dir = Math.random() < .5 ? 1 : -1;
   for (let i = 0; i < NODES; i++) { nx[i] = x - dir * i * seg; nz[i] = z + Math.sin(i * .14) * seg * 3; ny[i] = alt(nx[i], nz[i]) + bodyH(sp, L); }
   const liz = { sp, L, seg, nx, ny, nz, h: dir > 0 ? 0 : Math.PI, speed: 0, state: 'pause', t: rnd(1, 4), warm: rnd(.3, .9), hunger: rnd(.2, .7), thirst: rnd(.1, .5), tx: x, tz: z, phase: rnd(TAU), lookX: 0, tongue: 0, gulp: 0, legs: [] };
-  for (const [i, tt, side] of [[0, .19, -1], [1, .19, 1], [2, .445, -1], [3, .445, 1]]) { const k = (tt * (NODES - 1)) | 0; liz.legs.push({ t: tt, side, foot: [nx[k], alt(nx[k], nz[k]), nz[k] + side * L * .10], from: [0, 0, 0], to: [0, 0, 0], k: 1, idx: i }); }
+  const sh = sp.an ? sp.an.sh : .19, hp = sp.an ? sp.an.hip : .445;
+  for (const [i, tt, side] of [[0, sh, -1], [1, sh, 1], [2, hp, -1], [3, hp, 1]]) { const k = (tt * (NODES - 1)) | 0; liz.legs.push({ t: tt, side, foot: [nx[k], alt(nx[k], nz[k]), nz[k] + side * L * .10], from: [0, 0, 0], to: [0, 0, 0], k: 1, idx: i }); }
   return liz;
 }
-const bodyH = (sp, L) => L * (.047 + .032 * sp.leg);
+const bodyH = (sp, L) => L * (.047 + .032 * sp.leg) * (sp.an && sp.an.bh || 1);
 function pickTarget(l, x, z) { l.tx = clamp(x, 80, W - 80); l.tz = clamp(z, depth * .46, depth * .92); }
 function think(l, dt) {
   const head = [l.nx[0], l.nz[0]], day = dayK > .35, p = lampK(head[0]) * dayK;
@@ -617,7 +660,9 @@ function stepLizard(l, dt) {
   if (dish) { const dx = l.nx[0] - dish.x, dz = (l.nz[0] - dish.z) * (dish.rx / dish.rz), d = Math.hypot(dx, dz); if (d < dish.rx * 1.22) { const k = dish.rx * 1.22 / (d || 1); l.nx[0] = dish.x + dx * k; l.nz[0] = dish.z + dz * k * (dish.rz / dish.rx); } }
   }
   l.phase += l.speed / l.L * dt * 12;
-  l.nx[0] += 0; const bh = bodyH(l.sp, l.L); const look = Math.sin(time * .5 + l.phase * .1);
+  // settle onto the belly when still
+  l.low = ra(l.low || 0, l.speed < l.L * .03 ? 1 : 0, 2.2, dt);
+  const bh = bodyH(l.sp, l.L) * (1 - .3 * l.low);
   l.ny[0] = alt(l.nx[0], l.nz[0]) + bh * 1.08 + (l.state === 'rest-bask' ? bh * .26 : 0);
   for (let i = 1; i < NODES; i++) {
     let dx = l.nx[i] - l.nx[i - 1], dz = l.nz[i] - l.nz[i - 1]; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
@@ -637,39 +682,167 @@ function stepLizard(l, dt) {
       if (d > stride && diag && l.legs[leg.idx ^ 1].k >= 1) { leg.k = 0; leg.from = leg.foot.slice(); leg.to = [idealX + fx * stride * .55, 0, idealZ + fz * stride * .55]; leg.to[1] = alt(leg.to[0], leg.to[2]); }
     } else { leg.k = Math.min(1, leg.k + dt * Math.max(7, l.speed / l.L * 13)); const e = leg.k; leg.foot = [lerp(leg.from[0], leg.to[0], e), lerp(leg.from[1], leg.to[1], e) + Math.sin(e * Math.PI) * l.L * .035, lerp(leg.from[2], leg.to[2], e)]; }
   }
+  // blink now and then; eyes shut while sleeping in the hide or dozing under the lamp
+  l.blinkT = (l.blinkT ?? rnd(1, 6)) - dt; if (l.blinkT < 0) { l.blinkT = rnd(2.5, 9); l.blinkK = .2; }
+  if (l.blinkK > 0) l.blinkK -= dt;
+  const asleep = l.state === 'rest-hide' || (l.state === 'rest-bask' && l.warm > .75 && Math.sin(time * .07 + l.phase) > .55);
+  l.lid = ra(l.lid || 0, asleep || l.blinkK > 0 ? 1 : 0, l.blinkK > 0 ? 38 : 2.5, dt);
+  // anoles flash the dewlap with a few push-ups
+  if (l.sp.an && l.sp.an.dewlap) {
+    if (!(l.disp > 0) && ['pause', 'rest-bask', 'rest-drink'].includes(l.state) && Math.random() < dt * .045) l.disp = 2.8;
+    if (l.disp > 0) l.disp -= dt; const e = l.disp > 0 ? Math.sin(Math.min(1, (2.8 - l.disp) / 2.8) * Math.PI) : 0;
+    l.dew = ra(l.dew || 0, e > .25 ? 1 : 0, 10, dt); l.bob = e > 0 ? Math.max(0, Math.sin((2.8 - l.disp) * 7.5)) * e : 0;
+  }
   if (l.tongue > 0) l.tongue -= dt; if (l.gulp > 0) l.gulp -= dt;
   if (Math.random() < dt * .12 && l.tongue <= 0 && l.sp.tongue) l.tongue = .55;
   if (l.state === 'strike' && l.prey && Math.hypot(l.prey.x - l.nx[0], l.prey.z - l.nz[0]) < l.L * .05) { l.prey.dead = true; l.hunger = Math.max(0, l.hunger - .42); l.gulp = 1.1; l.prey = null; l.state = 'pause'; l.t = rnd(2, 5); }
 }
+// ---- lizard meshes: a body skinned from rings round the spine, two-bone legs with real hands and feet, lidded eyes
+const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const madd = (P, A, a, B, b) => [P[0] + A[0] * a + B[0] * b, P[1] + A[1] * a + B[1] * b, P[2] + A[2] * a + B[2] * b];
+// rings: tight at the snout so it rounds off, then even down to the tail tip
+const RING_T = (() => { const a = [0, .004, .010, .018, .027, .037]; for (let t = .048; t < .995; t += .0118) a.push(t); a.push(1); return a; })();
+const LSIDES = 24;
+function nodeAt(l, t) { const f = clamp(t, 0, 1) * (NODES - 1), i = Math.min(NODES - 2, f | 0), k = f - i; return [lerp(l.nx[i], l.nx[i + 1], k), lerp(l.ny[i], l.ny[i + 1], k), lerp(l.nz[i], l.nz[i + 1], k)]; }
+// the body's centre, axes and radii at t, with the sway, display bob and breathing folded in
+function lizFrame(l, t, ex) {
+  const P = nodeAt(l, t), A = nodeAt(l, t - .014), B = nodeAt(l, t + .014);
+  const f = norm3([A[0] - B[0], A[1] - B[1], A[2] - B[2]]), s = norm3([-f[2], 0, f[0]]), u = cross3(s, f);
+  const w = ex.sway(t); P[0] += s[0] * w; P[2] += s[2] * w; P[1] += ex.lift(t);
+  const tip = .034, pf = profile(l.sp, Math.max(t, tip)), k = t < tip ? Math.sqrt(Math.max(0, 1 - (1 - t / tip) ** 2)) : 1, sw = ex.swell(t);
+  return { P, f, s, u, rv: pf[0] * l.L * k * sw, rh: pf[1] * l.L * k * sw, t };
+}
+// a point on the skin: a squarish section with a flatter belly; in the head the top flattens and the jaw flares
+function ringPt(fr, a, an) {
+  const ca = Math.cos(a), sa = Math.sin(a), hk = sstep(an.headEnd, an.headEnd * .5, fr.t), pw = (v) => Math.sign(v) * Math.pow(Math.abs(v), an.sq);
+  const x = pw(sa) * fr.rh * (1 + an.jaw * hk * Math.exp(-(((ca + .18) / .5) ** 2)));
+  const y = pw(ca) * fr.rv * (ca < 0 ? an.flat + (1 - an.flat) * .3 * hk : 1 - .22 * hk);
+  return madd(fr.P, fr.s, x, fr.u, y);
+}
+function smoothNormals(v0, i0) {
+  for (let v = v0; v < vN; v++) { const k = v * 10; V[k + 3] = 0; V[k + 4] = 0; V[k + 5] = 0; }
+  for (let i = i0; i < iN; i += 3) {
+    const a = I[i] * 10, b = I[i + 1] * 10, c = I[i + 2] * 10;
+    const ux = V[b] - V[a], uy = V[b + 1] - V[a + 1], uz = V[b + 2] - V[a + 2], wx = V[c] - V[a], wy = V[c + 1] - V[a + 1], wz = V[c + 2] - V[a + 2];
+    const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+    V[a + 3] += nx; V[a + 4] += ny; V[a + 5] += nz; V[b + 3] += nx; V[b + 4] += ny; V[b + 5] += nz; V[c + 3] += nx; V[c + 4] += ny; V[c + 5] += nz;
+  }
+}
+function lizBody(l, ex, light, an) {
+  const v0 = vN, i0 = iN, rr = l.L * .06, row = LSIDES + 1; let prev = -1, f0 = null, f1 = null;
+  for (const t of RING_T) {
+    const fr = lizFrame(l, t, ex), idx = vN; if (t === 0) f0 = fr.f; f1 = fr.f;
+    for (let q = 0; q <= LSIDES; q++) {
+      const a = q / LSIDES * TAU - Math.PI, p = ringPt(fr, a, an);
+      const ao = .3 + .7 * sstep(0, l.L * .032, p[1] - gnd(p[0], p[2]));
+      pushV(p[0], p[1], p[2], 0, 0, 0, t * l.L, a * rr, (1 - ao) * .9, light);
+    }
+    if (prev >= 0) ringIdx(prev, idx, LSIDES); prev = idx;
+  }
+  smoothNormals(v0, i0);
+  const rings = RING_T.length;
+  for (let r = 0; r < rings; r++) { const a = (v0 + r * row) * 10, b = (v0 + r * row + LSIDES) * 10; for (let c = 3; c < 6; c++) { const s = V[a + c] + V[b + c]; V[a + c] = s; V[b + c] = s; } }
+  // which way is out: the middle of the back must face up
+  const top = (v0 + (rings >> 1) * row + (LSIDES >> 1)) * 10, sign = V[top + 4] >= 0 ? 1 : -1;
+  for (let v = v0; v < vN; v++) { const k = v * 10, n = Math.hypot(V[k + 3], V[k + 4], V[k + 5]) || 1; V[k + 3] *= sign / n; V[k + 4] *= sign / n; V[k + 5] *= sign / n; }
+  for (let q = 0; q <= LSIDES; q++) { let k = (v0 + q) * 10; V[k + 3] = f0[0]; V[k + 4] = f0[1]; V[k + 5] = f0[2]; k = (v0 + (rings - 1) * row + q) * 10; V[k + 3] = -f1[0]; V[k + 4] = -f1[1]; V[k + 5] = -f1[2]; }
+}
+// two-bone IK: the elbow or knee for a limb from A to B, bending toward the pole
+function ik2(A, B, l1, l2, pole) {
+  const d = [B[0] - A[0], B[1] - A[1], B[2] - A[2]], dl = Math.hypot(d[0], d[1], d[2]) || 1, dn = [d[0] / dl, d[1] / dl, d[2] / dl];
+  const D = Math.min(dl, (l1 + l2) * .999), a = (l1 * l1 - l2 * l2 + D * D) / (2 * D), h = Math.sqrt(Math.max(0, l1 * l1 - a * a)), pd = dot3(pole, dn);
+  const p = norm3([pole[0] - dn[0] * pd, pole[1] - dn[1] * pd, pole[2] - dn[2] * pd]);
+  return [A[0] + dn[0] * a + p[0] * h, A[1] + dn[1] * a + p[1] * h, A[2] + dn[2] * a + p[2] * h];
+}
+function lizLeg(l, leg, ex, light, an) {
+  const L = l.L, front = leg.idx < 2, fr = lizFrame(l, leg.t, ex), sd = leg.side, S = [fr.s[0] * sd, 0, fr.s[2] * sd], rr = L * .06;
+  const root = madd(fr.P, S, fr.rh * .58, fr.u, -fr.rv * .22), rootIn = madd(fr.P, S, fr.rh * .12, fr.u, -fr.rv * .12);
+  const F = leg.foot, toeR = an.toeR * L, toeL = an.toe * L;
+  // front feet point forward and out, hind feet out and a little back
+  const th = front ? .6 : 1.6, dir = norm3([fr.f[0] * Math.cos(th) + S[0] * Math.sin(th), 0, fr.f[2] * Math.cos(th) + S[2] * Math.sin(th)]);
+  const palm = [F[0] + dir[0] * toeL * .04, F[1] + toeR * .8, F[2] + dir[2] * toeL * .04];
+  const wrist = [palm[0] - dir[0] * toeL * .2, palm[1] + toeR * 1.5, palm[2] - dir[2] * toeL * .2];
+  const reach = L * (.165 * l.sp.leg + .06), D0 = Math.hypot(Math.max(reach - fr.rh * .58, L * .02), bodyH(l.sp, L) - fr.rv * .22 - toeR * 2.3);
+  const l1 = D0 * (front ? .56 : .58), l2 = D0 * (front ? .52 : .54);
+  const pole = front ? [fr.u[0] * .3 - fr.f[0] * .55 + S[0] * .8, fr.u[1] * .3, fr.u[2] * .3 - fr.f[2] * .55 + S[2] * .8] : [fr.u[0] * .32 + fr.f[0] * .45 + S[0] * .85, fr.u[1] * .32, fr.u[2] * .32 + fr.f[2] * .45 + S[2] * .85];
+  const J = ik2(root, wrist, l1, l2, pole), r0 = (front ? an.arm : an.thigh) * L, ua = leg.t * L, va = 1.5 * rr * sd;
+  tube([rootIn, root, lerp3(root, J, .5), J, lerp3(J, wrist, .5), wrist, palm], [r0 * 1.55, r0 * 1.2, r0 * .95, r0 * .72, r0 * .62, r0 * .52, toeR * 1.15], 10, 0, light, (i, a2, r) => [ua + i * r0 * 1.3, va + a2 * r]);
+  const p0 = norm3(cross3(dir, [0, 1, 0])), pk = Math.sign(p0[0] * S[0] + p0[2] * S[2]) || 1, perp = [p0[0] * pk, 0, p0[2] * pk];
+  ellW(palm, dir, [0, 1, 0], perp, toeL * .19, toeR * .85, toeL * .16, .25, light, () => [ua, va], 5, 10);
+  const lens = front ? [.5, .78, .95, .9, .62] : [.42, .66, .86, 1.0, .64], spread = front ? .95 : .85, curl = leg.k < 1 ? Math.sin(leg.k * Math.PI) * toeR * 2.4 : 0;
+  for (let j = 0; j < 5; j++) {
+    const ang = lerp(-spread, spread, j / 4) + (!front && j === 4 ? .3 : 0), ca = Math.cos(ang), sa = Math.sin(ang);
+    const td = [dir[0] * ca + perp[0] * sa, 0, dir[2] * ca + perp[2] * sa], len = toeL * lens[j];
+    const b = [palm[0] + td[0] * toeL * .13, palm[1] - toeR * .15, palm[2] + td[2] * toeL * .13];
+    const P1 = [b[0] + td[0] * len * .3, b[1] + toeR * .85, b[2] + td[2] * len * .3], P2 = [b[0] + td[0] * len * .66, b[1] + toeR * .3 - curl * .5, b[2] + td[2] * len * .66], P3 = [b[0] + td[0] * len, b[1] - toeR * .2 - curl, b[2] + td[2] * len];
+    tube([b, P1, P2, P3], [toeR, toeR * .9, toeR * (an.pad ? .95 : .72), toeR * (an.pad ? 1.1 : .52)], 6, .3, light, (i, a2, r) => [ua + i * 3, va + a2 * r]);
+    tube([P3, [P3[0] + td[0] * toeR * 1.8, P3[1] - toeR * .6, P3[2] + td[2] * toeR * 1.8]], [toeR * .42, toeR * .05], 5, 9, light);
+  }
+}
+// an eyeball whose uv is the point on it as seen down its own axis, so the iris and pupil land facing out
+function eyeBall(C, e, f, r, light) {
+  const fx = norm3([f[0] - e[0] * dot3(f, e), f[1] - e[1] * dot3(f, e), f[2] - e[2] * dot3(f, e)]); let qy = cross3(e, fx); if (qy[1] < 0) qy = [-qy[0], -qy[1], -qy[2]];
+  const n = 9, m = 18, base = vN;
+  for (let j = 0; j <= n; j++) { const th = Math.PI * j / n, st = Math.sin(th), ct = Math.cos(th), k = ct >= 0 ? 1 : 1 / Math.max(.05, st); for (let i = 0; i <= m; i++) { const ph = TAU * i / m, cp = Math.cos(ph), sp = Math.sin(ph); const d = [e[0] * ct + (fx[0] * cp + qy[0] * sp) * st, e[1] * ct + (fx[1] * cp + qy[1] * sp) * st, e[2] * ct + (fx[2] * cp + qy[2] * sp) * st]; pushV(C[0] + d[0] * r, C[1] + d[1] * r, C[2] + d[2] * r, d[0], d[1], d[2], cp * st * k, sp * st * k, 1, light); } }
+  for (let j = 0; j < n; j++) ringIdx(base + j * (m + 1), base + (j + 1) * (m + 1), m);
+  return { fx, qy };
+}
+function lizEyes(l, ex, light, an) {
+  const fr = lizFrame(l, an.eyeT, ex), re = an.eyeR * l.L, rr = l.L * .06;
+  for (const sd of [-1, 1]) {
+    const aE = sd * 1.24, surf = ringPt(fr, aE, an), S = [fr.s[0] * sd, fr.s[1] * sd, fr.s[2] * sd];
+    const e = norm3([S[0] * .86 + fr.u[0] * .4 + fr.f[0] * .1, S[1] * .86 + fr.u[1] * .4 + fr.f[1] * .1, S[2] * .86 + fr.u[2] * .4 + fr.f[2] * .1]);
+    const C = [surf[0] - e[0] * re * .3, surf[1] - e[1] * re * .3, surf[2] - e[2] * re * .3], { fx, qy } = eyeBall(C, e, fr.f, re, light), uv = [an.eyeT * l.L, aE * rr];
+    // a rim of lid skin round the eye, and an upper lid that drops to blink or sleep
+    const ring = []; for (let k = 0; k <= 18; k++) { const a = k / 18 * TAU, ca = Math.cos(a), sa = Math.sin(a); ring.push([C[0] + e[0] * re * .4 + (fx[0] * ca + qy[0] * sa) * re * .9, C[1] + e[1] * re * .4 + (fx[1] * ca + qy[1] * sa) * re * .9, C[2] + e[2] * re * .4 + (fx[2] * ca + qy[2] * sa) * re * .9]); }
+    tube(ring, ring.map(() => re * .15), 6, 0, light, () => uv);
+    capW(C, qy, fx, re * 1.06, lerp(.5, 1.75, l.lid || 0), 0, light, uv);
+  }
+}
+// bearded dragon spines: the fringe down each flank, the beard, the spikes behind the jaw, two rows down the back
+function lizSpikes(l, ex, light, an) {
+  const L = l.L, rr = L * .06;
+  const cone = (fr, a, len, r, back, out) => {
+    const p = ringPt(fr, a, an), sa = Math.sin(a), ca = Math.cos(a);
+    const d = norm3([fr.s[0] * sa * out + fr.u[0] * ca - fr.f[0] * back, fr.s[1] * sa * out + fr.u[1] * ca - fr.f[1] * back, fr.s[2] * sa * out + fr.u[2] * ca - fr.f[2] * back]);
+    const b = [p[0] - d[0] * r, p[1] - d[1] * r, p[2] - d[2] * r];
+    tube([b, [b[0] + d[0] * len * .5, b[1] + d[1] * len * .5, b[2] + d[2] * len * .5], [b[0] + d[0] * len, b[1] + d[1] * len, b[2] + d[2] * len]], [r, r * .5, r * .05], 5, .1, light, () => [fr.t * L, Math.sign(a) * Math.min(Math.abs(a), 1.45) * rr]);
+  };
+  const R = mulberry(77); for (let t = .17; t < .45; t += .0085 + R() * .006) { const fr = lizFrame(l, t, ex), k = (1 - Math.abs(t - .31) * 2.2) * (.55 + R() * .7); for (const sd of [-1, 1]) { cone(fr, sd * (1.86 + R() * .14), L * .018 * k, L * .005 * k, .3 + R() * .35, 1.25); if (R() < .45) cone(fr, sd * (1.62 + R() * .1), L * .01 * k, L * .0035 * k, .4, 1.1); } }
+  for (let t = .045; t < .14; t += .007) { const fr = lizFrame(l, t, ex); for (let k = 0; k < 4; k++) { const a = (R() < .5 ? -1 : 1) * (2.35 + R() * .75); cone(fr, a, L * (.006 + R() * .007), L * .0028, .25, .7); } }
+  for (const [t, a, k] of [[.095, 1.25, 1.1], [.108, 1.5, 1.35], [.118, 1.75, 1.25], [.128, 2.0, 1], [.10, .95, .75], [.088, 1.9, .9], [.112, 2.25, .8]]) { const fr = lizFrame(l, t, ex); for (const sd of [-1, 1]) cone(fr, sd * a, L * .03 * k, L * .0072 * k, .6, 1.1); }
+  for (let t = .16; t < .5; t += .02) { const fr = lizFrame(l, t, ex); for (const sd of [-1, 1]) cone(fr, sd * .55, L * .009, L * .0034, .6, .6); }
+}
+// the anole's dewlap: a thin fan of throat skin
+function lizDewlap(l, ex, light, an) {
+  const d = l.dew || 0; if (d < .03) return; const L = l.L, n = 10, b0 = vN;
+  for (let k = 0; k <= n; k++) {
+    const t = lerp(.03, .15, k / n), fr = lizFrame(l, t, ex), p = ringPt(fr, Math.PI, an), drop = L * .062 * d * Math.pow(Math.sin(Math.PI * k / n), .75) * (1 - .35 * k / n);
+    pushV(p[0], p[1] + 1, p[2], fr.s[0], 0, fr.s[2], k * 6, 0, 13, light);
+    pushV(p[0] + fr.f[0] * drop * .2, p[1] - drop, p[2] + fr.f[2] * drop * .2, fr.s[0], 0, fr.s[2], k * 6, drop, 13, light);
+  }
+  for (let k = 0; k < n; k++) { const a = b0 + k * 2; I[iN++] = a; I[iN++] = a + 1; I[iN++] = a + 2; I[iN++] = a + 1; I[iN++] = a + 3; I[iN++] = a + 2; }
+}
 function buildLizardMesh(l) {
-  const pts = [], rad = [], sway = l.speed > 1 ? clamp(l.speed / l.L * 7, 0, 1) : 0; const light0 = lampK(l.nx[8]);
-  for (let i = 0; i < NODES; i++) {
-    const t = i / (NODES - 1), pf = profile(l.sp, t); let a = i > 0 ? [l.nx[i - 1] - l.nx[Math.min(NODES - 1, i + 1)], l.nz[i - 1] - l.nz[Math.min(NODES - 1, i + 1)]] : [Math.cos(l.h), Math.sin(l.h)]; const al = Math.hypot(a[0], a[1]) || 1; const sx = -a[1] / al, sz = a[0] / al;
-    const w = sway * Math.sin(i * .33 - l.phase) * l.L * .013 * (.5 + t * 1.2);
-    const swell = l.gulp > 0 ? 1 + .09 * Math.sin(l.gulp * 7) * Math.exp(-Math.pow((t - .14) / .05, 2)) : 1;
-    pts.push([l.nx[i] + sx * w, l.ny[i], l.nz[i] + sz * w]);
-    rad.push([pf[0] * l.L * swell, pf[1] * l.L * swell]);
-  }
+  const an = l.sp.an, L = l.L, sway = l.speed > 1 ? clamp(l.speed / L * 7, 0, 1) : 0;
   const litK = (x) => Math.min(1.25, (lampK(x) + .05) * dayK) + .08;
-  const lightAt = litK(l.nx[8]) * (cave && Math.hypot((l.nx[8] - cave.x) / cave.rx, (l.nz[8] - cave.z) / cave.rz) < .85 ? .18 : 1);
-  const uvs = (i, a, r) => [i / (NODES - 1) * l.L, a * r];
-  tube(pts, rad, 14, 0, lightAt, uvs);
-  // legs and toes
-  for (const leg of l.legs) {
-    const k = (leg.t * (NODES - 1)) | 0, hx = l.nx[k], hy = l.ny[k] - l.L * .02, hz = l.nz[k];
-    const a = [l.nx[Math.max(0, k - 3)] - l.nx[Math.min(NODES - 1, k + 3)], l.nz[Math.max(0, k - 3)] - l.nz[Math.min(NODES - 1, k + 3)]], al = Math.hypot(a[0], a[1]) || 1, fx = a[0] / al, fz = a[1] / al, sx = -fz * leg.side, sz = fx * leg.side;
-    const F = leg.foot, hip = [hx + sx * l.L * .05, hy, hz + sz * l.L * .05], up = l.L * .075 * l.sp.leg + l.L * .018;
-    const knee = [lerp(hip[0], F[0], .5) + sx * l.L * .085, Math.max(hip[1], F[1]) + up * .7, lerp(hip[2], F[2], .5) + sz * l.L * .085];
-    const r0 = l.L * .031, r1 = l.L * .016, S2 = (a2, b2, n) => { const o = []; for (let j = 0; j <= n; j++) { const e = j / n; o.push([lerp(a2[0], b2[0], e), lerp(a2[1], b2[1], e), lerp(a2[2], b2[2], e)]); } return o; };
-    const leg1 = [...S2(hip, knee, 4), ...S2(knee, F, 4).slice(1)], rr = leg1.map((_, j) => lerp(r0 * (l.sp.leg < .5 ? 1.2 : 1), r1, j / (leg1.length - 1)));
-    tube(leg1, rr, 8, 0, lightAt, (i, a2, r) => [i * r0 * 2.2 + 777, a2 * r]);
-    const toes = l.sp === SPECIES.skink ? 4 : 5, tl = l.L * .074;
-    for (let t = 0; t < toes; t++) { const fan = lerp(-.9, .9, t / (toes - 1)), ca = Math.cos(fan), sa = Math.sin(fan), dx = (fx * ca + sx * sa), dz = (fz * ca + sz * sa); const lenK = 1 - .5 * Math.abs(fan - .15) / 1; const e = [F[0] + dx * tl * lenK, F[1] + 1, F[2] + dz * tl * lenK]; tube([[F[0], F[1] + 2, F[2]], [lerp(F[0], e[0], .55), F[1] + 2.4, lerp(F[2], e[2], .55)], e], [l.L * .012, l.L * .010, l.L * .005], 5, 0, lightAt, (i, a2, r) => [i * 7 + 901, a2 * r]); }
+  const light = litK(l.nx[8]) * (cave && Math.hypot((l.nx[8] - cave.x) / cave.rx, (l.nz[8] - cave.z) / cave.rz) < .85 ? .18 : 1);
+  // leopard geckos twitch the tail tip while they stalk
+  const tw = l.state === 'hunt' && l.sp === SPECIES.gecko ? Math.sin(time * 16) * L * .016 : 0, bob = l.bob || 0, ph = l.phase;
+  const ex = {
+    sway: (t) => sway * Math.sin(t * 20.8 - ph) * L * .013 * (.5 + t * 1.2) + tw * sstep(.74, 1, t),
+    lift: (t) => bob * L * .034 * sstep(.5, .06, t),
+    swell: (t) => (1 + .022 * Math.sin(time * 1.9 + ph) * sstep(.14, .24, t) * sstep(.5, .36, t)) * (l.gulp > 0 ? 1 + .09 * Math.sin(l.gulp * 7) * Math.exp(-(((t - .14) / .05) ** 2)) : 1),
+  };
+  lizBody(l, ex, light, an);
+  for (const leg of l.legs) lizLeg(l, leg, ex, light, an);
+  lizEyes(l, ex, light, an);
+  if (an.spikes) lizSpikes(l, ex, light, an);
+  if (an.dewlap) lizDewlap(l, ex, light, an);
+  if (l.tongue > 0 || l.state === 'strike') {
+    const fr = lizFrame(l, .012, ex), m = madd(fr.P, fr.u, -fr.rv * .3, fr.f, 0), fx = fr.f[0], fz = fr.f[2], ext = l.state === 'strike' ? L * .08 : L * .10 * Math.sin(Math.min(1, l.tongue / .55) * Math.PI);
+    tube([m, [m[0] + fx * ext * .5, m[1] - 1.5, m[2] + fz * ext * .5], [m[0] + fx * ext, m[1] - 3, m[2] + fz * ext]], [L * .006, L * .005, L * .0025], 6, 2, light);
   }
-  // the eyes: bright, wet spheres set into the head
-  const pfHead = profile(l.sp, .058), hx = pts[4], hz2 = [pts[1][0] - pts[8][0], pts[1][2] - pts[8][2]], hl = Math.hypot(hz2[0], hz2[1]) || 1, fx = hz2[0] / hl, fz = hz2[1] / hl;
-  for (const side of [-1, 1]) { const r = l.L * pfHead[1] * .36 * l.sp.head; sphere(hx[0] - fz * side * pfHead[1] * l.L * .68 + fx * l.L * .004, hx[1] + pfHead[0] * l.L * .45, hx[2] + fx * side * pfHead[1] * l.L * .68 + fz * l.L * .004, r, 1, lightAt, fx, fz); }
-  if (l.tongue > 0 || (l.state === 'strike')) { const ext = l.state === 'strike' ? l.L * .08 : l.L * .10 * Math.sin(Math.min(1, l.tongue / .55) * Math.PI), m = pts[0]; tube([[m[0], m[1] - 1, m[2]], [m[0] + fx * ext * .5, m[1] - 1.5, m[2] + fz * ext * .5], [m[0] + fx * ext, m[1] - 3, m[2] + fz * ext]], [1.6, 1.3, .6], 5, 2, lightAt); }
 }
 function buildCricketMesh(c) {
   const light = Math.min(1.25, (lampK(c.x) + .05) * dayK) + .08, base = alt(c.x, c.z) + c.y, cl = unit * .014 * c.s, a = c.a, fx = Math.cos(a), fz = Math.sin(a), sx = -fz, sz = fx, H = base + cl * .28, B = (t, y) => [c.x - fx * cl * t, H + y * cl, c.z - fz * cl * t];
@@ -946,7 +1119,7 @@ function buildTurtleMesh(t) {
   const cp = Math.cos(t.hp), sn = Math.sin(t.hp), cy = Math.cos(t.hy), sy = Math.sin(t.hy), nd = [cy * cp, sn, sy * cp], neckY = sp.rim + .02, ext = t.neck, len = sp.neck;
   const O = [.42, neckY, 0], RB = [.09, neckY * .85, 0], tipB = [lerp(RB[0], O[0] + nd[0] * len, ext), lerp(RB[1], O[1] + nd[1] * len, ext) + t.bob / L, lerp(RB[2], O[2] + nd[2] * len, ext) * (L / W2)];
   const A0 = [.02, neckY * .9, 0], neckPts = [], neckRad = [], ns = 9;
-  for (let i = 0; i <= ns; i++) { const k = i / ns, q = lerp3(lerp3(A0, O, k), lerp3(O, tipB, k), k); neckPts.push(B(q[0], q[1], q[2])); const r = lerp(.082, .066, k) * L * (1 + .05 * Math.sin(i * 2.6)); neckRad.push([r, r * 1.08]); }
+  for (let i = 0; i <= ns; i++) { const k = i / ns, q = lerp3(lerp3(A0, O, k), lerp3(O, tipB, k), k); neckPts.push(B(q[0], q[1], q[2])); const r = lerp(.098, .084, k) * L * (1 + .07 * Math.sin(i * 2.6) * (1 - k * .6)); neckRad.push([r * .92, r * 1.1]); }
   tube(neckPts, neckRad, 10, 6, light * .92, (i, a2, r) => [i * r * 1.6, a2 * r]);
   const tip = B(tipB[0], tipB[1], tipB[2]);
   // head frame
@@ -976,8 +1149,8 @@ function buildTurtleMesh(t) {
   const up0 = [0, 1, 0];
   for (const leg of t.legs) {
     const front = leg.front, s2 = leg.side, hip = B(front ? .33 : -.33, .07, s2 * .34), Ft = leg.foot, sideDir = norm3([R[0] * s2, 0, R[2] * s2]);
-    const kneeOut = lerp(.05, .13, t.legK) * L, kneeUp = lerp(.03, .1, t.legK) * L * (1 - t.limp * .7), mid = lerp3(hip, Ft, .52), knee = [mid[0] + sideDir[0] * kneeOut, Math.max(hip[1], Ft[1]) + kneeUp, mid[2] + sideDir[2] * kneeOut];
-    const pts = [], rads = [], r0 = (front ? .088 : .1) * L * sp.limb, r1 = .058 * L * sp.limb;
+    const kneeOut = lerp(.06, front ? .19 : .16, t.legK) * L, kneeUp = lerp(.03, .08, t.legK) * L * (1 - t.limp * .7), mid = lerp3(hip, Ft, .52), knee = [mid[0] + sideDir[0] * kneeOut, Math.max(hip[1], Ft[1]) + kneeUp, mid[2] + sideDir[2] * kneeOut];
+    const pts = [], rads = [], r0 = (front ? .1 : .115) * L * sp.limb, r1 = .062 * L * sp.limb;
     for (let i = 0; i <= 8; i++) { const k = i / 8; pts.push(lerp3(lerp3(hip, knee, k), lerp3(knee, Ft, k), k)); rads.push(lerp(r0, r1, k * k * .4 + k * .6)); }
     tube(pts, rads, 9, 6, lowLight * 1.2, (i, a2, r) => [i * r * 1.4 + 333, a2 * r]);
     const fa = front ? [F[0] * .72 + R[0] * s2 * .7, F[2] * .72 + R[2] * s2 * .7] : [-F[0] * .5 + R[0] * s2 * .86, -F[2] * .5 + R[2] * s2 * .86], fl = Math.hypot(fa[0], fa[1]) || 1, fd = [fa[0] / fl, 0, fa[1] / fl], fs = [-fd[2], 0, fd[0]], padL = sp.pad * L, flat = t.swim > .5 ? .22 : .42;
@@ -1152,7 +1325,10 @@ function renderAll(t) {
   for (const l of lizards) buildLizardMesh(l); for (const t of turtles) buildTurtleMesh(t); for (const c of crickets) buildCricketMesh(c); for (const f of foods) buildFoodMesh(f);
   // contact shadows
   const blobs = [];
-  for (const l of lizards) for (let i = 2; i < NODES - 3; i += 3) { const t2 = i / (NODES - 1), pf = profile(l.sp, t2); const sy = floorY(l.nz[i]) - alt(l.nx[i], l.nz[i]); blobs.push(l.nx[i], sy + l.L * .008, pf[1] * l.L * 1.5, pf[1] * l.L * .7); }
+  for (const l of lizards) {
+    for (let i = 2; i < NODES - 3; i += 2) { const t2 = i / (NODES - 1), pf = profile(l.sp, t2); const sy = floorY(l.nz[i]) - alt(l.nx[i], l.nz[i]); blobs.push(l.nx[i], sy + l.L * .008, Math.max(pf[1] * l.L * 1.4, l.seg * 2.3), pf[1] * l.L * .62 + l.L * .004); if (t2 < .7) blobs.push(l.nx[i], sy + l.L * .004, pf[1] * l.L * .95, pf[1] * l.L * .34); }
+    for (const g of l.legs) blobs.push(g.foot[0], floorY(g.foot[2]) - alt(g.foot[0], g.foot[2]), l.L * .045, l.L * .016);
+  }
   for (const c of crickets) { const sy = floorY(c.z) - alt(c.x, c.z); blobs.push(c.x, sy, unit * .018 * c.s, unit * .007 * c.s); }
   for (const t of turtles) {
     // a wide soft shadow plus a tight dark contact under the shell; in the pool it falls on the bed, fainter
@@ -1175,6 +1351,7 @@ function renderAll(t) {
     gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS);
     p = P.mesh; gl.useProgram(p.p); setView(p.u, v); gl.uniform1f(p.u.uYB, yB); gl.uniform1f(p.u.uD, depth); gl.uniform1f(p.u.uTime, t);
     const c = colorsFor(sp); gl.uniform3fv(p.u.uSkin, c.sk || [.2, .2, .2]); gl.uniform3fv(p.u.uSkin2, c.sk2 || [.2, .2, .2]); gl.uniform3fv(p.u.uEye, sp.eye); gl.uniform3fv(p.u.uBaseC, c.a); gl.uniform3fv(p.u.uAltC, c.b); gl.uniform3fv(p.u.uBelly, c.b2); gl.uniform1f(p.u.uScale, sp.scale * unit / 1080); gl.uniform1f(p.u.uGloss, sp.gloss); gl.uniform1f(p.u.uPat, c.pat); gl.uniform1f(p.u.uLen, (lizards[0] && lizards[0].L) || (turtles[0] && turtles[0].L) || 400);
+    const an = sp.an || { headEnd: 0, eyeT: 0, eyeR: 0 }; gl.uniform4f(p.u.uAn, an.headEnd, an.eyeT, 1.95, an.eyeR); gl.uniform3fv(p.u.uGnd, S.habitat === 'jungle' ? [.16, .13, .08] : [.48, .36, .22]);
     gl.uniform3fv(p.u.uKey, [1.45 * K + .06, 1.05 * K + .08, .68 * K + .17]); gl.uniform3fv(p.u.uAmb, [.15 * K + .025, .15 * K + .03, .135 * K + .055]);
     gl.bindVertexArray(mVAO); gl.drawElements(gl.TRIANGLES, iN, gl.UNSIGNED_INT, 0);
     if (pool) { gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.depthFunc(gl.LEQUAL); drawPool(P.poolTop, v, t, tint); gl.depthMask(true); gl.depthFunc(gl.LESS); }
@@ -1185,7 +1362,7 @@ function renderAll(t) {
     gl.disable(gl.BLEND);
   });
 }
-const colorsFor = (sp) => sp === SPECIES.box ? { a: [.058, .040, .024], b: [.74, .50, .11], b2: [.74, .60, .32], pat: 4, sk: [.115, .082, .052], sk2: [.86, .46, .10] } : sp === SPECIES.slider ? { a: [.085, .125, .042], b: [.60, .60, .18], b2: [.84, .74, .36], pat: 5, sk: [.12, .18, .065], sk2: [.74, .70, .22] } : sp === SPECIES.gecko ? { a: [.70, .46, .12], b: [.030, .026, .022], b2: [.80, .70, .52], pat: 0 } : sp === SPECIES.beardie ? { a: [.42, .27, .12], b: [.15, .08, .04], b2: [.70, .60, .42], pat: 1 } : sp === SPECIES.anole ? { a: [.07, .26, .04], b: [.20, .42, .07], b2: [.72, .74, .55], pat: 2 } : { a: [.40, .30, .18], b: [.07, .055, .045], b2: [.68, .60, .42], pat: 3 };
+const colorsFor = (sp) => sp === SPECIES.box ? { a: [.058, .040, .024], b: [.74, .50, .11], b2: [.74, .60, .32], pat: 4, sk: [.115, .082, .052], sk2: [.86, .46, .10] } : sp === SPECIES.slider ? { a: [.085, .125, .042], b: [.60, .60, .18], b2: [.84, .74, .36], pat: 5, sk: [.12, .18, .065], sk2: [.74, .70, .22] } : sp === SPECIES.gecko ? { a: [.70, .46, .12], b: [.030, .026, .022], b2: [.80, .70, .52], pat: 0 } : sp === SPECIES.beardie ? { a: [.52, .30, .12], b: [.19, .09, .035], b2: [.72, .60, .40], pat: 1 } : sp === SPECIES.anole ? { a: [.085, .23, .045], b: [.15, .30, .06], b2: [.66, .68, .52], pat: 2 } : { a: [.44, .37, .27], b: [.075, .05, .034], b2: [.64, .58, .44], pat: 3 };
 
 // ---- settings
 Object.assign(S, SCENE.defaults);
