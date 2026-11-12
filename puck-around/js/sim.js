@@ -14,7 +14,7 @@ export const TUNE = {
   PASS_V: 330, SHOT_V: 350, SHOT_PLUS: 170, WIND_FULL: 0.55, WIND_SLOW: 0.45,
   LUNGE_V: 245, LUNGE_T: 0.2, LUNGE_CD: 0.75, DOWN_T: 1.05, HIT_R: 11,
   G_TRACK: 70, G_DIVE: 128, G_REACT: 0.09, G_SAVE: 0.93, G_LEAN: 0.32, G_LEAN_MAX: 11,
-  AIM_HZ: 0.62, AIM_RANGE: 250,
+  AIM_HZ: 0.62, AIM_RANGE: 250, MOUSE_ERR: 0.03, MOUSE_ERR_D: 0.0004,
   STEAL: 1.3, BLOCK: 0.28, ANGER: 4, PEN_FRAC: 0.25, FIGHT_HP: 10, FIGHT_T: 22,
   // CPU skill: skating speed, how close the aim marker must be to the corner it wants, checks a second, faceoff reaction
   DIFF: [
@@ -52,7 +52,7 @@ export function newGame(cfg) {
     cfg, t: 0, tick: 0, seed: (cfg.seed | 0) || 1, phase: 'faceoff', phaseT: 0, period: 1, clock: cfg.periodLen,
     score: [0, 0], shots: [0, 0], sk: Array.from({ length: 12 }, (_, i) => mkSkater(i)),
     puck: { x: W / 2, y: MID, vx: 0, vy: 0, owner: -1, shot: false, passTo: -1, lastTeam: -1, lastSk: -1, noPick: { id: -1, t: 0 }, gk: [0, 0], tried: {} },
-    ctl: cfg.humans.map((h, i) => ({ idx: i, team: h.team, sk: -1, name: h.name, inp: { mx: 0, my: 0, a: false, b: false, pa: 0, pb: 0, pt: -1 }, pressA: false, pressB: false, dead: false })),
+    ctl: cfg.humans.map((h, i) => ({ idx: i, team: h.team, sk: -1, name: h.name, inp: { mx: 0, my: 0, a: false, b: false, pa: 0, pb: 0, pt: -1, mu: false, ax: 0, ay: 0 }, pressA: false, pressB: false, dead: false })),
     aim: [{ y: MID, on: false, ph: 0 }, { y: MID, on: false, ph: 0.37 }],
     fight: null, fightsLeft: 1, ev: [], evSeq: 0, fo: null, winner: -1, stats: { checks: [0, 0], fights: 0, passes: [0, 0] },
   };
@@ -241,10 +241,16 @@ function humanPass(S, s, mx, my, to) {
   release(S, s, s.dx * 300, s.dy * 300, false);
   emit(S, 'pass');
 }
-function shoot(S, s, power) {
+// pt: where a mouse player is pointing. Without it the shot goes at the sliding marker.
+function shoot(S, s, power, pt) {
   const a = S.aim[s.team], gx = oppGoal(s.team);
   let ang, dist = 0;
-  if (a.on) {
+  if (pt) {
+    const px = s.x + s.dx * 7, py = s.y + s.dy * 4 + 1;
+    dist = hyp(pt.x - px, pt.y - py);
+    ang = Math.atan2(pt.y - py, pt.x - px) + (rnd(S) - 0.5) * 2 * (T.MOUSE_ERR + dist * T.MOUSE_ERR_D);
+    if (Math.abs(pt.x - s.x) > 4) s.face = pt.x > s.x ? 1 : -1;
+  } else if (a.on) {
     const px = s.x + s.dx * 7, py = s.y + s.dy * 4 + 1;
     dist = hyp(gx - px, a.y - py);
     ang = Math.atan2(a.y - py, gx - px) + (rnd(S) - 0.5) * 2 * (0.012 + dist * 0.0002);
@@ -291,17 +297,18 @@ function human(S, c, dt) {
   if (s.down > 0) { if (c.pressA) switchCtl(S, c, to); return; }
   if (s.lunge > 0) return;
   const { mx, my } = c.inp, p = S.puck, has = p.owner === s.id;
+  const mu = c.inp.mu, cx = mu ? c.inp.ax - s.x : mx, cy = mu ? c.inp.ay - s.y : my;      // where actions point: the cursor, or the stick
   drive(s, mx, my, dt, (has ? T.V_CARRY : T.V_SKATE) * (s.wind >= 0 ? T.WIND_SLOW : 1));
   if (has) {
-    if (c.pressA && s.wind < 0) humanPass(S, s, mx, my, to);
+    if (c.pressA && s.wind < 0) humanPass(S, s, cx, cy, to);
     else {
       if (c.pressB && s.wind < 0) s.wind = 0;
-      if (s.wind >= 0) { s.wind += dt; if (!c.inp.b || s.wind > 1.1) shoot(S, s, Math.min(1, s.wind / T.WIND_FULL)); }
+      if (s.wind >= 0) { s.wind += dt; if (!c.inp.b || s.wind > 1.1) shoot(S, s, Math.min(1, s.wind / T.WIND_FULL), mu ? { x: c.inp.ax, y: c.inp.ay } : null); }
     }
   } else {
     s.wind = -1;
     if (c.pressA) switchCtl(S, c, to);
-    if (c.pressB && s.lungeCd <= 0) startLunge(s, mx, my);
+    if (c.pressB && s.lungeCd <= 0) startLunge(s, cx, cy);
   }
 }
 
@@ -524,7 +531,7 @@ function stepPlay(S, dt) {
     const u = a.ph % 2, v = u < 1 ? u : 2 - u;
     a.y = GY0 + 4 + v * (GY1 - GY0 - 8);
     const toGoal = owner ? dirOf(team) * (oppGoal(team) - owner.x) : 0;
-    a.on = !!owner && owner.team === team && owner.role < 5 && toGoal > 8 && toGoal < T.AIM_RANGE;
+    a.on = !!owner && owner.team === team && owner.role < 5 && toGoal > 8 && toGoal < T.AIM_RANGE && !(owner.ctl >= 0 && S.ctl[owner.ctl].inp.mu);
   }
   for (const s of S.sk) {
     if (s.lungeCd > 0) s.lungeCd -= dt;
