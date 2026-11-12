@@ -52,17 +52,17 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
   <p class="hint">An early release. The browser game’s own code, translated to Lua and drawn on 57,600 very small squares.</p>
 
   <div class="cta">
-    <a class="btn primary" href="/the-endgame-is-me-wow/TheEndgameIsMe-1.1.1.zip" download>
-      <b>Download for Classic Forever</b><small>v1.1.1 · 4.3 MB · free</small>
+    <a class="btn primary" href="/the-endgame-is-me-wow/TheEndgameIsMe-1.3.0.zip" download>
+      <b>Download for Classic Forever</b><small>v1.3.0 · 4.7 MB · free</small>
     </a>
-    <a class="btn primary" href="/the-endgame-is-me-wow/TheEndgameIsMe-Retail-1.1.1.zip" download>
-      <b>Download for retail (Midnight)</b><small>v1.1.1 · 4.3 MB · free</small>
+    <a class="btn primary" href="/the-endgame-is-me-wow/TheEndgameIsMe-Retail-1.3.0.zip" download>
+      <b>Download for retail (Midnight)</b><small>v1.3.0 · 4.7 MB · free</small>
     </a>
     <a class="btn" href="/the-endgame-is-me/">
       <b>Play it in a browser</b><small>the original, nothing to install</small>
     </a>
   </div>
-  <p class="note">Treat both as test releases. On Classic Forever it has been played in the live game as far as the Hoard, and the Controls panel works there; a run all the way to the castle has so far only been played against a stand-in for the game’s API. The retail build hasn’t been run in a live client yet.</p>
+  <p class="note">Treat both as test releases. On Classic Forever it has been played in the live game as far as the Hoard, and the Controls panel works there; a run all the way to the castle has so far only been played against a stand-in for the game’s API, and so has the newest part of 1.3.0 (adventurers and the boss shown as pictures; <code>/endgame sprites off</code> turns that off). The retail build hasn’t been run in a live client yet.</p>
 
   <figure>
     <img src="/the-endgame-is-me-wow/preview.png" width="640" height="360" alt="A top-down pixel-art clearing ringed by standing stones. A large furry horned boss stands on a worn path between two rocks, inside a red circle that warns of a stomp, while a handful of tiny adventurers close in. The corner shows a score, a lap count and the boss’s health bar, named Old Bristles.">
@@ -151,6 +151,8 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
 
   <h2>What’s new</h2>
   <ul>
+    <li><b>1.3.0:</b> faster again. The adventurers and the boss are pictures laid over the ground now and the HUD has a layer of its own, so far fewer squares are recoloured each frame. City buildings each keep their own roof. Updating from an older version needs the game closed and started again, not just a reload.</li>
+    <li><b>1.2.0:</b> each level’s ground is one picture, and trees, houses and walls are pictures until something happens to them. Levels load in a blink. Levels 1 to 7 are now the same place every run, and the boss no longer leaves footprints.</li>
     <li><b>1.1.1:</b> faster. Each frame takes about a third less work, and close to half on the last three levels, where it used to slow down. The picture and the rules are unchanged.</li>
     <li><b>1.1.0:</b> change the controls. Any action can go on any key or mouse button, two each. And a fix for the Hoard: clicking a slot used to step through your abilities and shuffle the other buttons on the way. Now a slot puts up a list to pick from.</li>
     <li><b>1.0.0:</b> the first release.</li>
