@@ -490,7 +490,7 @@ async function curseforge() {
     if (!gv) { left.push(job); log(`curseforge: no game version ${job.gameVersion} for ${job.client} yet; ${job.file} waits for the next run`); continue; }
     const form = new FormData();
     form.append('metadata', JSON.stringify({
-      changelog: `Updated for ${job.why}. Nothing else changed.`, changelogType: 'markdown',
+      changelog: job.changelog || `Updated for ${job.why}. Nothing else changed.`, changelogType: 'markdown',
       displayName: job.file.replace(/\.zip$/, ''), gameVersions: [gv.id], releaseType: cf.releaseType[job.client] || 'release',
     }));
     form.append('file', new Blob([fs.readFileSync(rel(path.join(config.addons[job.addon].page, job.file)))]), job.file);
