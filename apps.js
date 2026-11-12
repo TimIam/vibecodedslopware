@@ -1300,7 +1300,7 @@ window.SLOPWARE = {
   "puck-around": {
    "visits": 0,
    "prompts": 6,
-   "tokens": 1283306,
+   "tokens": 1288879,
    "sharedWith": null,
    "versions": [
     {
@@ -1329,7 +1329,7 @@ window.SLOPWARE = {
      "date": "2026-11-12T03:26:26-07:00",
      "note": "the skater follows the cursor, shots and passes go where it points",
      "prompts": 2,
-     "tokens": 746067
+     "tokens": 751640
     }
    ]
   },
@@ -1345,6 +1345,21 @@ window.SLOPWARE = {
      "note": "review AI-disclosed games on Vapor",
      "prompts": 5,
      "tokens": 406393
+    }
+   ]
+  },
+  "midnight-snack": {
+   "visits": 0,
+   "prompts": 3,
+   "tokens": 473146,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-12T03:32:41-07:00",
+     "note": "a CaseOh stealth-horror fridge raid",
+     "prompts": 3,
+     "tokens": 473146
     }
    ]
   },
