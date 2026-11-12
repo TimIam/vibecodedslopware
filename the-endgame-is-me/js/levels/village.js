@@ -11,8 +11,8 @@ const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
 // ---------------------------------------------------------------------------------------------- kinds
 
-const BUILDING = { solid: true, flammable: true, crushShare: 0.5, spread: 0.3 };
-const SMALL = { flammable: true, crushShare: 0.5, burnTime: 4, spread: 0.3 };
+const BUILDING = { solid: true, flammable: true, spread: 0.3 };
+const SMALL = { flammable: true, burnTime: 4, spread: 0.3 };
 export const kinds = {
   cottage: { ...BUILDING, w: 20, h: 12, hp: 160, burnTime: 9, leaves: '#c4a858', value: { pts: 200, venge: 0.16, chaos: 1.8 } },
   inn: { ...BUILDING, w: 32, h: 18, hp: 360, burnTime: 13, leaves: '#8a5a36', value: { pts: 450, venge: 0.3, chaos: 3.5 } },

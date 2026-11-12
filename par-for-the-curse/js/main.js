@@ -773,7 +773,7 @@ addEventListener('keydown', e => {
   if (k === 't') { startEmote('tantrum', 2.2); quip('tantrum', {}, false); sendEv({ k: 'emote', e: 'tantrum' }); addRage(-30); }
   if (k === 'g') { startEmote('dance', 2.4); sendEv({ k: 'emote', e: 'dance' }); }
   if (k === 'r') takeDrop();
-  if (k === ' ') e.preventDefault();
+  if (k === ' ') { e.preventDefault(); if (!e.repeat && S.grip && S.mode === 'walk') startKick(); }
   const shouts = { z: 'FORE!', x: 'Nice shot!', c: 'ARGH!', j: 'Hold my juice box.' };
   if (k === 'v') toggleView();
   if (shouts[k]) shout(shouts[k], true);
@@ -1200,6 +1200,7 @@ function step(dt) {
   // wherever the camera faces, as in Half Sword, and that is all: nothing lines anything up with the
   // ball and nothing shows where it will go. Local +x (the way the face looks) is the golfer's left.
   healthTick(dt);
+  kickTick(dt);
   S.hold = held();
   swing.golf = S.mode === 'address';
   if (S.mode === 'address' && S.leaveAt && t > S.leaveAt) leaveAddress();
@@ -1499,6 +1500,8 @@ function poseMe(dt) {
       const up = clamp(swing.target.y / 1.55, 0, 1);
       s.tilt = 0.38 - 0.24 * up; s.lean = clamp(-a * 0.12, -0.14, 0.14); s.knee = 0.04 + Math.abs(a) * 0.012 + up * 0.01;
       s.look = V(clamp(swing.head.x * 0.45, -0.6, 0.6), 0.45 + up * 0.25, 1.4);
+      const kf = S.kick != null && kickFoot(S.kick, swing.R.ankle);
+      if (kf) { s.feet[0].copy(kf); const k = Math.min(1, kf.y / KICK_OUT.y); s.tilt -= KICK.lean * k; s.hipZ = -0.02 - 0.05 * k; }
     } else s.look = swing.ball.clone();
   }
   me.pose(s, dt, S.t);
@@ -1730,6 +1733,52 @@ function meleeCheck() {
     }
   }
 }
+// A kick: Space while holding the club. The lead (left) leg comes up bent, snaps out straight in front and
+// comes back down, and the golfer steps in behind it (lunge, metres) so it reaches someone at club's length.
+// Times are seconds from the start.
+const KICK = { up: 0.11, out: 0.2, back: 0.42, gap: 0.65, lunge: 0.32, s: 6.5, shove: 8, lean: 0.22 };
+const KICK_UP = V(0.13, 0.17, 0.1), KICK_OUT = V(0.08, 0.23, 0.36), _kf = V();
+// Where the lead foot is t seconds into a kick (local frame); null once it is back on the ground.
+function kickFoot(t, ankle, out = _kf) {
+  const rest = _kb.set(0.15, ankle, 0.02), sm = x => x * x * (3 - 2 * x);
+  if (t < 0 || t >= KICK.back) return null;
+  if (t < KICK.up) return out.lerpVectors(rest, KICK_UP, sm(t / KICK.up));
+  if (t < KICK.out) return out.lerpVectors(KICK_UP, KICK_OUT, sm((t - KICK.up) / (KICK.out - KICK.up)));
+  return out.lerpVectors(KICK_OUT, rest, sm((t - KICK.out) / (KICK.back - KICK.out)));
+}
+const _kb = V();
+function startKick() {
+  if (S.kick != null || S.t - (S.kickAt ?? -9) < KICK.gap || !W.grounded || S.ko || S.hold || S.down) return;
+  S.kick = 0; S.kickAt = S.t; S.kickHit = false; me.squash = 0.25; A.play('pop', 0.25);
+}
+// The foot is the only part that counts: while it is snapping out, anyone it reaches is kicked.
+function kickTick(dt) {
+  if (S.kick == null) return;
+  S.kick += dt;
+  if (!S.grip || S.kick >= KICK.back) { S.kick = null; return; }
+  // The step in: forward along the way the golfer faces, while the leg goes out. The walk collision pushes
+  // back out of anything solid next frame.
+  if (S.kick > KICK.up * 0.5 && S.kick < KICK.out) {
+    const fw = localToWorld(_kb.set(0, 0, 1), V()).sub(S.golferG).setY(0).normalize();
+    S.golferG.addScaledVector(fw, KICK.lunge * Math.min(dt, KICK.out - S.kick) / (KICK.out - KICK.up * 0.5));
+  }
+  if (S.kickHit || S.kick < KICK.up * 0.6 || S.kick > KICK.out + 0.06) return;
+  const foot = localToWorld(kickFoot(S.kick, swing.R.ankle, V()), V()), fwd = localToWorld(V(0, 0, 1), V()).sub(S.golferG).setY(0).normalize();
+  for (const [id, o] of others) {
+    if (o.down || o.riding || o.G.distanceTo(S.golferG) > 1.6) continue;
+    for (const [part, mesh, up, r] of BODY_PARTS) {
+      const c = o.golfer.p[mesh].localToWorld(V(0, up, 0));
+      if (c.distanceTo(foot) > r * ACTOR + 0.12) continue;
+      S.kickHit = true;
+      const v = fwd.clone().multiplyScalar(KICK.shove); v.y = 2.8;
+      whackTo(id, { k: 'whack', to: id, v: v.toArray().map(x => +x.toFixed(2)), part, s: KICK.s, kick: 1 });
+      S.hitStop = HIT_STOP; shake(0.15); fx.sparks(foot, 10); A.play('thud', 1);
+      pop('KICK!' + `<small>-${whackDamage(part, KICK.s)}</small>`, 'great', c.clone().add(V(0, 0.3, 0)));
+      if (window.__whacks) window.__whacks.push({ part, s: KICK.s, with: 'kick' });
+      return;
+    }
+  }
+}
 // The one who is hit works out the damage, from a speed and a body part it has checked for itself, and
 // only from a golfer who is close enough to have reached.
 function takeHit(p, nm, e) {
@@ -1740,14 +1789,14 @@ function takeHit(p, nm, e) {
   o.hitMeT = S.t;
   v.clampLength(0, 15);
   const part = ['head', 'body', 'legs'].includes(e.part) ? e.part : 'body';
-  const head = part === 'head', s = clamp(+e.s || 0, 0, 16), hard = head && s > 4, driving = S.mode === 'drive';
+  const head = part === 'head', s = clamp(+e.s || 0, 0, 16), hard = head && s > 4, driving = S.mode === 'drive', kicked = !!e.kick;
   const dmg = Math.round(whackDamage(part, s) * (driving ? 0.5 : 1));      // the cart takes half of it
   me.squash = 1; shake(hard ? 0.35 : 0.18); A.play('thud', 1); addRage(hard ? 14 : 7);
   fx.sparks(S.golferG.clone().add(V(0, head ? 0.65 : 0.4, 0)), hard ? 16 : 8);
   // Hit while lining up a shot: you are knocked out of the golf stance.
   const popped = S.mode === 'address';
   if (popped) leaveAddress();
-  toast((hard ? `💫 ${nm} clocked you in the head!` : `💥 ${nm} whacked you`) + ` <b>-${dmg}</b>` + (popped ? ' and knocked you out of your stance' : ''));
+  toast((kicked ? `🦶 ${nm} kicked you` + (head ? ' in the head!' : '') : hard ? `💫 ${nm} clocked you in the head!` : `💥 ${nm} whacked you`) + ` <b>-${dmg}</b>` + (popped ? ' and knocked you out of your stance' : ''));
   const down = hurt(dmg, p.id);
   if (S.mode !== 'walk') return;      // still in the cart: it stings but you stay put
   S.grip = false; W.v.copy(v); W.grounded = false; W.carry.set(0, 0, 0);
@@ -1916,7 +1965,7 @@ function promptText() {
     if (nearCannon()) return '<kbd>E</kbd> light the cannon when the needle is in the red';
     if (S.hold) return '🏁 Get ready…';
     if (S.down) return '💫 Knocked down. You will be back up in a moment.';
-    if (S.grip) return 'The mouse is the club · <b>Right mouse</b> thrust · <kbd>Q</kbd><kbd>E</kbd> turn · <kbd>H</kbd> hit boxes';
+    if (S.grip) return 'The mouse is the club · <b>Right mouse</b> thrust · <kbd>Space</kbd> kick · <kbd>Q</kbd><kbd>E</kbd> turn · <kbd>H</kbd> hit boxes';
     if (S.awaitPark) return '🅿️ Park the cart in the bay at the summit to finish';
     if (nearCart()) return '<kbd>E</kbd>: hop in the cart';
     return (S.noClub ? '<kbd>2</kbd>–<kbd>5</kbd> pick a club' : '<b>Hold left mouse</b> to swing freely · <b>Right click</b> by your ball for the golf stance') + ' · <kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump';
@@ -2032,6 +2081,7 @@ function netTick(dt) {
     const r2 = n => Math.round(n * 100) / 100, r3 = n => Math.round(n * 1000) / 1000;
     const c = carts[0], driven = S.mode === 'drive' && S.cart === c;
     const st = { b: ball.p.toArray().map(r2), g: [r2(S.golferG.x), r2(S.golferG.y), r2(S.golferG.z), r3(bodyYaw())], wk: S.mode === 'walk' && !S.grip ? (Math.hypot(W.v.x, W.v.z) > 0.2 ? 2 : 1) : 0, air: S.mode === 'walk' && !S.grip && !W.grounded ? 1 : 0, dr: driven ? 1 : 0, hl: S.awaitPark ? NHOLES + 1 : S.hole, h: swing.hand.toArray().map(r3), hd: swing.head.toArray().map(r3), ko: r2(S.ko || 0), hp: Math.round(S.hp), c: heldClub(), e: S.emote || 0, et: r2(S.emoteT), m: S.ballLive ? 1 : 0, rd: Math.round(me.redness * 10) / 10, bv: ballMesh.visible ? 1 : 0 };
+    if (S.kick != null) st.kk = r2(S.kick);
     // The cart is always somewhere, parked or not: every pose while it moves, once a second while it sits.
     const rolling = driven || Math.abs(c.speed) > 0.05 || !c.grounded || c.push.lengthSq() > 0.01 || c.pos.distanceToSquared(cartSent) > 0.0025;
     const pose = JSON.stringify(st);
@@ -2137,6 +2187,8 @@ function updateOthers(dt) {
       o.cartVel.set(Math.sin(ct[3]) * sp, 0, Math.cos(ct[3]) * sp);
     }
     o.golfer.redness = lerp(o.golfer.redness, +s.rd || 0, dt * 3);
+    // A kick: take its time from them, then run it on here between messages.
+    if (Number.isFinite(+s.kk) && s.kk > 0 && o.kkAt !== p.t) { o.kkAt = p.t; o.kick = clamp(+s.kk, 0, KICK.back); } else if (o.kick != null) { o.kick += dt; if (o.kick >= KICK.back || !(s.kk > 0) && o.kkAt !== p.t) o.kick = null; }
     if (s.e && !o.emote) { o.emote = s.e; o.emoteT = s.et || 0; }
     if (!s.e) o.emote = null;
     if (o.emote) o.emoteT += dt;
@@ -2164,6 +2216,8 @@ function updateOthers(dt) {
       pose.faceRef = o.sw.faceAt(o.hand, V());
       const rel = _a.subVectors(o.hand, o.sw.S); const al = Math.atan2(rel.x, rel.dot(o.sw.a0));
       pose.turn = clamp(al * 0.6, -1.3, 1.15);
+      const kf = o.kick != null && kickFoot(o.kick, o.sw.R.ankle, V());
+      if (kf) { o.kickSeen = true; pose.feet = [kf, V(-0.15, o.sw.R.ankle, 0.02)]; pose.tilt -= KICK.lean * Math.min(1, kf.y / KICK_OUT.y); }
       _b.subVectors(o.bpos, o.G); pose.look = V(_b.dot(f) / ACTOR, _b.y / ACTOR, _b.dot(w) / ACTOR);
     }
     const cr = !!p.presence?.crown; if (cr !== o.crown) { o.crown = cr; o.golfer.setCrown(cr); }

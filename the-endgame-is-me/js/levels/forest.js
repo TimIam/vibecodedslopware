@@ -3,7 +3,7 @@
 
 const TAU = Math.PI * 2;
 
-const TREE = { flammable: true, burnTime: 7, spread: 0.25, crushShare: 0.5 };
+const TREE = { flammable: true, burnTime: 7, spread: 0.25 };
 export const kinds = {
   pine: { ...TREE, r: 3, slow: 0.45, slowR: 9, leaves: 'needle', value: { pts: 120, venge: 0.12, chaos: 1 } },
   oak: { ...TREE, r: 4, slow: 0.45, slowR: 10, burnTime: 8, leaves: 'leaf', value: { pts: 150, venge: 0.14, chaos: 1.2 } },

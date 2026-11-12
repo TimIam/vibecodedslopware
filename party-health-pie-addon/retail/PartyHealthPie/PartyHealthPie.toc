@@ -1,0 +1,11 @@
+## Interface: 120105
+## Title: Party Health Pie
+## Notes: A circular 5-man party health and resource meter for Midnight.
+## Author: timiam
+## Version: 1.1.1
+## SavedVariables: PartyHealthPieDB
+
+Config.lua
+Pie.lua
+Party.lua
+Options.lua

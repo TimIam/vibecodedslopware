@@ -115,6 +115,11 @@ window.SLOPWARE = {
      "n": 3,
      "date": "2026-11-08T18:03:26-07:00",
      "note": "role symbols, and a debuff color, glow and timer for dispels"
+    },
+    {
+     "n": 4,
+     "date": "2026-11-12T04:37:09-07:00",
+     "note": "1.1.1 downloads, tooltip and mouse-button notes"
     }
    ]
   },
@@ -1280,13 +1285,27 @@ window.SLOPWARE = {
      "note": "PIN prompt, leave to the title, ragdoll drawing fixes",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 25,
+     "date": "2026-11-11T06:46:48-07:00",
+     "note": "less springy ragdolls, arms keep up and don't wedge",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 26,
+     "date": "2026-11-11T12:15:08-07:00",
+     "note": "Space kicks with the lead leg while holding the club",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
   "puck-around": {
    "visits": 0,
-   "prompts": 4,
-   "tokens": 542849,
+   "prompts": 6,
+   "tokens": 1288879,
    "sharedWith": null,
    "versions": [
     {
@@ -1308,7 +1327,44 @@ window.SLOPWARE = {
      "date": "2026-11-10T12:32:29-07:00",
      "note": "quitting a matchmade game goes back to the title",
      "prompts": 0,
-     "tokens": 14336
+     "tokens": 8726
+    },
+    {
+     "n": 4,
+     "date": "2026-11-12T03:26:26-07:00",
+     "note": "the skater follows the cursor, shots and passes go where it points",
+     "prompts": 2,
+     "tokens": 751640
+    }
+   ]
+  },
+  "reviewbomb": {
+   "visits": 0,
+   "prompts": 5,
+   "tokens": 406393,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-11T14:16:40-07:00",
+     "note": "review AI-disclosed games on Vapor",
+     "prompts": 5,
+     "tokens": 406393
+    }
+   ]
+  },
+  "midnight-snack": {
+   "visits": 0,
+   "prompts": 3,
+   "tokens": 485466,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-12T03:32:41-07:00",
+     "note": "a CaseOh stealth-horror fridge raid",
+     "prompts": 3,
+     "tokens": 485466
     }
    ]
   },
@@ -1343,6 +1399,13 @@ window.SLOPWARE = {
      "n": 4,
      "date": "2026-11-10T12:27:52-07:00",
      "note": "rename the Endgame shirt, add Endgame Logo and Slopware 2 shirts",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 5,
+     "date": "2026-11-10T14:54:45-07:00",
+     "note": "Endgame Logo shirt with each line bent evenly",
      "prompts": 0,
      "tokens": 0
     }
@@ -1479,6 +1542,27 @@ window.SLOPWARE = {
      "n": 13,
      "date": "2026-11-09T05:59:29-07:00",
      "note": "the splash loads with the page and plays after the sound screen",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 14,
+     "date": "2026-11-10T14:54:45-07:00",
+     "note": "Endgame Logo shirt with each line bent evenly",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 15,
+     "date": "2026-11-11T09:42:57-07:00",
+     "note": "necromancers raise the dead, new final powers, castle past 100%",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 16,
+     "date": "2026-11-11T14:36:03-07:00",
+     "note": "fell the keep tower like a tree, crushing pays in full, debug Hoard",
      "prompts": 0,
      "tokens": 0
     }

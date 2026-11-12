@@ -15,7 +15,14 @@ main{padding:64px 16px 48px;display:grid;grid-template-columns:minmax(260px,1fr)
 main>*{grid-column:2;min-width:0}
 h1{font-size:clamp(34px,7vw,56px);line-height:1.05;margin:0 0 12px;letter-spacing:-1px}
 h1 span{color:var(--accent)}
-.lede{color:var(--dim);font-size:18px;margin:0 0 28px;max-width:560px}
+.lede{color:var(--dim);font-size:18px;margin:0 0 14px;max-width:560px}
+.bucket{justify-self:start;display:inline-flex;align-items:center;gap:14px;max-width:560px;margin:0 0 26px;padding:8px 20px 8px 10px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:inherit;text-decoration:none;transition:transform .15s,border-color .15s}
+.bucket:hover,.bucket:focus-visible{transform:translateY(-2px);border-color:var(--accent)}
+.bucket canvas{flex:none;width:112px;height:104px;image-rendering:pixelated;transition:transform .2s}
+.bucket:hover canvas{transform:rotate(-5deg) scale(1.06)}
+.bucket b{display:block;font-size:19px;line-height:1.2;color:var(--accent)}
+.bucket small{display:block;margin-top:2px;color:var(--dim);font-size:14.5px}
+@media (max-width:520px){.bucket canvas{width:84px;height:78px}}
 .grid{display:grid;gap:14px}
 a.card{position:relative;display:grid;grid-template-columns:64px 1fr auto;gap:16px;align-items:center;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:inherit;text-decoration:none;transition:transform .15s,border-color .15s}
 a.card:hover{transform:translateY(-2px);border-color:var(--accent)}
@@ -87,6 +94,10 @@ a.card:hover~.star,.star:hover{transform:translateY(-2px)}
 <main>
   <h1>vibe coded <span>slopware</span></h1>
   <p class="lede">Small, weird, lovingly vibe-coded things. No warranty. No roadmap. Some assembly required.</p>
+  <a class="bucket" href="https://github.com/TimIam/vibecodedslopware" target="_blank" rel="noopener" aria-label="The Slop Bucket: all of the source code, on GitHub (opens in a new tab)">
+    <canvas id="slop-bucket" width="56" height="52" aria-hidden="true"></canvas>
+    <span><b>The Slop Bucket</b><small>Every line of code behind this site, still warm and a little lumpy. Reach in on GitHub. Wash your hands after.</small></span>
+  </a>
   <div class="sortbar" role="group" aria-label="Sort">Sort:
     <button type="button" data-sort="latest">Latest update</button>
     <button type="button" data-sort="first">First release</button>
@@ -284,6 +295,16 @@ a.card:hover~.star,.star:hover{transform:translateY(-2px)}
       <div><h2>Puck Around &amp; Find Out</h2><p>Arcade hockey to play online with friends. Send a room code, pick sides, drop the puck. Time your shot against the marker sliding across the goal mouth, throw body checks, and check the same skater once too often and the gloves come off. Loser sits five for fighting.</p></div>
       <span class="tag">hockey · multiplayer · 16-bit</span>
     </a>
+    <a class="card" href="/reviewbomb/">
+      <div class="icon">💣</div>
+      <div><h2>Reviewbomb the Slop</h2><p>Log into eight strangers' accounts on Vapor and review games that disclosed AI use, from two autocompleted lines of code to full slopware. Read the store page and the disclosure, then pick what to say. Fair, specific reviews go viral. Going nuclear on two lines of autocomplete gets you ratio'd.</p></div>
+      <span class="tag">review sim · 8-bit</span>
+    </a>
+    <a class="card" href="/midnight-snack/">
+      <div class="icon">🍕</div>
+      <div><h2>Midnight Snack</h2><p>A CaseOh stealth-horror fridge raid. It's 3 AM, you're starving, and the Portion Controller is in the house. Heavy food makes you slow and loud, creaky boards give you away, and your gas is a weapon: leak it quietly or let out the big one to stun the monster. Just don't do it while you're hiding. Ban the roasts in chat for a bonus. Fan-made, not affiliated.</p></div>
+      <span class="tag">stealth horror · fan game</span>
+    </a>
     <a class="card" href="/shop/">
       <div class="icon">👕</div>
       <div><h2>Wear the Slop</h2><p>Shirts and hoodies with art pulled out of the games. Try one on with your camera first. Every order keeps the slop coming.</p></div>
@@ -322,6 +343,124 @@ a.card:hover~.star,.star:hover{transform:translateY(-2px)}
   </div>
   <footer>Made with questionable judgment and an AI pair programmer. The small squares are older versions you can still play. Prompts are the messages typed to Claude Code to build each thing; tokens are what went in and out, not counting cached re-reads. Things built in Claude Code on the web left no transcript, so they show dates only. Popular counts visits to each page over 30 days.</footer>
 </main>
+<script>
+// The Slop Bucket: the splash's goo, left out in the sun. Same palette and dither, drawn at 56x52 and doubled.
+(() => {
+  const cv = document.getElementById("slop-bucket");
+  if (!cv) return;
+  const g = cv.getContext("2d"), W = 56, H = 52, CX = 28;
+  const GOO = ["#06281e", "#0e5238", "#1c8a3c", "#44c23a", "#8cec48", "#d8ff86", "#f4ffd0", "#ffffff"];
+  const TIN = ["#3a3d4a", "#5d6272", "#8b91a3", "#c3c8d6"], OUT = "#100728", RUST = "#8a4a2a", BONE = "#efe6c8", RED = "#c8324a";
+  const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  const dith = (x, y) => BAYER[(y & 3) << 2 | x & 3] / 16 - 0.5;
+  const px = (x, y, c) => { g.fillStyle = c; g.fillRect(x | 0, y | 0, 1, 1); };
+  const row = (x, y, w, c) => { if (w > 0) { g.fillStyle = c; g.fillRect(x | 0, y | 0, w | 0, 1); } };
+  const RIM = 23, FLOOR = 46;
+  const half = y => Math.round(17 - 5 * (y - RIM) / (FLOOR - RIM));
+  const RUNS = [{ x: -14, len: 9, w: 3, ph: 0.3, per: 2.3 }, { x: -6, len: 15, w: 2, ph: 2.1, per: 3.1 }, { x: 3, len: 7, w: 3, ph: 4.0, per: 2.7 }, { x: 11, len: 12, w: 2, ph: 1.2, per: 3.7 }];
+  const BUBBLES = [{ x: -9, per: 2.9, off: 0.1 }, { x: 6, per: 3.7, off: 0.55 }, { x: 13, per: 2.3, off: 0.8 }];
+  const top = (x, t) => RIM - 1 - (9 * Math.sqrt(Math.max(0, 1 - x * x / 380)) + 1.3 * Math.sin(x * 0.6 + t * 2.2) + 0.8 * Math.sin(x * 1.3 - t * 3.1));
+
+  function draw(t) {
+    g.clearRect(0, 0, W, H);
+    // Puddle it is standing in.
+    for (let r = -2; r <= 2; r++) {
+      const hw = Math.round(24 * Math.sqrt(1 - r * r / 6.5));
+      row(CX - hw - 1, 48 + r, hw * 2 + 3, OUT);
+      for (let x = -hw; x <= hw; x++) px(CX + x, 48 + r, GOO[dith(x, r) + 0.15 * Math.sin(x * 0.5 + t * 2) > 0.1 ? 3 : 2]);
+    }
+    // The pail.
+    for (let y = RIM; y <= FLOOR; y++) {
+      const hw = half(y);
+      row(CX - hw - 1, y, hw * 2 + 3, OUT);
+      const band = y === RIM + 4 || y === FLOOR - 5;
+      for (let x = -hw; x <= hw; x++) {
+        const n = x / hw + dith(x, y) * 0.3;
+        px(CX + x, y, band ? TIN[n < -0.3 ? 1 : 0] : TIN[n < -0.6 ? 2 : n < -0.15 ? 3 : n < 0.45 ? 2 : n < 0.8 ? 1 : 0]);
+      }
+    }
+    row(CX - half(FLOOR), FLOOR + 1, half(FLOOR) * 2 + 1, OUT);
+    for (const [x, y] of [[9, 33], [10, 34], [10, 35], [-11, 43], [-10, 44], [5, 39], [12, 30]]) px(CX + x, y, RUST);
+    // Handle, hanging slack down the front.
+    for (let x = -16; x <= 16; x++) {
+      const y = RIM + 2 + Math.round(12 * Math.sqrt(1 - x * x / 272));
+      px(CX + x, y, TIN[3]); px(CX + x, y + 1, OUT);
+    }
+    // What is in it.
+    for (let x = -18; x <= 18; x++) {
+      const y0 = Math.round(top(x, t));
+      px(CX + x, y0 - 1, OUT);
+      for (let y = y0; y <= RIM; y++) {
+        const v = (RIM - y) / 10;
+        const level = Math.max(1, Math.min(5, (7 * (0.42 - x / 18 * 0.2 + v * 0.34) + dith(x, y) * 0.9) | 0));
+        px(CX + x, y, GOO[level]);
+      }
+    }
+    px(CX - 19, RIM, OUT); px(CX + 19, RIM, OUT); px(CX - 19, RIM - 1, OUT); px(CX + 19, RIM - 1, OUT);
+    // Something's spine.
+    const by = Math.round(top(-2, t)) - 5;
+    for (let i = 0; i < 9; i++) px(CX - 4 + (i >> 1), by + i - 1, BONE);
+    for (const i of [1, 3, 5]) { row(CX - 6 + (i >> 1), by + i, 2, BONE); row(CX - 2 + (i >> 1), by + i - 1, 2, BONE); }
+    px(CX - 5, by - 2, BONE); px(CX - 3, by - 2, BONE); px(CX - 4, by - 3, BONE);
+    // And an eye, which is still looking around.
+    const ex = CX + 9, ey = Math.round(top(9, t)) - 2 + Math.round(Math.sin(t * 1.7));
+    for (let y = -3; y <= 3; y++) { const hw = y === -3 || y === 3 ? 1 : Math.abs(y) === 2 ? 2 : 3; row(ex - hw - 1, ey + y, hw * 2 + 3, OUT); }
+    for (let y = -2; y <= 2; y++) { const hw = Math.abs(y) === 2 ? 1 : 2; row(ex - hw - 1 + (Math.abs(y) === 2 ? 0 : 0), ey + y, hw * 2 + 3 - (Math.abs(y) === 2 ? 0 : 0), "#f4ffd0"); }
+    px(ex - 3, ey + 1, RED); px(ex + 3, ey - 1, RED); px(ex + 2, ey + 2, RED);
+    const lx = Math.round(Math.sin(t * 0.9) * 1.6), ly = Math.round(Math.cos(t * 1.3) * 0.9);
+    row(ex + lx - 1, ey + ly - 1, 2, OUT); row(ex + lx - 1, ey + ly, 2, OUT);
+    // Bubbles that swell and pop.
+    for (const b of BUBBLES) {
+      const f = (t / b.per + b.off) % 1, y = Math.round(top(b.x, t));
+      if (f < 0.8) {
+        const r = 1 + (f / 0.8 * 2.4 | 0);
+        for (let a = 0; a < 12; a++) px(CX + b.x + Math.round(r * Math.cos(a * Math.PI / 6)), y - r + Math.round(r * Math.sin(a * Math.PI / 6)), GOO[5]);
+        px(CX + b.x - 1, y - r - 1, GOO[7]);
+      } else if (f < 0.9) {
+        const k = (f - 0.8) * 40;
+        for (const [dx, dy] of [[-1, -1], [1, -1], [-1.4, 0.2], [1.4, 0.2], [0, -1.5]]) px(CX + b.x + dx * (2 + k), y - 3 + dy * (2 + k), GOO[6]);
+      }
+    }
+    // Runs down the outside, and what falls off the end of them.
+    for (const r of RUNS) {
+      const len = Math.round(r.len + 2 * Math.sin(t * 1.1 + r.ph));
+      for (let y = 0; y <= len; y++) {
+        const yy = RIM + y, w = y > len - 2 ? Math.max(1, r.w - 1) : r.w;
+        row(CX + r.x - 1, yy, w + 2, OUT);
+        row(CX + r.x, yy, w, GOO[y < 2 ? 3 : 4]);
+        if (y > 1 && y < len - 1) px(CX + r.x, yy, GOO[5]);
+      }
+      row(CX + r.x, RIM + len + 1, Math.max(1, r.w - 1), OUT);
+      const f = (t / r.per + r.ph) % 1;
+      if (f > 0.5) {
+        const k = (f - 0.5) / 0.5, y0 = RIM + len + 2, y = y0 + k * k * (47 - y0);
+        if (y < 46) { row(CX + r.x - 1, y, 3, OUT); row(CX + r.x - 1, y + 1, 3, OUT); px(CX + r.x, y - 1, OUT); px(CX + r.x, y, GOO[5]); px(CX + r.x, y + 1, GOO[4]); }
+        else for (const d of [-3, 3]) px(CX + r.x + d * (0.5 + k), 46 - (1 - k) * 12, GOO[5]);
+      }
+    }
+    // Stink.
+    for (const [sx, ph] of [[-15, 0], [0, 2], [16, 4]]) for (let i = 0; i < 9; i++) {
+      const y = 9 - i + ((t * 5 + ph * 3) % 4 | 0) - 2;
+      if (y > 0 && y < 10 && (i + (t * 5 | 0)) % 3) px(CX + sx + Math.round(1.6 * Math.sin(i * 0.9 + t * 2 + ph)), y, GOO[2]);
+    }
+    // Flies.
+    for (const [a, b, ph] of [[1.9, 2.7, 0], [2.3, 1.7, 2.4], [1.3, 3.1, 4.4]]) {
+      const x = CX + Math.round(22 * Math.sin(t * a + ph)), y = 9 + Math.round(7 * Math.sin(t * b + ph * 2));
+      row(x, y, 2, OUT);
+      if ((t * 24 + ph | 0) & 1) { px(x - 1, y - 1, "#c9d2e6"); px(x + 2, y - 1, "#c9d2e6"); } else { px(x, y - 1, "#c9d2e6"); px(x + 1, y - 1, "#c9d2e6"); }
+    }
+  }
+
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { draw(1.3); return; }
+  // 12 frames a second: it is a bucket, and it reads more 16-bit that way.
+  let last = -1;
+  (function tick(ms) {
+    const f = ms / 1000 * 12 | 0;
+    if (f !== last) { last = f; draw(f / 12); }
+    requestAnimationFrame(tick);
+  })(0);
+})();
+</script>
 <script src="/apps.js"></script>
 <script>
 (() => {

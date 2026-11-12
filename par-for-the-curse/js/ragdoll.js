@@ -34,9 +34,10 @@ import { CLUBS } from './golfer.js';
 
 export const RAGDOLL = {
   stiffness: 1,       // the Esc menu's floppy-to-stiff slider: multiplies every joint spring (0.1 floppy, 2.5 stiff)
-  damping: 0.85,      // damping ratio of every joint motor: 1 settles without overshoot, less is bouncier
-  freq: { waist: 24, neck: 20, shoulder: 24, elbow: 24, hip: 20, knee: 20, wrist: 32 },   // spring frequency, rad/s, at stiffness 1
-  root: { freq: 16, turn: 14, damping: 1 },    // how hard the hips are held to where the game puts the golfer
+  damping: 1,         // damping ratio of every joint motor: 1 settles without overshoot, less is bouncier (was 0.85)
+  freq: { waist: 32, neck: 20, shoulder: 30, elbow: 30, hip: 20, knee: 20, wrist: 36 },   // spring frequency, rad/s, at stiffness 1
+  root: { freq: 16, turn: 24, damping: 1 },    // how hard the hips are held to where the game puts the golfer
+  passThrough: 0.3,   // seconds a club or forearm that just hit a golfer passes through them, so the swing follows through instead of wedging
   weight: 0.2,        // share of gravity a standing body feels (its muscles hold the rest); knocked out, all of it
   koStrength: 0.05,   // share of the joint springs left in a knocked-out body
   getUp: 0.8,         // seconds to stiffen back up after a knockout
@@ -118,6 +119,7 @@ export class Ragdolls {
   // twoHands: bool (both hands on the club) }].
   // Call it after every golfer has been posed: their models hold the targets, and come back holding the bodies.
   step(dt, list) {
+    this.time = (this.time || 0) + dt;
     for (const it of list) this.prepare(it, dt);
     // The frame's own time, cut into equal steps: what is drawn is always the bodies at this frame's moment.
     // (Fixed steps carried over between frames come out as 1, 2, 1, 2 steps a frame on a 144 Hz screen and
@@ -178,6 +180,7 @@ export class Ragdolls {
       j.Is = Math.max(1e-6, Is); j.It = Math.max(1e-7, It);
     }
     if ((g.club ?? -1) !== d.club) this.fitClub(d, g.club);
+    this.passing(d);
     this.trailGrip(d, !!it.twoHands && d.club >= 0 && it.mode === 'active' && !it.ko);
     // Holding on, the trail hand is drawn where the pose puts it on the club: the posed forearm stretches to
     // reach the grip and the physical one can't, so drawn on the forearm it would hover off the club.
@@ -222,6 +225,15 @@ export class Ragdolls {
     // hand dragging on it knocked it off the line the player swung.
     implicit(_c, _a.subVectors(p2, p1), _b.subVectors(v1, v2), RAGDOLL.grip.freq, RAGDOLL.grip.damping, h);
     B1.applyImpulseAtPoint(_c.multiplyScalar(B1.mass()), p1, true);
+  }
+  // After a hit the striking club and forearms ignore that golfer for a moment (RAGDOLL.passThrough): the
+  // hit has landed, and a club left touching a body that is held up by its own spring just wedges there.
+  passing(d) {
+    let mask = d.filter;
+    for (const [slot, until] of Object.entries(d.pass)) { if (until > this.time) mask &= ~(1 << +slot); else delete d.pass[slot]; }
+    if (mask === d.passMask) return;
+    d.passMask = mask;
+    for (const s of d.segs) if (s.kind === 'club' || s.kind === 'fa') for (const c of s.cols) c.setCollisionGroups((d.member << 16) | mask);
   }
   // Put every body exactly on its target, still. For teleports, carts and the title screen.
   snap(d) {
@@ -310,6 +322,7 @@ export class Ragdolls {
       // The one whose part was moving faster is the one doing the hitting.
       const [by, to, dir] = va.length() >= vb.length() ? [a, b, rel] : [b, a, rel.negate()];
       const c = this.world.getCollider(to.handle).translation();
+      if (by.seg.kind === 'club' || by.seg.kind === 'fa') { by.doll.pass[to.doll.slot] = this.time + RAGDOLL.passThrough; this.passing(by.doll); }
       this.onHit({ by: by.doll.key, part: by.seg.kind, head: !!by.head, to: to.doll.key, hitPart: to.seg.kind, speed, dir: dir.normalize(), at: V(c.x, c.y, c.z) });
     });
   }
@@ -318,7 +331,7 @@ export class Ragdolls {
   build(it) {
     const R = this.R, g = it.golfer, slot = this.slots.shift();
     const d = { golfer: g, key: it.key, slot, segs: [], joints: [], club: -2, ko: false, up: 0, gs: -1, vT: V(), lastT: V(), mass: 0, torsoI: 1,
-      member: 1 << slot, filter: (0x7f & ~(1 << slot)) | (1 << (8 + slot)) };
+      member: 1 << slot, filter: (0x7f & ~(1 << slot)) | (1 << (8 + slot)), pass: {}, passMask: -1 };
     const byName = {};
     for (const [name, parent, kg, joint, shapes] of SEGS) {
       const mesh = meshOf(g, name) || g.p.fa[0];
@@ -374,6 +387,7 @@ export class Ragdolls {
     s.cols = [];
     d.club = ci ?? -1;
     if (d.club >= 0 && CLUBS[d.club]) this.addShapes(d, s, clubShapes(d.club));
+    d.passMask = -1;      // the new colliders take whatever pass-through is running
   }
 }
 

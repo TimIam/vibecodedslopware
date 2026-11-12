@@ -2,14 +2,15 @@
 // Props are trees, crops, buildings, walls and rubble; critters are the animals that run about; water is a grid of
 // cells that pushed rubble fills in. No DOM. Kinds are registered by the level modules (see levels/index.js).
 //
-// Scoring rule for anything flammable: knocking it down pays def.crushShare of its value, burning pays the rest,
-// and burning it standing pays all of it, so "crush then burn" and "just burn" are worth the same.
+// Scoring rule: anything pays its whole value the first time it is destroyed, knocked down or burnt, whichever comes
+// first. A flammable thing knocked down still lies there and can be set alight, but burning it pays nothing more, so
+// a loadout with no fire can still finish every level (it used to pay half for crushing and half for the burning).
 
 export const KINDS = {};      // prop kind → definition (see defaults below)
 export const CRITTERS = {};   // critter kind → definition
 const PROP_DEFAULTS = {
   r: 3, w: 0, h: 0, hp: 1, solid: false, slow: 0, slowR: 0, flammable: false, burnTime: 6, spread: 0.2,
-  crushShare: 0.5, breaks: true, push: false, rubble: null, value: { pts: 0, venge: 0, chaos: 0 }, fireVenge: true,
+  breaks: true, push: false, rubble: null, value: { pts: 0, venge: 0, chaos: 0 }, fireVenge: true,
 };
 const CRITTER_DEFAULTS = { r: 2, hp: 30, spd: 20, flee: 40, fear: 50, value: { pts: 50, venge: 0.05, chaos: 0.2 }, raise: null, trample: true, leaves: false };
 
@@ -105,7 +106,7 @@ export function knockDown(g, p, ang = 0) {
   const d = KINDS[p.kind];
   p.state = d.flammable || d.push ? 'down' : 'gone';
   p.fallA = ang; p.hp = 0; p.broken = true;
-  pay(g, p, d.flammable ? d.crushShare : 1, false);
+  pay(g, p, 1, false);
   g.propsDirty = true;
   API.sound(g, d.solid ? 'collapse' : 'crunch');
   const kind = d.leaves || 'splinter';
@@ -119,8 +120,11 @@ export function knockDown(g, p, ang = 0) {
   if (d.onDown) d.onDown(g, p);
 }
 
+// (a kind's onHit(g, p, dmg, ang) may swallow the hit by returning true: a tower held up by something else, say)
 export function hitProp(g, p, dmg, ang) {
   if (p.state !== 'up') return;
+  const hook = KINDS[p.kind].onHit;
+  if (hook && hook(g, p, dmg, ang)) return;
   p.hp -= dmg;
   p.hitT = 0.12;
   if (p.hp <= 0) knockDown(g, p, ang);

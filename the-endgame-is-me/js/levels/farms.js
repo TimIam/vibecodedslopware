@@ -12,13 +12,13 @@ const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
 // ---------------------------------------------------------------------------------------------- kinds
 
-const CROP = { r: 2, flammable: true, burnTime: 3, spread: 0.45, crushShare: 0.5, slow: 0.3, slowR: 4 };
-const BUILDING = { solid: true, flammable: true, crushShare: 0.5, spread: 0.3 };
+const CROP = { r: 2, flammable: true, burnTime: 3, spread: 0.45, slow: 0.3, slowR: 4 };
+const BUILDING = { solid: true, flammable: true, spread: 0.3 };
 export const kinds = {
   wheat: { ...CROP, leaves: '#c8a64a', value: { pts: 8, venge: 0.005, chaos: 0.07 } },
   cabbage: { ...CROP, burnTime: 4, spread: 0.3, leaves: '#6e9a44', value: { pts: 10, venge: 0.005, chaos: 0.07 } },
-  hay: { r: 4, flammable: true, burnTime: 5, spread: 0.6, crushShare: 0.5, slow: 0.4, slowR: 6, leaves: '#c4a858', value: { pts: 40, venge: 0.03, chaos: 0.4 } },
-  fence: { r: 1, w: 8, h: 2, flammable: true, burnTime: 3, spread: 0.3, crushShare: 0.5, leaves: '#8a5a36', value: { pts: 5, venge: 0.004, chaos: 0.04 } },
+  hay: { r: 4, flammable: true, burnTime: 5, spread: 0.6, slow: 0.4, slowR: 6, leaves: '#c4a858', value: { pts: 40, venge: 0.03, chaos: 0.4 } },
+  fence: { r: 1, w: 8, h: 2, flammable: true, burnTime: 3, spread: 0.3, leaves: '#8a5a36', value: { pts: 5, venge: 0.004, chaos: 0.04 } },
   barn: { ...BUILDING, w: 34, h: 18, hp: 300, burnTime: 11, leaves: '#8a5a36', value: { pts: 260, venge: 0.2, chaos: 2.4 } },
   hut: { ...BUILDING, r: 8, hp: 180, burnTime: 9, leaves: '#a4845a', value: { pts: 180, venge: 0.15, chaos: 1.6 } },
 };

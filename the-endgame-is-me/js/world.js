@@ -27,26 +27,46 @@ export const ABIL = {
   summon: { cd: 18,   wind: 0.5,  dur: 0.3,  move: 0 },
   beam:   { cd: 14,   wind: 0.9,  dur: 1.4,  move: 0,    range: 170, width: 5, dps: 260 },
   ice:    { cd: 12,   wind: 0.3,  dur: 0.2,  move: 0.3,  range: 42, life: 7 },
-  charge: { cd: 8,    wind: 0.35, dur: 4,    move: 0,    range: 52, width: 11, dmg: 100, kb: 20, speed: 150, stun: 1.6 },
+  charge: { cd: 8,    wind: 0.35, dur: 4,    move: 0,    range: 52, width: 11, dmg: 150, kb: 20, speed: 150, stun: 1.6 },
   haste:  { cd: 15,   wind: 0,    dur: 0.1,  move: 1,    time: 4, boost: 0.8 },
 };
 
 // the store's catalogue. Four abilities come free; the rest are bought with points between maps.
 export const ABILITIES = [
-  { id: 'swipe', name: 'Swipe', start: true, desc: 'Claw a wide arc in front of you. Hold the button to keep swiping.', up: '+30% damage, longer reach' },
-  { id: 'stomp', name: 'Stomp', start: true, desc: 'Slam the ground and hit everyone around you.', up: '+30% damage, 12% wider' },
-  { id: 'breath', name: 'Fire Breath', start: true, desc: 'A cone of fire that leaves the ground burning.', up: '+30% damage, 15% farther' },
-  { id: 'roar', name: 'Roar', start: true, desc: 'Everyone nearby runs away screaming.', up: '15% farther, fear lasts longer' },
+  { id: 'swipe', name: 'Swipe', start: true, desc: 'Claw a wide arc in front of you. Hold the button to keep swiping.',
+    ups: ['+30% damage, longer reach', '+30% damage, longer reach', 'Longer reach. Two quick swipes per cast, each three quarters of the damage in three quarters of the time'] },
+  { id: 'stomp', name: 'Stomp', start: true, desc: 'Slam the ground and hit everyone around you.',
+    ups: ['+30% damage, 12% wider', '+30% damage, 12% wider', '12% wider. Two quick stomps per cast, each three quarters of the damage in three quarters of the time'] },
+  { id: 'breath', name: 'Fire Breath', start: true, desc: 'A cone of fire that leaves the ground burning.',
+    ups: ['+30% damage, 15% farther', '+30% damage, 15% farther', '+30% damage, 15% farther, and five fireballs that roll out past the flames, hit hardest up close and crack stone'] },
+  { id: 'roar', name: 'Roar', start: true, space: true, desc: 'Everyone nearby runs away screaming. Always on Space, which shakes your fur instead while somebody is in it.',
+    ups: ['15% farther, fear lasts longer', '15% farther, fear lasts longer', '15% farther, fear lasts longer, and everyone is stunned for a second before they run'] },
   { id: 'summon', name: 'Call Adds', cost: 12000, desc: 'Summon two Gnashers: melee adds that run down heroes and bite.',
     ups: ['Casters instead: two Spitters that spit fire from beside the path', 'A Necromancer instead, who raises dead heroes as skeletons'], upCost: [25000, 40000] },
-  { id: 'beam', name: 'Lightning Beam', cost: 20000, desc: 'Charge up, then fire a huge beam of lightning across the map. Steer it with the mouse.', up: '+35% damage, 20% longer' },
-  { id: 'ice', name: 'Ice Floor', cost: 10000, desc: 'Coat the ground around you in ice. Heroes on it slow to a shuffle.', up: '25% wider, lasts 2 s longer' },
-  { id: 'charge', name: 'Stun Charge', cost: 12000, desc: 'Lunge forward, stunning everyone you hit, then back up to where you started.', up: '+30% damage, 20% farther, longer stun' },
+  { id: 'beam', name: 'Lightning Beam', cost: 20000, desc: 'Charge up, then fire a huge beam of lightning across the map. Steer it with the mouse.',
+    ups: ['+35% damage, 20% longer', '+35% damage, 20% longer', '+35% damage, 20% longer, and a column as wide as the beam down each side of it at half damage'] },
+  { id: 'ice', name: 'Ice Floor', cost: 10000, desc: 'Coat the ground around you in ice. Heroes on it slow to a shuffle.',
+    ups: ['25% wider, lasts 2 s longer', '25% wider, lasts 2 s longer', '25% wider, lasts 2 s longer, roots everyone caught under it for a second, and slows them 25% more'] },
+  { id: 'charge', name: 'Stun Charge', cost: 12000, desc: 'Lunge forward, stunning everyone you hit, then back up to where you started, hitting them again on the way.',
+    ups: ['+30% damage, 20% farther, longer stun', '+30% damage, 20% farther, longer stun', '+30% damage, 20% farther, longer stun. You trample whoever is underfoot, then leap back and land with a free Stomp'] },
   { id: 'haste', name: 'Zoomies', cost: 8000, desc: 'Run 80% faster for a few seconds. More path, more points.', up: 'Lasts 1.5 s longer, 20% faster' },
-  { id: 'tail', name: 'Tail Sweep', cost: 9000, desc: 'Sweep your tail through everyone standing behind you.', up: '+30% damage, longer reach' },
+  { id: 'tail', name: 'Tail Sweep', cost: 9000, desc: 'Sweep your tail through everyone standing behind you, twice. It reaches half as far again as Swipe.',
+    ups: ['+30% damage', '+30% damage', '+30% damage, and a third sweep'] },
   { id: 'fur', name: 'Thicker Fur', passive: true, cost: 6000, desc: 'Not an ability. +25% max health, permanently.', up: '+25% max health' },
 ];
 const UP_COST = [16000, 24000, 38000];
+
+// What each ability's last level adds on top of its numbers (applyLevels switches these on).
+// The fully grown Fire Breath coughs up a stream of fireballs. They leave the mouth at v0 and lose speed (drag, per
+// second), so they roll out past the end of the cone; they are solid to each other, hurt most point blank (dmg, down to
+// dmg * far at farAt px from where they were spat), chip stone (dmg * stone), hiss into steam in water, and last life s.
+export const BALL = { n: 5, gap: 0.2, v0: 110, drag: 0.8, r: 3, dmg: 90, far: 0.25, farAt: 130, stone: 2, life: 4, steam: 2 };
+export const TWICE = 0.75;        // Stomp and Swipe at their last level: this much damage, knockback and cast time, twice over
+export const TAIL_REACH = 1.5;    // Tail Sweep reaches this many times as far as Swipe does
+export const BEAM_SIDE = 0.5;     // the Lightning Beam's side columns do this much of its damage
+export const ROAR_BACK = 1;       // once he is shaken off, Space is Roar again but waits this long
+export const ROAR_STUN = 1;       // the last Roar stuns for this long before anybody runs
+export const ICE_ROOT = 1, ICE_SLOW = 0.4, ICE_DEEP = 0.75;   // rooted this long; speed on ice; and on the last level's ice, that again
 
 // how the boss looks, part by part, and what marks the rock you are walking to. A new run starts on option 0 of
 // everything; look.fur is a '#rrggbb' colour, null for the natural brown.
@@ -65,9 +85,24 @@ export const ADDS = {
   gnasher:  { name: 'GNASHER', hp: 160, r: 2.5, spd: 36, dmg: 26, rate: 0.8, reach: 4, sense: 80 },
   spitter:  { name: 'SPITTER', hp: 140, r: 3, spd: 0, dmg: 34, rate: 1.5, reach: 70, sense: 70 },
   necro:    { name: 'NECROMANCER', hp: 220, r: 3, spd: 26, dmg: 22, rate: 2.0, reach: 70, sense: 70 },
-  skeleton: { name: 'SKELETON', hp: 80, r: 2, spd: 30, dmg: 14, rate: 0.9, reach: 4, sense: 70 },
+  skeleton: { name: 'SKELETON', hp: 80, r: 2, spd: 30, dmg: 14, rate: 0.9, reach: 4, sense: 70 },   // a dead civilian
+  // what a necromancer makes of a dead hero, by the hero's role
+  skel_tank:   { name: 'BONE TANK', hp: 340, r: 2, spd: 26, dmg: 12, rate: 1.0, reach: 4, sense: 70 },
+  skel_melee:  { name: 'BONE BLADE', hp: 190, r: 2, spd: 31, dmg: 26, rate: 0.8, reach: 4, sense: 70 },
+  skel_caster: { name: 'BONE MAGE', hp: 45, r: 2, spd: 26, dmg: 32, rate: 1.4, reach: 62, sense: 75 },
+  skel_healer: { name: 'BONE PRIEST', hp: 60, r: 2, spd: 26, dmg: 0, heal: 30, rate: 1.5, reach: 40, sense: 0 },
+  skel_rider:  { name: 'BONE GUY', hp: 110, r: 2, spd: 30, dmg: 0, rate: 1, reach: 4, sense: 120 },
+  skel_king:   { name: 'BONE KING', hp: 60, r: 2, spd: 22, dmg: 0, rate: 1, reach: 0, sense: 0 },
 };
-const MAX_ADDS = 8, MAX_SKELETONS = 10;
+const MAX_ADDS = 8;
+// necromancers: at most three, two skeletons each. A raise charge comes back every 5 s, two at most, none to start.
+export const MAX_NECROS = 3, NECRO_SKELS = 2, NECRO_CHARGES = 2, NECRO_CHARGE_T = 5, NECRO_RANGE = 90;
+export const SOUL = { dmg: 24, heal: 36, rate: 2.0, range: 70 };   // the soul steal, once both skeletons are up
+export const WARD_MAX = 0.1;                                       // the bone priests' ward: this much of max health
+// the Weird Guy's skeleton: a run-up, then a leap that kills. It wants RUN.ideal px of room and needs RUN.min.
+export const RUN = { v0: 18, acc: 130, top: 120, kill: 80, min: 38, ideal: 46, leap: 13, leapT: 0.22, clump: 9, turn: 0.9, rest: 0.9 };
+export const TRAMPLE = { tank: 0.5, cd: 0.8, cone: 0.35 };          // being run over: tanks lose half their health, the rest die
+const SKEL_OF = { tank: 'skel_tank', melee: 'skel_melee', ranged: 'skel_caster', healer: 'skel_healer', rider: 'skel_rider', king: 'skel_king' };
 // the levels bring their own scenery, animals and adds
 for (const L of LEVELS) { P.registerKinds(L.kinds, L.critters); Object.assign(ADDS, L.adds || {}); }
 
@@ -81,7 +116,10 @@ export const CLASS = {
   mage:      { role: 'ranged', col: 'blue',   hp: 70,  spd: 26, dmg: 13, rate: 1.8, bolt: 'frost' },
   warlock:   { role: 'ranged', col: 'purple', hp: 75,  spd: 25, dmg: 12, rate: 1.6, bolt: 'shadow' },
   hunter:    { role: 'ranged', col: 'green',  hp: 80,  spd: 27, dmg: 9,  rate: 1.3, bolt: 'arrow' },
-  pet:       { role: 'pet',    col: 'brown',  hp: 40,  spd: 40, dmg: 2,  rate: 0.9 },
+  pet:       { role: 'pet',    col: 'brown',  hp: 40,  spd: 40, dmg: 2,  rate: 0.9, pet: true },
+  // a warlock's pet: a voidwalker that brawls, or an imp that throws fire
+  voidwalker: { role: 'pet',   col: 'blue',   hp: 70,  spd: 30, dmg: 3,  rate: 1.0, pet: true },
+  imp:       { role: 'ranged', col: 'orange', hp: 30,  spd: 30, dmg: 6,  rate: 1.4, bolt: 'fireball', pet: true },
   rider:     { role: 'rider',  col: 'tan',    hp: 100, spd: 30, dmg: 100, rate: 1.1 },
   king:      { role: 'king',   col: 'gold',   hp: 30,  spd: 14 },   // castle.js: shiny, slow, crunchy
 };
@@ -236,10 +274,10 @@ export function createGame(seed = (Math.random() * 2 ** 32) >>> 0, look) {
       flash: 0, dead: false, deadT: 0, calmT: 99, haste: 0, name: BOSS_NAMES[Math.floor(rng() * BOSS_NAMES.length)],
     },
     units: [], parties: [], corpses: [], ghosts: [], fires: [], ice: [], bolts: [], parts: [], texts: [], barks: [], rings: [], adds: [],
-    steps: [],                // footprints the renderer stamps into the worn path
+    balls: [], steam: [],     // the last Fire Breath's fireballs, and the steam they make of water
     props: [], critters: [], ashes: [], water: null, chaos: 0, vengeT: 0, won: false, winT: 0,
     abil: null, owned: new Set(ABILITIES.filter(a => a.start).map(a => a.id)), lvl: {},
-    slots: ['swipe', 'stomp', 'breath', 'roar', null],
+    slots: ['swipe', 'stomp', 'breath', null, null],   // Roar is not in here: it lives on Space
     look: { head: 0, horns: 0, neck: 0, back: 0, tail: 0, limbs: 0, legs: 0, marker: 0, fur: null, ...look },
     ng: 0,                    // New Game+ round: 0 the first time through
     score: 0, points: 0, spent: 0, mult: 1, laps: 0, lapsMap: 0, legDist: 0, kills: 0, summoned: 0, maps: 0,
@@ -261,13 +299,27 @@ function placeBoss(g) {
   Object.assign(g.boss, { x: p.x, y: p.y, face: p.face || 0 });
 }
 
-const ARRAYS = ['units', 'parties', 'corpses', 'ghosts', 'fires', 'ice', 'bolts', 'parts', 'texts', 'barks', 'rings', 'adds', 'steps', 'props', 'critters', 'ashes'];
+const ARRAYS = ['units', 'parties', 'corpses', 'ghosts', 'fires', 'ice', 'bolts', 'parts', 'texts', 'barks', 'rings', 'adds', 'balls', 'steam', 'props', 'critters', 'ashes'];
+
+// Brings a run from an older save up to date (safe to call on any run, any number of times): footprints are gone,
+// fireballs and steam exist, and Roar has moved out of the five slots onto Space.
+export function migrate(g) {
+  if (!g.balls) g.balls = [];
+  if (!g.steam) g.steam = [];
+  if (g.steps) delete g.steps;
+  g.owned.add('roar');
+  for (let i = 0; i < g.slots.length; i++) if (g.slots[i] === 'roar') g.slots[i] = null;
+  if (g.boss.cd.roar == null) g.boss.cd.roar = 0;
+  if (g.abil && g.abil.swipe.hits == null) applyLevels(g);   // numbers from before the last levels did anything new
+  return g;
+}
 
 // builds level n: its map, its scenery and animals, and an empty field
 function loadLevel(g, n) {
   const L = levelFor(n);
   for (const k of ARRAYS) g[k] = [];
   g.water = null; g.pgrid = null; g.chaos = 0; g.vengeT = 0;
+  g.boss.ward = 0;
   const m = L.mode === 'patrol' ? makeMap(n, g.rng) : { w: W, h: H, scroll: 'none', ...L.build(g, g.rng, P) };
   Object.assign(m, { n, level: L, mode: L.mode, name: L.name, theme: { id: L.id, name: L.name } });
   m.w ||= W; m.h ||= H; m.scroll ||= 'none';
@@ -312,9 +364,11 @@ export function jumpToLevel(g, n) { g.map.n = n - 1; g.store = true; nextMap(g);
 
 // ---------------------------------------------------------------------------------------------- the step
 
-// input: { mx, my (aim, arena px), ax, ay (move, -1..1), press: {slot0..slot4, shake} (edges), hold: {slot0} }
+// input: { mx, my (aim, arena px), ax, ay (move, -1..1), press: {slot0..slot4, space, shake} (edges), hold: {slot0} }
+// press.space is the Space key: Roar, or Shake while somebody is in your fur. press.shake is always a shake.
 export function step(g, inp, dt) {
   if (g.store) return;
+  if (!g.balls || g.steps) migrate(g);
   syncView(g);
   g.t += dt;
   g.shake = Math.max(0, g.shake - dt);
@@ -329,6 +383,7 @@ export function step(g, inp, dt) {
   for (const a of g.adds) if (!a.dead) updateAdd(g, a, dt);
   separate(g);
   updateBolts(g, dt);
+  updateBalls(g, dt);
   updateFx(g, dt);
   updateSmoke(g, dt);
   g.units = g.units.filter(u => !u.dead && !u.gone);
@@ -402,6 +457,7 @@ function updateBoss(g, inp, dt) {
   if (g.walkoff) { walkOffStep(g, dt); return; }
   for (const k in b.cd) b.cd[k] = Math.max(0, b.cd[k] - dt);
   b.flash = Math.max(0, b.flash - dt);
+  b.wardHit = Math.max(0, (b.wardHit || 0) - dt);
   b.haste = Math.max(0, b.haste - dt);
   b.calmT += dt;
 
@@ -427,11 +483,17 @@ function updateBoss(g, inp, dt) {
   const turn = channel ? (b.act.kind === 'beam' ? 1.2 : 1.5) : b.taunt ? 7 : 5.5;
   if (!locked && Math.hypot(tx - b.x, ty - b.y) > 2) b.face = turnToward(b.face, Math.atan2(ty - b.y, tx - b.x), turn * dt);
 
-  // abilities: the five slots, plus shake on its own key. A press during another action is queued briefly.
+  // abilities: the five slots, plus Space, which roars unless somebody is in your fur, when it shakes instead. A press
+  // during another action is queued briefly.
   for (let i = 0; i < 5; i++) {
     const k = g.slots[i];
     if (k && inp.press?.['slot' + i] && !tryCast(g, k)) b.queue = { k, t: 0.5 };
   }
+  // when Space turns back from Shake into Roar, Roar waits a second, so mashing Space to shake him off cannot also roar
+  const sk = spaceKey(g);
+  if (b.spaceWas === 'shake' && sk === 'roar') b.cd.roar = Math.max(b.cd.roar || 0, ROAR_BACK);
+  b.spaceWas = sk;
+  if (inp.press?.space) { const k = sk; if (!tryCast(g, k)) b.queue = { k, t: 0.5 }; }
   if (inp.press?.shake && !tryCast(g, 'shake')) b.queue = { k: 'shake', t: 0.5 };
   // a queued press goes before a held swipe, or holding the button would starve it
   if (b.queue) { b.queue.t -= dt; if (b.queue.t <= 0 || tryCast(g, b.queue.k)) b.queue = null; }
@@ -445,15 +507,12 @@ function updateBoss(g, inp, dt) {
   const ox = b.x, oy = b.y;
   moveBoss(g, b.x + mx * sp * dt, b.y + my * sp * dt);
   if (g.props.length || g.critters.length) P.bossTouch(g, ox, oy, dt);
+  trample(g, ox, oy);
   if (b.haste > 0 && (mx || my) && g.rng() < 0.5) part(g, b.x - mx * 10, b.y - my * 10 + 3, -mx * 20, -my * 20, 0.3, 'dust');
   if (b.act) advanceAct(g, dt);
   const moved = Math.hypot(b.x - ox, b.y - oy);
   b.moving = moved > 0.01;
-  if (b.moving) {
-    const before = Math.floor(b.walk / 4);
-    b.walk += moved * 0.3;
-    if (Math.floor(b.walk / 4) !== before) g.steps.push({ x: b.x, y: b.y, face: b.face, side: Math.floor(b.walk / 4) & 1 });
-  }
+  if (b.moving) b.walk += moved * 0.3;
 
   // patrol scoring (level 1); after that, Vengeance drains away if you stop wrecking things
   if (m.mode !== 'patrol') {
@@ -525,6 +584,37 @@ function moveBoss(g, x, y) {
   }
 }
 
+// Being run over. Call this right after the boss's body has moved from (ox, oy), on foot or mid-charge: every hero it
+// has just rolled onto dies, bar the tanks, who lose half their health (never the last point of it) and are thrown
+// aside. Someone clinging to the fur is not underfoot. Returns how many it caught.
+export function trample(g, ox, oy) {
+  const b = g.boss, mx = b.x - ox, my = b.y - oy, ml = Math.hypot(mx, my);
+  if (ml < 0.01 || b.dead) return 0;
+  let n = 0;
+  for (const u of g.units) {
+    if (!hittable(u) || (u.trampT || 0) > g.t) continue;
+    const dx = u.x - b.x, dy = u.y - b.y, d = Math.hypot(dx, dy);
+    if (d > b.r + 2.05) continue;
+    // only whoever is in the way: ahead of the body as it moves, not brushing past its flank
+    if (d > 0.5 && (dx * mx + dy * my) / (d * ml) < TRAMPLE.cone) continue;
+    u.trampT = g.t + TRAMPLE.cd;
+    n++;
+    for (let i = 0; i < 4; i++) part(g, u.x, u.y, (g.rng() - 0.5) * 40, (g.rng() - 0.5) * 40, 0.35, 'dust');
+    if (u.role === 'tank') {
+      hurt(g, u, Math.max(0, Math.min(u.maxhp * TRAMPLE.tank, u.hp - 1)));
+      const side = (-dx * my + dy * mx) >= 0 ? 1 : -1;
+      u.kx += -my / ml * side * 100; u.ky += mx / ml * side * 100;
+      u.hit = 0.12;
+      text(g, u.x, u.y - 8, 'TRAMPLED', 'steelHi', 0.9);
+    } else {
+      hurt(g, u, u.hp + 1e6);
+      text(g, u.x, u.y - 12, 'SQUISH', 'red', 0.8);
+    }
+  }
+  if (n) g.shake = Math.max(g.shake, 0.1);
+  return n;
+}
+
 function startEvade(g) {
   const b = g.boss;
   const p = pathNearest(g.map, b.x, b.y);
@@ -559,18 +649,20 @@ function walkOffStep(g, dt) {
   b.face = turnToward(b.face, Math.atan2(vy, vx), 6 * dt);
   const moved = Math.hypot(b.x - ox, b.y - oy);
   b.moving = moved > 0.01;
-  const before = Math.floor(b.walk / 4);
   b.walk += moved * 0.3;
-  if (Math.floor(b.walk / 4) !== before && b.y > 0) g.steps.push({ x: b.x, y: b.y, face: b.face, side: Math.floor(b.walk / 4) & 1 });
   if (!w.off && b.y < V.y - 26) { w.off = true; g.events.push('walkoff'); }
 }
+
+// what Space does right now: shake while the Weird Guy is in the fur, roar the rest of the time
+export const spaceKey = g => g.units.some(u => u.role === 'rider' && u.state === 'climb' && !u.dead) ? 'shake' : 'roar';
 
 function tryCast(g, k) {
   const b = g.boss;
   if (b.act || b.evade || b.dead || b.cd[k] > 0 || g.clear) return false;
-  if (k !== 'shake' && !g.owned.has(k)) return false;
+  if (k !== 'shake' && k !== 'roar' && !g.owned.has(k)) return false;
   const d = g.abil[k];
-  b.act = { kind: k, t: 0, fired: false, tick: 0, fireT: 0 };
+  // n counts the strikes of an ability that hits more than once; balls and ballT are the last Fire Breath's fireballs
+  b.act = { kind: k, t: 0, fired: false, tick: 0, fireT: 0, n: 0, balls: 0, ballT: 0 };
   b.cd[k] = d.cd;
   g.events.push('wind_' + k);
   // everybody sees the telegraph and decides whether they will move
@@ -604,16 +696,26 @@ function advanceAct(g, dt) {
     a.tick -= dt;
     if (a.tick <= 0) {
       a.tick += 0.1;
-      for (const u of g.units) if (hittable(u) && inZone(g, a.kind, u.x, u.y, 1)) hurt(g, u, d.dps * 0.1);
+      // (the beam's side columns, when it has them, do d.side of its damage)
+      const share = (x, y, pad) => a.kind === 'beam' ? [0, 1, d.side][beamLane(g, x, y, pad)] : inZone(g, a.kind, x, y, pad) ? 1 : 0;
+      for (const u of g.units) if (hittable(u)) { const k = share(u.x, u.y, 1); if (k) hurt(g, u, d.dps * 0.1 * k); }
       if (g.props.length || g.critters.length) {
         const test = (x, y) => inZone(g, a.kind, x, y, 2), reach = a.kind === 'beam' ? beamEnd(g).len + 8 : d.range + 6;
         P.igniteZone(g, test, b.x, b.y, reach, a.kind === 'beam' ? 0.7 : 0.35);
-        for (const c of g.critters) if (!c.dead && test(c.x, c.y)) P.hurtCritter(g, c, d.dps * 0.1);
-        if (a.kind === 'beam') P.damageZone(g, test, d.dps * 0.1, b.x, b.y, reach);
+        for (const c of g.critters) if (!c.dead) { const k = share(c.x, c.y, 2); if (k) P.hurtCritter(g, c, d.dps * 0.1 * k); }
+        if (a.kind === 'beam') {
+          P.damageZone(g, (x, y) => beamLane(g, x, y, 2) === 1, d.dps * 0.1, b.x, b.y, reach);
+          if (d.side) P.damageZone(g, (x, y) => beamLane(g, x, y, 2) === 2, d.dps * 0.1 * d.side, b.x, b.y, reach);
+        }
       }
     }
   }
   if (a.kind === 'breath' && a.fired) {
+    // the last level's fireballs: a stream of them out of the mouth, one every BALL.gap seconds
+    if (d.balls && (a.balls || 0) < d.balls) {
+      a.ballT = (a.ballT || 0) - dt;
+      if (a.ballT <= 0) { a.ballT += BALL.gap; a.balls = (a.balls || 0) + 1; spit(g); }
+    }
     a.fireT -= dt;
     if (a.fireT <= 0 && g.fires.length < 40) {
       a.fireT += 0.11;
@@ -636,7 +738,21 @@ function advanceAct(g, dt) {
     if (!a.fired && g.rng() < 0.6) { const k = g.rng() * TAU; part(g, b.x + Math.cos(k) * 11, b.y + Math.sin(k) * 11, -Math.cos(k) * 15, -Math.sin(k) * 15, 0.3, 'spark'); }
     if (a.fired) { const e = beamEnd(g); for (let i = 0; i < 2; i++) part(g, e.x, e.y, (g.rng() - 0.5) * 80, (g.rng() - 0.5) * 80, 0.3, 'spark'); }
   }
-  if (a.t >= d.wind + d.dur) b.act = null;
+  if (a.t >= d.wind + d.dur) {
+    // an ability that strikes more than once winds up again (from d.rewind of the way through) and goes again
+    a.n = (a.n || 0) + 1;
+    if (a.n < (d.hits || 1)) { a.t = d.wind * (d.rewind || 0); a.fired = false; }
+    else b.act = null;
+  }
+}
+
+// which part of the lightning beam a point is in: 1 the beam itself, 2 one of the columns the last level adds down
+// each side of it (each as wide as the beam), 0 neither
+export function beamLane(g, x, y, pad = 0) {
+  const b = g.boss, d = g.abil.beam, dx = x - b.x, dy = y - b.y;
+  const c = Math.cos(b.face), s = Math.sin(b.face), lx = dx * c + dy * s, ly = Math.abs(-dx * s + dy * c);
+  if (lx <= 6 || lx >= beamEnd(g).len + pad) return 0;
+  return ly < d.width + pad ? 1 : d.side && ly < d.width * 3 + pad ? 2 : 0;
 }
 
 // where the beam stops: its full length, or the edge of the world
@@ -651,21 +767,17 @@ export function beamEnd(g) {
 function fire(g, k) {
   const b = g.boss, d = g.abil[k];
   g.events.push(k);
-  if (k === 'swipe' || k === 'stomp' || k === 'tail') {
+  if (k === 'stomp') slam(g, d.dmg, d.range, d.kb);
+  else if (k === 'swipe' || k === 'tail') {
     for (const u of g.units) {
       if (!hittable(u) || !inZone(g, k, u.x, u.y, 1)) continue;
       hurt(g, u, d.dmg);
       knock(u, b, d.kb);
     }
     if (g.props.length || g.critters.length) P.damageZone(g, (x, y) => inZone(g, k, x, y, 2), d.dmg, b.x, b.y, d.range + 8);
-    if (k === 'stomp') {
-      g.shake = 0.35;
-      g.rings.push({ x: b.x, y: b.y, r: 4, max: d.range, t: 0, col: 'dust' });
-      for (let i = 0; i < 28; i++) { const a = g.rng() * TAU, s = 30 + g.rng() * 50; part(g, b.x + Math.cos(a) * 10, b.y + Math.sin(a) * 10, Math.cos(a) * s, Math.sin(a) * s, 0.5, 'dust'); }
-    } else {
-      g.shake = Math.max(g.shake, 0.08);
-      g.rings.push({ x: b.x, y: b.y, face: zoneFace(g, k), t: 0, col: 'slash', big: k === 'tail' });
-    }
+    g.shake = Math.max(g.shake, 0.08);
+    // (a tail that strikes again sweeps back the other way)
+    g.rings.push({ x: b.x, y: b.y, face: zoneFace(g, k), t: 0, col: 'slash', big: k === 'tail', reach: d.range, flip: (b.act?.n || 0) % 2 === 1 });
   } else if (k === 'breath') {
     for (const u of g.units) if (hittable(u) && inZone(g, 'breath', u.x, u.y, 1)) hurt(g, u, d.dmg);
   } else if (k === 'roar') {
@@ -676,6 +788,8 @@ function fire(g, k) {
       if (Math.hypot(u.x - b.x, u.y - b.y) > d.range) continue;
       u.fear = d.fear * (0.8 + g.rng() * 0.4);
       u.cast = 0;
+      // the last level: frozen to the spot first, and the running (all of it) starts when that wears off
+      if (d.stun) { if (u.role === 'rider') u.daze = d.stun; else u.stun = Math.max(u.stun || 0, d.stun); }
       if (u.role === 'rider' && u.mounted) { u.state = 'orbit'; u.orbitT = 1 + d.fear; u.orbitA = Math.atan2(u.y - b.y, u.x - b.x); u.orbitDir ||= 1; }
     }
     for (const p of g.parties) if (p.type === 'raid' && p.engaged) { const u = alive(p)[1]; if (u) bark(g, u, pick(g, BARK.roar)); }
@@ -687,13 +801,15 @@ function fire(g, k) {
       if (hittable(u) && Math.hypot(u.x - b.x, u.y - b.y) < b.r + d.range - 8) knock(u, b, d.kb);
     }
   } else if (k === 'charge') {
-    b.act.start = { x: b.x, y: b.y }; b.act.out = 0; b.act.back = false; b.act.hitIds = new Set();
+    b.act.start = { x: b.x, y: b.y }; b.act.out = 0; b.act.back = false; b.act.hitIds = new Set(); b.act.z = 0;
     g.shake = Math.max(g.shake, 0.12);
   } else if (k === 'summon') {
     summon(g);
   } else if (k === 'ice') {
-    g.ice.push({ x: b.x, y: b.y, r: d.range, t: 0, life: d.life, seed: Math.floor(g.rng() * 1e6) });
+    g.ice.push({ x: b.x, y: b.y, r: d.range, t: 0, life: d.life, seed: Math.floor(g.rng() * 1e6), slow: d.slow, deep: !!d.root });
     if (g.ice.length > 3) g.ice.shift();
+    // the last level: whoever it forms under is stuck fast for a moment (they can still swing and cast)
+    if (d.root) for (const u of g.units) if (hittable(u) && Math.hypot(u.x - b.x, u.y - b.y) < d.range) u.root = d.root;
     g.rings.push({ x: b.x, y: b.y, r: 6, max: d.range, t: 0, col: 'ice' });
     for (let i = 0; i < 30; i++) { const a = g.rng() * TAU, s = 20 + g.rng() * 60; part(g, b.x + Math.cos(a) * 8, b.y + Math.sin(a) * 8, Math.cos(a) * s, Math.sin(a) * s, 0.6, 'frost'); }
     for (const p of g.parties) if (p.engaged && p.type !== 'rider' && g.rng() < 0.6) { const u = alive(p)[2]; if (u) bark(g, u, pick(g, BARK.ice)); }
@@ -705,12 +821,45 @@ function fire(g, k) {
   }
 }
 
-// the stun charge: out along your heading, bowling over and stunning whoever you touch, then back to where you started
+// a stomp's worth of damage round the boss: the Stomp itself, and the landing that ends the last Stun Charge
+function slam(g, dmg, range, kb) {
+  const b = g.boss;
+  for (const u of g.units) {
+    if (!hittable(u) || Math.hypot(u.x - b.x, u.y - b.y) > range + 1) continue;
+    hurt(g, u, dmg);
+    knock(u, b, kb);
+  }
+  if (g.props.length || g.critters.length) P.damageZone(g, (x, y) => Math.hypot(x - b.x, y - b.y) <= range + 2, dmg, b.x, b.y, range + 8);
+  g.shake = 0.35;
+  g.rings.push({ x: b.x, y: b.y, r: 4, max: range, t: 0, col: 'dust' });
+  for (let i = 0; i < 28; i++) { const a = g.rng() * TAU, s = 30 + g.rng() * 50; part(g, b.x + Math.cos(a) * 10, b.y + Math.sin(a) * 10, Math.cos(a) * s, Math.sin(a) * s, 0.5, 'dust'); }
+}
+
+// whoever the charging boss is touching, once each per direction: hurt, stunned and bowled aside
+function chargeHits(g, a, d) {
+  const b = g.boss;
+  for (const u of g.units) {
+    if (!hittable(u) || a.hitIds.has(u.id) || Math.hypot(u.x - b.x, u.y - b.y) > b.r + 5) continue;
+    a.hitIds.add(u.id);
+    hurt(g, u, d.dmg);
+    if (u.dead) continue;
+    stun(g, u, d.stun);
+    const side = (-(u.x - b.x) * Math.sin(b.face) + (u.y - b.y) * Math.cos(b.face)) >= 0 ? 1 : -1;
+    u.kx += -Math.sin(b.face) * side * d.kb * 5; u.ky += Math.cos(b.face) * side * d.kb * 5;
+  }
+}
+
+// The stun charge: out along your heading, bowling over and stunning whoever you touch, then back to where you
+// started, hitting them again on the way. At its last level the boss tramples whoever is underfoot on the way out
+// (they die, bar the tanks), and comes back in one leap that hits nobody until it lands: the landing flattens whoever
+// is under it and sets off a free Stomp at the Stomp's un-upgraded numbers.
+const LEAP = { speed: 220, min: 0.25, high: 10 };
 function chargeStep(g, a, d, dt) {
   const b = g.boss;
   if (!a.back) {
     const ox = b.x, oy = b.y;
     moveBoss(g, b.x + Math.cos(b.face) * d.speed * dt, b.y + Math.sin(b.face) * d.speed * dt);
+    if (d.trample) trample(g, ox, oy);
     if (g.props.length || g.critters.length) {
       for (const p of P.near(g, b.x, b.y, b.r + 16)) {
         if (p.state !== 'up' || a.hitIds.has('p' + p.id) || !P.touches(p, b.x, b.y, b.r + 3)) continue;
@@ -721,26 +870,130 @@ function chargeStep(g, a, d, dt) {
     }
     const moved = Math.hypot(b.x - ox, b.y - oy);
     a.out += moved;
-    if (a.out >= d.range || moved < d.speed * dt * 0.3) { a.back = true; a.pause = 0.15; }
     if (g.rng() < 0.7) part(g, b.x - Math.cos(b.face) * 10, b.y - Math.sin(b.face) * 10, (g.rng() - 0.5) * 30, (g.rng() - 0.5) * 30, 0.4, 'dust');
-    for (const u of g.units) {
-      if (!hittable(u) || a.hitIds.has(u.id) || Math.hypot(u.x - b.x, u.y - b.y) > b.r + 5) continue;
-      a.hitIds.add(u.id);
-      hurt(g, u, d.dmg);
-      if (u.dead) continue;
-      stun(g, u, d.stun);
-      const side = (-(u.x - b.x) * Math.sin(b.face) + (u.y - b.y) * Math.cos(b.face)) >= 0 ? 1 : -1;
-      u.kx += -Math.sin(b.face) * side * d.kb * 5; u.ky += Math.cos(b.face) * side * d.kb * 5;
-    }
+    chargeHits(g, a, d);
+    // the turn: whoever was hit on the way out can be hit again on the way back
+    if (a.out >= d.range || moved < d.speed * dt * 0.3) { a.back = true; a.pause = 0.15; a.hitIds = new Set(); }
     return;
   }
   if (a.pause > 0) { a.pause -= dt; return; }
+  if (d.leap) {
+    if (!a.from) { a.from = { x: b.x, y: b.y }; a.jt = 0; }
+    const T = Math.max(LEAP.min, Math.hypot(a.start.x - a.from.x, a.start.y - a.from.y) / LEAP.speed);
+    a.jt += dt;
+    const k = Math.min(1, a.jt / T), ox = b.x, oy = b.y;
+    b.x = a.from.x + (a.start.x - a.from.x) * k; b.y = a.from.y + (a.start.y - a.from.y) * k;
+    a.z = Math.sin(k * Math.PI) * LEAP.high;
+    if (k < 1) return;
+    a.z = 0;
+    // it comes straight down, so whoever is under any side of it is in the way
+    for (const e of [[1, 0], [-1, 0], [0, 1], [0, -1]]) trample(g, b.x + e[0], b.y + e[1]);
+    if (g.props.length || g.critters.length) P.bossTouch(g, ox, oy, dt);
+    slam(g, ABIL.stomp.dmg, ABIL.stomp.range, ABIL.stomp.kb);
+    g.events.push('stomp');
+    b.act = null;
+    return;
+  }
   const dx = a.start.x - b.x, dy = a.start.y - b.y, dist = Math.hypot(dx, dy);
   const s = Math.min(dist, d.speed * 0.8 * dt);
   const ox = b.x, oy = b.y;
   if (dist > 0.5) moveBoss(g, b.x + dx / dist * s, b.y + dy / dist * s);
   if (g.props.length || g.critters.length) P.bossTouch(g, ox, oy, dt);
+  chargeHits(g, a, d);
   if (dist <= 0.5 || s < 0.01 || Math.hypot(b.x - ox, b.y - oy) < s * 0.3) b.act = null;
+}
+
+// ---------------------------------------------------------------------------------------------- fireballs
+
+// one fireball out of the mouth, along the way the boss is facing
+function spit(g) {
+  const b = g.boss, c = Math.cos(b.face), s = Math.sin(b.face), x = b.x + c * (b.r + BALL.r + 1), y = b.y + s * (b.r + BALL.r + 1);
+  g.balls.push({ id: g.nextId++, x, y, ox: x, oy: y, vx: c * BALL.v0, vy: s * BALL.v0, r: BALL.r, t: 0, hit: [], seed: Math.floor(g.rng() * 1e6) });
+  g.events.push('spit');
+}
+// what a fireball does to whatever it touches: all of BALL.dmg point blank, falling to BALL.far of it BALL.farAt px out
+export const ballDmg = o => BALL.dmg * (1 - (1 - BALL.far) * clamp(Math.hypot(o.x - o.ox, o.y - o.oy) / BALL.farAt, 0, 1));
+
+function updateBalls(g, dt) {
+  const bs = g.balls;
+  if (bs.length) {
+    const k = Math.exp(-BALL.drag * dt);
+    for (const o of bs) {
+      o.t += dt;
+      o.x += o.vx * dt; o.y += o.vy * dt; o.vx *= k; o.vy *= k;
+      if (o.x < AR.x0 || o.x > AR.x1) { o.x = clamp(o.x, AR.x0, AR.x1); o.vx = 0; }
+      if (o.y < AR.y0 - 6 || o.y > AR.y1 + 6) { o.y = clamp(o.y, AR.y0 - 6, AR.y1 + 6); o.vy = 0; }
+      // the two rocks are as solid to a fireball as they are to you
+      if (g.map.A) for (const R of [g.map.A, g.map.B]) {
+        const dx = o.x - R.x, dy = o.y - R.y, d = Math.hypot(dx, dy), min = o.r + ROCK_R;
+        if (d >= min || d < 0.001) continue;
+        o.x = R.x + dx / d * min; o.y = R.y + dy / d * min;
+        const v = (o.vx * dx + o.vy * dy) / d;
+        if (v < 0) { o.vx -= v * dx / d; o.vy -= v * dy / d; }
+      }
+    }
+    // they are solid to each other: two that overlap are pushed apart, and the one behind gives up the speed it was
+    // closing at, so a stream of them stacks up behind the first to stop
+    for (let pass = 0; pass < 3; pass++) for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) {
+      const a = bs[i], c = bs[j], min = a.r + c.r;
+      let dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy);
+      if (d >= min) continue;
+      if (d < 0.001) { const q = (a.seed + j) % 628 / 100; dx = Math.cos(q); dy = Math.sin(q); d = 1; }
+      const nx = dx / d, ny = dy / d, push = (min - Math.hypot(c.x - a.x, c.y - a.y)) / 2;
+      a.x -= nx * push; a.y -= ny * push; c.x += nx * push; c.y += ny * push;
+      const va = a.vx * nx + a.vy * ny, vc = c.vx * nx + c.vy * ny;
+      if (va > vc) { const m = (va + vc) / 2; a.vx += (m - va) * nx; a.vy += (m - va) * ny; c.vx += (m - vc) * nx; c.vy += (m - vc) * ny; }
+    }
+    for (const o of bs) {
+      // water puts it out: a cloud of steam where it went in
+      if (P.isWater(g, o.x, o.y)) {
+        o.done = true;
+        g.steam.push({ x: o.x, y: o.y, t: 0, life: BALL.steam, seed: o.seed });
+        sound(g, 'splash');
+        continue;
+      }
+      const dmg = ballDmg(o);
+      for (const u of g.units) {
+        if (!hittable(u) || o.hit.includes(u.id) || Math.hypot(u.x - o.x, u.y - o.y) > o.r + 2) continue;
+        o.hit.push(u.id);
+        hurt(g, u, dmg);
+        for (let i = 0; i < 5; i++) part(g, u.x, u.y - 1, (g.rng() - 0.5) * 40, (g.rng() - 0.5) * 40, 0.3, g.rng() < 0.5 ? 'flame' : 'ember');
+      }
+      for (const c of g.critters) {
+        if (c.dead || o.hit.includes(c.id) || Math.hypot(c.x - o.x, c.y - o.y) > o.r + c.r) continue;
+        o.hit.push(c.id);
+        P.hurtCritter(g, c, dmg);
+      }
+      if (g.props.length) {
+        const px = o.x, py = o.y;
+        for (const p of P.near(g, o.x, o.y, o.r + 4)) {
+          if (p.state !== 'up' || !P.touches(p, o.x, o.y, o.r + 0.5)) continue;
+          const K = P.KINDS[p.kind];
+          if (K.flammable) P.ignite(g, p);
+          // stone (solid, and nothing that burns) takes the knock, once per ball
+          else if (K.solid && !o.hit.includes(p.id)) {
+            o.hit.push(p.id);
+            P.hitProp(g, p, dmg * BALL.stone, Math.atan2(o.vy, o.vx));
+            for (let i = 0; i < 6; i++) part(g, o.x, o.y, (g.rng() - 0.5) * 50, (g.rng() - 0.5) * 50, 0.35, g.rng() < 0.5 ? 'ember' : 'dust');
+          }
+        }
+        // and anything solid still standing stops it
+        P.solidPush(g, o, o.r);
+        const mx = o.x - px, my = o.y - py, ml = Math.hypot(mx, my);
+        if (ml > 0.001) { const v = (o.vx * mx + o.vy * my) / ml; if (v < 0) { o.vx -= v * mx / ml; o.vy -= v * my / ml; } }
+      }
+      if (g.rng() < 0.35) part(g, o.x + (g.rng() - 0.5) * 3, o.y - 1, (g.rng() - 0.5) * 8, -6 - g.rng() * 10, 0.3 + g.rng() * 0.3, g.rng() < 0.6 ? 'flame' : 'ember');
+      if (o.t >= BALL.life) {
+        o.done = true;
+        for (let i = 0; i < 6; i++) part(g, o.x, o.y, (g.rng() - 0.5) * 24, (g.rng() - 0.5) * 24, 0.4, 'ember');
+      }
+    }
+    g.balls = bs.filter(o => !o.done);
+  }
+  if (g.steam.length) {
+    for (const s of g.steam) s.t += dt;
+    g.steam = g.steam.filter(s => s.t < s.life);
+  }
 }
 
 function stun(g, u, t) {
@@ -758,11 +1011,11 @@ export const zoneFace = (g, k) => g.boss.face + (g.abil[k].back ? Math.PI : 0);
 export function inZone(g, k, x, y, pad = 0) {
   const b = g.boss, d = g.abil[k];
   const dx = x - b.x, dy = y - b.y, dist = Math.hypot(dx, dy);
-  if (k === 'charge' || k === 'beam') {
+  if (k === 'beam') return beamLane(g, x, y, pad) > 0;   // side columns and all
+  if (k === 'charge') {
     // a lane straight ahead
     const c = Math.cos(b.face), s = Math.sin(b.face), lx = dx * c + dy * s, ly = -dx * s + dy * c;
-    const len = k === 'beam' ? beamEnd(g).len : d.range;
-    return lx > (k === 'beam' ? 6 : -4) && lx < len + pad && Math.abs(ly) < d.width + pad;
+    return lx > -4 && lx < d.range + pad && Math.abs(ly) < d.width + pad;
   }
   if (dist > d.range + pad) return false;
   if (k === 'stomp' || k === 'roar' || k === 'shake') return true;
@@ -782,8 +1035,11 @@ export function telegraph(g) {
 function hurtBoss(g, amt, u) {
   const b = g.boss;
   if (b.evade || b.dead || g.walkoff) return;   // nothing touches you on the way out
-  b.hp -= amt * (1 + NG_HIT * g.ng);
-  b.flash = 0.06;
+  let dmg = amt * (1 + NG_HIT * g.ng);
+  // the bone priests' ward takes it first
+  if (b.ward > 0) { const w = Math.min(b.ward, dmg); b.ward -= w; dmg -= w; b.wardHit = 0.15; }
+  b.hp -= dmg;
+  if (dmg > 0) b.flash = 0.06;
   b.calmT = 0;
   g.blame[u.party.type] += amt;
   u.party.hitT = g.t;
@@ -854,23 +1110,42 @@ export function mkUnit(g, p, cls, x, y) {
   return u;
 }
 
+const isPet = u => !!CLASS[u.cls].pet;
+
+// a 5-man: a tank, a healer, and three DPS drawn from the six DPS classes, no two the same. So some have a hunter,
+// some a warlock, some neither.
+function dungeonComp(g) {
+  const pool = ['rogue', 'berserker', 'paladin', 'mage', 'warlock', 'hunter'];
+  const comp = ['warrior', g.rng() < 0.5 ? 'priest' : 'druid'];
+  for (let i = 0; i < 3; i++) comp.push(pool.splice(Math.floor(g.rng() * pool.length), 1)[0]);
+  return comp;
+}
+
+// a hunter brings a beast; a warlock brings a voidwalker (melee) or an imp (caster). Returns the pet, or null.
+function spawnPet(g, p, u, base) {
+  const cls = u.cls === 'hunter' ? 'pet' : u.cls === 'warlock' ? (g.rng() < 0.5 ? 'voidwalker' : 'imp') : null;
+  if (!cls) return null;
+  const pet = mkUnit(g, p, cls, u.x + 2, u.y + 1);
+  pet.owner = u;
+  if (pet.role === 'ranged') { pet.slotA = base + (g.rng() - 0.5) * 1.6; pet.slotD = 36 + g.rng() * 10; }
+  else { pet.slotA = (g.rng() - 0.5) * 2; pet.slotD = g.rng() * 3; }
+  return pet;
+}
+
 function spawnDungeon(g, quiet) {
   const p = newParty(g, 'dungeon');
   const e = edgeSpot(g, true);
   const base = Math.atan2(e.y - g.boss.y, e.x - g.boss.x);
-  const comp = ['warrior', g.rng() < 0.5 ? 'priest' : 'druid', g.rng() < 0.5 ? 'rogue' : 'berserker', 'mage', 'hunter'];
+  const comp = dungeonComp(g);
   comp.forEach((cls, i) => {
     const u = mkUnit(g, p, cls, e.x - e.nx * i * 3 + (g.rng() - 0.5) * 8, e.y - e.ny * i * 3 + (g.rng() - 0.5) * 8);
     u.slotA = u.role === 'melee' ? (g.rng() - 0.5) * 1.6 : base + (g.rng() - 0.5) * 1.6;
     u.slotD = u.role === 'healer' ? 52 + g.rng() * 8 : u.role === 'ranged' ? 44 + g.rng() * 12 : g.rng() * 3;
     u.home = { x: u.x + e.nx * 14, y: u.y + e.ny * 14 };
-    if (cls === 'hunter') {
-      const pet = mkUnit(g, p, 'pet', u.x, u.y);
-      pet.slotA = (g.rng() - 0.5) * 2;
-      pet.state = 'pull';
-    }
+    const pet = spawnPet(g, p, u, base);
+    if (pet && cls === 'hunter') pet.state = 'pull';   // the hunter's pet has ideas of its own
   });
-  const afk = alive(p).filter(u => u.role === 'ranged' || u.role === 'melee');
+  const afk = alive(p).filter(u => (u.role === 'ranged' || u.role === 'melee') && !isPet(u));
   if (g.rng() < 0.55) { const u = pick(g, afk); u.state = 'afk'; u.afk = 7 + g.rng() * 6; }
   if (!quiet) banner(g, 'A 5-MAN HAS ZONED IN', 'TANK, HEALER, THREE DPS. ONE IS AFK.');
   g.events.push('horn');
@@ -891,7 +1166,7 @@ function spawnRaid(g, size, final) {
   sx = clamp(sx, AR.x0 + 10, AR.x1 - 10); sy = clamp(sy, AR.y0 + 10, AR.y1 - 10);
   p.stage = { x: sx, y: sy };
   const base = Math.atan2(sy - g.boss.y, sx - g.boss.x);
-  const comp = raidComp(size);
+  const comp = raidComp(g, size);
   const nMelee = comp.filter(c => CLASS[c].role === 'melee').length;
   const px = -e.ny, py = e.nx;   // along the edge
   let tank = 0, mi = 0;
@@ -903,6 +1178,7 @@ function spawnRaid(g, size, final) {
     if (u.role === 'tank') u.slot = tank++;
     u.slotA = u.role === 'melee' ? ((mi++) / Math.max(1, nMelee - 1) - 0.5) * 2.2 : base + (g.rng() - 0.5) * 2.6;
     u.slotD = u.role === 'healer' ? 54 + g.rng() * 10 : u.role === 'ranged' ? 44 + g.rng() * 16 : g.rng() * 4;
+    if (cls === 'warlock') { const pet = spawnPet(g, p, u, base); pet.stage = { x: u.stage.x + 2, y: u.stage.y + 1 }; }
   });
   p.leader = p.units[0];
   if (final) banner(g, 'A 40-MAN RAID HAS ENTERED', 'THE BIG ONE. NOTHING ELSE IS COMING.', 4);
@@ -921,14 +1197,21 @@ function spawnRider(g) {
   g.events.push('neigh');
 }
 
-// the class list of a raid of a given size: tanks, a fifth healers, the rest DPS, melee and ranged alternating
-function raidComp(size) {
+// the class list of a raid of a given size: tanks, a fifth healers, the rest DPS, melee and ranged alternating. Any
+// ranged place may go to a warlock (who brings a pet): two of them at most in a 25-man, three in a 40-man, often none.
+function raidComp(g, size) {
   const tanks = 2 + Math.floor((size - 25) / 15), healers = Math.round(size * 0.2), dps = size - tanks - healers;
-  const melee = ['rogue', 'berserker', 'paladin'], ranged = ['mage', 'warlock', 'hunter'];
-  const comp = [];
+  const melee = ['rogue', 'berserker', 'paladin'], ranged = ['mage', 'hunter'];
+  const comp = [], maxLocks = size >= 40 ? 3 : 2;
+  let locks = 0;
   for (let i = 0; i < tanks; i++) comp.push('warrior');
   for (let i = 0; i < healers; i++) comp.push(i % 2 ? 'druid' : 'priest');
-  for (let i = 0; i < dps; i++) comp.push(i % 2 ? ranged[(i >> 1) % 3] : melee[(i >> 1) % 3]);
+  for (let i = 0; i < dps; i++) {
+    if (i % 2 === 0) { comp.push(melee[(i >> 1) % 3]); continue; }
+    const lock = locks < maxLocks && g.rng() < 0.16;
+    if (lock) locks++;
+    comp.push(lock ? 'warlock' : ranged[(i >> 1) % 2]);
+  }
   return comp;
 }
 
@@ -941,7 +1224,7 @@ function garrison(g, o) {
   p.guard = o.guard || (raid ? 60 : 56);
   p.leash = o.leash || (raid ? 150 : 120);
   if (raid) { p.brez = 1; g.dir.raids++; }
-  const comp = raid ? raidComp(size) : ['warrior', g.rng() < 0.5 ? 'priest' : 'druid', g.rng() < 0.5 ? 'rogue' : 'berserker', 'mage', 'hunter'];
+  const comp = raid ? raidComp(g, size) : dungeonComp(g);
   const cols = raid ? Math.ceil(Math.sqrt(size * 1.4)) : 3, sp = o.spread || (raid ? 5 : 6), rows = Math.ceil(comp.length / cols);
   const face = Math.atan2(g.boss.y - o.y, g.boss.x - o.x);
   const nMelee = comp.filter(c => CLASS[c].role === 'melee').length;
@@ -954,7 +1237,7 @@ function garrison(g, o) {
     if (u.role === 'tank') u.slot = tank++;
     u.slotA = u.role === 'melee' ? (raid ? ((mi++) / Math.max(1, nMelee - 1) - 0.5) * 2.2 : (g.rng() - 0.5) * 1.6) : face + Math.PI + (g.rng() - 0.5) * 2.2;
     u.slotD = u.role === 'healer' ? 52 + g.rng() * 10 : u.role === 'ranged' ? 44 + g.rng() * 14 : g.rng() * 3;
-    if (cls === 'hunter' && !raid) { const pet = mkUnit(g, p, 'pet', x + 2, y + 1); pet.state = 'post'; pet.post = { x: x + 2, y: y + 1 }; pet.slotA = (g.rng() - 0.5) * 2; }
+    if (cls === 'warlock' || (cls === 'hunter' && !raid)) { const pet = spawnPet(g, p, u, face + Math.PI); pet.state = 'post'; pet.post = { x: x + 2, y: y + 1 }; }
   });
   p.leader = p.units[0];
   return p;
@@ -985,7 +1268,7 @@ function engage(g, p, why) {
   p.countdown = null;
   for (const u of p.units) if ((u.state === 'travel' || u.state === 'stage' || u.state === 'post') && u.role !== 'king') u.state = 'fight';
   g.events.push('engage');
-  const u = alive(p).find(v => v.role !== 'pet');
+  const u = alive(p).find(v => !isPet(v));
   if (u) bark(g, u, why === 'pet' ? pick(g, BARK.pet) : why === 'early' ? pick(g, BARK.pull) : p.type === 'raid' ? 'GO GO GO' : 'GOGO');
 }
 
@@ -1031,7 +1314,7 @@ function updateParty(g, p, dt) {
   if (p.barkT <= 0) {
     p.barkT = (p.type === 'raid' ? 2.6 : 4) + g.rng() * 3;
     const u = pick(g, live);
-    if (u.role !== 'pet' && !g.clear) {
+    if (!isPet(u) && !g.clear) {
       let list = p.type === 'raid' ? (p.engaged ? BARK.raidFight : BARK.raidIdle) : (p.engaged ? BARK.dungeonFight : BARK.dungeonIdle);
       if (p.engaged && g.adds.length && g.rng() < 0.3) list = BARK.adds;
       if (p.engaged && b.hp < b.maxhp * 0.3 && g.rng() < 0.4) list = BARK.execute;
@@ -1144,6 +1427,7 @@ function moveTo(u, tx, ty, spd, dt) {
   spd *= u.slow ?? 1;
   const dx = tx - u.x, dy = ty - u.y, d = Math.hypot(dx, dy);
   if (d < 0.6) { u.moving = false; return true; }
+  if (u.root > 0) { u.moving = false; return d < 2; }   // frozen to the ice
   const s = Math.min(d, spd * dt);
   u.x += dx / d * s; u.y += dy / d * s;
   u.moving = true;
@@ -1152,6 +1436,7 @@ function moveTo(u, tx, ty, spd, dt) {
   return d < 2;
 }
 function moveDir(u, dx, dy, spd, dt) {
+  if (u.root > 0) { u.moving = false; return; }
   spd *= u.slow ?? 1;
   const d = Math.hypot(dx, dy) || 1;
   u.x += dx / d * spd * dt; u.y += dy / d * spd * dt;
@@ -1191,6 +1476,12 @@ export function onIce(g, x, y) {
   for (const i of g.ice) if (i.t < i.life - 0.5 && Math.hypot(x - i.x, y - i.y) < i.r) return true;
   return false;
 }
+// how fast anyone can walk here for the ice: 1 off it, ICE_SLOW on it, slower still on the last level's
+export function iceSlow(g, x, y) {
+  let f = 1;
+  for (const i of g.ice) if (i.t < i.life - 0.5 && Math.hypot(x - i.x, y - i.y) < i.r) f = Math.min(f, i.slow || ICE_SLOW);
+  return f;
+}
 
 function fightSpot(g, u) {
   const b = g.boss;
@@ -1206,7 +1497,8 @@ function updateUnit(g, u, dt) {
   u.hit = Math.max(0, u.hit - dt);
   u.x += u.kx * dt; u.y += u.ky * dt;
   const k = Math.exp(-9 * dt); u.kx *= k; u.ky *= k;
-  u.slow = (onIce(g, u.x, u.y) ? 0.4 : 1) * (g.props.length ? P.slowAt(g, u.x, u.y) : 1);
+  u.slow = iceSlow(g, u.x, u.y) * (g.props.length ? P.slowAt(g, u.x, u.y) : 1);
+  if (u.root > 0) u.root -= dt;
   if (u.role === 'rider') { updateRider(g, u, dt); return; }
   if (b.dead) { u.moving = false; u.dance = (u.dance || g.rng() * 3) + dt; return; }
 
@@ -1301,7 +1593,7 @@ function updateUnit(g, u, dt) {
     // casters plant their feet and only move when the spot has drifted a long way, or the boss is on top of them
     if (u.repos || Math.hypot(s.x - u.x, s.y - u.y) > 16 || dist < 22) u.repos = !moveTo(u, s.x, s.y, u.spd, dt);
     else u.moving = false;
-    there = !u.repos;
+    there = !u.repos || u.root > 0;   // stuck to the ice, they cast from where they stand
   } else there = moveTo(u, s.x, s.y, u.spd, dt);
   clampArena(u);
   const c = CLASS[u.cls];
@@ -1371,6 +1663,8 @@ function updateRider(g, u, dt) {
     return false;
   };
   u.stab = Math.max(0, (u.stab || 0) - dt);
+  // the last Roar: he and the horse stand stock still for a moment before they bolt
+  if (u.daze > 0) { u.daze -= dt; if (u.mounted && u.state !== 'leave') { u.moving = false; return; } }
 
   switch (u.state) {
     case 'arrive': {
@@ -1497,7 +1791,7 @@ function hurt(g, u, amt) {
 function kill(g, u) {
   u.dead = true;
   const p = u.party;
-  const base = u.role === 'pet' ? PTS.pet : PTS[p.type];
+  const base = isPet(u) ? PTS.pet : PTS[p.type];
   const pts = Math.round(base * g.mult);
   addScore(g, pts);
   g.kills++;
@@ -1507,10 +1801,10 @@ function kill(g, u) {
   const corpse = { u, x: u.x, y: u.y, cls: u.cls, t: 0 };
   g.corpses.push(corpse);
   if (g.corpses.length > 90) g.corpses.shift();
-  if (u.role !== 'pet') g.ghosts.push({ x: u.x, y: u.y - 2, t: 0, vx: (g.rng() - 0.5) * 6 });
+  if (!isPet(u)) g.ghosts.push({ x: u.x, y: u.y - 2, t: 0, vx: (g.rng() - 0.5) * 6 });
   p.deadList.push({ u, x: u.x, y: u.y, t: g.t });
   if (g.boss.taunt?.u === u) g.boss.taunt = null;
-  if (p.type !== 'rider' && u.role !== 'pet' && g.rng() < 0.3) bark(g, { x: u.x, y: u.y - 4, dead: true }, pick(g, BARK.died));
+  if (p.type !== 'rider' && !isPet(u) && g.rng() < 0.3) bark(g, { x: u.x, y: u.y - 4, dead: true }, pick(g, BARK.died));
   if (u.role === 'rider') {
     const h = u.horse;
     g.ghosts.push({ x: u.x, y: u.y - 2, t: 0, vx: 0 });
@@ -1533,7 +1827,7 @@ function updateBolts(g, dt) {
     const hitR = o.ally ? 2 : o.foe ? o.foe.r : b.r - 1;
     if (d < hitR || o.t > 2) {
       o.done = true;
-      if (o.ally) { hurt(g, tgt, o.dmg); for (let i = 0; i < 4; i++) part(g, o.x, o.y, (g.rng() - 0.5) * 30, (g.rng() - 0.5) * 30, 0.3, o.kind === 'fireball' ? 'flame' : 'shadow'); }
+      if (o.ally) { hurt(g, tgt, o.dmg); if (o.soul != null) soulHeal(g, o, tgt); for (let i = 0; i < 4; i++) part(g, o.x, o.y, (g.rng() - 0.5) * 30, (g.rng() - 0.5) * 30, 0.3, o.kind === 'fireball' ? 'flame' : 'shadow'); }
       else if (o.foe) hurtAdd(g, o.foe, o.dmg);
       else if (!b.dead) {
         hurtBoss(g, o.dmg, o.u);
@@ -1577,7 +1871,7 @@ function separate(g) {
     }
     // nobody stands inside the boss, or inside an add
     const b = g.boss, dx = a.x - b.x, dy = a.y - b.y, d = Math.hypot(dx, dy), min = b.r + 2;
-    if (d < min && d > 0.001 && !b.dead) { a.x = b.x + dx / d * min; a.y = b.y + dy / d * min; }
+    if (d < min && d > 0.001 && !b.dead && !(b.act && b.act.z > 0)) { a.x = b.x + dx / d * min; a.y = b.y + dy / d * min; }   // (in the air, it is over them, not among them)
     for (const m of g.adds) {
       const ex = a.x - m.x, ey = a.y - m.y, e = Math.hypot(ex, ey), em = m.r + 2;
       if (e < em && e > 0.001) { a.x = m.x + ex / e * em; a.y = m.y + ey / e * em; }
@@ -1638,23 +1932,33 @@ function hurtAdd(g, a, amt) {
   if (a.hp > 0) return;
   a.dead = true;
   text(g, a.x, a.y - 8, ADDS[a.kind].name + ' DOWN', 'pink', 1.3);
-  for (let i = 0; i < 10; i++) { const k = g.rng() * TAU, s = 15 + g.rng() * 30; part(g, a.x, a.y - 1, Math.cos(k) * s, Math.sin(k) * s, 0.45, a.kind.startsWith('skel') ? 'bone' : 'fur'); }
+  for (let i = 0; i < 10; i++) { const k = g.rng() * TAU, s = 15 + g.rng() * 30; part(g, a.x, a.y - 1, Math.cos(k) * s, Math.sin(k) * s, 0.45, isSkel(a) ? 'bone' : 'fur'); }
   g.events.push('adddie');
 }
 
-// what Call Adds brings depends on its level: melee, then casters, then a necromancer
+const isSkel = a => a.kind.startsWith('skel');
+const necrosOf = g => g.adds.filter(a => a.kind === 'necro' && !a.dead);
+const skelsOf = (g, n) => g.adds.filter(a => a.owner === n.id && !a.dead);
+
+// what Call Adds brings depends on its level: melee, then casters, then a necromancer (who arrives alone and has to
+// find his own dead). Three necromancers is the limit; past that the call patches up the ones you have.
 function summon(g) {
   const lvl = g.lvl.summon || 0;
-  const kinds = lvl === 0 ? ['gnasher', 'gnasher'] : lvl === 1 ? ['spitter', 'spitter'] : ['necro'];
-  for (const k of kinds) {
-    if (g.adds.filter(a => !a.kind.startsWith('skel')).length >= MAX_ADDS) break;
-    spawnAdd(g, k);
+  if (lvl >= 2) {
+    const have = necrosOf(g);
+    if (have.length < MAX_NECROS) spawnAdd(g, 'necro');
+    else for (const n of have) { n.hp = n.maxhp; text(g, n.x, n.y - 9, 'MENDED', 'heal', 1.2); }
+  } else {
+    for (const k of lvl === 0 ? ['gnasher', 'gnasher'] : ['spitter', 'spitter']) {
+      if (g.adds.filter(a => !isSkel(a)).length >= MAX_ADDS) break;
+      spawnAdd(g, k);
+    }
   }
-  if (lvl === 2) for (let i = 0; i < 2; i++) spawnAdd(g, 'skeleton', g.boss.x + (g.rng() - 0.5) * 30, g.boss.y + (g.rng() - 0.5) * 30);
   g.shake = Math.max(g.shake, 0.2);
 }
 
-function spawnAdd(g, kind, x, y) {
+// owner: the id of the necromancer a skeleton answers to
+function spawnAdd(g, kind, x, y, owner) {
   const b = g.boss, D = ADDS[kind];
   if (x == null) {
     if (kind === 'spitter' && g.map.pts) {
@@ -1668,19 +1972,189 @@ function spawnAdd(g, kind, x, y) {
     }
   }
   const a = { id: g.nextId++, kind, x: clamp(x, AR.x0, AR.x1), y: clamp(y, AR.y0, AR.y1), hp: D.hp, maxhp: D.hp, r: D.r,
-    atk: 0.5, walk: 0, moving: false, fx: 1, hit: 0, t: 0, swing: 0, slot: g.rng() * TAU, raise: 2 };
+    atk: 0.5, walk: 0, moving: false, fx: 1, hit: 0, t: 0, swing: 0, slot: g.rng() * TAU,
+    owner: owner == null ? null : owner, charges: 0, chargeT: 0 };
   g.adds.push(a);
   g.summoned++;
-  text(g, a.x, a.y - 9, kind.startsWith('skel') ? 'RISE' : D.name + '!', kind.startsWith('skel') ? 'heal' : 'gold', 1.4);
-  for (let i = 0; i < 12; i++) { const k = g.rng() * TAU, s = 20 + g.rng() * 25; part(g, a.x, a.y, Math.cos(k) * s, Math.sin(k) * s, 0.5, kind.startsWith('skel') || kind === 'necro' ? 'heal' : 'dust'); }
-  g.events.push(kind.startsWith('skel') ? 'rise' : 'summon');
+  text(g, a.x, a.y - 9, isSkel(a) ? 'RISE' : D.name + '!', isSkel(a) ? 'heal' : 'gold', 1.4);
+  for (let i = 0; i < 12; i++) { const k = g.rng() * TAU, s = 20 + g.rng() * 25; part(g, a.x, a.y, Math.cos(k) * s, Math.sin(k) * s, 0.5, isSkel(a) || kind === 'necro' ? 'heal' : 'dust'); }
+  g.events.push(isSkel(a) ? 'rise' : 'summon');
   return a;
+}
+
+// what a necromancer would make of a body: a hero's skeleton by the hero's role, plain bones for a civilian (or
+// whatever the level says its animals come back as), and nothing at all for a pet
+function raiseKind(c) {
+  if (c.critter) return P.CRITTERS[c.critter].raise || null;
+  const C = CLASS[c.cls];
+  return C && !C.pet ? SKEL_OF[C.role] || null : null;
+}
+// how much a necromancer wants one: the Weird Guy first, then any hero, then plain bones
+const SKEL_HERO = { skel_tank: 1, skel_melee: 1, skel_caster: 1, skel_healer: 1, skel_king: 1, skel_rider: 1 };
+const skelRank = kind => kind === 'skel_rider' ? 0 : SKEL_HERO[kind] ? 1 : 2;
+
+function crumble(g, a) {
+  a.dead = true;
+  for (let i = 0; i < 8; i++) { const k = g.rng() * TAU, s = 10 + g.rng() * 25; part(g, a.x, a.y - 1, Math.cos(k) * s, Math.sin(k) * s, 0.45, 'bone'); }
+}
+
+// One cast of the raise, if there is anything worth casting it on: the best body within NECRO_RANGE (the Weird Guy
+// before any other hero, heroes before civilians, then the nearest). With both skeletons up he will only recast to
+// swap plain bones for a hero, or a bone blade for the Weird Guy. Returns true if he cast.
+function necroRaise(g, a) {
+  let best = null, bk = null, br = 9, bd = Infinity;
+  for (const c of g.corpses) {
+    const kind = raiseKind(c);
+    if (!kind) continue;
+    const d = Math.hypot(c.x - a.x, c.y - a.y);
+    if (d > NECRO_RANGE) continue;
+    const r = skelRank(kind);
+    if (r < br || (r === br && d < bd)) { best = c; bk = kind; br = r; bd = d; }
+  }
+  if (!best) return false;
+  const mine = skelsOf(g, a);
+  let old = null;
+  if (mine.length >= NECRO_SKELS) {
+    if (br < 2) old = mine.find(m => skelRank(m.kind) === 2) || null;
+    if (!old && br === 0) old = mine.find(m => m.kind === 'skel_melee') || null;
+    if (!old) return false;
+    crumble(g, old);
+  }
+  g.corpses.splice(g.corpses.indexOf(best), 1);
+  if (best.u) { const dl = best.u.party.deadList.findIndex(e => e.u === best.u); if (dl >= 0) best.u.party.deadList.splice(dl, 1); }
+  spawnAdd(g, bk, best.x, best.y, a.id);
+  a.swing = 0.4;
+  a.charges--;
+  return true;
+}
+
+// a soul steal has landed: whoever of the necromancer and his skeletons is worst off gets the life it took
+function soulHeal(g, o, from) {
+  const n = g.adds.find(a => a.id === o.soul && !a.dead);
+  if (!n) return;
+  let who = null, low = 1;
+  for (const m of [n, ...skelsOf(g, n)]) { const k = m.hp / m.maxhp; if (k < low) { low = k; who = m; } }
+  if (!who) return;
+  who.hp = Math.min(who.maxhp, who.hp + SOUL.heal);
+  const dx = who.x - from.x, dy = who.y - from.y;
+  for (let i = 0; i < 5; i++) part(g, from.x, from.y - 2, dx * 2.5 + (g.rng() - 0.5) * 14, dy * 2.5 + (g.rng() - 0.5) * 14, 0.45, 'ghost');
+  for (let i = 0; i < 3; i++) part(g, who.x + (g.rng() - 0.5) * 4, who.y - 2, 0, -10 - g.rng() * 10, 0.6, 'heal');
+}
+
+// trails along beside the boss
+function heel(g, a, dt) {
+  const b = g.boss, k = b.face + Math.PI + Math.sin(a.slot) * 1.3, dist = b.r + a.r + 6;
+  if (moveTo(a, b.x + Math.cos(k) * dist, b.y + Math.sin(k) * dist, ADDS[a.kind].spd * 1.1, dt)) a.moving = false;
+}
+
+// who the Weird Guy's skeleton would like to land on: someone about RUN.ideal px away (room to get up to speed and
+// no more), near enough to the boss, and not standing in a knot of three or more
+function riderTarget(g, a) {
+  const b = g.boss;
+  let best = null, bs = Infinity;
+  for (const u of g.units) {
+    if (!hittable(u) || u.state === 'flee' || Math.hypot(u.x - b.x, u.y - b.y) > 110) continue;
+    const d = Math.hypot(u.x - a.x, u.y - a.y);
+    if (d > ADDS.skel_rider.sense) continue;
+    let near = 0;
+    for (const v of g.units) if (v !== u && hittable(v) && Math.hypot(v.x - u.x, v.y - u.y) < RUN.clump) near++;
+    if (near >= 2) continue;
+    const score = d < RUN.min ? 30 + RUN.min - d : Math.abs(d - RUN.ideal);
+    if (score < bs) { bs = score; best = u; }
+  }
+  return best;
+}
+
+// The Weird Guy's skeleton (no horse came back with him): he picks someone, takes a run at them in a straight line,
+// and if he is going fast enough when he gets there he leaps and lands on them, which kills. Too little room and he
+// backs off first; too slow at the end and he just stumbles past.
+function updateBoneRider(g, a, dt) {
+  const D = ADDS.skel_rider;
+  a.mode = a.mode || 'seek';
+  a.z = 0;
+  if (a.mode === 'rest') {
+    a.moving = false;
+    a.modeT -= dt;
+    if (a.modeT <= 0) { a.mode = 'seek'; a.tgt = null; }
+    return;
+  }
+  const u = a.tgt;
+  if (a.mode === 'leap') {
+    a.modeT += dt;
+    const left = Math.max(dt, RUN.leapT - a.modeT);
+    if (u) { a.x += (u.x - a.x) * Math.min(1, dt / left); a.y += (u.y - a.y) * Math.min(1, dt / left); }
+    a.z = Math.sin(Math.PI * Math.min(1, a.modeT / RUN.leapT)) * 7;
+    a.moving = true;
+    if (a.modeT >= RUN.leapT) {
+      a.z = 0;
+      if (u && hittable(u) && Math.hypot(u.x - a.x, u.y - a.y) < 8) {
+        hurt(g, u, u.hp + 1e6);
+        text(g, a.x, a.y - 12, 'CRUNCH', 'bone', 1);
+        g.shake = Math.max(g.shake, 0.12);
+        for (let i = 0; i < 6; i++) { const k = g.rng() * TAU; part(g, a.x, a.y, Math.cos(k) * 30, Math.sin(k) * 30, 0.4, 'dust'); }
+        g.events.push('bite');
+      }
+      a.mode = 'rest'; a.modeT = RUN.rest; a.tgt = null;
+    }
+    return;
+  }
+  if (a.mode === 'run') {
+    if (!u || !hittable(u)) { a.mode = 'rest'; a.modeT = 0.3; a.tgt = null; return; }
+    const dx = u.x - a.x, dy = u.y - a.y, d = Math.hypot(dx, dy);
+    a.dir = turnToward(a.dir, Math.atan2(dy, dx), RUN.turn * dt);   // he can lean into it, not swerve
+    a.v = Math.min(RUN.top, a.v + RUN.acc * dt);
+    const s = a.v * dt, nx = a.x + Math.cos(a.dir) * s, ny = a.y + Math.sin(a.dir) * s;
+    a.x = nx; a.y = ny; a.ran += s; a.walk += s * 0.5; a.moving = true;
+    if (Math.abs(Math.cos(a.dir)) > 0.1) a.fx = Math.cos(a.dir) > 0 ? 1 : -1;
+    clampArena(a);
+    const stopped = a.x !== nx || a.y !== ny, passed = dx * Math.cos(a.dir) + dy * Math.sin(a.dir) < 0;
+    if (d <= RUN.leap && a.v >= RUN.kill && !passed) { a.mode = 'leap'; a.modeT = 0; return; }
+    if (stopped || passed || d < 3 || a.ran > 110) { a.mode = 'rest'; a.modeT = RUN.rest; a.tgt = null; if (d < 6) text(g, a.x, a.y - 9, 'TOO SLOW', 'bone', 0.8); }
+    return;
+  }
+  // seek
+  a.seekT = (a.seekT || 0) - dt;
+  if (a.seekT <= 0 || !u || !hittable(u)) { a.seekT = 0.4; a.tgt = riderTarget(g, a); a.backT = a.tgt === u ? a.backT : 0; }
+  const t = a.tgt;
+  if (!t) { heel(g, a, dt); clampArena(a); return; }
+  const dx = t.x - a.x, dy = t.y - a.y, d = Math.hypot(dx, dy) || 1;
+  if (d < RUN.min && (a.backT = (a.backT || 0) + dt) < 2) {
+    // not enough room to get up to speed: back away from them first (and give up on that after a couple of seconds)
+    moveTo(a, a.x - dx / d * 10, a.y - dy / d * 10, D.spd * 1.3, dt);
+    clampArena(a);
+    return;
+  }
+  if (d > RUN.ideal + 10) { moveTo(a, t.x, t.y, D.spd, dt); clampArena(a); return; }
+  a.mode = 'run'; a.dir = Math.atan2(dy, dx); a.v = RUN.v0; a.ran = 0; a.backT = 0;
 }
 
 function updateAdd(g, a, dt) {
   const b = g.boss, D = ADDS[a.kind];
   a.t += dt; a.hit = Math.max(0, a.hit - dt); a.atk -= dt; a.swing = Math.max(0, a.swing - dt);
-  if (b.dead) { a.moving = false; return; }
+  if (b.dead) { a.moving = false; a.z = 0; return; }
+  // a skeleton does not outlast the necromancer who raised it
+  if (a.owner != null && !g.adds.some(n => n.id === a.owner && !n.dead)) { crumble(g, a); return; }
+  if (a.kind === 'skel_rider') { updateBoneRider(g, a, dt); return; }
+  if (a.kind === 'skel_king') { heel(g, a, dt); clampArena(a); return; }   // a trophy: it just follows you about
+  if (a.kind === 'skel_healer') {
+    // mends the boss; once there is nothing to mend, it builds a ward instead, up to WARD_MAX of max health
+    heel(g, a, dt);
+    clampArena(a);
+    if (a.atk <= 0 && Math.hypot(a.x - b.x, a.y - b.y) < b.r + D.reach && !b.evade) {
+      const cap = b.maxhp * WARD_MAX, ward = b.ward || 0;
+      a.atk = 0.3;
+      if (b.hp < b.maxhp) {
+        b.hp = Math.min(b.maxhp, b.hp + D.heal);
+        a.atk = D.rate; a.swing = 0.3;
+        for (let i = 0; i < 4; i++) part(g, b.x + (g.rng() - 0.5) * 14, b.y - 2 + (g.rng() - 0.5) * 8, 0, -10 - g.rng() * 10, 0.6, 'heal');
+      } else if (ward < cap) {
+        b.ward = Math.min(cap, ward + D.heal);
+        a.atk = D.rate; a.swing = 0.3;
+        for (let i = 0; i < 4; i++) { const k = g.rng() * TAU; part(g, b.x + Math.cos(k) * 14, b.y + Math.sin(k) * 12, 0, -8, 0.5, 'frost'); }
+      }
+    }
+    return;
+  }
   let tgt = null, td = Infinity;
   for (const u of g.units) {
     if (!hittable(u) || u.state === 'flee') continue;
@@ -1688,38 +2162,56 @@ function updateAdd(g, a, dt) {
     if (d < D.sense && d < td) { tgt = u; td = d; }
   }
   if (a.kind === 'necro') {
-    // raises the nearest fallen hero as a skeleton, now and then
-    a.raise -= dt;
-    if (a.raise <= 0 && g.adds.filter(m => m.kind.startsWith('skel')).length < MAX_SKELETONS) {
-      const raises = c => c.critter ? P.CRITTERS[c.critter].raise : c.cls !== 'pet' && 'skeleton';
-      const c = g.corpses.filter(c => raises(c) && Math.hypot(c.x - a.x, c.y - a.y) < 90).sort((p, q) => Math.hypot(p.x - a.x, p.y - a.y) - Math.hypot(q.x - a.x, q.y - a.y))[0];
-      if (c) {
-        g.corpses.splice(g.corpses.indexOf(c), 1);
-        if (c.u) { const dl = c.u.party.deadList.findIndex(e => e.u === c.u); if (dl >= 0) c.u.party.deadList.splice(dl, 1); }
-        spawnAdd(g, raises(c), c.x, c.y);
-        a.swing = 0.4;
-        a.raise = 3.2;
-      } else a.raise = 0.5;
-    }
-  }
-  if (a.kind === 'spitter' || a.kind === 'necro') {
-    if (tgt) {
+    // a raise charge every NECRO_CHARGE_T seconds, two at most; each one spent the moment there is a body to spend it on
+    if (a.charges == null) { a.charges = 0; a.chargeT = 0; }   // from an older save
+    if (a.charges < NECRO_CHARGES) {
+      a.chargeT += dt;
+      if (a.chargeT >= NECRO_CHARGE_T) { a.chargeT -= NECRO_CHARGE_T; a.charges++; }
+    } else a.chargeT = 0;
+    for (let i = 0; i < NECRO_CHARGES && a.charges > 0; i++) if (!necroRaise(g, a)) break;   // both at once, if both are ready
+    // with both skeletons up he has a hand free: the soul steal hurts a hero and mends him or one of his own
+    if (skelsOf(g, a).length >= NECRO_SKELS && tgt && td < SOUL.range) {
       a.fx = tgt.x > a.x ? 1 : -1;
       if (a.atk <= 0) {
-        a.atk = D.rate; a.swing = Math.max(a.swing, 0.25);
-        g.bolts.push({ x: a.x, y: a.y - 3, dmg: D.dmg, kind: a.kind === 'spitter' ? 'fireball' : 'shadow', ally: true, tgt, t: 0 });
+        a.atk = SOUL.rate; a.swing = Math.max(a.swing, 0.25);
+        g.bolts.push({ x: a.x, y: a.y - 3, dmg: SOUL.dmg, kind: 'ghost', ally: true, tgt, soul: a.id, t: 0 });
         g.events.push('spit');
       }
     }
-    if (a.kind === 'spitter') { a.moving = false; return; }
-    // the necromancer keeps to your side
-    const k = b.face + Math.PI * 0.75 * (Math.sin(a.slot) > 0 ? 1 : -1), dist = b.r + 12;
+    // the necromancers keep to your flanks: one behind each shoulder, the third at your tail
+    const k = b.face + [Math.PI * 0.75, -Math.PI * 0.75, Math.PI][necrosOf(g).indexOf(a) % 3], dist = b.r + 12;
     if (moveTo(a, b.x + Math.cos(k) * dist, b.y + Math.sin(k) * dist, D.spd, dt)) a.moving = false;
     clampArena(a);
     return;
   }
+  if (a.kind === 'spitter') {
+    if (tgt) {
+      a.fx = tgt.x > a.x ? 1 : -1;
+      if (a.atk <= 0) {
+        a.atk = D.rate; a.swing = Math.max(a.swing, 0.25);
+        g.bolts.push({ x: a.x, y: a.y - 3, dmg: D.dmg, kind: 'fireball', ally: true, tgt, t: 0 });
+        g.events.push('spit');
+      }
+    }
+    a.moving = false;
+    return;
+  }
   // gnashers and skeletons never stray too far from you
   if (Math.hypot(a.x - b.x, a.y - b.y) > 95) tgt = null;
+  if (a.kind === 'skel_caster') {
+    // frail, so it stays by you and throws from there
+    if (tgt && td <= D.reach) {
+      a.moving = false;
+      a.fx = tgt.x > a.x ? 1 : -1;
+      if (a.atk <= 0) {
+        a.atk = D.rate; a.swing = 0.25;
+        g.bolts.push({ x: a.x, y: a.y - 3, dmg: D.dmg, kind: 'shadow', ally: true, tgt, t: 0 });
+        g.events.push('spit');
+      }
+    } else heel(g, a, dt);
+    clampArena(a);
+    return;
+  }
   if (tgt) {
     const reach = a.r + D.reach;
     if (td > reach - 1) moveTo(a, tgt.x, tgt.y, D.spd, dt); else a.moving = false;
@@ -1729,13 +2221,12 @@ function updateAdd(g, a, dt) {
       hurt(g, tgt, D.dmg);
       g.events.push('bite');
     }
-  } else {
-    // heel: trail along beside the boss
-    const k = b.face + Math.PI + Math.sin(a.slot) * 1.3, dist = b.r + a.r + 6;
-    if (moveTo(a, b.x + Math.cos(k) * dist, b.y + Math.sin(k) * dist, D.spd * 1.1, dt)) a.moving = false;
-  }
+  } else heel(g, a, dt);
   clampArena(a);
 }
+
+// tests only: the pieces a scripted run needs to set a scene up
+export const TEST = { spit, slam, tryCast, stun, spawnAdd, summon, kill, hurt, hurtAdd, hurtBoss, mkUnit, newParty, spawnDungeon, spawnRaid, spawnRider, spawnKing, garrison, raidComp, dungeonComp, raiseKind, necroRaise };
 
 // ---------------------------------------------------------------------------------------------- the store
 
@@ -1753,6 +2244,18 @@ export function applyLevels(g) {
   a.ice.range *= 1 + 0.25 * L('ice'); a.ice.life += 2 * L('ice');
   a.charge.dmg *= 1 + 0.3 * L('charge'); a.charge.range *= 1 + 0.2 * L('charge'); a.charge.stun += 0.5 * L('charge');
   a.haste.time += 1.5 * L('haste'); a.haste.boost += 0.2 * L('haste');
+  // what the last level of each adds (see BALL, TWICE and friends)
+  const top = k => L(k) >= maxLevel(k);
+  for (const k of ['swipe', 'stomp']) {
+    a[k].hits = top(k) ? 2 : 1;
+    if (top(k)) { a[k].dmg *= TWICE; a[k].kb *= TWICE; a[k].wind *= TWICE; a[k].dur *= TWICE; }
+  }
+  a.tail.range = a.swipe.range * TAIL_REACH; a.tail.hits = top('tail') ? 3 : 2; a.tail.rewind = 0.5;
+  a.breath.balls = top('breath') ? BALL.n : 0;
+  a.beam.side = top('beam') ? BEAM_SIDE : 0;
+  a.roar.stun = top('roar') ? ROAR_STUN : 0;
+  a.ice.slow = ICE_SLOW * (top('ice') ? ICE_DEEP : 1); a.ice.root = top('ice') ? ICE_ROOT : 0;
+  a.charge.leap = top('charge'); a.charge.trample = top('charge');
   g.abil = a;
   const b = g.boss, old = b.maxhp;
   b.maxhp = BOSS_HP * (1 + 0.25 * L('fur'));
@@ -1778,26 +2281,37 @@ export function spend(g, n) {
   return true;
 }
 
-export function buyAbility(g, id) {
+// (free: the debug mode's Hoard, which charges nothing)
+export function buyAbility(g, id, free = false) {
   const o = abilityOffer(g, id);
-  if (o.buyCost == null || !spend(g, o.buyCost)) return false;
+  if (o.buyCost == null || !(free || spend(g, o.buyCost))) return false;
   g.owned.add(id);
-  const free = g.slots.indexOf(null);
-  if (free >= 0) g.slots[free] = id;
+  const slot = g.slots.indexOf(null);
+  if (slot >= 0) g.slots[slot] = id;
   return true;
 }
 
-export function upgradeAbility(g, id) {
+export function upgradeAbility(g, id, free = false) {
   const o = abilityOffer(g, id);
-  if (o.upCost == null || !spend(g, o.upCost)) return false;
+  if (o.upCost == null || !(free || spend(g, o.upCost))) return false;
   g.lvl[id] = (g.lvl[id] || 0) + 1;
   applyLevels(g);
   return true;
 }
 
+// debug only: takes a level of mutation back off (an ability you learnt keeps its slot; it is never unlearnt here)
+export function unmutateAbility(g, id) {
+  if (!(g.lvl[id] > 0)) return false;
+  g.lvl[id]--;
+  applyLevels(g);
+  return true;
+}
+
 // puts an owned ability in slot i; if it was already in another slot, the two swap
+// a slot can be given something or swapped, never emptied: moving an ability onto an empty key only swaps the empty
+// slot round, so everything you own stays on a key
 export function setSlot(g, i, id) {
-  if (id && !g.owned.has(id)) return;
+  if (!id || !g.owned.has(id) || id === 'roar') return;   // Roar has Space; it takes no slot
   const j = id ? g.slots.indexOf(id) : -1;
   if (j >= 0) g.slots[j] = g.slots[i];
   g.slots[i] = id || null;
@@ -1818,10 +2332,10 @@ export function createDemo(look) {
 }
 
 export function demoSet(d, id, lvl, look) {
-  for (const k of ['units', 'parties', 'corpses', 'ghosts', 'fires', 'ice', 'bolts', 'parts', 'texts', 'barks', 'rings', 'adds', 'ashes']) d[k] = [];
+  for (const k of ['units', 'parties', 'corpses', 'ghosts', 'fires', 'ice', 'bolts', 'parts', 'texts', 'barks', 'rings', 'adds', 'ashes', 'balls', 'steam']) d[k] = [];
   const it = ABILITIES.find(a => a.id === id);
-  d.owned = new Set([id, 'swipe']); d.lvl = { [id]: lvl };
-  d.slots = [it.passive ? 'swipe' : id, null, null, null, null];
+  d.owned = new Set([id, 'swipe', 'roar']); d.lvl = { [id]: lvl };
+  d.slots = [it.passive ? 'swipe' : it.space ? null : id, null, null, null, null];   // (Roar is cast with Space)
   if (look) d.look = { ...look };
   const b = d.boss;
   b.hp = b.maxhp;
@@ -1831,6 +2345,18 @@ export function demoSet(d, id, lvl, look) {
   d.demo = { id, t: 0, cycle: 0 };
   d.banner = null; d.thought = null;
   demoParty(d);
+  demoDead(d);
+}
+
+// A necromancer arrives alone and needs bodies, and nobody much dies in the shop, so the Call Adds demo at its last
+// level keeps two fallen heroes lying behind the boss for him to raise.
+function demoDead(d) {
+  if (d.demo.id !== 'summon' || (d.lvl.summon || 0) < 2) return;
+  const spots = [{ cls: 'warrior', x: DEMO_AT.x - 26, y: DEMO_AT.y - 12 }, { cls: 'mage', x: DEMO_AT.x - 30, y: DEMO_AT.y + 12 }];
+  for (const s of spots) {
+    if (d.corpses.some(c => c.demo === s.cls) || d.adds.some(a => a.kind === SKEL_OF[CLASS[s.cls].role] && !a.dead)) continue;
+    d.corpses.push({ u: null, x: s.x, y: s.y, cls: s.cls, t: 0, demo: s.cls });
+  }
 }
 
 function demoParty(d) {
@@ -1842,7 +2368,8 @@ function demoParty(d) {
     const x = tail ? 30 + i * 6 : 200 + i * 7, y = DEMO_AT.y - 14 + i * 7;
     const u = mkUnit(d, p, cls, x, y);
     u.slotA = u.role === 'melee' ? (d.rng() - 0.5) * 1.2 : Math.PI + (d.rng() - 0.5) * 1.2;
-    u.slotD = u.role === 'healer' ? 50 : u.role === 'ranged' ? 42 : 2;
+    // (behind the boss the casters stand inside the tail's reach, or the reel would show it sweeping at nothing)
+    u.slotD = tail ? (u.role === 'healer' ? 38 : u.role === 'ranged' ? 33 : 2) : u.role === 'healer' ? 50 : u.role === 'ranged' ? 42 : 2;
     u.home = { x, y };
   });
 }
@@ -1874,14 +2401,19 @@ export function demoStep(d, dt) {
   } else {
     // everything else goes off once the party is close enough to be worth it, then again after a short breather
     const ready = !b.act && dm.t - (dm.last || -9) > 3.2;
-    const range = { stomp: 34, roar: 70, breath: 60, beam: 160, ice: 44, charge: 60, summon: 200, tail: 30 }[id] || 40;
-    if (ready && dist < range) { b.cd[id] = 0; inp.press.slot0 = true; dm.last = dm.t; }
+    const range = { stomp: 34, roar: 70, breath: 60, beam: 160, ice: 44, charge: 60, summon: 200, tail: d.abil.tail.range - 2 }[id] || 40;
+    // (one necromancer is enough to show what he does)
+    const full = id === 'summon' && (d.lvl.summon || 0) >= 2 && necrosOf(d).length > 0;
+    if (ready && dist < range && !full) { b.cd[id] = 0; inp.press[it.space ? 'space' : 'slot0'] = true; dm.last = dm.t; }
   }
+  demoDead(d);
   // the boss wanders back to its mark between casts (charge brings itself back)
   if (!b.act && id !== 'haste' && Math.hypot(b.x - DEMO_AT.x, b.y - DEMO_AT.y) > 6) {
     inp.ax = clamp((DEMO_AT.x - b.x) / 20, -1, 1); inp.ay = clamp((DEMO_AT.y - b.y) / 20, -1, 1);
   }
   step(d, inp, dt);
+  // he starts with his raises ready here, so the reel gets to the point
+  for (const a of d.adds) if (a.kind === 'necro' && !a.primed) { a.primed = true; a.charges = NECRO_CHARGES; }
   if (d.adds.length > 4) d.adds.splice(0, d.adds.length - 4);
   d.events.length = 0; d.banner = null; d.thought = null; d.clear = null; d.store = false;
 }
@@ -1902,13 +2434,17 @@ export function newGamePlus(prev, look) {
   g.owned = new Set(prev.owned);
   g.lvl = { ...prev.lvl };
   g.slots = [...prev.slots];
+  migrate(g);   // a build won before Roar moved to Space still has it in a slot
   applyLevels(g);
   g.boss.hp = g.boss.maxhp;
   return g;
 }
 
 // The ending: back in the clearing, the boss comes home to its rocks. A tiny script drives the ordinary sim (nobody
-// spawns, nothing scores); the page adds the captions and hearts. endingStep returns false once it is over.
+// spawns, nothing scores); the page adds the captions and hearts. Its last part ('home': the boss patting its rocks,
+// hearts everywhere) loops until the player presses something, so endingStep never reports the scene over. The hearts
+// belong to this scene only: touching a rock in the Clearing itself gives none.
+const ENDING_DASH = 3.2;   // how much faster than a walk the boss goes between the rocks in the last part (as haste.boost)
 export const ENDING_LINES = [
   [0, 'THE KINGDOM IS RUBBLE.'],
   [2.8, 'THE HEROES HAVE ALL LOGGED OFF.'],
@@ -1955,16 +2491,22 @@ export function endingStep(e, dt) {
     look(A);
     if (en.t - en.at > 2.6) { en.phase = 'home'; en.at = en.t; say('TOGETHER AGAIN. AS IT SHOULD BE.'); }
   } else if (en.phase === 'home') {
-    // settles between them, facing out over the clearing, and pats each rock with a heart now and then
-    const mid = { x: (A.x + B.x) / 2, y: A.y + 14 };
-    const dx = mid.x - b.x, dy = mid.y - b.y, d = Math.hypot(dx, dy);
-    if (d > 2) { inp.ax = dx / Math.max(d, 8); inp.ay = dy / Math.max(d, 8); inp.mx = b.x + dx; inp.my = b.y + dy; }
-    else { inp.mx = b.x; inp.my = b.y + 30; }
-    if (Math.floor((en.t - en.at) / 1.4) !== Math.floor((en.t - en.at - dt) / 1.4)) heart(2);
-    if (en.t - en.at > 5.5) { say('THE END. (CLOCK IN AGAIN?)'); }
-    if (en.t - en.at > 8.5) en.done = true;
+    // The last part, and it loops for as long as the player lets it: the boss dashes back and forth between its two
+    // rocks, giving each a quick pat, in a cloud of hearts. en.at is when the loop began; the page counts its "any key"
+    // prompt from there, and nothing here ever ends the scene (en.done stays false).
+    if (!en.side) en.side = 'B';
+    e.abil.haste.boost = ENDING_DASH; b.haste = 0.5;
+    const R = en.side === 'A' ? A : B;
+    en.patT = Math.max(0, (en.patT || 0) - dt);
+    if (en.patT > 0) look(R);
+    else if (go(R, en.side === 'A' ? 1 : -1)) { en.patT = 0.22; en.side = en.side === 'A' ? 'B' : 'A'; heart(4); inp.press.shake = true; }
+    // the cloud: a steady trickle of hearts wherever it has got to, on top of the burst at each pat
+    en.heartT = (en.heartT || 0) - dt;
+    if (en.heartT <= 0) { en.heartT = 0.11; heart(1); }
+    if (en.t - en.at > 5.5) say('THE END. (CLOCK IN AGAIN?)');
   }
   step(e, inp, dt);
+  if (en.phase === 'home') e.legDist = 0;   // all this to and fro is not a lap
   b.hp = b.maxhp;
   e.texts.length = 0; e.thought = null; e.banner = null; e.barks.length = 0;
   return !en.done;

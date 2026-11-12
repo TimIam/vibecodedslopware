@@ -35,9 +35,9 @@ export const kinds = {
   wl_tower: { ...WALLK, w: 24, h: WALL_B, hp: HITS.wl_tower * BASH },
   wl_gate: { ...WALLK, w: 26, h: WALL_B, hp: HITS.wl_gate * BASH },
   // outlying buildings: solid, bashed down, they leave rubble you can shove
-  wl_cottage: { w: 18, h: 12, hp: 135, solid: true, flammable: true, burnTime: 8, spread: 0.25, crushShare: 0.5, rubble: 'wl_timber', rubbleN: 2, value: { pts: 320, venge: 0.3 } },
+  wl_cottage: { w: 18, h: 12, hp: 135, solid: true, flammable: true, burnTime: 8, spread: 0.25, rubble: 'wl_timber', rubbleN: 2, value: { pts: 320, venge: 0.3 } },
   wl_house: { w: 20, h: 14, hp: 270, solid: true, rubble: 'wl_stones', rubbleN: 3, value: { pts: 480, venge: 0.42 } },
-  wl_barn: { w: 28, h: 16, hp: 225, solid: true, flammable: true, burnTime: 10, spread: 0.3, crushShare: 0.5, rubble: 'wl_timber', rubbleN: 3, value: { pts: 520, venge: 0.45 } },
+  wl_barn: { w: 28, h: 16, hp: 225, solid: true, flammable: true, burnTime: 10, spread: 0.3, rubble: 'wl_timber', rubbleN: 3, value: { pts: 520, venge: 0.45 } },
   wl_watch: { r: 7, hp: 360, solid: true, rubble: 'wl_block', rubbleN: 3, value: { pts: 650, venge: 0.55 } },
   wl_cart: { r: 4, hp: 1, flammable: true, burnTime: 4, rubble: 'wl_timber', rubbleN: 1, value: { pts: 60, venge: 0.06 } },
   wl_stall: { w: 12, h: 8, hp: 1, flammable: true, burnTime: 4, rubble: 'wl_timber', rubbleN: 1, value: { pts: 90, venge: 0.08 } },

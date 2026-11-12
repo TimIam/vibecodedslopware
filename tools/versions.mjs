@@ -31,7 +31,7 @@ const SESSIONS = {
   "pit-crew": ["1aea2484"], "the-endgame-is-me": ["30bbe722"], "projection-mayhem": ["9aea4264"],
   "binding-order": ["73ca41e4"], "hostile-fauna": ["f0033dac"], shop: ["18796b08"], "park-inspector": ["2108b4e3"],
   wasteland: ["4c2439ef"], antfarm: ["bb8a5495"], snowglobe: ["f7ab5567"], "dit-happens": ["4219778b"],
-  arcade: ["81fba3dd"], "puck-around": ["71ed36ab"],
+  arcade: ["81fba3dd"], "puck-around": ["71ed36ab"], reviewbomb: ["116b7a55"], "midnight-snack": ["2cb8b760"],
 };
 // Built in the same session as another game: its prompts and tokens are counted there.
 // Games whose folder was renamed: new name -> old name. History before the move is read from the old folder, and
@@ -149,6 +149,21 @@ for (const slug of slugs) {
       ...(ev.length ? { prompts: v.prompts, tokens: v.tokens } : {}),
     })),
   };
+}
+
+// Run where there are no transcripts (the addon watch on GitHub Actions), the prompt and token counts would all
+// come out empty: keep the ones already in apps.js, matched by version date; versions new since then count none.
+if (!Object.keys(events).length && fs.existsSync(path.join(root, "apps.js"))) {
+  const prev = JSON.parse(fs.readFileSync(path.join(root, "apps.js"), "utf8").replace(/^[\s\S]*?window\.SLOPWARE = /, "").replace(/;\s*$/, "")).apps;
+  for (const [slug, app] of Object.entries(apps)) {
+    const old = prev[slug];
+    if (!old || old.prompts == null) continue;
+    Object.assign(app, { prompts: old.prompts, tokens: old.tokens });
+    app.versions = app.versions.map((v) => {
+      const o = old.versions.find((x) => x.date === v.date);
+      return { ...v, prompts: o?.prompts ?? 0, tokens: o?.tokens ?? 0 };
+    });
+  }
 }
 
 fs.writeFileSync(path.join(root, "apps.js"),

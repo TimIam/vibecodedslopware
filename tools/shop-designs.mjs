@@ -174,32 +174,32 @@ const DESIGNS = {
     return out(print(c));
   } },
 
-  // The title screen's cut-stone logo, pulled apart: THE ENDGAME IS across the top, the boss, and ME underneath.
+  // The title screen's cut stone, one centered line at a time, each bent evenly: THE and ENDGAME arch over the
+  // boss, and IS ME stands under him with the dip on top. Letter widths are the title screen's own.
   "endgame-logo": { url: "/the-endgame-is-me/", draw: async () => {
     const A = await import("/the-endgame-is-me/js/art.js");
     const T = await import("/the-endgame-is-me/js/title.js");
-    // createTitle bakes the stone once and draw() puts its four pieces down with drawImage, in the order
-    // THE, IS, ENDGAME, ME. A stand-in context collects them, landed and with ME fully cracked.
-    const got = [];
-    T.createTitle({ instant: true }).draw({ setTransform() {}, fillRect() {}, drawImage: (cv) => got.push(cv) });
-    if (got.length !== 4) throw new Error("the title drew " + got.length + " pieces, expected 4");
-    const [the, is, endgame, me] = got;
-    const [words, wg] = layer(the.width, the.height);
-    for (const p of [the, endgame, is]) wg.drawImage(p, 0, 0);
+    const the = T.bakeLine([{ word: "THE", widths: [21, 21, 19] }], { hMin: 30, hMax: 40 });
+    const endgame = T.bakeLine([{ word: "ENDGAME", widths: [19, 23, 23, 24, 27, 32, 23] }], { hMin: 22, hMax: 38 });
+    const isme = T.bakeLine([{ word: "IS", widths: [21, 27] }, { word: "ME", widths: [75, 54], broken: true }], { hMin: 34, hMax: 48, flip: true, wordGap: 16 });
     const boss = A.makeBossSprites().get(8, 0);
-    const wb = bbox(words), mb = bbox(me), bb = bbox(boss);
+    const tb = bbox(the), eb = bbox(endgame), mb = bbox(isme), bb = bbox(boss);
 
-    // in print pixels: the stone at 10 per logo pixel, the boss as big as fits between the two
-    const S = 10, top = 220, wordsH = wb.h * S, meH = mb.h * S, url = 226 * GRID;
-    const bossTop = top + wordsH + 140, bossBot = url - 200 - meH;
-    const k = Math.floor(Math.min(3000 / bb.w, (bossBot - bossTop) / bb.h));
+    // In print pixels, every line at the same scale and centered.
+    const S = Math.floor(3400 / Math.max(eb.w, mb.w)), top = 200, url = 226 * GRID, cx = (w) => Math.round(W / 2 - w / 2);
+    const eY = top + tb.h * S + 40, wordsBot = eY + eb.h * S;
+    const meY = url - 160 - mb.h * S;
+    const k = Math.min(36, Math.floor((meY - wordsBot - 400) / bb.h));
+    const bossY = Math.round((wordsBot + meY) / 2 - bb.h * k / 2);
     const [c, g] = layer();
     A.drawText(g, "VIBECODEDSLOPWARE.COM", 90, 226, "hornD", { scale: 1, align: "center", shadow: false });
+    const put = (p, cv, b, y, sc) => p.drawImage(cv, b.x, b.y, b.w, b.h, cx(b.w * sc), y, b.w * sc, b.h * sc);
     return out(print(c, (p) => {
       p.imageSmoothingEnabled = false;
-      p.drawImage(words, wb.x, wb.y, wb.w, wb.h, Math.round(W / 2 - wb.w * S / 2), top, wb.w * S, wordsH);
-      p.drawImage(boss, bb.x, bb.y, bb.w, bb.h, Math.round(W / 2 - bb.w * k / 2), bossBot - bb.h * k, bb.w * k, bb.h * k);
-      p.drawImage(me, mb.x, mb.y, mb.w, mb.h, Math.round(W / 2 - mb.w * S / 2), bossBot + 40, mb.w * S, meH);
+      put(p, the, tb, top, S);
+      put(p, endgame, eb, eY, S);
+      put(p, boss, bb, bossY, k);
+      put(p, isme, mb, meY, S);
     }));
   } },
 

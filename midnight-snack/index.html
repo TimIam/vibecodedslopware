@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Midnight Snack</title>
+<meta name="description" content="Midnight Snack: a CaseOh stealth-horror fridge raid. It's 3 AM, you're starving, and the Portion Controller is in the house. Heavier food makes you slower and louder, creaky boards give you away, and your gas is both a weapon and a liability. Fan-made; not affiliated with CaseOh.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍕</text></svg>">
+<link rel="stylesheet" href="/site-nav.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <button class="mute" id="mute" type="button" aria-label="Toggle sound">♪ Sound on</button>
+  <a class="site-coffee" style="margin-left:0" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<main id="app">
+  <div id="wrap">
+    <canvas id="game" tabindex="0" aria-label="Midnight Snack. Use WASD to move, E to grab food or hide, Space to fart."></canvas>
+    <aside id="chat" aria-label="Stream chat">
+      <header><span class="live">● LIVE</span> stream chat <span id="viewers">👁 41,000</span></header>
+      <ol id="chatlog" aria-live="off"></ol>
+      <footer><b>B</b> bans the newest message. Ban roasts for a stash bonus. Don't ban the mods 🛡</footer>
+    </aside>
+  </div>
+</main>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

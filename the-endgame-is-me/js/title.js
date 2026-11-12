@@ -384,6 +384,39 @@ function bakeWords() {
   return { words, me: { name: 'ME', letters: me, cv, live, final: after.px, reveal, chunks, x0: meX0, x1: meX1, bot: () => BASE, pos: 0 } };
 }
 
+// The same cut stone, one line at a time, bent evenly about the line's own middle. The shop's logo shirt uses it
+// (tools/shop-designs.mjs); the title screen doesn't. Without flip the letters hang from a flat top with the arch
+// underneath, like THE ENDGAME IS. With flip they stand on a flat floor and dip in the middle. A word with
+// broken: true is cut chunky like ME and gets its corners knocked off and its cracks. Returns a W × LOGO_H canvas.
+export function bakeLine(words, { hMin, hMax, flip = false, wordGap = WORD_GAP }) {
+  const letters = [];
+  let x = X0;
+  words.forEach(({ word, widths, broken, stem = broken ? 19 : STEM, bars = broken ? ME_BARS : BARS, gap = broken ? 4 : LETTER_GAP }, wi) => {
+    [...word].forEach((ch, i) => {
+      letters.push({ word, wi, ch, x0: x, w: widths[i], stem, bars });
+      x += widths[i] + (i < word.length - 1 ? gap : wordGap);
+    });
+  });
+  const right = x - wordGap, mid = (X0 + right) / 2, half = (right - X0) / 2;
+  const height = px => hMin + (hMax - hMin) * Math.pow(Math.min(1, Math.abs(px - mid) / half), ARCH_POW);
+  for (const l of letters) {
+    l.top = flip ? px => BASE - height(px) : () => TOP;
+    l.bot = flip ? () => BASE : px => TOP + height(px);
+    l.rim = l.stem > STEM || height(l.x0 + l.w / 2) >= 25 ? 2 : 1;
+  }
+  const out = newCanvas(W, LOGO_H), g = out.getContext('2d');
+  words.forEach(({ broken }, wi) => {
+    const mine = letters.filter(l => l.wi === wi), { mask, owner } = rasterize(mine);
+    wear(mask, owner, mine, 400 + wi);
+    let paths = hairlines(mine, seeded(500 + wi));
+    if (broken) paths = [...paths, ...breakME(mask, mine, seeded(778)).paths];
+    const sh = shade(mask, owner, mine);
+    paintCracks(sh, mask, owner, mine, paths);
+    g.drawImage(wordSprite(sh.px), 0, 0);
+  });
+  return out;
+}
+
 // ------------------------------------------------------------------------------------------------ timing
 
 const LANDS = { THE: 0.62, IS: 1.14, ENDGAME: 1.66, ME: 2.42 };

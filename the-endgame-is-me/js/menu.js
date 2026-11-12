@@ -1,13 +1,17 @@
 // The menus: the title's list, the Settings / Handbook / Credits panels it shares with the pause screen.
 // Everything is real controls, so Tab, Enter and the mouse all work; the arrow keys are added on top.
 
+import { createHumanstiary } from './humanstiary.js';
+
 const $ = id => document.getElementById(id);
 const fmt = n => Math.floor(n).toLocaleString('en-US');
-const TITLES = { handbook: 'Handbook', settings: 'Settings', credits: 'Credits' };
+const TITLES = { handbook: 'Handbook', settings: 'Settings', credits: 'Credits', humanstiary: 'Humanstiary' };
+const OPENER = { handbook: 'openHandbook', credits: 'openCredits', humanstiary: 'openHumanstiary' };   // the button that leads to each panel from another
 
 export function createMenu({ audio, title, actions, saves, appearance, clearBest, hasBest, calm }) {
   const stage = $('titleStage'), list = $('titleMenu');
   let panel = null, stack = [], shown = false, forgetArmed = false, armed = null;
+  const humans = createHumanstiary();
 
   const focusable = root => [...root.querySelectorAll('button, input:not([type=radio]), input[type=radio]:checked')].filter(b => !b.disabled && b.offsetParent !== null);
   function move(root, d) {
@@ -30,7 +34,17 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     if (go === 'plus') return 'Every ability you own, back at the rocks. The heroes have been practising.';
     return 'Your name, sound, music, and which horns.';
   }
-  function setHint(go) { $('menuHint').dataset.at = go; $('menuHint').textContent = hint(go); }
+  // The hint shows at once whenever it changes, and stays up while the mouse is on a menu item; with the mouse
+  // anywhere else it fades out over 2 s (#menuHint.fade in index.html).
+  const hintEl = $('menuHint');
+  const overItem = () => !!list.querySelector('.mi:hover');
+  function fadeHint(go) {
+    hintEl.classList.remove('fade');
+    if (!go) return;
+    void hintEl.offsetWidth;   // so the fade starts from fully shown
+    hintEl.classList.add('fade');
+  }
+  function setHint(go) { hintEl.dataset.at = go; hintEl.textContent = hint(go); fadeHint(!overItem()); }
 
   function disarm() {
     if (!armed) return;
@@ -64,7 +78,13 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     setHint(b.dataset.go);
   });
   list.addEventListener('focusout', disarm);
-  list.addEventListener('pointerover', e => e.target.closest('button:not(:disabled)')?.focus({ preventScroll: true }));
+  list.addEventListener('pointerover', e => {
+    const b = e.target.closest('.mi');
+    if (!b) return;
+    fadeHint(false);
+    if (!b.disabled) b.focus({ preventScroll: true });
+  });
+  list.addEventListener('pointerout', e => { if (e.target.closest('.mi') && !e.relatedTarget?.closest?.('.mi')) fadeHint(true); });
   list.addEventListener('click', e => {
     const b = e.target.closest('button');
     if (!b || b.disabled) return;
@@ -91,21 +111,36 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     panel = name;
     for (const p of document.querySelectorAll('#panel .panelBody')) p.hidden = p.dataset.panel !== name;
     $('panelTitle').textContent = TITLES[name];
-    $('panelCard').classList.toggle('wide', name === 'settings');
+    $('panelCard').classList.toggle('wide', name === 'settings' || name === 'humanstiary');
     if (name === 'settings') { forgetArmed = false; refresh(); appearance.show(); } else appearance.hide();
+    if (name === 'humanstiary') humans.open(0);
     $('panelCard').scrollTop = 0;
-    (name === 'settings' ? $('bossName') : $('panelBack')).focus({ preventScroll: true });
+    (name === 'settings' ? $('bossName') : name === 'humanstiary' ? humans.tab() : $('panelBack')).focus({ preventScroll: true });
   }
+  // back is where Back leads: another panel, or the 'title' or 'paused' screen underneath
   function open(name, back) {
-    if (back === 'settings') stack.push('settings');
+    if (TITLES[back]) stack.push(back);
     else { stack = [back]; (back === 'title' ? $('title') : $('paused')).hidden = true; }
     $('panel').hidden = false;
     show(name);
   }
+  // leaving Settings with the boss's name or looks changed asks first; Escape there means "keep editing"
+  const ask = $('saveAsk');
+  function answer(how) {
+    ask.hidden = true;
+    audio.play('menuGo');
+    if (how === 'keep') { $('bossName').focus({ preventScroll: true }); return; }
+    if (how === 'save') appearance.save(); else appearance.discard();
+    close();
+  }
+  $('askSave').addEventListener('click', () => answer('save'));
+  $('askDiscard').addEventListener('click', () => answer('discard'));
+  $('askKeep').addEventListener('click', () => answer('keep'));
   function close() {
     closePick();
+    if (panel === 'settings' && appearance.dirty()) { ask.hidden = false; $('askSave').focus({ preventScroll: true }); return; }
     const was = panel, back = stack.pop();
-    if (back === 'settings') { show('settings'); $(was === 'handbook' ? 'openHandbook' : 'openCredits').focus({ preventScroll: true }); return; }
+    if (TITLES[back]) { show(back); $(OPENER[was]).focus({ preventScroll: true }); return; }
     panel = null;
     appearance.hide();
     $('panel').hidden = true;
@@ -115,6 +150,7 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
   $('panelBack').addEventListener('click', () => { audio.play('menuGo'); close(); });
   $('openHandbook').addEventListener('click', () => { audio.play('menuGo'); open('handbook', 'settings'); });
   $('openCredits').addEventListener('click', () => { audio.play('menuGo'); open('credits', 'settings'); });
+  $('openHumanstiary').addEventListener('click', () => { audio.play('menuGo'); open('humanstiary', 'handbook'); });
 
   // ------------------------------------------------------------------------------------------------ sound
 
@@ -201,6 +237,13 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
       title().skip();
       return true;
     }
+    if (panel && !ask.hidden) {
+      // the save question: arrows and Tab walk its three buttons, Enter and Space press the one in focus
+      const fwd = down || e.code === 'ArrowRight' || (e.code === 'Tab' && !e.shiftKey);
+      if (fwd || up || e.code === 'ArrowLeft' || e.code === 'Tab') { e.preventDefault(); move(ask, fwd ? 1 : -1); }
+      else if (e.code === 'Escape') { e.preventDefault(); answer('keep'); }
+      return true;
+    }
     if (panel) {
       const typing = e.target === $('bossName');
       if (e.code === 'Escape') {
@@ -223,6 +266,8 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
         e.preventDefault();
         move($('panelCard'), down ? 1 : -1);
       }
+      // the reading panels scroll with up and down, so left and right walk their buttons
+      if (panel !== 'settings' && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { e.preventDefault(); move($('panelCard'), e.code === 'ArrowRight' ? 1 : -1); }
       return true;
     }
     if (mode === 'title') {
