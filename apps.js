@@ -166,6 +166,11 @@ window.SLOPWARE = {
      "n": 4,
      "date": "2026-11-12T04:43:52-07:00",
      "note": "faster again, the ground, props, adventurers and boss are pictures"
+    },
+    {
+     "n": 5,
+     "date": "2026-11-12T12:52:30-07:00",
+     "note": "Ice Floor no longer slows the game to a crawl"
     }
    ]
   },
@@ -222,16 +227,16 @@ window.SLOPWARE = {
   },
   "snowglobe": {
    "visits": 0,
-   "prompts": 1,
-   "tokens": 3489410,
+   "prompts": 2,
+   "tokens": 4535919,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
      "date": "2026-11-08T12:31:20-07:00",
      "note": "Snow Globe, Terrarium, Rain Window, Koi Pond, Aurora",
-     "prompts": 1,
-     "tokens": 3489410
+     "prompts": 2,
+     "tokens": 4535919
     }
    ]
   },
