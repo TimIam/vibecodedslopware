@@ -1299,8 +1299,8 @@ window.SLOPWARE = {
   },
   "puck-around": {
    "visits": 0,
-   "prompts": 4,
-   "tokens": 542849,
+   "prompts": 6,
+   "tokens": 1283306,
    "sharedWith": null,
    "versions": [
     {
@@ -1322,22 +1322,29 @@ window.SLOPWARE = {
      "date": "2026-11-10T12:32:29-07:00",
      "note": "quitting a matchmade game goes back to the title",
      "prompts": 0,
-     "tokens": 14336
+     "tokens": 8726
+    },
+    {
+     "n": 4,
+     "date": "2026-11-12T03:26:26-07:00",
+     "note": "the skater follows the cursor, shots and passes go where it points",
+     "prompts": 2,
+     "tokens": 746067
     }
    ]
   },
   "reviewbomb": {
    "visits": 0,
-   "prompts": 4,
-   "tokens": 337365,
+   "prompts": 5,
+   "tokens": 406393,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
      "date": "2026-11-11T14:16:40-07:00",
      "note": "review AI-disclosed games on Vapor",
-     "prompts": 4,
-     "tokens": 337365
+     "prompts": 5,
+     "tokens": 406393
     }
    ]
   },
