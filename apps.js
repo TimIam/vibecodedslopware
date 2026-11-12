@@ -161,6 +161,11 @@ window.SLOPWARE = {
      "n": 3,
      "date": "2026-11-10T13:25:42-07:00",
      "note": "faster, most of all on the last three levels"
+    },
+    {
+     "n": 4,
+     "date": "2026-11-12T04:43:52-07:00",
+     "note": "faster again, the ground, props, adventurers and boss are pictures"
     }
    ]
   },
