@@ -14,7 +14,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const game = path.resolve(root, '../the-endgame-is-me/js');
 export const ADDON = 'TheEndgameIsMe';
-export const VERSION = '1.3.0';
+export const VERSION = '1.3.1';
 
 // in load order: a module comes after everything it imports
 export const MODULES = ['props', 'smoke', 'art', 'levels/forest', 'levels/clearing', 'levels/farms', 'levels/village', 'levels/wall', 'levels/city',
@@ -98,6 +98,19 @@ export function pathDist(`],
     // the telegraph's pixel loop is hand-written Lua (src/gfx.lua): the same picture for a third of the time
     ["  ctx.fillStyle = PAL.tele;\n  for (let py = y0; py <= y1; py++) for (let px = x0; px <= x1; px++) {\n    const dx = px + 0.5 - b.x, dy = py + 0.5 - b.y, dist = Math.hypot(dx, dy);\n    if (dist > R || dist < 8) continue;\n    let edge = dist > R - 1;\n    if (k !== 'stomp') {\n      const ad = Math.abs(angDiff(Math.atan2(dy, dx), face));\n      if (ad > half) continue;\n      if ((half - ad) * dist < 1) edge = true;\n    }\n    let al;\n    if (edge) al = channel ? 0.35 : 0.85;\n    else if (dist < 8 + (R - 8) * prog) al = ((px + py + blink) & 1) ? (channel ? 0.12 : 0.42) : (channel ? 0.04 : 0.16);\n    else al = ((px + py) & 1) ? 0.12 : 0;\n    if (!al) continue;\n    ctx.globalAlpha = al;\n    ctx.fillRect(px, py, 1, 1);\n  }\n", `  ctx.fillStyle = PAL.tele;
   teleArc(ctx, b.x, b.y, R, x0, x1, y0, y1, k !== 'stomp', half, face, prog, blink, channel);
+`],
+    // an ice floor's pixels are worked out once, not every frame, and a lane's loop only walks the lane (src/gfx.lua)
+    [`for (const i of g.ice) drawIce(ctx, i, g);`, `for (const i of g.ice) iceFloor(ctx, i, g);`],
+    [`  for (let py = Math.floor(b.y - R); py <= Math.ceil(b.y + R); py++) for (let qx = Math.floor(b.x - R); qx <= Math.ceil(b.x + R); qx++) {
+    const dx = qx + 0.5 - b.x, dy = py + 0.5 - b.y, lx = dx * c + dy * s, ly = -dx * s + dy * c;
+    if (qx < VIEW.x || py < VIEW.y || qx >= VIEW.x + W || py >= VIEW.y + H || lx < 8 || lx > d.range || Math.abs(ly) > d.width) continue;
+    const edge = lx > d.range - 1 || Math.abs(ly) > d.width - 1;
+    const al = edge ? 0.85 : lx < 8 + (d.range - 8) * prog ? (((qx + py + blink) & 1) ? 0.42 : 0.16) : (((qx + py) & 1) ? 0.12 : 0);
+    if (!al) continue;
+    ctx.globalAlpha = al;
+    ctx.fillRect(qx, py, 1, 1);
+  }
+`, `  teleLane(ctx, b.x, b.y, c, s, d.range, d.width, prog, blink, VIEW.x, VIEW.y);
 `],
     // light effects: no see-through panel behind the HUD (7,500 blended cells a frame; the text has its own shadow)
     [`ctx.fillRect(0, 0, 136, 36); ctx.fillRect(W - Math.max(108, textWidth(b.name) + 8), 0, Math.max(108, textWidth(b.name) + 8), 24);`,
