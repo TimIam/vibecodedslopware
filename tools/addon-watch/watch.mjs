@@ -245,6 +245,8 @@ function apply() {
     p.newVersion = bump(p.version);
     setVersion(id, p.version, p.newVersion);
     log(`${id}: ${p.version} -> ${p.newVersion}`);
+    const cf = a.curseforge;
+    log(cf ? `${id}: CurseForge project ${cf.project} gets it after the commit (${Object.keys(a.builds).map((c) => c + " as " + (cf.releaseType[c] || "release")).join(", ")})` : `${id}: not on CurseForge`);
   }
   plan.release = Object.values(plan.addons).some((p) => p.release);
   writePlan(plan);
@@ -488,7 +490,7 @@ async function curseforge() {
     if (!gv) { left.push(job); log(`curseforge: no game version ${job.gameVersion} for ${job.client} yet; ${job.file} waits for the next run`); continue; }
     const form = new FormData();
     form.append('metadata', JSON.stringify({
-      changelog: `Updated for ${job.why}. Nothing else changed.`, changelogType: 'markdown',
+      changelog: job.changelog || `Updated for ${job.why}. Nothing else changed.`, changelogType: 'markdown',
       displayName: job.file.replace(/\.zip$/, ''), gameVersions: [gv.id], releaseType: cf.releaseType[job.client] || 'release',
     }));
     form.append('file', new Blob([fs.readFileSync(rel(path.join(config.addons[job.addon].page, job.file)))]), job.file);

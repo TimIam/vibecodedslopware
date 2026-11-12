@@ -32,7 +32,7 @@ Addons covered (`config.json`): The Endgame is Me and Party Health Pie, each for
 8. **deploy**: a production deploy of that commit on Vercel, then a check that the new zips are served.
 9. **curseforge**: uploads to the Heal Pie project (1792480), Forever as Release, retail as Beta. CurseForge often
    lists a new game version hours after the patch, so uploads wait in `state.pendingCurseforge` and are tried every
-   run; after three days of waiting the run fails so someone looks. The Endgame is Me is not on CurseForge.
+   run; after three days of waiting the run fails so someone looks. The Endgame is Me goes to its own project (1800371) the same way, with the same token.
 
 Any failure opens (or comments on) a GitHub issue labelled `addon-watch`. `state.json` is only written by a run that
 got as far as committing, so a failed run is simply tried again.
