@@ -227,16 +227,23 @@ window.SLOPWARE = {
   },
   "snowglobe": {
    "visits": 0,
-   "prompts": 2,
-   "tokens": 4535919,
+   "prompts": 3,
+   "tokens": 4537490,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
      "date": "2026-11-08T12:31:20-07:00",
      "note": "Snow Globe, Terrarium, Rain Window, Koi Pond, Aurora",
-     "prompts": 2,
-     "tokens": 4535919
+     "prompts": 0,
+     "tokens": 3374619
+    },
+    {
+     "n": 2,
+     "date": "2026-11-12T12:23:17-07:00",
+     "note": "sledding hill, small-town Christmas Eve, skating pond and gingerbread house, with people playing",
+     "prompts": 3,
+     "tokens": 1162871
     }
    ]
   },
@@ -250,6 +257,11 @@ window.SLOPWARE = {
      "n": 1,
      "date": "2026-11-08T12:31:20-07:00",
      "note": "Snow Globe, Terrarium, Rain Window, Koi Pond, Aurora"
+    },
+    {
+     "n": 2,
+     "date": "2026-11-12T11:52:22-07:00",
+     "note": "photoreal lizards and sturdier turtles"
     }
    ]
   },
