@@ -21,7 +21,7 @@
       "versionFile": "the-endgame-is-me-addon/tools/build.mjs",
       "versionPattern": "export const VERSION = '([0-9.]+)';",
       "page": "the-endgame-is-me-wow",
-      "curseforge": null,
+      "curseforge": { "project": 1800371, "releaseType": { "forever": "release", "retail": "beta" } },
       "builds": {
         "forever": {
           "folder": "the-endgame-is-me-addon/TheEndgameIsMe",

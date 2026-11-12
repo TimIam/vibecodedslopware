@@ -245,6 +245,8 @@ function apply() {
     p.newVersion = bump(p.version);
     setVersion(id, p.version, p.newVersion);
     log(`${id}: ${p.version} -> ${p.newVersion}`);
+    const cf = a.curseforge;
+    log(cf ? `${id}: CurseForge project ${cf.project} gets it after the commit (${Object.keys(a.builds).map((c) => c + " as " + (cf.releaseType[c] || "release")).join(", ")})` : `${id}: not on CurseForge`);
   }
   plan.release = Object.values(plan.addons).some((p) => p.release);
   writePlan(plan);
