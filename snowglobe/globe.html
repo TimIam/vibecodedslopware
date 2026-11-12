@@ -226,7 +226,11 @@ const SCENES = {
   cabin:     { name: 'Cabin in the pines', def: 0 },
   forest:    { name: 'Deep pine forest', def: 1 },
   lighthouse:{ name: 'Lighthouse on the rocks', def: 2 },
-  snowman:   { name: 'Snowman', def: 3 },
+  snowman:   { name: 'Snowman and a snowball fight', def: 3 },
+  town:      { name: 'Small Town Christmas Eve', def: 4 },
+  pond:      { name: 'Skating pond', def: 5 },
+  ginger:    { name: 'Gingerbread house', def: 6 },
+  hill:      { name: 'Sledding hill and ski lift', def: 7 },
   mix:       { name: 'A different one in each', def: -1 },
 };
 const ROOMS = {
@@ -243,6 +247,7 @@ const QX = 1.16, QT = 1.12, QB = 1.62, BACK = 8; // quad extent around a globe, 
 
 // ---- the globe bake: one fragment per ray, jittered and accumulated
 const SDF = `
+int ZB; // a zero the compiler cannot see, so loops stay loops and the scene is not inlined again and again
 const float CA=${CA.toFixed(5)},SA=${SA.toFixed(5)};
 vec2 mn(vec2 a,vec2 b){return a.x<b.x?a:b;}
 float smin(float a,float b,float k){float h=clamp(.5+.5*(b-a)/k,0.,1.);return mix(b,a,h)-k*h*(1.-h);}
@@ -334,6 +339,169 @@ const MAPS = [
  r=mn(r,vec2(pine(p-vec3(.52,terrainH(vec2(.52,-.25))-.01,-.25),.5,.17,.7),2.));
  r=mn(r,vec2(pine(p-vec3(.15,terrainH(vec2(.15,-.62))-.01,-.62),.42,.14,.1),2.));
  return r;}`,
+// 4 small town, Christmas Eve: a row of lit shops, a stone bridge over a frozen creek, lamps and a garland of bulbs
+`vec2 lampPost(vec3 p,vec3 b,float h){vec3 q=p-b;float post=min(sdCaps(q,vec3(0),vec3(0,h,0),.006),sdCyl(q-vec3(0,.01,0),.012,.01));
+ post=min(post,sdCyl(q-vec3(0,h+.034,0),.017,.0035));vec2 r=vec2(post,9.);r=mn(r,vec2(length(q-vec3(0,h+.016,0))-.016,17.));
+ r=mn(r,vec2(length((q-vec3(0,h+.041,0))*vec3(1.,2.4,1.))-.015,1.));return r;}
+float creekC(float z){return -.30-.12*(z-.17);}
+float townG(vec3 p){float cd=abs(p.x-creekC(p.z));float g=-.42-.05*smoothstep(-.12,.06,p.z)*smoothstep(.15,.035,cd);
+ g+=-.07*smoothstep(.30,.80,p.z)+.006*sin(p.x*7.+1.)*smoothstep(.3,.5,p.z)+.008*smoothstep(-.06,-.09,p.z);
+ return g+.004*sin(p.x*21.)*sin(p.z*17.)*smoothstep(.27,.33,abs(p.z-.17));}
+float bridgeTop(float x){float k=(x+.30)/.125;return -.42+.034*max(0.,1.-k*k);}
+float wins(vec3 p,float x0,float y0,float sx,float sy,float nx,float ny,vec2 hs){vec2 q=vec2(p.x-x0,p.y-y0);vec2 id=clamp(floor(q/vec2(sx,sy)+.5),vec2(0),vec2(nx-1.,ny-1.));q-=id*vec2(sx,sy);return sdBox(vec3(q,p.z+.201),vec3(hs,.006));}
+vec2 scene(vec3 p){
+ float g=townG(p),cd=abs(p.x-creekC(p.z));
+ vec2 r=vec2((p.y-g)*.8,(cd<.04&&p.z>-.04)?13.:(abs(p.z-.17)<.11?22.:1.));
+ // the stone bridge that carries the street over the creek
+ vec3 bq=p-vec3(-.30,0.,.17);float bb=sdBox(bq-vec3(0,-.45,0),vec3(.15,.08,.11));
+ if(bb>.03)r.x=min(r.x,bb);else{
+  float top=bridgeTop(p.x);float deck=max(max(abs(bq.x)-.125,abs(bq.z)-.085),max(p.y-top,-.5-p.y));deck=max(deck,-(length(vec2(bq.x,p.y+.487))-.068));
+  float par=max(max(abs(abs(bq.z)-.081)-.007,abs(bq.x)-.128),max(p.y-top-.028,-.5-p.y));
+  r=mn(r,vec2(min(deck,par)*.8,6.));}
+ // the row of shops along the back
+ float rb=sdBox(p-vec3(0.,-.25,-.37),vec3(.70,.21,.19));
+ if(rb>.03)r.x=min(r.x,rb);else{
+  float b1=sdBox(p-vec3(-.50,-.285,-.37),vec3(.13,.145,.17)),b2=sdBox(p-vec3(-.16,-.245,-.37),vec3(.155,.185,.17)),b3=sdBox(p-vec3(.17,-.30,-.37),vec3(.13,.13,.17)),b4=sdBox(p-vec3(.48,-.32,-.37),vec3(.14,.11,.17));
+  r=mn(r,vec2(min(b1,b2),12.));r=mn(r,vec2(b3,19.));r=mn(r,vec2(b4,18.));
+  float cap=min(min(sdBox(p-vec3(-.50,-.133,-.37),vec3(.137,.008,.176)),sdBox(p-vec3(-.16,-.053,-.37),vec3(.162,.008,.176))),sdBox(p-vec3(.17,-.163,-.37),vec3(.137,.008,.176)));
+  cap+=.004*sin(p.x*55.)*sin(p.z*41.);r=mn(r,vec2(cap,1.));
+  float corn=min(min(sdBox(p-vec3(-.50,-.147,-.198),vec3(.136,.007,.007)),sdBox(p-vec3(-.16,-.067,-.198),vec3(.16,.008,.008))),sdBox(p-vec3(-.16,-.27,-.197),vec3(.158,.005,.006)));
+  float pil=min(sdBox(p-vec3(-.30,-.245,-.197),vec3(.011,.185,.007)),sdBox(p-vec3(-.02,-.245,-.197),vec3(.011,.185,.007)));
+  r=mn(r,vec2(min(corn,pil),6.));
+  // the sign over the savings and loan
+  r=mn(r,vec2(sdBox(p-vec3(-.16,-.145,-.193),vec3(.12,.026,.006)),20.));
+  // the red house's gable, its roof and the snow on it
+  vec3 rf=p-vec3(.48,-.21,-.37);float ax=abs(rf.x)*.62;
+  r=mn(r,vec2(max(max(rf.y-.075+ax,-rf.y-.01),abs(rf.z)-.17)*.8,18.));
+  r=mn(r,vec2(max(max(rf.y-.09+ax,-(rf.y-.072+ax)),max(abs(rf.z)-.185,abs(rf.x)-.165))*.8,3.5));
+  r=mn(r,vec2(max(max(rf.y-.103+ax,-(rf.y-.088+ax)),max(abs(rf.z)-.188,abs(rf.x)-.158+.006*sin(rf.z*70.)))*.8,1.));
+  // the striped awning over the toy shop
+  vec3 aw=p-vec3(.17,-.325,-.17);r=mn(r,vec2(max(abs(aw.x)-.12,max(abs(aw.y+aw.z*.55)-.004,abs(aw.z)-.04))*.8,21.));
+  // lit windows and doors
+  float w=wins(p,-.585,-.265,.085,.075,3.,2.,vec2(.022,.026));
+  w=min(w,sdBox(p-vec3(-.50,-.375,-.201),vec3(.095,.036,.006)));
+  w=min(w,wins(p,-.27,-.235,.073,1.,4.,1.,vec2(.017,.022)));w=min(w,wins(p,-.27,-.095,.073,1.,4.,1.,vec2(.017,.017)));
+  w=min(w,sdBox(p-vec3(-.16,-.385,-.201),vec3(.028,.045,.006)));w=min(w,wins(p,-.255,-.365,.19,1.,2.,1.,vec2(.033,.04)));
+  w=min(w,sdBox(p-vec3(.17,-.38,-.201),vec3(.092,.04,.006)));w=min(w,wins(p,.09,-.235,.08,1.,3.,1.,vec2(.019,.024)));
+  w=min(w,wins(p,.43,-.36,.10,.11,2.,2.,vec2(.022,.03)));w=min(w,max(length(rf.xy-vec2(0.,.03))-.016,abs(p.z+.201)-.006));
+  r=mn(r,vec2(w,5.));}
+ // street lamps and a garland of bulbs strung between two of them
+ const vec4 LP4[3]=vec4[3](vec4(-.56,-.42,0.,.19),vec4(.56,-.42,0.,.19),vec4(-.14,-.42,.28,.17));for(int i=ZB;i<3;i++)r=mn(r,lampPost(p,LP4[i].xyz,LP4[i].w));
+ float gb=sdBox(p-vec3(0.,-.225,0.),vec3(.58,.05,.03));
+ if(gb>.02)r.x=min(r.x,gb);else{float sx=p.x/.56;float yx=-.205-.04*(1.-sx*sx);r=mn(r,vec2(length(vec2(p.y-yx,p.z))-.0016,9.));
+  float xi=clamp(floor(p.x/.04+.5),-13.,13.)*.04;float sxi=xi/.56;float yb=-.212-.04*(1.-sxi*sxi);r=mn(r,vec2(length((p-vec3(xi,yb,0.))*vec3(1.,.8,1.))-.0055,23.));}
+ // the town tree, lit, with a star; a plain one at the end of the street
+ const vec4 TP[2]=vec4[2](vec4(.52,.44,.34,.4),vec4(-.66,.16,.40,.8));
+ for(int i=ZB;i<2;i++){vec3 b=vec3(TP[i].x,townG(vec3(TP[i].x,0.,TP[i].y))-.01,TP[i].y);r=mn(r,vec2(pine(p-b,TP[i].z,TP[i].z*.34,TP[i].w),i==0?2.3:2.));}
+ r=mn(r,vec2(length(p-vec3(.52,-.42+.355,.44))-.016,17.));
+ return r;}`,
+// 5 skating pond: glassy ice in a snowy bowl, a warming hut, a bench, lamps and a string of bulbs
+`vec2 lampPost(vec3 p,vec3 b,float h){vec3 q=p-b;float post=min(sdCaps(q,vec3(0),vec3(0,h,0),.006),sdCyl(q-vec3(0,.01,0),.012,.01));
+ post=min(post,sdCyl(q-vec3(0,h+.034,0),.017,.0035));vec2 r=vec2(post,9.);r=mn(r,vec2(length(q-vec3(0,h+.016,0))-.016,17.));
+ r=mn(r,vec2(length((q-vec3(0,h+.041,0))*vec3(1.,2.4,1.))-.015,1.));return r;}
+// the ice is a gentle dome tipped toward the glass: seen this low, a flat pond would be a line
+float iceY(vec2 x){vec2 e=(x-vec2(0.,.02))/vec2(.58,.36);return -.43+.05*(1.-dot(e,e))-.07*clamp(x.y,-.4,.4);}
+float pondG(vec2 x){vec2 e=(x-vec2(0.,.02))/vec2(.58,.36);float pe=length(e),back=smoothstep(.2,-.3,x.y),edge=-.43-.07*clamp(x.y,-.4,.4);
+ float bank=edge+.02*back+.07*smoothstep(1.,1.7,pe)*back-.05*smoothstep(.3,.75,x.y)+.008*sin(x.x*13.)*sin(x.y*11.);bank+=.012*exp(-pow((pe-1.04)/.05,2.))*back;
+ return mix(iceY(x),bank,smoothstep(.97,1.05,pe));}
+vec2 scene(vec3 p){
+ vec2 e=(p.xz-vec2(0.,.02))/vec2(.58,.36);float pe=length(e);
+ vec2 r=vec2((p.y-pondG(p.xz))*.8,pe<.99?13.:1.);
+ const vec4 PT[5]=vec4[5](vec4(-.62,-.30,.55,.2),vec4(-.36,-.58,.62,.6),vec4(.24,-.64,.52,.9),vec4(.68,-.14,.40,.4),vec4(-.72,.24,.32,.7));
+ for(int i=ZB;i<5;i++)r=mn(r,vec2(pine(p-vec3(PT[i].x,pondG(PT[i].xy)-.01,PT[i].y),PT[i].z,PT[i].z*.33,PT[i].w),2.));
+ // the warming hut
+ vec3 hb=vec3(.44,pondG(vec2(.44,-.42)),-.42);float hbd=sdBox(p-hb-vec3(0,.09,0),vec3(.13,.11,.11));
+ if(hbd>.03)r.x=min(r.x,hbd);else{vec3 q=p-hb;
+  r=mn(r,vec2(sdBox(q-vec3(0,.055,0),vec3(.10,.06,.075)),3.));
+  vec3 rf=q-vec3(0,.115,0);float rz=abs(rf.z)*.9;
+  r=mn(r,vec2(max(max(rf.y-.075+rz,-(rf.y-.05+rz)),max(abs(rf.x)-.12,-rf.y-.012))*.7,3.5));
+  r=mn(r,vec2(max(max(rf.y-.088+rz,-(rf.y-.072+rz)),max(abs(rf.x)-.125+.005*sin(rf.z*60.),-rf.y+.004))*.7,1.));
+  r=mn(r,vec2(min(sdBox(q-vec3(-.035,.06,.077),vec3(.022,.024,.005)),sdBox(q-vec3(.04,.045,.077),vec3(.018,.045,.005))),5.));
+  r=mn(r,vec2(sdBox(q-vec3(.06,.17,-.02),vec3(.018,.05,.018)),6.));}
+ // a bench with snow on it
+ vec3 bc=vec3(-.50,pondG(vec2(-.50,.40)),.40);float bd=sdBox(p-bc-vec3(0,.04,0),vec3(.09,.06,.04));
+ if(bd>.02)r.x=min(r.x,bd);else{vec3 q=p-bc;r=mn(r,vec2(min(sdBox(q-vec3(0,.032,0),vec3(.075,.005,.022)),min(sdBox(q-vec3(0,.065,-.02),vec3(.075,.018,.004)),min(sdBox(q-vec3(-.06,.016,0),vec3(.006,.016,.018)),sdBox(q-vec3(.06,.016,0),vec3(.006,.016,.018))))),3.));
+  r=mn(r,vec2(sdBox(q-vec3(0,.04,.002),vec3(.072,.004,.02))-.003+.002*sin(q.x*90.),1.));}
+ const vec4 LP4[2]=vec4[2](vec4(-.66,.05,.19,0.),vec4(.66,.14,.17,0.));for(int i=ZB;i<2;i++)r=mn(r,lampPost(p,vec3(LP4[i].x,pondG(LP4[i].xy),LP4[i].y),LP4[i].z));
+ // bulbs on a wire between two poles at the back
+ float pb=sdBox(p-vec3(0.,-.17,-.36),vec3(.56,.20,.03));
+ if(pb>.02)r.x=min(r.x,pb);else{float y0=pondG(vec2(-.5,-.36));r=mn(r,vec2(min(sdCaps(p,vec3(-.5,y0,-.36),vec3(-.5,y0+.22,-.36),.005),sdCaps(p,vec3(.5,pondG(vec2(.5,-.36)),-.36),vec3(.5,y0+.22,-.36),.005)),9.));
+  float sx=p.x/.5,yx=y0+.215-.05*(1.-sx*sx);r=mn(r,vec2(max(length(vec2(p.y-yx,p.z+.36))-.0015,abs(p.x)-.5),9.));
+  float xi=clamp(floor(p.x/.045+.5),-10.,10.)*.045,sxi=xi/.5,yb=y0+.208-.05*(1.-sxi*sxi);r=mn(r,vec2(length((p-vec3(xi,yb,-.36))*vec3(1.,.8,1.))-.0055,23.));}
+ return r;}`,
+// 6 gingerbread house: iced roof, gumdrops, candy canes, peppermint stepping stones, lollipops
+`vec2 scene(vec3 p){
+ vec2 r=vec2(p.y-terrainH(p.xz),1.);
+ vec3 q=p-vec3(0.,-.385,-.10);
+ float hb=sdBox(q-vec3(0,.2,0),vec3(.30,.24,.24));
+ if(hb>.03)r.x=min(r.x,hb);else{
+  r=mn(r,vec2(sdBox(q-vec3(0,.11,0),vec3(.195,.11,.145))-.006,14.));
+  vec3 rf=q-vec3(0,.22,0);float rz=abs(rf.z);
+  r=mn(r,vec2(max(max(rf.y-.16+rz,-(rf.y-.125+rz)),max(abs(rf.x)-.232,-rf.y-.02))*.7,14.));
+  r=mn(r,vec2(max(max(rf.y-.168+rz,-(rf.y-.15+rz)),max(abs(rf.x)-.236,-rf.y+.035+.016*sin(rf.x*68.)))*.7,15.));
+  r=mn(r,vec2(max(length(rf.yz-vec2(.16,0.))-.016,abs(rf.x)-.236),15.));
+  float gx=clamp(floor(q.x/.07+.5),-3.,3.)*.07;
+  r=mn(r,vec2(max(length((q-vec3(gx,.39,0.))*vec3(1.,1.2,1.))-.024,.37-q.y),16.));
+  r=mn(r,vec2(max(length(vec3(q.x-gx,q.y-.205,rz-.186)*vec3(1.,1.2,1.))-.017,.196-q.y),16.));
+  float ic=min(min(sdCaps(q,vec3(.2,0.,.15),vec3(.2,.22,.15),.009),sdCaps(q,vec3(-.2,0.,.15),vec3(-.2,.22,.15),.009)),sdCaps(q,vec3(-.2,.003,.152),vec3(.2,.003,.152),.009));
+  r=mn(r,vec2(ic,15.));
+  r=mn(r,vec2(min(sdBox(q-vec3(0,.05,.152),vec3(.035,.05,.006)),max(length(q.xy-vec2(0.,.10))-.035,abs(q.z-.152)-.006)),11.));
+  vec3 wq=vec3(abs(q.x)-.12,q.y-.12,q.z-.152);r=mn(r,vec2(sdBox(wq,vec3(.033,.033,.005)),5.));
+  r=mn(r,vec2(max(sdBox(wq,vec3(.043,.043,.009)),-sdBox(wq,vec3(.033,.033,.02))),15.));
+  float sg=q.x<0.?-1.:1.;float cane=sdCaps(q,vec3(.075*sg,0.,.178),vec3(.075*sg,.15,.178),.008);vec3 hq=q-vec3(.10*sg,.15,.178);
+  cane=min(cane,max(length(vec2(length(hq.xy)-.025,hq.z))-.008,-hq.y));r=mn(r,vec2(cane,21.));
+  r=mn(r,vec2(sdBox(q-vec3(.10,.33,-.05),vec3(.03,.07,.03)),14.));r=mn(r,vec2(sdBox(q-vec3(.10,.405,-.05),vec3(.036,.009,.036))-.004,15.));}
+ // peppermint stepping stones up to the door
+ for(int i=ZB;i<4;i++){float fi=float(i);vec2 c=vec2(.03*sin(fi*2.),.32+.13*fi);r=mn(r,vec2(sdCyl(p-vec3(c.x,terrainH(c)+.002,c.y),.036,.006)-.002,24.));}
+ // lollipops and gumdrop bushes
+ r=mn(r,vec2(sdCaps(p,vec3(-.42,-.413,.18),vec3(-.42,-.165,.18),.006),15.));r=mn(r,vec2(max(length(p.xy-vec2(-.42,-.12))-.045,abs(p.z-.18)-.008)-.002,25.));
+ r=mn(r,vec2(sdCaps(p,vec3(.45,-.426,.05),vec3(.45,-.20,.05),.006),15.));r=mn(r,vec2(max(length(p.xy-vec2(.45,-.16))-.04,abs(p.z-.05)-.008)-.002,25.));
+ const vec3 GD[4]=vec3[4](vec3(-.24,.42,.032),vec3(.22,.36,.03),vec3(-.62,-.05,.035),vec3(.62,-.22,.03));
+ for(int i=ZB;i<4;i++){vec3 c=GD[i];float h=terrainH(c.xy);r=mn(r,vec2(max(length((p-vec3(c.x,h,c.y))*vec3(1.,1.15,1.))-c.z,h-.004-p.y),16.));}
+ const vec4 PT[3]=vec4[3](vec4(-.5,-.45,.55,.3),vec4(.52,-.42,.5,.7),vec4(.16,-.68,.38,.1));
+ for(int i=ZB;i<3;i++)r=mn(r,vec2(pine(p-vec3(PT[i].x,terrainH(PT[i].xy)-.01,PT[i].y),PT[i].z,PT[i].z*.33,PT[i].w),2.));
+ return r;}`,
+// 7 sledding hill and ski lift: a slope rising to the back, a chairlift up the right, an A-frame lodge at the bottom left
+`float hillH(vec2 x){return -.46+.32*smoothstep(.35,-.62,x.y)+.012*sin(x.x*9.)*sin(x.y*7.);}
+const vec3 LA=vec3(.58,-.31,.20),LB=vec3(-.08,.02,-.62),LP=vec3(.779,0.,-.627);
+float segD(vec3 p,vec3 a,vec3 b){vec3 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/dot(ba,ba),0.,1.);return length(pa-ba*h);}
+vec2 scene(vec3 p){
+ vec2 r=vec2((p.y-hillH(p.xz))*.8,1.);
+ // the chairlift: two cables, towers, a bull wheel and a hut at each end
+ float lb=segD(p,LA,LB)-.18;
+ if(lb>.03)r.x=min(r.x,lb);else{
+  r=mn(r,vec2(min(segD(p,LA+LP*.028,LB+LP*.028),segD(p,LA-LP*.028,LB-LP*.028))-.0017,9.));
+  for(int i=ZB;i<2;i++){vec3 c=mix(LA,LB,i==0?.33:.66);float g=hillH(c.xz);r=mn(r,vec2(min(sdCaps(p,vec3(c.x,g,c.z),c+vec3(0,.012,0),.0055),sdCaps(p,c-LP*.034+vec3(0,.012,0),c+LP*.034+vec3(0,.012,0),.004)),9.));}
+  r=mn(r,vec2(min(sdCyl(p-LA,.032,.004),sdCyl(p-LB,.032,.004)),9.));
+  vec3 s1=vec3(.63,hillH(vec2(.63,.25)),.25),s2=vec3(-.12,hillH(vec2(-.12,-.67)),-.67);
+  r=mn(r,vec2(min(sdBox(p-s1-vec3(0,.04,0),vec3(.05,.04,.04)),sdBox(p-s2-vec3(0,.04,0),vec3(.045,.04,.035))),18.));
+  r=mn(r,vec2(min(sdBox(p-s1-vec3(0,.087,0),vec3(.058,.007,.048)),sdBox(p-s2-vec3(0,.087,0),vec3(.053,.007,.043)))-.002,1.));}
+ // the A-frame lodge, big window lit, a deck out front
+ vec3 lq=p-vec3(-.55,hillH(vec2(-.55,.30))-.005,.30);float lbb=sdBox(lq-vec3(0,.13,.04),vec3(.19,.15,.20));
+ if(lbb>.03)r.x=min(r.x,lbb);else{float ax=abs(lq.x)*1.55;
+  r=mn(r,vec2(max(max(ax+lq.y-.24,-(ax+lq.y-.215)),max(abs(lq.z)-.13,-lq.y))*.55,3.5));
+  r=mn(r,vec2(max(max(ax+lq.y-.249,-(ax+lq.y-.239)),max(abs(lq.z)-.135,.07-lq.y+.03*sin(lq.z*40.)))*.55,1.));
+  r=mn(r,vec2(max(ax+lq.y-.215,max(abs(lq.z)-.115,-lq.y))*.55,18.));
+  r=mn(r,vec2(max(ax+lq.y-.18,max(abs(lq.z-.116)-.004,.045-lq.y))*.55,5.));
+  r=mn(r,vec2(sdBox(lq-vec3(0,.022,.117),vec3(.022,.03,.004)),11.));
+  r=mn(r,vec2(sdBox(lq-vec3(0,.01,.19),vec3(.15,.008,.07)),3.));r=mn(r,vec2(sdBox(lq-vec3(0,.02,.19),vec3(.148,.003,.068))+.002*sin(lq.x*80.),1.));}
+ const vec4 PT[5]=vec4[5](vec4(-.66,-.25,.45,.2),vec4(-.48,-.58,.42,.6),vec4(.66,-.22,.40,.9),vec4(.70,.10,.32,.4),vec4(.24,-.66,.36,.5));
+ for(int i=ZB;i<5;i++)r=mn(r,vec2(pine(p-vec3(PT[i].x,hillH(PT[i].xy)-.01,PT[i].y),PT[i].z,PT[i].z*.33,PT[i].w),2.));
+ return r;}`,
+];
+// warm light thrown onto the snow by windows and lamps, per scene
+const SPILL = [
+  'float w0=length(p-vec3(-.06,-.3,.17));float wg=exp(-w0*w0*11.)*smoothstep(-.3,.6,dot(n,normalize(vec3(-.06,-.3,.17)-p)));',
+  'float w0=length(p-vec3(-.06,-.3,.17));float wg=exp(-w0*w0*11.)*smoothstep(-.3,.6,dot(n,normalize(vec3(-.06,-.3,.17)-p)));',
+  'float wg=exp(-pow(length(p-vec3(.32,-.27,.14)),2.)*22.)*.5;',
+  'float wg=0.;',
+  `float wg=.85*exp(-pow((p.z+.2)/.07,2.))*(1.-smoothstep(-.42,-.3,p.y))*step(abs(p.x),.66);
+   vec3 d1=p-vec3(-.56,-.214,0.),d2=p-vec3(.56,-.214,0.),d3=p-vec3(-.14,-.234,.28),d4=p-vec3(.52,-.25,.44);
+   wg+=1.2*(exp(-dot(d1,d1)*55.)+exp(-dot(d2,d2)*55.)+exp(-dot(d3,d3)*55.))+.5*exp(-dot(d4,d4)*30.);`,
+  `vec3 d1=p-vec3(-.66,-.192,.05),d2=p-vec3(.66,-.207,.14),d3=p-vec3(.44,-.30,-.32);
+   float wg=1.1*(exp(-dot(d1,d1)*45.)+exp(-dot(d2,d2)*45.))+.6*exp(-dot(d3,d3)*40.)+.35*exp(-pow((p.z+.36)/.08,2.))*step(abs(p.x),.5)*(1.-smoothstep(-.42,-.3,p.y));`,
+  'vec3 d1=vec3(abs(p.x)-.12,p.y+.26,p.z-.06);float wg=.7*exp(-dot(d1,d1)*14.)*smoothstep(-.2,.6,dot(n,normalize(-d1)));',
+  'vec3 d1=p-vec3(-.55,-.36,.44);float wg=.8*exp(-dot(d1,d1)*30.);',
 ];
 
 const BAKE_NOISE = `precision highp sampler3D;uniform sampler3D uN3;
@@ -343,6 +511,24 @@ float fbm3(vec3 p){return .5*n3(p)+.25*n3(p*2.03+vec3(17.1,9.2,4.7))+.125*n3(p*4
 `;
 let n3Tex = null;
 function ensureN3() { if (n3Tex) return; const n = 32, d = new Uint8Array(n * n * n), r = mulberry(77); for (let i = 0; i < d.length; i++) d[i] = r() * 255; n3Tex = gl.createTexture(); gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_3D, n3Tex); gl.texImage3D(gl.TEXTURE_3D, 0, gl.R8, n, n, n, 0, gl.RED, gl.UNSIGNED_BYTE, d); gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); for (const w of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T, gl.TEXTURE_WRAP_R]) gl.texParameteri(gl.TEXTURE_3D, w, gl.REPEAT); gl.activeTexture(gl.TEXTURE0); }
+const MATS = {
+  12: " } else if(m<12.5){ // brick, mortar lines, snow on every ledge\n  vec2 bq=vec2(abs(n.x)>.6?p.z:p.x,p.y)*vec2(48.,96.);bq.x+=.5*floor(bq.y);vec2 f=fract(bq);\n  float mort=smoothstep(.02,.1,min(f.x,1.-f.x))*smoothstep(.04,.16,min(f.y,1.-f.y));float bv=h13(vec3(floor(bq),3.));\n  alb=mix(vec3(.13,.12,.11),mix(vec3(.24,.06,.035),vec3(.40,.13,.07),bv),mort);\n  c=alb*(uKey*dif*s+uFill*a);c=mix(c,vec3(.9)*(uKey*.7*s+uFill*a*1.1),smoothstep(.62,.9,n.y));\n",
+  13: " } else if(m<13.5){ // ice: dark and glassy, scored by skates, mirroring whatever stands round it\n  float sc=sin(length((p.xz-vec2(.05,.02))*vec2(1.,1.6))*140.+fbm3(p*12.)*9.)*.5+.5;float scr=smoothstep(.93,1.,sc)*.6+smoothstep(.97,1.,sin(p.x*90.+p.z*170.+fbm3(p*6.)*14.))*.4;\n  float frost=smoothstep(.55,.78,fbm3(p*vec3(9.,1.,9.)));\n  vec3 R=reflect(rd,vec3(0,1,0));R=normalize(R+(vec3(n3(p*80.),0.,n3(p*80.+3.))-.5)*.03);\n  vec3 rc=env(R)*.5;float t2=.012;\n  for(int i=0;i<44;i++){vec3 q=p+R*t2;vec2 h=mapI(q);if(h.x<.0015){rc=quick(q,h.y,l);break;}t2+=max(h.x,.004);if(t2>1.7||dot(q,q)>.94)break;}\n  float F=.04+.96*pow(1.-max(0.,-rd.y),5.);\n  alb=vec3(.025,.04,.06);c=alb*(uFill*a*1.1+uKey*dif*s*.4)+rc*mix(.06,.32,F)*vec3(.45,.62,.86);\n  c=mix(c,vec3(.78,.84,.9)*(uKey*.4*s+uFill*a),clamp(scr*.35+frost*.15,0.,1.));\n",
+  14: " } else if(m<14.5){ // gingerbread: baked brown, pitted\n  float pit=fbm3(p*90.);alb=mix(vec3(.30,.13,.05),vec3(.46,.22,.09),fbm3(p*14.))*(.8+.35*pit);\n  n=normalize(n+(vec3(n3(p*95.),n3(p*95.+4.),n3(p*95.+9.))-.5)*.35);dif=max(0.,dot(n,l));\n  c=alb*(uKey*dif*s*1.1+uFill*a)+uKey*pow(max(0.,dot(reflect(rd,n),l)),20.)*.05*s;\n",
+  15: " } else if(m<15.5){ // royal icing\n  alb=vec3(.95,.93,.9);c=alb*(uKey*max(0.,dot(n,l)*.6+.4)*.8*(.3+.7*s)+uFill*a*1.15)+uKey*pow(max(0.,dot(reflect(rd,n),l)),60.)*.7*s;\n",
+  16: " } else if(m<16.5){ // gumdrops, sugared, every one a different flavour\n  float id=h13(vec3(floor(p.x/.07+.5),floor(p.y*6.),floor(p.z*5.+.5)));vec3 pal[5]=vec3[5](vec3(.75,.04,.05),vec3(.10,.55,.08),vec3(.85,.55,.03),vec3(.40,.06,.55),vec3(.90,.30,.03));\n  alb=pal[int(id*4.99)];vec3 sn=normalize(n+(vec3(n3(p*260.),n3(p*260.+4.),n3(p*260.+9.))-.5)*.6);float sp=pow(max(0.,dot(reflect(rd,sn),l)),40.)*.5+pow(h13(floor(p*500.)),30.)*1.2;\n  c=alb*(uKey*max(0.,dot(n,l)*.55+.45)*(.35+.65*s)*1.1+uFill*a)+alb*alb*uKey*.35*s+uKey*sp*s;\n",
+  17: " } else if(m<17.5){ // a lamp, burning\n  c=vec3(4.2,2.6,1.1)*(.85+.3*smoothstep(-1.,1.,n.y));\n",
+  18: " } else if(m<18.5){ // red-painted boards\n  float b=fract((abs(n.x)>.6?p.z:p.x)*70.);alb=vec3(.42,.045,.035)*(.75+.3*fbm3(p*40.))*mix(.6,1.,smoothstep(.0,.12,b));\n  c=alb*(uKey*dif*s*1.15+uFill*a);c=mix(c,vec3(.9)*(uKey*.7*s+uFill*a),smoothstep(.6,.9,n.y));\n",
+  19: " } else if(m<19.5){ // cream clapboard\n  float b=fract(p.y*80.);alb=vec3(.62,.56,.42)*(.85+.2*fbm3(p*30.))*mix(.55,1.,smoothstep(.0,.15,b));\n  c=alb*(uKey*dif*s*1.1+uFill*a);c=mix(c,vec3(.9)*(uKey*.7*s+uFill*a),smoothstep(.6,.9,n.y));\n",
+  20: " } else if(m<20.5){ // the sign: a dark board, a line of lit gold lettering\n  float lx=p.x*95.,li=floor(lx),cx=floor(fract(lx)*4.),ty=(p.y+.159)/.028,cy=floor(ty*5.);\n  float txt=step(0.,ty)*step(ty,1.)*step(cx,2.5)*step(.15,h13(vec3(li,2.,5.)))*step(.4,h13(vec3(li,cx,cy)));\n  alb=vec3(.02,.06,.04);c=alb*(uKey*dif*s+uFill*a)+vec3(3.2,2.1,.7)*txt+vec3(.5,.3,.1)*.12;\n",
+  21: " } else if(m<21.5){ // candy stripes\n  float k=fract((p.y+(p.x+p.z)*.7)*26.);alb=mix(vec3(.85,.83,.80),vec3(.70,.03,.04),smoothstep(.45,.5,k)*smoothstep(1.,.95,k));\n  c=alb*(uKey*max(0.,dot(n,l)*.6+.4)*(.35+.65*s)+uFill*a)+uKey*pow(max(0.,dot(reflect(rd,n),l)),70.)*.8*s;\n",
+  22: " } else if(m<22.5){ // the street: trodden snow, two ruts of grey slush\n  float rut=exp(-pow((abs(p.z-.17)-.045)/.012,2.))*(.6+.4*fbm3(p*vec3(20.,1.,60.)));float tr=smoothstep(.5,.75,fbm3(p*vec3(50.,1.,50.)))*.4;\n  alb=mix(vec3(.88,.9,.93),vec3(.32,.31,.32),clamp(rut+tr*.5,0.,1.));n=normalize(n+(vec3(n3(p*70.),n3(p*70.+4.),n3(p*70.+9.))-.5)*.12);\n  c=alb*(uKey*max(0.,dot(n,l)*.55+.45)*.72*(.22+.78*s)+uFill*(.75+.35*n.y)*a*1.15)+uKey*pow(max(0.,dot(reflect(rd,n),l)),30.)*.25*rut*s;\n",
+  23: " } else if(m<23.5){ // strings of coloured bulbs\n  float id=h13(floor(p*22.+.5));c=id<.25?vec3(3.,.25,.15):id<.5?vec3(.3,2.4,.4):id<.75?vec3(3.,1.8,.3):vec3(.4,.8,3.2);\n",
+  24: " } else if(m<24.5){ // peppermint stepping stones\n  float i=clamp(floor((p.z-.32)/.13+.5),0.,3.);vec2 d2=p.xz-vec2(.03*sin(i*2.),.32+.13*i);float ang=atan(d2.y,d2.x),rr=length(d2);\n  float k=fract(ang/6.2832*8.+rr*7.);alb=mix(vec3(.88,.86,.84),vec3(.75,.03,.04),step(.5,k)*step(rr,.036));\n  c=alb*(uKey*max(0.,dot(n,l)*.5+.5)*(.35+.65*s)+uFill*a)+uKey*pow(max(0.,dot(reflect(rd,n),l)),60.)*.6*s;\n",
+  25: " } else if(m<25.5){ // lollipops, swirled\n  vec2 cc=p.x<0.?vec2(-.42,-.12):vec2(.45,-.16);vec2 d2=p.xy-cc;float ang=atan(d2.y,d2.x),rr=length(d2);float k=fract(ang/6.2832*2.+rr*30.);\n  vec3 c1=p.x<0.?vec3(.75,.05,.35):vec3(.10,.40,.75);alb=mix(vec3(.9,.88,.85),c1,smoothstep(.4,.5,k)*smoothstep(1.,.9,k));\n  c=alb*(uKey*max(0.,dot(n,l)*.5+.5)*(.35+.65*s)+uFill*a)+uKey*pow(max(0.,dot(reflect(rd,n),l)),70.)*.8*s;\n",
+};
+// which of those each scene uses (the old four use none)
+const MUSE = [[], [], [], [], [12, 13, 17, 18, 19, 20, 21, 22, 23], [13, 17, 23], [14, 15, 16, 21, 24, 25], [18]];
 function globeBakeFS(mapI) { return HEAD + BAKE_NOISE + SDF + MAPS[mapI] + `
 uniform vec2 uJit;uniform float uR,uBase;uniform vec3 uKey,uFill,uWin,uWinDir,uLamp,uTop,uMid;uniform vec3 uTint;
 layout(location=0) out vec4 o0;layout(location=1) out vec4 o1;
@@ -354,9 +540,16 @@ float base(vec3 p){return sdProfile(vec2(length(p.xz),p.y));}
 vec3 baseN(vec3 p){vec2 e=vec2(.0015,-.0015);return normalize(e.xyy*base(p+e.xyy)+e.yyx*base(p+e.yyx)+e.yxy*base(p+e.yxy)+e.xxx*base(p+e.xxx));}
 float inner(vec3 p){return length(p)-.985;}
 vec2 mapI(vec3 p){vec2 r=scene(p);r.x=max(r.x,inner(p));return r;}
-vec3 normalI(vec3 p){vec2 e=vec2(.0018,-.0018);return normalize(e.xyy*mapI(p+e.xyy).x+e.yyx*mapI(p+e.yyx).x+e.yxy*mapI(p+e.yxy).x+e.xxx*mapI(p+e.xxx).x);}
+vec3 normalI(vec3 p){vec3 n=vec3(0);for(int i=ZB;i<4;i++){vec3 e=2.*vec3(float(((i+3)>>1)&1),float((i>>1)&1),float(i&1))-1.;n+=e*mapI(p+e*.0018).x;}return normalize(n);}
 float shadow(vec3 p,vec3 l){float res=1.,t=.012;for(int i=0;i<34;i++){float d=mapI(p+l*t).x;if(length(p+l*t)>.97)break;res=min(res,11.*d/t);t+=clamp(d,.006,.09);if(res<.004||t>1.8)break;}return clamp(res,0.,1.);}
-float ao(vec3 p,vec3 n){float s=0.,w=1.;for(int i=1;i<=6;i++){float h=.012+.05*float(i);s+=(h-mapI(p+n*h).x)*w;w*=.72;}return clamp(1.-s*1.5,0.,1.);}
+float ao(vec3 p,vec3 n){float s=0.,w=1.;for(int i=ZB+1;i<=6;i++){float h=.012+.05*float(i);s+=(h-mapI(p+n*h).x)*w;w*=.72;}return clamp(1.-s*1.5,0.,1.);}
+// normal, ambient occlusion and the soft shadow toward the light, all from one loop so the scene is compiled once for them
+void probe(vec3 p,vec3 l,out vec3 n,out float sh,out float ao){
+ n=vec3(0);sh=1.;ao=0.;float w=1.,t=.012;vec3 nn=vec3(0,1,0);
+ for(int i=ZB;i<44;i++){vec3 e=2.*vec3(float(((i+3)>>1)&1),float((i>>1)&1),float(i&1))-1.;float h=.012+.05*float(i-3);vec3 q=i<4?p+e*.0018:i<10?p+nn*h:p+nn*.008+l*t;
+  if(i>=10&&length(q)>.97)break;float d=mapI(q).x;
+  if(i<4){n+=e*d;if(i==3){n=normalize(n);nn=n;}}else if(i<10){ao+=(h-d)*w;w*=.72;}else{sh=min(sh,11.*d/t);t+=clamp(d,.006,.09);if(sh<.004||t>1.8)break;}}
+ ao=clamp(1.-ao*1.5,0.,1.);sh=clamp(sh,0.,1.);}
 vec3 env(vec3 d){
  float up=d.y*.5+.5;vec3 c=mix(uMid*.7,uTop*1.2+uMid*.3,smoothstep(.2,.9,up));
  vec3 wd=normalize(uWinDir),wr=normalize(cross(vec3(0,1,0),wd)),wu=cross(wd,wr);float f=dot(d,wd);
@@ -364,6 +557,11 @@ vec3 env(vec3 d){
  c+=uLamp*.8*pow(max(0.,dot(d,normalize(vec3(.75,.05,.55)))),24.);
  c+=uWin*.11*exp(-pow((d.x+.58)/.16,2.))*smoothstep(-.35,.25,d.y)*smoothstep(.75,.3,d.y);c+=uLamp*.1*exp(-pow((d.x-.72)/.07,2.))*smoothstep(-.3,.2,d.y);
  return c;}
+// a rough colour for whatever a reflection ray lands on (the ice uses it)
+vec3 quick(vec3 q,float m,vec3 l){float d=.55;vec3 al=vec3(.85);
+ if(m>4.5&&m<5.5)return vec3(3.,1.7,.6);if(m>16.5&&m<17.5)return vec3(4.,2.4,1.);if(m>19.5&&m<20.5)return vec3(1.,.7,.3);if(m>22.5&&m<23.5)return vec3(2.5,1.2,.6);
+ if(m<1.6)al=vec3(.5);else if(m>1.6&&m<2.5)al=vec3(.06,.12,.07);else if(m>2.5&&m<4.)al=vec3(.2,.1,.05);else if(m>5.5&&m<6.5)al=vec3(.3);else if(m>11.5&&m<12.5)al=vec3(.3,.08,.04);else if(m>17.5&&m<18.5)al=vec3(.45,.05,.04);else if(m>8.5&&m<9.5)al=vec3(.02);
+ return al*(uKey*d*.85+uFill*.9);}
 vec3 woodCol(vec3 p){float r=length(p.xz*vec2(1.,.6)+vec2(.3,.1));float g=sin(r*92.+fbm3(p*vec3(3.,1.,3.))*16.)*.5+.5;float f=fbm3(p*vec3(9.,90.,9.));float c2=fbm3(p*vec3(5.,3.,5.));return mix(vec3(.022,.009,.005),vec3(.105,.048,.020),g*.42+f*.34+c2*.24);}
 vec3 shadeBase(vec3 p,vec3 rd){
  vec3 n=baseN(p),l=normalize(uWinDir*vec3(1.,.95,1.)),v=-rd,R=reflect(rd,n);float ndv=max(0.,dot(n,v));
@@ -384,9 +582,8 @@ vec3 shadeBase(vec3 p,vec3 rd){
  return c;}
 vec3 waterFade(float t){return exp(-t*(vec3(1.)-uTint)*1.1);}
 vec3 shade(vec3 p,vec2 hit,vec3 rd,float tw){
- vec3 n=normalI(p);float m=hit.y;
- vec3 l=normalize(uWinDir+vec3(0,.28,0));
- float s=shadow(p+n*.008,l),a=ao(p,n);
+ vec3 l=normalize(uWinDir+vec3(0,.28,0));float m=hit.y;
+ vec3 n;float s,a;probe(p,l,n,s,a);
  float dif=max(0.,dot(n,l));vec3 c=vec3(0);vec3 alb=vec3(.9);float sp=0.;
  float gr=fbm3(p*vec3(38.));
  if(m<1.6){ // snow, slightly crusted
@@ -403,7 +600,10 @@ vec3 shade(vec3 p,vec2 hit,vec3 rd,float tw){
   c=g*(uKey*dif*s*1.2+uFill*a*.8)+vec3(.05,.08,.03)*max(0.,dot(-n,l))*s*.5;
   vec3 sc=vec3(.92,.95,1.)*(uKey*max(0.,dot(n,l)*.5+.5)*(.4+.6*s)*.8+uFill*a*1.15);
   c=mix(c,sc,snowm);
- } else if(m<3.25){ // timber walls, log courses
+${mapI === 4 ? `  if(m>2.2){ // a lit tree: bulbs dotted through the boughs
+   vec3 cq=p*30.;float hb=h13(floor(cq)+.5);float dd=length(fract(cq)-.5);float bulb=step(.8,hb)*smoothstep(.34,.18,dd)*(1.-snowm*.6);
+   vec3 bc=hb<.85?vec3(3.,.3,.15):hb<.9?vec3(.3,2.6,.4):hb<.95?vec3(3.,2.,.4):vec3(.5,.9,3.4);c=mix(c,bc,bulb);c+=bc*.05*step(.8,hb)*smoothstep(.5,.2,dd);}
+` : ''} } else if(m<3.25){ // timber walls, log courses
   float k=fract(p.y*62.);alb=mix(vec3(.15,.08,.04),vec3(.30,.17,.09),fbm3(p*vec3(30.,90.,30.)));alb*=.55+.45*smoothstep(0.,.18,k)*smoothstep(1.,.8,k);
   c=alb*(uKey*dif*s*1.15+uFill*a);
  } else if(m<4.){ // dark roof / cap
@@ -418,14 +618,16 @@ vec3 shade(vec3 p,vec2 hit,vec3 rd,float tw){
  } else if(m<8.5){alb=vec3(.85,.28,.03);c=alb*(uKey*dif*s*1.2+uFill*a);
  } else if(m<9.5){alb=vec3(.012);c=alb*(uKey*dif*s+uFill*a)+uKey*pow(max(0.,dot(reflect(rd,n),l)),50.)*.6*s;
  } else if(m<10.5){alb=vec3(.60,.04,.05);float k=sin(p.x*260.)*sin(p.y*300.);alb*=.84+.2*k;c=alb*(uKey*dif*s*1.1+uFill*a);
- } else {alb=vec3(.12,.07,.04);c=alb*(uKey*dif*s+uFill*a);}
- // warm spill from any lit window
- ${mapI < 2 ? 'float w0=length(p-vec3(-.06,-.3,.17));float wg=exp(-w0*w0*11.)*smoothstep(-.3,.6,dot(n,normalize(vec3(-.06,-.3,.17)-p)));' : 'float wg=0.;'}
- ${mapI === 2 ? 'wg=exp(-pow(length(p-vec3(.32,-.27,.14)),2.)*22.)*.5;' : ''}
- if(m<4.)c+=alb*vec3(1.5,.74,.26)*wg*.42;
+ } else if(m<11.5){alb=vec3(.12,.07,.04);c=alb*(uKey*dif*s+uFill*a);
+${MUSE[mapI].map(k => k === 13 && mapI !== 5 ? MATS[13].replace(/  for\(int i=0;i<44;i\+\+\)[^\n]*\n/, '') : MATS[k]).join('')} }
+ // warm spill from any lit window or lamp
+ ${SPILL[mapI]}
+ bool emis=(m>4.5&&m<5.5)||(m>16.5&&m<17.5)||(m>19.5&&m<20.5)||(m>22.5&&m<23.5);
+ if(!emis&&(m<4.||m>11.5))c+=alb*vec3(1.5,.74,.26)*wg*.42;
  return c*waterFade(tw);}
 const float MAXT=8.;
 void main(){
+ ZB=int(min(0.,uR));
  vec2 pix=(gl_FragCoord.xy+uJit)/uR-vec2(${QX.toFixed(2)},${QT.toFixed(2)});
  vec3 fw=vec3(0,-SA,-CA),up=vec3(0,CA,-SA),rt=vec3(1,0,0);
  vec3 ro=rt*pix.x+up*(-pix.y)-fw*5.;vec3 rd=fw;
@@ -618,6 +820,149 @@ const puffVS = bokehVS;
 const puffFS = HEAD + NOISE + `in vec2 vP;in vec4 vC;out vec4 o;void main(){float r=length(vP);float n=fbm(vP*2.2+vC.rg*9.);float a=smoothstep(1.,.1,r)*smoothstep(.25,.7,n+.3*(1.-r));a*=vC.a;o=vec4(vec3(.92,.90,.88)*a,a);}`;
 const finishFS = HEAD + NOISE + `in vec2 vW;uniform vec4 uView;uniform float uTime;out vec4 o;void main(){vec2 v=(vW-vec2(uView.x,0.))/uView.yz;float aspect=uView.y/uView.z;vec2 q=(v-.5)*vec2(aspect,1.);float vig=smoothstep(.45,1.2,length(q*vec2(.72,1.)));float a=vig*.42;float g=(h12(vW+fract(uTime)*311.)-.5)*.05;o=vec4(vec3(max(g,0.)),a+max(-g,0.));}`;
 
+// ---- the little people: every pose ray traced once into an atlas of cells, then placed live inside the water
+const FIG_COLS = 8, FIG_ROWS = 4, FIG_W = 128, FIG_H = 192;
+// cells: 0-3 a man in a long coat running, arms up, 4 the same man cheering; 5-10 skaters (three coats, two strides);
+// 11 a chairlift chair with two riders; 12-13 skiers; 14-15 kids on sleds; 16-19 kids hauling sleds uphill (two coats, two steps);
+// 20-23 kids in a snowball fight (two coats, wind-up and throw); 24 a snowball
+const figBakeFS = HEAD + `
+uniform vec3 uKey,uFill,uWinDir;layout(location=0) out vec4 o;
+vec2 mn(vec2 a,vec2 b){return a.x<b.x?a:b;}
+float sdCaps(vec3 p,vec3 a,vec3 b,float r){vec3 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/dot(ba,ba),0.,1.);return length(pa-ba*h)-r;}
+float sdBox(vec3 p,vec3 b){vec3 q=abs(p)-b;return length(max(q,0.))+min(max(q.x,max(q.y,q.z)),0.);}
+int cell,ZERO;float yawA,leanA,kid,hat,longCoat;
+vec3 jHip,jNeck,jHead,jKL,jFL,jKR,jFR,jEL,jHL,jER,jHR;
+vec3 cCoat,cPants,cBoot,cHat,cScarf,cCoat2,cHat2,cSki;
+// one person from the joints above, facing +x; coat and hat materials passed in so two riders can differ
+vec2 person(vec3 p,float mc,float mh){
+ float hr=kid>.5?.062:.05,tr=kid>.5?.068:.064,lr=.03;
+ vec2 r=vec2(sdCaps(p,jHip,jNeck-vec3(0,.02,0),tr),mc);
+ if(longCoat>.5){vec3 a=jHip+vec3(0,.03,0),b=jHip+vec3(-.035,-.17,0);float h=clamp(dot(p-a,b-a)/dot(b-a,b-a),0.,1.);r=mn(r,vec2((length(p-mix(a,b,h))-mix(tr,tr*1.3,h))*.9,mc));}
+ vec3 hL=jHip+vec3(0,0,.034),hR=jHip-vec3(0,0,.034);
+ r=mn(r,vec2(min(min(sdCaps(p,hL,jKL,lr),sdCaps(p,jKL,jFL,lr*.85)),min(sdCaps(p,hR,jKR,lr),sdCaps(p,jKR,jFR,lr*.85))),2.));
+ r=mn(r,vec2(min(sdCaps(p,jFL,jFL+vec3(.04,-.006,0),.024),sdCaps(p,jFR,jFR+vec3(.04,-.006,0),.024)),3.));
+ vec3 sL=jNeck+vec3(0,-.045,.07),sR=jNeck+vec3(0,-.045,-.07);
+ r=mn(r,vec2(min(min(sdCaps(p,sL,jEL,.023),sdCaps(p,jEL,jHL,.02)),min(sdCaps(p,sR,jER,.023),sdCaps(p,jER,jHR,.02))),mc));
+ r=mn(r,vec2(min(length(p-jHL),length(p-jHR))-.021,kid>.5?mh:5.));
+ r=mn(r,vec2(length(p-jHead)-hr,5.));
+ vec3 q=p-jHead;
+ if(hat<.5){ // a fedora: brim and pinched crown
+  float brim=max(length(q.xz-vec2(-.004,0.))-.072,abs(q.y-.032)-.005);float cr=max(length(q.xz)-.047,abs(q.y-.058)-.028);r=mn(r,vec2(min(brim,cr)*.9,mh));
+ } else if(hat<1.5){ // a knit hat with a pompom
+  r=mn(r,vec2(max(length(q-vec3(0,.01,0))-hr*1.08,.004-q.y),mh));r=mn(r,vec2(length(q-vec3(-.01,hr+.035,0))-.022,6.));
+ } else { // a ski helmet and goggles
+  r=mn(r,vec2(max(length(q-vec3(-.005,.008,0))-hr*1.14,-q.y-.01),mh));r=mn(r,vec2(max(max(length(q)-hr*1.1,abs(q.y)-.014),-q.x),14.));}
+ vec3 s=p-jNeck;r=mn(r,vec2(length(vec2(length(s.xz)-.042,s.y+.01))-.017,6.));
+ return r;}
+vec3 legJ(vec3 hip,float a,float b,float l1,float l2,float z,out vec3 knee){knee=hip+vec3(sin(a)*l1,-cos(a)*l1,z);return knee+vec3(sin(a-b)*l2,-cos(a-b)*l2,0.);}
+void plant(){float lift=-min(jFL.y,jFR.y)+.03;jHip=vec3(0,lift,0);jKL.y+=lift;jFL.y+=lift;jKR.y+=lift;jFR.y+=lift;}
+void arms(vec3 eL,vec3 hL2,vec3 eR,vec3 hR2){vec3 sL=jNeck+vec3(0,-.045,.07),sR=jNeck+vec3(0,-.045,-.07);jEL=sL+eL;jHL=jEL+hL2;jER=sR+eR;jHR=jER+hR2;}
+void kidCols(int v){cCoat=v==0?vec3(.30,.06,.42):vec3(.85,.30,.04);cHat=v==0?vec3(.85,.22,.42):vec3(.07,.18,.62);cScarf=v==0?vec3(.85,.75,.2):vec3(.6,.05,.04);cPants=vec3(.03,.04,.12);}
+void setPose(int c){
+ yawA=0.;leanA=0.;kid=0.;hat=1.;longCoat=0.;cSki=vec3(.8);cCoat2=vec3(.05,.35,.40);cHat2=vec3(.6,.05,.04);cBoot=vec3(.03);cPants=vec3(.04,.04,.05);cScarf=vec3(.6,.05,.04);
+ if(c<5){ // the man in the long coat, running with his arms thrown up
+  bool run=c<4;float ph=float(c)*1.5708;hat=0.;longCoat=1.;
+  float a1=run?.62*sin(ph):.04,b1=run?.3+.6*max(0.,sin(ph+1.7)):.06,a2=run?.62*sin(ph+3.1416):-.04,b2=run?.3+.6*max(0.,sin(ph+4.84)):.06;
+  jFL=legJ(vec3(0),a1,b1,.21,.21,.035,jKL);jFR=legJ(vec3(0),a2,b2,.21,.21,-.035,jKR);plant();
+  jNeck=jHip+vec3(.045,.29,0);jHead=jNeck+vec3(.022,.075,0);float w=run?.03*sin(ph*2.):0.;
+  arms(vec3(.06,.11,.04),vec3(.05+w,.11,.02),vec3(-.03,.12,-.04),vec3(.01-w,.12,-.02));
+  cCoat=vec3(.17,.12,.08);cPants=vec3(.06,.055,.05);cBoot=vec3(.02);cHat=vec3(.13,.11,.09);cScarf=vec3(.70,.66,.58);
+ } else if(c<11){ // skaters gliding, one leg stretched out behind
+  int v=(c-5)/2,f=(c-5)%2;float s=f==0?1.:-1.;
+  jHip=vec3(0,.40,0);jNeck=jHip+vec3(.13,.24,0);jHead=jNeck+vec3(.05,.06,0);
+  jKL=jHip+vec3(.04,-.19,.035*s);jFL=jKL+vec3(-.02,-.185,0.);jKR=jHip+vec3(-.12,-.13,-.035*s);jFR=jKR+vec3(-.16,.01,0.);
+  arms(vec3(.09*s,-.06,.05),vec3(.09*s,-.03,.02),vec3(-.09*s,-.07,-.05),vec3(-.08*s,-.03,-.02));
+  cCoat=v==0?vec3(.55,.05,.04):v==1?vec3(.05,.26,.09):vec3(.05,.09,.30);cHat=v==0?vec3(.85,.85,.82):v==1?vec3(.6,.04,.04):vec3(.85,.62,.08);cScarf=cHat;cBoot=vec3(.8,.78,.74);
+ } else if(c==11){yawA=.5;cCoat=vec3(.75,.25,.05);cHat=vec3(.08,.2,.6);cSki=vec3(.85,.85,.8);
+ } else if(c<14){ // skiers, crouched over their skis, poles back
+  int v=c-12;yawA=.75;leanA=.2;hat=2.;
+  jHip=vec3(-.03,.36,0);jNeck=jHip+vec3(.11,.23,0);jHead=jNeck+vec3(.03,.07,0);
+  jKL=vec3(.08,.20,.05);jFL=vec3(.0,.035,.05);jKR=vec3(.08,.20,-.05);jFR=vec3(.0,.035,-.05);
+  arms(vec3(.07,-.10,.04),vec3(.08,-.03,.02),vec3(.07,-.10,-.04),vec3(.08,-.03,-.02));
+  cCoat=v==0?vec3(.62,.06,.04):vec3(.80,.55,.04);cPants=v==0?vec3(.02):vec3(.03,.05,.16);cHat=v==0?vec3(.85):vec3(.03);cScarf=cCoat*.6;cSki=v==0?vec3(.08,.25,.7):vec3(.85,.85,.8);
+ } else if(c<16){ // a kid on a sled, feet up on the front
+  int v=c-14;yawA=.85;kid=1.;kidCols(v);
+  jHip=vec3(-.05,.14,0);jNeck=jHip+vec3(-.03,.20,0);jHead=jNeck+vec3(.01,.07,0);
+  jKL=vec3(.07,.23,.04);jFL=vec3(.17,.12,.045);jKR=vec3(.07,.23,-.04);jFR=vec3(.17,.12,-.045);
+  arms(vec3(.05,-.08,.03),vec3(.08,-.02,0.),vec3(.05,-.08,-.03),vec3(.08,-.02,0.));
+ } else if(c<20){ // a kid trudging uphill, towing the sled
+  int v=(c-16)/2,f=(c-16)%2;float s=f==0?1.:-1.;yawA=-2.;kid=1.;kidCols(v);
+  jFL=legJ(vec3(0),.35*s,.25,.15,.14,.034,jKL);jFR=legJ(vec3(0),-.35*s,.25,.15,.14,-.034,jKR);plant();
+  jNeck=jHip+vec3(.07,.19,0);jHead=jNeck+vec3(.03,.07,0);
+  arms(vec3(-.04,-.08,.02),vec3(-.07,-.04,0.),vec3(.05*s,-.09,-.02),vec3(.04*s,-.06,0.));
+ } else if(c<24){ // snowball fight: wind up, then throw
+  int v=(c-20)/2,f=(c-20)%2;kid=1.;
+  jHip=vec3(0,.30,0);jKL=jHip+vec3(.08,-.14,.04);jFL=jKL+vec3(.03,-.13,0.);jKR=jHip+vec3(-.07,-.14,-.04);jFR=jKR+vec3(-.04,-.13,0.);
+  if(f==0){jNeck=jHip+vec3(-.02,.20,0);jHead=jNeck+vec3(.02,.07,0);arms(vec3(.08,-.02,.03),vec3(.08,.02,0.),vec3(-.07,.03,-.03),vec3(-.03,.09,0.));}
+  else{jNeck=jHip+vec3(.06,.19,0);jHead=jNeck+vec3(.03,.07,0);arms(vec3(-.06,-.06,.03),vec3(-.05,-.04,0.),vec3(.08,.03,-.02),vec3(.09,-.01,0.));}
+  cCoat=v==0?vec3(.6,.06,.05):vec3(.06,.16,.55);cHat=v==0?vec3(.06,.35,.10):vec3(.85,.62,.06);cScarf=v==0?vec3(.85,.85,.8):vec3(.6,.05,.04);cPants=vec3(.03,.04,.12);
+ }}
+void rider(float zc){kid=0.;hat=2.;longCoat=0.;jHip=vec3(-.04,.445,zc);jNeck=jHip+vec3(-.01,.25,0);jHead=jNeck+vec3(.025,.07,0);
+ jKL=jHip+vec3(.17,.005,.034);jFL=jKL+vec3(.03,-.16,0.);jKR=jHip+vec3(.17,.005,-.034);jFR=jKR+vec3(.03,-.16,0.);
+ arms(vec3(.07,-.10,0.),vec3(.08,.03,0.),vec3(.07,-.10,0.),vec3(.08,.03,0.));}
+vec2 sled(vec3 p){vec2 r=vec2(sdBox(p-vec3(0.,.075,0.),vec3(.20,.01,.085))-.003,8.);
+ float ru=min(sdCaps(p,vec3(-.2,.035,.07),vec3(.17,.035,.07),.007),sdCaps(p,vec3(-.2,.035,-.07),vec3(.17,.035,-.07),.007));
+ vec3 q=vec3(p.x-.17,p.y-.085,abs(p.z)-.07);ru=min(ru,max(length(vec2(length(q.xy)-.05,q.z))-.007,-q.x));
+ ru=min(ru,min(sdCaps(p,vec3(-.12,.04,.07),vec3(-.12,.07,.07),.006),sdCaps(p,vec3(.08,.04,.07),vec3(.08,.07,.07),.006)));
+ ru=min(ru,min(sdCaps(p,vec3(-.12,.04,-.07),vec3(-.12,.07,-.07),.006),sdCaps(p,vec3(.08,.04,-.07),vec3(.08,.07,-.07),.006)));
+ return mn(r,vec2(ru,15.));}
+vec2 chair(vec3 p){vec2 r=vec2(sdCaps(p,vec3(-.02,.62,0),vec3(-.02,.99,0),.008),11.);
+ r=mn(r,vec2(sdCaps(p,vec3(-.02,.62,0),vec3(-.09,.56,0),.007),11.));
+ r=mn(r,vec2(min(sdBox(p-vec3(.0,.40,0),vec3(.10,.012,.17)),sdBox(p-vec3(-.095,.49,0),vec3(.012,.09,.17))),11.));
+ r=mn(r,vec2(sdCaps(p,vec3(-.09,.56,-.17),vec3(-.09,.56,.17),.008),11.));
+ r=mn(r,vec2(min(sdCaps(p,vec3(-.09,.58,.17),vec3(.14,.55,.17),.006),min(sdCaps(p,vec3(-.09,.58,-.17),vec3(.14,.55,-.17),.006),sdCaps(p,vec3(.14,.55,-.17),vec3(.14,.55,.17),.006))),11.));
+ return r;}
+float skis2(vec3 p){return min(sdBox(p-jFL-vec3(.05,-.03,0.),vec3(.2,.004,.014)),sdBox(p-jFR-vec3(.05,-.03,0.),vec3(.2,.004,.014)));}
+vec2 fig(vec3 p){
+ if(cell==24)return vec2(length(p-vec3(0,.5,0))-.29+.012*sin(p.x*40.)*sin(p.y*37.),10.);
+ // one person, or the chair's two riders; written as a loop so the person is compiled once
+ vec2 r=cell==11?chair(p):vec2(1e3,0.);int np=cell==11?2:1;
+ for(int k=ZERO;k<np;k++){if(cell==11)rider(k==0?.085:-.085);r=mn(r,person(p,k==0?1.:12.,k==0?4.:13.));if(cell==11)r=mn(r,vec2(skis2(p),9.));}
+ if(cell>=5&&cell<=10)r=mn(r,vec2(min(sdBox(p-jFL-vec3(.025,-.024,0.),vec3(.05,.004,.004)),sdBox(p-jFR-vec3(.025,-.024,0.),vec3(.05,.004,.004))),7.));
+ if(cell==12||cell==13){float sk=min(sdBox(p-vec3(.01,.012,.05),vec3(.25,.005,.016)),sdBox(p-vec3(.01,.012,-.05),vec3(.25,.005,.016)));
+  sk=min(sk,min(sdCaps(p,vec3(.25,.012,.05),vec3(.29,.04,.05),.006),sdCaps(p,vec3(.25,.012,-.05),vec3(.29,.04,-.05),.006)));r=mn(r,vec2(sk,9.));
+  r=mn(r,vec2(min(sdCaps(p,jHL,vec3(-.06,.02,.14),.005),sdCaps(p,jHR,vec3(-.06,.02,-.14),.005)),7.));}
+ if(cell==14||cell==15)r=mn(r,sled(p));
+ if(cell>=16&&cell<=19){vec2 sd=sled((p-vec3(-.36,0.,0.))/.75);sd.x*=.75;r=mn(r,sd);r=mn(r,vec2(sdCaps(p,jHL,vec3(-.36+.75*.21,.75*.11,0.),.004),2.));}
+ if(cell==20||cell==22)r=mn(r,vec2(length(p-jHR-vec3(-.01,.02,0.))-.024,10.));
+ return r;}
+vec2 fmap(vec3 p){float c=cos(yawA),s=sin(yawA);vec3 q=vec3(p.x*c+p.z*s,p.y,-p.x*s+p.z*c);
+ if(leanA!=0.){float cl=cos(leanA),sl=sin(leanA);q.yz=vec2(q.y*cl+q.z*sl,-q.y*sl+q.z*cl);}
+ return fig(q);}
+vec3 fcol(float m){if(m<1.5)return cCoat;if(m<2.5)return cPants;if(m<3.5)return cBoot;if(m<4.5)return cHat;if(m<5.5)return vec3(.72,.47,.36);if(m<6.5)return cScarf;if(m<7.5)return vec3(.35,.36,.38);
+ if(m<8.5)return vec3(.42,.24,.11);if(m<9.5)return cSki;if(m<10.5)return vec3(.92,.94,.97);if(m<11.5)return vec3(.06,.065,.07);if(m<12.5)return cCoat2;if(m<13.5)return cHat2;if(m<14.5)return vec3(.9,.45,.08);return vec3(.6,.05,.04);}
+vec3 shadeF(vec3 p,vec3 n,float m,vec3 rd,vec3 L){vec3 al=fcol(m);float dif=max(0.,dot(n,L)),wrap=max(0.,dot(n,L)*.5+.5);
+ float gl1=(m>6.5&&m<7.5)||(m>8.5&&m<9.5)||m>13.5?1.:(m>2.5&&m<3.5?.5:.12);
+ float sp=pow(max(0.,dot(reflect(rd,n),L)),gl1>.9?40.:12.)*gl1*.6;float ao=.65+.35*smoothstep(0.,.25,p.y);
+ vec3 c=al*(uKey*(dif*.8+wrap*.2)+uFill*(.8+.4*n.y)*1.2*ao)+uKey*sp;
+ if(m>9.5&&m<10.5)c=al*(uKey*wrap*.8+uFill*1.2);
+ c=c/(1.+c*.14);return pow(max(c,vec3(0)),vec3(1./2.2));}
+void main(){
+ vec2 fc=gl_FragCoord.xy;int cx=int(fc.x)/${FIG_W},cy=int(fc.y)/${FIG_H};cell=cy*${FIG_COLS}+cx;
+ if(cell>24){o=vec4(0);return;}
+ ZERO=int(min(0.,uKey.x));setPose(cell);
+ vec2 lc=fc-vec2(float(cx*${FIG_W}),float(cy*${FIG_H}));
+ vec3 L=normalize(uWinDir+vec3(0,.28,0));const float TL=.12;vec3 rd=vec3(0,-sin(TL),-cos(TL)),up=vec3(0,cos(TL),-sin(TL));
+ vec4 acc=vec4(0);
+ for(int s=ZERO;s<4;s++){vec2 j=vec2(float(s&1),float(s>>1))*.5+.25;vec2 uv=(lc-.5+j)/vec2(${FIG_W}.,${FIG_H}.);
+  vec3 ro=vec3((uv.x-.5)*.694,0.,0.)+up*(uv.y*1.04-.04)-rd*2.5;
+  // march, and once it hits, four more steps that take the normal (one loop, so the figure is compiled once)
+  float t=0.;vec2 h=vec2(-1.);int hi=-1;vec3 n=vec3(0),hp=vec3(0);
+  for(int i=ZERO;i<96;i++){int k=i-hi-1;vec3 e=.5773*(2.*vec3(float(((k+3)>>1)&1),float((k>>1)&1),float(k&1))-1.);
+   vec3 q=hi<0?ro+rd*t:hp+e*.0015;vec2 m=fmap(q);
+   if(hi<0){if(m.x<.0008){h=m;hi=i;hp=q;}else{t+=m.x;if(t>5.)break;}}else{n+=e*m.x;if(k==3)break;}}
+  if(hi>=0)acc+=vec4(shadeF(hp,normalize(n),h.y,rd,L),1.);}
+ o=acc/4.;}`;
+// drawn live: refracted like the flakes, hidden wherever the baked scenery stands in front
+const figVS = COMMON_V + `layout(location=0)in vec4 iA;layout(location=1)in vec4 iB;uniform vec4 uView;out vec2 vUV;out vec2 vW;flat out vec4 vB;const vec2 Q[4]=vec2[4](vec2(0,0),vec2(1,0),vec2(0,1),vec2(1,1));
+void main(){vec2 c=Q[gl_VertexID];vUV=c;vB=iB;vW=iA.xy+c*iA.zw;gl_Position=w2c(vW,0.,uView);}`;
+const figFS = HEAD + `in vec2 vUV;in vec2 vW;flat in vec4 vB;uniform sampler2D uT,uX;uniform vec4 uBox;uniform vec3 uTint;out vec4 o;
+void main(){vec4 X=textureLod(uX,(vW-uBox.xy)/uBox.zw,0.);
+ if(vB.x<0.){if(X.z>vB.z+.06)discard;vec2 q=(vUV-.5)*2.;o=vec4(0.,0.,0.,exp(-dot(q,q)*2.6)*vB.w*.5);return;}
+ if(X.z>vB.z+.02)discard;
+ float col=mod(vB.x,${FIG_COLS}.),row=floor(vB.x/${FIG_COLS}.);vec2 u=vec2(vB.y>.5?1.-vUV.x:vUV.x,1.-vUV.y);
+ vec4 c=texture(uT,(vec2(col,row)+u)/vec2(${FIG_COLS}.,${FIG_ROWS}.));o=vec4(c.rgb*uTint,c.a)*vB.w;}`;
+
 const P = {};
 function ensurePrograms() {
   if (P.bg) return;
@@ -639,6 +984,102 @@ const LUT_N = 56, LUT = new Float32Array(LUT_N * LUT_N);
 function apparent(r, z) { const x = clamp(r, 0, 1) * (LUT_N - 1), y = clamp((z + 1) / 2, 0, 1) * (LUT_N - 1), xi = Math.min(LUT_N - 2, x | 0), yi = Math.min(LUT_N - 2, y | 0), fx = x - xi, fy = y - yi, a = LUT[yi * LUT_N + xi], b = LUT[yi * LUT_N + xi + 1], c = LUT[(yi + 1) * LUT_N + xi], d = LUT[(yi + 1) * LUT_N + xi + 1]; return lerp(lerp(a, b, fx), lerp(c, d, fx), fy); }
 const terrainH = (x, z) => -.50 + .13 * Math.exp(-(x * x + z * z) * 2.4) + .022 * Math.sin(x * 7 + 1) * Math.sin(z * 6);
 
+// ---- the little people's loops. Positions are inside the globe (radius 1), y up, z toward the viewer
+let figRT = null, figBuf = null, figVAO = null;
+const figData = new Float32Array(96 * 8);
+const sm01 = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const townG = (x, z) => { const cd = Math.abs(x - (-.30 - .12 * (z - .17))); let g = -.42 - .05 * sm01(-.12, .06, z) * sm01(.15, .035, cd); g += -.07 * sm01(.30, .80, z) + .006 * Math.sin(x * 7 + 1) * sm01(.3, .5, z) + .008 * sm01(-.06, -.09, z); return g + .004 * Math.sin(x * 21) * Math.sin(z * 17) * sm01(.27, .33, Math.abs(z - .17)); };
+const bridgeTop = (x) => { const k = (x + .30) / .125; return -.42 + .034 * Math.max(0, 1 - k * k); };
+const hillH = (x, z) => -.46 + .32 * sm01(.35, -.62, z) + .012 * Math.sin(x * 9) * Math.sin(z * 7);
+const iceY = (x, z) => { const ex = x / .58, ez = (z - .02) / .36; return -.43 + .05 * (1 - ex * ex - ez * ez) - .07 * clamp(z, -.4, .4); };
+const pondG = (x, z) => { const pe = Math.hypot(x / .58, (z - .02) / .36), back = sm01(.2, -.3, z), edge = -.43 - .07 * clamp(z, -.4, .4); let bank = edge + .02 * back + .07 * sm01(1, 1.7, pe) * back - .05 * sm01(.3, .75, z) + .008 * Math.sin(x * 13) * Math.sin(z * 11); bank += .012 * Math.exp(-(((pe - 1.04) / .05) ** 2)) * back; return lerp(iceY(x, z), bank, sm01(.97, 1.05, pe)); };
+// where settled snow lies, per scene (the older scenes share one terrain)
+const GROUND = { town: (x, z) => Math.max(townG(x, z), Math.abs(z - .17) < .085 && Math.abs(x + .30) < .125 ? bridgeTop(x) : -9), pond: pondG, hill: (x, z) => hillH(x, z) };
+const LIFT_A = [.58, -.31, .20], LIFT_B = [-.08, .02, -.62], LIFT_P = [.779, 0, -.627];
+const KH = .15; // a kid's sprite height, in globe radii
+function figPush(out, x, y, z, cell, flip, hs, o = {}) { out.push({ x, y, z, cell, flip: flip ? 1 : 0, hs, top: !!o.top, a: o.a === undefined ? 1 : o.a, sh: o.sh || 0 }); }
+// two kids taking turns: wind up, throw, the snowball arcs across
+function snowFight(out, T, A, B, va, vb, G) {
+  const half = 2.3, k = T % (2 * half), aT = k < half, kk = aT ? k : k - half, yA = G(A[0], A[1]), yB = G(B[0], B[1]);
+  for (const [P, y, v, me] of [[A, yA, va, aT], [B, yB, vb, !aT]]) { const other = P === A ? B : A; const ph = me && kk >= .55 && kk < .9 ? 1 : 0; figPush(out, P[0], y, P[1], 20 + v * 2 + ph, other[0] < P[0], KH, { sh: .026 }); }
+  if (kk > .6 && kk < 1.5) { const u = (kk - .6) / .9, S0 = aT ? A : B, D0 = aT ? B : A, y0 = (aT ? yA : yB) + KH * .6, y1 = (aT ? yB : yA) + KH * .45; figPush(out, lerp(S0[0], D0[0], u), lerp(y0, y1, u) + .07 * Math.sin(Math.PI * u) - .01, lerp(S0[1], D0[1], u), 24, false, .02); }
+}
+// a kid sleds down, gets up, hauls the sled back to the top, sits, goes again
+function sledLoop(out, T, v, P) {
+  const down = 3.2, rest = 1.1, up = 8, sit = 1, k = T % (down + rest + up + sit), w = P.walk, [tx, tz] = P.top, [bx, bz] = P.bot;
+  let x, z, cell, flip = false;
+  if (k < down) { const u = Math.pow(k / down, 1.6); x = lerp(tx, bx, u) + .015 * Math.sin(u * 11); z = lerp(tz, bz, u); cell = 14 + v; flip = bx < tx - .05; }
+  else if (k < down + rest) { const u = (k - down) / rest; x = bx + w[0] * u; z = bz + w[1] * u; cell = 16 + v * 2; }
+  else if (k < down + rest + up) { const u = (k - down - rest) / up; x = lerp(bx, tx, u) + w[0]; z = lerp(bz, tz, u) + w[1]; cell = 16 + v * 2 + (Math.floor(k * 2.6) % 2); flip = tx > bx + .05; }
+  else { const u = (k - down - rest - up) / sit; x = tx + w[0] * (1 - u); z = tz + w[1] * (1 - u); cell = 14 + v; }
+  figPush(out, x, P.G(x, z), z, cell, flip, P.kh || KH, { sh: .026 });
+}
+function townFigs(out, T) {
+  // he runs the length of Main Street and back, stopping at each end to throw his arms up
+  const xa = -.47, xb = .45, v = .17, run = (xb - xa) / v, stop = 1.3, k = T % (2 * (run + stop));
+  let x, dir;
+  if (k < run) { x = xa + v * k; dir = 1; } else if (k < run + stop) { x = xb; dir = 0; } else if (k < 2 * run + stop) { x = xb - v * (k - run - stop); dir = -1; } else { x = xa; dir = 0; }
+  const cell = dir === 0 ? 4 : Math.floor(Math.abs(x - xa) / .03) % 4, flip = dir < 0 || (dir === 0 && k < run + stop);
+  figPush(out, x, Math.max(townG(x, .17), bridgeTop(x)), .17, cell, flip, .095, { sh: .024 });
+  snowFight(out, T + 1.1, [.10, .40], [.40, .34], 0, 1, townG);
+}
+function pondFigs(out, T) {
+  // three skaters: two big loops in opposite directions and one figure of eight
+  const S3 = [[.36, .20, .5, 0, 0], [.25, .12, -.62, 2.1, 1], [.30, .15, .42, 4, 2]];
+  S3.forEach(([a, b, w, ph, v], i) => {
+    const th = T * w + ph, P = (t) => i === 2 ? [a * Math.sin(t), .02 + b * Math.sin(t) * Math.cos(t) * 2] : [a * Math.cos(t), .02 + b * Math.sin(t)];
+    const [x, z] = P(th), [x2] = P(th + .02 * Math.sign(w));
+    figPush(out, x, iceY(x, z), z, 5 + v * 2 + (Math.floor(T * 1.3 + i * .7) % 2), x2 < x, .10, { sh: .022 });
+  });
+}
+function hillFigs(out, T) {
+  // the chairlift: chairs go up the near cable and come down the far one
+  const LA = LIFT_A, LB = LIFT_B, LP = LIFT_P;
+  for (let i = 0; i < 5; i++) for (const side of [1, -1]) {
+    let s = (T * .026 + i / 5 + (side < 0 ? .1 : 0)) % 1; if (side < 0) s = 1 - s;
+    const x = lerp(LA[0], LB[0], s) + LP[0] * .028 * side, y = lerp(LA[1], LB[1], s), z = lerp(LA[2], LB[2], s) + LP[2] * .028 * side;
+    figPush(out, x, y + .004, z, 11, side > 0, .10, { top: true, a: sm01(0, .06, s) * sm01(1, .94, s) });
+  }
+  // skiers carving down the middle of the slope
+  for (let i = 0; i < 3; i++) {
+    const k = (T + i * 3.2) % 9.6, u = k / 8.2; if (u > 1) continue;
+    const ph = u * TAU * 2.2 + i * 1.7, x = .09 + .14 * Math.sin(ph), z = lerp(-.50, .22, u);
+    figPush(out, x, hillH(x, z), z, 12 + (i % 2), Math.cos(ph) < 0, .10, { a: sm01(0, .05, u) * sm01(1, .93, u), sh: .026 });
+  }
+  // kids sledding down the left and hauling back up
+  for (let i = 0; i < 2; i++) sledLoop(out, T + i * 6.6, i, { top: [-.36, -.46], bot: [-.34, .21], walk: [.15, 0], G: hillH, kh: .10 });
+}
+function figuresFor(g) {
+  const out = [], T = time + g.cx * .0007;
+  switch (g.name) {
+    case 'town': townFigs(out, T); break;
+    case 'pond': pondFigs(out, T); break;
+    case 'hill': hillFigs(out, T); break;
+    case 'ginger': snowFight(out, T, [-.36, .50], [.34, .52], 0, 1, terrainH); break;
+    case 'snowman': snowFight(out, T, [-.34, .26], [.36, .22], 1, 0, terrainH); break;
+    case 'cabin': sledLoop(out, T, 1, { top: [.26, .14], bot: [.42, .50], walk: [-.10, 0], G: terrainH }); break;
+  }
+  return out;
+}
+// where a point in the water shows up on screen, through the glass
+function gproj(g, x, y, z) { const cy_ = y * CA - z * SA, cz = y * SA + z * CA, r = Math.hypot(x, cy_), rr = Math.max(r, .002), f = apparent(rr, cz) / rr; return [g.cx + g.sx + x * f * g.R, g.cy + g.sy - cy_ * f * g.R, cz]; }
+function drawFigures(v, g, box) {
+  if (!S.figures || !figRT) return;
+  const L = figuresFor(g); if (!L.length) return;
+  const items = [];
+  for (const f of L) {
+    const base = f.top ? f.y - f.hs : f.y, bot = gproj(g, f.x, base - .04 * f.hs, f.z), top = gproj(g, f.x, base + f.hs, f.z), h = bot[1] - top[1], w = h * FIG_W / FIG_H;
+    if (Math.hypot(bot[0] - g.cx - g.sx, bot[1] - g.cy - g.sy) > g.R * .97 || f.a <= .01) continue;
+    if (f.sh) { const c = gproj(g, f.x, f.y + .002, f.z), sw = f.sh * 2 * h / (f.hs * 1.04); items.push([0, c[2], c[0] - sw / 2, c[1] - sw * .16, sw, sw * .32, -1, 0, c[2], f.a]); }
+    items.push([1, bot[2], bot[0] - w / 2, top[1], w, h, f.cell, f.flip, bot[2], f.a]);
+  }
+  items.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const n = Math.min(items.length, 96); items.slice(0, n).forEach((it, i) => figData.set(it.slice(2), i * 8));
+  const p = P.fig; gl.useProgram(p.p); setView(p.u, v); gl.uniform4fv(p.u.uBox, box); gl.uniform3fv(p.u.uTint, tintOf());
+  bindTex(0, figRT.tex, p.u.uT); bindTex(1, g.mapT(), p.u.uX);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  gl.bindVertexArray(figVAO); gl.bindBuffer(gl.ARRAY_BUFFER, figBuf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, figData.subarray(0, n * 8)); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, n);
+}
 function room() { return ROOMS[S.room] || ROOMS.fire; }
 function makeFlakes(g, n) {
   g.n = n; g.p = new Float32Array(n * 3); g.v = new Float32Array(n * 3); g.st = new Uint8Array(n); g.k = new Float32Array(n * 3);
@@ -648,7 +1089,7 @@ function makeFlakes(g, n) {
 function flakeCount() { return Math.round(S.snow * (SNOWS[S.snowType].size < .8 ? 1.7 : 1)); }
 function layoutGlobes() {
   const mons = monitors();
-  const out = []; const names = ['cabin', 'lighthouse', 'snowman', 'forest'];
+  const out = []; const names = ['hill', 'town', 'pond', 'snowman', 'ginger', 'cabin', 'lighthouse', 'forest'];
   let idx = 0;
   for (const m of mons) {
     const cnt = +S.perScreen; const cellW = m.ww / cnt;
@@ -686,10 +1127,11 @@ function queueGlobeBake(g) {
 
 const SCENE = {
   key: 'snowglobe',
-  defaults: { scene: 'mix', room: 'fire', base: 'walnut', snowType: 'flakes', water: 'clear', snow: 1900, perScreen: 1, globeSize: 1, train: true, auto: 45, tool: 'shake' },
+  defaults: { scene: 'mix', room: 'fire', base: 'walnut', snowType: 'flakes', water: 'clear', snow: 1900, perScreen: 1, globeSize: 1, train: true, figures: true, auto: 45, tool: 'shake' },
   validate(S) { for (const [k, t] of [['scene', SCENES], ['room', ROOMS], ['base', BASES], ['snowType', SNOWS]]) if (!t[S[k]]) S[k] = this.defaults[k]; },
   panelTitle: 'Your globes', panelSub: 'Drag a globe to shake it. Saved between visits.',
   hello: 'Drag a globe to shake it. A hard enough shake rattles the whole shelf.',
+  figs(i = 0) { return globes[i] ? figuresFor(globes[i]) : []; },
   tools: [['shake', 'Shake'], ['thump', 'Thump the table'], null, ['all', 'Shake them all', () => { act('all', 0, 0, 'down'); }], ['whistle', 'Blow the whistle', () => { act('whistle', 0, 0, 'down'); }]],
   panel(ui) {
     ui.sel('Inside the glass', 'scene', SCENES);
@@ -702,8 +1144,9 @@ const SCENE = {
     ui.range('Globe size', 'globeSize', .6, 1, .05, v => Math.round(v * 100) + '%');
     ui.seg('Shake it for me', 'auto', [[0, 'Never'], [90, '90s'], [45, '45s'], [20, '20s']]);
     ui.tog('The little train', 'train');
+    ui.tog('People playing in the snow', 'figures');
   },
-  changed(k) { if (['scene', 'room', 'base', 'water', 'perScreen', 'globeSize'].includes(k)) SCENE.build(); else if (k === 'snow' || k === 'snowType') { const n = flakeCount(); for (const g of globes) makeFlakes(g, n); } },
+  changed(k) { if (['scene', 'room', 'base', 'water', 'perScreen', 'globeSize', 'figures'].includes(k)) SCENE.build(); else if (k === 'snow' || k === 'snowType') { const n = flakeCount(); for (const g of globes) makeFlakes(g, n); } },
   build() {
     ensurePrograms(); ensureN3(); rebake();
     document.getElementById('fade').style.opacity = 1;
@@ -725,6 +1168,16 @@ const SCENE = {
     trainRT = makeRT(1440, 400, { mips: true });
     bakeTiles(trainRT, { tile: 200, cost: 3, begin: () => { const p = P.train; gl.useProgram(p.p); gl.uniform2f(p.u.uRes, 1440, 400); setRoomU(p.u); } });
     bakeStep(() => { gl.bindTexture(gl.TEXTURE_2D, trainRT.tex); gl.generateMipmap(gl.TEXTURE_2D); });
+    // the little people, every pose at once, lit by this room
+    if (figRT) { figRT.free(); figRT = null; }
+    const FIGGED = ['town', 'pond', 'hill', 'ginger', 'snowman', 'cabin'];
+    if (S.figures && globes.some(g => FIGGED.includes(g.name))) {
+    if (!P.fig) { P.fig = program(figVS, figFS); P.figBake = program(FS_TRI, figBakeFS); }
+    figRT = makeRT(FIG_COLS * FIG_W, FIG_ROWS * FIG_H, { mips: true });
+    bakeTiles(figRT, { tile: 256, cost: 3, begin: () => { const p = P.figBake; gl.useProgram(p.p); setRoomU(p.u); } });
+    bakeStep(() => { gl.bindTexture(gl.TEXTURE_2D, figRT.tex); gl.generateMipmap(gl.TEXTURE_2D); });
+    }
+    if (!figBuf) { figBuf = gl.createBuffer(); figVAO = gl.createVertexArray(); gl.bindVertexArray(figVAO); gl.bindBuffer(gl.ARRAY_BUFFER, figBuf); gl.bufferData(gl.ARRAY_BUFFER, figData.byteLength, gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 4, gl.FLOAT, false, 32, 0); gl.vertexAttribDivisor(0, 1); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 32, 16); gl.vertexAttribDivisor(1, 1); gl.bindVertexArray(null); }
     // bokeh over the backdrop
     const N = Math.round(W / unit * 17);
     bokeh = [];
@@ -782,7 +1235,7 @@ function stepGlobe(g, dt) {
   const k = 130, c = 13; g.svx += (-k * g.sx - c * g.svx) * dt; g.svy += (-k * g.sy - c * g.svy) * dt; g.sx += g.svx * dt; g.sy += g.svy * dt;
   g.sx = clamp(g.sx, -g.R * .22, g.R * .22); g.sy = clamp(g.sy, -g.R * .12, g.R * .12);
   g.E *= Math.exp(-dt / 4.5); g.shake = (g.shake || 0) * Math.exp(-dt * 2.4);
-  const E = g.E, p = g.p, v = g.v, n = g.n, st = g.st, K = g.k, tt = time * .7;
+  const E = g.E, p = g.p, v = g.v, n = g.n, st = g.st, K = g.k, tt = time * .7, gnd = GROUND[g.name] || terrainH;
   const fall = SNOWS[S.snowType].size < .8 ? .045 : .075;
   const drag = Math.min(1, dt * 2.6);
   for (let i = 0; i < n; i++) {
@@ -800,7 +1253,7 @@ function stepGlobe(g, dt) {
     x += v[j] * dt; y += v[j + 1] * dt; z += v[j + 2] * dt;
     const r2 = x * x + y * y + z * z;
     if (r2 > .925) { const f = Math.sqrt(.925 / r2); x *= f; y *= f; z *= f; const nx = x / .96, ny = y / .96, nz = z / .96, vn = v[j] * nx + v[j + 1] * ny + v[j + 2] * nz; if (vn > 0) { v[j] -= vn * nx * 1.3; v[j + 1] -= vn * ny * 1.3; v[j + 2] -= vn * nz * 1.3; } }
-    const h = terrainH(x, z);
+    const h = gnd(x, z);
     if (y < h + .006) { y = h + .006; if (E < .28) st[i] = 1; else { v[j + 1] = Math.abs(v[j + 1]) * .7 + E * .2; } }
     p[j] = x; p[j + 1] = y; p[j + 2] = z;
   }
@@ -876,6 +1329,7 @@ function drawGlobe(v, g, t) {
   bindTex(0, g.colorT(), p.u.uI); bindTex(1, g.mapT(), p.u.uX); bindTex(2, behindRT.tex, p.u.uBehind);
   gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.uniform1f(p.u.uMode, 0);
   gl.bindVertexArray(emptyVAO); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  drawFigures(v, g, box);
   // flakes
   const m = fillFlakes(g);
   const q = P.flake; gl.useProgram(q.p); setView(q.u, v); gl.uniform4fv(q.u.uBox, box); gl.uniform1f(q.u.uR, g.R); bindTex(1, g.mapT(), q.u.uX);
