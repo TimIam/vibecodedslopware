@@ -50,11 +50,11 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
   <p class="hint">An early release. Bars are a shape, and the shape can be a pie.</p>
 
   <div class="cta">
-    <a class="btn primary" href="/party-health-pie/PartyHealthPie-1.1.0.zip" download>
-      <b>Download for Classic Forever</b><small>v1.1.0 · 0.3 MB · free</small>
+    <a class="btn primary" href="/party-health-pie/PartyHealthPie-1.1.1.zip" download>
+      <b>Download for Classic Forever</b><small>v1.1.1 · 0.3 MB · free</small>
     </a>
-    <a class="btn primary" href="/party-health-pie/PartyHealthPie-Retail-1.1.0.zip" download>
-      <b>Download for retail (Midnight)</b><small>v1.1.0 · 0.3 MB · free · adds all 13 classes</small>
+    <a class="btn primary" href="/party-health-pie/PartyHealthPie-Retail-1.1.1.zip" download>
+      <b>Download for retail (Midnight)</b><small>v1.1.1 · 0.3 MB · free · adds all 13 classes</small>
     </a>
   </div>
   <p class="note">The retail build hasn’t been played on a live retail client yet, so treat it as a test release. The debuff glow is new in 1.1.0 and hasn’t been tested in a real group yet.</p>
@@ -104,6 +104,8 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
   <h2>Healing with it</h2>
   <ul>
     <li><b>Hover</b> a wedge and press a heal key to cast on that player or pet. Hover a pet’s slice to heal the pet.</li>
+    <li><b>Hover</b> a wedge to see that player’s tooltip: name, level, class and guild.</li>
+    <li><b>Middle and side mouse buttons</b> work over a wedge too. Normally a frame under the pointer swallows those clicks, so a heal bound to Mouse 4 or 5 does nothing over party frames. Here, each wedge runs whatever the button is bound to: an action bar slot, a spell, an item or a macro, with Shift, Ctrl and Alt versions.</li>
     <li><b>Left-click</b> a wedge to target them.</li>
     <li>On first login the addon turns on the game’s Mouseover Cast option so hovering works, and tells you in chat. You can change it under Options &gt; Combat, or turn off Mouseover Healing in the addon’s settings.</li>
   </ul>
@@ -133,6 +135,13 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
     <li>Role symbols come from the role set in the game, so someone with no role has no symbol. They still get the debuff halo and countdown.</li>
     <li>If a player has several debuffs you can dispel, the symbol shows the one ending soonest.</li>
     <li>On retail, the game may not report other players’ secondary resources. If a class with Secondary ticked shows an empty band, untick it.</li>
+    <li>A mouse button bound to something other than a cast or macro, like autorun or ping, still does nothing while the pointer is over a wedge.</li>
+  </ul>
+
+  <h2>What’s new</h2>
+  <ul>
+    <li><b>1.1.1:</b> hovering a wedge shows the player’s tooltip, and heals bound to the middle and side mouse buttons now cast on the wedge under the pointer.</li>
+    <li><b>1.1.0:</b> role symbols, and a debuff color, glow and countdown for dispels.</li>
   </ul>
 
   <footer>Made with questionable judgment and an AI pair programmer. The healer is still blamed.</footer>
