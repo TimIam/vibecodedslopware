@@ -24,6 +24,7 @@
     ":IsVisible": "315e4fad01a8",
     ":SetScale": "a9ee09be1ab3",
     ":Show": "525ddbde6a30",
+    ":SetDrawLayer": "f516ef13c571",
     ":ClearFocus": "a9d602bf6814",
     ":SetText": "8d229e98d9f6",
     ":SetParent": "6df7fa59c41d",
@@ -69,7 +70,9 @@
     ":SetWidth": "9f931d8c0956",
     ":SetColorTexture": "398419d50ad2",
     ":SetSnapToPixelGrid": "5ca97f0b7ec3",
+    ":SetTexCoord": "31fa19bef060",
     ":SetTexelSnappingBias": "f065d1826dee",
+    ":SetTexture": "8ed67a234853",
     "event:PLAYER_LOGOUT": "0c1128d3c2fe",
     "event:UI_SCALE_CHANGED": "44f28a92b00e",
     "C_Timer.After": "1f051549647a",
@@ -85,6 +88,7 @@
     ":IsVisible": "315e4fad01a8",
     ":SetScale": "a9ee09be1ab3",
     ":Show": "525ddbde6a30",
+    ":SetDrawLayer": "f516ef13c571",
     ":ClearFocus": "a9d602bf6814",
     ":SetText": "8d229e98d9f6",
     ":SetParent": "6df7fa59c41d",
@@ -130,7 +134,9 @@
     ":SetWidth": "9f931d8c0956",
     ":SetColorTexture": "398419d50ad2",
     ":SetSnapToPixelGrid": "5ca97f0b7ec3",
+    ":SetTexCoord": "31fa19bef060",
     ":SetTexelSnappingBias": "f065d1826dee",
+    ":SetTexture": "8ed67a234853",
     "event:PLAYER_LOGOUT": "0c1128d3c2fe",
     "event:UI_SCALE_CHANGED": "44f28a92b00e",
     "C_Timer.After": "1f051549647a",
@@ -358,10 +364,10 @@
  },
  "released": {
   "endgame": {
-   "version": "1.1.1",
-   "at": null,
+   "version": "1.3.0",
+   "at": "2026-11-12T11:46:12.715Z",
    "for": [
-    "released by hand"
+    "released by hand: ground, props, units and the boss as images"
    ]
   },
   "pie": {
