@@ -338,6 +338,118 @@ function RT.drawFires(ctx, g)
   ctx.globalAlpha = 1
 end
 
+-- ------------------------------------------------------------------------------------------------ ice floors and lanes
+
+-- render.js drawIce. An ice floor is a disc as wide as the ability reaches (thousands of pixels once it is
+-- upgraded), and the game works every pixel of it out again each frame: a square root, a hash, an arctangent and a
+-- sine apiece, for up to three floors. In the client that was most of a frame. Nothing about a floor's pixels
+-- changes while it lies there except how faded it is and which of its few glints are lit, so they are worked out
+-- once, sorted by colour, and drawn from the lists. Same arithmetic: the picture is identical.
+local sin, ceil = math.sin, math.ceil
+local icePx = setmetatable({}, { __mode = "k" })   -- a floor → { cx, cy, r, seed, lists = { crack, ice1, ice0, ice2 }, glints }
+local ICE = { "#ffffff", PAL.ice1, PAL.ice0, PAL.ice2 }
+RT.host.iceFloor = function(ctx, i, g)
+  local fade
+  if i.t < 0.2 then fade = i.t / 0.2
+  elseif i.t > i.life - 1.2 then fade = math.max(0, (i.life - i.t) / 1.2)
+  else fade = 1 end
+  -- light effects: a floor fades in six steps, not on every frame (each step recolours the whole disc)
+  if RT.lean and fade < 1 then fade = ceil(fade * 6) / 6 end
+  local r, seed = i.r, i.seed
+  local R = ceil(r)
+  local cx, cy = floor(i.x + 0.5), floor(i.y + 0.5)
+  local vx, vy = RT.Screen.vx, RT.Screen.vy
+  if not (cx + R >= vx and cx - R < vx + 320 and cy + R >= vy and cy - R < vy + 180) then return end
+  local c = icePx[i]
+  if not c or c.cx ~= cx or c.cy ~= cy or c.r ~= r or c.seed ~= seed then
+    c = { cx = cx, cy = cy, r = r, seed = seed, { n = 0 }, { n = 0 }, { n = 0 }, { n = 0 }, glints = { n = 0 } }
+    icePx[i] = c
+    local glints = c.glints
+    for py = -R, R do
+      local wy = cy + py
+      for px = -R, R do
+        local d = sqrt(px * px + py * py) / r
+        if not (d > 1) then
+          local wx = cx + px
+          local h = hash(wx * 3 + seed, wy * 5)
+          if not (d > 0.85 and h < (d - 0.85) * 5) then
+            local crack = abs(sin(atan2(py, px) * 5 + seed)) < 0.08 and d > 0.2
+            local list = c[crack and 1 or h > 0.82 and 2 or (px + py) % 2 == 1 and 3 or 4]
+            local n = list.n
+            list[n + 1], list[n + 2] = wx, wy
+            list.n = n + 2
+            if h > 0.996 then
+              n = glints.n
+              glints[n + 1], glints[n + 2] = wx, wy
+              glints.n = n + 2
+            end
+          end
+        end
+      end
+    end
+  end
+  local fill = ctx.fillRect
+  local x0, x1, y0, y1 = vx - 8, vx + 327, vy - 8, vy + 187   -- the screen, and room for a shake
+  for k = 1, 4 do
+    local list = c[k]
+    ctx.globalAlpha = fade * (k == 1 and 0.7 or 0.45)
+    ctx.fillStyle = ICE[k]
+    for j = 1, list.n, 2 do
+      local wx, wy = list[j], list[j + 1]
+      if wx >= x0 and wx <= x1 and wy >= y0 and wy <= y1 then fill(ctx, wx, wy, 1, 1) end
+    end
+  end
+  local glints, fr = c.glints, floor(g.t * 4)
+  if glints.n > 0 then
+    ctx.globalAlpha = fade
+    ctx.fillStyle = "#ffffff"
+    for j = 1, glints.n, 2 do
+      local wx = glints[j]
+      if (fr + wx) % 3 == 0 then fill(ctx, wx, glints[j + 1], 1, 1) end
+    end
+  end
+  ctx.globalAlpha = 1
+end
+
+-- render.js drawLane's loop: the strip a charge or a beam is about to cover. The game walks the whole square around
+-- the boss out to the lane's length (a beam's is hundreds of pixels: a third of a million tests a frame) and throws
+-- most of it away. This walks only the part of the screen the lane's own corners span. Same arithmetic per pixel.
+RT.host.teleLane = function(ctx, bx, by, c, s, range, width, prog, blink, vx, vy)
+  local R = range + 4
+  local y0, y1 = floor(by - R), ceil(by + R)
+  local x0, x1 = floor(bx - R), ceil(bx + R)
+  -- the lane's four corners (lx from 8 to range, ly from -width to width), a pixel to spare
+  local ax, bx2 = 8 * c, range * c
+  local ay, by2 = 8 * s, range * s
+  local wx, wy = width * s, width * c
+  local minx = math.min(ax - wx, ax + wx, bx2 - wx, bx2 + wx) + bx - 2
+  local maxx = math.max(ax - wx, ax + wx, bx2 - wx, bx2 + wx) + bx + 2
+  local miny = math.min(ay - wy, ay + wy, by2 - wy, by2 + wy) + by - 2
+  local maxy = math.max(ay - wy, ay + wy, by2 - wy, by2 + wy) + by + 2
+  x0, x1 = math.max(x0, floor(minx), vx), math.min(x1, ceil(maxx), vx + 319)
+  y0, y1 = math.max(y0, floor(miny), vy), math.min(y1, ceil(maxy), vy + 179)
+  local reach = 8 + (range - 8) * prog
+  local fill = ctx.fillRect
+  for py = y0, y1 do
+    local dy = py + 0.5 - by
+    for qx = x0, x1 do
+      local dx = qx + 0.5 - bx
+      local lx, ly = dx * c + dy * s, -dx * s + dy * c
+      if not (lx < 8 or lx > range or abs(ly) > width) then
+        local edge = lx > range - 1 or abs(ly) > width - 1
+        local al
+        if edge then al = 0.85
+        elseif lx < reach then al = ((qx + py + blink) % 2 == 1) and 0.42 or 0.16
+        else al = ((qx + py) % 2 == 1) and 0.12 or 0 end
+        if al ~= 0 then
+          ctx.globalAlpha = al
+          fill(ctx, qx, py, 1, 1)
+        end
+      end
+    end
+  end
+end
+
 -- ------------------------------------------------------------------------------------------------ ground images
 
 -- Painting a level's ground in Lua took seconds, and then every bare pixel of it was one of the 57,600 textures. A

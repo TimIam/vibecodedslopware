@@ -66,6 +66,10 @@ The public page is `../the-endgame-is-me-wow/` (vibecodedslopware.com/the-endgam
 pictures and the two zips. This folder and the retail one are in `.vercelignore`, so only the page folder is served.
 
 1. Bump `VERSION` in `tools/build.mjs`, run `node tools/build.mjs --zip` and the tests, and commit that.
+   The browser game on main is ahead of the addon. Until the addon is ported to it, build and run `exact.sh` with
+   the game the addon was made from: `git checkout <commit that last changed TheEndgameIsMe/game_world.lua> --
+   ../the-endgame-is-me`, build, then `git checkout HEAD -- ../the-endgame-is-me`. The addon watch does the same.
+   Merge main into the branch, never rebase: a rebase gives that commit the newer game.
 2. Copy both zips from `dist/` into `../the-endgame-is-me-wow/` (old ones stay: older versions of the page link to
    them), and update the version, size and status note in its `index.html`.
 3. Commit the page folder **on its own**. `tools/versions.mjs` treats each commit that touches it as a version of the
@@ -141,6 +145,14 @@ per level and only shown or hidden after that).
   seed to the name (`levels/city` in `PATCHES`), and the bake tool paints every prop a second time in the opposite
   order from an empty cache: one that comes out differently is left to the grid and reported, so the name can be
   fixed.
+
+## Ice floors and lanes
+
+An ice floor is a disc as wide as the ability reaches, and `drawIce` worked every pixel of it out again each frame
+(a square root, a hash, an arctangent and a sine apiece, for up to three floors): 14 ms of an 18 ms frame in stock
+Lua, and 120 ms in the client. `iceFloor` in `src/gfx.lua` works a floor out once and draws it from lists; with
+light effects on it fades in six steps. `teleLane` (the strip before a charge or a beam) walks only the part of the
+screen the lane covers, not the whole square around the boss. Both give the same picture (`framehash.lua`).
 
 ## Sprites: the units and the boss
 

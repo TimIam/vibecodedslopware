@@ -111,7 +111,7 @@ do
 local __t8, __t9 = __it(g.ice), 0;
 while __t9 < __t8.length do
 local i = __t8[__t9]; __t9 = __t9 + 1;
-M.drawIce(ctx, i, g);
+RT.host.iceFloor(ctx, i, g);
 end;
 end;
 M.drawFires(ctx, g);
@@ -1080,29 +1080,10 @@ local s = __msin((b.face or __NaN));
 local R = ((d.range or __NaN) + 4);
 local blink = (__T(RT.host.lean()) and 0 or __band(__mfloor(((g.t or __NaN) * ((prog > 0.6) and 24 or 10))), 1));
 ctx.fillStyle = __I0.PAL.tele;
-for py = __mfloor(((b.y or __NaN) - R)), __mceil(((b.y or __NaN) + R)) do
-for qx = __mfloor(((b.x or __NaN) - R)), __mceil(((b.x or __NaN) + R)) do
-repeat
-local dx = ((qx + 0.5) - (b.x or __NaN));
-local dy = ((py + 0.5) - (b.y or __NaN));
-local lx = ((dx * c) + (dy * s));
-local ly = (((-dx) * s) + (dy * c));
-if (((((((qx < (M.VIEW.x or __NaN)) or (py < (M.VIEW.y or __NaN))) or (qx >= ((M.VIEW.x or __NaN) + __I1.W))) or (py >= ((M.VIEW.y or __NaN) + __I1.H))) or (lx < 8)) or (lx > (d.range or __NaN))) or (__mabs(ly) > (d.width or __NaN))) then
-do break end;
-end;
-local edge = ((lx > ((d.range or __NaN) - 1)) or (__mabs(ly) > ((d.width or __NaN) - 1)));
-local al = (edge and 0.85 or ((lx < (8 + (((d.range or __NaN) - 8) * prog))) and ((__band(((qx + py) + blink), 1) ~= 0) and 0.42 or 0.16) or ((__band((qx + py), 1) ~= 0) and 0.12 or 0)));
-if (not (al ~= 0)) then
-do break end;
-end;
-ctx.globalAlpha = al;
-ctx:fillRect(qx, py, 1, 1);
-until true;
-end;
-end;
+RT.host.teleLane(ctx, b.x, b.y, c, s, d.range, d.width, prog, blink, M.VIEW.x, M.VIEW.y);
 ctx.globalAlpha = 1;
 end;
--- render:650
+-- render:642
 M.ring = function(ctx, cx, cy, r, col, alpha) 
 ctx.fillStyle = col;
 ctx.globalAlpha = alpha;
@@ -1121,7 +1102,7 @@ ly = y;
 end;
 ctx.globalAlpha = 1;
 end;
--- render:663
+-- render:655
 M.drawRing = function(ctx, r) 
 local k = ((r.t or __NaN) / 0.45);
 local rr = ((r.r or __NaN) + (((r.max or __NaN) - (r.r or __NaN)) * (1 - ((1 - k) * (1 - k)))));
@@ -1136,7 +1117,7 @@ M.ring(ctx, r.x, r.y, rr, __I0.PAL.cream, ((1 - k) * 0.8));
 M.ring(ctx, r.x, r.y, (rr * 0.7), __I0.PAL.cream, ((1 - k) * 0.45));
 end;
 end;
--- render:671
+-- render:663
 M.drawSlash = function(ctx, r) 
 local k = ((r.t or __NaN) / 0.18);
 ctx.fillStyle = ((k < 0.5) and "#ffffff" or __I0.PAL.cream);
@@ -1154,12 +1135,12 @@ end;
 end;
 ctx.globalAlpha = 1;
 end;
--- render:686
+-- render:678
 M.px = function(ctx, x, y, col) 
 ctx.fillStyle = col;
 ctx:fillRect(x, y, 1, 1);
 end;
--- render:688
+-- render:680
 M.drawUnit = function(ctx, u, g) 
 local b = g.boss;
 local x = __mfloor((u.x or __NaN) + 0.5);
@@ -1251,7 +1232,7 @@ if (((u.hp or __NaN) / (u.maxhp or __NaN)) > 0.4) then ctx.fillStyle = __I0.PAL.
 ctx:fillRect((x - 1), ((y - tall) - 3), w, 1);
 end;
 end;
--- render:739
+-- render:731
 M.drawHorse = function(ctx, hx, hy, face, walk, rider, t) 
 local c = __mcos(face);
 local s = __msin(face);
@@ -1276,9 +1257,9 @@ do return "mane" end;
 end;
 local ph = ({[0]=0, 1, 0, (-1), length=4})[gait];
 do
-local __t114, __t115 = __it({[0]={[0]=2.3, 1, 1, length=3}, {[0]=2.3, (-1), (-1), length=3}, {[0]=(-2.4), 1, (-1), length=3}, {[0]=(-2.4), (-1), 1, length=3}, length=4}), 0;
-while __t115 < __t114.length do
-local __t117 = __t114[__t115]; __t115 = __t115 + 1; local fx, sy, sw; fx = __t117[0]; sy = __t117[1]; sw = __t117[2];
+local __t112, __t113 = __it({[0]={[0]=2.3, 1, 1, length=3}, {[0]=2.3, (-1), (-1), length=3}, {[0]=(-2.4), 1, (-1), length=3}, {[0]=(-2.4), (-1), 1, length=3}, length=4}), 0;
+while __t113 < __t112.length do
+local __t115 = __t112[__t113]; __t113 = __t113 + 1; local fx, sy, sw; fx = __t115[0]; sy = __t115[1]; sw = __t115[2];
 if (__hypot(((lx - fx) - (ph * sw)), (ly - (sy * 2))) < 0.75) then
 do return "leg" end;
 end;
@@ -1299,19 +1280,19 @@ __push(cells, {[0]=qx, py, m, length=3});
 end;
 end;
 end;
-local has = __Set(__map(cells, function(__t120) local a, b; a = __t120[0]; b = __t120[1];
+local has = __Set(__map(cells, function(__t118) local a, b; a = __t118[0]; b = __t118[1];
 return ((__str(a) .. ",") .. __str(b));
 end));
 do
-local __t121, __t122 = __it(cells), 0;
-while __t122 < __t121.length do
-local __t124 = __t121[__t122]; __t122 = __t122 + 1; local qx, py, m; qx = __t124[0]; py = __t124[1]; m = __t124[2];
+local __t119, __t120 = __it(cells), 0;
+while __t120 < __t119.length do
+local __t122 = __t119[__t120]; __t120 = __t120 + 1; local qx, py, m; qx = __t122[0]; py = __t122[1]; m = __t122[2];
 local edge = ((m ~= "leg") and ((((not __has(has, ((__str((qx - 1)) .. ",") .. __str(py)))) or (not __has(has, ((__str((qx + 1)) .. ",") .. __str(py))))) or (not __has(has, ((__str(qx) .. ",") .. __str((py - 1)))))) or (not __has(has, ((__str(qx) .. ",") .. __str((py + 1)))))));
 M.px(ctx, (cx + qx), ((cy + py) - 1), (function() if edge then return __I0.PAL.ink; elseif (m == "mane") then return __I0.PAL.mane; elseif (m == "leg") then return __I0.PAL.horseD; else return __I0.PAL.horse; end; end)());
 end;
 end;
 end;
--- render:767
+-- render:759
 M.drawRider = function(ctx, u, g) 
 local flash;
 local x = __mfloor((u.x or __NaN) + 0.5);
@@ -1351,7 +1332,7 @@ ctx:fillRect((x - 1), (y - 2), 3, 2);
 M.px(ctx, x, (y - 3), C(__I0.PAL.hair));
 M.px(ctx, (x + ((u.fx or __NaN) * 2)), (y - 3), C(__I0.PAL.steelHi));
 end;
--- render:794
+-- render:786
 M.drawClimber = function(ctx, u, g) 
 local x = __mfloor((u.x or __NaN) + 0.5);
 local y = __mfloor((u.y or __NaN) + 0.5);
@@ -1376,7 +1357,7 @@ ctx:fillRect((gx - 1), (gy - 1), (w + 2), 3);
 ctx.fillStyle = __I0.PAL.gold;
 ctx:fillRect(gx, gy, __mmax(0, __mfloor(((w * (u.grip or __NaN)) / 100) + 0.5)), 1);
 end;
--- render:818
+-- render:810
 M.drawAdd = function(ctx, a, g) 
 local x = __mfloor((a.x or __NaN) + 0.5);
 local y = __mfloor((a.y or __NaN) + 0.5);
@@ -1413,7 +1394,7 @@ ctx.fillStyle = __I0.PAL.gold;
 ctx:fillRect(bx, by, __mmax(1, __mfloor(((bw * (a.hp or __NaN)) / (a.maxhp or __NaN)) + 0.5)), 1);
 end;
 end;
--- render:835
+-- render:827
 M.drawCorpse = function(ctx, c) 
 local a = (((c.t or __NaN) > 30) and ((40 - (c.t or __NaN)) / 10) or 1);
 ctx.globalAlpha = (__mmax(0, a) * 0.85);
@@ -1439,7 +1420,7 @@ M.px(ctx, (x - 1), y, __I0.PAL.blood);
 end;
 ctx.globalAlpha = 1;
 end;
--- render:852
+-- render:844
 M.drawGhost = function(ctx, o) 
 local a = ((1 - ((o.t or __NaN) / 3.5)) * 0.7);
 ctx.globalAlpha = a;
@@ -1452,7 +1433,7 @@ M.px(ctx, (x - 1), (y + 1), __I0.PAL.ghost);
 M.px(ctx, (x + 1), (y + 1), __I0.PAL.ghost);
 ctx.globalAlpha = 1;
 end;
--- render:861
+-- render:853
 M.drawBolt = function(ctx, o) 
 local col = __I0.PAL[o.kind];
 local x = __mfloor((o.x or __NaN) + 0.5);
@@ -1466,7 +1447,7 @@ if (o.kind == "arrow") then
 M.px(ctx, __mfloor(((o.x or __NaN) - (((o.vx or __NaN) / l) * 2.5)) + 0.5), __mfloor(((o.y or __NaN) - (((o.vy or __NaN) / l) * 2.5)) + 0.5), __I0.PAL.tan);
 end;
 end;
--- render:870
+-- render:862
 M.drawPart = function(ctx, p) 
 local k = ((p.t or __NaN) / (p.life or __NaN));
 local col = (__T(__I0.PAL[p.kind]) and __I0.PAL[p.kind] or p.kind);
@@ -1477,7 +1458,7 @@ ctx.globalAlpha = (((p.kind == "heal") or (p.kind == "dust")) and (1 - k) or 1);
 M.px(ctx, __mfloor((p.x or __NaN) + 0.5), __mfloor((p.y or __NaN) + 0.5), col);
 ctx.globalAlpha = 1;
 end;
--- render:879
+-- render:871
 M.bubble = function(ctx, s, x, y, bg, fg, alpha) if alpha == nil then alpha = 1 end;
 local w = __I0.textWidth(s);
 local bx = __mmax(((M.VIEW.x or __NaN) + 2), __mmin(((((M.VIEW.x or __NaN) + __I1.W) - w) - 6), __mfloor(((x - (w / 2)) - 2) + 0.5)));
@@ -1489,12 +1470,12 @@ ctx:fillRect(__mfloor(x + 0.5), (by + 7), 1, 1);
 ctx.globalAlpha = 1;
 __I0.drawText(ctx, s, (bx + 2), (by + 1), fg, {shadow=false, alpha=alpha});
 end;
--- render:889
+-- render:881
 M.drawBark = function(ctx, k) 
 local a = (((k.t or __NaN) < 0.1) and ((k.t or __NaN) / 0.1) or (((k.t or __NaN) > ((k.life or __NaN) - 0.3)) and (((k.life or __NaN) - (k.t or __NaN)) / 0.3) or 1));
 M.bubble(ctx, k.s, k.x, ((k.y or __NaN) - 14), __I0.PAL.ink, __I0.PAL.cream, a);
 end;
--- render:894
+-- render:886
 M.drawThought = function(ctx, g) 
 local b = g.boss;
 local t = g.thought;
@@ -1507,7 +1488,7 @@ ctx.globalAlpha = 1;
 end;
 -- fmt: replaced by the build
 M.fmt = RT.commas;
--- render:907
+-- render:899
 M.drawHud = function(ctx, g, view) 
 local b = g.boss;
 ctx.fillStyle = __I0.PAL.ink;
@@ -1653,24 +1634,24 @@ __I0.drawText(ctx, g.banner.sub, (__I1.W / 2), 47, __I0.PAL.rock4, {align="cente
 end;
 end;
 end;
--- render:994
+-- render:986
 M.drawCursor = function(ctx, mx, my, g) 
 local x = __mfloor(mx + 0.5);
 local y = __mfloor(my + 0.5);
 local col;
 if __T(g.boss.act) then col = __I0.PAL.gold; else col = __I0.PAL.cream; end;
 do
-local __t129, __t130 = __it({[0]={[0]=(-3), 0, length=2}, {[0]=(-2), 0, length=2}, {[0]=2, 0, length=2}, {[0]=3, 0, length=2}, {[0]=0, (-3), length=2}, {[0]=0, (-2), length=2}, {[0]=0, 2, length=2}, {[0]=0, 3, length=2}, length=8}), 0;
-while __t130 < __t129.length do
-local __t132 = __t129[__t130]; __t130 = __t130 + 1; local dx, dy; dx = __t132[0]; dy = __t132[1];
+local __t127, __t128 = __it({[0]={[0]=(-3), 0, length=2}, {[0]=(-2), 0, length=2}, {[0]=2, 0, length=2}, {[0]=3, 0, length=2}, {[0]=0, (-3), length=2}, {[0]=0, (-2), length=2}, {[0]=0, 2, length=2}, {[0]=0, 3, length=2}, length=8}), 0;
+while __t128 < __t127.length do
+local __t130 = __t127[__t128]; __t128 = __t128 + 1; local dx, dy; dx = __t130[0]; dy = __t130[1];
 ctx.fillStyle = __I0.PAL.ink;
 ctx:fillRect(((x + dx) + 1), ((y + dy) + 1), 1, 1);
 end;
 end;
 do
-local __t133, __t134 = __it({[0]={[0]=(-3), 0, length=2}, {[0]=(-2), 0, length=2}, {[0]=2, 0, length=2}, {[0]=3, 0, length=2}, {[0]=0, (-3), length=2}, {[0]=0, (-2), length=2}, {[0]=0, 2, length=2}, {[0]=0, 3, length=2}, length=8}), 0;
-while __t134 < __t133.length do
-local __t136 = __t133[__t134]; __t134 = __t134 + 1; local dx, dy; dx = __t136[0]; dy = __t136[1];
+local __t131, __t132 = __it({[0]={[0]=(-3), 0, length=2}, {[0]=(-2), 0, length=2}, {[0]=2, 0, length=2}, {[0]=3, 0, length=2}, {[0]=0, (-3), length=2}, {[0]=0, (-2), length=2}, {[0]=0, 2, length=2}, {[0]=0, 3, length=2}, length=8}), 0;
+while __t132 < __t131.length do
+local __t134 = __t131[__t132]; __t132 = __t132 + 1; local dx, dy; dx = __t134[0]; dy = __t134[1];
 M.px(ctx, (x + dx), (y + dy), col);
 end;
 end;
@@ -1731,7 +1712,7 @@ end);
 M.BAYER = __map({[0]=0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5, length=16}, function(v) 
 return ((v + 0.5) / 16);
 end);
--- render:809
+-- render:801
 M.ADD_ART = {gnasher={[0]={[0]=".h..h.", "kFFFFk", "kfFFek", "kfffFk", ".k..k.", length=5}, {[0]=".h..h.", "kFFFFk", "kfFFek", "kfffFk", "..kk..", length=5}, length=2}, spitter={[0]={[0]="..kkk..", ".kRRRk.", "kRrRRek", "kRrRRmk", "kRRrRRk", ".kkkkk.", length=6}, {[0]="..kkk..", ".kRRRk.", "kRrRRek", "kRrRMMM", "kRRrRRk", ".kkkkk.", length=6}, length=2}, necro={[0]={[0]="..kkk..s", ".kPPPk.s", ".kPgPk.s", "kPPPPPks", "kPpPPPks", "kPPPPPk.", ".kk.kk..", length=7}, {[0]="..kkk..G", ".kPPPk.s", ".kPgPk.s", "kPPPPPks", "kPpPPPks", "kPPPPPk.", ".kk.kk..", length=7}, length=2}, skeleton={[0]={[0]=".b.", "bbb", ".b.", "b.b", length=4}, {[0]=".b.", "bbb", ".b.", ".b.", length=4}, length=2}};
--- render:815
+-- render:807
 M.ADD_COL = {k=__I0.PAL.ink, F=__I0.PAL.fur3, f=__I0.PAL.fur2, e=__I0.PAL.eye, h=__I0.PAL.horn, R="#b8452a", r="#7e2a18", m="#3a120a", M=__I0.PAL.fire3, P="#4a2a5e", p="#2e1a3c", g=__I0.PAL.heal, s=__I0.PAL.brown, G=__I0.PAL.heal, b=__I0.PAL.bone};
