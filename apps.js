@@ -115,6 +115,11 @@ window.SLOPWARE = {
      "n": 3,
      "date": "2026-11-08T18:03:26-07:00",
      "note": "role symbols, and a debuff color, glow and timer for dispels"
+    },
+    {
+     "n": 4,
+     "date": "2026-11-12T04:37:09-07:00",
+     "note": "1.1.1 downloads, tooltip and mouse-button notes"
     }
    ]
   },
@@ -1351,7 +1356,7 @@ window.SLOPWARE = {
   "midnight-snack": {
    "visits": 0,
    "prompts": 3,
-   "tokens": 473146,
+   "tokens": 485466,
    "sharedWith": null,
    "versions": [
     {
@@ -1359,7 +1364,7 @@ window.SLOPWARE = {
      "date": "2026-11-12T03:32:41-07:00",
      "note": "a CaseOh stealth-horror fridge raid",
      "prompts": 3,
-     "tokens": 473146
+     "tokens": 485466
     }
    ]
   },
