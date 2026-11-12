@@ -365,10 +365,10 @@
    ]
   },
   "pie": {
-   "version": "1.1.0",
-   "at": null,
+   "version": "1.1.1",
+   "at": "2026-11-12T11:37:09.151Z",
    "for": [
-    "released by hand"
+    "released by hand: unit tooltip and mouse-button bindings"
    ]
   }
  }
