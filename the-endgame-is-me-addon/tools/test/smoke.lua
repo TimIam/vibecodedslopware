@@ -44,6 +44,7 @@ local function settle(what)
 end
 
 -- what the grid of textures shows, worked out from their anchors and colours, against the frame the game drew
+local spritesSeen, padsSeen, hudSeen = 0, 0, 0
 local function checkPicture(where)
   local snap = RT.Screen.snapshot()
   local view, grid = D.view, D.grid
@@ -89,7 +90,7 @@ local function checkPicture(where)
       assert(z == e.z, where .. ": a prop texture is on draw layer " .. z .. " and should be on " .. e.z)
     end
   end
-  -- the panes: one texture each, under the strips, where the Screen put them
+  -- the panes: one texture each, over the strips and under the HUD's layer, where the Screen put them
   local want, nf = RT.Screen.panes.n, D.paneFrame
   local lit = 0
   for _, t in ipairs(nf.regions) do if t.shown then lit = lit + 1 end end
@@ -98,11 +99,91 @@ local function checkPicture(where)
   for k = 1, want do
     local pn, t = RT.Screen.panes[k], D.panes[k].tex
     local p = t.points.TOPLEFT
-    assert(t.shown and t.w == pn.w and t.h == pn.h and p.rel == grid and gp.x + p.x - (D.sx or 0) == pn.x and -(gp.y + p.y) - (D.sy or 0) == pn.y, where .. ": a pane is the wrong size or in the wrong place")
+    assert(t.shown and t.w == pn.w and t.h == pn.h and p.rel == view and p.x == pn.x and -p.y == pn.y, where .. ": a pane is the wrong size or in the wrong place")
     assert(math.abs(t.va - pn.a) < 1e-9 and math.abs(t.vr * 255 - math.floor(pn.rgb / 65536)) < 0.01, where .. ": a pane is the wrong colour")
-    for _, strip in ipairs(D.strips) do assert(strip:GetFrameLevel() > nf:GetFrameLevel(), where .. ": a strip is not above the panes") end
-    assert(nf:GetFrameLevel() > D.propFrame:GetFrameLevel() and (nf.clips or nf.buffer), where .. ": the pane frame is under the props or not cut to the picture")
+    for _, strip in ipairs(D.strips) do assert(strip:GetFrameLevel() < nf:GetFrameLevel(), where .. ": a strip is not under the panes") end
+    assert(nf.clips or nf.buffer, where .. ": the pane frame is not cut to the picture")
   end
+  -- the sprites: a texture from the units sheet for each one the game asked for this frame and no others, in the
+  -- frame under the boss's or the one over it, on the draw layer the Screen gave it
+  local S = RT.Screen.sprites
+  local lo, hi = D.spriteLo, D.spriteHi
+  local upS = 0
+  for _, f in ipairs({ lo, hi }) do for _, t in ipairs(f.regions) do if t.shown then upS = upS + 1 end end end
+  assert(upS == S.n, where .. ": " .. upS .. " unit textures are up and the game asked for " .. S.n)
+  assert(lo:GetFrameLevel() > D.propFrame:GetFrameLevel() and hi:GetFrameLevel() > lo:GetFrameLevel() and D.strips[1]:GetFrameLevel() > hi:GetFrameLevel(), where .. ": the sprite frames are out of order")
+  if S.n > 0 then
+    assert(G and ns.Units, where .. ": unit textures with no ground image under them")
+    assert(io.open(dir .. "/Art/" .. ns.Units.file, "rb"), where .. ": the units sheet is not in the addon folder")
+    local byOwner = {}
+    for _, rec in ipairs(D.spritesLive) do byOwner[rec.owner] = rec end
+    for k = 1, S.n do
+      local q = S[k]
+      local rec = assert(byOwner[q.owner], where .. ": a unit the game drew as a texture has none")
+      local ts = q.hi and rec.hi or rec.lo
+      local t, e, U = ts.tex, q.e, ns.Units
+      local p = t.points.TOPLEFT
+      assert(t.shown and t.parent == (q.hi and hi or lo) and t.file == "Interface\\AddOns\\TheEndgameIsMe\\Art\\" .. U.file and t.filter == "NEAREST", where .. ": a unit texture is hidden, in the wrong frame or from the wrong file")
+      assert(t.w == e.w and t.h == e.h and p.rel == grid and p.x == q.x and p.y == -q.y, where .. ": a unit texture is the wrong size or in the wrong place")
+      assert(math.abs(t.coord[1] * U.tw - e.u) < 1e-6 and math.abs(t.coord[3] * U.th - e.v) < 1e-6 and math.abs(t.coord[2] * U.tw - e.u - e.w) < 1e-6 and math.abs(t.coord[4] * U.th - e.v - e.h) < 1e-6,
+        where .. ": a unit texture shows the wrong part of the sheet")
+      assert(({ BACKGROUND = 0, BORDER = 16, ARTWORK = 32, OVERLAY = 48 })[t.layer] + t.sub + 8 == q.z, where .. ": a unit texture is on the wrong draw layer")
+    end
+    for _, f in ipairs({ lo, hi }) do assert(Stub.visible(f) and (f.clips or f.buffer), where .. ": a sprite frame is hidden or not cut to the picture") end
+    spritesSeen = spritesSeen + S.n
+  end
+  -- the boss's block: one of them up when the game drew the boss that way, showing that picture where the boss is
+  local upP, pad = 0, D.padShown()
+  for _, pd in ipairs(D.pads) do
+    if pd.frame.shown then upP = upP + 1 end
+    assert(pd.frame:GetFrameLevel() > lo:GetFrameLevel() and pd.frame:GetFrameLevel() < hi:GetFrameLevel(), where .. ": a boss block is not between the two sprite frames")
+  end
+  assert(upP == (S.pad and 1 or 0), where .. ": " .. upP .. " boss blocks are up")
+  if S.pad then
+    local img = S.pad
+    assert(G and pad and pad.frame.shown and pad.img == img and (pad.frame.clips or pad.frame.buffer), where .. ": the boss's block is not showing the boss or is not cut to the picture")
+    local ap = pad.anchor.points.TOPLEFT
+    assert(ap.rel == grid and ap.x == S.padX and ap.y == -S.padY, where .. ": the boss's block is in the wrong place")
+    local litP = 0
+    for i, t in pairs(pad.tex) do
+      if t.shown then
+        litP = litP + 1
+        local x, y = (i - 1) % 56, math.floor((i - 1) / 56)
+        local v = img.px[y * img.width + x + 1]
+        local tp = t.points.TOPLEFT
+        assert(v and tp.rel == pad.anchor and tp.x == x and tp.y == -y, where .. ": a pixel of the boss's block is up where the boss has none, or is in the wrong place")
+        assert(math.abs(t.vr * 255 - math.floor(v / 65536)) < 0.01 and math.abs(t.vg * 255 - math.floor(v / 256) % 256) < 0.01 and math.abs(t.vb * 255 - v % 256) < 0.01, where .. ": a pixel of the boss's block is the wrong colour")
+      end
+    end
+    local solid = 0
+    for _ in pairs(img.px) do solid = solid + 1 end
+    assert(litP == solid, where .. ": the boss's block shows " .. litP .. " pixels and the boss has " .. solid)
+    padsSeen = padsSeen + 1
+  end
+  -- the HUD's layer: its textures show exactly what the Screen holds for it, each on its own pixel of the picture
+  local hudUp = 0
+  for layer = 1, 2 do
+  local hsnap = RT.Screen.snapshotHud(layer)
+  for i = 1, 57600 do
+    local v, t = hsnap[i], D.hudTex[layer][i]
+    if v == nil then assert(not (t and t.shown), where .. ": a HUD texture is up where the HUD has nothing")
+    else
+      assert(G, where .. ": something on the HUD's layer with no ground image under it")
+      local a = 255
+      if v >= 16777216 then a = math.floor(v / 16777216); v = v % 16777216 end
+      local tp = t and t.points.TOPLEFT
+      assert(t and t.shown and tp.rel == view and tp.x == (i - 1) % 320 and tp.y == -math.floor((i - 1) / 320), where .. ": a HUD texture is missing, hidden or in the wrong place")
+      assert(math.abs(t.vr * 255 - math.floor(v / 65536)) < 0.01 and math.abs(t.vg * 255 - math.floor(v / 256) % 256) < 0.01 and math.abs(t.vb * 255 - v % 256) < 0.01 and math.abs(t.va * 255 - a) < 0.01,
+        where .. ": a HUD texture is the wrong colour")
+      hudUp = hudUp + 1
+    end
+  end
+  end
+  for _, hs in ipairs(D.hudStrips) do
+    assert(hs:GetFrameLevel() > nf:GetFrameLevel() and Stub.visible(hs) and (hudUp == 0 or hs.clips or hs.buffer), where .. ": a strip of the HUD's layer is under the panes, hidden or uncut")
+    assert(#hs.regions * 4 <= 65535, "a strip of the HUD's layer has too many vertices for one batch")
+  end
+  hudSeen = hudSeen + hudUp
   local hidden = 0
   for _, t in ipairs(all) do
     local p = t.points.TOPLEFT
@@ -262,7 +343,7 @@ Stub.key(view, "D", true)
 view.scripts.OnMouseDown(view, "LeftButton")
 local x0 = g.boss.x
 frames(120)
-assert(g.boss.x > x0 + 20, "the boss did not walk")
+assert(g.boss.x > x0 + 20, "the boss did not walk (mode " .. tostring(A.mode) .. ", " .. tostring(A.err) .. ")")
 assert(g.score > 0, "walking the path scored nothing")
 Stub.key(view, "D", false)
 view.scripts.OnMouseUp(view, "LeftButton")
@@ -542,6 +623,18 @@ for lv = 2, 7 do
     assert(g.map.layout == ns.Ground[lv].seed, "level " .. lv .. " was not laid out from its image's seed")
     if lv ~= 4 then assert(hidden > 57600 * 0.25, "level " .. lv .. ": only " .. hidden .. " cells are hidden over the ground image") else assert(hidden == 0) end
     if g.map.scroll == "x" then assert(RT.Screen.vx > 0, "level " .. lv .. " never scrolled") end
+    assert((RT.Screen.sprites.pad ~= nil) == (lv ~= 4 and not g.boss.evade), "level " .. lv .. ": the boss is " .. (RT.Screen.sprites.pad and "" or "not ") .. "on its block")
+    if lv == 6 then
+      -- /endgame sprites off: everything that moves is painted again, at once; and back
+      SlashCmdList["THEENDGAMEISME"]("sprites off")
+      frames(3)
+      assert(RT.Screen.sprites.n == 0 and not RT.Screen.sprites.pad and TheEndgameIsMeDB.sprites == false, "/endgame sprites off did not take")
+      checkPicture("level 6 with sprites off")
+      SlashCmdList["THEENDGAMEISME"]("sprites on")
+      frames(3)
+      assert(RT.Screen.sprites.pad and TheEndgameIsMeDB.sprites == nil, "/endgame sprites on did not take")
+      checkPicture("level 6 with sprites back on")
+    end
   end
   say(string.format("level %d (%s): loaded in %d frames (%.2f s), then %.1f ms a frame, camera at %d,%d", lv, tostring(g.map.name), n, took, per, RT.Screen.vx, RT.Screen.vy))
   if lv < 7 then
@@ -664,4 +757,7 @@ SlashCmdList["THEENDGAMEISME"]("")
 assert(#Stub.printed == said + 1 and Stub.printed[#Stub.printed]:find("start it again", 1, true), "with a file missing, /endgame should say to restart the game")
 for k in pairs(_G) do assert(before[k] or allowed[k], "the half-loaded addon leaked a global: " .. tostring(k)) end
 
+assert(padsSeen > 0, "the boss was never seen on its block of textures")
+assert(hudSeen > 0, "the HUD was never seen on its own layer")
+say(string.format("sprites: the boss on its block in %d of the pictures checked (%d repaints of a block), %d unit textures in them", padsSeen, D.padPaints, spritesSeen))
 say(string.format("OK: %s passed. %d colour changes over the whole session.", dir, Stub.colourCalls or 0))

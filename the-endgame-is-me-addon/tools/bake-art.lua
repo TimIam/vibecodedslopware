@@ -2,8 +2,10 @@
 -- can draw as textures:
 --   art/ground_N.tga   a level's whole ground, one image                       (listed in art/ground.json)
 --   art/props_N.tga    a sheet of every prop of the level as it stands at the start (listed in art/props.json)
+--   art/units.tga      a sheet of every picture of an adventurer or an add          (listed in art/units.json)
 -- Run from the addon folder after the build (it uses build/game_*.lua), then build again to pack the images:
 --   lua5.1 tools/bake-art.lua            (on Windows: bash tools/wsl.sh lua5.1 tools/bake-art.lua)
+--   lua5.1 tools/bake-art.lua units      only the units sheet, which takes a second
 --   node tools/build.mjs
 -- A level's ground and props depend on how the level was laid out, so the images belong to one layout seed (SEEDS
 -- below); the addon lays that level out from the same seed (src/gfx.lua). Change a seed and that level is a
@@ -143,6 +145,19 @@ local function bakeProps(n, seed, g)
       end
     end
   end
+  -- The level art keeps the sprites it paints, by name. If a name leaves out something the painting depends on, two
+  -- props share whichever of their pictures was painted first, and that depends on which came on screen first: no
+  -- one picture is right. So everything is painted again from nothing in the opposite order, and a prop that comes
+  -- out differently is left to the grid. (tools/build.mjs fixes the names that were found this way.)
+  Rm.sprites, Rm.similar = RT.Map(), RT.Map()
+  local steady = {}
+  for k = #entries, 1, -1 do
+    local a = entries[k]
+    local p = g.props[a.i]
+    local b = paint(g, p, art[p.kind], g.t, 0, 0)
+    if b and b.key == a.key and b.x == a.x and b.y == a.y then steady[#steady + 1] = a else skip("depends on which was painted first") end
+  end
+  entries = steady
   -- back to front, as the renderer sorts them (a stable sort: equal ones stay in list order)
   table.sort(entries, function(a, b) if a.sort ~= b.sort then return a.sort < b.sort end return a.i < b.i end)
   -- a draw layer for each: one more than the deepest thing it overlaps that is behind it
@@ -190,6 +205,129 @@ local function bakeProps(n, seed, g)
     baked = #kept, pictures = #order, tw = tw, th = th, layers = deepest + 1 }, why
 end
 
+-- ------------------------------------------------------------------------------------------------ units
+
+-- Every picture render.js can paint for an adventurer or one of the boss's adds (src/sprites.lua says which they
+-- are and numbers them), each painted here by the game's own drawUnit / drawAdd from a made-up unit in that state.
+-- Only the solid pixels are kept: the shadow under the feet is see-through, and the addon still paints that.
+local UNIT_SHEET_W = 256
+local stageBg, stageTrail = { image = true, width = 2000, height = 2000, px = {} }, { width = 2000, height = 2000, px = {} }
+local function pose(draw, o, g, softWanted, what)
+  local vx, vy = 500 - 160, 500 - 90
+  Screen.begin(stageBg, stageTrail, vx, vy)
+  local ctx = Screen:getContext()
+  ctx:setTransform(1, 0, 0, 1, 0, 0)
+  ctx:translate(-vx, -vy)
+  draw(ctx, o, g)
+  ctx.globalAlpha = 1
+  local snap = Screen.snapshot()
+  local x0, y0, x1, y1, soft = 320, 180, -1, -1, 0
+  for sy = 0, 179 do
+    for sx = 0, 319 do
+      local v = snap[sy * 320 + sx + 1]
+      if v ~= nil then
+        if v >= A1 then soft = soft + 1
+        else
+          if sx < x0 then x0 = sx end
+          if sx > x1 then x1 = sx end
+          if sy < y0 then y0 = sy end
+          if sy > y1 then y1 = sy end
+        end
+      end
+    end
+  end
+  assert(x1 >= 0, what .. " draws nothing solid")
+  assert(soft == softWanted, what .. ": " .. soft .. " see-through pixels where the shadow is " .. softWanted)
+  local w, h = x1 - x0 + 1, y1 - y0 + 1
+  local px, key, rows = {}, {}, {}
+  for yy = 0, h - 1 do
+    local runs, start = {}, nil
+    for xx = 0, w - 1 do
+      local v = snap[(y0 + yy) * 320 + x0 + xx + 1]
+      if v ~= nil and v >= A1 then v = nil end
+      px[yy * w + xx + 1] = v
+      key[#key + 1] = v or -1
+      if v ~= nil then start = start or xx
+      elseif start then runs[#runs + 1] = start; runs[#runs + 1] = xx - 1; start = nil end
+    end
+    if start then runs[#runs + 1] = start; runs[#runs + 1] = w - 1 end
+    rows[yy + 1] = #runs > 0 and ("[" .. concat(runs, ",") .. "]") or "null"
+  end
+  -- where the picture's corner is from the unit's own pixel (the made-up unit stands at 500, 500)
+  return { ax = x0 - 160, ay = y0 - 90, w = w, h = h, px = px, key = w .. "x" .. h .. ":" .. concat(key, ","), rows = "[" .. concat(rows, ",") .. "]" }
+end
+
+local function bakeUnits()
+  local unit, add = {}, {}
+  for ci, cls in ipairs(RT.unitClasses) do
+    local role = W.CLASS[cls].role
+    local twoLooks = role == "melee" or role == "healer" or role == "king" or (role == "ranged" and cls ~= "hunter")
+    for fxi = 0, 1 do for st = 0, role == "pet" and 1 or 2 do for flash = 0, 1 do for v = 0, twoLooks and 1 or 0 do
+      local fx = fxi == 1 and 1 or -1
+      local u = { x = 500, y = 500, cls = cls, role = role, id = v == 1 and 0 or 1, hit = flash * 0.1, state = "chase", hp = 10, maxhp = 10,
+        party = { engaged = false }, inFire = false, swing = 0, cast = 0, glow = 0 }
+      local g = { boss = { x = 500 + fx * 100 }, t = 0.15 }
+      if st == 2 then u.moving = false else u.moving, u.fx, u.walk, g.boss.x = true, fx, st, 500 - fx * 100 end
+      if role == "melee" then u.swing = v * 0.1 elseif role == "ranged" then u.cast = v * 0.5 elseif role == "healer" then u.glow = v * 0.1 end
+      local key = RT.unitKey(u, g)
+      local want = ((((ci - 1) * 2 + fxi) * 3 + st) * 2 + flash) * 2 + v
+      assert(key == want, cls .. ": the addon numbers this picture " .. tostring(key) .. ", not " .. want)
+      assert(not unit[key])
+      unit[key] = pose(RT.paintUnit, u, g, 3, cls .. " " .. key)
+    end end end end
+  end
+  for ki, kind in ipairs(RT.addKinds) do
+    for fr = 0, 1 do for flip = 0, 1 do for flash = 0, 1 do
+      local a = { x = 500, y = 500, kind = kind, fx = flip == 1 and -1 or 1, hit = flash * 0.1, r = W.ADDS[kind].r, hp = 1, maxhp = 1, swing = 0, moving = false, walk = 0 }
+      if kind == "spitter" or kind == "necro" then a.swing = fr * 0.1 else a.moving, a.walk = true, fr end
+      local key = RT.addKey(a)
+      if key then
+        assert(key == (((ki - 1) * 2 + fr) * 2 + flip) * 2 + flash and not add[key])
+        add[key] = pose(RT.paintAdd, a, {}, math.ceil(a.r) * 2 + 1, kind .. " " .. key)
+      end
+    end end end
+  end
+  -- the sheet: each different picture once
+  local unique, order = {}, {}
+  for _, set in ipairs({ unit, add }) do
+    for _, e in pairs(set) do
+      if not unique[e.key] then unique[e.key] = { w = e.w, h = e.h, px = e.px, key = e.key }; order[#order + 1] = unique[e.key] end
+    end
+  end
+  table.sort(order, function(a, b) if a.h ~= b.h then return a.h > b.h end if a.w ~= b.w then return a.w > b.w end return a.key < b.key end)
+  local x, y, rowH = 0, 0, 0
+  for _, s in ipairs(order) do
+    if x + s.w > UNIT_SHEET_W then x, y, rowH = 0, y + rowH + 1, 0 end
+    s.u, s.v = x, y
+    x = x + s.w + 1
+    if s.h > rowH then rowH = s.h end
+  end
+  local tw, th = UNIT_SHEET_W, pow2(y + rowH)
+  local sheet = {}
+  for _, s in ipairs(order) do
+    for yy = 0, s.h - 1 do for xx = 0, s.w - 1 do sheet[(s.v + yy) * tw + s.u + xx] = s.px[yy * s.w + xx + 1] end end
+  end
+  writeTga("art/units.tga", tw, th, function(xx, yy) return sheet[yy * tw + xx] end)
+  writePpm("build/units.ppm", tw, th, function(xx, yy) return sheet[yy * tw + xx] end)
+  local function listOf(set)
+    local keys, out = {}, {}
+    for k in pairs(set) do keys[#keys + 1] = k end
+    table.sort(keys)
+    for _, k in ipairs(keys) do
+      local e, s = set[k], unique[set[k].key]
+      out[#out + 1] = string.format('{ "k": %d, "u": %d, "v": %d, "w": %d, "h": %d, "ax": %d, "ay": %d, "m": %s }', k, s.u, s.v, e.w, e.h, e.ax, e.ay, e.rows)
+    end
+    return concat(out, ",\n    "), #keys
+  end
+  local units, nu = listOf(unit)
+  local adds, na = listOf(add)
+  local f = assert(io.open("art/units.json", "w"))
+  f:write(string.format('{ "file": "units.tga", "tw": %d, "th": %d,\n  "unit": [\n    %s\n  ],\n  "add": [\n    %s\n  ] }\n', tw, th, units, adds))
+  f:close()
+  print(string.format("units: %d adventurer pictures and %d add pictures, %d different, on a %dx%d sheet", nu, na, #order, tw, th))
+end
+if arg[1] == "units" then bakeUnits(); print("wrote art/units.json"); return end
+
 -- ------------------------------------------------------------------------------------------------ every level
 
 os.execute("mkdir -p art build")
@@ -230,4 +368,5 @@ f:close()
 f = assert(io.open("art/props.json", "w"))
 f:write("[\n" .. concat(sheets, ",\n") .. "\n]\n")
 f:close()
-print("wrote art/ground.json and art/props.json")
+bakeUnits()
+print("wrote art/ground.json, art/props.json and art/units.json")

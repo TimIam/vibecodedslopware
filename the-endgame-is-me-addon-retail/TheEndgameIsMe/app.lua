@@ -6,7 +6,7 @@ local ADDON, ns = ...
 
 -- Every file before this one has to have loaded. One that an update added while the client was running has not: a
 -- /reload only reads the files that were there when the client started. Say so, instead of failing somewhere odd.
-if not (ns.RT and ns.Display and ns.Store and ns.Keys and ns.Sound) then
+if not (ns.RT and ns.RT.unitKey and ns.Display and ns.Store and ns.Keys and ns.Sound) then
   local function say()
     _G.print("|cffd8b45cThe Endgame is Me:|r this update added files, and /reload cannot see new files. Exit the game completely and start it again.")
   end
@@ -158,6 +158,8 @@ end
 function A.load(label, job, done)
   RT.lean = ns.DB.effects == "light"   -- a new level starts with full effects unless the player said otherwise
   RT.groundImages = ns.DB.ground ~= false
+  RT.spriteImages = ns.DB.sprites ~= false
+  RT.Screen.hudEvery = 3   -- over a ground image the HUD is redrawn on one frame in three (src/canvas.lua)
   A.job = { co = coroutine.create(job), done = done, t0 = now(), frames = 0 }
   A.loadLabel = label
   A.setMode("loading")
@@ -1366,6 +1368,10 @@ _G.SlashCmdList["THEENDGAMEISME"] = function(msg)
   elseif cmd == "ground" then
     if arg == "on" then ns.DB.ground = nil elseif arg == "off" then ns.DB.ground = false end
     RT.print("ground images: " .. (ns.DB.ground == false and "off (the ground is painted a pixel at a time, as it used to be)" or "on") .. ". It takes effect at the next level. /endgame ground on or off")
+  elseif cmd == "sprites" then
+    if arg == "on" then ns.DB.sprites = nil elseif arg == "off" then ns.DB.sprites = false end
+    RT.spriteImages = ns.DB.sprites ~= false
+    RT.print("moving things as textures: " .. (RT.spriteImages and "on" or "off (the boss and the adventurers are painted a pixel at a time, as they used to be)") .. ". /endgame sprites on or off")
   elseif cmd == "effects" then
     if arg == "full" or arg == "light" or arg == "auto" then
       ns.DB.effects = arg ~= "auto" and arg or nil

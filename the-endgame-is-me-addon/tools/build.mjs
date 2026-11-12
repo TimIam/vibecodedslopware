@@ -14,7 +14,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const game = path.resolve(root, '../the-endgame-is-me/js');
 export const ADDON = 'TheEndgameIsMe';
-export const VERSION = '1.2.0';
+export const VERSION = '1.3.0';
 
 // in load order: a module comes after everything it imports
 export const MODULES = ['props', 'smoke', 'art', 'levels/forest', 'levels/clearing', 'levels/farms', 'levels/village', 'levels/wall', 'levels/city',
@@ -54,6 +54,8 @@ const PATCHES = {
 export function pathDist(`],
   ],
   render: [
+    // the boss's own picture goes to the client as a block of textures of its own when it can (src/gfx.lua)
+    [`ctx.drawImage(spr, x, y + lift);`, `bossSprite(ctx, spr, x, y + lift);`],
     // a prop that ships as an image and has not been touched is a texture, not a painting (src/gfx.lua)
     [`f: () => { draw(ctx, p, g, H_ART); if (p.burning) drawFlames(ctx, p, g.t); } });`, `f: () => { if (!propDraw(p)) draw(ctx, p, g, H_ART); if (p.burning) drawFlames(ctx, p, g.t); } });`],
     // no footprints (see world, above)
@@ -75,6 +77,15 @@ export function pathDist(`],
     ctx.translate(-VIEW.x, -VIEW.y);
 `],
     [`    if (fg) ctx.drawImage(fg, VIEW.x, VIEW.y);`, `    buf.maskOff();`],
+    // over a ground image the HUD and the cursor are each drawn on a layer of their own, fixed to the screen, and the
+    // HUD only on the frames it is due (src/canvas.lua)
+    [`    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (!view.bare) drawHud(ctx, g, view);
+    if (view.cursor) drawCursor(ctx, view.mx, view.my, g);
+`, `    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (!view.bare && buf.hudDue()) { buf.hudBegin(1); drawHud(ctx, g, view); buf.hudEnd(); }
+    if (view.cursor) { buf.hudBegin(2); drawCursor(ctx, view.mx, view.my, g); buf.hudEnd(); }
+`],
     // the boss's adds are drawn from rows of characters: strings, which Lua cannot index
     [`const ch = row[flip ? w - 1 - rx : rx];`, `const ch = row.charAt(flip ? w - 1 - rx : rx);`],
     // smoke is dithered rather than blended: a burning city is a lot of see-through pixels for interpreted Lua
@@ -95,6 +106,13 @@ export function pathDist(`],
     [`const blink = Math.floor(g.t * (prog > 0.6 ? 24 : 10)) & 1;`, `const blink = lean() ? 0 : Math.floor(g.t * (prog > 0.6 ? 24 : 10)) & 1;`],
     // thousands separators without a regular expression
     [`function fmt(n) { return Math.floor(n).toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g, ','); }`, `function fmt(n) { return commas(n); }`],
+  ],
+  'levels/city': [
+    // A building's sprite is kept under a name that leaves out the building's seed, though the roof and the front
+    // are painted from it: every building of one size showed the details of whichever was painted first, which
+    // depends on where the camera has been. With the seed in the name each has its own, the same every time, and
+    // the picture on the prop sheet (tools/bake-art.lua) is the one the game paints.
+    ['return h.sprite(`${kind}|${W}|${Hh}|${v}|${stage}`, W, Hh, c => {', 'return h.sprite(`${kind}|${W}|${Hh}|${v}|${stage}|${p.seed % 97}`, W, Hh, c => {'],
   ],
   'levels/farms': [
     // rows of a sprite map are strings; say so, since Lua cannot index a string
@@ -187,8 +205,8 @@ const luaName = name => 'game_' + name.replace(/\//g, '_') + '.lua';
 export function fileList() {
   const g = name => [luaName(name), 'game'];
   return [['rt.lua', 'src'], ['canvas.lua', 'src'], g('props'), g('smoke'), g('art'), ['gfx.lua', 'src'],
-    ...MODULES.filter(m => m.startsWith('levels/')).map(g), g('world'), g('render'), g('save'),
-    ['sound_manifest.lua', 'made'], ['ground.lua', 'ground'], ['props.lua', 'props'], ['saves.lua', 'src'], ['keys.lua', 'src'], ['display.lua', 'src'], ['sound.lua', 'src'], ['app.lua', 'src']];
+    ...MODULES.filter(m => m.startsWith('levels/')).map(g), g('world'), g('render'), ['sprites.lua', 'src'], g('save'),
+    ['sound_manifest.lua', 'made'], ['ground.lua', 'ground'], ['props.lua', 'props'], ['units.lua', 'units'], ['saves.lua', 'src'], ['keys.lua', 'src'], ['display.lua', 'src'], ['sound.lua', 'src'], ['app.lua', 'src']];
 }
 
 // One addon folder per client. The Lua is the same; only the TOC's Interface number differs.
@@ -226,6 +244,22 @@ function propsManifest() {
       s.list.map(e => `    { i = ${e.i}, kind = "${e.kind}", px = ${num(e.px)}, py = ${num(e.py)}, hp = ${num(e.hp)}, x = ${e.x}, y = ${e.y}, w = ${e.w}, h = ${e.h}, u = ${e.u}, v = ${e.v}, z = ${e.z} },`).join('\n') + '\n  } },'),
     '};', ''].join('\n');
   return { lua, files: list.map(s => s.file), dir, count: list.reduce((a, s) => a + s.list.length, 0) };
+}
+
+function unitsManifest() {
+  // the sheet of adventurers and adds (tools/bake-art.lua), each picture under the number src/sprites.lua gives it
+  const dir = path.join(root, 'art');
+  let U = null;
+  try { U = JSON.parse(fs.readFileSync(path.join(dir, 'units.json'), 'utf8')); } catch {}
+  if (U && !fs.existsSync(path.join(dir, U.file))) U = null;
+  const rows = m => '{ ' + m.map((r, i) => (i === 0 ? '[0] = ' : '') + (r ? '{ ' + r.join(', ') + ' }' : 'false')).join(', ') + ' }';
+  const set = list => list.map(e => `    [${e.k}] = { u = ${e.u}, v = ${e.v}, w = ${e.w}, h = ${e.h}, ax = ${e.ax}, ay = ${e.ay}, spans = ${rows(e.m)} },`).join('\n');
+  const lua = ['-- Generated by tools/build.mjs: the sheet in Art/ that holds every picture of an adventurer (unit) and of the',
+    '-- boss\'s adds (add), each under the number src/sprites.lua works out for it: u v w h where it is on the sheet,',
+    '-- ax ay where its corner goes from the unit\'s own pixel, spans the runs of solid pixels in each row.',
+    'local ADDON, ns = ...;',
+    U ? `ns.Units = { file = "${U.file}", tw = ${U.tw}, th = ${U.th},\n  unit = {\n${set(U.unit)}\n  },\n  add = {\n${set(U.add)}\n  },\n};` : 'ns.Units = nil;', ''].join('\n');
+  return { lua, files: U ? [U.file] : [], dir, count: U ? U.unit.length + U.add.length : 0 };
 }
 
 function soundManifest() {
@@ -284,7 +318,7 @@ function zipFolder(dir, top, out) {
 }
 
 function release(mods) {
-  const sounds = soundManifest(), ground = groundManifest(), props = propsManifest();
+  const sounds = soundManifest(), ground = groundManifest(), props = propsManifest(), units = unitsManifest();
   for (const c of CLIENTS) {
     fs.rmSync(c.dir, { recursive: true, force: true });
     fs.mkdirSync(c.dir, { recursive: true });
@@ -292,7 +326,7 @@ function release(mods) {
       '## Author: timiam', `## Version: ${VERSION}`, '## SavedVariables: TheEndgameIsMeDB', '## AddonCompartmentFunc: TheEndgameIsMe_OnCompartmentClick',
       `## X-Website: https://vibecodedslopware.com/the-endgame-is-me-wow/`, ''];
     for (const [file, from] of fileList()) {
-      const text = from === 'src' ? fs.readFileSync(path.join(root, 'src', file), 'utf8') : from === 'made' ? sounds.lua : from === 'ground' ? ground.lua : from === 'props' ? props.lua
+      const text = from === 'src' ? fs.readFileSync(path.join(root, 'src', file), 'utf8') : from === 'made' ? sounds.lua : from === 'ground' ? ground.lua : from === 'props' ? props.lua : from === 'units' ? units.lua
         : mods[MODULES.find(m => luaName(m) === file)];
       fs.writeFileSync(path.join(c.dir, file), text.replace(/\r\n/g, '\n'));
       toc.push(file);
@@ -323,11 +357,11 @@ The game_*.lua files are generated from the game's JavaScript. Do not edit them 
       fs.mkdirSync(path.join(c.dir, 'Sounds'));
       for (const f of sounds.files) fs.copyFileSync(path.join(sounds.dir, f), path.join(c.dir, 'Sounds', f));
     }
-    if (ground.files.length + props.files.length) {
+    if (ground.files.length + props.files.length + units.files.length) {
       fs.mkdirSync(path.join(c.dir, 'Art'));
-      for (const f of [...ground.files, ...props.files]) fs.copyFileSync(path.join(ground.dir, f), path.join(c.dir, 'Art', f));
+      for (const f of [...ground.files, ...props.files, ...units.files]) fs.copyFileSync(path.join(ground.dir, f), path.join(c.dir, 'Art', f));
     }
-    console.log(`${c.client}: ${path.relative(path.resolve(root, '..'), c.dir)} (Interface ${c.interface}, ${fileList().length} Lua files, ${sounds.files.length} sounds, ${ground.files.length} ground images, ${props.count} props on ${props.files.length} sheets)`);
+    console.log(`${c.client}: ${path.relative(path.resolve(root, '..'), c.dir)} (Interface ${c.interface}, ${fileList().length} Lua files, ${sounds.files.length} sounds, ${ground.files.length} ground images, ${props.count} props on ${props.files.length} sheets, ${units.count} unit pictures)`);
     if (process.argv.includes('--zip')) {
       const out = path.join(root, 'dist', c.zip), z = zipFolder(c.dir, ADDON, out);
       console.log(`  zipped: ${path.relative(path.resolve(root, '..'), out)} (${z.files} files, ${(z.bytes / 1024 / 1024).toFixed(1)} MB)`);

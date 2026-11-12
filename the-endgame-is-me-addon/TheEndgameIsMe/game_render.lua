@@ -296,11 +296,15 @@ if (__T(g.thought) and (not __T(g.boss.dead))) then
 M.drawThought(ctx, g);
 end;
 ctx:setTransform(1, 0, 0, 1, 0, 0);
-if (not __T(view.bare)) then
+if ((not __T(view.bare)) and __T(buf.hudDue())) then
+buf.hudBegin(1);
 M.drawHud(ctx, g, view);
+buf.hudEnd();
 end;
 if __T(view.cursor) then
+buf.hudBegin(2);
 M.drawCursor(ctx, view.mx, view.my, g);
+buf.hudEnd();
 end;
 do return buf end;
 end;
@@ -341,7 +345,7 @@ local spr = __get(boss, dir, ((mouth * 4) + frame));
 if __T(b.evade) then
 ctx.globalAlpha = ((__mfmod(__mfloor(((g.t or __NaN) * 12)), 2) ~= 0) and 0.55 or 0.85);
 end;
-ctx:drawImage(spr, x, (y + lift));
+RT.host.bossSprite(ctx, spr, x, (y + lift));
 if __T(b.dead) then
 ctx.globalAlpha = __mmin(0.6, ((b.deadT or __NaN) * 0.4));
 ctx:drawImage(__I0.tinted(spr, __I0.PAL.rock0), x, y);

@@ -149,6 +149,14 @@ function D.create()
   return f
 end
 
+-- The boss's blocks of textures (see syncPad): a frame each, made with the grid, their textures as they are needed.
+local PADS, PAD = 12, 56
+local pads = {}
+D.pads = pads
+local HUD_ROWS = math.ceil(H / 8)   -- frames of eight rows, as the grid has
+local hudStrips, hudTex = {}, { {}, {} }   -- [1] the HUD's layer, [2] the cursor's
+D.hudStrips, D.hudTex = hudStrips, hudTex
+
 -- Makes the 57,600 textures, hidden, eight rows to a frame ("strip"). Meant to run inside the loader coroutine: it
 -- pauses (RT.breathe) after every row. Nothing is shown until showCount / showAll.
 local strips = {}
@@ -171,17 +179,35 @@ function D.build()
   pf:SetAllPoints(view)
   pf:SetFrameLevel(level + 2)
   D.propFrame = pf
-  -- and over the props, still under the strips, the see-through panes (the HUD's panel)
-  local nf = _G.CreateFrame("Frame", nil, view)
-  nf:SetAllPoints(view)
-  nf:SetFrameLevel(level + 3)
+  -- over the props, the things that move (syncSprites): the units behind the boss, the boss, the units in front
+  local function layer(n)
+    local f = _G.CreateFrame("Frame", nil, view)
+    f:SetAllPoints(view)
+    f:SetFrameLevel(level + n)
+    return f
+  end
+  D.spriteLo = layer(3)
+  for k = 1, PADS do
+    local f = layer(4)
+    f:Hide()
+    local anchor = _G.CreateFrame("Frame", nil, view)
+    anchor:SetSize(1, 1)
+    anchor:SetPoint("TOPLEFT", grid, "TOPLEFT", 0, 0)
+    pads[k] = { frame = f, anchor = anchor, tex = {}, col = {}, used = 0 }
+  end
+  D.spriteHi = layer(5)
+  -- Over the strips: the see-through panes (the HUD's panel), and over those the HUD's own layer of cells
+  -- (Screen.hudBegin), which are made as the HUD first draws on them.
+  local nf = layer(8)
   D.paneFrame = nf
+  for k = 1, HUD_ROWS do hudStrips[k] = layer(9) end
+  for k = 1, HUD_ROWS do hudStrips[HUD_ROWS + k] = layer(10) end   -- the cursor's layer, over the HUD's
   local strip = nil
   for gy = 0, H - 1 do
     if gy % 8 == 0 then
       strip = _G.CreateFrame("Frame", nil, view)
       strip:SetAllPoints(view)
-      strip:SetFrameLevel(level + 4)
+      strip:SetFrameLevel(level + 6)
       strips[#strips + 1] = strip
     end
     D.progress = gy / H
@@ -229,7 +255,10 @@ function D.setMode(mode)
   end
   local parent = mode == "oneclip" and D.clipAll or view
   -- the ground image is cut to the picture the same way a strip is
-  for _, gf in ipairs({ D.groundFrame, D.propFrame, D.paneFrame }) do
+  local under = { D.groundFrame, D.propFrame, D.spriteLo, D.spriteHi, D.paneFrame }
+  for k = 1, PADS do under[#under + 1] = pads[k].frame end
+  for k = 1, #hudStrips do under[#under + 1] = hudStrips[k] end
+  for _, gf in ipairs(under) do
     if gf.SetClipsChildren then gf:SetClipsChildren(mode == "clip" or mode == "oneclip") end
     if D.canBuffer() then
       gf:SetFlattensRenderLayers(mode == "buffer")
@@ -335,6 +364,30 @@ local function setCell(i, v)
   if not vis[i] then t:Show(); vis[i] = true end
 end
 
+-- the same for a cell of the HUD's layer, which is fixed to the picture; its texture is made the first time it is lit
+local function setHudCell(k, i, v)
+  local t = hudTex[k][i]
+  if v == nil then
+    if t then t:Hide() end
+    return
+  end
+  if not t then
+    local x, y = (i - 1) % W, floor((i - 1) / W)
+    t = hudStrips[(k - 1) * HUD_ROWS + floor(y / 8) + 1]:CreateTexture(nil, "ARTWORK")
+    t:SetColorTexture(1, 1, 1, 1)
+    if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false); t:SetTexelSnappingBias(0) end
+    t:SetSize(1, 1)
+    t:SetPoint("TOPLEFT", D.view, "TOPLEFT", x, -y)
+    hudTex[k][i] = t
+  end
+  local a = 1
+  if v >= A1 then a = floor(v / A1) * K; v = v % A1 end
+  t:SetVertexColor(floor(v / 65536) * K, floor(v / 256) % 256 * K, (v % 256) * K, a)
+  t:Show()
+end
+local function setHud(i, v) setHudCell(1, i, v) end
+local function setCursor(i, v) setHudCell(2, i, v) end
+
 -- Puts the level's ground image under the grid, or takes it away (G is an entry of ns.Ground, or nil). The image is
 -- padded to powers of two, so the texture coordinates pick out the part that is the level.
 local DIR = "Interface\\AddOns\\" .. ADDON .. "\\Art\\"
@@ -403,14 +456,12 @@ local function syncProps()
 end
 D.propsLit = lit
 
--- The Screen's panes (canvas.lua): each a flat see-through rectangle under the grid. They are in screen pixels and
--- the grid is not (it slides with the camera and jumps with the shake, and the HUD must jump with it), so each is
--- pinned to the grid at wherever that puts it on the screen this frame.
+-- The Screen's panes (canvas.lua): each a flat see-through rectangle over the grid and under the HUD's layer, pinned
+-- to the picture like that layer (the HUD holds still when the ground shakes, as it does in the browser).
 local panes = {}
 local function syncPanes()
   local list = Screen.panes
   local n = list.n
-  local vx, vy = Screen.vx or 0, Screen.vy or 0
   for k = 1, n do
     local pn, t = list[k], panes[k]
     if not t then
@@ -425,13 +476,141 @@ local function syncPanes()
       t.tex:SetVertexColor(floor(pn.rgb / 65536) * K, floor(pn.rgb / 256) % 256 * K, (pn.rgb % 256) * K, pn.a)
     end
     if t.w ~= pn.w or t.h ~= pn.h then t.w, t.h = pn.w, pn.h; t.tex:SetSize(pn.w, pn.h) end
-    local x, y = pn.x + vx, pn.y + vy
-    if t.x ~= x or t.y ~= y then t.x, t.y = x, y; t.tex:SetPoint("TOPLEFT", D.grid, "TOPLEFT", x, -y) end
+    local x, y = pn.x, pn.y
+    if t.x ~= x or t.y ~= y then t.x, t.y = x, y; t.tex:SetPoint("TOPLEFT", D.view, "TOPLEFT", x, -y) end
     if not t.on then t.tex:Show(); t.on = true end
   end
   for k = n + 1, #panes do local t = panes[k]; if t.on then t.tex:Hide(); t.on = false end end
 end
 D.panes = panes
+
+-- The Screen's sprites (canvas.lua): a texture for each adventurer or add drawn as a picture this frame, cut from
+-- the units sheet and pinned to the grid where it stands. The ones drawn before the boss are in a frame under the
+-- boss's, the rest in one over it, and within a frame the draw layer says who is in front. A unit keeps its
+-- texture from frame to frame, so one that stands still costs nothing.
+local SLAYER = { [0] = "BACKGROUND", "BORDER", "ARTWORK", "OVERLAY" }
+local recs = setmetatable({}, { __mode = "k" })   -- unit → its textures
+local live, spare, sstamp = {}, {}, 0
+local function spriteTex(parent, U)
+  local t = parent:CreateTexture(nil, "ARTWORK")
+  if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false); t:SetTexelSnappingBias(0) end
+  t:SetTexture(DIR .. U.file, "CLAMP", "CLAMP", "NEAREST")
+  t:Hide()
+  return { tex = t, on = false }
+end
+local function syncSprites()
+  local list, U = Screen.sprites, ns.Units
+  sstamp = sstamp + 1
+  for k = 1, list.n do
+    local s = list[k]
+    local rec = recs[s.owner]
+    if not rec then
+      rec = spare[#spare] or {}
+      spare[#spare] = nil
+      rec.owner = s.owner
+      recs[s.owner] = rec
+      live[#live + 1] = rec
+    end
+    rec.stamp = sstamp
+    local ts, other
+    if s.hi then
+      if not rec.hi then rec.hi = spriteTex(D.spriteHi, U) end
+      ts, other = rec.hi, rec.lo
+    else
+      if not rec.lo then rec.lo = spriteTex(D.spriteLo, U) end
+      ts, other = rec.lo, rec.hi
+    end
+    if other and other.on then other.tex:Hide(); other.on = false end
+    local t, e = ts.tex, s.e
+    if ts.e ~= e then
+      ts.e = e
+      t:SetTexCoord(e.u / U.tw, (e.u + e.w) / U.tw, e.v / U.th, (e.v + e.h) / U.th)
+      t:SetSize(e.w, e.h)
+    end
+    if ts.x ~= s.x or ts.y ~= s.y then ts.x, ts.y = s.x, s.y; t:SetPoint("TOPLEFT", D.grid, "TOPLEFT", s.x, -s.y) end
+    if ts.z ~= s.z then ts.z = s.z; t:SetDrawLayer(SLAYER[floor(s.z / 16)], s.z % 16 - 8) end
+    if not ts.on then t:Show(); ts.on = true end
+  end
+  -- the ones that were up and were not drawn this frame give their textures back
+  local j = 0
+  for k = 1, #live do
+    local rec = live[k]
+    if rec.stamp == sstamp then j = j + 1; live[j] = rec
+    else
+      if rec.lo and rec.lo.on then rec.lo.tex:Hide(); rec.lo.on = false end
+      if rec.hi and rec.hi.on then rec.hi.tex:Hide(); rec.hi.on = false end
+      recs[rec.owner] = nil
+      rec.owner = nil
+      spare[#spare + 1] = rec
+    end
+  end
+  for k = #live, j + 1, -1 do live[k] = nil end
+end
+D.spritesLive = live
+
+-- The boss (Screen.sprites.pad): a block of one-pixel textures of its own, in a frame between the two the units
+-- are in. The block hangs from an anchor, so moving the boss is moving the anchor. Each of its pictures (a heading,
+-- a step, the mouth open or shut) is put on a block the first time it is wanted and the block is kept, a dozen of
+-- them, the longest unused giving way: walking in a line is four pictures, and showing one that is already on a
+-- block is hiding one frame and showing another.
+D.padPaints = 0
+local padNow = nil
+local function paintPad(pad, img)
+  local px, w, h = img.px, img.width, img.height
+  local tex, col, anchor, frame = pad.tex, pad.col, pad.anchor, pad.frame
+  for y = 0, PAD - 1 do
+    for x = 0, PAD - 1 do
+      local i = y * PAD + x + 1
+      local v = nil
+      if x < w and y < h then v = px[y * w + x + 1] end
+      local was = col[i]
+      if v ~= was then
+        col[i] = v
+        local t = tex[i]
+        if v == nil then t:Hide()
+        else
+          if not t then
+            t = frame:CreateTexture(nil, "ARTWORK")
+            t:SetColorTexture(1, 1, 1, 1)
+            if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false); t:SetTexelSnappingBias(0) end
+            t:SetSize(1, 1)
+            t:SetPoint("TOPLEFT", anchor, "TOPLEFT", x, -y)
+            tex[i] = t
+          elseif was == nil then t:Show() end
+          t:SetVertexColor(floor(v / 65536) * K, floor(v / 256) % 256 * K, (v % 256) * K, 1)
+        end
+      end
+    end
+  end
+  pad.img = img
+  D.padPaints = D.padPaints + 1
+end
+local function syncPad()
+  local list = Screen.sprites
+  local img = list.pad
+  if not img then
+    if padNow then padNow.frame:Hide(); padNow = nil end
+    return
+  end
+  local pad = img.pad
+  if not (pad and pad.img == img) then
+    pad = pads[1]
+    for k = 2, PADS do if pads[k].used < pad.used then pad = pads[k] end end
+    paintPad(pad, img)
+    img.pad = pad
+  end
+  pad.used = sstamp
+  if pad.x ~= list.padX or pad.y ~= list.padY then
+    pad.x, pad.y = list.padX, list.padY
+    pad.anchor:SetPoint("TOPLEFT", D.grid, "TOPLEFT", pad.x, -pad.y)
+  end
+  if padNow ~= pad then
+    if padNow then padNow.frame:Hide() end
+    pad.frame:Show()
+    padNow = pad
+  end
+end
+D.padShown = function() return padNow end
 
 -- D.moveMs and D.sendMs say what the two halves cost (moving textures for the camera, recolouring them), and
 -- D.moved how many textures were moved: /endgame perf shows them
@@ -443,10 +622,12 @@ function D.present()
   D.moved = 0
   if Screen.ground ~= D.groundNow then D.setGround(Screen.ground) end
   syncProps()
+  syncSprites()
+  syncPad()
   syncPanes()
   layout()
   local t1 = clock()
-  local n = Screen.present(setCell)
+  local n = Screen.present(setCell) + Screen.presentHud(1, setHud) + Screen.presentHud(2, setCursor)
   D.moveMs, D.sendMs = t1 - t0, clock() - t1
   return n
 end

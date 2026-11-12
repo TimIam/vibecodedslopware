@@ -104,8 +104,8 @@ the built folders). The client draws it as one texture under the grid; the grid 
 on them, and a see-through cell (a shadow, the HUD's panel) carries its alpha for the client to blend. Levels load
 in a few frames instead of seconds, and half to two thirds of the 57,600 textures are hidden at any moment.
 
-- **`lua5.1 tools/bake-art.lua`** (after a build, then build again) makes the images, `art/ground.json` and
-  `art/props.json`. Run it whenever the game's art or level layouts change. The files are 32-bit uncompressed TGA
+- **`lua5.1 tools/bake-art.lua`** (after a build, then build again) makes the images, `art/ground.json`,
+  `art/props.json` and `art/units.json` (`bake-art.lua units` makes only the units sheet, in a second). Run it whenever the game's art or level layouts change. The files are 32-bit uncompressed TGA
   padded to powers of two. It takes a few minutes.
 - **A baked level is always laid out the same way.** A ground depends on where the level put its roads and fields,
   so the level is built from the seed its image was made with (`SEEDS` in the bake tool, `ns.Ground` in the
@@ -135,18 +135,70 @@ per level and only shown or hidden after that).
   thing it overlaps, up to 48 (three layers of sixteen sublevels). Props piled deeper than that stay in the grid.
 - `RT.propImages = false` (in `src/gfx.lua`) turns it off; `/endgame ground off` turns both off.
 
+- **A sprite's name must say everything its picture depends on.** The level art keeps the sprites it paints by
+  name. The city's buildings left their seed out of the name, so every building of one size showed whichever was
+  painted first, which depends on where the camera has been, and a sheet cannot match that. The build adds the
+  seed to the name (`levels/city` in `PATCHES`), and the bake tool paints every prop a second time in the opposite
+  order from an empty cache: one that comes out differently is left to the grid and reported, so the name can be
+  fixed.
+
+## Sprites: the units and the boss
+
+Over a ground image the things that move are textures under the grid too (`Screen.sprite`, `Screen.padSprite` in
+`src/canvas.lua`; `syncSprites`, `syncPad` in `src/display.lua`). `/endgame sprites off` paints them as before.
+
+- **Adventurers and the boss's adds** are one texture each, cut from `art/units.tga`. What `drawUnit` paints depends
+  on a handful of things (class, facing, which foot is forward, hit or not, and one more by role: a sword
+  mid-swing, a glowing staff, a healer's sparkle, the king's glint), 256 pictures in all with the adds. The bake
+  tool makes a unit in each state and has the game's own `drawUnit` / `drawAdd` paint it; `src/sprites.lua`
+  works out the same number for a live unit (`unitKey`, `addKey`) and stands in front of those two functions. The
+  shadow, the health bar, the Z of someone away from their keys and the spark of standing in fire are still
+  painted, by the same arithmetic as `render.js`. Riders, horses and the animals a level draws itself are painted
+  as before. If `drawUnit` or `drawAdd` changes in the game, `sprites.lua` has to follow; `ground.lua` is the
+  test that says whether it did.
+- **The boss** cannot ship as a picture: its look is the player's choice out of 30,000 and any colour. It gets a
+  block of one-pixel textures of its own (a "pad", 56 by 56, in its own frame) that hangs from an anchor, so moving
+  the boss is one call. Each picture of it (a heading, a step, the mouth) is put on a block the first time it is
+  wanted, and twelve blocks are kept. Painted in the grid a walking boss was about a thousand cells a frame.
+- **Order.** The grid lies over every texture, and the frame is drawn back to front, so a sprite empties the cells
+  under its solid pixels ("punches"): that is what painting it would have overwritten, and whatever is drawn later
+  lands in the grid, on top. Among the textures: props, then the units drawn before the boss, the boss, the units
+  drawn after it, and inside each of those two frames a draw layer one above whatever the sprite overlaps (64 of
+  them; a sprite that would need a 65th is painted). A prop drawn after a sprite that overlaps it is painted, not
+  shown as a texture, because the Screen's map of where things are (`Screen.clear`) counts sprites too.
+- **Only solid pixels are on the sheet.** A see-through pixel under the grid would be blended in the wrong order
+  with what was drawn before it, so shadows stay in the grid. While the boss flickers (evading) it is painted.
+- `lua5.1 tools/test/spritecost.lua` plays every level both ways and prints what each costs.
+
+## The HUD's layer
+
+The HUD stays put on the screen while the grid's cells belong to the ground, so every pixel the camera moved, each
+edge of each letter landed on different cells and had to be recoloured: a third of all the recolouring in a quiet
+frame. Over a ground image the HUD and the cursor are drawn on a layer of their own (`Screen.hudBegin` /
+`hudEnd` in `src/canvas.lua`, which point the Screen's drawing at the layer's tables; `setHud` in
+`src/display.lua`), shown by textures fixed to the picture and made the first time a cell of it is lit. A HUD that
+says what it said last frame costs nothing. It also holds still when the ground shakes, as it does in the browser.
+
+There are two such layers: the HUD, and the cursor over it. Drawing the HUD was over a third of a frame's Lua, so
+the renderer asks `Screen.hudDue()` first and, with `Screen.hudEvery = 3` (set in `src/app.lua`; 1 under the
+tests), draws it on one frame in three; its layer stays as it is on the others. The cursor is drawn every frame.
+
 ## Panes
 
-The dark see-through panel behind the HUD was 7,500 blended cells a frame, 13% of the grid, all of them showing. Over
-a ground image it is one flat texture the client lays under the grid (`ctx.pane` in `src/canvas.lua`,
-`Screen.panes`, `syncPanes` in `src/display.lua`). Only cells that already hold something are tinted in Lua: a
-solid one is blended as before, and a see-through one keeps its alpha and takes the tint in its colour, which over
-the pane beneath comes to exactly what the pane over the cell would have. Painted grounds still get it the old way.
+The dark see-through panel behind the HUD was 7,500 blended cells a frame, 13% of the grid, all of them showing. On
+the HUD's layer it is one flat texture between the grid and that layer (`ctx.pane` in `src/canvas.lua`,
+`Screen.panes`, `syncPanes` in `src/display.lua`), and the client blends it over whatever the grid shows. Painted
+grounds still get it the old way.
 
 ## What differs from the browser game
 
 - **No footprints.** The boss does not wear dark marks into the path; the build takes that code out.
 - **Levels 1 to 7 are the same place every run** (see Ground images).
+- **Every city building has its own roof and front.** In the browser, buildings of one size all show the details of
+  whichever was drawn first (see Prop images).
+- **The HUD is redrawn 20 times a second**, not 60, over a ground image (see The HUD's layer).
+- **The HUD does not shake** with the ground over a ground image (it does not in the browser either; painted
+  grounds still shake it).
 
 - **Light effects.** When the addon's own share of a frame passes 14 ms for two seconds running, the rest of that
   level is drawn with less: the attack telegraph's fill stops blinking, fires flicker five times a second instead of

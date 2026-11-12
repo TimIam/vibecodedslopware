@@ -336,6 +336,7 @@ local mask = nil                         -- cells under the tree canopy, while t
 local maskData = {}
 local frame = 1
 local imageMode = false                  -- a ground image lies under the grid (Screen.begin): cells may be empty
+local inHud = false                      -- drawing is going to the HUD layer (Screen.hudBegin)
 local ox, oy = 0, 0                      -- the camera, modulo the screen
 for i = 1, W * H do cur[i] = NIGHT; shown[i] = -1; base[i] = NIGHT; mark[i] = 0 end
 
@@ -437,12 +438,12 @@ function SMeta:fillRect(x, y, w, h)
 end
 
 -- A see-through pane over a wide stretch of the picture: the panel behind the HUD. Painted, it is thousands of
--- blended cells, every one a texture the client must show. Over a ground image it is instead one texture the client
--- lays under the grid (Screen.panes, see display.lua), and only the cells that already hold something are tinted
--- here; an empty cell lets the pane show from beneath.
+-- blended cells, every one a texture the client must show. On the HUD layer (hudBegin, below) it is instead one
+-- texture the client lays over the grid and under that layer (Screen.panes, see display.lua); anything already
+-- drawn on the layer under it is tinted here.
 Screen.panes = { n = 0 }
 function SMeta:pane(x, y, w, h)
-  if not imageMode then return self:fillRect(x, y, w, h) end
+  if not inHud then return self:fillRect(x, y, w, h) end
   local style = self.fillStyle
   if style ~= lastStyle then
     local c = parseColor(style)
@@ -465,6 +466,7 @@ function SMeta:pane(x, y, w, h)
   if not pn then pn = {}; panes[k] = pn end
   panes.n = k
   pn.x, pn.y, pn.w, pn.h, pn.rgb, pn.a = x0, y0, x1 - x0 + 1, y1 - y0 + 1, rgb, a
+  if nNow == 0 then return end   -- nothing drawn on the layer yet, so nothing of it to tint
   local n = x1 - x0 + 1
   local gx = (x0 + ox) % W
   local first = W - gx
@@ -641,15 +643,222 @@ end
 -- gfx.lua switches the bookkeeping on only while a level has props that ship as images
 function Screen.occupancy(on) occOn = on and true or false end
 
+-- ------------------------------------------------------------------------------------------------ sprites
+
+-- The things that move. Painted, a walking adventurer is a dozen cells that change every step and the boss is a
+-- thousand. Over a ground image they can instead be textures the client lays under the grid (display.lua):
+--   Screen.sprite()      a picture from the units sheet (Art/units.tga, listed in ns.Units), one texture
+--   Screen.padSprite()   the boss: any look can be chosen, so it cannot ship as a picture; it gets a block of
+--                        one-pixel textures of its own that moves as one piece and is only recoloured when the boss
+--                        turns or takes a step in its walk
+-- The frame is drawn back to front and the grid lies over every texture, so a sprite "punches": the cells under its
+-- solid pixels are emptied, which is what painting it would have overwritten. Whatever is drawn later lands in the
+-- grid, on top, as it should. Among themselves the textures are ordered by the client: everything before the boss,
+-- the boss, everything after, and within each of the two groups a draw layer one above whatever the sprite overlaps.
+local sprites = { n = 0, pad = nil, padX = 0, padY = 0 }
+Screen.sprites = sprites
+local SPRITE_LAYERS = 64
+local zt, ztf, zstamp = {}, {}, 0     -- screen tile → the draw layer the next sprite there must take, and when that was set
+for t = 1, TW * TH do zt[t] = 0; ztf[t] = 0 end
+
+-- is anything drawn this frame, or retained, in the tiles that screen columns x0..x1 cross on screen row sy?
+local function rowBusy(sy, x0, x1)
+  if not occOn then return true end
+  local f = frame
+  local r = floor(sy / TILE) * TW + 1
+  for tx = floor(x0 / TILE), floor(x1 / TILE) do if occ[r + tx] == f then return true end end
+  r = floor(((sy + oy) % H) / TILE) * TW + 1
+  for tx = floor((x0 + ox) / TILE), floor((x1 + ox) / TILE) do if baseCnt[r + tx % TW] > 0 then return true end end
+  return false
+end
+
+-- empties the cells under a sprite's solid pixels (spans: the runs in each row, as spansOf makes them)
+local function punch(spans, SW, SH, dx, dy)
+  local f, m = frame, mask
+  local r0, r1 = 0, SH - 1
+  if dy < 0 then r0 = -dy end
+  if dy + r1 >= H then r1 = H - 1 - dy end
+  local X0, X1 = dx < 0 and 0 or dx, dx + SW > W and W - 1 or dx + SW - 1
+  local ta, tb, busy = -1, -1, true
+  for r = r0, r1 do
+    local list = spans[r]
+    if list then
+      local sy = dy + r
+      local gy = (sy + oy) % H
+      local a, b = floor(sy / TILE), floor(gy / TILE)
+      if a ~= ta or b ~= tb then ta, tb = a, b; busy = rowBusy(sy, X0, X1) end
+      if busy then
+        local row = gy * W + 1
+        for k = 1, #list, 2 do
+          local sx0, sx1 = dx + list[k], dx + list[k + 1]
+          if sx0 < 0 then sx0 = 0 end
+          if sx1 >= W then sx1 = W - 1 end
+          if sx1 >= sx0 then
+            local n = sx1 - sx0 + 1
+            local gx = (sx0 + ox) % W
+            local first = W - gx
+            if first > n then first = n end
+            local i0, i1 = row + gx, row + gx + first - 1
+            for pass = 1, 2 do
+              for i = i0, i1 do
+                if cur[i] ~= nil and not (m and m[i]) then
+                  if mark[i] ~= f then mark[i] = f; nNow = nNow + 1; now[nNow] = i end
+                  cur[i] = nil
+                end
+              end
+              if first >= n then break end
+              i0, i1 = row, row + n - first - 1
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
+-- owner: the thing being drawn (its texture is kept for it from frame to frame). e: its picture on the sheet,
+-- { u, v, w, h, spans }. wx, wy: where the picture's top left goes in the world. False if it has to be painted.
+function Screen.sprite(owner, e, wx, wy)
+  if not imageMode then return false end
+  local x0, y0 = wx - viewX, wy - viewY
+  local x1, y1 = x0 + e.w - 1, y0 + e.h - 1
+  if x1 < 0 or y1 < 0 or x0 >= W or y0 >= H then return true end   -- off the screen: nothing to show
+  local cx0, cy0, cx1, cy1 = x0 < 0 and 0 or x0, y0 < 0 and 0 or y0, x1 >= W and W - 1 or x1, y1 >= H and H - 1 or y1
+  local z, st = 0, zstamp
+  local tx0, tx1 = floor(cx0 / TILE), floor(cx1 / TILE)
+  local ty0, ty1 = floor(cy0 / TILE), floor(cy1 / TILE)
+  for ty = ty0, ty1 do
+    local r = ty * TW + 1
+    for tx = tx0, tx1 do if ztf[r + tx] == st and zt[r + tx] > z then z = zt[r + tx] end end
+  end
+  if z >= SPRITE_LAYERS then return false end
+  for ty = ty0, ty1 do
+    local r = ty * TW + 1
+    for tx = tx0, tx1 do ztf[r + tx] = st; zt[r + tx] = z + 1 end
+  end
+  punch(e.spans, e.w, e.h, x0, y0)
+  if occOn then markRect(cx0, cy0, cx1, cy1) end
+  local n = sprites.n + 1
+  local s = sprites[n]
+  if not s then s = {}; sprites[n] = s end
+  sprites.n = n
+  s.owner, s.e, s.x, s.y, s.z, s.hi = owner, e, wx, wy, z, sprites.pad ~= nil
+  return true
+end
+
+-- the one big sprite of the frame (the boss), from a canvas of solid pixels. False if it has to be painted.
+function Screen.padSprite(img, wx, wy)
+  if not imageMode or sprites.pad then return false end
+  local spans = spansOf(img)
+  if img.hasAlpha then return false end
+  local SW, SH = img.width, img.height
+  local x0, y0 = wx - viewX, wy - viewY
+  if x0 + SW <= 0 or y0 + SH <= 0 or x0 >= W or y0 >= H then return true end
+  punch(spans, SW, SH, x0, y0)
+  if occOn then markRect(x0 < 0 and 0 or x0, y0 < 0 and 0 or y0, x0 + SW > W and W - 1 or x0 + SW - 1, y0 + SH > H and H - 1 or y0 + SH - 1) end
+  sprites.pad, sprites.padX, sprites.padY = img, wx, wy
+  zstamp = zstamp + 1   -- what comes after is in a group of its own, over the boss
+  return true
+end
+
+-- ------------------------------------------------------------------------------------------------ the HUD layer
+
+-- The HUD stays put on the screen while the grid's cells belong to the ground: every pixel the camera moves, each
+-- edge of each letter and bar lands on different cells, and they all have to be recoloured. Over a ground image the
+-- HUD is drawn on a layer of its own instead, addressed by screen position, which the display shows with textures
+-- of its own on top of the grid: a HUD that says the same thing as last frame costs nothing. Between hudBegin and
+-- hudEnd every drawing call lands there, by pointing the Screen's working tables at the layer's.
+-- There are two such layers: 1 is the HUD, 2 the cursor over it. Drawing the HUD is a third of a frame's drawing,
+-- and nobody reads a score sixty times a second, so the renderer asks hudDue() first: with Screen.hudEvery = 3 the
+-- HUD is drawn on one frame in three and its layer simply stays as it is on the others. The cursor is every frame.
+local function newLayer()
+  return { cur = {}, mark = {}, now = {}, nNow = 0, prev = {}, nPrev = 0, shown = {}, drawn = false, kept = false, live = false, all = false, age = 0 }
+end
+local layers = { newLayer(), newLayer() }
+local hud = nil       -- the layer being drawn on
+local world = {}
+Screen.hudEvery = 1
+-- should the HUD be drawn this frame? (Always, when it goes into the grid.)
+function Screen.hudDue()
+  if not imageMode then return true end
+  local L = layers[1]
+  L.age = L.age + 1
+  if L.age >= Screen.hudEvery or not L.live then L.age = 0; return true end
+  L.kept = true
+  return false
+end
+function Screen.hudBegin(k)
+  if not imageMode or inHud then return end
+  local L = layers[k or 1]
+  hud = L
+  world.cur, world.mark, world.now, world.nNow, world.ox, world.oy, world.mask, world.occ = cur, mark, now, nNow, ox, oy, mask, occOn
+  -- wipe what the layer held
+  local c, list = L.cur, L.now
+  for i = 1, L.nNow do c[list[i]] = nil end
+  L.prev, L.now = L.now, L.prev
+  L.nPrev = L.nNow
+  cur, mark, now, nNow, ox, oy, mask, occOn = c, L.mark, L.now, 0, 0, 0, nil, false
+  inHud, L.drawn, L.live = true, true, true
+end
+function Screen.hudEnd()
+  if not inHud then return end
+  hud.nNow = nNow
+  cur, mark, now, nNow, ox, oy, mask, occOn = world.cur, world.mark, world.now, world.nNow, world.ox, world.oy, world.mask, world.occ
+  inHud = false
+end
+-- Ends a layer's frame: set(cell, value) for every cell of it that is not what the display shows (the cell is its
+-- place on the screen in reading order; the value is nil, a colour, or a colour with an alpha above it).
+function Screen.presentHud(k, set)
+  local L = layers[k]
+  if not L.drawn and not L.kept and L.live then
+    -- a frame without it: whatever the layer still holds goes
+    local c, list = L.cur, L.now
+    for i = 1, L.nNow do c[list[i]] = nil end
+    L.prev, L.now = L.now, L.prev
+    L.nPrev, L.nNow = L.nNow, 0
+    L.live, L.drawn = false, true
+  end
+  local c, shownL, n = L.cur, L.shown, 0
+  if L.all then
+    L.all = false
+    for i = 1, W * H do
+      local v = c[i]
+      if shownL[i] ~= v then shownL[i] = v; n = n + 1; if set then set(i, v) end end
+    end
+    return n
+  end
+  if not L.drawn then return 0 end   -- kept, or empty: nothing has changed
+  for pass = 1, 2 do
+    local list, cnt = L.prev, L.nPrev
+    if pass == 2 then list, cnt = L.now, L.nNow end
+    for i = 1, cnt do
+      local at = list[i]
+      local v = c[at]
+      if shownL[at] ~= v then shownL[at] = v; n = n + 1; if set then set(at, v) end end
+    end
+  end
+  return n
+end
+-- a layer in reading order, for the tests
+function Screen.snapshotHud(k)
+  local out, c = {}, layers[k].cur
+  for i = 1, W * H do out[i] = c[i] end
+  return out
+end
+
 local lastBg, lastTrail, lastFg, lastWater = nil, nil, nil, nil
 -- A frame that was drawn but never shown (the one painted behind a loading screen) leaves the display out of step
 -- with the lists of what changed, so the next frame to be shown sends every cell.
 local sendAll, unshown = false, false
 local function newFrame()
+  if inHud then Screen.hudEnd() end
+  for k = 1, 2 do layers[k].drawn, layers[k].kept = false, false end
   frame = frame + 1
   Screen.panes.n = 0
+  sprites.n, sprites.pad = 0, nil
+  zstamp = zstamp + 1
   nTouched = 0
-  if unshown then sendAll = true end
+  if unshown then sendAll = true; layers[1].all, layers[2].all = true, true end
   unshown = true
 end
 

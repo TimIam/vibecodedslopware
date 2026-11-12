@@ -399,12 +399,14 @@ local wanted = { n = 0 }
 RT.host.propsBegin = function(g)
   local m = g.map
   local P = RT.fixedLayouts and RT.propImages and Screen.ground and ns.Props and m.layout and ns.Props[m.n]
+  -- where things are is worth keeping track of whenever textures lie under the grid (the sprites ask too)
+  Screen.occupancy(Screen.ground ~= nil)
   if not (P and P.file and P.seed == m.layout) then
-    if sheet then sheet = nil; Screen.occupancy(false) end
+    sheet = nil
     Screen.props = nil
     return
   end
-  if not sheet or sheet.map ~= m or sheet.P ~= P then sheet = bind(g, P); Screen.occupancy(true) end
+  if not sheet or sheet.map ~= m or sheet.P ~= P then sheet = bind(g, P) end
   wanted.n, wanted.P = 0, P
   Screen.props = wanted
 end
@@ -418,4 +420,15 @@ RT.host.propDraw = function(p)
   local n = wanted.n + 1
   wanted.n, wanted[n] = n, e
   return true
+end
+
+-- ------------------------------------------------------------------------------------------------ the boss
+
+-- The boss's own picture (render.js drawBoss). Over a ground image it is not painted: the Screen hands it to the
+-- client as a block of textures that moves in one piece (Screen.padSprite). While it flickers (evading) it is
+-- see-through, and that is painted as before. RT.spriteImages off paints everything that moves, as before.
+RT.spriteImages = true
+RT.host.bossSprite = function(ctx, img, x, y)
+  if RT.spriteImages and ctx.globalAlpha >= 0.998 and Screen.ground and img.width <= 56 and img.height <= 56 and Screen.padSprite(img, floor(x + 0.5), floor(y + 0.5)) then return end
+  ctx:drawImage(img, x, y)
 end

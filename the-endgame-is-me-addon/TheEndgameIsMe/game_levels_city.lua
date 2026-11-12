@@ -582,7 +582,7 @@ local W, Hh;
 local __t69 = p; W = __t69.w; Hh = __t69.h;
 local kind = p.kind;
 local v = (__T(p.v) and p.v or 0);
-do return h.sprite((__str(kind) .. "|" .. __str(W) .. "|" .. __str(Hh) .. "|" .. __str(v) .. "|" .. __str(stage)), W, Hh, function(c) 
+do return h.sprite((__str(kind) .. "|" .. __str(W) .. "|" .. __str(Hh) .. "|" .. __str(v) .. "|" .. __str(stage) .. "|" .. __str(__mfmod((p.seed or __NaN), 97))), W, Hh, function(c) 
 local seed = __mfmod((p.seed or __NaN), 97);
 local F = (__T(M.BIG[kind]) and 9 or 7);
 local style = ((kind == "city_house") and ((v == 2) and "tile" or "slate") or ((kind == "city_chapel") and "slate" or ((kind == "city_pub") and "thatch" or ((kind == "city_inn") and "tile" or "shingle"))));

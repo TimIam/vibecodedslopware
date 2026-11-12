@@ -26,5 +26,6 @@ ns.loadAll = function()
   ns.loadGame({ "props", "smoke", "art" })
   load("src/gfx.lua")
   ns.loadGame({ "levels/forest", "levels/clearing", "levels/farms", "levels/village", "levels/wall", "levels/city", "levels/castle", "levels/index", "world", "render" })
+  load("src/sprites.lua")   -- stands in front of the renderer's drawUnit and drawAdd
 end
 return ns
