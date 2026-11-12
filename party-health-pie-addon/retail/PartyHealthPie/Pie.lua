@@ -262,18 +262,35 @@ local function SlotAt(x, y)
 	return math.floor(around / WEDGE) % 5 + 1, around % WEDGE >= WEDGE * (1 - PET_SHARE)
 end
 
+-- The same tooltip Blizzard's unit frames show. UpdateTooltip keeps it current while the pointer rests.
+local function ShowUnitTooltip(button)
+	local unit = button:GetAttribute("unit1")
+	if not unit then return end
+	GameTooltip_SetDefaultAnchor(GameTooltip, button)
+	button.UpdateTooltip = GameTooltip:SetUnit(unit) and ShowUnitTooltip or nil
+end
+
+local function HideUnitTooltip(button)
+	button.UpdateTooltip = nil
+	GameTooltip:Hide()
+end
+
 local function HitButton(index)
 	local button = hitButtons[index]
 	if not button then
 		button = CreateFrame("Button", nil, root, "SecureUnitButtonTemplate")
 		button:SetFrameLevel(borderLayer:GetFrameLevel() + 2)
 		button:EnableMouse(true)
-		button:RegisterForClicks("AnyUp")
+		-- The extra mouse buttons act on press, as they do when bound to a spell away from the wedge.
+		button:RegisterForClicks("LeftButtonUp", "RightButtonUp", "MiddleButtonDown", "Button4Down", "Button5Down")
 		button:SetAttribute("type1", "target") -- left-click selects whoever "unit1" names
 		button.drivers = {}
+		button.clicks = {}
 		button:RegisterForDrag("LeftButton")
 		button:SetScript("OnDragStart", function() ns.StartDrag() end)
 		button:SetScript("OnDragStop", function() ns.StopDrag() end)
+		button:SetScript("OnEnter", ShowUnitTooltip)
+		button:SetScript("OnLeave", HideUnitTooltip)
 		hitButtons[index] = button
 	end
 	return button
@@ -321,6 +338,74 @@ local function Aim(button, attribute, unit, driver)
 	if not driver then button:SetAttribute(attribute, unit) end
 end
 
+-- A frame under the pointer swallows every mouse button, so a key binding on the middle or side
+-- buttons never fires over a wedge. Each strip runs that binding itself. The modifiers are in the
+-- order that key names and secure attribute names both use.
+local MODIFIERS = { "", "SHIFT-", "CTRL-", "CTRL-SHIFT-", "ALT-", "ALT-SHIFT-", "ALT-CTRL-", "ALT-CTRL-SHIFT-" }
+local MULTI_BARS = { "MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft", "MultiBar5", "MultiBar6", "MultiBar7" }
+
+local function BarButton(action)
+	local index = action:match("^ACTIONBUTTON(%d+)$")
+	if index then return "ActionButton" .. index end
+	local bar, slot = action:match("^MULTIACTIONBAR(%d+)BUTTON(%d+)$")
+	local name = bar and MULTI_BARS[tonumber(bar)]
+	return name and (name .. "Button" .. slot)
+end
+
+-- A button acts on the press or the release depending on how it was set up, so it is sent both.
+local function ClickText(name, mouseButton)
+	return ("/click %s %s 1\n/click %s %s"):format(name, mouseButton, name, mouseButton)
+end
+
+-- Which macro attribute runs a binding, and its value. Other bindings, such as autorun, can't be run from here.
+local function BindingCommand(action)
+	local button = BarButton(action)
+	if button then return "macrotext", ClickText(button, "LeftButton") end
+	local kind, rest = action:match("^(%u+) (.+)$")
+	if kind == "SPELL" then return "macrotext", "/cast [@mouseover,help][] " .. rest end
+	if kind == "ITEM" then return "macrotext", "/use [@mouseover,help][] " .. rest end
+	if kind == "MACRO" then return "macro", rest end
+	if kind == "CLICK" then
+		local name, mouseButton = rest:match("^([^:]+):(.+)$")
+		return "macrotext", ClickText(name or rest, mouseButton or "LeftButton")
+	end
+end
+
+local function BoundAction(key)
+	local action = GetBindingAction(key, true)
+	if action and action ~= "" then return action end
+end
+
+-- The game falls back to the plain binding when a modified one isn't set, so this does too.
+local function MouseBindingAttributes()
+	local attributes = {}
+	for number = 3, 5 do
+		local key = "BUTTON" .. number
+		for _, modifiers in ipairs(MODIFIERS) do
+			local action = BoundAction(modifiers .. key) or BoundAction(key)
+			local field, value
+			if action then field, value = BindingCommand(action) end
+			if field then
+				local prefix = modifiers:lower()
+				attributes[prefix .. "type" .. number] = "macro"
+				attributes[prefix .. field .. number] = value
+			end
+		end
+	end
+	return attributes
+end
+
+local function AimClicks(button, attributes)
+	local previous = button.clicks
+	for name in pairs(previous) do
+		if attributes[name] == nil then button:SetAttribute(name, nil) end
+	end
+	for name, value in pairs(attributes) do
+		if previous[name] ~= value then button:SetAttribute(name, value) end
+	end
+	button.clicks = attributes
+end
+
 -- Points the hover areas at whoever each wedge is drawing. Preview wedges are nobody, so they get no unit.
 -- A pet can appear or die in combat, when attributes are locked, so pet arcs use a secure driver
 -- that follows the same rule the drawing does. A dead owner comes first, so resurrection still lands.
@@ -328,6 +413,7 @@ end
 function ns.SyncHover()
 	if InCombatLockdown() then return end
 	local hover = ns.db.mouseover
+	local mouseBindings = MouseBindingAttributes()
 	for _, slot in ipairs(ns.slots) do slot.hoverPet = ns.PetEnabled(slot.class) end
 	for i = 1, hitUsed do
 		local button = hitButtons[i]
@@ -340,6 +426,7 @@ function ns.SyncHover()
 		end
 		Aim(button, "unit1", unit, driver)
 		Aim(button, "unit", hover and unit or nil, hover and driver or nil)
+		AimClicks(button, mouseBindings)
 	end
 end
 

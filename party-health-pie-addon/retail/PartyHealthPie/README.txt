@@ -27,8 +27,10 @@ FIRST USE
 /php        opens the settings (also under Options > AddOns)
 /php demo   previews a sample party; type it again to stop
 
-Drag the circle to move it. Hover a wedge and press a heal key to cast on
-that player or pet. Left-click a wedge to target them.
+Drag the circle to move it. Hover a wedge to see that player's tooltip, and
+press a heal key to cast on them or their pet. Middle and side mouse buttons
+work too, if they're bound to an action bar slot, spell, item or macro.
+Left-click a wedge to target them.
 
 Each wedge shows a tank, healer or DPS symbol for that player's role in the
 group. Someone with no role set gets no symbol.

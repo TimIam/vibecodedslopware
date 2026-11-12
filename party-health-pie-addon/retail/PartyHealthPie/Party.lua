@@ -553,7 +553,7 @@ for _, name in ipairs({
 	"ADDON_LOADED", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "UI_SCALE_CHANGED", "DISPLAY_SIZE_CHANGED",
 	"PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED",
 	"UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_POWER_FREQUENT", "UNIT_MAXPOWER", "UNIT_ABSORB_AMOUNT_CHANGED", "UNIT_HEAL_PREDICTION", "PLAYER_TARGET_CHANGED",
-	"UNIT_DISPLAYPOWER", "UNIT_PET", "UNIT_CONNECTION",
+	"UNIT_DISPLAYPOWER", "UNIT_PET", "UNIT_CONNECTION", "UPDATE_BINDINGS",
 }) do
 	events:RegisterEvent(name)
 end
@@ -591,6 +591,8 @@ events:SetScript("OnEvent", function(_, event, arg1)
 
 	if event == "UI_SCALE_CHANGED" or event == "DISPLAY_SIZE_CHANGED" then
 		ns.Layout()
+	elseif event == "UPDATE_BINDINGS" then
+		ns.SyncHover() -- in combat this waits for the roster update when combat ends
 	elseif event == "PLAYER_ENTERING_WORLD" or event == "GROUP_ROSTER_UPDATE" then
 		UpdateRoster()
 	elseif event == "UNIT_PET" then
