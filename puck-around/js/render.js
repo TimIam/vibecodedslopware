@@ -82,7 +82,9 @@ function skater(x, y, s, C, t, mine) {
   const f = s.face, moving = Math.hypot(s.vx, s.vy) > 22, fr = moving ? ((t * 9 + s.id * 0.37) | 0) & 1 : 0;
   x = Math.round(x); y = Math.round(y);
   R(x - 5, y, 10, 2, 'rgba(30,50,90,.22)'); R(x - 3, y + 2, 6, 1, 'rgba(30,50,90,.22)');
-  if (mine) { R(x - 7, y, 1, 2, mine); R(x + 6, y, 1, 2, mine); R(x - 6, y + 2, 3, 1, mine); R(x + 3, y + 2, 3, 1, mine); R(x - 3, y + 3, 6, 1, mine); R(x - 6, y - 1, 2, 1, mine); R(x + 4, y - 1, 2, 1, mine); }
+  if (mine) {      // a green ring on the ice under the skater you control
+    for (let a = 0; a < 360; a += 6) { const px = Math.round(x + Math.cos(a * Math.PI / 180) * 10), py = Math.round(y - 2 + Math.sin(a * Math.PI / 180) * 4.5); R(px, py + 1, 1, 1, '#0c5a1e'); R(px, py, 1, 1, '#35e04f'); }
+  }
   const skin = SKIN[s.id % SKIN.length];
   if (s.down > 0) {
     R(x - 7 * f, y - 4, 1, 1, '#7a5230');
@@ -113,6 +115,39 @@ function skater(x, y, s, C, t, mine) {
   if (wind) { const lift = Math.min(4, 1 + Math.floor(s.wind * 8)); for (let i = 0; i < lift; i++) R(x - f * (2 + i) + lean, y - 11 - i * 2, 1, 2, '#7a5230'); R(x - f * (2 + lift) + lean - (f > 0 ? 1 : 0), y - 11 - lift * 2, 2, 1, '#20242e'); }
   else if (s.shotAnim > 0) { for (let i = 0; i < 5; i++) R(x + f * (4 + i) + lean, y - 9 - i, 1, 2, '#7a5230'); }
   else { for (let i = 0; i < 4; i++) R(x + f * (5 + i) + lean, y - 8 + i * 2, 1, 2, '#7a5230'); R(f > 0 ? x + 9 + lean : x - 11 + lean, y - 1, 3, 1, '#20242e'); }
+}
+// The referee: on the ice, in stripes, on nobody's side. Purely for show, so each screen moves its own.
+// At a faceoff he stands over the dot with the puck and drops it; in play he keeps along the boards.
+const ref = { x: W / 2, y: MID - 13, face: 1, side: 0, on: false };
+function refStep(V, dt) {
+  const p = V.puck, center = V.phase !== 'play' && V.phase !== 'draw';
+  if (p.y < 44) ref.side = 1; else if (p.y > H - 44) ref.side = 0;
+  const tx = center ? W / 2 : Math.max(60, Math.min(W - 60, p.x + (p.x < W / 2 ? 55 : -55)));
+  const ty = center ? MID - 13 : ref.side ? H - 13 : 15;
+  const dx = tx - ref.x, dy = ty - ref.y, d = Math.hypot(dx, dy), sp = (center ? 210 : 125) * dt;
+  if (!ref.on || d > 520) { ref.x = tx; ref.y = ty; ref.on = true; ref.mv = false; return; }
+  ref.mv = d > 2;
+  if (d <= sp) { ref.x = tx; ref.y = ty; } else { ref.x += dx / d * sp; ref.y += dy / d * sp; if (Math.abs(dx) > 3) ref.face = dx > 0 ? 1 : -1; }
+}
+function referee(V, t) {
+  const x = Math.round(ref.x - cam), y = Math.round(ICE_Y + ref.y), fr = ref.mv ? ((t * 9) | 0) & 1 : 0, f = ref.face;
+  const hold = V.phase === 'faceoff' && Math.abs(ref.x - W / 2) < 3 && Math.abs(ref.y - (MID - 13)) < 3;
+  R(x - 5, y, 10, 2, 'rgba(30,50,90,.22)'); R(x - 3, y + 2, 6, 1, 'rgba(30,50,90,.22)');
+  R(x - 4 - fr, y - 1, 3, 1, '#20242e'); R(x + 1 + fr, y - 1, 3, 1, '#20242e');
+  R(x - 3, y - 7, 6, 6, '#15171d');
+  for (let i = 0; i < 7; i++) R(x - 3 + i, y - 13, 1, 6, i % 2 ? '#15171d' : '#f4f4f0');
+  R(x - 2, y - 16, 4, 3, '#e3b58f'); R(x - 2, y - 18, 4, 2, '#15171d'); R(x + (f > 0 ? 1 : -2), y - 16, 1, 1, '#222');
+  if (hold) { R(x - 1, y - 11, 2, 5, '#f4f4f0'); R(x - 1, y - 12, 2, 1, '#ff8a1e'); R(x - 1, y - 6, 2, 2, '#e3b58f'); }
+  else { R(x + (f > 0 ? 3 : -5), y - 12, 2, 4, '#f4f4f0'); R(x + (f > 0 ? 3 : -5), y - 12, 2, 1, '#ff8a1e'); }
+}
+function cursor(ui) {
+  if (!ui.cur) return;
+  const x = Math.round(ui.cur[0]), y = Math.round(ui.cur[1]);
+  for (const [c, o] of [['#0b0f1a', 1], ['#ffffff', 0]]) {
+    R(x - 6 - o, y - o, 4 + o * 2, 1 + o * 2, c); R(x + 3 - o, y - o, 4 + o * 2, 1 + o * 2, c);
+    R(x - o, y - 6 - o, 1 + o * 2, 4 + o * 2, c); R(x - o, y + 3 - o, 1 + o * 2, 4 + o * 2, c);
+  }
+  R(x, y, 1, 1, '#35e04f');
 }
 function net(side) {
   const x0 = (side ? GR : GL - NET) - cam, y0 = ICE_Y + GY0, h = GY1 - GY0;
@@ -176,9 +211,12 @@ export function draw(V, ui) {
   }
   const savedCam = cam; cam = cx;
   net(0); net(1);
-  const list = V.sk.filter(s => s.out <= 0).sort((a, b) => a.y - b.y);
-  let puckDrawn = p.owner >= 0;
+  refStep(V, ui.dt);
+  const held = V.phase === 'faceoff';      // the puck is in the referee's hand until it drops
+  const list = V.sk.filter(s => s.out <= 0).concat({ isRef: true, y: ref.y }).sort((a, b) => a.y - b.y);
+  let puckDrawn = p.owner >= 0 || held;
   for (const s of list) {
+    if (s.isRef) { referee(V, ui.t); continue; }
     if (!puckDrawn && p.y < s.y) { puck(p); puckDrawn = true; }
     const c = s.ctl >= 0 ? s.ctl : -1;
     skater(s.x - cam, ICE_Y + s.y, s, ui.kits[s.team], ui.t, c >= 0 && c === ui.me ? PLAYER_COLORS[c % 4] : null);
@@ -191,6 +229,11 @@ export function draw(V, ui) {
     }
   }
   if (!puckDrawn) puck(p);
+  if (held) {
+    const k = Math.max(0, Math.min(1, 1 - V.phaseT / 0.28)), hy = ref.y - 5 + (MID - (ref.y - 5)) * k * k, hx = ref.x + (W / 2 - ref.x) * k;
+    if (k > 0) R(Math.round(W / 2 - cam) - 1, ICE_Y + MID + 1, 4, 1, 'rgba(30,50,90,.3)');
+    R(Math.round(hx - cam) - 1, Math.round(ICE_Y + hy) - 1, 3, 2, '#12141a');
+  }
   // where the shot will go: a marker sliding up and down the goal mouth
   for (const team of [0, 1]) {
     const a = V.aim[team];
@@ -209,6 +252,7 @@ export function draw(V, ui) {
   banner(ui);
   if (ui.hint) { const w = measure(ui.hint); R(SW / 2 - w / 2 - 5, SH - 13, w + 10, 11, 'rgba(8,12,24,.7)'); text(g, ui.hint, SW / 2, SH - 11, '#cfd6e6', { align: 'center' }); }
   if (ui.dim) R(0, 0, SW, SH, `rgba(6,9,18,${ui.dim})`);
+  cursor(ui);
 }
 
 // ------------------------------------------------------------------------------------------- fights
@@ -275,6 +319,7 @@ export function drawFight(V, ui) {
   }
   if (ui.hint) { const w = measure(ui.hint); R(SW / 2 - w / 2 - 5, SH - 13, w + 10, 11, 'rgba(8,12,24,.75)'); text(g, ui.hint, SW / 2, SH - 11, '#cfd6e6', { align: 'center' }); }
   if (ui.dim) R(0, 0, SW, SH, `rgba(6,9,18,${ui.dim})`);
+  cursor(ui);
 }
 
 // The big name over the attract game on the title screen.

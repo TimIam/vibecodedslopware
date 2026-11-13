@@ -32,7 +32,7 @@ const typing = e => e.target instanceof HTMLElement && /^(INPUT|SELECT|TEXTAREA)
 const playing = () => G.mode !== 'title' && !G.panel;
 addEventListener('keydown', e => {
   A.init();
-  if (e.code === 'Escape') { if (G.mode !== 'title') { e.preventDefault(); togglePause(); } return; }
+  if (e.code === 'Escape') { if (G.mode !== 'title') { e.preventDefault(); if (performance.now() - lockLostAt > 400) togglePause(); } return; }
   if (typing(e) || !playing()) return;
   if (PASS.includes(e.code) || SHOOT.includes(e.code) || MOVE.includes(e.code)) e.preventDefault();
   if (e.repeat) return;
@@ -48,33 +48,56 @@ addEventListener('pointerdown', () => A.init());
 // Right click passes where you are steering, or switches to whoever is nearest the puck.
 const curView = () => (G.mode === 'guest' ? (G.buf.length ? G.buf[G.buf.length - 1].v : null) : G.S);
 const worldAt = (x, y) => { const r = canvas.getBoundingClientRect(); return [(x - r.left) / r.width * R.SW + R.camX(), (y - r.top) / r.height * R.SH - R.ICE_Y]; };
-function mateAt(e) {
+function mateAt() {
   const V = curView();
   if (!V || G.me < 0 || !playing() || V.phase === 'fight') return -1;
-  const [wx, wy] = worldAt(e.clientX, e.clientY);
+  const [wx, wy] = worldAt(mcx, mcy);
   const team = G.cfg.humans[G.me].team;
   let best = -1, bd = 22;
   for (const s of V.sk) { if (s.team !== team || s.role === 5 || s.out > 0 || s.ctl === G.me) continue; const d = Math.hypot(s.x - wx, s.y - 8 - wy); if (d < bd) { bd = d; best = s.id; } }
   return best;
 }
+// While you play the mouse belongs to the game: the pointer is locked to the rink and the game draws
+// its own cursor, so it cannot wander onto the page, another window or a browser menu. Esc lets it go
+// (and opens the menu); any click on the rink takes it back.
+let locked = false, lockLostAt = 0;
+function lockMouse() {
+  if (locked || !canvas.requestPointerLock || !playing()) return;
+  try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+}
+document.addEventListener('pointerlockchange', () => {
+  const was = locked;
+  locked = document.pointerLockElement === canvas;
+  const r = canvas.getBoundingClientRect();
+  if (locked) { mcx = clamp(mcx || r.left + r.width / 2, r.left, r.right - 1); mcy = clamp(mcy || r.top + r.height / 2, r.top, r.bottom - 1); }
+  else if (was && playing()) { lockLostAt = performance.now(); togglePause(); }
+});
 const wrap = $('wrap');
 wrap.addEventListener('mousedown', e => {
   if (!playing()) return;
   e.preventDefault(); canvas.focus();
-  mouseMode = true; mcx = e.clientX; mcy = e.clientY; [aimX, aimY] = worldAt(mcx, mcy);
+  if (!locked) { mcx = e.clientX; mcy = e.clientY; lockMouse(); }
+  mouseMode = true; [aimX, aimY] = worldAt(mcx, mcy);
   const V = curView();
   if (!V) return;
   if (V.phase === 'fight') { if (e.button === 0) ca++; else if (e.button === 2) cb++; return; }
   if (e.button === 2) { tgt = -1; ca++; return; }
   if (e.button !== 0) return;
-  const mate = mateAt(e);
+  const mate = mateAt();
   if (mate >= 0) { tgt = mate; ca++; } else { cb++; mouseB = true; }
 });
 addEventListener('mouseup', e => { if (e.button === 0) mouseB = false; });
 // No browser menus anywhere on the page: right click is a game button. (Text boxes keep theirs.)
 addEventListener('contextmenu', e => { if (!typing(e)) e.preventDefault(); });
 addEventListener('auxclick', e => { if (!typing(e)) e.preventDefault(); });
-wrap.addEventListener('mousemove', e => { mcx = e.clientX; mcy = e.clientY; if (playing()) mouseMode = true; G.hover = mateAt(e); });
+addEventListener('mousemove', e => {
+  if (locked) { const r = canvas.getBoundingClientRect(); mcx = clamp(mcx + e.movementX, r.left, r.right - 1); mcy = clamp(mcy + e.movementY, r.top, r.bottom - 1); }
+  else { mcx = e.clientX; mcy = e.clientY; }
+  if (playing()) mouseMode = true;
+  G.hover = mateAt();
+});
+// Right and middle buttons never reach the browser while a game is on.
+for (const ev of ['mousedown', 'mouseup', 'pointerdown', 'pointerup']) addEventListener(ev, e => { if (e.button !== 0 && G.mode !== 'title' && !typing(e)) e.preventDefault(); }, true);
 wrap.addEventListener('mouseleave', () => { G.hover = -1; });
 function readInput() {
   const k = c => keys.has(c);
@@ -160,7 +183,7 @@ function show(id) {
     $('pause-title').textContent = G.mode === 'solo' ? 'Paused' : 'Menu (the game carries on)';
     $('b-quit').textContent = G.mode === 'solo' ? 'Quit to the menu' : G.mm ? 'Leave the match' : G.mode === 'host' ? 'End the game for everyone' : 'Leave the room';
   }
-  if (!id) canvas.focus();
+  if (id) { if (document.pointerLockElement) document.exitPointerLock(); } else { canvas.focus(); lockMouse(); }
 }
 let noticeT = 0;
 function notice(msg) { const n = $('notice'); n.textContent = msg; n.classList.toggle('on', !!msg); clearTimeout(noticeT); if (msg) noticeT = setTimeout(() => n.classList.remove('on'), 7000); }
@@ -463,7 +486,7 @@ function guestView() {
   }
   return V;
 }
-const KEYS_HINT = 'SKATER FOLLOWS THE MOUSE   CLICK: SHOOT THERE (HOLD = SLAPSHOT) / CHECK   CLICK A TEAMMATE OR RIGHT CLICK: PASS';
+const KEYS_HINT = 'MOUSE: SKATE AND AIM   CLICK: SHOOT / CHECK   RIGHT CLICK: PASS';
 function render(dt) {
   const V = G.mode === 'guest' ? guestView() : G.S;
   if (!V) { const g = canvas.getContext('2d'); g.fillStyle = '#0b0f1a'; g.fillRect(0, 0, R.SW, R.SH); R.drawPanel([{ text: 'WAITING FOR THE HOST...', color: '#f2c230' }], 120); return; }
@@ -476,6 +499,10 @@ function render(dt) {
       ? 'A/D: MOVE   W: GUARD HEAD   S: GUARD BODY   LEFT CLICK: JAB   RIGHT CLICK: BODY SHOT' : 'YOUR TEAMMATE IS IN THIS ONE';
     else if ((V.phase === 'faceoff' || V.phase === 'draw') && mine && Math.abs(mine.x - 480) < 20 && Math.abs(mine.y - 108) < 4) ui.hint = 'CLICK THE MOMENT THE PUCK DROPS';
     else if (V.phase === 'play' && G.hintT > 0) ui.hint = KEYS_HINT;
+  }
+  if (playing()) {
+    if (locked) { const r = canvas.getBoundingClientRect(); ui.cur = [(mcx - r.left) / r.width * R.SW, (mcy - r.top) / r.height * R.SH]; }
+    else if (!ui.hint && canvas.requestPointerLock && matchMedia('(pointer: fine)').matches) ui.hint = 'CLICK THE RINK TO PLAY WITH THE MOUSE   ESC LETS IT GO';
   }
   if (V.phase === 'fight' && V.fight) R.drawFight(V, ui); else R.draw(V, ui);
   if (title) R.drawLogo(G.t);
@@ -527,4 +554,4 @@ if (invite) { $('code').value = invite; show('p-online'); $('online-status').tex
 requestAnimationFrame(frame);
 
 // Handles for automated tests on a developer's machine.
-if (LOCAL) window.__pa = { G, SIM, ELO, startMatch, tick, enterRoom, hostStart, startQueue, press: k => { if (k === 'a') ca++; else cb++; }, inp, keys };
+if (LOCAL) window.__pa = { mouse: () => ({ locked, mcx, mcy, mouseMode }), G, SIM, ELO, startMatch, tick, enterRoom, hostStart, startQueue, press: k => { if (k === 'a') ca++; else cb++; }, inp, keys };
