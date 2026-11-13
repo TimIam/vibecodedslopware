@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Party Health Pie · Vibe Coded Slopware</title>
+<meta name="description" content="A circular 5-man party health meter for World of Warcraft: Classic Forever and retail Midnight, with resources, pets, shields, incoming heals and mouseover healing. Free addon.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥧</text></svg>">
+<style>
+:root{--bg:#f4f0e6;--fg:#1f1d1a;--dim:#6b665c;--card:#fffdf7;--line:#ddd5c4;--accent:#3f7d4e;--accent-fg:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#15171a;--fg:#ece8df;--dim:#9a958a;--card:#1d2024;--line:#2e3238;--accent:#8fc46a;--accent-fg:#15171a}}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}
+main{max-width:760px;margin:0 auto;padding:40px 16px 120px}
+h1{font-size:clamp(38px,8vw,64px);line-height:1.02;margin:28px 0 12px;letter-spacing:-1.5px}
+.lede{font-size:clamp(18px,2.6vw,21px);margin:0 0 8px;max-width:600px}
+.hint{color:var(--dim);font-style:italic;font-family:Georgia,serif;margin:0 0 32px}
+.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:28px}
+.btn{display:inline-flex;flex-direction:column;padding:13px 20px;border-radius:12px;text-decoration:none;border:1px solid var(--line);color:inherit;background:var(--card);transition:transform .15s,border-color .15s}
+.btn:hover{transform:translateY(-2px);border-color:var(--accent)}
+.btn b{font-size:16.5px}
+.btn small{color:var(--dim);font-size:12.5px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.primary small{color:inherit;opacity:.8}
+.note{color:var(--dim);font-size:13.5px;max-width:600px;margin:-14px 0 26px}
+figure{margin:0 0 8px}
+figure img{display:block;width:100%;max-width:520px;height:auto;border-radius:12px;border:1px solid var(--line)}
+figcaption{color:var(--dim);font-size:13px;margin-top:6px}
+h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:36px 0 12px;font-weight:600}
+ul,ol{margin:0;padding-left:22px}
+li{margin:7px 0}
+li b{font-weight:600}
+code{font:13.5px Consolas,monospace;border:1px solid var(--line);border-radius:5px;padding:1px 5px;background:var(--card);overflow-wrap:anywhere}
+.path{display:block;margin:6px 0;padding:8px 10px;width:fit-content;max-width:100%}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:15px}
+footer{margin-top:56px;color:var(--dim);font-size:13px}
+</style>
+<link rel="stylesheet" href="/site-nav.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<main>
+  <h1>Party Health Pie</h1>
+  <p class="lede">Your whole 5-man party in one circle. A radial health, resource, pet, shield and incoming-heal meter for World of Warcraft: Classic Forever and retail Midnight.</p>
+  <p class="hint">An early release. Bars are a shape, and the shape can be a pie.</p>
+
+  <div class="cta">
+    <a class="btn primary" href="/party-health-pie/PartyHealthPie-1.1.1.zip" download>
+      <b>Download for Classic Forever</b><small>v1.1.1 · 0.3 MB · free</small>
+    </a>
+    <a class="btn primary" href="/party-health-pie/PartyHealthPie-Retail-1.1.1.zip" download>
+      <b>Download for retail (Midnight)</b><small>v1.1.1 · 0.3 MB · free · adds all 13 classes</small>
+    </a>
+  </div>
+  <p class="note">The retail build hasn’t been played on a live retail client yet, so treat it as a test release. The debuff glow is new in 1.1.0 and hasn’t been tested in a real group yet.</p>
+
+  <figure>
+    <img src="/party-health-pie/preview.png" width="520" height="260" alt="Two pie meters with five colored wedges each. One shows blue shield bands at the rim and pale green incoming-heal bands. The other shows tank, healer and DPS symbols, with a purple sword and a green shield glowing for players who have a debuff.">
+    <figcaption>Rendered from the addon’s own drawing code, not an in-game screenshot.</figcaption>
+  </figure>
+
+  <h2>Install</h2>
+  <ol>
+    <li><b>Exit World of Warcraft.</b></li>
+    <li><b>Unzip the download.</b> You get a folder called <code>PartyHealthPie</code>.</li>
+    <li><b>Move that folder into the AddOns folder for your version of the game:</b>
+      <code class="path">Classic Forever: C:\Program Files (x86)\World of Warcraft\_forever_\Interface\AddOns</code>
+      <code class="path">Retail: C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns</code>
+      On a Mac, the folder starts with <code>/Applications/World of Warcraft/</code>. If you installed the game somewhere else, look there.
+    </li>
+    <li><b>Check the folder isn’t doubled.</b> This file should exist:
+      <code class="path">...\AddOns\PartyHealthPie\PartyHealthPie.toc</code>
+    </li>
+    <li><b>Start the game.</b> On the character select screen, click <b>AddOns</b> and make sure Party Health Pie is ticked.</li>
+    <li><b>Try it.</b> Type <code>/php demo</code> in chat to see a sample party, and the same again to stop.</li>
+  </ol>
+
+  <h2>If it doesn’t show up</h2>
+  <ul>
+    <li><b>Not in the AddOns list?</b> Look for a doubled folder like <code>AddOns\PartyHealthPie\PartyHealthPie\</code>, and make sure the download matches the folder: the Classic Forever zip goes in <code>_forever_</code>, the retail zip in <code>_retail_</code>.</li>
+    <li><b>Marked out of date?</b> Tick <b>Load out of date AddOns</b> on the same screen.</li>
+    <li><b>Updating?</b> Exit the game, delete the old folder and install the new one. Your settings are kept.</li>
+  </ul>
+
+  <h2>How to read it</h2>
+  <ul>
+    <li><b>Health</b> fills the outer 3/5 of a wedge in class color and sinks toward the center as it drops.</li>
+    <li><b>Resources</b> fill the inner 2/5 and drain outward toward the health line.</li>
+    <li><b>Pets</b> take a full-height slice, 33% of their owner’s wedge.</li>
+    <li><b>Shields</b> are a blue band from the rim inward, sized by % of max health.</li>
+    <li><b>Incoming heals</b> are a pale green band starting where health ends.</li>
+    <li><b>Low health</b> (33% or below) turns the wedge deep red with a thick flashing outline.</li>
+    <li><b>Dead</b> is charcoal, <b>disconnected</b> is grey, and someone who <b>left</b> leaves a transparent wedge.</li>
+    <li><b>Your target</b> gets a yellow outline. Select a pet and only its slice lights up.</li>
+    <li><b>Role symbols</b> mark each player as tank (shield), healer (cross) or DPS (sword).</li>
+    <li><b>Debuffs you can dispel</b> turn the symbol curse purple, magic blue, disease gold or poison green. A halo fades as the debuff runs out, and a countdown shows the seconds left.</li>
+  </ul>
+
+  <h2>Healing with it</h2>
+  <ul>
+    <li><b>Hover</b> a wedge and press a heal key to cast on that player or pet. Hover a pet’s slice to heal the pet.</li>
+    <li><b>Hover</b> a wedge to see that player’s tooltip: name, level, class and guild.</li>
+    <li><b>Middle and side mouse buttons</b> work over a wedge too. Normally a frame under the pointer swallows those clicks, so a heal bound to Mouse 4 or 5 does nothing over party frames. Here, each wedge runs whatever the button is bound to: an action bar slot, a spell, an item or a macro, with Shift, Ctrl and Alt versions.</li>
+    <li><b>Left-click</b> a wedge to target them.</li>
+    <li>On first login the addon turns on the game’s Mouseover Cast option so hovering works, and tells you in chat. You can change it under Options &gt; Combat, or turn off Mouseover Healing in the addon’s settings.</li>
+  </ul>
+
+  <h2>Make it yours</h2>
+  <ul>
+    <li>Drag it anywhere, and resize it from 90 to 420 pixels.</li>
+    <li>Recolor every class, resource, class pet, low-health, shield, incoming-heal and target color.</li>
+    <li>Pick a border: Steel, Iron, Silver, Gold or Brass.</li>
+    <li>Set border and player color opacity separately.</li>
+    <li>Turn pet wedges and resources on or off for each class.</li>
+    <li>On retail, tick <b>Secondary</b> for a class to show its combo points, holy power, soul shards, chi, arcane charges, essence or runes in place of its main power.</li>
+  </ul>
+
+  <h2>Commands</h2>
+  <div class="keys">
+    <span><code>/php</code></span><span>open the settings (also under Options &gt; AddOns)</span>
+    <span><code>/php demo</code></span><span>preview a sample party</span>
+  </div>
+
+  <h2>Good to know</h2>
+  <ul>
+    <li>WoW locks mouseover targets during combat. If the party changes mid-fight, wedges may shuffle by party position until combat ends, but each wedge always shows who a hover would hit.</li>
+    <li>The circle can’t be dragged during combat, and size changes apply when combat ends.</li>
+    <li>A low-health wedge stays red until the player recovers to 50%. When the game hides party health from addons, it follows the 33% line both ways instead.</li>
+    <li>Instant heals have no cast, so they don’t show an incoming-heal band.</li>
+    <li>Role symbols come from the role set in the game, so someone with no role has no symbol. They still get the debuff halo and countdown.</li>
+    <li>If a player has several debuffs you can dispel, the symbol shows the one ending soonest.</li>
+    <li>On retail, the game may not report other players’ secondary resources. If a class with Secondary ticked shows an empty band, untick it.</li>
+    <li>A mouse button bound to something other than a cast or macro, like autorun or ping, still does nothing while the pointer is over a wedge.</li>
+  </ul>
+
+  <h2>What’s new</h2>
+  <ul>
+    <li><b>1.1.1:</b> hovering a wedge shows the player’s tooltip, and heals bound to the middle and side mouse buttons now cast on the wedge under the pointer.</li>
+    <li><b>1.1.0:</b> role symbols, and a debuff color, glow and countdown for dispels.</li>
+  </ul>
+
+  <footer>Made with questionable judgment and an AI pair programmer. The healer is still blamed.</footer>
+</main>
+</body>
+</html>

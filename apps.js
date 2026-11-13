@@ -120,6 +120,11 @@ window.SLOPWARE = {
      "n": 4,
      "date": "2026-11-12T04:37:09-07:00",
      "note": "1.1.1 downloads, tooltip and mouse-button notes"
+    },
+    {
+     "n": 5,
+     "date": "2026-11-13T07:02:34-07:00",
+     "note": "1.1.2 downloads, countdown and /php debuffs notes"
     }
    ]
   },
