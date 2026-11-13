@@ -197,6 +197,7 @@ body.gripping #shot{opacity:0}
 .room input:focus{border-color:var(--red)}
 .room input:disabled{opacity:.45}
 #roomCode{flex:1}
+.room .modes .chip:disabled{opacity:.45;cursor:default}
 #roomPin{width:84px;text-align:center}
 .btn:disabled{opacity:.6;cursor:progress}
 #continueNote{margin:8px 0 0;font-weight:900;color:#14a35a}
@@ -369,6 +370,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
         <input type="text" id="roomCode" maxlength="24" placeholder="Invite code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Invite code">
         <input type="text" id="roomPin" maxlength="4" inputmode="numeric" placeholder="PIN" autocomplete="off" aria-label="Four digit room PIN">
       </div>
+      <div class="btns modes" role="group" aria-label="Game mode"><button class="chip" id="modeVs" title="Everyone plays their own ball">⚔️ Versus</button><button class="chip" id="modeCo" title="One ball for the room, take turns">🤝 Co-op</button></div>
       <div class="btns"><button class="btn small" id="newRoom">New private room</button><button class="btn small" id="copyInvite">Copy invite link</button><button class="btn small" id="restartClimb">Restart climb</button></div>
     </div>
     <div class="row"><label>Skin</label><div class="sws" id="skinSw"></div></div>
