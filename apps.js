@@ -306,8 +306,8 @@ window.SLOPWARE = {
   },
   "desert-chase": {
    "visits": 0,
-   "prompts": 6,
-   "tokens": 3018220,
+   "prompts": 10,
+   "tokens": 3104256,
    "sharedWith": null,
    "versions": [
     {
@@ -315,7 +315,14 @@ window.SLOPWARE = {
      "date": "2026-11-12T17:32:00-07:00",
      "note": "a screensaver where the coyote always fails",
      "prompts": 6,
-     "tokens": 3018220
+     "tokens": 3016840
+    },
+    {
+     "n": 2,
+     "date": "2026-11-12T18:54:27-07:00",
+     "note": "raise the camera so less of the frame is empty sand",
+     "prompts": 4,
+     "tokens": 87416
     }
    ]
   },
