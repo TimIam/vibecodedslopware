@@ -176,6 +176,11 @@ window.SLOPWARE = {
      "n": 5,
      "date": "2026-11-12T12:52:30-07:00",
      "note": "Ice Floor no longer slows the game to a crawl"
+    },
+    {
+     "n": 6,
+     "date": "2026-11-13T12:54:02-07:00",
+     "note": "smoother, fire and ice cost less and ash no longer hitches"
     }
    ]
   },
@@ -1368,7 +1373,7 @@ window.SLOPWARE = {
   "puck-around": {
    "visits": 0,
    "prompts": 8,
-   "tokens": 2107725,
+   "tokens": 2118172,
    "sharedWith": null,
    "versions": [
     {
@@ -1404,7 +1409,7 @@ window.SLOPWARE = {
      "date": "2026-11-13T07:08:28-07:00",
      "note": "a referee drops the puck, the mouse is captured, green ring under your skater",
      "prompts": 2,
-     "tokens": 824419
+     "tokens": 834866
     }
    ]
   },
