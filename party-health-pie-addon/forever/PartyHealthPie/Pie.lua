@@ -193,10 +193,14 @@ for i = 1, 5 do
 		roleTint = colorLayer:CreateTexture(nil, "OVERLAY", nil, 1),
 		roleGlow = NewTexture(colorLayer, "OVERLAY", -1, "role_glow"),
 		roleTimer = colorLayer:CreateFontString(nil, "OVERLAY"),
+		roleMinutes = colorLayer:CreateFontString(nil, "OVERLAY"), -- takes over from the seconds on long debuffs
 	}
-	slot.roleTimer:SetDrawLayer("OVERLAY", 2)
-	slot.roleTimer:SetFont(STANDARD_TEXT_FONT, ROLE_TIMER_MIN, "OUTLINE") -- text set before a font is an error
-	slot.roleTimer:SetTextColor(1, 1, 1)
+	for _, text in ipairs({ slot.roleTimer, slot.roleMinutes }) do
+		text:SetDrawLayer("OVERLAY", 2)
+		text:SetFont(STANDARD_TEXT_FONT, ROLE_TIMER_MIN, "OUTLINE") -- text set before a font is an error
+		text:SetTextColor(1, 1, 1)
+		text:SetAlpha(0)
+	end
 	ns.slots[i] = slot
 end
 
@@ -473,7 +477,7 @@ local function PlaceRole(slot)
 	local theta = ((slot.index - 1) * WEDGE - WEDGE / 2 + arc / 2) * RAD
 	local distance = ns.db.size / 2 * ROLE_DISTANCE
 	local x, y = math.sin(theta) * distance, math.cos(theta) * distance
-	for _, part in ipairs({ slot.role, slot.roleTint, slot.roleGlow, slot.roleTimer }) do
+	for _, part in ipairs({ slot.role, slot.roleTint, slot.roleGlow, slot.roleTimer, slot.roleMinutes }) do
 		part:SetPoint("CENTER", root, "CENTER", x, y)
 	end
 end
@@ -533,7 +537,9 @@ function ns.Layout()
 		slot.role:SetSize(size * ROLE_SIZE, size * ROLE_SIZE)
 		slot.roleTint:SetSize(size * ROLE_SIZE, size * ROLE_SIZE)
 		slot.roleGlow:SetSize(size * ROLE_SIZE * ROLE_GLOW_SCALE, size * ROLE_SIZE * ROLE_GLOW_SCALE)
-		slot.roleTimer:SetFont(STANDARD_TEXT_FONT, math.max(ROLE_TIMER_MIN, size * ROLE_TIMER_SIZE), "OUTLINE")
+		local timerFont = math.max(ROLE_TIMER_MIN, size * ROLE_TIMER_SIZE)
+		slot.roleTimer:SetFont(STANDARD_TEXT_FONT, timerFont, "OUTLINE")
+		slot.roleMinutes:SetFont(STANDARD_TEXT_FONT, timerFont, "OUTLINE")
 		PlaceRole(slot)
 	end
 
@@ -633,19 +639,23 @@ function ns.SetRoleTint(slot, texture, show)
 	slot.roleTint:SetAlphaFromBoolean(show, 1, 0)
 end
 
--- Every value may be secret, so each goes straight to a call that accepts one.
-function ns.SetDispel(slot, r, g, b, glow, seconds, timerAlpha)
+-- Every value may be secret, so each goes straight to a call that accepts one. The seconds and the
+-- minutes are both always set; their alphas decide which one shows.
+function ns.SetDispel(slot, r, g, b, glow, seconds, secondsAlpha, minutes, minutesAlpha)
 	slot.roleTint:SetVertexColor(r, g, b)
 	slot.roleGlow:SetVertexColor(r, g, b)
 	slot.roleGlow:SetAlpha(glow)
 	slot.roleTimer:SetFormattedText("%.0f", seconds)
-	slot.roleTimer:SetAlpha(timerAlpha)
+	slot.roleTimer:SetAlpha(secondsAlpha)
+	slot.roleMinutes:SetFormattedText("%.0fm", minutes)
+	slot.roleMinutes:SetAlpha(minutesAlpha)
 end
 
 function ns.ClearDispel(slot)
 	slot.roleTint:SetAlpha(0)
 	slot.roleGlow:SetAlpha(0)
 	slot.roleTimer:SetAlpha(0)
+	slot.roleMinutes:SetAlpha(0)
 end
 
 function ns.SetHeal(slot, max, health, amount)

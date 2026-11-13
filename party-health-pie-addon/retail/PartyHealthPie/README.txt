@@ -26,6 +26,7 @@ FIRST USE
 
 /php        opens the settings (also under Options > AddOns)
 /php demo   previews a sample party; type it again to stop
+/php debuffs  lists each member's debuffs and why one has no countdown
 
 Drag the circle to move it. Hover a wedge to see that player's tooltip, and
 press a heal key to cast on them or their pet. Middle and side mouse buttons

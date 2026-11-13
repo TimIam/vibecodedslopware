@@ -10,6 +10,10 @@ local function Plain(v)
 	return v
 end
 
+local ROUND_UP = 0.49 -- just under half, so a whole number of seconds left isn't shown as one more
+local MINUTES_FROM = 99.001 -- seconds left above which the countdown is in minutes
+local LONGEST_DEBUFF = 86400 -- the rounding curves are straight lines out to here
+
 local function CellForFraction(f)
 	local span = CELLS_LAST - CELLS_FIRST
 	local index = CELLS_FIRST + math.floor(math.max(0, math.min(1, f)) * span + 0.5)
@@ -61,12 +65,30 @@ local function BuildSharedCurves()
 	glow:AddPoint(1, 1)
 	curves.glow = glow
 
+	-- The countdown rounds up, like the game's own cooldowns, so it never reads 0 while the debuff is on.
+	-- "%.0f" rounds to nearest, so adding just under half does it. Past MINUTES_FROM seconds it counts
+	-- in minutes instead, so a long curse reads "5m" rather than a number wider than the symbol.
+	local function RoundedUp(perUnit)
+		local curve = C_CurveUtil.CreateCurve()
+		curve:SetType(Enum.LuaCurveType.Linear)
+		curve:AddPoint(0, ROUND_UP)
+		curve:AddPoint(LONGEST_DEBUFF, LONGEST_DEBUFF / perUnit + ROUND_UP)
+		return curve
+	end
+	curves.seconds, curves.minutes = RoundedUp(1), RoundedUp(60)
+
 	-- A debuff with no end has zero seconds left, and no number is better than a stuck 0.
-	local timerAlpha = C_CurveUtil.CreateCurve()
-	timerAlpha:SetType(step)
-	timerAlpha:AddPoint(0, 0)
-	timerAlpha:AddPoint(0.05, 1)
-	curves.timerAlpha = timerAlpha
+	local secondsAlpha = C_CurveUtil.CreateCurve()
+	secondsAlpha:SetType(step)
+	secondsAlpha:AddPoint(0, 0)
+	secondsAlpha:AddPoint(0.05, 1)
+	secondsAlpha:AddPoint(MINUTES_FROM, 0)
+	curves.secondsAlpha = secondsAlpha
+	local minutesAlpha = C_CurveUtil.CreateCurve()
+	minutesAlpha:SetType(step)
+	minutesAlpha:AddPoint(0, 0)
+	minutesAlpha:AddPoint(MINUTES_FROM, 1)
+	curves.minutesAlpha = minutesAlpha
 end
 
 -- At or below the low threshold the wedge is the low colour; above it, the class colour.
@@ -208,12 +230,25 @@ end
 
 -- The debuff this player can dispel that runs out soonest. The list of IDs is plain, but the type and
 -- the time left are not, so they come back as a color and a duration object for widgets to use.
-local function ReadDebuff(unit)
+-- Timed debuffs sort before ones with no end, so a permanent one never hides another's countdown.
+local function ShownDebuffID(unit)
 	local ids = C_UnitAuras.GetUnitAuraInstanceIDs(unit, "HARMFUL|RAID", 1, Enum.UnitAuraSortRule.ExpirationOnly)
-	local id = ids and Plain(ids[1])
+	return ids and Plain(ids[1])
+end
+
+local function ReadDebuff(unit)
+	local id = ShownDebuffID(unit)
 	if not id then return end
 	return C_UnitAuras.GetAuraDispelTypeColor(unit, id, curves.dispel), C_UnitAuras.GetAuraDuration(unit, id)
 end
+
+-- The countdown's four values, from a duration object or, in the preview, plain seconds.
+local function Countdown(evaluate, source)
+	return evaluate(source, curves.seconds), evaluate(source, curves.secondsAlpha),
+		evaluate(source, curves.minutes), evaluate(source, curves.minutesAlpha)
+end
+local function FromDuration(timer, curve) return timer:EvaluateRemainingDuration(curve) end
+local function FromSeconds(seconds, curve) return curve:Evaluate(seconds) end
 
 local function TintRole(slot, texture, show)
 	if ns.db.roleIcons then
@@ -238,7 +273,8 @@ local function ApplyDispel(slot)
 		local left = debuff.seconds - GetTime() % debuff.seconds
 		local c = ns.DISPEL_COLORS[debuff.type]
 		TintRole(slot, ROLE_TINTS[slot.demo.role], true)
-		ns.SetDispel(slot, c[1], c[2], c[3], ns.GLOW_MIN + (1 - ns.GLOW_MIN) * left / debuff.seconds, left, 1)
+		ns.SetDispel(slot, c[1], c[2], c[3], ns.GLOW_MIN + (1 - ns.GLOW_MIN) * left / debuff.seconds,
+			Countdown(FromSeconds, left))
 		return
 	end
 	-- An aura can vanish between these calls, and a stale ID must not take the meter down with it.
@@ -250,8 +286,7 @@ local function ApplyDispel(slot)
 	local info = UnitFrameUtil.GetUnitRoleIconDisplayInfo(slot.unit, ROLE_TINT_OPTIONS)
 	TintRole(slot, info.roleIconTexture, info.showRoleIcon)
 	local r, g, b = color:GetRGB()
-	ns.SetDispel(slot, r, g, b, timer:EvaluateRemainingPercent(curves.glow), timer:GetRemainingDuration(),
-		timer:EvaluateRemainingDuration(curves.timerAlpha))
+	ns.SetDispel(slot, r, g, b, timer:EvaluateRemainingPercent(curves.glow), Countdown(FromDuration, timer))
 end
 
 -- Works out the wedge's state and shape from facts the game gives as plain values.
@@ -624,12 +659,85 @@ events:SetScript("OnEvent", function(_, event, arg1)
 	end
 end)
 
+-- ---- /php debuffs ------------------------------------------------------------------------------
+
+-- What the game says about each member's debuffs, to tell why one shows no countdown. Anything the
+-- game keeps secret is reported as hidden rather than read.
+local function Say(v)
+	if issecretvalue and issecretvalue(v) then return "hidden" end
+	return tostring(v)
+end
+
+local function DescribeDebuff(unit, id, dispellable, shown)
+	local aura = C_UnitAuras.GetAuraDataByAuraInstanceID(unit, id)
+	if issecretvalue and issecretvalue(aura) then return "a debuff the game keeps hidden" end
+	if not aura then return nil end
+	local kind = aura.dispelName
+	if issecretvalue and issecretvalue(kind) then
+		kind = "type hidden"
+	elseif not kind or kind == "" then
+		kind = "no dispel type"
+	end
+	local duration, expires = Plain(aura.duration), Plain(aura.expirationTime)
+	local time
+	if not duration or not expires then
+		time = "time left hidden by the game"
+	elseif duration == 0 then
+		time = "the game gives no end time, so there is no countdown"
+	else
+		time = ("%.0f of %.0f seconds left"):format(math.max(0, expires - GetTime()), duration)
+	end
+	local status = dispellable and "you can dispel it" or "you can't dispel it, so the wedge ignores it"
+	if shown then status = "you can dispel it, and it is the one the wedge shows" end
+	return ("%s (%s): %s; %s."):format(Say(aura.name), kind, time, status)
+end
+
+local function ReportDebuffs()
+	local say = function(text) print("Party Health Pie: " .. text) end
+	if not ns.db.dispelGlow then say("the debuff glow is turned off in the settings.") end
+	local found = false
+	for _, slot in ipairs(ns.slots) do
+		local unit = slot.unit
+		if unit and Plain(UnitExists(unit)) then
+			local who = Say(UnitName(unit))
+			local ok, all = pcall(C_UnitAuras.GetUnitAuraInstanceIDs, unit, "HARMFUL")
+			if not ok or type(all) ~= "table" then
+				found = true
+				say(who .. ": the game won't list their debuffs right now.")
+			else
+				local mine = {}
+				local okMine, ids = pcall(C_UnitAuras.GetUnitAuraInstanceIDs, unit, "HARMFUL|RAID")
+				if okMine and type(ids) == "table" then
+					for _, id in ipairs(ids) do
+						id = Plain(id)
+						if id then mine[id] = true end
+					end
+				end
+				local okShown, shown = pcall(ShownDebuffID, unit)
+				if not okShown then shown = nil end
+				for _, id in ipairs(all) do
+					found = true
+					local plainID = Plain(id)
+					local okText, text = false, nil
+					if plainID then okText, text = pcall(DescribeDebuff, unit, plainID, mine[plainID], plainID == shown) end
+					if not okText or not text then text = "a debuff the game keeps hidden." end
+					say(who .. ": " .. text)
+				end
+			end
+		end
+	end
+	if not found then say("nobody in the party has a debuff right now.") end
+end
+ns.ReportDebuffs = ReportDebuffs
+
 SLASH_PARTYHEALTHPIE1 = "/php"
 SLASH_PARTYHEALTHPIE2 = "/healthpie"
 SlashCmdList.PARTYHEALTHPIE = function(input)
 	if input:lower():match("^%s*demo") then
 		ns.SetDemo(not ns.demo)
 		if ns.RefreshOptions then ns.RefreshOptions() end
+	elseif input:lower():match("^%s*debuff") then
+		ReportDebuffs()
 	else
 		ns.OpenOptions()
 	end
