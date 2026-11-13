@@ -1355,13 +1355,20 @@ window.SLOPWARE = {
      "note": "tumble off ledges, kick their balls, steal their carts",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 28,
+     "date": "2026-11-13T07:09:43-07:00",
+     "note": "one cart path tee to summit, with driving puzzles",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
   "puck-around": {
    "visits": 0,
    "prompts": 8,
-   "tokens": 2106269,
+   "tokens": 2107725,
    "sharedWith": null,
    "versions": [
     {
@@ -1397,7 +1404,7 @@ window.SLOPWARE = {
      "date": "2026-11-13T07:08:28-07:00",
      "note": "a referee drops the puck, the mouse is captured, green ring under your skater",
      "prompts": 2,
-     "tokens": 822963
+     "tokens": 824419
     }
    ]
   },
