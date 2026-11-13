@@ -1367,6 +1367,13 @@ window.SLOPWARE = {
      "note": "one cart path tee to summit, with driving puzzles",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 29,
+     "date": "2026-11-13T14:35:41-07:00",
+     "note": "ring cart road, park at every green, co-op mode",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
