@@ -154,6 +154,12 @@ Lua, and 120 ms in the client. `iceFloor` in `src/gfx.lua` works a floor out onc
 light effects on it fades in six steps. `teleLane` (the strip before a charge or a beam) walks only the part of the
 screen the lane covers, not the whole square around the boss. Both give the same picture (`framehash.lua`).
 
+`Screen.points` (`src/canvas.lua`) draws a list of single pixels in one colour without a `fillRect` call apiece; ice
+floors and fires go through it, sorted by colour. A disc's geometry (distance and angle of each pixel) is kept per
+radius, so a second floor of the same size only pays for its hashes. And the trail canvas's list of changed
+rectangles no longer gives up after 96 (a shower of ash did that, and the Screen then worked out the whole
+picture's ground again, a 13 ms frame): the last entry grows to hold the rest.
+
 ## Sprites: the units and the boss
 
 Over a ground image the things that move are textures under the grid too (`Screen.sprite`, `Screen.padSprite` in

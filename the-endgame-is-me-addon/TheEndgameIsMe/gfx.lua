@@ -287,7 +287,8 @@ RT.host.lean = function() return RT.lean end
 local FIRE = { PAL.fire0, PAL.fire1, PAL.fire2, PAL.fire3 }
 -- render.js drawFires. The flicker is a hash of where and when, and "when" moves ten times a second, so a fire's
 -- pixels are worked out once per flicker and drawn from the list on the frames between (while it is not fading).
-local firePx = setmetatable({}, { __mode = "k" })   -- a fire → { fr, fade, cx, cy, r, n, x, y, colour, ... }
+local firePx = setmetatable({}, { __mode = "k" })   -- a fire → { fr, fade, cx, cy, r, -, four lists of x, y by colour, their lengths }
+local points, SCREEN = RT.Screen.points, RT.Screen.ctx
 function RT.drawFires(ctx, g)
   local fr = floor(g.t * 10)
   if RT.lean then fr = fr - fr % 2 end   -- light effects: the flicker changes five times a second, not ten
@@ -309,7 +310,9 @@ function RT.drawFires(ctx, g)
       if not c then c = {}; firePx[f] = c end
       if c[1] ~= fr or c[2] ~= fade or c[3] ~= cx or c[4] ~= cy or c[5] ~= r then
         c[1], c[2], c[3], c[4], c[5] = fr, fade, cx, cy, r
-        local n = 6
+        local l1, l2, l3, l4 = c[7], c[8], c[9], c[10]
+        if not l1 then l1, l2, l3, l4 = {}, {}, {}, {}; c[7], c[8], c[9], c[10] = l1, l2, l3, l4 end
+        local n1, n2, n3, n4 = 0, 0, 0, 0
         local k = 0.45 * (2 - fade)
         for py = -R, R do
           local wy = cy + py
@@ -320,18 +323,26 @@ function RT.drawFires(ctx, g)
               local wx = cx + px
               local h = hash(wx * 7 + fr * 31, hy)
               if not (h < 0.15 + d * k) then
-                c[n + 1], c[n + 2], c[n + 3] = wx, wy, (d < 0.35 and h > 0.6) and 4 or d < 0.6 and 3 or h > 0.7 and 2 or 1
-                n = n + 3
+                if d < 0.35 and h > 0.6 then l4[n4 + 1], l4[n4 + 2] = wx, wy; n4 = n4 + 2
+                elseif d < 0.6 then l3[n3 + 1], l3[n3 + 2] = wx, wy; n3 = n3 + 2
+                elseif h > 0.7 then l2[n2 + 1], l2[n2 + 2] = wx, wy; n2 = n2 + 2
+                else l1[n1 + 1], l1[n1 + 2] = wx, wy; n1 = n1 + 2 end
               end
             end
           end
         end
-        c[6] = n
+        c[11], c[12], c[13], c[14] = n1, n2, n3, n4
       end
-      ctx.globalAlpha = fade
-      for j = 7, c[6], 3 do
-        ctx.fillStyle = FIRE[c[j + 2]]
-        fill(ctx, c[j], c[j + 1], 1, 1)
+      -- a fire's pixels are each drawn once, so the order among its four colours does not matter
+      if ctx == SCREEN then
+        for q = 1, 4 do points(c[6 + q], c[10 + q], FIRE[q], fade) end
+      else
+        ctx.globalAlpha = fade
+        for q = 1, 4 do
+          ctx.fillStyle = FIRE[q]
+          local l = c[6 + q]
+          for j = 1, c[10 + q], 2 do fill(ctx, l[j], l[j + 1], 1, 1) end
+        end
       end
     end
   end
@@ -348,6 +359,7 @@ end
 local sin, ceil = math.sin, math.ceil
 local icePx = setmetatable({}, { __mode = "k" })   -- a floor → { cx, cy, r, seed, lists = { crack, ice1, ice0, ice2 }, glints }
 local ICE = { "#ffffff", PAL.ice1, PAL.ice0, PAL.ice2 }
+local iceGeo = {}   -- a radius → its disc's pixels: offsets, distance from the middle (0 to 1), angle times five
 RT.host.iceFloor = function(ctx, i, g)
   local fade
   if i.t < 0.2 then fade = i.t / 0.2
@@ -365,38 +377,48 @@ RT.host.iceFloor = function(ctx, i, g)
     c = { cx = cx, cy = cy, r = r, seed = seed, { n = 0 }, { n = 0 }, { n = 0 }, { n = 0 }, glints = { n = 0 } }
     icePx[i] = c
     local glints = c.glints
-    for py = -R, R do
-      local wy = cy + py
-      for px = -R, R do
-        local d = sqrt(px * px + py * py) / r
-        if not (d > 1) then
-          local wx = cx + px
-          local h = hash(wx * 3 + seed, wy * 5)
-          if not (d > 0.85 and h < (d - 0.85) * 5) then
-            local crack = abs(sin(atan2(py, px) * 5 + seed)) < 0.08 and d > 0.2
-            local list = c[crack and 1 or h > 0.82 and 2 or (px + py) % 2 == 1 and 3 or 4]
-            local n = list.n
-            list[n + 1], list[n + 2] = wx, wy
-            list.n = n + 2
-            if h > 0.996 then
-              n = glints.n
-              glints[n + 1], glints[n + 2] = wx, wy
-              glints.n = n + 2
-            end
-          end
+    -- how far out and at what angle each pixel of a disc this size lies is the same for every floor of that size
+    local geo = iceGeo[r]
+    if not geo then
+      geo = { n = 0, x = {}, y = {}, d = {}, a = {} }
+      iceGeo[r] = geo
+      local gx, gy, gd, ga, n = geo.x, geo.y, geo.d, geo.a, 0
+      for py = -R, R do
+        for px = -R, R do
+          local d = sqrt(px * px + py * py) / r
+          if not (d > 1) then n = n + 1; gx[n], gy[n], gd[n], ga[n] = px, py, d, atan2(py, px) * 5 end
+        end
+      end
+      geo.n = n
+    end
+    local gx, gy, gd, ga = geo.x, geo.y, geo.d, geo.a
+    for q = 1, geo.n do
+      local px, py, d = gx[q], gy[q], gd[q]
+      local wx, wy = cx + px, cy + py
+      local h = hash(wx * 3 + seed, wy * 5)
+      if not (d > 0.85 and h < (d - 0.85) * 5) then
+        local crack = d > 0.2 and abs(sin(ga[q] + seed)) < 0.08
+        local list = c[crack and 1 or h > 0.82 and 2 or (px + py) % 2 == 1 and 3 or 4]
+        local n = list.n
+        list[n + 1], list[n + 2] = wx, wy
+        list.n = n + 2
+        if h > 0.996 then
+          n = glints.n
+          glints[n + 1], glints[n + 2] = wx, wy
+          glints.n = n + 2
         end
       end
     end
   end
   local fill = ctx.fillRect
-  local x0, x1, y0, y1 = vx - 8, vx + 327, vy - 8, vy + 187   -- the screen, and room for a shake
-  for k = 1, 4 do
-    local list = c[k]
-    ctx.globalAlpha = fade * (k == 1 and 0.7 or 0.45)
-    ctx.fillStyle = ICE[k]
-    for j = 1, list.n, 2 do
-      local wx, wy = list[j], list[j + 1]
-      if wx >= x0 and wx <= x1 and wy >= y0 and wy <= y1 then fill(ctx, wx, wy, 1, 1) end
+  if ctx == SCREEN then
+    for k = 1, 4 do points(c[k], c[k].n, ICE[k], fade * (k == 1 and 0.7 or 0.45)) end
+  else
+    for k = 1, 4 do
+      local list = c[k]
+      ctx.globalAlpha = fade * (k == 1 and 0.7 or 0.45)
+      ctx.fillStyle = ICE[k]
+      for j = 1, list.n, 2 do fill(ctx, list[j], list[j + 1], 1, 1) end
     end
   end
   local glints, fr = c.glints, floor(g.t * 4)

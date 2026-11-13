@@ -98,7 +98,16 @@ end
 local function logRect(cv, x0, y0, x1, y1)
   local log = cv.log
   if log then
-    if #log >= 96 then cv.logAll = true else log[#log + 1] = { x0, y0, x1, y1 } end
+    -- A burst of small marks (a shower of ash) used to overflow the list, and the Screen then worked the whole
+    -- picture's ground out again: a 13 ms frame. Past 96 the last entry grows to hold the rest instead.
+    local n = #log
+    if n >= 96 then
+      local r = log[n]
+      if x0 < r[1] then r[1] = x0 end
+      if y0 < r[2] then r[2] = y0 end
+      if x1 > r[3] then r[3] = x1 end
+      if y1 > r[4] then r[4] = y1 end
+    else log[n + 1] = { x0, y0, x1, y1 } end
   end
 end
 
@@ -436,6 +445,38 @@ function SMeta:fillRect(x, y, w, h)
     end
   end
 end
+
+-- A list of single pixels in one colour (list[1], list[2] = x, y of the first, and so on up to list[n]): what
+-- fillRect(x, y, 1, 1) does for each, without the call, the colour lookup and the clipping arithmetic every time.
+-- Ice floors and fires are thousands of these a frame.
+function Screen.points(list, n, style, alpha)
+  local c = parseColor(style)
+  local a = c.a * alpha
+  if a <= 0.002 then return end
+  local rgb = c.rgb
+  local dx, dy = SCtx.tx + 0.5, SCtx.ty + 0.5
+  local opaque = a >= 0.998
+  local memo = not opaque and blendsFor(rgb, a)
+  local f, m, marking = frame, mask, occOn
+  for j = 1, n, 2 do
+    local sx, sy = floor(list[j] + dx), floor(list[j + 1] + dy)
+    if sx >= 0 and sx < W and sy >= 0 and sy < H then
+      if marking then occ[floor(sy / TILE) * TW + 1 + floor(sx / TILE)] = f end
+      local i = ((sy + oy) % H) * W + 1 + (sx + ox) % W
+      if not (m and m[i]) then
+        if mark[i] ~= f then mark[i] = f; nNow = nNow + 1; now[nNow] = i end
+        if opaque then cur[i] = rgb
+        else
+          local d = cur[i]
+          local v = d and memo[d]
+          if not v then v = over(d, rgb, a); if d then memo[d] = v end end
+          cur[i] = v
+        end
+      end
+    end
+  end
+end
+Screen.ctx = SCtx
 
 -- A see-through pane over a wide stretch of the picture: the panel behind the HUD. Painted, it is thousands of
 -- blended cells, every one a texture the client must show. On the HUD layer (hudBegin, below) it is instead one
