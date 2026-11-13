@@ -228,7 +228,7 @@ window.SLOPWARE = {
   "snowglobe": {
    "visits": 0,
    "prompts": 3,
-   "tokens": 4537490,
+   "tokens": 4549289,
    "sharedWith": null,
    "versions": [
     {
@@ -243,7 +243,7 @@ window.SLOPWARE = {
      "date": "2026-11-12T12:23:17-07:00",
      "note": "sledding hill, small-town Christmas Eve, skating pond and gingerbread house, with people playing",
      "prompts": 3,
-     "tokens": 1162871
+     "tokens": 1174670
     }
    ]
   },
@@ -301,6 +301,21 @@ window.SLOPWARE = {
      "n": 1,
      "date": "2026-11-08T12:31:20-07:00",
      "note": "Snow Globe, Terrarium, Rain Window, Koi Pond, Aurora"
+    }
+   ]
+  },
+  "desert-chase": {
+   "visits": 0,
+   "prompts": 6,
+   "tokens": 3018220,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-12T17:32:00-07:00",
+     "note": "a screensaver where the coyote always fails",
+     "prompts": 6,
+     "tokens": 3018220
     }
    ]
   },
