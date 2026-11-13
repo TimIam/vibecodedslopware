@@ -1360,8 +1360,8 @@ window.SLOPWARE = {
   },
   "puck-around": {
    "visits": 0,
-   "prompts": 7,
-   "tokens": 1704351,
+   "prompts": 8,
+   "tokens": 2106269,
    "sharedWith": null,
    "versions": [
     {
@@ -1389,8 +1389,15 @@ window.SLOPWARE = {
      "n": 4,
      "date": "2026-11-12T03:26:26-07:00",
      "note": "the skater follows the cursor, shots and passes go where it points",
-     "prompts": 3,
-     "tokens": 1167112
+     "prompts": 2,
+     "tokens": 746067
+    },
+    {
+     "n": 5,
+     "date": "2026-11-13T07:08:28-07:00",
+     "note": "a referee drops the puck, the mouse is captured, green ring under your skater",
+     "prompts": 2,
+     "tokens": 822963
     }
    ]
   },
