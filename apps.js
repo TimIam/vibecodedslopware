@@ -1374,6 +1374,13 @@ window.SLOPWARE = {
      "note": "ring cart road, park at every green, co-op mode",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 30,
+     "date": "2026-11-13T15:06:20-07:00",
+     "note": "punching with bare hands",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
