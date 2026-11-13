@@ -37,6 +37,7 @@ export const RAGDOLL = {
   damping: 1,         // damping ratio of every joint motor: 1 settles without overshoot, less is bouncier (was 0.85)
   freq: { waist: 32, neck: 20, shoulder: 30, elbow: 30, hip: 20, knee: 20, wrist: 36 },   // spring frequency, rad/s, at stiffness 1
   root: { freq: 16, turn: 24, damping: 1 },    // how hard the hips are held to where the game puts the golfer
+  floorRise: 1,       // m/s the floor under a fallen body rises to lift it out of a slope it has sunk into (faster threw bodies in the air)
   passThrough: 0.3,   // seconds a club or forearm that just hit a golfer passes through them, so the swing follows through instead of wedging
   weight: 0.2,        // share of gravity a standing body feels (its muscles hold the rest); knocked out, all of it
   koStrength: 0.05,   // share of the joint springs left in a knocked-out body
@@ -197,14 +198,28 @@ export class Ragdolls {
     if (d.up > 0) { d.up += dt / RAGDOLL.getUp; if (d.up >= 1) d.up = 0; }
     const lost = hips.body.translation(); _a.set(lost.x, lost.y, lost.z);
     if (it.mode === 'kinematic' || (!d.ko && _a.distanceTo(hips.tp) > RAGDOLL.snap)) this.snap(d);
-    // The floor under a knocked-out golfer: wherever its body actually is, at the ground's height there (none
+    // The floor under a knocked-out golfer (a 4 m thick slab, so a body falling fast cannot pass through it in
+    // one step): wherever its body actually is, at the ground's height there (none
     // over a drop, so it falls). Standing, it is out of the way, so feet don't scrape on slopes.
     if (d.ko || d.up) {
       const g0 = this.groundAt ? this.groundAt(lost.x, lost.y, lost.z) : it.ground;
-      d.floor.setNextKinematicTranslation({ x: lost.x, y: g0 == null ? -1e4 : g0 - 0.1, z: lost.z });
-    } else d.floor.setNextKinematicTranslation({ x: hips.tp.x, y: it.ground - 0.45, z: hips.tp.z });
+      // It drops to lower ground at once but rises only slowly (RAGDOLL.floorRise) and only under a body that has
+      // sunk into the ground: rolled against the wall of the next step up, the ground found there is that
+      // step's top, and a floor that followed it up threw the body into the air.
+      if (g0 == null) d.floorTop = null;
+      else if (d.floorTop == null || g0 < d.floorTop || lost.y - g0 > 1) d.floorTop = g0;
+      else if (lost.y < g0 + 0.15) d.floorTop = Math.min(g0, d.floorTop + RAGDOLL.floorRise * dt);      // only to lift a body sunk into the slope
+      this.putFloor(d, lost.x, d.floorTop == null ? lost.y - 40 : d.floorTop - 2, lost.z);
+    } else { d.floorTop = null; this.putFloor(d, hips.tp.x, it.ground - 2.35, hips.tp.z); }
     const gs = d.ko ? 1 : d.up ? 1 - (1 - RAGDOLL.weight) * d.up : RAGDOLL.weight;
     if (gs !== d.gs) { d.gs = gs; for (const s of d.segs) s.body.setGravityScale(gs, true); }
+  }
+  // The floor is put, never moved: a moving slab drags what lies on it, and one that kept up with a body
+  // carried it along like a conveyor belt. It only shifts sideways when the body nears its edge.
+  putFloor(d, x, y, z) {
+    const f = d.floor.translation();
+    if (Math.hypot(x - f.x, z - f.z) < 0.9) { x = f.x; z = f.z; }
+    if (x !== f.x || y !== f.y || z !== f.z) d.floor.setTranslation({ x, y, z }, true);
   }
   // Both hands on the club: a spring from the trail hand to its place on the grip, made where the pose
   // puts it, and let go again when the golfer lets go.
@@ -225,6 +240,17 @@ export class Ragdolls {
     // hand dragging on it knocked it off the line the player swung.
     implicit(_c, _a.subVectors(p2, p1), _b.subVectors(v1, v2), RAGDOLL.grip.freq, RAGDOLL.grip.damping, h);
     B1.applyImpulseAtPoint(_c.multiplyScalar(B1.mass()), p1, true);
+  }
+  // Where a golfer's body is (the hips) and how fast it is going, or null without one.
+  hips(golfer) {
+    const d = this.dolls.get(golfer); if (!d) return null;
+    const b = d.segs[0].body, t = b.translation(), v = b.linvel();
+    return { p: V(t.x, t.y, t.z), v: V(v.x, v.y, v.z) };
+  }
+  // Throw a whole body: every part gets this much more velocity.
+  fling(golfer, v) {
+    const d = this.dolls.get(golfer); if (!d) return;
+    for (const s of d.segs) { const w = s.body.linvel(); s.body.setLinvel({ x: w.x + v.x, y: w.y + v.y, z: w.z + v.z }, true); }
   }
   // After a hit the striking club and forearms ignore that golfer for a moment (RAGDOLL.passThrough): the
   // hit has landed, and a club left touching a body that is held up by its own spring just wedges there.
@@ -362,7 +388,7 @@ export class Ragdolls {
     for (const j of d.joints) { j.below = [j.child, ...kids(j.child)]; j.next = d.joints.filter(k => k.parent === j.child); }
     d.torsoI = 4 * avgInertia(byName.hips.body) + avgInertia(byName.torso.body);
     d.floor = this.world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased().setTranslation(it.golfer.root.position.x, it.ground - 0.5, it.golfer.root.position.z));
-    this.world.createCollider(R.ColliderDesc.cuboid(1.4, 0.1, 1.4).setFriction(0.9).setCollisionGroups(((1 << (8 + slot)) << 16) | (1 << slot)), d.floor);
+    this.world.createCollider(R.ColliderDesc.cuboid(1.4, 2, 1.4).setFriction(0.9).setCollisionGroups(((1 << (8 + slot)) << 16) | (1 << slot)), d.floor);
     d.lastT.copy(byName.hips.tp); d.wT = V();
     for (const x of d.segs) { x.prevQ = x.tq.clone(); x.wW = V(); }
     this.dolls.set(g, d);

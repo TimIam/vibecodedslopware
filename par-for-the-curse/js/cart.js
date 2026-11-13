@@ -60,7 +60,7 @@ export class Cart {
     world.add(new Collider('box', {
       half: V(0.68 * ACTOR, 0.86 * ACTOR, 1.31 * ACTOR), surf: 'metal', tag: 'cartbody', offCourse: true,
       motion: (t, c) => {
-        c.enabled = Math.abs(this.speed) < 0.2;
+        c.enabled = Math.abs(this.speed) < 0.2 && !this.gone;      // gone: someone else is driving it
         c.pos.copy(this.pos).add(up).addScaledVector(this.heading(H), -0.064 * ACTOR);
         c.quat.copy(this.mesh.quaternion);
       },
