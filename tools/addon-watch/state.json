@@ -378,22 +378,5 @@
    ]
   }
  },
- "pendingCurseforge": [
-  {
-   "addon": "endgame",
-   "client": "forever",
-   "file": "TheEndgameIsMe-1.3.2.zip",
-   "gameVersion": "1.60.1",
-   "why": "1.3.2",
-   "changelog": "1.3.2: smoother. Fire and ice cost less to draw, and a shower of ash no longer causes a hitch."
-  },
-  {
-   "addon": "endgame",
-   "client": "retail",
-   "file": "TheEndgameIsMe-Retail-1.3.2.zip",
-   "gameVersion": "12.1.5",
-   "why": "1.3.2",
-   "changelog": "1.3.2: smoother. Fire and ice cost less to draw, and a shower of ash no longer causes a hitch."
-  }
- ]
+ "pendingCurseforge": []
 }
