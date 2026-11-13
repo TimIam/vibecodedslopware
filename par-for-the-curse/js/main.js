@@ -307,6 +307,31 @@ const GRIP_WALK = 2.4;       // how fast you can walk with the club in your hand
 const HIT_STOP = 0.07;       // seconds the world nearly stops when a club lands on someone, so you feel it land
 // A club strike on another golfer: to a real player over the network, or to the sparring partner here.
 function whackTo(id, e) { if (id === SPAR.id) sparHit(e); else if (net) net.event(e); }
+/* ---------------- driving puzzles (course.js morePaths) ---------------- */
+// Every cart anyone can see works the plates, and a honk from anyone near opens a gate.
+const honks = [];
+function puzzleTick(dt) {
+  const at = carts.map(c => c.pos);
+  for (const o of others.values()) { if (o.cart && o.cart.mesh.visible) at.push(o.cart.pos); if (o.cart2) at.push(o.cart2.pos); }
+  if (S.cart && S.t - (S.honkAt ?? -9) < 0.05) honks.push(S.cart.pos.clone());
+  for (const [what, p] of course.driveTick(dt, at, honks)) {
+    const near = proximity(p);
+    if (what === 'gate') A.play('click', near);
+    if (what === 'plate') { A.play('click', near); A.play('beep', near * 0.6); if (S.cart && S.cart.pos.distanceTo(p) < 3) toast('🌉 The drawbridge is coming down. Go go go!'); }
+    if (what === 'bridge') A.play('womp', near * 0.5);
+  }
+  honks.length = 0;
+}
+// A bumper bats the cart away (on a ball the rubber does it).
+const CART_BUMP = { kick: 7, gap: 0.3 };
+function bumperCart(c) {
+  for (const b of course.puzzles?.bumpers || []) {
+    const dx = c.pos.x - b.pos.x, dz = c.pos.z - b.pos.z, d = Math.hypot(dx, dz);
+    if (d > 0.8 + 0.45 || Math.abs(c.pos.y - b.pos.y) > 1 || S.t - (b.cartT ?? -9) < CART_BUMP.gap) continue;
+    b.cartT = S.t; c.knock(dx / d * CART_BUMP.kick, dz / d * CART_BUMP.kick);
+    b.mesh.userData.flash = 1; A.play('bumper', 1); shake(0.15);
+  }
+}
 /* ---------------- knocked flying ---------------- */
 // A hit that staggers or floors you throws your body, and while it is limp you are wherever it is: knocked
 // off a ledge, you tumble down and get up where you land, a long way from your ball. (Without the physics
@@ -842,7 +867,7 @@ canvas.addEventListener('mousedown', e => {
   if (e.button === 2) { if (S.lmb || S.grip) S.aimHeld = true; else toggleGolf(); }
   if (e.button === 0 && S.mode !== 'address') S.lmb = true;
   if (e.button === 0 && S.mode === 'address') assistPress();
-  if (e.button === 0 && S.mode === 'drive') A.play('beep', 1);
+  if (e.button === 0 && S.mode === 'drive') { A.play('beep', 1); S.honkAt = S.t; if (S.cart) sendEv({ k: 'honk', at: S.cart.pos.toArray().map(n => +n.toFixed(2)) }); }
 });
 addEventListener('mouseup', e => { if (e.button === 2) S.aimHeld = false; if (e.button === 0) { S.lmb = false; if (assist && S.mode === 'address') assist.release(); } });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -1077,6 +1102,7 @@ function driveStep(dt) {
   const steer = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0);
   S.cartSteer = lerp(S.cartSteer || 0, steer, 1 - Math.exp(-dt * 8));
   c.update(dt, { throttle, steer, brake: keys.has(' ') }, world, cartEvents(c, true));
+  bumperCart(c);
   if (S.cart) c.seat(S.golferG);
   const H = c.heading(); S.walkYaw = yawFacing(H.x, H.z);
   A.engine(c.speed / 14 || 0.001);
@@ -1438,6 +1464,7 @@ function step(dt) {
   S.rage = Math.max(0, S.rage - dt * 0.6);
   poseMe(dt);
   course.update(t, dt);
+  puzzleTick(dt);
   sky.update(t, dt);
   fx.update(dt); confetti.update(dt, t); wreck.update(dt, t);
   updateOthers(dt);
@@ -2098,7 +2125,7 @@ function promptText() {
     return (S.noClub ? '<kbd>2</kbd>–<kbd>5</kbd> pick a club' : '<b>Hold left mouse</b> to swing freely · <b>Right click</b> by your ball for the golf stance') + ' · <kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump';
   }
   if (S.mode === 'drive' && S.awaitPark) return '🅿️ Stop in the bay at the summit to finish · <kbd>Space</kbd> brake';
-  if (S.mode === 'drive') return '<kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> brake · <kbd>E</kbd> hop out';
+  if (S.mode === 'drive') return '<kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> brake · <b>Click</b> honk · <kbd>E</kbd> hop out';
   if (S.mode === 'address') return GOLF_HINT + ' · <b>Right click</b> steps away';
   return '';
 }
@@ -2274,6 +2301,7 @@ function remoteEvent(p, e) {
     toast(by === 'club' ? `🏌️ ${nm} whacked your ball!` : by ? `🦶 ${nm} kicked your ball!` : `💥 ${nm} bonked your ball!`);
     if (by) addRage(10);
   }
+  else if (e.k === 'honk' && o && nums(e.at, 3)) { const p = V().fromArray(e.at); A.play('beep', proximity(p) * 0.7); if (p.distanceTo(o.G) < 6) honks.push(p); }
   else if (e.k === 'tumble' && o) toast(+e.sea ? `🌊 ${e.by === net.me ? 'You knocked' : (others.get(e.by)?.nameHtml || 'Someone') + ' knocked'} ${nm} into the sea!` : e.by ? `🪂 ${e.by === net.me ? 'You' : others.get(e.by)?.nameHtml || 'Someone'} knocked ${nm} ${Math.round(+e.m || 0)} m down!` : `🪂 ${nm} tumbled ${Math.round(+e.m || 0)} m down`);
   else if (e.k === 'steal' && e.to === net.me && o) {
     const c = carts[0];
@@ -2523,7 +2551,7 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     setClub,
     fire: () => fireCannon(), get cannon() { return S.cannon; },
     tick: (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { S.realDt = dt; step(dt); } },
-    THREE, get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, get wreck() { return wreck; }, wreckHit, tearDivot, askReset, voteAnswer, get vote() { return vote; }, showMenu, resetBall, resetCart, assistPress, sparSpawn, followBody, bonkBall, stealCart, theirCartNear, get stolen() { return stolen; }, toTitle, askPin, get spar() { return bot; }, get phys() { return phys; }, RAGDOLL, get assist() { return assist; }, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
+    THREE, get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, get wreck() { return wreck; }, wreckHit, tearDivot, askReset, voteAnswer, get vote() { return vote; }, showMenu, resetBall, resetCart, assistPress, sparSpawn, puzzleTick, followBody, bonkBall, stealCart, theirCartNear, get stolen() { return stolen; }, toTitle, askPin, get spar() { return bot; }, get phys() { return phys; }, RAGDOLL, get assist() { return assist; }, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
     // Deterministic swing at 60 fps: back for `back` frames, pause, then through; runs until the ball rests.
     swingTest: (power = 1, back = 24, down = 10, club) => {
       if (club != null) setClub(club);

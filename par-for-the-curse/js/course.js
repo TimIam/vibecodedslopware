@@ -357,6 +357,7 @@ export class Course {
       6: [[29, 0], [41, 0], [52, 0], [66, 0]], 7: [[32, 4.2], [67, 0]], 8: [[30, 0], [41, 0], [53.5, 0], [66, 0]], 9: [[37, 0], [60, 0]] };
     for (const [i, pts] of Object.entries(aims)) this.holes[i].aims = pts;
     this.cartPaths();
+    this.morePaths();
     this.decorate();
   }
   holeInfo(H, name, par, blurb) { Object.assign(H, { name, par, blurb }); this.holes[H.i] = H; }
@@ -901,6 +902,125 @@ export class Course {
     this.sign(H9, 20, -6.2, 0, ['LAST ROAD', 'no pressure'], 0.5);
     this.parkingBay(H9, 62.6, RISE, -4.5);
     this.sign(H9, 65.4, -5.4, RISE, ['CART PARKING', 'park it to finish'], -1.2);
+  }
+  // The rest of the road, so one cart path runs all the way from the first tee to the summit bay, with
+  // something new to get past on each hole that had none: a slalom and a boom gate that lifts only for a
+  // honk (hole 1), geese patrolling across the road up Goose Lane (4), a bumper alley that bats the cart
+  // about (5), and a drawbridge over the drop that a pressure plate lowers for a few seconds (6).
+  // this.puzzles is the state main.js moves along every frame (driveTick).
+  morePaths() {
+    const [H1, , , H4, H5, H6] = this.H;
+    this.puzzles = { gates: [], plates: [], bridges: [], bumpers: [] };
+    // Hole 1, along the wall side: four cones to weave through, the ramp, and the gate.
+    this.road(H1, [[9.5, 0, -4.2], [29, 0, -4.2], [53, 7, -4.2], [70.5, 7, -4.2]], 2, { cones: [[0, 0.3, 0.5], [0, 0.45, -0.5], [0, 0.6, 0.5], [0, 0.75, -0.5]] });      // half way out: you have to weave
+    this.boomGate(H1, 61, -4.2, 7);
+    this.sign(H1, 56.5, -2.3, 7, ['BOOM GATE', 'click to honk'], -0.5);
+    // Hole 4, up the shoulder beside the treadmill, with geese walking back and forth across it.
+    this.road(H4, [[9.5, 0, -5.6], [30, 0, -5.6], [50, 7, -5.6], [70.5, 7, -5.6]], 2);
+    this.patrolGoose(H4, 38, 2.8, -5.6, 2.4, 0.9, 0);
+    this.patrolGoose(H4, 44, 4.9, -5.6, 2.4, 1.2, 2);
+    this.patrolGoose(H4, 62, 7, -5.6, 2.6, 1, 4);
+    this.sign(H4, 27, -7.2, 0, ['GOOSE CROSSING', 'they have right of way'], 0.3);
+    // Hole 5, the lane along the far wall, through bumpers, then out onto the ramp.
+    this.road(H5, [[9.5, 0, 7.4], [41, 0, 7.4], [44, 0, 3], [45.4, 0, 0.6]], 2);
+    for (const [x, z] of [[15, 8.7], [22.5, 6.1], [36, 8.7]]) this.puzzles.bumpers.push(this.bumper(H5, x, z));
+    this.sign(H5, 11, 9.2, 0, ['BUMPER ALLEY', 'cart insurance void'], -0.3);
+    // Hole 6, a side road over the drop: a plate to drive over, then a drawbridge to beat before it lifts.
+    this.road(H6, [[9.5, 0, -4.8], [18, 0, -4.8], [24, 1.2, -4.8]], 2);
+    this.road(H6, [[32.2, 1.2, -4.8], [35.5, 2.4, -4.8], [38.6, 3, -3]], 2);
+    this.road(H6, [[44.4, 3, -3], [47.5, 3.8, -4.8], [57.5, 7, -4.8], [61, 7, -3.6]], 2);
+    const bridge = this.drawbridge(H6, 24, 32.2, 1.2, -4.8, 2);
+    this.pressurePlate(H6, 13, 0, -4.8, bridge);
+    this.sign(H6, 11, -6.2, 0, ['DRAWBRIDGE', 'step on it. then step on it.'], 0.3);
+  }
+  // A striped barrier arm across the road. It lifts for a few seconds when a cart near it honks.
+  boomGate(H, x, z, y, len = 2.6) {
+    const F = H.frame, root = new THREE.Group(); root.position.set(x, y, z - len / 2 - 0.25); H.group.add(root);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 1.2, 12), toon(0xffcf33)); post.position.y = 0.6; post.castShadow = true; addOutline(post, 0.03); root.add(post);
+    const arm = new THREE.Group(); arm.position.y = 0.9; root.add(arm);
+    const bar = new THREE.Mesh(new RoundedBoxGeometry(0.14, 0.14, len + 0.3, 2, 0.05), toon(0xffffff, { params: { map: stripeTex } }));
+    bar.position.z = (len + 0.3) / 2; bar.castShadow = true; addOutline(bar, 0.02); arm.add(bar);
+    const light = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), toon(0xff3b30, { emissive: 0xff3b30, emissiveIntensity: 0.8 })); light.position.y = 1.25; root.add(light);
+    this.world.add(new Collider('cyl', { pos: F.w(x, y + 0.6, z - len / 2 - 0.25), r: 0.2, hh: 0.6, surf: 'metal', hole: H.i, tag: 'gatepost' }));
+    const col = this.world.add(new Collider('box', { pos: F.w(x, y + 0.9, z), quat: F.q.clone(), half: new THREE.Vector3(0.1, 0.12, len / 2 + 0.1), surf: 'metal', hole: H.i, tag: 'gate' }));
+    const g = { p: F.w(x, y, z), open: 0, until: -9, col };
+    this.animators.push(() => { arm.rotation.x = -g.open * 1.45; light.material.color.setHex(g.open > 0.5 ? 0x3ddc84 : 0xff3b30); light.material.emissive.setHex(g.open > 0.5 ? 0x3ddc84 : 0xff3b30); });
+    this.puzzles.gates.push(g);
+    return g;
+  }
+  // A goose that walks back and forth across a road (z0 +- reach), pausing at each end to think about it.
+  patrolGoose(H, x, y, z0, reach, speed, phase) {
+    const gz = make('goose', { outline: 0.02 }); H.group.add(gz);
+    const at = t => { const s = Math.sin(t * speed + phase); return new THREE.Vector3(x, y, z0 + reach * Math.sign(s) * Math.min(1, Math.abs(s) * 1.6)); };
+    const col = this.world.add(new Collider('cyl', { r: 0.34, hh: 0.4, surf: 'goose', tag: 'goose', hole: H.i, motion: (t, c) => { const l = at(t); c.pos.copy(H.frame.w(l.x, l.y + 0.4, l.z)); } }));
+    col.goose = gz;
+    this.animators.push(t => {
+      const a = at(t), b = at(t + 0.05);
+      gz.position.copy(a); gz.position.y += Math.abs(Math.sin(t * 9 + phase)) * 0.05;
+      if (b.distanceToSquared(a) > 1e-6) gz.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
+      gz.rotation.z = Math.sin(t * 9 + phase) * 0.12;
+      const hk = gz.userData.honk || 0; if (hk > 0) { gz.userData.honk = hk - 0.016; gz.scale.setScalar(1 + Math.sin(hk * 30) * 0.08); }
+    });
+  }
+  // One more pinball bumper (the cart gets batted away by main.js; the ball bounces off the rubber).
+  bumper(H, x, z) {
+    const b = make('bumper', { outline: 0.03 }); b.position.set(x, 0, z); H.group.add(b);
+    const col = this.world.add(new Collider('cyl', { pos: H.frame.w(x, 0.35, z), r: 0.8, hh: 0.35, surf: 'rubber', tag: 'bumper', hole: H.i }));
+    col.mesh = b;
+    this.animators.push((t, dt) => {
+      const f = b.userData.flash = Math.max(0, (b.userData.flash || 0) - dt * 4);
+      b.scale.set(1 + f * 0.15, 1 - f * 0.1, 1 + f * 0.15);
+      b.traverse(o => { if (o.isMesh && o.material.emissive && /bumper_top/i.test(o.material.name)) o.material.emissiveIntensity = 0.6 + f * 2.5; });
+    });
+    return col;
+  }
+  // A drawbridge from x0 to x1 at height y, hinged at the far end (x1). Up, it stands near vertical on the
+  // far side and the road in front of you ends in the air; a pressure plate brings it down for b.hold seconds.
+  drawbridge(H, x0, x1, y, z, w) {
+    const F = H.frame, L = x1 - x0, b = { down: 0, until: -9, hold: 6, hinge: F.w(x1, y, z) };
+    const deck = new THREE.Group();
+    const plank = new THREE.Mesh(new RoundedBoxGeometry(L, 0.3, w, 2, 0.08), woodMat); plank.castShadow = true; plank.receiveShadow = true; addOutline(plank, 0.04); deck.add(plank);
+    for (const s of [-1, 1]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(L, 0.12, 0.12), toon(0xffffff, { params: { map: hazardTex } })); rail.position.set(0, 0.2, s * (w / 2 - 0.06)); deck.add(rail); }
+    const ang = () => (1 - b.down) * 1.32;
+    const { col } = this.mover(H, { size: [L, 0.3, w], surf: 'wood', tag: 'bridge', visual: deck, motion: (t, c) => {
+      const a = ang(), lq = _q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -a);
+      c.pos.copy(F.w(x1 - Math.cos(a) * L / 2, y - 0.15 + Math.sin(a) * L / 2, z)); c.quat.copy(F.q).multiply(lq);
+    } });
+    b.col = col;
+    // A pair of posts at the hinge.
+    for (const s of [-1, 1]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 2.4, 10), toon(0x6d5a44)); p.position.set(x1 + 0.3, y + 0.9, z + s * (w / 2 + 0.2)); p.castShadow = true; addOutline(p, 0.03); H.group.add(p); }
+    this.puzzles.bridges.push(b);
+    return b;
+  }
+  // A plate in the road: a cart rolling over it lowers bridge b for b.hold seconds.
+  pressurePlate(H, x, y, z, bridge) {
+    const plate = new THREE.Mesh(new RoundedBoxGeometry(1.6, 0.1, 1.6, 2, 0.03), toon(0xffcf33, { emissive: 0xffcf33, emissiveIntensity: 0.2 }));
+    plate.position.set(x, y + 0.04, z); plate.receiveShadow = true; addOutline(plate, 0.02); H.group.add(plate);
+    const pl = { p: H.frame.w(x, y, z), on: false, bridge, mesh: plate, y };
+    this.puzzles.plates.push(pl);
+    return pl;
+  }
+  // Every frame, from main.js: where the carts are (world positions) and whether one of them honked here.
+  driveTick(dt, carts, honks) {
+    const P = this.puzzles; if (!P) return [];
+    const said = [];
+    for (const g of P.gates) {
+      if (honks.some(h => h.distanceTo(g.p) < 10)) { if (this.t > g.until) said.push(['gate', g.p]); g.until = this.t + 4; }
+      const want = this.t < g.until ? 1 : 0;
+      g.open = THREE.MathUtils.clamp(g.open + THREE.MathUtils.clamp(want - g.open, -dt * 1.4, dt * 2.5), 0, 1);
+      g.col.enabled = g.open < 0.4;
+    }
+    for (const pl of P.plates) {
+      const on = carts.some(c => Math.hypot(c.x - pl.p.x, c.z - pl.p.z) < 1.1 && Math.abs(c.y - pl.p.y) < 1);
+      if (on && !pl.on) { pl.bridge.until = this.t + pl.bridge.hold; said.push(['plate', pl.p]); }
+      pl.on = on; pl.mesh.position.y = pl.y + (on ? 0 : 0.04);
+    }
+    for (const b of P.bridges) {
+      const want = this.t < b.until ? 1 : 0, was = b.down;
+      b.down = THREE.MathUtils.clamp(b.down + THREE.MathUtils.clamp(want - b.down, -dt * 0.7, dt * 1.1), 0, 1);
+      if (was >= 1 && b.down < 1) said.push(['bridge', b.hinge]);
+    }
+    return said;
   }
   decorate() {
     const sp = make('spire', { outline: 0.15 });
