@@ -306,8 +306,8 @@ window.SLOPWARE = {
   },
   "desert-chase": {
    "visits": 0,
-   "prompts": 10,
-   "tokens": 3104256,
+   "prompts": 11,
+   "tokens": 3117286,
    "sharedWith": null,
    "versions": [
     {
@@ -321,8 +321,8 @@ window.SLOPWARE = {
      "n": 2,
      "date": "2026-11-12T18:54:27-07:00",
      "note": "raise the camera so less of the frame is empty sand",
-     "prompts": 4,
-     "tokens": 87416
+     "prompts": 5,
+     "tokens": 100446
     }
    ]
   },
@@ -1343,13 +1343,20 @@ window.SLOPWARE = {
      "note": "Space kicks with the lead leg while holding the club",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 27,
+     "date": "2026-11-13T06:03:57-07:00",
+     "note": "tumble off ledges, kick their balls, steal their carts",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
   "puck-around": {
    "visits": 0,
-   "prompts": 6,
-   "tokens": 1288879,
+   "prompts": 7,
+   "tokens": 1704351,
    "sharedWith": null,
    "versions": [
     {
@@ -1377,8 +1384,8 @@ window.SLOPWARE = {
      "n": 4,
      "date": "2026-11-12T03:26:26-07:00",
      "note": "the skater follows the cursor, shots and passes go where it points",
-     "prompts": 2,
-     "tokens": 751640
+     "prompts": 3,
+     "tokens": 1167112
     }
    ]
   },
