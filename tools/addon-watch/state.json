@@ -364,10 +364,10 @@
  },
  "released": {
   "endgame": {
-   "version": "1.3.1",
-   "at": "2026-11-12T19:53:27.705Z",
+   "version": "1.3.2",
+   "at": "2026-11-13T19:54:50.432Z",
    "for": [
-    "released by hand: ice floors worked out once"
+    "released by hand: fire and ice drawn from lists, ash bursts"
    ]
   },
   "pie": {
@@ -378,5 +378,22 @@
    ]
   }
  },
- "pendingCurseforge": []
+ "pendingCurseforge": [
+  {
+   "addon": "endgame",
+   "client": "forever",
+   "file": "TheEndgameIsMe-1.3.2.zip",
+   "gameVersion": "1.60.1",
+   "why": "1.3.2",
+   "changelog": "1.3.2: smoother. Fire and ice cost less to draw, and a shower of ash no longer causes a hitch."
+  },
+  {
+   "addon": "endgame",
+   "client": "retail",
+   "file": "TheEndgameIsMe-Retail-1.3.2.zip",
+   "gameVersion": "12.1.5",
+   "why": "1.3.2",
+   "changelog": "1.3.2: smoother. Fire and ice cost less to draw, and a shower of ash no longer causes a hitch."
+  }
+ ]
 }
