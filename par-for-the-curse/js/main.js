@@ -585,6 +585,13 @@ const PART_OF = { head: 'head', torso: 'body', hips: 'body', ua: 'body', fa: 'bo
 const hitGap = new Map();
 function physHit(h) {
   const mine = h.by === 'me', atMe = h.to === 'me', fromSpar = h.by === SPAR.id;
+  // Bare arms only hurt as punches: my punching arm against a body, whichever of the two was moving faster.
+  if (S.noClub && (mine || atMe)) {
+    const arm = punchLive() && ['fa', 'ua'].map(x => x + S.punch.k);
+    if (arm && mine && arm.includes(h.seg) && h.hitPart !== 'club') punchLand(h.to, PART_OF[h.hitPart] || 'body', h.at);
+    else if (arm && atMe && arm.includes(h.toSeg) && h.part !== 'club') punchLand(h.by, PART_OF[h.part] || 'body', h.at);
+    if (mine && (h.part === 'fa' || h.part === 'ua')) return;
+  }
   if (h.hitPart === 'club') {
     if (h.speed > 3 && (mine || atMe || fromSpar)) { A.play('rock', clamp(h.speed / 10, 0.3, 0.9) * proximity(h.at)); fx.sparks(h.at, 6); }
     return;
@@ -1008,6 +1015,7 @@ canvas.addEventListener('mousedown', e => {
   if (S.mode === 'title' || S.mode === 'loading') return;
   if (document.pointerLockElement !== canvas) lockPointer();
   // Right mouse: a thrust while the left button has the club, otherwise in and out of the golf stance.
+  if (S.mode === 'walk' && S.noClub && (e.button === 0 || e.button === 2)) { startPunch(e.button === 0 ? 1 : 0); return; }
   if (e.button === 2) { if (S.lmb || S.grip) S.aimHeld = true; else toggleGolf(); }
   if (e.button === 0 && S.mode !== 'address') S.lmb = true;
   if (e.button === 0 && S.mode === 'address') assistPress();
@@ -1525,6 +1533,7 @@ function step(dt) {
   // ball and nothing shows where it will go. Local +x (the way the face looks) is the golfer's left.
   healthTick(dt);
   kickTick(dt);
+  punchTick(dt);
   S.hold = held();
   swing.golf = S.mode === 'address';
   if (S.mode === 'address' && S.leaveAt && t > S.leaveAt) leaveAddress();
@@ -1559,6 +1568,7 @@ function step(dt) {
   if (S.grip) { if (swing.turn) S.twist = clamp(S.twist + swing.turn, -TWIST.max, TWIST.max); else S.twist *= Math.exp(-dt * TWIST.back); faceFoe(dt); }
   else S.twist = 0;
   swing.turn = 0;
+  if (S.mode === 'walk' && !S.grip) (S.mflick || (S.mflick = V())).add(V(mouseDX, mouseDY, 0));
   if (S.mode === 'walk' && !S.grip) { S.camYaw -= mouseDX * 0.0028; S.camPitch = clamp(S.camPitch + mouseDY * 0.0022, -0.55, 1.15); }
   mouseDX = mouseDY = 0;
   const sub = 6, h = dt / sub;
@@ -1807,6 +1817,7 @@ function poseMe(dt) {
     s.look = V(0, 0.7, 2);
   } else if (S.mode === 'walk' && !S.grip) {
     runPose(s, W.phase, W.amt, { club: !S.noClub, air: !W.grounded });
+    if (S.noClub) punchPose(s, me.R, S.punch, S.guardT > 0);
     if (W.grounded) for (let k = 0; k < 2; k++) {
       const fw = localToWorld(s.feet[k], _b), g = world.groundAt(fw.x, fw.y + 0.6, fw.z, 2);
       if (g) s.feet[k].y += clamp((g.y - S.golferG.y) / ACTOR, -0.25, 0.25);
@@ -2076,6 +2087,95 @@ function kickFoot(t, ankle, out = _kf) {
   if (t < KICK.out) return out.lerpVectors(KICK_UP, KICK_OUT, sm((t - KICK.up) / (KICK.out - KICK.up)));
   return out.lerpVectors(KICK_OUT, rest, sm((t - KICK.out) / (KICK.back - KICK.out)));
 }
+/* ---------------- punching (bare hands) ---------------- */
+// With bare hands (key 1) left click throws the right fist and right click the left. Flick the mouse up as
+// you click for an uppercut, sideways for a hook; otherwise it is a straight. The pose only says where the
+// fist should be: the ragdoll's arm motors throw it there, and the hit lands where the physical fist meets a
+// body (or, if the physics misses a glancing touch, where the fist reaches one). After a punch the fists stay
+// up in a guard for a moment and you square up to whoever is in front.
+const PUNCH = {
+  wind: 0.05, out: 0.09, hold: 0.06, back: 0.17,          // seconds: cock it, throw it, leave it there, bring it back
+  lunge: [0.3, 0.2, 0.2], guard: 1.4, flick: 14,                      // m stepped in, s the guard stays up, mouse px that make a flick
+  s: [4.2, 5, 5.6], shove: [3.5, 4.5, 2.5], up: [1.2, 1.5, 4.5],      // straight, hook, uppercut: hit speed, push, lift
+  turn: [0.35, 0.55, 0.3], word: ['POW!', 'BAM!', 'UPPERCUT!'],
+};
+const punchFwd = () => localToWorld(V(0, 0, 1), V()).sub(S.golferG).setY(0).normalize();
+const punchLen = () => PUNCH.wind + PUNCH.out + PUNCH.hold + PUNCH.back;
+const punchLive = () => S.punch && !S.punch.hit && S.punch.t > PUNCH.wind * 0.5 && S.punch.t < PUNCH.wind + PUNCH.out + PUNCH.hold + 0.1;      // the arm motors lag the pose a little
+function startPunch(k) {
+  if (S.mode !== 'walk' || !S.noClub || S.ko > 0 || S.hold || S.down || S.emote || S.intro) return;
+  if (S.punch && S.punch.t < PUNCH.wind + PUNCH.out + PUNCH.hold) { S.punchNext = k; return; }
+  const mx = S.mflick ? S.mflick.x : 0, my = S.mflick ? S.mflick.y : 0;
+  const type = -my > PUNCH.flick && -my > Math.abs(mx) ? 2 : Math.abs(mx) > PUNCH.flick ? 1 : 0;
+  S.punch = { k, type, t: 0, hit: false }; S.punchNext = null; S.guardT = PUNCH.guard;
+  A.play('pop', 0.18);
+}
+function punchTick(dt) {
+  if (S.mflick) S.mflick.multiplyScalar(Math.exp(-dt * 10));
+  S.guardT = Math.max(0, (S.guardT || 0) - dt);
+  if (!S.noClub || S.mode !== 'walk' || S.ko > 0) { S.punch = null; S.guardT = 0; return; }
+  if (S.guardT > 0) {
+    // Square up: face where you look, and turn the look onto whoever is right in front.
+    faceFoe(dt);
+    let da = S.camYaw + Math.PI / 2 - S.walkYaw; da = Math.atan2(Math.sin(da), Math.cos(da));      // (the body's yaw is a quarter turn from where it faces)
+    S.walkYaw += da * (1 - Math.exp(-dt * 16));
+  }
+  const P = S.punch; if (!P) return;
+  P.t += dt;
+  if (P.t >= punchLen()) { S.punch = null; if (S.punchNext != null) startPunch(S.punchNext); return; }
+  const fw = punchFwd();
+  if (P.t > PUNCH.wind && P.t < PUNCH.wind + PUNCH.out) S.golferG.addScaledVector(fw, PUNCH.lunge[P.type] * dt / PUNCH.out);
+  if (!punchLive()) return;
+  // The reach check, for a fist the physics only grazed.
+  const fist = me.p.hand[P.k].getWorldPosition(V());
+  for (const [id, o] of others) {
+    if (o.down || o.riding || o.G.distanceTo(S.golferG) > 1.6) continue;
+    for (const [part, mesh, up, r] of BODY_PARTS) {
+      const c = o.golfer.p[mesh].localToWorld(V(0, up, 0));
+      if (c.distanceTo(fist) > r * ACTOR + 0.07) continue;
+      return punchLand(id, part, fist);
+    }
+  }
+}
+function punchLand(id, part, at) {
+  const P = S.punch, o = others.get(id); if (!P || P.hit || !o || o.down) return;
+  P.hit = true;
+  const fw = punchFwd(), s = PUNCH.s[P.type];
+  const v = fw.multiplyScalar(PUNCH.shove[P.type]); v.y = PUNCH.up[P.type];
+  whackTo(id, { k: 'whack', to: id, v: v.toArray().map(x => +x.toFixed(2)), part, s, punch: 1 });
+  S.hitStop = HIT_STOP * 0.8; shake(0.1 + P.type * 0.04); fx.sparks(at, part === 'head' ? 12 : 7); A.play('thud', 0.8 + P.type * 0.1);
+  pop(PUNCH.word[P.type] + `<small>-${whackDamage(part, s)}</small>`, 'great', at.clone().add(V(0, 0.3, 0)));
+  if (window.__whacks) window.__whacks.push({ part, s, with: 'punch', type: P.type });
+}
+// Where the fists go (golfer-local, +x is the golfer's left, +z forward), on top of the walking pose.
+// pu: { k, type, t } or null; guard: the fists are up.
+const _sh = V(), _gd = V(), _tg = V(), _wd = V();
+function punchPose(s, R, pu, guard) {
+  if (!pu && !guard) return;
+  const tilt = 0.12, waistY = R.ankle + R.shin + R.thigh + R.hipDrop - (s.knee ?? 0.03), reach = R.upper + R.fore;
+  s.tilt = tilt; s.look = V(0, waistY + 0.3, 2);
+  s.handDir = [V(0, 0.2, 1).normalize(), V(0, 0.2, 1).normalize()];
+  const shoulder = (k, out) => out.set(R.shoulders[k].x, waistY + R.shoulders[k].y * Math.cos(tilt), (s.hipZ ?? -0.02) + R.shoulders[k].y * Math.sin(tilt));
+  for (let k = 0; k < 2; k++) { shoulder(k, _sh); s.hands[k].set(_sh.x * 0.55, _sh.y + 0.03, _sh.z + 0.15); }
+  if (!pu) return;
+  const k = pu.k, type = pu.type, t = pu.t;
+  shoulder(k, _sh); _gd.copy(s.hands[k]);
+  if (type === 0) _tg.set(_sh.x * 0.15, _sh.y + 0.02, _sh.z + reach * 0.95);
+  else if (type === 1) _tg.set(-_sh.x * 0.25, _sh.y + 0.03, _sh.z + reach * 0.7);
+  else _tg.set(_sh.x * 0.1, _sh.y + 0.12, _sh.z + reach * 0.8);
+  if (type === 2) _wd.set(_sh.x * 0.45, _sh.y - 0.16, _sh.z + 0.1); else _wd.copy(_gd).add(V(0, 0, -0.04));
+  const sm = u => { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); };
+  let e;
+  if (t < PUNCH.wind) { s.hands[k].lerpVectors(_gd, _wd, sm(t / PUNCH.wind)); e = 0; }
+  else if (t < PUNCH.wind + PUNCH.out) { e = sm((t - PUNCH.wind) / PUNCH.out); s.hands[k].lerpVectors(_wd, _tg, e); }
+  else if (t < PUNCH.wind + PUNCH.out + PUNCH.hold) { s.hands[k].copy(_tg); e = 1; }
+  else { e = 1 - sm((t - PUNCH.wind - PUNCH.out - PUNCH.hold) / PUNCH.back); s.hands[k].lerpVectors(_gd, _tg, e); }
+  s.handDir[k] = _tg.clone().sub(_sh).normalize();
+  s.turn = (s.turn || 0) * 0.3 + (k === 1 ? 1 : -1) * PUNCH.turn[type] * e;
+  if (type === 1) s.elbowsUp = e > 0.2;
+  if (type === 2) { s.tilt = tilt - 0.1 * e; s.knee = (s.knee ?? 0.03) + 0.03 * (1 - e); }
+  else s.tilt = tilt + 0.05 * e;
+}
 const _kb = V();
 function startKick() {
   if (S.kick != null || S.t - (S.kickAt ?? -9) < KICK.gap || !W.grounded || S.ko || S.hold || S.down) return;
@@ -2123,16 +2223,17 @@ function takeHit(p, nm, e) {
   o.hitMeT = S.t;
   v.clampLength(0, 15);
   const part = ['head', 'body', 'legs'].includes(e.part) ? e.part : 'body';
-  const head = part === 'head', s = clamp(+e.s || 0, 0, 16), hard = head && s > 4, driving = S.mode === 'drive', kicked = !!e.kick;
+  const head = part === 'head', s = clamp(+e.s || 0, 0, 16), driving = S.mode === 'drive', kicked = !!e.kick, punched = !!e.punch, hard = head && s > (punched ? 5.2 : 4);
   const dmg = Math.round(whackDamage(part, s) * (driving ? 0.5 : 1));      // the cart takes half of it
   me.squash = 1; shake(hard ? 0.35 : 0.18); A.play('thud', 1); addRage(hard ? 14 : 7);
   fx.sparks(S.golferG.clone().add(V(0, head ? 0.65 : 0.4, 0)), hard ? 16 : 8);
   // Hit while lining up a shot: you are knocked out of the golf stance.
   const popped = S.mode === 'address';
   if (popped) leaveAddress();
-  toast((kicked ? `🦶 ${nm} kicked you` + (head ? ' in the head!' : '') : hard ? `💫 ${nm} clocked you in the head!` : `💥 ${nm} whacked you`) + ` <b>-${dmg}</b>` + (popped ? ' and knocked you out of your stance' : ''));
+  toast((punched ? `👊 ${nm} ${hard ? 'rocked you with an uppercut' : 'punched you'}` + (head && !hard ? ' in the face' : '') : kicked ? `🦶 ${nm} kicked you` + (head ? ' in the head!' : '') : hard ? `💫 ${nm} clocked you in the head!` : `💥 ${nm} whacked you`) + ` <b>-${dmg}</b>` + (popped ? ' and knocked you out of your stance' : ''));
   const down = hurt(dmg, p.id);
   if (S.mode !== 'walk') return;      // still in the cart: it stings but you stay put
+  if (punched && !hard && !down) { if (phys) phys.fling(me, v.clone().multiplyScalar(0.6)); else W.v.add(v.clone().multiplyScalar(0.5)); return; }      // a jab rocks you, it does not floor you
   S.grip = false; W.grounded = false; W.carry.set(0, 0, 0);
   if (!down) S.ko = Math.max(S.ko || 0, hard ? 1.2 : 0.5);
   knocked(v, p.id);
@@ -2305,7 +2406,7 @@ function promptText() {
     const nc = nearCart(), tc = theirCartNear(), cd = x => Math.hypot(S.golferG.x - x.pos.x, S.golferG.z - x.pos.z);
     if (tc && (!nc || cd(tc.o.cart) < cd(nc))) return '<kbd>E</kbd>: steal ' + (tc.o.nameHtml || 'their') + "'s cart";
     if (nc) return '<kbd>E</kbd>: hop in the cart';
-    return (S.noClub ? '<kbd>2</kbd>–<kbd>5</kbd> pick a club' : '<b>Hold left mouse</b> to swing freely · <b>Right click</b> by your ball for the golf stance') + ' · <kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump';
+    return (S.noClub ? '<b>Left click</b> right fist · <b>Right click</b> left fist · flick the mouse up for an uppercut, sideways for a hook · <kbd>2</kbd>–<kbd>5</kbd> clubs' : '<b>Hold left mouse</b> to swing freely · <b>Right click</b> by your ball for the golf stance') + ' · <kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump';
   }
   if (S.mode === 'drive' && S.awaitPark) return (S.awaitPark === NHOLES ? '🅿️ Stop in the bay at the summit to finish' : '🅿️ Stop in the glowing bay beside hole ' + (S.awaitPark + 1) + "'s tee") + coWaitText() + ' · <kbd>Space</kbd> brake';
   if (S.mode === 'drive') return '<kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> brake · <b>Click</b> honk · <kbd>E</kbd> hop out';
@@ -2425,6 +2526,8 @@ function netTick(dt) {
     const c = carts[0], driven = S.mode === 'drive' && S.cart === c;
     const st = { b: ball.p.toArray().map(r2), g: [r2(S.golferG.x), r2(S.golferG.y), r2(S.golferG.z), r3(bodyYaw())], wk: S.mode === 'walk' && !S.grip ? (Math.hypot(W.v.x, W.v.z) > 0.2 ? 2 : 1) : 0, air: S.mode === 'walk' && !S.grip && !W.grounded ? 1 : 0, dr: driven ? 1 : 0, hl: S.awaitPark === NHOLES ? NHOLES + 1 : S.hole, h: swing.hand.toArray().map(r3), hd: swing.head.toArray().map(r3), ko: r2(S.ko || 0), hp: Math.round(S.hp), c: heldClub(), e: S.emote || 0, et: r2(S.emoteT), m: S.ballLive ? 1 : 0, rd: Math.round(me.redness * 10) / 10, bv: ballMesh.visible ? 1 : 0 };
     if (S.kick != null) st.kk = r2(S.kick);
+    if (S.punch) st.pu = [S.punch.k, S.punch.type, r2(S.punch.t)];
+    if (S.guardT > 0 && S.noClub) st.gd = 1;
     st.pb = S.parkBay || 0;      // the bay I last parked in (cleared when the next ball drops)
     if (S.coop && S.coOwner === 'me') Object.assign(st, { own: 1, lh: S.coLast || '', sk: S.strokes, hs: S.holeStrokes, fa: S.falls });
     // The cart is always somewhere, parked or not: every pose while it moves, once a second while it sits.
@@ -2606,6 +2709,11 @@ function updateOthers(dt) {
       o.wp = (o.wp || 0) + dt * (6 + o.wspd * 2.4);
       pose.feet = null;
       runPose(pose, o.wp, clamp(o.wspd / 6.5, 0, 1), { club: s.c >= 0, air: !!s.air });
+      // A punch: take its time from them, then run it on here between messages.
+      if (Array.isArray(s.pu) && nums(s.pu, 3)) { if (o.puAt !== p.t) { o.puAt = p.t; o.punch = { k: s.pu[0] ? 1 : 0, type: clamp(s.pu[1] | 0, 0, 2), t: clamp(+s.pu[2], 0, punchLen()) }; } else if (o.punch) o.punch.t += dt; }
+      else o.punch = null;
+      if (o.punch && o.punch.t >= punchLen()) o.punch = null;
+      if (s.c < 0) punchPose(pose, o.golfer.R, o.punch, s.gd === 1);
     } else {
       pose.hands[0].copy(o.hand);
       pose.club.subVectors(o.head, o.hand); if (pose.club.lengthSq() < 1e-6) pose.club.set(0, -1, 0.5); pose.club.normalize();
@@ -2746,7 +2854,7 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     setClub,
     fire: () => fireCannon(), get cannon() { return S.cannon; },
     tick: (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { S.realDt = dt; step(dt); } },
-    THREE, get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, get wreck() { return wreck; }, wreckHit, tearDivot, askReset, voteAnswer, get vote() { return vote; }, showMenu, resetBall, resetCart, assistPress, sparSpawn, puzzleTick, followBody, bonkBall, stealCart, theirCartNear, get stolen() { return stolen; }, toTitle, askPin, get spar() { return bot; }, get phys() { return phys; }, RAGDOLL, get assist() { return assist; }, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
+    THREE, startPunch, punchFwd: () => punchFwd(), get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, get wreck() { return wreck; }, wreckHit, tearDivot, askReset, voteAnswer, get vote() { return vote; }, showMenu, resetBall, resetCart, assistPress, sparSpawn, puzzleTick, followBody, bonkBall, stealCart, theirCartNear, get stolen() { return stolen; }, toTitle, askPin, get spar() { return bot; }, get phys() { return phys; }, RAGDOLL, get assist() { return assist; }, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
     // Deterministic swing at 60 fps: back for `back` frames, pause, then through; runs until the ball rests.
     swingTest: (power = 1, back = 24, down = 10, club) => {
       if (club != null) setClub(club);
