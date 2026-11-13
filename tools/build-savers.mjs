@@ -14,6 +14,7 @@ const SAVERS = [
   { dir: "rainwindow", file: "window.html", title: "Rain Window", desc: "A rain-streaked window at night across every monitor. Draw in the fog while the city goes by.", loading: "Waiting for rain", accent: "#ffb56b", accentFg: "#2a1605", ink: "#ecebea", bg: "#05070b", panel: "rgba(10,13,20,.8)", icon: svg("<rect x='22' y='18' width='56' height='64' rx='5' fill='%23182638'/><path d='M38 28v14M56 34v20M46 56v14' stroke='%23ffb56b' stroke-width='5' stroke-linecap='round'/>", "#0b121c") },
   { dir: "koipond", file: "pond.html", title: "Koi Pond", desc: "A photoreal koi pond seen from above, across every monitor. Feed them and trail your finger in the water.", loading: "Filling the pond", accent: "#f2a65a", accentFg: "#2b1503", ink: "#eaf0ea", bg: "#050b0a", panel: "rgba(8,18,16,.8)", icon: svg("<ellipse cx='48' cy='50' rx='28' ry='13' fill='%23f26b3a'/><path d='M74 50l14-11v22z' fill='%23f26b3a'/><circle cx='30' cy='46' r='6' fill='%23fff'/>", "#0d2b2a") },
   { dir: "aurora", file: "sky.html", title: "Aurora", desc: "Northern lights over a frozen lake, across every monitor. Release lanterns and make a wish on the meteors.", loading: "Waiting for dark", accent: "#7ef0b8", accentFg: "#04201a", ink: "#e4efea", bg: "#02040a", panel: "rgba(6,12,20,.8)", icon: svg("<path d='M10 70C30 20 50 80 90 24v60H10z' fill='%237ef0b8' opacity='.8'/><path d='M10 82h80' stroke='%23031' stroke-width='6'/>", "#031018") },
+  { dir: "desert-chase", file: "chase.html", title: "Desert Chase", desc: "A coyote and a roadrunner in the desert, across every monitor. The coyote never stops trying. It never gets there.", loading: "Raising the dust", accent: "#e8a25e", accentFg: "#2a1404", ink: "#f1e9df", bg: "#0d0806", panel: "rgba(24,14,8,.82)", icon: svg("<path d='M14 70h72' stroke='%23e8a25e' stroke-width='6' stroke-linecap='round'/><path d='M58 64l8-20 10-4-6 10 6 14z' fill='%23e8a25e'/><path d='M18 64l10-14h18l6 14z' fill='%23b07a4a'/>", "#2a1404") },
 ];
 
 const only = process.argv[2];
@@ -21,7 +22,9 @@ const page = read("tools/savers/page.html"), css = read("tools/savers/shell.css"
 for (const s of SAVERS) {
   if (only && s.dir !== only) continue;
   if (!fs.existsSync(path.join(root, s.dir, "src", "scene.js"))) continue;
-  const values = { ...s, css, head, tail, scene: read(s.dir, "src", "scene.js") };
+  // a saver may keep generated data (models, baked tables) beside its scene in src/models.js
+  const data = fs.existsSync(path.join(root, s.dir, "src", "models.js")) ? read(s.dir, "src", "models.js") + "\n" : "";
+  const values = { ...s, css, head, tail, scene: data + read(s.dir, "src", "scene.js") };
   const html = page.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in values ? values[k] : m));
   fs.writeFileSync(path.join(root, s.dir, s.file), html);
   console.log(`${s.dir}/${s.file}  ${(html.length / 1024).toFixed(0)} KB`);
