@@ -50,11 +50,11 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
   <p class="hint">An early release. Bars are a shape, and the shape can be a pie.</p>
 
   <div class="cta">
-    <a class="btn primary" href="/party-health-pie/PartyHealthPie-1.1.1.zip" download>
-      <b>Download for Classic Forever</b><small>v1.1.1 · 0.3 MB · free</small>
+    <a class="btn primary" href="/party-health-pie/PartyHealthPie-1.1.2.zip" download>
+      <b>Download for Classic Forever</b><small>v1.1.2 · 0.3 MB · free</small>
     </a>
-    <a class="btn primary" href="/party-health-pie/PartyHealthPie-Retail-1.1.1.zip" download>
-      <b>Download for retail (Midnight)</b><small>v1.1.1 · 0.3 MB · free · adds all 13 classes</small>
+    <a class="btn primary" href="/party-health-pie/PartyHealthPie-Retail-1.1.2.zip" download>
+      <b>Download for retail (Midnight)</b><small>v1.1.2 · 0.3 MB · free · adds all 13 classes</small>
     </a>
   </div>
   <p class="note">The retail build hasn’t been played on a live retail client yet, so treat it as a test release. The debuff glow is new in 1.1.0 and hasn’t been tested in a real group yet.</p>
@@ -98,7 +98,7 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
     <li><b>Dead</b> is charcoal, <b>disconnected</b> is grey, and someone who <b>left</b> leaves a transparent wedge.</li>
     <li><b>Your target</b> gets a yellow outline. Select a pet and only its slice lights up.</li>
     <li><b>Role symbols</b> mark each player as tank (shield), healer (cross) or DPS (sword).</li>
-    <li><b>Debuffs you can dispel</b> turn the symbol curse purple, magic blue, disease gold or poison green. A halo fades as the debuff runs out, and a countdown shows the seconds left.</li>
+    <li><b>Debuffs you can dispel</b> turn the symbol curse purple, magic blue, disease gold or poison green. A halo fades as the debuff runs out, and a countdown shows the time left: seconds, or minutes past 99 seconds.</li>
   </ul>
 
   <h2>Healing with it</h2>
@@ -124,6 +124,7 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
   <div class="keys">
     <span><code>/php</code></span><span>open the settings (also under Options &gt; AddOns)</span>
     <span><code>/php demo</code></span><span>preview a sample party</span>
+    <span><code>/php debuffs</code></span><span>list each member’s debuffs, and why one has no countdown</span>
   </div>
 
   <h2>Good to know</h2>
@@ -134,12 +135,14 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
     <li>Instant heals have no cast, so they don’t show an incoming-heal band.</li>
     <li>Role symbols come from the role set in the game, so someone with no role has no symbol. They still get the debuff halo and countdown.</li>
     <li>If a player has several debuffs you can dispel, the symbol shows the one ending soonest.</li>
+    <li>A debuff with no countdown either has no end time from the game, or the game is hiding its timing. Type <code>/php debuffs</code> to see which.</li>
     <li>On retail, the game may not report other players’ secondary resources. If a class with Secondary ticked shows an empty band, untick it.</li>
     <li>A mouse button bound to something other than a cast or macro, like autorun or ping, still does nothing while the pointer is over a wedge.</li>
   </ul>
 
   <h2>What’s new</h2>
   <ul>
+    <li><b>1.1.2:</b> the debuff countdown rounds up, so it no longer reads 0 in its last half second, and long debuffs count in minutes. New <code>/php debuffs</code> command explains a missing countdown.</li>
     <li><b>1.1.1:</b> hovering a wedge shows the player’s tooltip, and heals bound to the middle and side mouse buttons now cast on the wedge under the pointer.</li>
     <li><b>1.1.0:</b> role symbols, and a debuff color, glow and countdown for dispels.</li>
   </ul>
