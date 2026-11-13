@@ -17,9 +17,9 @@ const TIMES = {
   dusk: { name: 'Dusk', sun: [.80, .07, .55], sunC: [2.6, 1.3, .62], zen: [.14, .17, .34], hor: [.80, .48, .34], sky: [.22, .20, .28], grd: [.22, .12, .07], fog: .0020, haze: [.70, .46, .36] },
 };
 const LENSES = {
-  close: { name: 'Close', dist: 15, height: 2.5, camY: .5 },
-  medium: { name: 'Medium', dist: 21, height: 3.7, camY: .7 },
-  wide: { name: 'Wide', dist: 30, height: 5.2, camY: .95 },
+  close: { name: 'Close', dist: 15, height: 2.5, camY: .95 },
+  medium: { name: 'Medium', dist: 21, height: 3.7, camY: 1.32 },
+  wide: { name: 'Wide', dist: 30, height: 5.2, camY: 1.9 },
 };
 const TRIES = { rare: { name: 'Now and then', gap: [55, 110] }, often: { name: 'Often', gap: [16, 40] }, relentless: { name: 'Relentlessly', gap: [8, 20] } };
 
@@ -59,10 +59,11 @@ const undelta = (d) => { const o = new Uint16Array(d.length); let a = 0; for (le
 // World: x to the right, y up, z toward the camera. The camera sits at +z looking back down -z, slightly down.
 const CAM = { pos: [0, 1.3, 21], fwd: [0, 0, -1], right: [1, 0, 0], up: [0, 1, 0], tanX: 1, tanY: .1, near: .3, far: 5000, halfW: 4 };
 function setupCamera() {
-  // a low long-lens camera; the ground under the action line sits two thirds of the way down the frame
+  // a long-lens camera about knee high; the ground under the action line sits four fifths of the way down the frame,
+  // so the empty sand in front of the chase is a thin strip and the horizon stays just above the middle
   const L = LENSES[S.lens] || LENSES.medium, C = [0, L.camY, L.dist];
   CAM.tanY = (L.height / 2) / L.dist; CAM.tanX = CAM.tanY * W / H;
-  const a0 = -Math.atan(L.camY / L.dist), pitch = a0 - Math.atan(-.36 * CAM.tanY);
+  const a0 = -Math.atan(L.camY / L.dist), pitch = a0 - Math.atan(-.62 * CAM.tanY);
   CAM.pos = C; CAM.fwd = [0, Math.sin(pitch), -Math.cos(pitch)]; CAM.right = [1, 0, 0]; CAM.up = V3.cross(CAM.right, CAM.fwd);
   CAM.halfW = CAM.tanX * L.dist;                 // half the visible width on the action line
 }
