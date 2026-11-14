@@ -79,7 +79,7 @@ function loadLook() {
 }
 function saveLook() { try { localStorage.setItem('pftc-look', JSON.stringify(look)); } catch (e) {} }
 function save() {
-  try { localStorage.setItem('pftc-save', JSON.stringify({ hole: S.hole, strokes: S.strokes, holeStrokes: S.holeStrokes, falls: S.falls, lost: Math.round(S.lost), best: S.best, finished: S.finished, ft: S.finMs, crown: S.crown, park: S.awaitPark | 0, cb: S.cartBay | 0, ball: ball.p.toArray().map(v => +v.toFixed(3)), aim: S.aim, startedAt: S.startedAt, g: S.golferG.toArray().map(v => +v.toFixed(2)), cart: [...carts[0].pos.toArray().map(v => +v.toFixed(2)), +carts[0].yaw.toFixed(3)] })); } catch (e) {}
+  try { localStorage.setItem('pftc-save', JSON.stringify({ hole: S.hole, strokes: S.strokes, holeStrokes: S.holeStrokes, falls: S.falls, lost: Math.round(S.lost), best: S.best, finished: S.finished, ft: S.finMs, crown: S.crown, park: S.awaitPark | 0, bays: S.bays | 0, ball: ball.p.toArray().map(v => +v.toFixed(3)), aim: S.aim, startedAt: S.startedAt, g: S.golferG.toArray().map(v => +v.toFixed(2)), cart: [...carts[0].pos.toArray().map(v => +v.toFixed(2)), +carts[0].yaw.toFixed(3)] })); } catch (e) {}
 }
 function loadSave() { try { return JSON.parse(localStorage.getItem('pftc-save') || 'null'); } catch (e) { return null; } }
 
@@ -230,7 +230,7 @@ function resetBall() {
   if (S.mode === 'title' || S.mode === 'loading' || held() || S.finished || S.awaitPark) return;
   if (S.mode === 'address') leaveAddress();
   const n = S.holeStrokes + 1;
-  placeOnTee(S.hole); S.holeStrokes = n; S.strokes++; trail.clear();
+  placeOnTee(nextCup()); S.holeStrokes = n; S.strokes++; trail.clear();      // the tee of your next cup, not a hole you fell back to
   if (S.mode === 'walk') placeWalker(true);
   toast('⛳ Ball back on the tee of hole ' + S.hole + ', +1 stroke.'); updateHud(); save();
 }
@@ -240,7 +240,7 @@ function resetCart() {
   if (S.cart === c) exitCart();
   if (c.gone && net) net.event({ k: 'reclaim', to: c.gone });
   cartHome(null); A.play('poof');
-  toast('🛒 Your cart is back ' + (S.cartBay > 0 ? 'in the parking bay at hole ' + S.cartBay + "'s green." : 'in its bay at the first tee.')); save();
+  toast('🛒 Your cart is back in its bay at the first tee.'); save();
 }
 /* ---------------- escape menu ---------------- */
 const playing = () => S.mode !== 'title' && S.mode !== 'loading';
@@ -410,14 +410,15 @@ function coBlocked() {
   return true;
 }
 // Everyone in the room parked at this green (co-op waits for the whole team).
+const peerTouched = (p, k) => ((+p.state.pb || 0) & (1 << k)) !== 0;
 function teamParked() {
   if (!S.coop || S.awaitPark === NHOLES) return true;
-  return [...net.peers.values()].every(p => !p.state || (+p.state.pb || 0) >= S.awaitPark);
+  return [...net.peers.values()].every(p => !p.state || peerTouched(p, S.awaitPark));
 }
 function coWaitText() {
-  if (!S.coop || !(S.parkBay >= S.awaitPark) || teamParked()) return '';
-  const late = [...net.peers.values()].filter(p => p.state && !((+p.state.pb || 0) >= S.awaitPark)).map(p => others.get(p.id)?.nameHtml || 'a teammate');
-  return ' · waiting for ' + late.join(', ') + ' to park';
+  if (!S.coop || !touchedBay(S.awaitPark) || teamParked()) return '';
+  const late = [...net.peers.values()].filter(p => p.state && !peerTouched(p, S.awaitPark)).map(p => others.get(p.id)?.nameHtml || 'a teammate');
+  return ' · waiting for ' + late.join(', ') + ' to reach it';
 }
 function coopTick(dt) {
   const want = roomMode() === 'co';
@@ -452,6 +453,7 @@ function coopTick(dt) {
   if (Number.isFinite(+st.sk)) S.strokes = st.sk | 0;
   if (Number.isFinite(+st.hs)) S.holeStrokes = st.hs | 0;
   if (Number.isFinite(+st.fa)) S.falls = st.fa | 0;
+  if (Number.isFinite(+st.bs)) S.best = clamp(st.bs | 0, 0, NHOLES);
   S.ballLive = false; ball.v.set(0, 0, 0);
   if (st.m === 1 || S.awaitPark || st.bv === 0) {
     ball.frozen = true; ball.p.copy(o.bpos);
@@ -760,7 +762,6 @@ function healthTick(dt) {
 }
 // Five cart bays side by side at the first tee; the room hands each golfer one.
 function useCartBay(slot) {
-  if (S.cartBay > 0) return homeCart(S.cartBay);
   const c = carts[0], s0 = course.cartSpots[0], F = course.holes[1].frame;
   const atHome = c !== S.cart && c.pos.distanceTo(c.home.p) < 0.6;
   c.home = { p: s0.p.clone().addScaledVector(F.in, [0, 1.5, -1.5, 3, 4.5][clamp(slot | 0, 0, 4)]), yaw: s0.yaw };
@@ -820,7 +821,7 @@ async function boot() {
       if (num(sv.cart)) { carts[0].pos.set(sv.cart[0], sv.cart[1], sv.cart[2]); carts[0].yaw = +sv.cart[3] || 0; carts[0].sync(); } else S.cartToBall = true;
       if (S.crown) me.setCrown(true);
       if (sv.park && !S.finished) { S.awaitPark = sv.park === true ? NHOLES : clamp(sv.park | 0, 1, NHOLES); ball.frozen = true; }
-      if (+sv.cb > 0) homeCart(clamp(sv.cb | 0, 1, NHOLES));
+      S.bays = (+sv.bays | 0) & 0x3fe;
       settleGolfer(true);
       $('continueNote').hidden = false;
       $('continueNote').textContent = `Picking up on hole ${S.hole}, ${S.strokes} strokes in.`;
@@ -828,7 +829,7 @@ async function boot() {
     } catch (e) {
       console.error('save could not be restored', e);
       try { localStorage.setItem('pftc-save-bad', JSON.stringify(sv)); } catch (e2) {}
-      Object.assign(S, { hole: 1, strokes: 0, holeStrokes: 0, falls: 0, lost: 0, finished: false, crown: false, aim: 0, startedAt: 0, savedG: null, cartToBall: false });
+      Object.assign(S, { hole: 1, strokes: 0, holeStrokes: 0, falls: 0, lost: 0, best: 0, finished: false, crown: false, aim: 0, startedAt: 0, savedG: null, cartToBall: false });
       me.setCrown(false);
     }
   }
@@ -846,7 +847,10 @@ function placeOnTee(h) {
   ball.p.copy(H.tee); ball.v.set(0, 0, 0); ball.spin = 0; ball.frozen = false; S.ballLive = false; ball.airT = 0;
   dropCannon();
   // Spread golfers across the tee box so friends on the same hole do not stand inside each other.
-  const F = H.frame; ball.p.addScaledVector(F.in, (Math.random() - 0.5) * 2.6).addScaledVector(F.f, (Math.random() - 0.5) * 1.2);
+  // In the middle of the tee box, in line with the hole. With friends on the tee, each takes a place a step
+  // apart across it, by the cart bay slot the room gave them, so nobody stands inside anybody.
+  const F = H.frame, slot = net && net.peers.size ? clamp(net.slot | 0, 0, 4) : 0;
+  ball.p.addScaledVector(F.in, [0, 0.5, -0.5, 1, -1][slot]);
   S.hole = h; S.holeStrokes = 0;
   course.rerollWind();
   aimAt(courseTarget());
@@ -977,7 +981,7 @@ async function teeOff() {
 }
 
 function resetClimb() {
-  Object.assign(S, { strokes: 0, holeStrokes: 0, falls: 0, lost: 0, rage: 0, finished: false, finMs: 0, startedAt: 0, awaitPark: 0, cartBay: 0, hp: HP.max, ko: 0, down: false, goAt: 0 });
+  Object.assign(S, { strokes: 0, holeStrokes: 0, falls: 0, lost: 0, rage: 0, finished: false, finMs: 0, startedAt: 0, awaitPark: 0, bays: 0, best: 0, hp: HP.max, ko: 0, down: false, goAt: 0 });
   S.savedG = null; S.cartToBall = false; if (S.cart) { S.cart = null; A.engine(0); } useCartBay(net ? net.slot : 0); carts[0].reset();
   placeOnTee(1); settleGolfer(true); save();
 }
@@ -1126,7 +1130,7 @@ function toggleGolf() {
   if (S.mode === 'address') return leaveAddress();
   if (S.mode !== 'walk' || S.emote || S.ko || S.intro || S.hold) return;
   if (S.noClub) { toast('Pick a club first: keys 2 to 5.'); return; }
-  if (S.awaitPark) { toast(S.awaitPark === NHOLES ? '🅿️ Park the cart in the bay at the summit to finish.' : '🅿️ Park your cart in the bay beside this tee first.'); return; }
+  if (S.awaitPark) { toast(S.awaitPark === NHOLES ? '✅ Drive the cart through the checkpoint at the summit to finish.' : touchedBay(S.awaitPark) ? '✅ Waiting for your team to reach the checkpoint.' : '✅ Drive your cart through the glowing checkpoint beside this tee first.'); return; }
   if (coBlocked()) return;
   if (S.ballLive || ball.frozen || !ballMesh.visible) { toast('Wait for your ball to stop.'); return; }
   if (Math.hypot(S.golferG.x - ball.p.x, S.golferG.z - ball.p.z) > 3.5 || Math.abs(S.golferG.y - ball.p.y) > 1.5) { toast('Walk up to your ball, then right click to take your stance.'); return; }
@@ -1154,13 +1158,16 @@ function exitCart(toBall) {
   // You leave with whatever speed the cart had, and it carries on without you.
   W.v.copy(H).multiplyScalar(c.speed); W.carry.set(0, 0, 0);
   if (c.grounded) {
+    // Beside the cart (driver's side, then the other side, then behind or in front), on a spot with solid
+    // ground all round it, so stepping out on a narrow road never drops you over the edge.
     let spot = null;
-    for (const [a, b] of [[0.9, 0], [-0.9, 0], [0, -1.4], [0, 1.4]]) {
+    for (const [a, b] of [[0.85, 0], [-0.85, 0], [0, -1.35], [0, 1.35], [0.6, -1], [-0.6, -1]]) {
       const x = c.pos.x + L.x * a + H.x * b, z = c.pos.z + L.z * a + H.z * b;
-      const g = world.groundAt(x, c.pos.y + 1.2, z, 3);
-      if (g && Math.abs(g.y - c.pos.y) < 1.1) { spot = V(x, g.y, z); break; }
+      const g = safeGround(x, c.pos.y, z);
+      if (g != null) { spot = V(x, g, z); break; }
     }
     S.golferG.copy(spot || c.pos);
+    W.v.set(0, 0, 0);      // and you step out: no flying off the road at the speed it was doing
     W.grounded = true;
   } else {
     // Bailing out in mid air: thrown clear to the side, then you're falling too.
@@ -1172,6 +1179,15 @@ function exitCart(toBall) {
   S.camYaw = c.yaw; S.camPitch = 0.22; S.walkYaw = yawFacing(H.x, H.z);
   setMode('walk'); me.setClub(heldClub()); updateHud();
   if (stolen && c === stolen.cart) { dropStolen(true); toast('🛺 You ditched the cart. It is theirs again, wherever you left it.'); }
+}
+// Ground under (x, z) near height y, and under a ring of points round it, all at about the same height.
+function safeGround(x, y, z, r = 0.35) {
+  const g = world.groundAt(x, y + 1.2, z, 3, true); if (!g || Math.abs(g.y - y) > 1.1) return null;
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * Math.PI * 2, q = world.groundAt(x + Math.cos(a) * r, g.y + 0.6, z + Math.sin(a) * r, 1.2, true);
+    if (!q || Math.abs(q.y - g.y) > 0.4) return null;
+  }
+  return g.y;
 }
 function interact() {
   if (S.mode === 'address') return leaveAddress();
@@ -1225,8 +1241,9 @@ function walkStep(dt) {
     if (S.koFrom != null) tumbled(S.koFrom - SEA_Y, true);
     S.ko = 0; S.bodyFalling = false; S.koFrom = null;
     W.v.set(0, 0, 0); W.carry.set(0, 0, 0); W.grounded = true;
-    const c = carts[0], H = c.heading();
-    S.golferG.copy(c.pos).add(V(H.z, 0, -H.x));
+    const c = carts[0], H = c.heading(), L = V(H.z, 0, -H.x);
+    S.golferG.copy(c.pos).add(L);
+    for (const [a, b] of [[0.85, 0], [-0.85, 0], [0, -1.35], [0, 1.35]]) { const x = c.pos.x + L.x * a + H.x * b, z = c.pos.z + L.z * a + H.z * b, g = safeGround(x, c.pos.y, z); if (g != null) { S.golferG.set(x, g, z); break; } }
     S.camYaw = c.yaw; S.camPitch = 0.22; S.walkYaw = yawFacing(H.x, H.z);
     fx.poof(S.golferG.clone().add(V(0, 0.5, 0))); me.squash = 1;
   }
@@ -1264,6 +1281,7 @@ function driveStep(dt) {
   if (c.pos.y < SEA_Y + 0.5) {
     fx.bigSplash(V(c.pos.x, SEA_Y, c.pos.z)); A.play('splash', 1); A.play('womp', 0.8); addRage(20); quip('cartSea');
     c.reset(); c.seat(S.golferG);
+    toast('🌊 Your cart sank. Back to the first tee! Checkpoints you touched stay unlocked.');
     const B = c.heading();
     cam.pos.copy(c.pos).addScaledVector(B, -5).add(V(0, 2.4, 0)); cam.look.copy(c.pos).addScaledVector(B, 7); camHas = false;
     sendEv({ k: 'sea' }); save();
@@ -1389,6 +1407,10 @@ function launch(r) {
   updateHud();
 }
 
+// The next cup that counts: the first hole you have not sunk yet. Every hole you have sunk is a checkpoint:
+// fall back down onto one and you play your way up past it, its cup is only grass, and nothing makes you
+// hole it again.
+const nextCup = () => Math.min(NHOLES, (S.best || 0) + 1);
 function ballRested() {
   // Called once the ball has settled. Decide what happened. The golfer is left alone throughout.
   S.ballLive = false;
@@ -1401,10 +1423,9 @@ function ballRested() {
     quip(big ? 'bigfall' : 'fall', { m: Math.round(dropped), h });
     A.play('womp', 1); addRage(big ? 40 : 25);
     sendEv({ k: 'fall', m: Math.round(dropped), from: S.shotHole, to: h });
-    if (h !== S.hole) { S.hole = h; S.holeStrokes = 0; setTimeout(showHoleCard, 2200); }
-  } else if (h !== S.hole && h > S.hole) {
-    // Rolled onto a later hole without holing out: keep playing the current one.
-  } else if (h !== S.hole) { S.hole = h; S.holeStrokes = 0; }
+    if (h < nextCup()) toast('🪜 Down on hole ' + h + '. You already cleared it: just play back up. Your next cup is still hole ' + nextCup() + '.');
+  }
+  if (h !== S.hole) { S.hole = h; updateHud(); }
   const z = course.zoneAt(ball.p);
   if (z && z.type === 'sand' && Math.random() < 0.6) quip('sand');
   aimAt(courseTarget());
@@ -1456,36 +1477,51 @@ function coSunk(h, n, par, nm) {
   S.best = Math.max(S.best, h); addRage(-20);
   setTimeout(() => { if (h < NHOLES) showHoleCard(); needPark(h); updateHud(); }, 2800);
 }
-// The cart has to make it too. Every green has a parking bay on the cart road beside it: you cannot tee off
-// on the next hole until your cart is parked in it, and the climb is not over until it is parked at the top.
-const cartParked = (k = S.awaitPark) => { const c = carts[0]; return k > 0 && !c.gone && course.inBay(c.pos, k) && c.grounded && Math.abs(c.speed) < 0.4; };
-function needPark(k) {
-  S.awaitPark = k; S.parkBay = 0; ball.frozen = true; save();
-  if (cartParked(k)) return;
-  if (k === NHOLES) {
-    pop('Now park the cart<small>in the bay at the top</small>', 'big meh');
-    toast('🅿️ Ball is in. The climb counts once your cart is parked in the bay at the summit.');
-  } else {
-    pop('Park your cart<small>in bay ' + k + ', then tee off on ' + (k + 1) + '</small>', 'big meh');
-    toast('🅿️ No tee shot on hole ' + (k + 1) + ' until your cart is parked in the bay on the cart road beside this tee.');
+// The cart has to make it too. Every green has a checkpoint on the cart road beside it: drive your cart
+// through it once and the next tee is open for good (and the summit's finishes the climb). It glows yellow,
+// with a beam you can see from the holes below, until you touch it; then it flashes green and goes out.
+// A checkpoint is not a respawn: a cart that sinks still goes back to the first tee.
+const touchedBay = k => k > 0 && (S.bays & (1 << k)) !== 0;
+const CHECK = { flash: 1.4 };
+function bayTick(t, dt) {
+  const c = S.cart || carts[0];
+  for (const b of course.bays) {
+    if (!b) continue;
+    if (!touchedBay(b.k) && !c.gone && course.inBay(c.pos, b.k)) touchBay(b);
+    const fl = b.flash = Math.max(0, (b.flash || 0) - dt);
+    const want = !touchedBay(b.k) && b.k <= Math.max(nextCup(), S.awaitPark || 0);
+    let a = 0, col = 0xffd23f;
+    if (fl > 0) { a = fl / CHECK.flash; col = 0x3ddc84; }
+    else if (want) a = 0.55 + Math.sin(t * 4) * 0.25;
+    b.glow.material.color.setHex(col); b.glow.material.opacity = a * 0.6;
+    b.beam.material.color.setHex(col); b.beam.material.opacity = a * 0.35; b.beam.visible = a > 0.01;
+    b.ring.material.color.setHex(col); b.ring.material.opacity = a; b.ring.visible = a > 0.01;
   }
 }
-// Parked in bay k: the next tee is open, and that bay is where the cart goes back to if you reset it.
+function touchBay(b) {
+  S.bays |= 1 << b.k; b.flash = CHECK.flash;
+  A.play('beep', 1); A.play('cup', 0.5); fx.sparks(b.p.clone().add(V(0, 0.6, 0)), 24);
+  pop('✅ CHECKPOINT<small>' + (b.k === NHOLES ? 'the summit' : 'tee ' + (b.k + 1) + ' unlocked') + '</small>', 'good', b.p.clone().add(V(0, 1.6, 0)));
+  save();
+}
+function needPark(k) {
+  S.awaitPark = k; ball.frozen = true; save();
+  if (touchedBay(k)) return;
+  if (k === NHOLES) {
+    pop('Now the cart<small>drive it through the checkpoint at the top</small>', 'big meh');
+    toast('✅ Ball is in. The climb counts once your cart has touched the checkpoint at the summit.');
+  } else {
+    pop('Checkpoint ' + k + '<small>drive your cart through it, then tee off on ' + (k + 1) + '</small>', 'big meh');
+    toast('✅ No tee shot on hole ' + (k + 1) + ' until your cart touches the glowing checkpoint on the cart road beside this tee.');
+  }
+}
+// Checkpoint k touched (and, in co-op, by everyone): the next tee is open.
 function parked() {
   const k = S.awaitPark;
-  homeCart(k);
   if (k === NHOLES) return finish();
   S.awaitPark = 0; ball.frozen = false;
-  pop('Parked!<small>tee off on hole ' + (k + 1) + '</small>', 'good'); A.play('beep', 0.8);
+  pop('Tee ' + (k + 1) + ' open<small>go hit it</small>', 'good');
   updateHud(); save();
-}
-// Where your cart lives: one of five places side by side in the last bay you parked in (the first tee's
-// row before that), by the slot the room gave you.
-function homeCart(k) {
-  S.cartBay = k;
-  const c = carts[0], b = course.bays[k], slot = clamp((net ? net.slot : 0) | 0, 0, 4);
-  if (!b) return useCartBay(net ? net.slot : 0);
-  c.home = { p: b.p.clone().addScaledVector(b.frame.f, ([0, -1.8, 1.8, -3.6, 3.6])[slot]), yaw: b.yaw };
 }
 function finish() {
   S.awaitPark = false;
@@ -1630,10 +1666,9 @@ function step(dt) {
   sparTick(dt);
   if (S.ballLive) flight(dt);
   if (S.cannon) cannonTick(S.realDt || dt);
-  if (S.awaitPark && cartParked()) S.parkBay = Math.max(S.parkBay || 0, S.awaitPark);
-  if (S.awaitPark && !S.finished && S.parkBay >= S.awaitPark && teamParked()) parked();
+  bayTick(t, dt);
+  if (S.awaitPark && !S.finished && touchedBay(S.awaitPark) && teamParked()) parked();
   if (net) coopTick(dt);
-  for (const b of course.bays) if (b) b.glow.material.opacity = S.awaitPark === b.k ? 0.25 + Math.sin(t * 5) * 0.15 : 0;
   if (S.mode === 'walk') walkStep(dt);
   followBody();
   if (S.mode === 'walk') dribble();
@@ -1695,7 +1730,7 @@ function flight(dt) {
   if (ball.p.y < SEA_Y + 0.3) { fx.bigSplash(V(ball.p.x, SEA_Y, ball.p.z)); A.play('splash', 1); return penalty('sea'); }
   // Falling far: whistle.
   if (!S.fallingWhistle && !ball.grounded && ball.p.y < S.shotY - 5 && ball.v.y < -8) { S.fallingWhistle = true; A.play('whistle', 1); }
-  for (let h = 1; h <= NHOLES; h++) {
+  for (let h = nextCup(); h <= NHOLES; h++) {
     const H = course.holes[h]; if (!H || !H.cup) continue;
     const dx = ball.p.x - H.cup.x, dz = ball.p.z - H.cup.z, d = Math.hypot(dx, dz);
     if (Math.abs(ball.p.y - BALL_R - H.cup.y) > 0.25) continue;
@@ -2348,7 +2383,7 @@ function render(dt) {
 /* ---------------- HUD ---------------- */
 function updateHud() {
   const H = course.holes[S.hole];
-  $('hHole').textContent = S.hole; $('hName').textContent = H ? H.name : ''; $('hPar').textContent = H ? H.par : '';
+  $('hHole').textContent = S.hole; $('hName').textContent = H ? H.name + (S.hole < nextCup() && !S.awaitPark ? ' · ✓ next cup: ' + nextCup() : '') : ''; $('hPar').textContent = H ? H.par : '';
   $('hTotal').textContent = S.strokes; $('hFalls').textContent = S.falls;
   [...$('clubs').children].forEach((el, i) => el.classList.toggle('on', SLOTS[i] === (S.noClub ? -1 : swing.ci)));
   $('mute').textContent = A.isMuted() ? '🔇 M' : '🔊 M';
@@ -2402,13 +2437,13 @@ function promptText() {
     if (S.hold) return '🏁 Get ready…';
     if (S.down) return '💫 Knocked down. You will be back up in a moment.';
     if (S.grip) return 'The mouse is the club · <b>Right mouse</b> thrust · <kbd>Space</kbd> kick · <kbd>Q</kbd><kbd>E</kbd> turn · <kbd>H</kbd> hit boxes';
-    if (S.awaitPark) return S.awaitPark === NHOLES ? '🅿️ Park the cart in the bay at the summit to finish' : '🅿️ Park your cart in the bay on the cart road beside this tee, then tee off' + coWaitText();
+    if (S.awaitPark) return S.awaitPark === NHOLES ? '✅ Drive the cart through the checkpoint at the summit to finish' : '✅ Drive your cart through the glowing checkpoint on the cart road beside this tee, then tee off' + coWaitText();
     const nc = nearCart(), tc = theirCartNear(), cd = x => Math.hypot(S.golferG.x - x.pos.x, S.golferG.z - x.pos.z);
     if (tc && (!nc || cd(tc.o.cart) < cd(nc))) return '<kbd>E</kbd>: steal ' + (tc.o.nameHtml || 'their') + "'s cart";
     if (nc) return '<kbd>E</kbd>: hop in the cart';
     return (S.noClub ? '<b>Left click</b> right fist · <b>Right click</b> left fist · flick the mouse up for an uppercut, sideways for a hook · <kbd>2</kbd>–<kbd>5</kbd> clubs' : '<b>Hold left mouse</b> to swing freely · <b>Right click</b> by your ball for the golf stance') + ' · <kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump';
   }
-  if (S.mode === 'drive' && S.awaitPark) return (S.awaitPark === NHOLES ? '🅿️ Stop in the bay at the summit to finish' : '🅿️ Stop in the glowing bay beside hole ' + (S.awaitPark + 1) + "'s tee") + coWaitText() + ' · <kbd>Space</kbd> brake';
+  if (S.mode === 'drive' && S.awaitPark && !touchedBay(S.awaitPark)) return (S.awaitPark === NHOLES ? '✅ Drive through the checkpoint at the summit to finish' : '✅ Drive through the glowing checkpoint beside hole ' + (S.awaitPark + 1) + "'s tee") + ' · <kbd>Space</kbd> brake';
   if (S.mode === 'drive') return '<kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> brake · <b>Click</b> honk · <kbd>E</kbd> hop out';
   if (S.mode === 'address') return GOLF_HINT + ' · <b>Right click</b> steps away';
   return '';
@@ -2528,8 +2563,8 @@ function netTick(dt) {
     if (S.kick != null) st.kk = r2(S.kick);
     if (S.punch) st.pu = [S.punch.k, S.punch.type, r2(S.punch.t)];
     if (S.guardT > 0 && S.noClub) st.gd = 1;
-    st.pb = S.parkBay || 0;      // the bay I last parked in (cleared when the next ball drops)
-    if (S.coop && S.coOwner === 'me') Object.assign(st, { own: 1, lh: S.coLast || '', sk: S.strokes, hs: S.holeStrokes, fa: S.falls });
+    st.pb = S.bays | 0;      // the checkpoints I have touched, one bit each
+    if (S.coop && S.coOwner === 'me') Object.assign(st, { own: 1, lh: S.coLast || '', sk: S.strokes, hs: S.holeStrokes, fa: S.falls, bs: S.best | 0 });
     // The cart is always somewhere, parked or not: every pose while it moves, once a second while it sits.
     const rolling = driven || Math.abs(c.speed) > 0.05 || !c.grounded || c.push.lengthSq() > 0.01 || c.pos.distanceToSquared(cartSent) > 0.0025;
     const pose = JSON.stringify(st);
