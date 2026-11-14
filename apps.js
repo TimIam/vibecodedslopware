@@ -1521,16 +1521,23 @@ window.SLOPWARE = {
   },
   "tree-planner": {
    "visits": 0,
-   "prompts": 3,
-   "tokens": 522626,
+   "prompts": 5,
+   "tokens": 920311,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
      "date": "2026-11-13T17:40:24-07:00",
      "note": "room importer, tree builder, ornament importer",
+     "prompts": 2,
+     "tokens": 516101
+    },
+    {
+     "n": 2,
+     "date": "2026-11-14T08:42:02-07:00",
+     "note": "Ornament Designer tab",
      "prompts": 3,
-     "tokens": 522626
+     "tokens": 404210
     }
    ]
   },
