@@ -364,10 +364,10 @@
  },
  "released": {
   "endgame": {
-   "version": "1.4.2",
-   "at": "2026-11-14T21:46:43.868Z",
+   "version": "1.4.3",
+   "at": "2026-11-14T22:00:24.672Z",
    "for": [
-    "released by hand: water on the ground image, layers by overlap"
+    "released by hand: level 5 wall as sprites"
    ]
   },
   "pie": {
@@ -378,5 +378,22 @@
    ]
   }
  },
- "pendingCurseforge": []
+ "pendingCurseforge": [
+  {
+   "addon": "endgame",
+   "client": "forever",
+   "file": "TheEndgameIsMe-1.4.3.zip",
+   "gameVersion": "1.60.1",
+   "why": "1.4.3",
+   "changelog": "1.4.3: the city wall of level 5 is pre-rendered too, as a flat wall with a picture for each section and state of damage. That level draws a third faster. Close the game and start it again after updating."
+  },
+  {
+   "addon": "endgame",
+   "client": "retail",
+   "file": "TheEndgameIsMe-Retail-1.4.3.zip",
+   "gameVersion": "12.1.5",
+   "why": "1.4.3",
+   "changelog": "1.4.3: the city wall of level 5 is pre-rendered too, as a flat wall with a picture for each section and state of damage. That level draws a third faster. Close the game and start it again after updating."
+  }
+ ]
 }
