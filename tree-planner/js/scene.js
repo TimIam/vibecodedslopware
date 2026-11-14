@@ -151,7 +151,8 @@ export function makeOrnament(o, ctx = {}) {
       const tail = add(cachedGeo('tail', () => { const q = new THREE.ConeGeometry(0.5, 1.6, 4); q.rotateX(-Math.PI / 2 - 0.4); return q; }), bm, 0.4, s * 0.3); tail.position.z = -s * 0.42;
       const beak = add(cachedGeo('beak', () => { const q = new THREE.ConeGeometry(0.2, 0.6, 5); q.rotateX(Math.PI / 2); return q; }), goldCap, 0.3 + s * 0.2, s * 0.2); beak.position.z = s * 0.38;
       hook.visible = false; break; }
-    case 'custom': { const asset = ctx.customs?.get(o.customId); if (asset) { const m = buildCustomMesh(asset); m.position.y = -0.4; g.add(m); cap(-0.35, 0.25); } else add(cachedGeo('sph', () => new THREE.SphereGeometry(1, 24, 16)), finishMat('silver', 'matte'), -0.5 - s / 2, s / 2); break; }
+    case 'custom': { const asset = ctx.customs?.get(o.customId); if (asset?.kind === 'designed') g.add(buildCustomMesh(asset));
+      else if (asset) { const m = buildCustomMesh(asset); m.position.y = -0.4; g.add(m); cap(-0.35, 0.25); } else add(cachedGeo('sph', () => new THREE.SphereGeometry(1, 24, 16)), finishMat('silver', 'matte'), -0.5 - s / 2, s / 2); break; }
     default: add(cachedGeo('sph', () => new THREE.SphereGeometry(1, 24, 16)), mat, -0.5 - s / 2, s / 2);
   }
   g.userData.ornament = o;

@@ -40,7 +40,7 @@ export const customCache = new Map();
 export async function loadCustoms() {
   const all = await idb.all('customs');
   customCache.clear();
-  for (const a of all) { try { a._img = await loadImage(a.cutout); } catch { } customCache.set(a.id, a); }
+  for (const a of all) { try { a._img = await loadImage(a.texture || a.cutout); } catch { } customCache.set(a.id, a); }
   return customCache;
 }
 export const paperCache = new Map();
