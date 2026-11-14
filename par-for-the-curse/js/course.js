@@ -78,6 +78,48 @@ function makeTerrain(g1, g2, stripes) {
 }
 export const terrainMat = makeTerrain('0.42,0.80,0.30', '0.35,0.71,0.25', true);
 const roughMat = makeTerrain('0.30,0.62,0.22', '0.25,0.53,0.19', false);
+// Grass tufts: a few blades per tuft, lit as if they were the ground they stand on (normals point up),
+// darker at the root, and swaying in a wind that rolls across the mountain. They shrink away with distance.
+const TUFT_H = 0.3;
+const grassMat = (() => {
+  const m = new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap, vertexColors: true, side: THREE.DoubleSide });
+  m.userData.t = { value: 0 };
+  m.customProgramCacheKey = () => 'grass';
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uTime = m.userData.t;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uTime;')
+      .replace('#include <project_vertex>', `
+        vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
+        vec3 wp = (modelMatrix * vec4(ip, 1.)).xyz;
+        float fade = 1. - smoothstep(45., 75., distance(wp, cameraPosition));
+        float hh = clamp(position.y / ${TUFT_H.toFixed(2)}, 0., 1.);
+        vec4 mvPosition = instanceMatrix * vec4(transformed * vec3(1., fade, 1.), 1.);
+        float w = sin(uTime * 1.6 + wp.x * 0.3 + wp.z * 0.21) * 0.65 + sin(uTime * 3.3 + wp.x * 1.1 - wp.z * 0.8) * 0.25 + 0.35;
+        vec3 windW = vec3(0.6, 0., 0.8) * w * 0.085 * hh * hh * fade;
+        mvPosition.xyz += (vec4(windW, 0.) * modelMatrix).xyz;
+        mvPosition = modelViewMatrix * mvPosition;
+        gl_Position = projectionMatrix * mvPosition;`);
+  };
+  return m;
+})();
+function tuftGeometry() {
+  const pos = [], col = [], nrm = [];
+  const blades = 7;
+  for (let b = 0; b < blades; b++) {
+    const a = b / blades * Math.PI * 2 + Math.random() * 0.6, r = 0.02 + Math.random() * 0.05;
+    const cx = Math.cos(a) * r, cz = Math.sin(a) * r, w = 0.028 + Math.random() * 0.012;
+    const px = -Math.sin(a) * w, pz = Math.cos(a) * w;            // blade width runs across its lean
+    const h = TUFT_H * (0.55 + Math.random() * 0.45), lean = 0.06 + Math.random() * 0.08;
+    pos.push(cx - px, 0, cz - pz, cx + px, 0, cz + pz, cx + Math.cos(a) * lean, h, cz + Math.sin(a) * lean);
+    col.push(0.62, 0.62, 0.62, 0.62, 0.62, 0.62, 1.12, 1.15, 0.95);
+    nrm.push(0, 1, 0, 0, 1, 0, 0, 1, 0);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+  return g;
+}
 const greenMat = (() => {
   const m = new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   m.onBeforeCompile = sh => {
@@ -176,6 +218,7 @@ export class Course {
     H.group.add(mesh);
     if (o.outline !== false) addOutline(mesh, 0.06);
     if (!o.noRock) { const under = thick / Math.cos(ang) - 0.3; this.underRocks(H, x0, x1, z0, z1, y0 - under, o.rockDepth, y1 - under); }
+    if (mat === terrainMat || mat === roughMat) (this.lawns ||= []).push({ H, x0, x1, z0, z1, y0, y1, col, rough: mat === roughMat });
     return col;
   }
   // Make a drawn object solid using its own triangles. o.motion moves it with a platform; the object is then
@@ -358,6 +401,7 @@ export class Course {
     for (const [i, pts] of Object.entries(aims)) this.holes[i].aims = pts;
     this.ringRoad();
     this.decorate();
+    this.grow();
   }
   holeInfo(H, name, par, blurb) { Object.assign(H, { name, par, blurb }); this.holes[H.i] = H; }
 
@@ -1279,10 +1323,72 @@ export class Course {
     }
     return out;
   }
+  // Scatter grass tufts: thick over the rough, and in a fringe along every lawn edge that drops away
+  // (never on the line of play in the middle of a fairway, on greens, tees, bunkers or water).
+  grow() {
+    const lawns = this.lawns || [], per = new Map(), p = new THREE.Vector3(), q = new THREE.Vector3();
+    const fair = [new THREE.Color().setRGB(0.42, 0.80, 0.30, THREE.SRGBColorSpace), new THREE.Color().setRGB(0.35, 0.71, 0.25, THREE.SRGBColorSpace)];
+    const rough = [new THREE.Color().setRGB(0.30, 0.62, 0.22, THREE.SRGBColorSpace), new THREE.Color().setRGB(0.25, 0.53, 0.19, THREE.SRGBColorSpace)];
+    const inZone = (H, x, z) => this.zones.some(zn => {
+      if (zn.frame !== H.frame) return false;
+      const dx = x - zn.x, dz = z - zn.z, c = Math.cos(zn.rot), s = Math.sin(zn.rot);
+      const lx = dx * c - dz * s, lz = dx * s + dz * c;
+      return (lx / (zn.rx * 1.15 + 0.4)) ** 2 + (lz / (zn.rz * 1.15 + 0.4)) ** 2 < 1;
+    });
+    const plant = (L, x, z, scale, cols) => {
+      const t = (x - L.x0) / (L.x1 - L.x0), y = L.y0 + (L.y1 - L.y0) * t;
+      L.H.frame.w(x, y + 1.5, z, p);
+      const g = this.world.groundAt(p.x, p.y, p.z, 3);
+      if (!g || g.col !== L.col || Math.abs(g.y - (L.H.frame.o.y + y)) > 0.25) return;
+      if (inZone(L.H, x, z)) return;
+      const list = per.get(L.H.group) || per.set(L.H.group, []).get(L.H.group);
+      const c = cols[(Math.random() * 2) | 0].clone().multiplyScalar(0.9 + Math.random() * 0.2);
+      list.push({ x, y: y - 0.02, z, s: scale * (0.7 + Math.random() * 0.6), r: Math.random() * 6.28, c });
+    };
+    // Does the ground fall away just past (x, z) in direction (dx, dz)?
+    const edge = (L, x, z, dx, dz) => {
+      const t = (x - L.x0) / (L.x1 - L.x0), y = L.y0 + (L.y1 - L.y0) * t;
+      L.H.frame.w(x + dx * 0.9, y + 1, z + dz * 0.9, q);
+      const g = this.world.groundAt(q.x, q.y, q.z, 2.2);
+      return !g;
+    };
+    for (const L of lawns) {
+      const lx = L.x1 - L.x0, lz = L.z1 - L.z0;
+      if (L.rough) {
+        const n = Math.round(lx * lz * 2);
+        for (let i = 0; i < n; i++) plant(L, L.x0 + 0.3 + Math.random() * (lx - 0.6), L.z0 + 0.3 + Math.random() * (lz - 0.6), 1.15, rough);
+      }
+      // Fringe along the four sides, only where the lawn ends in a drop.
+      const sides = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+      for (const [sx, sz] of sides) {
+        const len = sx ? lz : lx, n = Math.round(len * 4);
+        for (let i = 0; i < n; i++) {
+          const u = Math.random(), d = 0.2 + Math.random() ** 1.6 * 0.9;
+          const x = sx ? (sx < 0 ? L.x0 + d : L.x1 - d) : L.x0 + u * lx;
+          const z = sz ? (sz < 0 ? L.z0 + d : L.z1 - d) : L.z0 + u * lz;
+          if (!edge(L, x, z, sx, sz)) continue;
+          plant(L, x, z, 1 - d * 0.35, L.rough ? rough : fair);
+        }
+      }
+    }
+    const geo = tuftGeometry(), m4 = new THREE.Matrix4(), qt = new THREE.Quaternion(), sc = new THREE.Vector3();
+    this.grass = [];
+    for (const [group, list] of per) {
+      const im = new THREE.InstancedMesh(geo, grassMat, list.length);
+      list.forEach((t, i) => {
+        qt.setFromAxisAngle(UP, t.r); sc.set(t.s, t.s, t.s);
+        im.setMatrixAt(i, m4.compose(p.set(t.x, t.y, t.z), qt, sc)); im.setColorAt(i, t.c);
+      });
+      im.receiveShadow = true; im.castShadow = false; im.raycast = () => {};
+      im.computeBoundingSphere();
+      group.add(im); this.grass.push(im);
+    }
+  }
   update(t, dt) {
     this.t = t;
     this.timeU.value = t;
     waterMat.userData.uTime.value = t;
+    grassMat.userData.t.value = t;
     for (const a of this.animators) a(t, dt);
   }
   timeU = { value: 0 };

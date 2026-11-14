@@ -1,5 +1,6 @@
 // Particles (dust, divots, splashes, steam, sparks, fireworks), tumbling confetti and ball trails.
 import * as THREE from 'three';
+import { RAW_OUT } from './assets.js';
 
 const N = 2400;
 export class Particles {
@@ -20,7 +21,7 @@ export class Particles {
       fragmentShader: `varying vec3 vC; varying float vA;
         void main(){ vec2 d = gl_PointCoord - .5; float r = length(d); if (r > .5) discard;
           float edge = smoothstep(.5, .36, r); float shade = 1. - smoothstep(.0, .5, length(d - vec2(-.12,-.12))) * .25;
-          gl_FragColor = vec4(vC * (0.85 + shade * 0.2), vA * edge); }`,
+          gl_FragColor = vec4(vC * (0.85 + shade * 0.2), vA * edge);${RAW_OUT} }`,
     });
     this.points = new THREE.Points(g, m); this.points.frustumCulled = false; this.points.renderOrder = 5;
     scene.add(this.points);
@@ -148,7 +149,7 @@ export class Trail {
       transparent: true, depthWrite: false, side: THREE.DoubleSide,
       uniforms: { uColor: { value: new THREE.Color(color) } },
       vertexShader: 'attribute float alpha; varying float vA; void main(){ vA = alpha; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
-      fragmentShader: 'uniform vec3 uColor; varying float vA; void main(){ gl_FragColor = vec4(uColor, vA * 0.75); }',
+      fragmentShader: `uniform vec3 uColor; varying float vA; void main(){ gl_FragColor = vec4(uColor, vA * 0.75);${RAW_OUT} }`,
     });
     this.mesh = new THREE.Mesh(g, this.mat); this.mesh.frustumCulled = false; this.mesh.renderOrder = 4;
     scene.add(this.mesh);

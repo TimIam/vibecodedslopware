@@ -1,6 +1,6 @@
 // Sky dome, toon sea, drifting clouds, background islands, balloons, a blimp and some gulls.
 import * as THREE from 'three';
-import { make, toon } from './assets.js';
+import { make, toon, RAW_OUT } from './assets.js';
 import { SEA_Y } from './course.js';
 
 export class Sky {
@@ -18,7 +18,7 @@ export class Sky {
           vec3 c = h > 0. ? mix(hor, mix(mid, top, smoothstep(0.15, 0.7, h)), smoothstep(0.0, 0.18, h)) : mix(hor, low, smoothstep(0.0, -0.2, h));
           float s = max(0., dot(vD, uSun));
           c += s2l(vec3(1.0,0.93,0.7)) * (smoothstep(0.9965, 0.998, s) * 1.2 + pow(s, 60.) * 0.35 + pow(s, 6.) * 0.08);
-          gl_FragColor = vec4(c, 1.);
+          gl_FragColor = vec4(c, 1.);${RAW_OUT}
         }`,
     }));
     sky.renderOrder = -10; sky.frustumCulled = false;

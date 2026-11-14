@@ -8,11 +8,34 @@ export const gradientMap = new THREE.DataTexture(tones, tones.length, 1, THREE.R
 gradientMap.minFilter = gradientMap.magFilter = THREE.NearestFilter;
 gradientMap.generateMipmaps = false; gradientMap.needsUpdate = true;
 
+// Rim light for toon materials that ask for it (define RIM): a thin bright edge on the side facing away
+// from the camera, strongest on sides and tops, so golfers, trees and props stand off the grass behind them.
+THREE.ShaderLib.toon.fragmentShader = THREE.ShaderLib.toon.fragmentShader.replace('#include <opaque_fragment>', `
+  #ifdef RIM
+  {
+    vec3 wN = (vec4(normal, 0.) * viewMatrix).xyz;
+    float fr = 1. - clamp(dot(normal, normalize(vViewPosition)), 0., 1.);
+    float r = smoothstep(0.58, 0.7, fr) * (0.45 + 0.55 * clamp(wN.y + 0.4, 0., 1.));
+    outgoingLight += diffuseColor.rgb * r * 0.42 + vec3(0.035, 0.04, 0.05) * r;
+  }
+  #endif
+  #include <opaque_fragment>`);
+
+// Hand-written shaders here pick their final screen colour themselves. This line keeps that colour exact
+// whether the frame goes straight to the screen or through the colour pass (post.js) first.
+export const RAW_OUT = `
+  gl_FragColor.rgb = mix(gl_FragColor.rgb / 12.92, pow((gl_FragColor.rgb + 0.055) / 1.055, vec3(2.4)), step(0.04045, gl_FragColor.rgb));
+  #include <colorspace_fragment>`;
+
+// Material.clone() drops defines; keep them (the rim light lives in one).
+export const cloneMat = m => { const c = m.clone(); if (m.defines) c.defines = { ...m.defines }; return c; };
+
 const matCache = new Map();
 export function toon(color, o = {}) {
   const key = new THREE.Color(color).getHexString() + JSON.stringify(o);
   if (!o.unique && matCache.has(key)) return matCache.get(key);
   const m = new THREE.MeshToonMaterial({ color, gradientMap, ...o.params });
+  if (o.rim) m.defines = { RIM: '' };
   if (o.emissive) { m.emissive = new THREE.Color(o.emissive); m.emissiveIntensity = o.emissiveIntensity ?? 1; }
   if (!o.unique) matCache.set(key, m);
   return m;
@@ -40,6 +63,7 @@ export function outlineMat(thick, color = 0x2b2233) {
       void main(){
         gl_FragColor = vec4(uColor, 1.0);
         #include <fog_fragment>
+        ${RAW_OUT}
       }`,
   });
   outlineCache.set(key, m);
@@ -65,13 +89,13 @@ function convertMaterial(src, hasVC) {
   const name = (src.name || '').toLowerCase();
   const params = {};
   if (hasVC) params.vertexColors = true;
-  const opts = { params };
+  const opts = { params, rim: true };
   if (/gold|crown|trophy/.test(name)) { opts.emissive = c.clone().multiplyScalar(0.18); }
   if (/bumper_top|glow|lamp|light/.test(name)) { opts.emissive = c.clone(); opts.emissiveIntensity = 0.7; }
   if (/eye$|^eye|mouth/.test(name)) { const m = new THREE.MeshBasicMaterial({ color: c }); m.name = src.name; return m; }
   if (/eyewhite/.test(name)) { const m = new THREE.MeshBasicMaterial({ color: 0xffffff }); m.name = src.name; return m; }
   const m = toon(c, opts);
-  const out = matCache.get('named:' + name + c.getHexString() + hasVC) || m.clone();
+  const out = matCache.get('named:' + name + c.getHexString() + hasVC) || cloneMat(m);
   out.name = src.name;
   matCache.set('named:' + name + c.getHexString() + hasVC, out);
   return out;
@@ -112,7 +136,7 @@ export function make(name, opts = {}) {
   if (t) {
     o = t.clone(true);
     o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1);
-    if (opts.unique) o.traverse(m => { if (m.isMesh) m.material = Array.isArray(m.material) ? m.material.map(x => x.clone()) : m.material.clone(); });
+    if (opts.unique) o.traverse(m => { if (m.isMesh) m.material = Array.isArray(m.material) ? m.material.map(cloneMat) : cloneMat(m.material); });
   } else o = standIn(name);
   if (opts.outline) addOutline(o, opts.outline);
   o.name = name;

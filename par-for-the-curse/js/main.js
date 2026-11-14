@@ -10,6 +10,7 @@ import { Wreck } from './wreck.js';
 import { Ragdolls, RAGDOLL } from './ragdoll.js';
 import { Assist, GOLF_HINT, ASSIST } from './controls.js';
 import { Sky } from './sky.js';
+import { Post } from './post.js';
 import * as A from './audio.js';
 import { joinRoom, newCode, cleanCode, cleanPin, MAX_PLAYERS } from './net.js';
 import { Voice, voiceGain } from './voice.js';
@@ -47,9 +48,11 @@ sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 160 });
 sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
 scene.add(sun, sun.target);
+const post = new Post(renderer);
 function resize() {
   const w = innerWidth, h = innerHeight - 52;
   renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  post.setSize();
   if (fx) fx.setScale(h);
 }
 
@@ -2376,7 +2379,7 @@ function render(dt) {
     });
   }
   trail.update(camera);
-  renderer.render(scene, camera);
+  post.render(scene, camera, S.realDt);
   positionTags();
 }
 
@@ -2881,7 +2884,7 @@ function renderBoard() {
 /* ---------------- debug hooks for headless testing (localhost only) ---------------- */
 if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
   window.__g = {
-    S, ball, camera, get info() { return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries }; }, get swing() { return swing; }, get course() { return course; }, get world() { return world; }, get me() { return me; },
+    S, ball, camera, post, get info() { return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries }; }, get swing() { return swing; }, get course() { return course; }, get world() { return world; }, get me() { return me; },
     start, step: n => { for (let i = 0; i < n; i++) { S.realDt = 1 / 60; step(1 / 60); } render(1 / 60); },
     input: (dx, dy) => { mouseDX += dx; mouseDY += dy; },
     teleport: h => { placeOnTee(h); settleGolfer(true); setMode('address'); updateHud(); },

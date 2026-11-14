@@ -452,7 +452,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
       ['loaders/GLTFLoader.js', 'geometries/RoundedBoxGeometry.js'].forEach(function (f) { imports['three/addons/' + f] = J + f + q; });
       imports[J + 'utils/BufferGeometryUtils.js'] = J + 'utils/BufferGeometryUtils.js' + q;
       var base = new URL('js/', location.href).href;
-      ['assets', 'audio', 'cart', 'course', 'fx', 'golfer', 'net', 'physics', 'sky', 'voice', 'wreck', 'controls', 'ragdoll'].forEach(function (m) { imports[base + m + '.js'] = base + m + '.js' + q; });
+      ['assets', 'audio', 'cart', 'course', 'fx', 'golfer', 'net', 'physics', 'sky', 'voice', 'wreck', 'controls', 'ragdoll', 'post'].forEach(function (m) { imports[base + m + '.js'] = base + m + '.js' + q; });
     }
     var map = document.createElement('script'); map.type = 'importmap'; map.textContent = JSON.stringify({ imports: imports });
     var main = document.createElement('script'); main.type = 'module'; main.src = 'js/main.js' + q;
