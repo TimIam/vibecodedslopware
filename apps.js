@@ -186,6 +186,11 @@ window.SLOPWARE = {
      "n": 7,
      "date": "2026-11-14T03:59:17-07:00",
      "note": "crushing pays in full, and a faster castle"
+    },
+    {
+     "n": 8,
+     "date": "2026-11-14T09:48:53-07:00",
+     "note": "more of the game is pre-rendered pictures, a faster castle"
     }
    ]
   },
