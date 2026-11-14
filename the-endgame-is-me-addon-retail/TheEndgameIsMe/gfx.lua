@@ -567,15 +567,18 @@ RT.host.propsBegin = function(g)
   Screen.props = wanted
 end
 -- a prop's turn to be drawn: true if its texture will do
+-- A block of the castle wall or the keep shows its sides where its neighbours have fallen, so one picture of it as it stood at the start
+-- is not enough. The level art draws it from a named sprite for each case, and those are on sheets too
+-- (Screen drawImage), so it is simply left to the art.
+local BY_NEIGHBOURS = { castle_wall = true, castle_keep = true }
 RT.host.propDraw = function(p)
   if not sheet then return false end
   local e = sheet.by[p]
-  if not e then return false end
+  if not e or BY_NEIGHBOURS[p.kind] then return false end
   if p.state ~= "up" or p.burning or p.hitT > 0 or p.hp ~= e.hp or p.x ~= e.px or p.y ~= e.py or p.fallA ~= 0 or p.broken then return false end
-  local under = Screen.under(e.x, e.y, e.w, e.h)
-  if under == 2 then return false end
-  -- with an adventurer or the boss behind it, it goes on their list, a layer above them (Screen.flat)
-  if under == 1 then return Screen.flat(p, e, e.x, e.y) end
+  -- with an adventurer or the boss behind it, or something in the grid near it, it goes on the list of textures, a
+  -- layer above what is there (Screen.flat, which also looks whether anything in the grid is really under it)
+  if Screen.under(e.x, e.y, e.w, e.h) ~= 0 then return RT.spriteImages and Screen.flat(p, e, e.x, e.y) end
   local n = wanted.n + 1
   wanted.n, wanted[n] = n, e
   return true

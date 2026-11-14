@@ -15,7 +15,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const game = path.resolve(root, '../the-endgame-is-me/js');
 export const ADDON = 'TheEndgameIsMe';
-export const VERSION = '1.3.3';
+export const VERSION = '1.4.0';
 
 // in load order: a module comes after everything it imports
 export const MODULES = ['props', 'smoke', 'art', 'levels/forest', 'levels/clearing', 'levels/farms', 'levels/village', 'levels/wall', 'levels/city',
@@ -55,6 +55,8 @@ const PATCHES = {
 export function pathDist(`],
   ],
   render: [
+    // a sprite knows its own name, so the Screen can look it up on the baked sheets (tools/bake-sprites.lua)
+    [`  sprites.set(key, c); similar.set(pre, c);`, `  named(c, key); sprites.set(key, c); similar.set(pre, c);`],
     // the boss's own picture goes to the client as a block of textures of its own when it can (src/gfx.lua)
     [`ctx.drawImage(spr, x, y + lift);`, `bossSprite(ctx, spr, x, y + lift);`],
     // a prop that ships as an image and has not been touched is a texture, not a painting (src/gfx.lua)
@@ -407,7 +409,25 @@ function groundManifest() {
   return { lua, files: list.map(g => g.file), dir };
 }
 
+// the game's own named sprites that ship on sheets (tools/bake-sprites.lua): name → sheet, place, size, and whether
+// every pixel is solid. It rides in props.lua, so adding it adds no file to the addon's list.
+function spritesManifest() {
+  const dir = path.join(root, 'art');
+  let S = null;
+  try { S = JSON.parse(fs.readFileSync(path.join(dir, 'sprites.json'), 'utf8')); } catch {}
+  if (S && !S.sheets.every(f => fs.existsSync(path.join(dir, f.file)))) S = null;
+  if (!S) return { lua: 'ns.Sprites = nil;', files: [], count: 0 };
+  const lua = ['-- The game\'s named sprites on sheets: by[name] = { sheet, u, v, w, h, 1 if every pixel is solid }.',
+    'ns.Sprites = { sheets = {',
+    ...S.sheets.map(f => `  { file = "${f.file}", tw = ${f.tw}, th = ${f.th} },`),
+    '}, by = {',
+    ...S.list.map(e => `  [${JSON.stringify(e.k)}] = { ${e.f}, ${e.u}, ${e.v}, ${e.w}, ${e.h}, ${e.s} },`),
+    '} };'].join('\n');
+  return { lua, files: S.sheets.map(f => f.file), count: S.list.length };
+}
+
 function propsManifest() {
+  const spritesLua = spritesManifest();
   // the sheets of props that ship as images (tools/bake-art.lua), and where each prop sits on its sheet and in its level
   const dir = path.join(root, 'art');
   let list = [];
@@ -420,8 +440,8 @@ function propsManifest() {
     'local ADDON, ns = ...;', 'ns.Props = {',
     ...list.map(s => `  [${s.n}] = { file = "${s.file}", tw = ${s.tw}, th = ${s.th}, seed = ${s.seed}, list = {\n` +
       s.list.map(e => `    { i = ${e.i}, kind = "${e.kind}", px = ${num(e.px)}, py = ${num(e.py)}, hp = ${num(e.hp)}, x = ${e.x}, y = ${e.y}, w = ${e.w}, h = ${e.h}, u = ${e.u}, v = ${e.v}, z = ${e.z} },`).join('\n') + '\n  } },'),
-    '};', ''].join('\n');
-  return { lua, files: list.map(s => s.file), dir, count: list.reduce((a, s) => a + s.list.length, 0) };
+    '};', spritesLua.lua, ''].join('\n');
+  return { lua, files: [...list.map(s => s.file), ...spritesLua.files], dir, count: list.reduce((a, s) => a + s.list.length, 0), sprites: spritesLua.count };
 }
 
 function unitsManifest() {
@@ -540,7 +560,7 @@ The game_*.lua files are generated from the game's JavaScript. Do not edit them 
       fs.mkdirSync(path.join(c.dir, 'Art'));
       for (const f of [...ground.files, ...props.files, ...units.files]) fs.copyFileSync(path.join(ground.dir, f), path.join(c.dir, 'Art', f));
     }
-    console.log(`${c.client}: ${path.relative(path.resolve(root, '..'), c.dir)} (Interface ${c.interface}, ${fileList().length} Lua files, ${sounds.files.length} sounds, ${ground.files.length} ground images, ${props.count} props on ${props.files.length} sheets, ${units.count} unit pictures)`);
+    console.log(`${c.client}: ${path.relative(path.resolve(root, '..'), c.dir)} (Interface ${c.interface}, ${fileList().length} Lua files, ${sounds.files.length} sounds, ${props.sprites} named sprites, ${ground.files.length} ground images, ${props.count} props on ${props.files.length} sheets, ${units.count} unit pictures)`);
     if (process.argv.includes('--zip')) {
       const out = path.join(root, 'dist', c.zip), z = zipFolder(c.dir, ADDON, out);
       console.log(`  zipped: ${path.relative(path.resolve(root, '..'), out)} (${z.files} files, ${(z.bytes / 1024 / 1024).toFixed(1)} MB)`);

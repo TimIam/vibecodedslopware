@@ -209,6 +209,37 @@ Over a ground image the things that move are textures under the grid too (`Scree
   with what was drawn before it, so shadows stay in the grid. While the boss flickers (evading) it is painted.
 - `lua5.1 tools/test/spritecost.lua` plays every level both ways and prints what each costs.
 
+## The list of textures: everything that can be a picture
+
+The direction (Tim, 2026-11-14): pre-render pictures and show them, as a sprite game does, in place of working out
+and painting pixels. The Screen keeps one ordered list of textures a frame (`Screen.sprites`), shown by
+`syncSprites` in `src/display.lua` in two frames, under and over the boss, on a draw layer one above whatever each
+overlaps. Three kinds of thing go on it:
+
+- **A picture of solid pixels** (`Screen.sprite`): an adventurer from `art/units.tga`, or one of the game's own
+  named sprites (below). It may go anywhere: it empties the grid cells under its solid pixels.
+- **A picture with see-through pixels** (`Screen.flat`): a prop with its shadow from the level's prop sheet, a
+  named sprite with soft edges.
+- **A flat rectangle** of six pixels or more (`rectFlat`, from the Screen's `fillRect`): a shadow, a bar, a flash
+  over the whole picture. One texture of one colour.
+
+The last two are blended by the client, which can only blend textures with textures, so they go on the list only
+where nothing is in the grid under them (`Screen.under` by tiles, then the cells themselves). Otherwise they are
+painted as before, which looks the same. `tools/test/ground.lua` composites the list in order and compares with
+painting everything.
+
+**Named sprites.** The level art keeps what it paints in a cache of named sprites (`render.js` `sprite()`: a
+wrecked house, a ruin, rubble, a cracked wall, a castle block in each state of damage) and copies from it every
+frame. `tools/bake-sprites.lua` plays every level with bots that knock everything down, collects every sprite the
+game made, and packs them into `art/sprites_K.tga` (`art/sprites.json`; the build puts the list in `props.lua` as
+`ns.Sprites`). A build patch gives each sprite its name (`c.key`), and the Screen's `drawImage` shows one that is
+on a sheet as a texture. One that is not (a state no bot reached) is painted, so the list only has to be good,
+not complete; run the bake again after the level art changes. A sprite the game draws on again after making it
+loses its name (`Canvas:getContext`): it is a work surface, not a picture.
+
+What is still worked out a pixel at a time: the effects (ice, fire, smoke, the attack arcs and lanes, the beam,
+rings, sparks), text, the boss (a block of pixel textures that moves as one), riders, horses and the animals.
+
 ## The HUD's layer
 
 The HUD stays put on the screen while the grid's cells belong to the ground, so every pixel the camera moved, each

@@ -23,6 +23,7 @@ end;
 local t0 = RT.perfNow();
 c = __I0.newCanvas(w, h);
 paint(c:getContext("2d"));
+RT.host.named(c, key);
 __set(M.sprites, key, c);
 __set(M.similar, pre, c);
 M.spriteBudget = (M.spriteBudget - (RT.perfNow() - t0));

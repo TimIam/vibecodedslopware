@@ -87,6 +87,8 @@ function RT.newCanvas(w, h)
   return setmetatable({ width = w or 300, height = h or 150, px = {}, ver = 0 }, Canvas)
 end
 function Canvas:getContext()
+  -- a named sprite that is drawn on again is a work surface, not a picture: it loses its name (see SMeta:drawImage)
+  if self.key then self.key = nil end
   local c = self.ctx
   if not c then
     c = setmetatable({ canvas = self, fillStyle = "#000000", globalAlpha = 1, globalCompositeOperation = "source-over", tx = 0, ty = 0 }, Ctx)
@@ -383,6 +385,8 @@ function SMeta:translate(x, y) self.tx, self.ty = self.tx + x, self.ty + y end
 function SMeta:beginPath() end
 
 local lastStyle, lastRgb, lastA = nil, 0, 1
+local RECT_MIN = 6      -- a rectangle of at least this many pixels may be one texture instead (rectFlat, further down)
+local rectFlat = nil
 
 -- Blending is most of what a see-through fill costs, and a fill meets the same few ground colours over and over (the
 -- HUD's backing covers 7,500 cells a frame), so the answers are kept: blends[colour][alpha][what was there] = result.
@@ -416,6 +420,7 @@ function SMeta:fillRect(x, y, w, h)
   if x1 >= W then x1 = W - 1 end
   if y1 >= H then y1 = H - 1 end
   if x1 < x0 or y1 < y0 then return end
+  if rectFlat and (x1 - x0 + 1) * (y1 - y0 + 1) >= RECT_MIN and rectFlat(x0, y0, x1, y1, rgb, a) then return end
   if occOn then markRect(x0, y0, x1, y1) end
   local n = x1 - x0 + 1
   local gx = (x0 + ox) % W
@@ -608,7 +613,7 @@ local function blit(self, img, dx, dy, thresh)
     end
   end
 end
-function SMeta:drawImage(img, dx, dy) blit(self, img, dx, dy, nil) end
+function SMeta:drawImage(img, dx, dy) blit(self, img, dx, dy, nil) end   -- (replaced below, once the list of textures exists)
 -- smoke: a see-through cloud as a dither instead of a blend, which costs a fraction as much
 function SMeta:drawDithered(img, dx, dy, alpha)
   if alpha >= 0.97 then blit(self, img, dx, dy, nil) elseif alpha > 0.03 then blit(self, img, dx, dy, alpha) end
@@ -834,8 +839,19 @@ function Screen.flat(owner, e, wx, wy)
   local x0, y0 = wx - viewX, wy - viewY
   local x1, y1 = x0 + e.w - 1, y0 + e.h - 1
   if x1 < 0 or y1 < 0 or x0 >= W or y0 >= H then return true end
-  if Screen.under(wx, wy, e.w, e.h) == 2 then return false end
   local cx0, cy0, cx1, cy1 = x0 < 0 and 0 or x0, y0 < 0 and 0 or y0, x1 >= W and W - 1 or x1, y1 >= H and H - 1 or y1
+  -- the tiles say "something near": then the cells themselves say whether anything is really under it
+  if Screen.under(wx, wy, e.w, e.h) == 2 then
+    local gx = (cx0 + ox) % W
+    local n = cx1 - cx0 + 1
+    local first = W - gx
+    if first > n then first = n end
+    for sy = cy0, cy1 do
+      local row = ((sy + oy) % H) * W + 1
+      for i = row + gx, row + gx + first - 1 do if cur[i] ~= nil then return false end end
+      for i = row, row + n - first - 1 do if cur[i] ~= nil then return false end end
+    end
+  end
   local z, st = 0, zstamp
   local tx0, tx1 = floor(cx0 / TILE), floor(cx1 / TILE)
   local ty0, ty1 = floor(cy0 / TILE), floor(cy1 / TILE)
@@ -854,6 +870,73 @@ function Screen.flat(owner, e, wx, wy)
   if not s then s = {}; sprites[n] = s end
   sprites.n = n
   s.owner, s.e, s.x, s.y, s.z, s.hi = owner, e, wx, wy, z, sprites.pad ~= nil
+  return true
+end
+
+-- A named sprite of the game's (render.js sprite(): a wreck, a ruin, a cracked wall) that is on a baked sheet
+-- (ns.Sprites, tools/bake-sprites.lua) is shown as a texture of the list: one of solid pixels wherever it is asked
+-- for (it punches the grid), one with see-through pixels where nothing is in the grid under it. Anything else is
+-- copied into the grid as before. Each use of a sprite in a frame gets a key of its own, in order, so the same
+-- texture serves the same use from frame to frame.
+-- render.js sprite() has just painted this canvas: it is the picture of that name for as long as nobody draws on it
+-- again (some are kept as work surfaces by whoever asked for them, through the context they were painted with)
+RT.host.named = function(c, key) c.key, c.keyVer = key, c.ver end
+local function listed(img)
+  local e = img.entry
+  if e == nil then
+    local S = ns.Sprites
+    local b = S and S.by[img.key]
+    if b and b[4] == img.width and b[5] == img.height then
+      e = { name = img.key, sheet = S.sheets[b[1]], u = b[2], v = b[3], w = b[4], h = b[5], solid = b[6] == 1, uses = {}, used = 0, frame = 0 }
+    else e = false end
+    img.entry = e
+  end
+  return e
+end
+function SMeta:drawImage(img, dx, dy)
+  if img.key and img.keyVer == img.ver and imageMode and not inHud and RT.spriteImages and self.globalAlpha >= 0.998 then
+    local e = listed(img)
+    if e then
+      if e.frame ~= frame then e.frame, e.used = frame, 0 end
+      local n = e.used + 1
+      local owner = e.uses[n]
+      if not owner then owner = {}; e.uses[n] = owner end
+      local wx, wy = floor(dx + self.tx + 0.5) + viewX, floor(dy + self.ty + 0.5) + viewY
+      local ok
+      if e.solid then
+        if not e.spans then e.spans = spansOf(img) end
+        ok = Screen.sprite(owner, e, wx, wy)
+      else ok = Screen.flat(owner, e, wx, wy) end
+      if ok then e.used = n; return end
+    end
+  end
+  blit(self, img, dx, dy, nil)
+end
+
+-- A rectangle of one colour, six pixels or more (a prop's shadow, a flash over the whole picture, a bar): one
+-- texture of the list where nothing is in the grid under it, in place of that many cells. Smaller ones, and the
+-- single pixels the effects are made of, stay in the grid: a texture apiece would be no better than a cell apiece.
+local rectE, nRectE = {}, 0          -- colour and alpha → size → the entry
+local rectUses, rectUsed, rectFrame = {}, 0, 0
+rectFlat = function(x0, y0, x1, y1, rgb, a)
+  if not imageMode or inHud or not RT.spriteImages then return false end
+  local w, h = x1 - x0 + 1, y1 - y0 + 1
+  local ck = rgb + floor(a * 1000 + 0.5) * A1
+  local bySize = rectE[ck]
+  if not bySize then
+    if nRectE > 400 then rectE, nRectE = {}, 0 end   -- a fade makes a new alpha every frame
+    bySize = {}
+    rectE[ck] = bySize
+    nRectE = nRectE + 1
+  end
+  local e = bySize[w * 512 + h]
+  if not e then e = { rect = true, w = w, h = h, rgb = rgb, a = a }; bySize[w * 512 + h] = e end
+  if rectFrame ~= frame then rectFrame, rectUsed = frame, 0 end
+  local n = rectUsed + 1
+  local owner = rectUses[n]
+  if not owner then owner = {}; rectUses[n] = owner end
+  if not Screen.flat(owner, e, x0 + viewX, y0 + viewY) then return false end
+  rectUsed = n
   return true
 end
 
