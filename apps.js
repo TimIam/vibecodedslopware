@@ -206,6 +206,11 @@ window.SLOPWARE = {
      "n": 11,
      "date": "2026-11-14T14:59:35-07:00",
      "note": "level 5's city wall is pre-rendered"
+    },
+    {
+     "n": 12,
+     "date": "2026-11-14T16:25:43-07:00",
+     "note": "a minimap button, and no more flicker behind the score"
     }
    ]
   },
