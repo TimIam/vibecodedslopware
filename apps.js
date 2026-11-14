@@ -1393,6 +1393,13 @@ window.SLOPWARE = {
      "note": "checkpoints, safe hop-out, centred tees",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 32,
+     "date": "2026-11-14T07:38:38-07:00",
+     "note": "keys 1-5 are hands, driver, iron, wedge, putter",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
