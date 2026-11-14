@@ -454,16 +454,17 @@ end
 -- A list of single pixels in one colour (list[1], list[2] = x, y of the first, and so on up to list[n]): what
 -- fillRect(x, y, 1, 1) does for each, without the call, the colour lookup and the clipping arithmetic every time.
 -- Ice floors and fires are thousands of these a frame.
-function Screen.points(list, n, style, alpha)
+-- from: the first entry to draw (1 by default); offx, offy: added to every point (a shape kept relative to its middle)
+function Screen.points(list, n, style, alpha, from, offx, offy)
   local c = parseColor(style)
   local a = c.a * alpha
   if a <= 0.002 then return end
   local rgb = c.rgb
-  local dx, dy = SCtx.tx + 0.5, SCtx.ty + 0.5
+  local dx, dy = SCtx.tx + 0.5 + (offx or 0), SCtx.ty + 0.5 + (offy or 0)
   local opaque = a >= 0.998
   local memo = not opaque and blendsFor(rgb, a)
   local f, m, marking = frame, mask, occOn
-  for j = 1, n, 2 do
+  for j = from or 1, n, 2 do
     local sx, sy = floor(list[j] + dx), floor(list[j + 1] + dy)
     if sx >= 0 and sx < W and sy >= 0 and sy < H then
       if marking then occ[floor(sy / TILE) * TW + 1 + floor(sx / TILE)] = f end
@@ -705,9 +706,45 @@ function Screen.occupancy(on) occOn = on and true or false end
 local sprites = { n = 0, pad = nil, padX = 0, padY = 0 }
 Screen.sprites = sprites
 local SPRITE_LAYERS = 64
-local zt, ztf, zstamp = {}, {}, 0     -- screen tile → the draw layer the next sprite there must take, and when that was set
+local zstamp = 0                       -- goes up with each frame, and again after the boss: a group of textures of its own
 local spt = {}                         -- screen tile → the frame in which a texture of this list was last put there
-for t = 1, TW * TH do zt[t] = 0; ztf[t] = 0; spt[t] = 0 end
+-- Which draw layer a texture takes: one above the highest of the textures it really overlaps (their rectangles), so
+-- that it covers them. Each tile keeps the list of textures that touch it; a long wall of blocks side by side all
+-- touch one another's tiles but not one another, and stay on the same layer.
+local tileN, tileStamp, tileList = {}, {}, {}
+for t = 1, TW * TH do spt[t] = 0; tileN[t] = 0; tileStamp[t] = 0; tileList[t] = {} end
+local function layerFor(cx0, cy0, cx1, cy1)
+  local z, st = 0, zstamp
+  local tx0, tx1 = floor(cx0 / TILE), floor(cx1 / TILE)
+  for ty = floor(cy0 / TILE), floor(cy1 / TILE) do
+    local r = ty * TW + 1
+    for tx = tx0, tx1 do
+      local t = r + tx
+      if tileStamp[t] == st then
+        local list = tileList[t]
+        for k = 1, tileN[t] do
+          local q = sprites[list[k]]
+          if q.z >= z and q.x0 <= cx1 and q.x1 >= cx0 and q.y0 <= cy1 and q.y1 >= cy0 then z = q.z + 1 end
+        end
+      end
+    end
+  end
+  return z
+end
+local function claim(n, cx0, cy0, cx1, cy1)
+  local st = zstamp
+  local tx0, tx1 = floor(cx0 / TILE), floor(cx1 / TILE)
+  for ty = floor(cy0 / TILE), floor(cy1 / TILE) do
+    local r = ty * TW + 1
+    for tx = tx0, tx1 do
+      local t = r + tx
+      local k = 1
+      if tileStamp[t] == st then k = tileN[t] + 1 else tileStamp[t] = st end
+      tileN[t] = k
+      tileList[t][k] = n
+    end
+  end
+end
 local function markSprite(x0, y0, x1, y1)
   local f = frame
   local tx0, tx1 = floor(x0 / TILE), floor(x1 / TILE)
@@ -809,24 +846,16 @@ function Screen.sprite(owner, e, wx, wy)
   local x1, y1 = x0 + e.w - 1, y0 + e.h - 1
   if x1 < 0 or y1 < 0 or x0 >= W or y0 >= H then return true end   -- off the screen: nothing to show
   local cx0, cy0, cx1, cy1 = x0 < 0 and 0 or x0, y0 < 0 and 0 or y0, x1 >= W and W - 1 or x1, y1 >= H and H - 1 or y1
-  local z, st = 0, zstamp
-  local tx0, tx1 = floor(cx0 / TILE), floor(cx1 / TILE)
-  local ty0, ty1 = floor(cy0 / TILE), floor(cy1 / TILE)
-  for ty = ty0, ty1 do
-    local r = ty * TW + 1
-    for tx = tx0, tx1 do if ztf[r + tx] == st and zt[r + tx] > z then z = zt[r + tx] end end
-  end
+  local z = layerFor(cx0, cy0, cx1, cy1)
   if z >= SPRITE_LAYERS then return false end
-  for ty = ty0, ty1 do
-    local r = ty * TW + 1
-    for tx = tx0, tx1 do ztf[r + tx] = st; zt[r + tx] = z + 1 end
-  end
   punch(e.spans, e.w, e.h, x0, y0)
   markSprite(cx0, cy0, cx1, cy1)
   local n = sprites.n + 1
   local s = sprites[n]
   if not s then s = {}; sprites[n] = s end
   sprites.n = n
+  s.x0, s.y0, s.x1, s.y1 = cx0, cy0, cx1, cy1
+  claim(n, cx0, cy0, cx1, cy1)
   s.owner, s.e, s.x, s.y, s.z, s.hi, s.a = owner, e, wx, wy, z, sprites.pad ~= nil, 1
   return true
 end
@@ -839,7 +868,9 @@ end
 --   scorch marks, smoke over whatever was painted): the texture is shown, and each solid cell under it gets the
 --   picture's pixel blended in, which is what painting would have left there (see the loop below). A flat rectangle
 --   may do the same without one.
-function Screen.flat(owner, e, wx, wy, alpha, img)
+--   always: put it on the list whatever is in the grid, and leave the grid alone (a piece of bare ground under a
+--   filled square of water: what is in the grid there belongs on top of it)
+function Screen.flat(owner, e, wx, wy, alpha, img, always)
   if not imageMode then return false end
   local x0, y0 = wx - viewX, wy - viewY
   local x1, y1 = x0 + e.w - 1, y0 + e.h - 1
@@ -847,7 +878,7 @@ function Screen.flat(owner, e, wx, wy, alpha, img)
   local cx0, cy0, cx1, cy1 = x0 < 0 and 0 or x0, y0 < 0 and 0 or y0, x1 >= W and W - 1 or x1, y1 >= H and H - 1 or y1
   -- the tiles say "something near": then the cells themselves say whether anything is really under it
   local lay = nil     -- the cells under it that hold something, when it may lie over them
-  if Screen.under(wx, wy, e.w, e.h) == 2 then
+  if not always and Screen.under(wx, wy, e.w, e.h) == 2 then
     local gx = (cx0 + ox) % W
     local n = cx1 - cx0 + 1
     local first = W - gx
@@ -860,18 +891,8 @@ function Screen.flat(owner, e, wx, wy, alpha, img)
       if lay then break end
     end
   end
-  local z, st = 0, zstamp
-  local tx0, tx1 = floor(cx0 / TILE), floor(cx1 / TILE)
-  local ty0, ty1 = floor(cy0 / TILE), floor(cy1 / TILE)
-  for ty = ty0, ty1 do
-    local r = ty * TW + 1
-    for tx = tx0, tx1 do if ztf[r + tx] == st and zt[r + tx] > z then z = zt[r + tx] end end
-  end
+  local z = layerFor(cx0, cy0, cx1, cy1)
   if z >= SPRITE_LAYERS then return false end
-  for ty = ty0, ty1 do
-    local r = ty * TW + 1
-    for tx = tx0, tx1 do ztf[r + tx] = st; zt[r + tx] = z + 1 end
-  end
   markSprite(cx0, cy0, cx1, cy1)
   if lay then
     -- What painting would have left in each cell that holds something, given that the picture is also shown as a
@@ -915,6 +936,8 @@ function Screen.flat(owner, e, wx, wy, alpha, img)
   local s = sprites[n]
   if not s then s = {}; sprites[n] = s end
   sprites.n = n
+  s.x0, s.y0, s.x1, s.y1 = cx0, cy0, cx1, cy1
+  claim(n, cx0, cy0, cx1, cy1)
   s.owner, s.e, s.x, s.y, s.z, s.hi, s.a = owner, e, wx, wy, z, sprites.pad ~= nil, alpha or 1
   return true
 end

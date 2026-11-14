@@ -25,6 +25,7 @@ local A1 = 16777216
 ns.Ground = {}
 for n, seed in ipairs(SEEDS) do ns.Ground[n] = { seed = seed } end   -- no file yet, so everything is painted for real
 RT.fixedLayouts = true
+RT.spriteImages = false   -- everything is painted here: nothing may go to the list of textures in place of the grid
 RT.perfNow = function() return 0 end   -- no time passes: a sprite is never borrowed from a similar one to save time
 
 -- the canvas the renderer hands the Screen as the ground
@@ -344,15 +345,55 @@ for n, seed in ipairs(SEEDS) do
   assert(not cv.image and cv.width == g.map.w and cv.height == g.map.h, "level " .. n .. ": that is not a painted ground")
   local tw, th = pow2(cv.width), pow2(cv.height)
   local file = "ground_" .. n .. ".tga"
-  local function ground(x, y)
+  local function dry(x, y)
     if x >= cv.width or y >= cv.height then return 0 end
     local v = cv.px[y * cv.width + x + 1]
     assert(v and v < A1, "the ground has a hole or a see-through pixel at " .. x .. "," .. y)
     return v
   end
+  -- The level's water goes on the image as it lies at the start (src/gfx.lua draws only what changes: a square
+  -- filled with rubble, the glints). Under a filled square the client shows the ground as it is without water, from
+  -- a second image that covers just the part of the level that has water: the bed.
+  local wet, bedJson = nil, ""
+  if g.water then
+    local L = RT.waterAll(g)
+    assert(L.width <= cv.width + g.water.cs and L.height <= cv.height + g.water.cs, "level " .. n .. ": the water is bigger than the ground")
+    wet = L
+    local x0, y0, x1, y1 = cv.width, cv.height, -1, -1
+    for yy = 0, math.min(L.height, cv.height) - 1 do
+      for xx = 0, math.min(L.width, cv.width) - 1 do
+        local v = L.px[yy * L.width + xx + 1]
+        if v ~= nil then
+          if xx < x0 then x0 = xx end
+          if yy < y0 then y0 = yy end
+          if xx > x1 then x1 = xx end
+          if yy > y1 then y1 = yy end
+        end
+      end
+    end
+    if x1 >= x0 then
+      local bw, bh = x1 - x0 + 1, y1 - y0 + 1
+      local btw, bth = pow2(bw), pow2(bh)
+      local bfile = "bed_" .. n .. ".tga"
+      writeTga("art/" .. bfile, btw, bth, function(x, y) if x >= bw or y >= bh then return 0 end return dry(x + x0, y + y0) end)
+      bedJson = string.format(', "bed": { "file": "%s", "x": %d, "y": %d, "tw": %d, "th": %d }', bfile, x0, y0, btw, bth)
+    else wet = nil end
+  end
+  -- only open water goes on the image: a square that starts filled (the old bridge's spans) is drawn like one
+  -- filled later, over the bed
+  local function ground(x, y)
+    if wet and x < wet.width and y < wet.height and x < cv.width and y < cv.height then
+      local w = g.water
+      if w.a[floor(y / w.cs) * w.cols + floor(x / w.cs)] == 1 then
+        local v = wet.px[y * wet.width + x + 1]
+        if v ~= nil then return v end
+      end
+    end
+    return dry(x, y)
+  end
   writeTga("art/" .. file, tw, th, ground)
   writePpm("build/ground_" .. n .. ".ppm", cv.width, cv.height, ground)
-  grounds[#grounds + 1] = string.format('  { "n": %d, "file": "%s", "w": %d, "h": %d, "tw": %d, "th": %d, "seed": %d }', n, file, cv.width, cv.height, tw, th, seed)
+  grounds[#grounds + 1] = string.format('  { "n": %d, "file": "%s", "w": %d, "h": %d, "tw": %d, "th": %d, "seed": %d%s }', n, file, cv.width, cv.height, tw, th, seed, bedJson)
   local sheet, why = bakeProps(n, seed, g)
   local reasons = {}
   for k, v in pairs(why) do reasons[#reasons + 1] = v .. " " .. k end

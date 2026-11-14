@@ -638,7 +638,10 @@ for lv = 2, 7 do
       -- /endgame sprites off: everything that moves is painted again, at once; and back
       SlashCmdList["THEENDGAMEISME"]("sprites off")
       frames(3)
-      assert(RT.Screen.sprites.n == 0 and not RT.Screen.sprites.pad and TheEndgameIsMeDB.sprites == false, "/endgame sprites off did not take")
+      -- (what stays on the list: the pieces of bare ground under filled squares of water, which belong to the ground image)
+      local moving = 0
+      for k = 1, RT.Screen.sprites.n do if RT.Screen.sprites[k].e.sheet ~= ns.Ground[6].bed then moving = moving + 1 end end
+      assert(moving == 0 and not RT.Screen.sprites.pad and TheEndgameIsMeDB.sprites == false, "/endgame sprites off did not take")
       checkPicture("level 6 with sprites off")
       SlashCmdList["THEENDGAMEISME"]("sprites on")
       frames(3)

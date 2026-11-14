@@ -123,10 +123,21 @@ local GLINT_WASHED = string.format("#%06x", mix(0x5f8ea6, WASH, 0.35))
 local RUBBLE = { [0] = 0x6b6c63, 0x55564f, 0x7a5a3a, 0x8f8f84, 0x5a3d29, 0x3f403a }
 local layers = setmetatable({}, { __mode = "k" })   -- a level's water → its layer
 
+-- The water is on the level's ground image when the image was baked with it (G.water, tools/bake-art.lua): a
+-- square of open water is then nothing in the grid at all. A square filled with rubble must not show the image's
+-- water through its wash, so the client is given a piece of the ground as it is without water (the "bed" image,
+-- RT.drawWater below) to show under it.
+local function waterInImage(g)
+  local m = g.map
+  local G = RT.fixedLayouts and RT.groundImages and ns.Ground and ns.Ground[m.n]
+  return G and G.file and G.water and G.bed and not m.plain and m.layout == G.seed and G or nil
+end
 local function paintCell(L, w, c, r, v)
   local cs, CW, px = w.cs, L.width, L.px
   local x, y = c * cs, r * cs
-  if v == 1 then
+  if v == 1 and L.inImage then
+    for yy = y, y + cs - 1 do local row = yy * CW + 1; for xx = x, x + cs - 1 do px[row + xx] = nil end end
+  elseif v == 1 then
     local col = WATER[(c + r) % 2]
     for yy = y, y + cs - 1 do local row = yy * CW + 1; for xx = x, x + cs - 1 do px[row + xx] = col end end
     -- a dark lip where water meets land
@@ -159,7 +170,7 @@ RT.host.waterLayer = function(g, vx, vy)
   if not w then return nil end
   local L = layers[w]
   if not L then
-    L = { width = w.cols * w.cs, height = w.rows * w.cs, px = {}, log = {}, seen = {} }
+    L = { width = w.cols * w.cs, height = w.rows * w.cs, px = {}, log = {}, seen = {}, inImage = waterInImage(g), beds = {} }
     layers[w] = L
   end
   local a, cols, cs, seen = w.a, w.cols, w.cs, L.seen
@@ -180,6 +191,14 @@ RT.host.waterLayer = function(g, vx, vy)
   return L
 end
 
+-- every square of a level's water as it is now, as a layer of pixels: for tools/bake-art.lua
+function RT.waterAll(g)
+  local w = g.water
+  local L = { width = w.cols * w.cs, height = w.rows * w.cs, px = {}, log = {}, seen = {} }
+  for r = 0, w.rows - 1 do for c = 0, w.cols - 1 do paintCell(L, w, c, r, w.a[r * w.cols + c]) end end
+  return L
+end
+
 -- the glints: one square in five has one, somewhere new three times a second
 local glintFor, glintFr, glints = nil, nil, nil
 function RT.drawWater(ctx, g)
@@ -188,6 +207,25 @@ function RT.drawWater(ctx, g)
   local fr = floor(g.t * 3)
   if glintFor ~= w or glintFr ~= fr then glintFor, glintFr, glints = w, fr, {} end
   local c0, c1, r0, r1 = cellRange(w, RT.Screen.vx, RT.Screen.vy)
+  -- water on the image: under each filled square in view, the ground as it is without water
+  local L = layers[w]
+  local G = L and L.inImage
+  if G and ctx == RT.Screen.ctx then
+    local bed, beds, flat = G.bed, L.beds, RT.Screen.flat
+    for r = r0, r1 do
+      local base = r * cols
+      for c = c0, c1 do
+        if a[base + c] == 2 then
+          local e = beds[base + c]
+          if not e then
+            e = { sheet = bed, u = c * cs - bed.x, v = r * cs - bed.y, w = cs, h = cs, owner = {} }
+            beds[base + c] = e
+          end
+          flat(e.owner, e, c * cs, r * cs, 1, nil, true)
+        end
+      end
+    end
+  end
   local list = glints
   for r = r0, r1 do
     local base = r * cols
@@ -235,65 +273,87 @@ end
 local sqrt, atan2, fmod, abs, pi = math.sqrt, math.atan2, math.fmod, math.abs, math.pi
 local TAU = pi * 2
 
--- render.js drawTelegraph's loop: a stomp's disc, or a swipe's or breath's wedge (wedge = true)
-local teleE, teleOn, teleOff, teleFar = {}, {}, {}, {}
-RT.host.teleArc = function(ctx, bx, by, R, x0, x1, y0, y1, wedge, half, face, prog, blink, channel)
-  local far, near = R * R * 1.0001, 64 * 0.9999   -- well outside or well inside: no need for the square root
-  local edgeA = channel and 0.35 or 0.85
-  local onA, offA = channel and 0.12 or 0.42, channel and 0.04 or 0.16
-  local reach = 8 + (R - 8) * prog
-  local fill = ctx.fillRect
-  -- on the Screen the pixels are gathered by how see-through they are and drawn a list at a time (each is drawn
-  -- once, so the order among the lists does not matter)
-  local lists = ctx == RT.Screen.ctx
-  local nE, nOn, nOff, nFar = 0, 0, 0, 0
-  for py = y0, y1 do
-    local dy = py + 0.5 - by
-    local dy2 = dy * dy
-    for px = x0, x1 do
-      local dx = px + 0.5 - bx
-      local d2 = dx * dx + dy2
-      if d2 <= far and d2 >= near then
-        local dist = sqrt(d2)
-        if not (dist > R or dist < 8) then
-          local edge = dist > R - 1
-          local show = true
-          if wedge then
-            local d = fmod(atan2(dy, dx) - face, TAU)
-            if d > pi then d = d - TAU end
-            if d < -pi then d = d + TAU end
-            local ad = abs(d)
-            if ad > half then show = false
-            elseif (half - ad) * dist < 1 then edge = true end
-          end
-          if show then
-            if lists then
-              if edge then teleE[nE + 1], teleE[nE + 2] = px, py; nE = nE + 2
-              elseif dist < reach then
-                if (px + py + blink) % 2 == 1 then teleOn[nOn + 1], teleOn[nOn + 2] = px, py; nOn = nOn + 2
-                else teleOff[nOff + 1], teleOff[nOff + 2] = px, py; nOff = nOff + 2 end
-              elseif (px + py) % 2 == 1 then teleFar[nFar + 1], teleFar[nFar + 2] = px, py; nFar = nFar + 2 end
-            else
-              local al
-              if edge then al = edgeA
-              elseif dist < reach then al = ((px + py + blink) % 2 == 1) and onA or offA
-              else al = ((px + py) % 2 == 1) and 0.12 or 0 end
-              if al ~= 0 then
-                ctx.globalAlpha = al
-                fill(ctx, px, py, 1, 1)
-              end
-            end
+-- render.js drawTelegraph's loop: a stomp's disc, or a swipe's or breath's wedge (wedge = true).
+-- The game works the shape out again for every pixel of every frame: a square root and an arctangent apiece. Here
+-- the shape is worked out once for a reach, a width and a heading (128 headings to the turn, the boss taken to
+-- stand in the middle of its pixel) and kept: its rim, and its inside as two lists, one for each colour of the
+-- chequer, sorted from the middle outwards, so that "as far as the wind-up has got" is a count. Drawing is then
+-- four or five lists of pixels. It is half a pixel and a degree and a half at most from the game's own.
+local teleGeo, nTeleGeo = {}, 0
+local function byDist(x, y) return x[1] < y[1] end
+local function teleShape(R, wedge, half, fq)
+  local key = R .. "|" .. (wedge and half or -1) .. "|" .. fq
+  local g = teleGeo[key]
+  if g then return g end
+  if nTeleGeo >= 256 then teleGeo, nTeleGeo = {}, 0 end
+  local face = fq * TAU / 128
+  local edge, nE, odd, even = {}, 0, {}, {}
+  local C = math.ceil(R)
+  for oy = -C, C do
+    for ox = -C, C do
+      local dist = sqrt(ox * ox + oy * oy)
+      if not (dist > R or dist < 8) then
+        local rim, show = dist > R - 1, true
+        if wedge then
+          local d = fmod(atan2(oy, ox) - face, TAU)
+          if d > pi then d = d - TAU end
+          if d < -pi then d = d + TAU end
+          local ad = abs(d)
+          if ad > half then show = false
+          elseif (half - ad) * dist < 1 then rim = true end
+        end
+        if show then
+          if rim then edge[nE + 1], edge[nE + 2] = ox, oy; nE = nE + 2
+          else
+            local t = (ox + oy) % 2 == 1 and odd or even
+            t[#t + 1] = { dist, ox, oy }
           end
         end
       end
     end
   end
-  if lists then
-    local points, style = RT.Screen.points, ctx.fillStyle
-    points(teleE, nE, style, edgeA)
-    points(teleOn, nOn, style, onA)
-    points(teleOff, nOff, style, offA)
-    points(teleFar, nFar, style, 0.12)
+  g = { edge = edge, nE = nE }
+  for k, t in ipairs({ odd, even }) do
+    table.sort(t, byDist)
+    local xy, ds = {}, {}
+    for i = 1, #t do ds[i] = t[i][1]; xy[i * 2 - 1] = t[i][2]; xy[i * 2] = t[i][3] end
+    g[k], g[k + 2], g[k + 4] = xy, ds, #t
+  end
+  teleGeo[key] = g
+  nTeleGeo = nTeleGeo + 1
+  return g
+end
+RT.host.teleArc = function(ctx, bx, by, R, x0, x1, y0, y1, wedge, half, face, prog, blink, channel)
+  local edgeA = channel and 0.35 or 0.85
+  local onA, offA = channel and 0.12 or 0.42, channel and 0.04 or 0.16
+  local reach = 8 + (R - 8) * prog
+  local cx, cy = floor(bx), floor(by)
+  local g = teleShape(R, wedge, half, floor(face / TAU * 128 + 0.5) % 128)
+  local style = ctx.fillStyle
+  local onScreen = ctx == RT.Screen.ctx
+  local points = RT.Screen.points
+  local fill = ctx.fillRect
+  local function draw(list, n, alpha, from)
+    if alpha <= 0 or n < (from or 1) then return end
+    if onScreen then points(list, n, style, alpha, from, cx, cy)
+    else
+      ctx.globalAlpha = alpha
+      for j = from or 1, n, 2 do fill(ctx, list[j] + cx, list[j + 1] + cy, 1, 1) end
+    end
+  end
+  draw(g.edge, g.nE, edgeA)
+  local s = (cx + cy) % 2
+  for k = 1, 2 do
+    local xy, ds, n = g[k], g[k + 2], g[k + 4]
+    -- how many of this list lie inside the reach (they are sorted by distance)
+    local lo, hi = 0, n
+    while lo < hi do
+      local mid = floor((lo + hi) / 2)
+      if ds[mid + 1] < reach then lo = mid + 1 else hi = mid end
+    end
+    local w = ((k == 1 and 1 or 0) + s) % 2          -- this list's colour of the chequer, in the world
+    draw(xy, lo * 2, ((w + blink) % 2 == 1) and onA or offA)
+    if w == 1 then draw(xy, n * 2, 0.12, lo * 2 + 1) end
   end
 end
 

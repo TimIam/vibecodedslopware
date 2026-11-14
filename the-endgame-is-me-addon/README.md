@@ -252,9 +252,23 @@ under it is set to what painting would have left, given that the texture is now 
 pixel empties the cell; over a solid cell the pixel is blended in; and where both are see-through the cell keeps
 its alpha and takes the colour (pixel over cell), which comes to exactly the same picture whatever is underneath.
 
-What is still worked out a pixel at a time: the attack arcs and lanes, the beam, rings, sparks, text, the tint
-over a burning or struck prop, water, the boss (a block of pixel textures that moves as one), riders, horses and
-the animals.
+**Water on the ground image (1.4.2).** `bake-art.lua` paints a level's open water onto its ground image, so a
+square of water is nothing in the grid, and ice or smoke over it is only a texture. A square filled with rubble is
+still drawn in the grid (a see-through wash and lumps of rubble); under it the client shows a piece of `bed_N.tga`,
+the ground as it is without water (`RT.drawWater`, `Screen.flat(..., always)`), so the wash is over the bank and
+not over water. Only the glints are drawn each frame.
+
+**Draw layers by real overlap.** A texture of the list takes a draw layer one above the highest of the textures
+its rectangle overlaps (`layerFor`: each tile keeps the list of textures touching it). By tiles alone, a long wall
+of blocks side by side climbed a layer per block and ran out at 64.
+
+**The attack arc.** Still pixels in the grid, but its shape (rim, and the inside in two lists by colour of the
+chequer, sorted from the middle outwards) is worked out once per reach, width and one of 128 headings
+(`teleShape`), and drawn as lists; the wind-up's progress is a count into them.
+
+What is still worked out a pixel at a time: the lanes, the beam, rings, sparks, text, the tint over a burning or
+struck prop, the city wall of level 5 (a drum recomposed as the camera moves), the boss (a block of pixel textures
+that moves as one), riders, horses and the animals.
 
 ## The HUD's layer
 
