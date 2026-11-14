@@ -1386,6 +1386,13 @@ window.SLOPWARE = {
      "note": "punching with bare hands",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 31,
+     "date": "2026-11-14T04:39:13-07:00",
+     "note": "checkpoints, safe hop-out, centred tees",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
