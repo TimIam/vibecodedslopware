@@ -378,22 +378,5 @@
    ]
   }
  },
- "pendingCurseforge": [
-  {
-   "addon": "endgame",
-   "client": "forever",
-   "file": "TheEndgameIsMe-1.4.0.zip",
-   "gameVersion": "1.60.1",
-   "why": "1.4.0",
-   "changelog": "1.4.0: more of the game is pre-rendered pictures (wrecks, ruins, rubble, castle walls in every state of damage, shadows, health bars), so there is less to work out each frame, most of all in the castle. Close the game and start it again after updating."
-  },
-  {
-   "addon": "endgame",
-   "client": "retail",
-   "file": "TheEndgameIsMe-Retail-1.4.0.zip",
-   "gameVersion": "12.1.5",
-   "why": "1.4.0",
-   "changelog": "1.4.0: more of the game is pre-rendered pictures (wrecks, ruins, rubble, castle walls in every state of damage, shadows, health bars), so there is less to work out each frame, most of all in the castle. Close the game and start it again after updating."
-  }
- ]
+ "pendingCurseforge": []
 }
