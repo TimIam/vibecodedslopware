@@ -386,22 +386,5 @@
    ]
   }
  },
- "pendingCurseforge": [
-  {
-   "addon": "endgame",
-   "client": "forever",
-   "file": "TheEndgameIsMe-1.5.0.zip",
-   "gameVersion": "1.60.1",
-   "why": "1.5.0",
-   "changelog": "1.5.0: a button on the minimap opens the game (a small warlock; drag it round the rim, or hide it with /endgame minimap). The dark panel behind the score no longer flickers at the start of a level. Close the game and start it again after updating."
-  },
-  {
-   "addon": "endgame",
-   "client": "retail",
-   "file": "TheEndgameIsMe-Retail-1.5.0.zip",
-   "gameVersion": "12.1.5",
-   "why": "1.5.0",
-   "changelog": "1.5.0: a button on the minimap opens the game (a small warlock; drag it round the rim, or hide it with /endgame minimap). The dark panel behind the score no longer flickers at the start of a level. Close the game and start it again after updating."
-  }
- ]
+ "pendingCurseforge": []
 }
