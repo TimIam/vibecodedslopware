@@ -181,6 +181,11 @@ window.SLOPWARE = {
      "n": 6,
      "date": "2026-11-13T12:54:02-07:00",
      "note": "smoother, fire and ice cost less and ash no longer hitches"
+    },
+    {
+     "n": 7,
+     "date": "2026-11-14T03:59:17-07:00",
+     "note": "crushing pays in full, and a faster castle"
     }
    ]
   },
@@ -1502,16 +1507,16 @@ window.SLOPWARE = {
   },
   "tree-planner": {
    "visits": 0,
-   "prompts": 2,
-   "tokens": 516101,
+   "prompts": 3,
+   "tokens": 522626,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
      "date": "2026-11-13T17:40:24-07:00",
      "note": "room importer, tree builder, ornament importer",
-     "prompts": 2,
-     "tokens": 516101
+     "prompts": 3,
+     "tokens": 522626
     }
    ]
   },
