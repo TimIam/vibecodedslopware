@@ -2,6 +2,7 @@
 -- boss's adds (add), each under the number src/sprites.lua works out for it: u v w h where it is on the sheet,
 -- ax ay where its corner goes from the unit's own pixel, spans the runs of solid pixels in each row.
 local ADDON, ns = ...;
+ns.VERSION = "1.3.3";
 ns.Units = { file = "units.tga", tw = 256, th = 32,
   unit = {
     [0] = { u = 242, v = 8, w = 4, h = 5, ax = -2, ay = -4, spans = { [0] = { 2, 2 }, { 0, 3 }, { 0, 3 }, { 0, 3 }, { 3, 3 } } },

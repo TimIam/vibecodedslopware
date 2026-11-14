@@ -66,10 +66,7 @@ The public page is `../the-endgame-is-me-wow/` (vibecodedslopware.com/the-endgam
 pictures and the two zips. This folder and the retail one are in `.vercelignore`, so only the page folder is served.
 
 1. Bump `VERSION` in `tools/build.mjs`, run `node tools/build.mjs --zip` and the tests, and commit that.
-   The browser game on main is ahead of the addon. Until the addon is ported to it, build and run `exact.sh` with
-   the game the addon was made from: `git checkout <commit that last changed TheEndgameIsMe/game_world.lua> --
-   ../the-endgame-is-me`, build, then `git checkout HEAD -- ../the-endgame-is-me`. The addon watch does the same.
-   Merge main into the branch, never rebase: a rebase gives that commit the newer game.
+   (The build takes the game from `GAME_COMMIT`, so it does not matter what the working tree's game is.)
 2. Copy both zips from `dist/` into `../the-endgame-is-me-wow/` (old ones stay: older versions of the page link to
    them), and update the version, size and status note in its `index.html`.
 3. Commit the page folder **on its own**. `tools/versions.mjs` treats each commit that touches it as a version of the
@@ -145,6 +142,30 @@ per level and only shown or hidden after that).
   seed to the name (`levels/city` in `PATCHES`), and the bake tool paints every prop a second time in the opposite
   order from an empty cache: one that comes out differently is left to the grid and reported, so the name can be
   fixed.
+
+## Which game the addon is made from
+
+`GAME_COMMIT` holds the commit whose `the-endgame-is-me/js` the addon is transpiled from; `tools/build.mjs` reads the
+files from that commit with `git show`, whatever the working tree holds. The browser game has moved on since (new
+final powers, the keep tower, necromancers that raise the dead), and none of that is in the addon until someone puts
+a newer commit in `GAME_COMMIT` and fixes what the build and the tests then say.
+
+Rule changes the web version has made since, which the addon takes on their own, are `RULE_PATCHES` in
+`tools/build.mjs`. `tools/test/refgame.mjs` writes the same game with the same patches to `build/ref-game` for the
+reference run, so `exact.sh` still compares like with like. `NO_RULE_PATCHES=1 node tools/build.mjs` builds without
+them: use it with `framehash.lua` to show that a speed-up alone leaves every frame as it was.
+
+- **Crushing pays in full** (web version, 2026-11-11): a tree, crop or building knocked down pays its whole value,
+  where it paid half and the rest only for burning it. A loadout with no fire can finish levels 2 and 4.
+
+## The rules, by hand
+
+Three routines of the rules are replaced with hand-written Lua by the build (`OVERRIDES` in `tools/build.mjs`),
+because in the castle, with over a hundred adventurers, they were most of a step: `separate` (every pair of
+adventurers; the living are listed once and a pair too far apart in x is dropped at once), `solidPush` and `slowAt`
+(the props near each adventurer; they walk the grid's cells themselves, with no list and no table per prop). A
+castle step went from 1.9 ms to 1.05 ms and the garbage from 576 KB to 256 KB a frame. Same arithmetic in the same
+order: `exact.sh` is the proof.
 
 ## Ice floors and lanes
 

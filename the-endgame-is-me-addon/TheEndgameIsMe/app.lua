@@ -42,7 +42,7 @@ local function note(text)
   if not db then return end
   db.log = db.log or {}
   db.log[#db.log + 1] = string.format("%.1f %s", (_G.GetTime and _G.GetTime() or 0), tostring(text))
-  while #db.log > 60 do table.remove(db.log, 1) end
+  while #db.log > 150 do table.remove(db.log, 1) end
 end
 A.note = note
 local function trace(err)
@@ -640,15 +640,19 @@ local function onUpdate(self, elapsed)
   end
   stats.t = stats.t + elapsed
   if stats.t >= 1 then
-    if ns.DB.perf and stats.frames > 0 then
+    if stats.frames > 0 and (ns.DB.perf or A.mode == "play") then
       local line = string.format("sim %.1f x%.1f  draw %.1f  send %.1f (%d px)  scroll %.1f (%d)  %d fps", stats.sim / max(1, stats.steps), stats.steps / stats.frames,
         stats.draw / stats.frames, stats.send / stats.frames, stats.cells / stats.frames, stats.move / stats.frames, stats.moved / stats.frames,
         floor(stats.frames / stats.t + 0.5))
-      D.info:SetText(line)
-      -- and into the log now and then, so the numbers can be read after a /reload
-      if RT.lean then D.info:SetText(line .. "  light") end
+      if RT.lean then line = line .. "  light" end
+      if ns.DB.perf then D.info:SetText(line) elseif D.info:GetText() ~= "" then D.info:SetText("") end
+      -- and into the log every ten seconds of play, whether or not the timings are showing, so that what a slow
+      -- stretch cost can be read from the saved file afterwards
       stats.said = (stats.said or 0) + 1
-      if stats.said % 5 == 1 and A.mode == "play" then note("perf: " .. line .. (A.g and A.g.map and ("  level " .. A.g.map.n) or "")) end
+      if stats.said % 10 == 1 and A.mode == "play" then
+        local g = A.g
+        note("perf: " .. line .. (g and g.map and string.format("  level %d, %d units, %d fires", g.map.n, g.units and g.units.length or 0, g.fires and g.fires.length or 0) or ""))
+      end
     elseif A.mode == "error" then D.info:SetText("error: see chat, or /endgame log")
     elseif D.info:GetText() ~= "" then D.info:SetText("") end
     -- Slow frames: go to light effects for the rest of the level. "Slow" is what the addon itself spends on a
@@ -1197,6 +1201,7 @@ end
 function A.open()
   guard("closing the client's menus", clearTheWay)
   note("open: UIParent shown " .. tostring(_G.UIParent:IsShown()) .. ", alpha " .. tostring(_G.UIParent.GetAlpha and _G.UIParent:GetAlpha()))
+  note("open: addon " .. tostring(ns.VERSION) .. ", ground images " .. tostring(ns.DB.ground ~= false) .. ", sprites " .. tostring(ns.DB.sprites ~= false) .. ", effects " .. tostring(ns.DB.effects or "auto"))
   note("open: client build " .. tostring(_G.GetBuildInfo and select(4, _G.GetBuildInfo())) .. ", screen " .. tostring(_G.GetPhysicalScreenSize and table.concat({ _G.GetPhysicalScreenSize() }, "x")))
   local f = D.create()
   note(string.format("window made: scale %s (%d px per game px), effective %.4f, UIParent %.4f", tostring(f:GetScale()), D.scale, f:GetEffectiveScale(), _G.UIParent:GetEffectiveScale()))

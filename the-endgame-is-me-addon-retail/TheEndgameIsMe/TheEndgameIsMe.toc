@@ -2,7 +2,7 @@
 ## Title: The Endgame is Me
 ## Notes: A reverse boss fight: you are the boss. Type /endgame to play.
 ## Author: timiam
-## Version: 1.3.2
+## Version: 1.3.3
 ## SavedVariables: TheEndgameIsMeDB
 ## AddonCompartmentFunc: TheEndgameIsMe_OnCompartmentClick
 ## X-Website: https://vibecodedslopware.com/the-endgame-is-me-wow/

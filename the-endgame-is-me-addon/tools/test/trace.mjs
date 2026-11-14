@@ -6,7 +6,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 // the Lua side keeps path distances as doubles and has no fused hypot, so the reference does the same
 globalThis.Float32Array = Float64Array;
 Math.hypot = (a, b, c) => Math.sqrt(a * a + b * b + (c === undefined ? 0 : c * c));
-const W = await import(pathToFileURL(path.resolve(here, '../../../the-endgame-is-me/js/world.js')));
+// REF_GAME: the folder tools/test/refgame.mjs wrote (the game the addon is made from, with the build's rule changes)
+const W = await import(pathToFileURL(path.resolve(process.env.REF_GAME || path.resolve(here, '../../../the-endgame-is-me/js'), 'world.js')));
 const g = W.createGame(seed);
 if (level > 1) W.jumpToLevel(g, level);
 if (kit > 0) {

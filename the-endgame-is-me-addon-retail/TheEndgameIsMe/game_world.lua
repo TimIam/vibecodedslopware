@@ -2399,93 +2399,68 @@ g.banner = nil;
 end;
 end;
 end;
--- world:1575
-M.separate = function(g) 
-local us = g.units;
-for i = 0, (us.length or #us) - 1 do
-repeat
-local a = us[i];
-if (__T(a.dead) or (a.role == "rider")) then
-do break end;
-end;
-for j = (i + 1), (us.length or #us) - 1 do
-repeat
-local c = us[j];
-if (__T(c.dead) or (c.role == "rider")) then
-do break end;
-end;
-local dx = ((c.x or __NaN) - (a.x or __NaN));
-local dy = ((c.y or __NaN) - (a.y or __NaN));
-local d2 = ((dx * dx) + (dy * dy));
-if ((d2 < 9) and (d2 > 0.0001)) then
-local d = __msqrt(d2);
-local push = ((3 - d) * 0.5);
-a.x = ((a.x or __NaN) - ((dx / d) * push));
-a.y = ((a.y or __NaN) - ((dy / d) * push));
-c.x = ((c.x or __NaN) + ((dx / d) * push));
-c.y = ((c.y or __NaN) + ((dy / d) * push));
-end;
-until true;
-end;
-local b = g.boss;
-local dx = ((a.x or __NaN) - (b.x or __NaN));
-local dy = ((a.y or __NaN) - (b.y or __NaN));
-local d = __hypot(dx, dy);
-local min = ((b.r or __NaN) + 2);
-if (((d < min) and (d > 0.001)) and (not __T(b.dead))) then
-a.x = ((b.x or __NaN) + ((dx / d) * min));
-a.y = ((b.y or __NaN) + ((dy / d) * min));
-end;
+-- separate: replaced by the build
 do
-local __t161, __t162 = __it(g.adds), 0;
-while __t162 < __t161.length do
-local m = __t161[__t162]; __t162 = __t162 + 1;
-local ex = ((a.x or __NaN) - (m.x or __NaN));
-local ey = ((a.y or __NaN) - (m.y or __NaN));
-local e = __hypot(ex, ey);
-local em = ((m.r or __NaN) + 2);
-if ((e < em) and (e > 0.001)) then
-a.x = ((m.x or __NaN) + ((ex / e) * em));
-a.y = ((m.y or __NaN) + ((ey / e) * em));
-end;
-end;
-end;
-until true;
-end;
-if (((g.props.length or #g.props) ~= 0) or __T(g.water)) then
-do
-local __t164, __t165 = __it(us), 0;
-while __t165 < __t164.length do
-local u = __t164[__t165]; __t165 = __t165 + 1;
-if ((not __T(u.dead)) and (not ((u.role == "rider") and (u.state == "climb")))) then
-__I0.solidPush(g, u, 2);
-end;
-end;
-end;
-do
-local __t167, __t168 = __it(g.adds), 0;
-while __t168 < __t167.length do
-local m = __t167[__t168]; __t168 = __t168 + 1;
-__I0.solidPush(g, m, m.r);
-end;
-end;
-end;
-local b = g.boss;
-do
-local __t170, __t171 = __it(g.adds), 0;
-while __t171 < __t170.length do
-local m = __t170[__t171]; __t171 = __t171 + 1;
-local dx = ((m.x or __NaN) - (b.x or __NaN));
-local dy = ((m.y or __NaN) - (b.y or __NaN));
-local d = __hypot(dx, dy);
-local min = ((b.r or __NaN) + (m.r or __NaN));
-if ((d < min) and (d > 0.001)) then
-m.x = ((b.x or __NaN) + ((dx / d) * min));
-m.y = ((b.y or __NaN) + ((dy / d) * min));
-end;
-end;
-end;
-end;
+local sqrt = math.sqrt
+local live = {}
+M.separate = function(g)
+local us, adds, b = g.units, g.adds, g.boss
+local m = 0
+for i = 0, us.length - 1 do
+local a = us[i]
+if not (__T(a.dead) or a.role == "rider") then m = m + 1; live[m] = a end
+end
+for k = m + 1, #live do live[k] = nil end
+local bdead = __T(b.dead)
+for k = 1, m do
+local a = live[k]
+local ax, ay = a.x, a.y
+for l = k + 1, m do
+local c = live[l]
+local dx = c.x - ax
+if dx < 3 and dx > -3 then
+local dy = c.y - ay
+local d2 = dx * dx + dy * dy
+if d2 < 9 and d2 > 0.0001 then
+local d = sqrt(d2)
+local push = (3 - d) * 0.5
+ax = ax - dx / d * push
+ay = ay - dy / d * push
+c.x = c.x + dx / d * push
+c.y = c.y + dy / d * push
+end
+end
+end
+local dx, dy = ax - b.x, ay - b.y
+local d = sqrt(dx * dx + dy * dy)
+local min = b.r + 2
+if d < min and d > 0.001 and not bdead then ax = b.x + dx / d * min; ay = b.y + dy / d * min end
+for q = 0, adds.length - 1 do
+local o = adds[q]
+local ex, ey = ax - o.x, ay - o.y
+local e = sqrt(ex * ex + ey * ey)
+local em = o.r + 2
+if e < em and e > 0.001 then ax = o.x + ex / e * em; ay = o.y + ey / e * em end
+end
+a.x, a.y = ax, ay
+end
+if g.props.length ~= 0 or __T(g.water) then
+local push = __I0.solidPush
+for i = 0, us.length - 1 do
+local u = us[i]
+if not __T(u.dead) and not (u.role == "rider" and u.state == "climb") then push(g, u, 2) end
+end
+for q = 0, adds.length - 1 do local o = adds[q]; push(g, o, o.r) end
+end
+for q = 0, adds.length - 1 do
+local o = adds[q]
+local dx, dy = o.x - b.x, o.y - b.y
+local d = sqrt(dx * dx + dy * dy)
+local min = b.r + o.r
+if d < min and d > 0.001 then o.x = b.x + dx / d * min; o.y = b.y + dy / d * min end
+end
+end
+end
 -- world:1607
 M.pickFoe = function(g, u) 
 if (u.role == "healer") then
@@ -2494,10 +2469,10 @@ end;
 local best = nil;
 local bd = math.huge;
 do
-local __t173, __t174 = __it(g.adds), 0;
-while __t174 < __t173.length do
+local __t159, __t160 = __it(g.adds), 0;
+while __t160 < __t159.length do
 repeat
-local a = __t173[__t174]; __t174 = __t174 + 1;
+local a = __t159[__t160]; __t160 = __t160 + 1;
 if __T(a.dead) then
 do break end;
 end;
@@ -2570,9 +2545,9 @@ M.summon = function(g)
 local lvl = (__T(g.lvl.summon) and g.lvl.summon or 0);
 local kinds = ((lvl == 0) and {[0]="gnasher", "gnasher", length=2} or ((lvl == 1) and {[0]="spitter", "spitter", length=2} or {[0]="necro", length=1}));
 do
-local __t177, __t178 = __it(kinds), 0;
-while __t178 < __t177.length do
-local k = __t177[__t178]; __t178 = __t178 + 1;
+local __t163, __t164 = __it(kinds), 0;
+while __t164 < __t163.length do
+local k = __t163[__t164]; __t164 = __t164 + 1;
 if (__filter(g.adds, function(a) 
 return (not __startsWith(a.kind, "skel"));
 end).length >= M.MAX_ADDS) then
@@ -2606,7 +2581,7 @@ x = ((b.x or __NaN) + (__mcos(k) * (((b.r or __NaN) + (D.r or __NaN)) + 3)));
 y = ((b.y or __NaN) + (__msin(k) * (((b.r or __NaN) + (D.r or __NaN)) + 3)));
 end;
 end;
-local a = {id=(function() local __t181 = g.nextId; g.nextId = __t181 + 1; return __t181 end)(), kind=kind, x=M.clamp(x, M.AR.x0, M.AR.x1), y=M.clamp(y, M.AR.y0, M.AR.y1), hp=D.hp, maxhp=D.hp, r=D.r, atk=0.5, walk=0, moving=false, fx=1, hit=0, t=0, swing=0, slot=(g.rng() * M.TAU), raise=2};
+local a = {id=(function() local __t167 = g.nextId; g.nextId = __t167 + 1; return __t167 end)(), kind=kind, x=M.clamp(x, M.AR.x0, M.AR.x1), y=M.clamp(y, M.AR.y0, M.AR.y1), hp=D.hp, maxhp=D.hp, r=D.r, atk=0.5, walk=0, moving=false, fx=1, hit=0, t=0, swing=0, slot=(g.rng() * M.TAU), raise=2};
 __push(g.adds, a);
 g.summoned = (g.summoned or __NaN) + 1;
 M.text(g, a.x, ((a.y or __NaN) - 9), (__startsWith(kind, "skel") and "RISE" or (__str(D.name) .. "!")), (__startsWith(kind, "skel") and "heal" or "gold"), 1.4);
@@ -2633,10 +2608,10 @@ end;
 local tgt = nil;
 local td = math.huge;
 do
-local __t183, __t184 = __it(g.units), 0;
-while __t184 < __t183.length do
+local __t169, __t170 = __it(g.units), 0;
+while __t170 < __t169.length do
 repeat
-local u = __t183[__t184]; __t184 = __t184 + 1;
+local u = __t169[__t170]; __t170 = __t170 + 1;
 if ((not M.hittable(u)) or (u.state == "flee")) then
 do break end;
 end;
@@ -2832,9 +2807,9 @@ end;
 -- world:1828
 M.demoSet = function(d, id, lvl, look) 
 do
-local __t186, __t187 = __it({[0]="units", "parties", "corpses", "ghosts", "fires", "ice", "bolts", "parts", "texts", "barks", "rings", "adds", "ashes", length=13}), 0;
-while __t187 < __t186.length do
-local k = __t186[__t187]; __t187 = __t187 + 1;
+local __t172, __t173 = __it({[0]="units", "parties", "corpses", "ghosts", "fires", "ice", "bolts", "parts", "texts", "barks", "rings", "adds", "ashes", length=13}), 0;
+while __t173 < __t172.length do
+local k = __t172[__t173]; __t173 = __t173 + 1;
 d[k] = {length=0};
 end;
 end;
@@ -2851,8 +2826,8 @@ local b = d.boss;
 b.hp = b.maxhp;
 M.applyLevels(d);
 __assignKV(b, "x", M.DEMO_AT.x, "y", M.DEMO_AT.y, "face", 0, "act", nil, "queue", nil, "haste", 0, "taunt", nil, "evade", nil, "dead", false, "hp", b.maxhp);
-for __t190 in __pairs(b.cd) do
-local k = __t190;
+for __t176 in __pairs(b.cd) do
+local k = __t176;
 b.cd[k] = 0;
 end;
 d.demo = {id=id, t=0, cycle=0};
@@ -2989,7 +2964,7 @@ M.createEnding = function(look)
 local e = M.createGame(11, look);
 e.dir.final = true;
 local A, B;
-local __t191 = e.map; A = __t191.A; B = __t191.B;
+local __t177 = e.map; A = __t177.A; B = __t177.B;
 __assignKV(e.boss, "x", (M.W - 8), "y", (M.H - 26), "face", (math.pi * 1.2));
 e.lastMark = "A";
 e["end"] = {wp={[0]={x=(M.W - 70), y=(M.H - 46)}, {x=((B.x or __NaN) + 40), y=((B.y or __NaN) + 22)}, length=2}, t=0, phase="walk", caption=M.ENDING_LINES[0][1], capT=0, hearts={length=0}, at=nil, done=false};
@@ -3000,7 +2975,7 @@ M.endingStep = function(e, dt)
 local en = e["end"];
 local b = e.boss;
 local A, B;
-local __t192 = e.map; A = __t192.A; B = __t192.B;
+local __t178 = e.map; A = __t178.A; B = __t178.B;
 en.t = ((en.t or __NaN) + dt);
 en.capT = ((en.capT or __NaN) + dt);
 local say = function(s) 
@@ -3015,9 +2990,9 @@ __push(en.hearts, {x=((b.x or __NaN) + ((e.rng() - 0.5) * 18)), y=(((b.y or __Na
 end;
 end;
 do
-local __t194, __t195 = __it(en.hearts), 0;
-while __t195 < __t194.length do
-local h = __t194[__t195]; __t195 = __t195 + 1;
+local __t180, __t181 = __it(en.hearts), 0;
+while __t181 < __t180.length do
+local h = __t180[__t181]; __t181 = __t181 + 1;
 h.t = ((h.t or __NaN) + dt);
 if ((h.t or __NaN) > 0) then
 h.y = ((h.y or __NaN) - (9 * dt));
@@ -3030,9 +3005,9 @@ return ((h.t or __NaN) < 2.4);
 end);
 if (en.phase == "walk") then
 do
-local __t197, __t198 = __it(M.ENDING_LINES), 0;
-while __t198 < __t197.length do
-local __t200 = __t197[__t198]; __t198 = __t198 + 1; local t, s; t = __t200[0]; s = __t200[1];
+local __t183, __t184 = __it(M.ENDING_LINES), 0;
+while __t184 < __t183.length do
+local __t186 = __t183[__t184]; __t184 = __t184 + 1; local t, s; t = __t186[0]; s = __t186[1];
 if ((en.t or __NaN) >= t) then
 say(s);
 end;

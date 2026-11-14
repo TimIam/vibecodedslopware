@@ -4,6 +4,9 @@
 cd "$(dirname "$0")/../.."
 steps=${1:-8000}
 tmp=$(mktemp -d)
+# REF_GAME can be given (made by tools/test/refgame.mjs where git can read the repository, e.g. outside WSL)
+export REF_GAME=${REF_GAME:-$(node tools/test/refgame.mjs)}
+[ -d "$REF_GAME" ] || { echo "no reference game: run node tools/test/refgame.mjs"; exit 1; }
 for lv in 1 2 3 4 5 6 7; do for seed in ${SEEDS:-1 77}; do for kit in ${KITS:-0 1 2 3}; do
   node tools/test/trace.mjs $seed $lv $steps 20 $kit > $tmp/js.txt
   node tools/test/fengari.mjs tools/test/trace.lua $seed $lv $steps 20 $kit > $tmp/lua.txt 2>&1

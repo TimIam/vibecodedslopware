@@ -236,12 +236,17 @@ local sqrt, atan2, fmod, abs, pi = math.sqrt, math.atan2, math.fmod, math.abs, m
 local TAU = pi * 2
 
 -- render.js drawTelegraph's loop: a stomp's disc, or a swipe's or breath's wedge (wedge = true)
+local teleE, teleOn, teleOff, teleFar = {}, {}, {}, {}
 RT.host.teleArc = function(ctx, bx, by, R, x0, x1, y0, y1, wedge, half, face, prog, blink, channel)
   local far, near = R * R * 1.0001, 64 * 0.9999   -- well outside or well inside: no need for the square root
   local edgeA = channel and 0.35 or 0.85
   local onA, offA = channel and 0.12 or 0.42, channel and 0.04 or 0.16
   local reach = 8 + (R - 8) * prog
   local fill = ctx.fillRect
+  -- on the Screen the pixels are gathered by how see-through they are and drawn a list at a time (each is drawn
+  -- once, so the order among the lists does not matter)
+  local lists = ctx == RT.Screen.ctx
+  local nE, nOn, nOff, nFar = 0, 0, 0, 0
   for py = y0, y1 do
     local dy = py + 0.5 - by
     local dy2 = dy * dy
@@ -262,18 +267,33 @@ RT.host.teleArc = function(ctx, bx, by, R, x0, x1, y0, y1, wedge, half, face, pr
             elseif (half - ad) * dist < 1 then edge = true end
           end
           if show then
-            local al
-            if edge then al = edgeA
-            elseif dist < reach then al = ((px + py + blink) % 2 == 1) and onA or offA
-            else al = ((px + py) % 2 == 1) and 0.12 or 0 end
-            if al ~= 0 then
-              ctx.globalAlpha = al
-              fill(ctx, px, py, 1, 1)
+            if lists then
+              if edge then teleE[nE + 1], teleE[nE + 2] = px, py; nE = nE + 2
+              elseif dist < reach then
+                if (px + py + blink) % 2 == 1 then teleOn[nOn + 1], teleOn[nOn + 2] = px, py; nOn = nOn + 2
+                else teleOff[nOff + 1], teleOff[nOff + 2] = px, py; nOff = nOff + 2 end
+              elseif (px + py) % 2 == 1 then teleFar[nFar + 1], teleFar[nFar + 2] = px, py; nFar = nFar + 2 end
+            else
+              local al
+              if edge then al = edgeA
+              elseif dist < reach then al = ((px + py + blink) % 2 == 1) and onA or offA
+              else al = ((px + py) % 2 == 1) and 0.12 or 0 end
+              if al ~= 0 then
+                ctx.globalAlpha = al
+                fill(ctx, px, py, 1, 1)
+              end
             end
           end
         end
       end
     end
+  end
+  if lists then
+    local points, style = RT.Screen.points, ctx.fillStyle
+    points(teleE, nE, style, edgeA)
+    points(teleOn, nOn, style, onA)
+    points(teleOff, nOff, style, offA)
+    points(teleFar, nFar, style, 0.12)
   end
 end
 

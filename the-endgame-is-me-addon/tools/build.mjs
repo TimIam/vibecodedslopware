@@ -8,13 +8,14 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import zlib from 'zlib';
+import { execFileSync } from 'child_process';
 import { transpile } from './js2lua.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const game = path.resolve(root, '../the-endgame-is-me/js');
 export const ADDON = 'TheEndgameIsMe';
-export const VERSION = '1.3.2';
+export const VERSION = '1.3.3';
 
 // in load order: a module comes after everything it imports
 export const MODULES = ['props', 'smoke', 'art', 'levels/forest', 'levels/clearing', 'levels/farms', 'levels/village', 'levels/wall', 'levels/city',
@@ -185,8 +186,151 @@ end
 out.length = n
 return out
 end
+end`,
+  // solidPush() and slowAt() are asked for every adventurer every step. Each made a list of the props nearby and,
+  // for solidPush, a table per prop for the closest point. These walk the grid's cells themselves, in the order
+  // near() gives, and keep the closest point in locals. Same arithmetic (exact.sh).
+  solidPush: `do
+local stamp, call, floor, sqrt, abs = setmetatable({}, { __mode = "k" }), 0, math.floor, math.sqrt, math.abs
+M.solidPush = function(g, e, r)
+if not g.pgrid or g.propsDirty then M.rebuildGrid(g) end
+call = call + 1
+local idx, CELL, KINDS = g.pgrid.idx, M.CELL, M.KINDS
+local x0, y0, q = e.x, e.y, r + 4
+for cy = floor((y0 - q) / CELL), floor((y0 + q) / CELL) do
+for cx = floor((x0 - q) / CELL), floor((x0 + q) / CELL) do
+local en = idx[cx * 4096 + cy]
+local a = en and en[1]
+if a then
+for i = 0, a.length - 1 do
+local p = a[i]
+if stamp[p] ~= call and p.state ~= "gone" then
+stamp[p] = call
+if p.state == "up" and __T(KINDS[p.kind].solid) then
+local x, y = e.x, e.y
+local nx, ny, d
+local w = p.w
+if w and w ~= 0 then
+local px, py, hw, hh = p.x, p.y, w / 2, p.h / 2
+local lo, hi = px - hw, px + hw
+local qx = x < lo and lo or x > hi and hi or x
+lo, hi = py - hh, py + hh
+local qy = y < lo and lo or y > hi and hi or y
+nx, ny = x - qx, y - qy
+d = sqrt(nx * nx + ny * ny)
+if d < 0.001 then
+local ex, ey = hw - abs(x - px), hh - abs(y - py)
+if ex < ey then nx = x - px > 0 and 1 or x - px < 0 and -1 or 1; ny = 0; d = -ex
+else nx = 0; ny = y - py > 0 and 1 or y - py < 0 and -1 or 1; d = -ey end
+else nx, ny = nx / d, ny / d end
+else
+local dx, dy = x - p.x, y - p.y
+local h = sqrt(dx * dx + dy * dy)
+if h == 0 then h = 0.001 end
+nx, ny, d = dx / h, dy / h, h - p.r
+end
+if d < r then e.x = x + nx * (r - d); e.y = y + ny * (r - d) end
+end
+end
+end
+end
+end
+end
+if __T(g.water) and __T(M.isWater(g, e.x, e.y)) then M.unstuck(g, e) end
+end
+end`,
+  slowAt: `do
+local floor, sqrt = math.floor, math.sqrt
+M.slowAt = function(g, x, y)
+if not g.pgrid or g.propsDirty then M.rebuildGrid(g) end
+local idx, CELL, KINDS, f = g.pgrid.idx, M.CELL, M.KINDS, 1
+for cy = floor((y - 14) / CELL), floor((y + 14) / CELL) do
+for cx = floor((x - 14) / CELL), floor((x + 14) / CELL) do
+local en = idx[cx * 4096 + cy]
+local a = en and en[1]
+if a then
+for i = 0, a.length - 1 do
+local p = a[i]
+if p.state == "up" then
+local d = KINDS[p.kind]
+local slow = d.slow
+if slow and slow ~= 0 then
+local dx, dy = x - p.x, y - p.y
+if sqrt(dx * dx + dy * dy) < d.slowR then local v = 1 - slow; if v < f then f = v end end
+end
+end
+end
+end
+end
+end
+return f
+end
 end` },
-  world: { mulberry32: 'M.mulberry32 = RT.mulberry32;', pathField: 'M.pathField = RT.pathField;' },
+  // separate() keeps the adventurers off one another: every pair, every step, 5,000 pairs in the castle, and a third
+  // of that level's rules. Written by hand: the living are listed once, a pair too far apart in x is dropped before
+  // any multiplying, and a unit's place is kept in locals while its row of pairs is worked through. Same arithmetic
+  // in the same order (exact.sh).
+  world: { mulberry32: 'M.mulberry32 = RT.mulberry32;', pathField: 'M.pathField = RT.pathField;', separate: `do
+local sqrt = math.sqrt
+local live = {}
+M.separate = function(g)
+local us, adds, b = g.units, g.adds, g.boss
+local m = 0
+for i = 0, us.length - 1 do
+local a = us[i]
+if not (__T(a.dead) or a.role == "rider") then m = m + 1; live[m] = a end
+end
+for k = m + 1, #live do live[k] = nil end
+local bdead = __T(b.dead)
+for k = 1, m do
+local a = live[k]
+local ax, ay = a.x, a.y
+for l = k + 1, m do
+local c = live[l]
+local dx = c.x - ax
+if dx < 3 and dx > -3 then
+local dy = c.y - ay
+local d2 = dx * dx + dy * dy
+if d2 < 9 and d2 > 0.0001 then
+local d = sqrt(d2)
+local push = (3 - d) * 0.5
+ax = ax - dx / d * push
+ay = ay - dy / d * push
+c.x = c.x + dx / d * push
+c.y = c.y + dy / d * push
+end
+end
+end
+local dx, dy = ax - b.x, ay - b.y
+local d = sqrt(dx * dx + dy * dy)
+local min = b.r + 2
+if d < min and d > 0.001 and not bdead then ax = b.x + dx / d * min; ay = b.y + dy / d * min end
+for q = 0, adds.length - 1 do
+local o = adds[q]
+local ex, ey = ax - o.x, ay - o.y
+local e = sqrt(ex * ex + ey * ey)
+local em = o.r + 2
+if e < em and e > 0.001 then ax = o.x + ex / e * em; ay = o.y + ey / e * em end
+end
+a.x, a.y = ax, ay
+end
+if g.props.length ~= 0 or __T(g.water) then
+local push = __I0.solidPush
+for i = 0, us.length - 1 do
+local u = us[i]
+if not __T(u.dead) and not (u.role == "rider" and u.state == "climb") then push(g, u, 2) end
+end
+for q = 0, adds.length - 1 do local o = adds[q]; push(g, o, o.r) end
+end
+for q = 0, adds.length - 1 do
+local o = adds[q]
+local dx, dy = o.x - b.x, o.y - b.y
+local d = sqrt(dx * dx + dy * dy)
+local min = b.r + o.r
+if d < min and d > 0.001 then o.x = b.x + dx / d * min; o.y = b.y + dy / d * min end
+end
+end
+end` },
   smoke: { mulberry32: 'M.mulberry32 = RT.mulberry32;' },
   // still water is part of the retained ground (waterLayer, above); what is left to draw each frame is the glints
   render: { fmt: 'M.fmt = RT.commas;', drawWater: 'M.drawWater = RT.drawWater;', drawFires: 'M.drawFires = RT.drawFires;' },
@@ -196,16 +340,37 @@ end` },
     writeSave: '', saveInfo: '', readSave: '', clearSave: '', unlockPlus: '', plusData: '' },
 };
 
+// The browser game has moved on since the addon was last made from it, and a client patch or a speed-up must not
+// ship game changes nobody has played in the client. GAME_COMMIT names the commit whose the-endgame-is-me/js the
+// addon is made from; the build reads the files from there (git show), whatever the working tree holds. To bring
+// the addon up to the current game: put the new commit in GAME_COMMIT, fix what the build and the tests say.
+export const GAME_COMMIT = (() => { try { return fs.readFileSync(path.join(root, 'GAME_COMMIT'), 'utf8').trim(); } catch { return null; } })();
+export function gameSource(rel) {
+  if (!GAME_COMMIT) return fs.readFileSync(path.join(game, rel), 'utf8').replace(/\r\n/g, '\n');
+  return execFileSync('git', ['show', `${GAME_COMMIT}:the-endgame-is-me/js/${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20 }).replace(/\r\n/g, '\n');
+}
+
+// Changes to the game's rules that the web version has made since GAME_COMMIT and the addon takes on their own.
+// The reference run of the tests (tools/test/refgame.mjs) applies them to the JavaScript too, so exact.sh still
+// compares like with like.
+// (NO_RULE_PATCHES=1 builds without them, to check that a speed-up alone leaves every frame as it was.)
+export const RULE_PATCHES = process.env.NO_RULE_PATCHES ? {} : {
+  props: [
+    // Crushing a tree, crop or building pays its whole value (it paid half, the rest only for burning it), so a
+    // loadout with no fire can finish levels 2 and 4. A fallen thing can still be set alight; it pays nothing more.
+    [`  pay(g, p, d.flammable ? d.crushShare : 1, false);`, `  pay(g, p, 1, false);`],
+  ],
+};
+
 export function buildModules(only) {
   const exportTypes = {};
   const out = {};
   for (const name of MODULES) {
     if (only && !only.includes(name)) continue;
-    const file = path.join(game, name + '.js');
-    const src = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+    const src = gameSource(name + '.js');
     const dir = path.posix.dirname(name);
     const resolve = spec => path.posix.normalize(path.posix.join(dir, spec)).replace(/\.js$/, '');
-    const { lua, fnTypes } = transpile(src, { name, resolve, patches: PATCHES[name] || [], overrides: OVERRIDES[name] || {}, exportTypes });
+    const { lua, fnTypes } = transpile(src, { name, resolve, patches: [...(RULE_PATCHES[name] || []), ...(PATCHES[name] || [])], overrides: OVERRIDES[name] || {}, exportTypes });
     exportTypes[name] = fnTypes;
     out[name] = lua;
   }
@@ -271,6 +436,7 @@ function unitsManifest() {
     '-- boss\'s adds (add), each under the number src/sprites.lua works out for it: u v w h where it is on the sheet,',
     '-- ax ay where its corner goes from the unit\'s own pixel, spans the runs of solid pixels in each row.',
     'local ADDON, ns = ...;',
+    `ns.VERSION = "${VERSION}";`,
     U ? `ns.Units = { file = "${U.file}", tw = ${U.tw}, th = ${U.th},\n  unit = {\n${set(U.unit)}\n  },\n  add = {\n${set(U.add)}\n  },\n};` : 'ns.Units = nil;', ''].join('\n');
   return { lua, files: U ? [U.file] : [], dir, count: U ? U.unit.length + U.add.length : 0 };
 }
