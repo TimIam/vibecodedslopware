@@ -2444,6 +2444,7 @@ function promptText() {
     return (S.noClub ? '<b>Left click</b> right fist · <b>Right click</b> left fist · flick the mouse up for an uppercut, sideways for a hook · <kbd>2</kbd>–<kbd>5</kbd> clubs' : '<b>Hold left mouse</b> to swing freely · <b>Right click</b> by your ball for the golf stance') + ' · <kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump';
   }
   if (S.mode === 'drive' && S.awaitPark && !touchedBay(S.awaitPark)) return (S.awaitPark === NHOLES ? '✅ Drive through the checkpoint at the summit to finish' : '✅ Drive through the glowing checkpoint beside hole ' + (S.awaitPark + 1) + "'s tee") + ' · <kbd>Space</kbd> brake';
+  if (S.mode === 'drive' && S.cart && (course.puzzles?.gates || []).some(g => g.open < 0.4 && g.p.distanceTo(S.cart.pos) < 14)) return '🚧 <b>Click</b> to honk and the gate arm lifts · <kbd>Space</kbd> brake';
   if (S.mode === 'drive') return '<kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> brake · <b>Click</b> honk · <kbd>E</kbd> hop out';
   if (S.mode === 'address') return GOLF_HINT + ' · <b>Right click</b> steps away';
   return '';
@@ -2461,6 +2462,7 @@ function updateHudLive() {
   if (pt !== S.promptShown) { S.promptShown = pt; $('prompt').innerHTML = pt; $('prompt').hidden = !pt || !!S.intro; }
   $('prompt').classList.toggle('top', !!S.grip);
   document.body.classList.toggle('gripping', !!S.grip);
+  document.body.classList.toggle('addressing', S.mode === 'address' && !S.intro);
   $('tip').classList.toggle('show', !S.tipDone && !!S.grip && !S.intro);
   $('rageFill').style.width = S.rage + '%';
   $('rage').classList.toggle('hot', S.rage > 70);

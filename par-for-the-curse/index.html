@@ -148,6 +148,15 @@ h1,h2,h3,.lil{font-family:"Lilita One",Nunito,sans-serif;font-weight:400;letter-
 #clubs{transition:opacity .15s,bottom .15s}
 body.gripping #clubs{opacity:.4;bottom:-44px}
 body.gripping #shot{opacity:0}
+/* golf stance: the golfer and the ball are bottom centre, so everything that lives there moves to a column on
+   the left, clear of the climb bar, and the club bar shrinks */
+body.addressing #clubs{left:66px;bottom:14px;transform:none;gap:5px}
+body.addressing #clubs div{width:min(50px,5.4vw);padding:4px 1px 3px;border-radius:11px}
+body.addressing #clubs b{font-size:min(12px,1.45vw)}
+body.addressing #meter{left:66px;bottom:74px;transform:none;width:clamp(200px,30vw,280px)}
+body.addressing #prompt{left:66px;bottom:134px;transform:none;width:clamp(200px,30vw,280px);box-sizing:border-box;white-space:normal;text-align:left;font-size:12.5px;line-height:1.35;padding:6px 11px}
+body.addressing #shot{left:66px;bottom:auto;top:200px;transform:translateY(10px);max-width:clamp(200px,30vw,280px);white-space:normal;font-size:13px}
+body.addressing #shot.show{transform:none}
 #flagMark i{display:none;font-style:normal;color:var(--red);font-size:16px}
 #flagMark.off i{display:inline-block;font-size:24px;line-height:1}
 #flagMark.off{transform:translate(-50%,-50%);padding:5px 13px;background:var(--sun);font-size:16px;animation:pinPulse .7s ease-in-out infinite alternate}
