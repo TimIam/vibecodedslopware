@@ -1367,6 +1367,20 @@ window.SLOPWARE = {
      "note": "one cart path tee to summit, with driving puzzles",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 29,
+     "date": "2026-11-13T14:35:41-07:00",
+     "note": "ring cart road, park at every green, co-op mode",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 30,
+     "date": "2026-11-13T15:06:20-07:00",
+     "note": "punching with bare hands",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
@@ -1483,6 +1497,21 @@ window.SLOPWARE = {
      "note": "Endgame Logo shirt with each line bent evenly",
      "prompts": 0,
      "tokens": 0
+    }
+   ]
+  },
+  "tree-planner": {
+   "visits": 0,
+   "prompts": 2,
+   "tokens": 516101,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-13T17:40:24-07:00",
+     "note": "room importer, tree builder, ornament importer",
+     "prompts": 2,
+     "tokens": 516101
     }
    ]
   },

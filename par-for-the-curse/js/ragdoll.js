@@ -349,7 +349,7 @@ export class Ragdolls {
       const [by, to, dir] = va.length() >= vb.length() ? [a, b, rel] : [b, a, rel.negate()];
       const c = this.world.getCollider(to.handle).translation();
       if (by.seg.kind === 'club' || by.seg.kind === 'fa') { by.doll.pass[to.doll.slot] = this.time + RAGDOLL.passThrough; this.passing(by.doll); }
-      this.onHit({ by: by.doll.key, part: by.seg.kind, head: !!by.head, to: to.doll.key, hitPart: to.seg.kind, speed, dir: dir.normalize(), at: V(c.x, c.y, c.z) });
+      this.onHit({ by: by.doll.key, part: by.seg.kind, seg: by.seg.name, head: !!by.head, to: to.doll.key, hitPart: to.seg.kind, toSeg: to.seg.name, speed, dir: dir.normalize(), at: V(c.x, c.y, c.z) });
     });
   }
 

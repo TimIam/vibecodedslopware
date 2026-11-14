@@ -79,7 +79,7 @@ function loadLook() {
 }
 function saveLook() { try { localStorage.setItem('pftc-look', JSON.stringify(look)); } catch (e) {} }
 function save() {
-  try { localStorage.setItem('pftc-save', JSON.stringify({ hole: S.hole, strokes: S.strokes, holeStrokes: S.holeStrokes, falls: S.falls, lost: Math.round(S.lost), best: S.best, finished: S.finished, ft: S.finMs, crown: S.crown, park: !!S.awaitPark, ball: ball.p.toArray().map(v => +v.toFixed(3)), aim: S.aim, startedAt: S.startedAt, g: S.golferG.toArray().map(v => +v.toFixed(2)), cart: [...carts[0].pos.toArray().map(v => +v.toFixed(2)), +carts[0].yaw.toFixed(3)] })); } catch (e) {}
+  try { localStorage.setItem('pftc-save', JSON.stringify({ hole: S.hole, strokes: S.strokes, holeStrokes: S.holeStrokes, falls: S.falls, lost: Math.round(S.lost), best: S.best, finished: S.finished, ft: S.finMs, crown: S.crown, park: S.awaitPark | 0, cb: S.cartBay | 0, ball: ball.p.toArray().map(v => +v.toFixed(3)), aim: S.aim, startedAt: S.startedAt, g: S.golferG.toArray().map(v => +v.toFixed(2)), cart: [...carts[0].pos.toArray().map(v => +v.toFixed(2)), +carts[0].yaw.toFixed(3)] })); } catch (e) {}
 }
 function loadSave() { try { return JSON.parse(localStorage.getItem('pftc-save') || 'null'); } catch (e) { return null; } }
 
@@ -240,7 +240,7 @@ function resetCart() {
   if (S.cart === c) exitCart();
   if (c.gone && net) net.event({ k: 'reclaim', to: c.gone });
   cartHome(null); A.play('poof');
-  toast('🛒 Your cart is back in its bay at the first tee.'); save();
+  toast('🛒 Your cart is back ' + (S.cartBay > 0 ? 'in the parking bay at hole ' + S.cartBay + "'s green." : 'in its bay at the first tee.')); save();
 }
 /* ---------------- escape menu ---------------- */
 const playing = () => S.mode !== 'title' && S.mode !== 'loading';
@@ -311,16 +311,62 @@ function whackTo(id, e) { if (id === SPAR.id) sparHit(e); else if (net) net.even
 // Every cart anyone can see works the plates, and a honk from anyone near opens a gate.
 const honks = [];
 function puzzleTick(dt) {
-  const at = carts.map(c => c.pos);
+  const at = carts.filter(c => !c.gone).map(c => c.pos);
   for (const o of others.values()) { if (o.cart && o.cart.mesh.visible) at.push(o.cart.pos); if (o.cart2) at.push(o.cart2.pos); }
   if (S.cart && S.t - (S.honkAt ?? -9) < 0.05) honks.push(S.cart.pos.clone());
-  for (const [what, p] of course.driveTick(dt, at, honks)) {
+  // What can shove the rock: every cart as two circles, nose and tail, and me on foot.
+  const pushers = [], H = V();
+  const cartPush = (c, vel, who) => { c.heading(H); for (const a of [1, -1]) pushers.push({ x: c.pos.x + H.x * BUMP.off * a, y: c.pos.y, z: c.pos.z + H.z * BUMP.off * a, r: BUMP.r, vx: vel.x, vz: vel.z, cart: who === 'me' ? c : null, who }); };
+  for (const c of carts) if (!c.gone) cartPush(c, V(H.x, 0, H.z).copy(c.heading()).multiplyScalar(c.speed).add(c.push), 'me');
+  for (const [id, o] of others) { if (o.cart && o.cart.mesh.visible) cartPush(o.cart, o.cartVel, id); if (o.cart2) cartPush(o.cart2, o.cart2Vel, id); }
+  if (S.mode === 'walk') pushers.push({ x: S.golferG.x, y: S.golferG.y, z: S.golferG.z, r: 0.28, vx: W.v.x * 0.5, vz: W.v.z * 0.5, cart: null, who: 'me' });
+  for (const [what, p] of course.driveTick(dt, at, honks, pushers)) {
     const near = proximity(p);
     if (what === 'gate') A.play('click', near);
-    if (what === 'plate') { A.play('click', near); A.play('beep', near * 0.6); if (S.cart && S.cart.pos.distanceTo(p) < 3) toast('🌉 The drawbridge is coming down. Go go go!'); }
+    if (what === 'plate') { A.play('click', near); A.play('beep', near * 0.6); if (near > 0.5) toast('🌉 The rock is on the plate: the drawbridge stays down.'); }
     if (what === 'bridge') A.play('womp', near * 0.5);
+    if (what === 'rocklost') A.play('womp', near * 0.7);
+    if (what === 'rockback') { fx.poof(p.clone()); A.play('poof', near * 0.7); }
+    if (what === 'rockland') A.play('thud', near * 0.6);
   }
   honks.length = 0;
+  rockNet();
+  wreckers();
+}
+// The rock is pushed on everyone's screen at once, so the one whose cart is shoving it says where it is.
+function rockNet() {
+  (course.puzzles?.rocks || []).forEach((k, i) => {
+    const mine = k.by === 'me', moving = Math.hypot(k.v.x, k.v.z) > 0.05 || !k.grounded;
+    if (!mine || !net) return;
+    if (moving || !k.toldStill) {
+      if (S.t - (k.toldAt ?? -9) < 0.12) return;
+      k.toldAt = S.t; k.toldStill = !moving;
+      net.event({ k: 'rock', i, at: k.p.toArray().map(x => +x.toFixed(2)), v: k.v.toArray().map(x => +x.toFixed(2)), lost: k.lost > 0 ? 1 : 0 });
+    }
+  });
+}
+// Wrecking balls throw a cart (or a golfer) off the road the way they are swinging.
+const WRECK = { kick: 7, up: 2.5, gap: 0.7 };
+function wreckers() {
+  for (const wr of course.puzzles?.wreckers || []) {
+    const b = wr.col.pos, dir = wr.vel.clone().setY(0);
+    for (const c of carts) {
+      if (c.gone || S.t - (c.wreckT ?? -9) < WRECK.gap) continue;
+      if (Math.hypot(c.pos.x - b.x, c.pos.z - b.z) > wr.R + 0.75 || Math.abs(b.y - c.pos.y - 0.55) > wr.R + 0.55) continue;
+      c.wreckT = S.t;
+      const d = dir.lengthSq() > 0.25 ? dir.clone().normalize() : V(c.pos.x - b.x, 0, c.pos.z - b.z).normalize();
+      c.knock(d.x * WRECK.kick, d.z * WRECK.kick);
+      if (c.grounded) { c.grounded = false; c.vy = WRECK.up; }
+      fx.sparks(c.pos.clone().add(V(0, 0.8, 0)), 14); A.play('thud', S.cart === c ? 1 : proximity(c.pos));
+      if (S.cart === c) { shake(0.4); pop('WRECKED!', 'bad', c.pos.clone().add(V(0, 1.2, 0))); addRage(6); }
+    }
+    if (S.mode === 'walk' && !(S.ko > 0) && S.t - (S.wreckT ?? -9) > WRECK.gap && S.golferG.clone().add(V(0, 0.5, 0)).distanceTo(b) < wr.R + 0.45) {
+      S.wreckT = S.t;
+      const d = dir.lengthSq() > 0.25 ? dir.clone().normalize() : V(S.golferG.x - b.x, 0, S.golferG.z - b.z).normalize();
+      S.ko = Math.max(S.ko || 0, 0.8); S.grip = false; A.play('thud', 1); shake(0.3);
+      knocked(d.multiplyScalar(8).setY(4), null);
+    }
+  }
 }
 // A bumper bats the cart away (on a ball the rubber does it).
 const CART_BUMP = { kick: 7, gap: 0.3 };
@@ -331,6 +377,100 @@ function bumperCart(c) {
     b.cartT = S.t; c.knock(dx / d * CART_BUMP.kick, dz / d * CART_BUMP.kick);
     b.mesh.userData.flash = 1; A.play('bumper', 1); shake(0.15);
   }
+}
+/* ---------------- co-op: one ball for the whole room ---------------- */
+// A private room plays Versus (everyone their own ball, as on the public mountain) or Co-op: one ball,
+// alternate shots, one score. The room plays whatever the golfer who has been in it longest chose.
+// The ball lives on one client at a time, the owner: whoever hit it last. Everyone else draws it where the
+// owner says it is (and copies the hole and the strokes from them), and takes it over by hitting it. A shot
+// is the next golfer's in order of arrival, or anyone's once it has sat still for CO.wait seconds.
+const CO = { wait: 25 };
+let modeWant = 'vs';
+try { modeWant = localStorage.getItem('pftc-mode') === 'co' ? 'co' : 'vs'; } catch (e) {}
+const coOrder = () => [{ id: net.me, jt: net.jt || 0 }, ...[...net.peers.values()].filter(p => p.state && Number.isFinite(+p.presence?.jt)).map(p => ({ id: p.id, jt: +p.presence.jt }))].sort((a, b) => a.jt - b.jt || (a.id < b.id ? -1 : 1));
+function roomMode() {
+  if (!net || S.room === 'mountain') return 'vs';
+  const lead = coOrder()[0];
+  return lead.id === net.me ? modeWant : (net.peers.get(lead.id)?.presence?.md === 'co' ? 'co' : 'vs');
+}
+const coOwnerPeer = () => (S.coop && S.coOwner !== 'me' && net ? net.peers.get(S.coOwner) : null);
+const coName = id => (id === 'me' || (net && id === net.me) ? 'your' : (others.get(id)?.nameHtml || 'their') + "'s");
+// Whose shot it is: the next one round after whoever hit last.
+function coNext() {
+  if (!S.coop || !net) return null;
+  const order = coOrder(), last = S.coOwner === 'me' ? S.coLast : coOwnerPeer()?.state?.lh;
+  const i = order.findIndex(o => o.id === last);
+  if (!last || i < 0 || order.length < 2) return null;
+  return order[(i + 1) % order.length].id;
+}
+const coMayHit = () => { const n = coNext(); return !n || n === net.me || (S.coRestT || 0) > CO.wait; };
+function coBlocked() {
+  if (!S.coop || coMayHit()) return false;
+  toast("🤝 It is " + coName(coNext()) + " shot. Co-op takes turns.");
+  return true;
+}
+// Everyone in the room parked at this green (co-op waits for the whole team).
+function teamParked() {
+  if (!S.coop || S.awaitPark === NHOLES) return true;
+  return [...net.peers.values()].every(p => !p.state || (+p.state.pb || 0) >= S.awaitPark);
+}
+function coWaitText() {
+  if (!S.coop || !(S.parkBay >= S.awaitPark) || teamParked()) return '';
+  const late = [...net.peers.values()].filter(p => p.state && !((+p.state.pb || 0) >= S.awaitPark)).map(p => others.get(p.id)?.nameHtml || 'a teammate');
+  return ' · waiting for ' + late.join(', ') + ' to park';
+}
+function coopTick(dt) {
+  const want = roomMode() === 'co';
+  if (want !== !!S.coop) {
+    S.coop = want; S.coLast = '';
+    // Take the room's mode as mine, so it carries on if whoever chose it leaves.
+    if (S.room !== 'mountain' && modeWant !== (want ? 'co' : 'vs')) { modeWant = want ? 'co' : 'vs'; net.presence({ md: modeWant }); }
+    if (want) { const lead = coOrder()[0]; S.coOwner = lead.id === net.me ? 'me' : lead.id; }
+    else { S.coOwner = 'me'; ball.frozen = !!S.awaitPark; }
+    toast(want ? '🤝 Co-op: one ball for the whole room. Take turns hitting it.' : '⚔️ Versus: everyone plays their own ball.');
+    updateHud();
+  }
+  if (!S.coop) return;
+  // Who has the ball: whoever says so with the most strokes on it (the last to hit), or, if they have left,
+  // the golfer who has been here longest.
+  for (const p of net.peers.values()) {
+    const st = p.state; if (!st || st.own !== 1 || p.id === S.coOwner) continue;
+    const mine = S.coOwner === 'me', cur = mine ? S.strokes : +(coOwnerPeer()?.state?.sk ?? -1);
+    if ((+st.sk || 0) > cur || ((+st.sk || 0) === cur && (mine ? p.id < net.me : true))) coYield(p.id);
+  }
+  if (S.coOwner !== 'me' && !net.peers.has(S.coOwner)) {
+    const lead = coOrder()[0];
+    if (lead.id === net.me) { S.coOwner = 'me'; ball.frozen = !!S.awaitPark; toast('🤝 The ball is with you now.'); } else S.coOwner = lead.id;
+  }
+  const live = S.coOwner === 'me' ? S.ballLive : coOwnerPeer()?.state?.m === 1;
+  S.coRestT = live || S.awaitPark ? 0 : (S.coRestT || 0) + dt;
+  if (S.coOwner === 'me') return;
+  // Not mine: draw it where the owner has it, on their hole and their score.
+  const p = coOwnerPeer(), st = p && p.state, o = p && others.get(p.id);
+  if (!st || !o || !nums(st.b, 3)) { ball.frozen = true; return; }
+  if (Number.isFinite(+st.hl) && st.hl <= NHOLES) S.hole = clamp(st.hl | 0, 1, NHOLES);
+  if (Number.isFinite(+st.sk)) S.strokes = st.sk | 0;
+  if (Number.isFinite(+st.hs)) S.holeStrokes = st.hs | 0;
+  if (Number.isFinite(+st.fa)) S.falls = st.fa | 0;
+  S.ballLive = false; ball.v.set(0, 0, 0);
+  if (st.m === 1 || S.awaitPark || st.bv === 0) {
+    ball.frozen = true; ball.p.copy(o.bpos);
+    if (S.mode === 'address') leaveAddress();
+  } else {
+    ball.frozen = false;
+    if (ball.p.distanceTo(o.bpos) > 0.04) ball.p.copy(o.bpos);
+  }
+}
+function coYield(id) {
+  if (S.coOwner === 'me') { S.ballLive = false; ball.frozen = true; trail.clear(); }
+  S.coOwner = id;
+  if (S.mode === 'address') leaveAddress();
+}
+// My shot in co-op: the ball is mine now.
+function coShot() {
+  if (!S.coop || !net) return;
+  S.coOwner = 'me'; S.coLast = net.me; S.coRestT = 0;
+  net.event({ k: 'shot' });
 }
 /* ---------------- knocked flying ---------------- */
 // A hit that staggers or floors you throws your body, and while it is limp you are wherever it is: knocked
@@ -364,7 +504,7 @@ function tumbled(m, sea) {
 // the ball and believes it only from a golfer standing at it. It counts for them like any knock: if it
 // drops a level, that is their fall.
 function bonkBall(id, o, v, by) {
-  if (!net || S.t - (o.kickT ?? -9) < 0.4) return false;
+  if (!net || S.coop || S.t - (o.kickT ?? -9) < 0.4) return false;
   o.kickT = S.t;
   net.event({ k: 'bonk', to: id, v: v.toArray().map(x => +x.toFixed(2)), by });
   fx.sparks(o.ball.position, by === 'club' ? 10 : 5); A.play(by === 'club' ? 'hit' : 'putt', by === 'club' ? 0.7 : 0.5);
@@ -445,6 +585,13 @@ const PART_OF = { head: 'head', torso: 'body', hips: 'body', ua: 'body', fa: 'bo
 const hitGap = new Map();
 function physHit(h) {
   const mine = h.by === 'me', atMe = h.to === 'me', fromSpar = h.by === SPAR.id;
+  // Bare arms only hurt as punches: my punching arm against a body, whichever of the two was moving faster.
+  if (S.noClub && (mine || atMe)) {
+    const arm = punchLive() && ['fa', 'ua'].map(x => x + S.punch.k);
+    if (arm && mine && arm.includes(h.seg) && h.hitPart !== 'club') punchLand(h.to, PART_OF[h.hitPart] || 'body', h.at);
+    else if (arm && atMe && arm.includes(h.toSeg) && h.part !== 'club') punchLand(h.by, PART_OF[h.part] || 'body', h.at);
+    if (mine && (h.part === 'fa' || h.part === 'ua')) return;
+  }
   if (h.hitPart === 'club') {
     if (h.speed > 3 && (mine || atMe || fromSpar)) { A.play('rock', clamp(h.speed / 10, 0.3, 0.9) * proximity(h.at)); fx.sparks(h.at, 6); }
     return;
@@ -613,6 +760,7 @@ function healthTick(dt) {
 }
 // Five cart bays side by side at the first tee; the room hands each golfer one.
 function useCartBay(slot) {
+  if (S.cartBay > 0) return homeCart(S.cartBay);
   const c = carts[0], s0 = course.cartSpots[0], F = course.holes[1].frame;
   const atHome = c !== S.cart && c.pos.distanceTo(c.home.p) < 0.6;
   c.home = { p: s0.p.clone().addScaledVector(F.in, [0, 1.5, -1.5, 3, 4.5][clamp(slot | 0, 0, 4)]), yaw: s0.yaw };
@@ -671,7 +819,8 @@ async function boot() {
       if (num(sv.g)) S.savedG = sv.g;
       if (num(sv.cart)) { carts[0].pos.set(sv.cart[0], sv.cart[1], sv.cart[2]); carts[0].yaw = +sv.cart[3] || 0; carts[0].sync(); } else S.cartToBall = true;
       if (S.crown) me.setCrown(true);
-      if (sv.park && !S.finished) { S.awaitPark = true; ball.frozen = true; }
+      if (sv.park && !S.finished) { S.awaitPark = sv.park === true ? NHOLES : clamp(sv.park | 0, 1, NHOLES); ball.frozen = true; }
+      if (+sv.cb > 0) homeCart(clamp(sv.cb | 0, 1, NHOLES));
       settleGolfer(true);
       $('continueNote').hidden = false;
       $('continueNote').textContent = `Picking up on hole ${S.hole}, ${S.strokes} strokes in.`;
@@ -750,11 +899,12 @@ function setupTitle() {
 const roomCode = () => S.room.toUpperCase();
 function roomLabel(note, bad) {
   const priv = S.room !== 'mountain';
+  for (const [id, m] of [['modeVs', 'vs'], ['modeCo', 'co']]) { const b = $(id); b.disabled = !priv; b.classList.toggle('on', (priv ? modeWant : 'vs') === m); }
   $('roomName').textContent = priv ? 'Private room ' + roomCode() + (S.pin ? ' 🔒' : '') : 'Public mountain';
   const el = $('roomNote');
   el.textContent = note || (!priv ? 'Everyone here climbs together. To play with friends, type their invite code or make a private room.'
-    : S.pin ? 'Friends need the code ' + roomCode() + ' and the PIN ' + S.pin + '.'
-    : 'Friends join with the code ' + roomCode() + '. Add a 4-digit PIN to lock it.');
+    : (modeWant === 'co' ? 'Co-op: one ball, take turns. ' : 'Versus: everyone their own ball. ') + (S.pin ? 'Friends need the code ' + roomCode() + ' and the PIN ' + S.pin + '.'
+    : 'Friends join with the code ' + roomCode() + '. Add a 4-digit PIN to lock it.'));
   el.classList.toggle('bad', !!bad);
   $('roomPin').disabled = !priv;
 }
@@ -772,6 +922,7 @@ function setupRoom() {
     roomLabel();
   };
   codeEl.oninput = pinEl.oninput = typed;
+  for (const [id, m] of [['modeVs', 'vs'], ['modeCo', 'co']]) $(id).onclick = () => { modeWant = m; try { localStorage.setItem('pftc-mode', m); } catch (e) {} if (net) net.presence({ md: m }); roomLabel(); A.play('click'); };
   $('newRoom').onclick = () => { codeEl.value = newCode(); typed(); pinEl.focus(); A.play('click'); };
   $('copyInvite').onclick = () => {
     const u = location.origin + location.pathname + (S.room === 'mountain' ? '' : '?room=' + roomCode());
@@ -826,8 +977,8 @@ async function teeOff() {
 }
 
 function resetClimb() {
-  Object.assign(S, { strokes: 0, holeStrokes: 0, falls: 0, lost: 0, rage: 0, finished: false, finMs: 0, startedAt: 0, awaitPark: false, hp: HP.max, ko: 0, down: false, goAt: 0 });
-  S.savedG = null; S.cartToBall = false; if (S.cart) { S.cart = null; A.engine(0); } carts[0].reset();
+  Object.assign(S, { strokes: 0, holeStrokes: 0, falls: 0, lost: 0, rage: 0, finished: false, finMs: 0, startedAt: 0, awaitPark: 0, cartBay: 0, hp: HP.max, ko: 0, down: false, goAt: 0 });
+  S.savedG = null; S.cartToBall = false; if (S.cart) { S.cart = null; A.engine(0); } useCartBay(net ? net.slot : 0); carts[0].reset();
   placeOnTee(1); settleGolfer(true); save();
 }
 function start() {
@@ -864,6 +1015,7 @@ canvas.addEventListener('mousedown', e => {
   if (S.mode === 'title' || S.mode === 'loading') return;
   if (document.pointerLockElement !== canvas) lockPointer();
   // Right mouse: a thrust while the left button has the club, otherwise in and out of the golf stance.
+  if (S.mode === 'walk' && S.noClub && (e.button === 0 || e.button === 2)) { startPunch(e.button === 0 ? 1 : 0); return; }
   if (e.button === 2) { if (S.lmb || S.grip) S.aimHeld = true; else toggleGolf(); }
   if (e.button === 0 && S.mode !== 'address') S.lmb = true;
   if (e.button === 0 && S.mode === 'address') assistPress();
@@ -974,6 +1126,8 @@ function toggleGolf() {
   if (S.mode === 'address') return leaveAddress();
   if (S.mode !== 'walk' || S.emote || S.ko || S.intro || S.hold) return;
   if (S.noClub) { toast('Pick a club first: keys 2 to 5.'); return; }
+  if (S.awaitPark) { toast(S.awaitPark === NHOLES ? '🅿️ Park the cart in the bay at the summit to finish.' : '🅿️ Park your cart in the bay beside this tee first.'); return; }
+  if (coBlocked()) return;
   if (S.ballLive || ball.frozen || !ballMesh.visible) { toast('Wait for your ball to stop.'); return; }
   if (Math.hypot(S.golferG.x - ball.p.x, S.golferG.z - ball.p.z) > 3.5 || Math.abs(S.golferG.y - ball.p.y) > 1.5) { toast('Walk up to your ball, then right click to take your stance.'); return; }
   S.leaveAt = 0; swing.golf = true; assist.reset();
@@ -1214,6 +1368,7 @@ function launch(r) {
   // Hitting a ball that is still moving is a stroke too, but a penalty still takes it back to where it last lay.
   if (!S.ballLive) { S.shotFrom.copy(ball.p); S.shotHole = S.hole; S.shotY = ball.p.y; }
   S.strokes++; S.holeStrokes++;
+  coShot();
   S.flightT = 0; S.restT = 0; S.firstLand = true; S.fallingWhistle = false; S.cupCheck = true;
   S.shotInfo = r;
   S.ballLive = true;
@@ -1287,16 +1442,50 @@ function holed(h) {
   addRage(diff <= 0 ? -40 : -15);
   sendEv({ k: 'sink', h, n, par });
   setTimeout(() => {
-    if (h === NHOLES) return cartParked() ? finish() : needPark();
-    placeOnTee(h + 1); showHoleCard(); updateHud(); save();
+    if (h < NHOLES) { placeOnTee(h + 1); showHoleCard(); }
+    needPark(h); updateHud(); save();
   }, 2800);
 }
-// The cart has to make it too: the climb is not over until it is standing in the bay at the top.
-const cartParked = () => { const c = carts[0]; return !c.gone && course.inBay(c.pos) && c.grounded && Math.abs(c.speed) < 0.4; };
-function needPark() {
-  S.awaitPark = true; save();
-  pop('Now park the cart<small>in the bay at the top</small>', 'big meh');
-  toast('🅿️ Ball is in. The climb counts once your cart is parked in the bay at the summit.');
+// Co-op: the owner sank the team's ball. Same party here, then everyone parks.
+function coSunk(h, n, par, nm) {
+  if (h < 1 || h > NHOLES) return;
+  const H = course.holes[h], diff = n - par;
+  A.play('cup', 1); setTimeout(() => A.play(diff <= 0 ? 'cheer' : 'ooh', diff <= 0 ? 1 : 0.6), 300);
+  confetti.burst(H.cup.clone().add(V(0, 0.3, 0)), diff <= 0 ? 200 : 80, diff <= 0 ? 6 : 4);
+  pop((n === 1 ? 'HOLE IN ONE!' : diff < 0 ? 'UNDER PAR!' : diff === 0 ? 'PAR' : '+' + diff) + '<small>' + nm + ' sank hole ' + h + ' for the team</small>', diff <= 0 ? 'big' : 'big meh');
+  S.best = Math.max(S.best, h); addRage(-20);
+  setTimeout(() => { if (h < NHOLES) showHoleCard(); needPark(h); updateHud(); }, 2800);
+}
+// The cart has to make it too. Every green has a parking bay on the cart road beside it: you cannot tee off
+// on the next hole until your cart is parked in it, and the climb is not over until it is parked at the top.
+const cartParked = (k = S.awaitPark) => { const c = carts[0]; return k > 0 && !c.gone && course.inBay(c.pos, k) && c.grounded && Math.abs(c.speed) < 0.4; };
+function needPark(k) {
+  S.awaitPark = k; S.parkBay = 0; ball.frozen = true; save();
+  if (cartParked(k)) return;
+  if (k === NHOLES) {
+    pop('Now park the cart<small>in the bay at the top</small>', 'big meh');
+    toast('🅿️ Ball is in. The climb counts once your cart is parked in the bay at the summit.');
+  } else {
+    pop('Park your cart<small>in bay ' + k + ', then tee off on ' + (k + 1) + '</small>', 'big meh');
+    toast('🅿️ No tee shot on hole ' + (k + 1) + ' until your cart is parked in the bay on the cart road beside this tee.');
+  }
+}
+// Parked in bay k: the next tee is open, and that bay is where the cart goes back to if you reset it.
+function parked() {
+  const k = S.awaitPark;
+  homeCart(k);
+  if (k === NHOLES) return finish();
+  S.awaitPark = 0; ball.frozen = false;
+  pop('Parked!<small>tee off on hole ' + (k + 1) + '</small>', 'good'); A.play('beep', 0.8);
+  updateHud(); save();
+}
+// Where your cart lives: one of five places side by side in the last bay you parked in (the first tee's
+// row before that), by the slot the room gave you.
+function homeCart(k) {
+  S.cartBay = k;
+  const c = carts[0], b = course.bays[k], slot = clamp((net ? net.slot : 0) | 0, 0, 4);
+  if (!b) return useCartBay(net ? net.slot : 0);
+  c.home = { p: b.p.clone().addScaledVector(b.frame.f, ([0, -1.8, 1.8, -3.6, 3.6])[slot]), yaw: b.yaw };
 }
 function finish() {
   S.awaitPark = false;
@@ -1344,6 +1533,7 @@ function step(dt) {
   // ball and nothing shows where it will go. Local +x (the way the face looks) is the golfer's left.
   healthTick(dt);
   kickTick(dt);
+  punchTick(dt);
   S.hold = held();
   swing.golf = S.mode === 'address';
   if (S.mode === 'address' && S.leaveAt && t > S.leaveAt) leaveAddress();
@@ -1378,6 +1568,7 @@ function step(dt) {
   if (S.grip) { if (swing.turn) S.twist = clamp(S.twist + swing.turn, -TWIST.max, TWIST.max); else S.twist *= Math.exp(-dt * TWIST.back); faceFoe(dt); }
   else S.twist = 0;
   swing.turn = 0;
+  if (S.mode === 'walk' && !S.grip) (S.mflick || (S.mflick = V())).add(V(mouseDX, mouseDY, 0));
   if (S.mode === 'walk' && !S.grip) { S.camYaw -= mouseDX * 0.0028; S.camPitch = clamp(S.camPitch + mouseDY * 0.0022, -0.55, 1.15); }
   mouseDX = mouseDY = 0;
   const sub = 6, h = dt / sub;
@@ -1400,7 +1591,7 @@ function step(dt) {
     if (assisted) {
       // The button schemes: the shot leaves as the head comes through the ball, with the power and line you set.
       if (assist.phase === 'down' && !S.ballLive && ((swing.prevHead.x < swing.ball.x && swing.head.x >= swing.ball.x) || assist.t > 0.7)) launch(assist.shot(PERFECT_HEAD[swing.ci]));
-    } else if ((S.mode === 'address' && !S.ballLive) || (free && !ball.frozen && ballMesh.visible && Math.abs(bl.x) < 3 && Math.abs(bl.z) < 3 && Math.abs(bl.y) < 4)) {
+    } else if ((S.mode === 'address' && !S.ballLive) || (free && !ball.frozen && ballMesh.visible && (!S.coop || coMayHit()) && Math.abs(bl.x) < 3 && Math.abs(bl.z) < 3 && Math.abs(bl.y) < 4)) {
       const f = fDir(bodyYaw()), w = wDir(bodyYaw());
       const r = swing.strike(bl, free ? _bv.set(ball.v.dot(f), ball.v.y, ball.v.dot(w)) : undefined, ball.grounded);
       if (r) launch(r);
@@ -1439,8 +1630,10 @@ function step(dt) {
   sparTick(dt);
   if (S.ballLive) flight(dt);
   if (S.cannon) cannonTick(S.realDt || dt);
-  if (S.awaitPark && !S.finished && cartParked()) finish();
-  if (course.parking) course.parking.glow.material.opacity = S.awaitPark ? 0.25 + Math.sin(t * 5) * 0.15 : 0;
+  if (S.awaitPark && cartParked()) S.parkBay = Math.max(S.parkBay || 0, S.awaitPark);
+  if (S.awaitPark && !S.finished && S.parkBay >= S.awaitPark && teamParked()) parked();
+  if (net) coopTick(dt);
+  for (const b of course.bays) if (b) b.glow.material.opacity = S.awaitPark === b.k ? 0.25 + Math.sin(t * 5) * 0.15 : 0;
   if (S.mode === 'walk') walkStep(dt);
   followBody();
   if (S.mode === 'walk') dribble();
@@ -1448,7 +1641,7 @@ function step(dt) {
   idleCarts(dt);
   cartContacts();
   if (S.mode !== 'drive') A.engine(0);
-  if ((S.mode === 'address' || S.mode === 'walk') && !ball.frozen && !S.ballLive) {
+  if ((S.mode === 'address' || S.mode === 'walk') && !ball.frozen && !S.ballLive && !(S.coop && S.coOwner !== 'me')) {
     // If the resting ball gets knocked (a bonk, a sweeper), it is in play again.
     if (ball.v.distanceTo(ball.gVel) > 0.6 || !ball.grounded && ball.airT > 0.15) { S.ballLive = true; S.flightT = 0; S.restT = 0; S.shotFrom.copy(ball.p); S.shotY = ball.p.y; S.shotHole = S.hole; }
     else if (S.mode === 'address' && !S.leaveAt) golferOrigin(S.golferG);
@@ -1624,6 +1817,7 @@ function poseMe(dt) {
     s.look = V(0, 0.7, 2);
   } else if (S.mode === 'walk' && !S.grip) {
     runPose(s, W.phase, W.amt, { club: !S.noClub, air: !W.grounded });
+    if (S.noClub) punchPose(s, me.R, S.punch, S.guardT > 0);
     if (W.grounded) for (let k = 0; k < 2; k++) {
       const fw = localToWorld(s.feet[k], _b), g = world.groundAt(fw.x, fw.y + 0.6, fw.z, 2);
       if (g) s.feet[k].y += clamp((g.y - S.golferG.y) / ACTOR, -0.25, 0.25);
@@ -1893,6 +2087,95 @@ function kickFoot(t, ankle, out = _kf) {
   if (t < KICK.out) return out.lerpVectors(KICK_UP, KICK_OUT, sm((t - KICK.up) / (KICK.out - KICK.up)));
   return out.lerpVectors(KICK_OUT, rest, sm((t - KICK.out) / (KICK.back - KICK.out)));
 }
+/* ---------------- punching (bare hands) ---------------- */
+// With bare hands (key 1) left click throws the right fist and right click the left. Flick the mouse up as
+// you click for an uppercut, sideways for a hook; otherwise it is a straight. The pose only says where the
+// fist should be: the ragdoll's arm motors throw it there, and the hit lands where the physical fist meets a
+// body (or, if the physics misses a glancing touch, where the fist reaches one). After a punch the fists stay
+// up in a guard for a moment and you square up to whoever is in front.
+const PUNCH = {
+  wind: 0.05, out: 0.09, hold: 0.06, back: 0.17,          // seconds: cock it, throw it, leave it there, bring it back
+  lunge: [0.3, 0.2, 0.2], guard: 1.4, flick: 14,                      // m stepped in, s the guard stays up, mouse px that make a flick
+  s: [4.2, 5, 5.6], shove: [3.5, 4.5, 2.5], up: [1.2, 1.5, 4.5],      // straight, hook, uppercut: hit speed, push, lift
+  turn: [0.35, 0.55, 0.3], word: ['POW!', 'BAM!', 'UPPERCUT!'],
+};
+const punchFwd = () => localToWorld(V(0, 0, 1), V()).sub(S.golferG).setY(0).normalize();
+const punchLen = () => PUNCH.wind + PUNCH.out + PUNCH.hold + PUNCH.back;
+const punchLive = () => S.punch && !S.punch.hit && S.punch.t > PUNCH.wind * 0.5 && S.punch.t < PUNCH.wind + PUNCH.out + PUNCH.hold + 0.1;      // the arm motors lag the pose a little
+function startPunch(k) {
+  if (S.mode !== 'walk' || !S.noClub || S.ko > 0 || S.hold || S.down || S.emote || S.intro) return;
+  if (S.punch && S.punch.t < PUNCH.wind + PUNCH.out + PUNCH.hold) { S.punchNext = k; return; }
+  const mx = S.mflick ? S.mflick.x : 0, my = S.mflick ? S.mflick.y : 0;
+  const type = -my > PUNCH.flick && -my > Math.abs(mx) ? 2 : Math.abs(mx) > PUNCH.flick ? 1 : 0;
+  S.punch = { k, type, t: 0, hit: false }; S.punchNext = null; S.guardT = PUNCH.guard;
+  A.play('pop', 0.18);
+}
+function punchTick(dt) {
+  if (S.mflick) S.mflick.multiplyScalar(Math.exp(-dt * 10));
+  S.guardT = Math.max(0, (S.guardT || 0) - dt);
+  if (!S.noClub || S.mode !== 'walk' || S.ko > 0) { S.punch = null; S.guardT = 0; return; }
+  if (S.guardT > 0) {
+    // Square up: face where you look, and turn the look onto whoever is right in front.
+    faceFoe(dt);
+    let da = S.camYaw + Math.PI / 2 - S.walkYaw; da = Math.atan2(Math.sin(da), Math.cos(da));      // (the body's yaw is a quarter turn from where it faces)
+    S.walkYaw += da * (1 - Math.exp(-dt * 16));
+  }
+  const P = S.punch; if (!P) return;
+  P.t += dt;
+  if (P.t >= punchLen()) { S.punch = null; if (S.punchNext != null) startPunch(S.punchNext); return; }
+  const fw = punchFwd();
+  if (P.t > PUNCH.wind && P.t < PUNCH.wind + PUNCH.out) S.golferG.addScaledVector(fw, PUNCH.lunge[P.type] * dt / PUNCH.out);
+  if (!punchLive()) return;
+  // The reach check, for a fist the physics only grazed.
+  const fist = me.p.hand[P.k].getWorldPosition(V());
+  for (const [id, o] of others) {
+    if (o.down || o.riding || o.G.distanceTo(S.golferG) > 1.6) continue;
+    for (const [part, mesh, up, r] of BODY_PARTS) {
+      const c = o.golfer.p[mesh].localToWorld(V(0, up, 0));
+      if (c.distanceTo(fist) > r * ACTOR + 0.07) continue;
+      return punchLand(id, part, fist);
+    }
+  }
+}
+function punchLand(id, part, at) {
+  const P = S.punch, o = others.get(id); if (!P || P.hit || !o || o.down) return;
+  P.hit = true;
+  const fw = punchFwd(), s = PUNCH.s[P.type];
+  const v = fw.multiplyScalar(PUNCH.shove[P.type]); v.y = PUNCH.up[P.type];
+  whackTo(id, { k: 'whack', to: id, v: v.toArray().map(x => +x.toFixed(2)), part, s, punch: 1 });
+  S.hitStop = HIT_STOP * 0.8; shake(0.1 + P.type * 0.04); fx.sparks(at, part === 'head' ? 12 : 7); A.play('thud', 0.8 + P.type * 0.1);
+  pop(PUNCH.word[P.type] + `<small>-${whackDamage(part, s)}</small>`, 'great', at.clone().add(V(0, 0.3, 0)));
+  if (window.__whacks) window.__whacks.push({ part, s, with: 'punch', type: P.type });
+}
+// Where the fists go (golfer-local, +x is the golfer's left, +z forward), on top of the walking pose.
+// pu: { k, type, t } or null; guard: the fists are up.
+const _sh = V(), _gd = V(), _tg = V(), _wd = V();
+function punchPose(s, R, pu, guard) {
+  if (!pu && !guard) return;
+  const tilt = 0.12, waistY = R.ankle + R.shin + R.thigh + R.hipDrop - (s.knee ?? 0.03), reach = R.upper + R.fore;
+  s.tilt = tilt; s.look = V(0, waistY + 0.3, 2);
+  s.handDir = [V(0, 0.2, 1).normalize(), V(0, 0.2, 1).normalize()];
+  const shoulder = (k, out) => out.set(R.shoulders[k].x, waistY + R.shoulders[k].y * Math.cos(tilt), (s.hipZ ?? -0.02) + R.shoulders[k].y * Math.sin(tilt));
+  for (let k = 0; k < 2; k++) { shoulder(k, _sh); s.hands[k].set(_sh.x * 0.55, _sh.y + 0.03, _sh.z + 0.15); }
+  if (!pu) return;
+  const k = pu.k, type = pu.type, t = pu.t;
+  shoulder(k, _sh); _gd.copy(s.hands[k]);
+  if (type === 0) _tg.set(_sh.x * 0.15, _sh.y + 0.02, _sh.z + reach * 0.95);
+  else if (type === 1) _tg.set(-_sh.x * 0.25, _sh.y + 0.03, _sh.z + reach * 0.7);
+  else _tg.set(_sh.x * 0.1, _sh.y + 0.12, _sh.z + reach * 0.8);
+  if (type === 2) _wd.set(_sh.x * 0.45, _sh.y - 0.16, _sh.z + 0.1); else _wd.copy(_gd).add(V(0, 0, -0.04));
+  const sm = u => { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); };
+  let e;
+  if (t < PUNCH.wind) { s.hands[k].lerpVectors(_gd, _wd, sm(t / PUNCH.wind)); e = 0; }
+  else if (t < PUNCH.wind + PUNCH.out) { e = sm((t - PUNCH.wind) / PUNCH.out); s.hands[k].lerpVectors(_wd, _tg, e); }
+  else if (t < PUNCH.wind + PUNCH.out + PUNCH.hold) { s.hands[k].copy(_tg); e = 1; }
+  else { e = 1 - sm((t - PUNCH.wind - PUNCH.out - PUNCH.hold) / PUNCH.back); s.hands[k].lerpVectors(_gd, _tg, e); }
+  s.handDir[k] = _tg.clone().sub(_sh).normalize();
+  s.turn = (s.turn || 0) * 0.3 + (k === 1 ? 1 : -1) * PUNCH.turn[type] * e;
+  if (type === 1) s.elbowsUp = e > 0.2;
+  if (type === 2) { s.tilt = tilt - 0.1 * e; s.knee = (s.knee ?? 0.03) + 0.03 * (1 - e); }
+  else s.tilt = tilt + 0.05 * e;
+}
 const _kb = V();
 function startKick() {
   if (S.kick != null || S.t - (S.kickAt ?? -9) < KICK.gap || !W.grounded || S.ko || S.hold || S.down) return;
@@ -1940,16 +2223,17 @@ function takeHit(p, nm, e) {
   o.hitMeT = S.t;
   v.clampLength(0, 15);
   const part = ['head', 'body', 'legs'].includes(e.part) ? e.part : 'body';
-  const head = part === 'head', s = clamp(+e.s || 0, 0, 16), hard = head && s > 4, driving = S.mode === 'drive', kicked = !!e.kick;
+  const head = part === 'head', s = clamp(+e.s || 0, 0, 16), driving = S.mode === 'drive', kicked = !!e.kick, punched = !!e.punch, hard = head && s > (punched ? 5.2 : 4);
   const dmg = Math.round(whackDamage(part, s) * (driving ? 0.5 : 1));      // the cart takes half of it
   me.squash = 1; shake(hard ? 0.35 : 0.18); A.play('thud', 1); addRage(hard ? 14 : 7);
   fx.sparks(S.golferG.clone().add(V(0, head ? 0.65 : 0.4, 0)), hard ? 16 : 8);
   // Hit while lining up a shot: you are knocked out of the golf stance.
   const popped = S.mode === 'address';
   if (popped) leaveAddress();
-  toast((kicked ? `🦶 ${nm} kicked you` + (head ? ' in the head!' : '') : hard ? `💫 ${nm} clocked you in the head!` : `💥 ${nm} whacked you`) + ` <b>-${dmg}</b>` + (popped ? ' and knocked you out of your stance' : ''));
+  toast((punched ? `👊 ${nm} ${hard ? 'rocked you with an uppercut' : 'punched you'}` + (head && !hard ? ' in the face' : '') : kicked ? `🦶 ${nm} kicked you` + (head ? ' in the head!' : '') : hard ? `💫 ${nm} clocked you in the head!` : `💥 ${nm} whacked you`) + ` <b>-${dmg}</b>` + (popped ? ' and knocked you out of your stance' : ''));
   const down = hurt(dmg, p.id);
   if (S.mode !== 'walk') return;      // still in the cart: it stings but you stay put
+  if (punched && !hard && !down) { if (phys) phys.fling(me, v.clone().multiplyScalar(0.6)); else W.v.add(v.clone().multiplyScalar(0.5)); return; }      // a jab rocks you, it does not floor you
   S.grip = false; W.grounded = false; W.carry.set(0, 0, 0);
   if (!down) S.ko = Math.max(S.ko || 0, hard ? 1.2 : 0.5);
   knocked(v, p.id);
@@ -2118,13 +2402,13 @@ function promptText() {
     if (S.hold) return '🏁 Get ready…';
     if (S.down) return '💫 Knocked down. You will be back up in a moment.';
     if (S.grip) return 'The mouse is the club · <b>Right mouse</b> thrust · <kbd>Space</kbd> kick · <kbd>Q</kbd><kbd>E</kbd> turn · <kbd>H</kbd> hit boxes';
-    if (S.awaitPark) return '🅿️ Park the cart in the bay at the summit to finish';
+    if (S.awaitPark) return S.awaitPark === NHOLES ? '🅿️ Park the cart in the bay at the summit to finish' : '🅿️ Park your cart in the bay on the cart road beside this tee, then tee off' + coWaitText();
     const nc = nearCart(), tc = theirCartNear(), cd = x => Math.hypot(S.golferG.x - x.pos.x, S.golferG.z - x.pos.z);
     if (tc && (!nc || cd(tc.o.cart) < cd(nc))) return '<kbd>E</kbd>: steal ' + (tc.o.nameHtml || 'their') + "'s cart";
     if (nc) return '<kbd>E</kbd>: hop in the cart';
-    return (S.noClub ? '<kbd>2</kbd>–<kbd>5</kbd> pick a club' : '<b>Hold left mouse</b> to swing freely · <b>Right click</b> by your ball for the golf stance') + ' · <kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump';
+    return (S.noClub ? '<b>Left click</b> right fist · <b>Right click</b> left fist · flick the mouse up for an uppercut, sideways for a hook · <kbd>2</kbd>–<kbd>5</kbd> clubs' : '<b>Hold left mouse</b> to swing freely · <b>Right click</b> by your ball for the golf stance') + ' · <kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump';
   }
-  if (S.mode === 'drive' && S.awaitPark) return '🅿️ Stop in the bay at the summit to finish · <kbd>Space</kbd> brake';
+  if (S.mode === 'drive' && S.awaitPark) return (S.awaitPark === NHOLES ? '🅿️ Stop in the bay at the summit to finish' : '🅿️ Stop in the glowing bay beside hole ' + (S.awaitPark + 1) + "'s tee") + coWaitText() + ' · <kbd>Space</kbd> brake';
   if (S.mode === 'drive') return '<kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> brake · <b>Click</b> honk · <kbd>E</kbd> hop out';
   if (S.mode === 'address') return GOLF_HINT + ' · <b>Right click</b> steps away';
   return '';
@@ -2228,7 +2512,7 @@ function netLabel() {
   const where = S.room === 'mountain' ? (net.shard > 1 ? 'mountain ' + net.shard + ' · ' : '') : roomCode() + (net.pin ? ' 🔒' : '') + ' · ';
   $('netStatus').textContent = where + (net.connected() ? 'live' : 'reconnecting…') + (net.peers.size ? ` · ${net.peers.size + 1} here` : '');
 }
-function presenceInfo() { return { nm: myName(), lk: { skin: look.skin, shirt: look.shirt, pants: look.pants, hat: look.hat, hatType: look.hatType, stache: !!look.stache }, hole: S.hole, st: S.strokes, fa: S.falls, best: S.best, done: S.finished, ft: S.finMs, pk: !!S.awaitPark, crown: S.crown, vc: !!(voice && voice.on) }; }
+function presenceInfo() { return { nm: myName(), lk: { skin: look.skin, shirt: look.shirt, pants: look.pants, hat: look.hat, hatType: look.hatType, stache: !!look.stache }, hole: S.hole, st: S.strokes, fa: S.falls, best: S.best, done: S.finished, ft: S.finMs, pk: S.awaitPark === NHOLES, crown: S.crown, vc: !!(voice && voice.on), md: modeWant }; }
 let netAcc = 0, presAcc = 0, sentPose = '', sentAt = -9, cartAt = -9;
 const cartSent = V();
 function netTick(dt) {
@@ -2240,8 +2524,12 @@ function netTick(dt) {
     netAcc = 0;
     const r2 = n => Math.round(n * 100) / 100, r3 = n => Math.round(n * 1000) / 1000;
     const c = carts[0], driven = S.mode === 'drive' && S.cart === c;
-    const st = { b: ball.p.toArray().map(r2), g: [r2(S.golferG.x), r2(S.golferG.y), r2(S.golferG.z), r3(bodyYaw())], wk: S.mode === 'walk' && !S.grip ? (Math.hypot(W.v.x, W.v.z) > 0.2 ? 2 : 1) : 0, air: S.mode === 'walk' && !S.grip && !W.grounded ? 1 : 0, dr: driven ? 1 : 0, hl: S.awaitPark ? NHOLES + 1 : S.hole, h: swing.hand.toArray().map(r3), hd: swing.head.toArray().map(r3), ko: r2(S.ko || 0), hp: Math.round(S.hp), c: heldClub(), e: S.emote || 0, et: r2(S.emoteT), m: S.ballLive ? 1 : 0, rd: Math.round(me.redness * 10) / 10, bv: ballMesh.visible ? 1 : 0 };
+    const st = { b: ball.p.toArray().map(r2), g: [r2(S.golferG.x), r2(S.golferG.y), r2(S.golferG.z), r3(bodyYaw())], wk: S.mode === 'walk' && !S.grip ? (Math.hypot(W.v.x, W.v.z) > 0.2 ? 2 : 1) : 0, air: S.mode === 'walk' && !S.grip && !W.grounded ? 1 : 0, dr: driven ? 1 : 0, hl: S.awaitPark === NHOLES ? NHOLES + 1 : S.hole, h: swing.hand.toArray().map(r3), hd: swing.head.toArray().map(r3), ko: r2(S.ko || 0), hp: Math.round(S.hp), c: heldClub(), e: S.emote || 0, et: r2(S.emoteT), m: S.ballLive ? 1 : 0, rd: Math.round(me.redness * 10) / 10, bv: ballMesh.visible ? 1 : 0 };
     if (S.kick != null) st.kk = r2(S.kick);
+    if (S.punch) st.pu = [S.punch.k, S.punch.type, r2(S.punch.t)];
+    if (S.guardT > 0 && S.noClub) st.gd = 1;
+    st.pb = S.parkBay || 0;      // the bay I last parked in (cleared when the next ball drops)
+    if (S.coop && S.coOwner === 'me') Object.assign(st, { own: 1, lh: S.coLast || '', sk: S.strokes, hs: S.holeStrokes, fa: S.falls });
     // The cart is always somewhere, parked or not: every pose while it moves, once a second while it sits.
     const rolling = driven || Math.abs(c.speed) > 0.05 || !c.grounded || c.push.lengthSq() > 0.01 || c.pos.distanceToSquared(cartSent) > 0.0025;
     const pose = JSON.stringify(st);
@@ -2260,6 +2548,15 @@ function remoteEvent(p, e) {
   const nm = `<b style="color:${escapeHtml(p.presence?.lk?.shirt || '#fff')}">${escapeHtml(p.presence?.nm || 'Golfer')}</b>`;
   const o = others.get(p.id);
   if (e.k === 'fall') { toast(`😂 ${nm} fell ${+e.m || 0} m (hole ${+e.from || '?'} → ${+e.to || '?'})`); if (o) A.play('womp', 0.3 * proximity(o.ball.position)); }
+  else if (e.k === 'shot' && S.coop) { coYield(p.id); S.coLast = p.id; S.coRestT = 0; }
+  else if (e.k === 'sink' && S.coop && p.id === S.coOwner) coSunk(+e.h | 0, +e.n | 0, +e.par | 0, nm);
+  else if (e.k === 'rock' && nums(e.at, 3) && nums(e.v, 3)) {
+    const k = course.puzzles?.rocks?.[e.i | 0]; if (!k) return;
+    if (k.by === 'me' && S.t - k.pushT < 0.4) return;      // I am shoving it right now: mine wins here
+    const at = V().fromArray(e.at);
+    if (+e.lost) { if (!(k.lost > 0)) { k.lost = 2.5; k.mesh.visible = false; } }
+    else { if (k.p.distanceTo(at) > 0.15) k.p.lerp(at, k.p.distanceTo(at) > 3 ? 1 : 0.5); k.v.fromArray(e.v); k.by = p.id; }
+  }
   else if (e.k === 'sink') { const d = (+e.n || 0) - (+e.par || 0); toast(`⛳ ${nm} sank hole ${+e.h || '?'} in ${+e.n || '?'}${+e.n === 1 ? ' — ACE!' : d < 0 ? ' (under par!)' : ''}`); if (o) confetti.burst(o.ball.position.clone(), 80, 4); }
   else if (e.k === 'sea') toast(`🌊 ${nm} hit it into the sea`);
   else if (e.k === 'finish') toast(`👑 ${nm} FINISHED THE CLIMB in ${fmtTime(clamp(+e.ms || 0, 0, 1e9), true)}!`);
@@ -2359,8 +2656,8 @@ function updateOthers(dt) {
     if (o.bpos.lengthSq() === 0 || o.bpos.distanceTo(bt) > 6) o.bpos.copy(bt);
     o.bvel.subVectors(bt, o.lastBall).divideScalar(0.08); o.lastBall.copy(bt);
     o.bpos.lerp(bt, k);
-    o.ball.position.copy(o.bpos); o.ball.visible = s.bv !== 0;
-    o.trail.push(o.bpos, s.m === 1 && o.bvel.length() > 3); o.trail.update(camera);
+    o.ball.position.copy(o.bpos); o.ball.visible = s.bv !== 0 && !S.coop;
+    o.trail.push(o.bpos, !S.coop && s.m === 1 && o.bvel.length() > 3); o.trail.update(camera);
     const gt = V(s.g[0], s.g[1], s.g[2]);
     if (o.G.distanceTo(gt) > (riding ? 8 : 3)) { if (o.G.lengthSq()) fx.poof(o.G.clone().add(V(0, 0.5, 0))); o.G.copy(gt); o.golfer.squash = 1; } else o.G.lerp(gt, k);
     let da = (+s.g[3] || 0) - o.aim; da = Math.atan2(Math.sin(da), Math.cos(da)); o.aim += da * k;
@@ -2412,6 +2709,11 @@ function updateOthers(dt) {
       o.wp = (o.wp || 0) + dt * (6 + o.wspd * 2.4);
       pose.feet = null;
       runPose(pose, o.wp, clamp(o.wspd / 6.5, 0, 1), { club: s.c >= 0, air: !!s.air });
+      // A punch: take its time from them, then run it on here between messages.
+      if (Array.isArray(s.pu) && nums(s.pu, 3)) { if (o.puAt !== p.t) { o.puAt = p.t; o.punch = { k: s.pu[0] ? 1 : 0, type: clamp(s.pu[1] | 0, 0, 2), t: clamp(+s.pu[2], 0, punchLen()) }; } else if (o.punch) o.punch.t += dt; }
+      else o.punch = null;
+      if (o.punch && o.punch.t >= punchLen()) o.punch = null;
+      if (s.c < 0) punchPose(pose, o.golfer.R, o.punch, s.gd === 1);
     } else {
       pose.hands[0].copy(o.hand);
       pose.club.subVectors(o.head, o.hand); if (pose.club.lengthSq() < 1e-6) pose.club.set(0, -1, 0.5); pose.club.normalize();
@@ -2519,7 +2821,7 @@ function positionTags() {
 // the height of the ball). What peers say about themselves is clamped here before it is shown.
 function standings() {
   const num = (v, lo, hi) => (Number.isFinite(+v) ? clamp(+v, lo, hi) : lo);
-  const rows = [{ me: true, nm: myName() + ' (you)', hole: S.hole, fa: S.falls, done: !!S.finished, ft: S.finMs, pk: !!S.awaitPark, crown: S.crown, shirt: look.shirt, y: ball.p.y, ms: raceMs() }];
+  const rows = [{ me: true, nm: myName() + ' (you)', hole: S.hole, fa: S.falls, done: !!S.finished, ft: S.finMs, pk: S.awaitPark === NHOLES, crown: S.crown, shirt: look.shirt, y: ball.p.y, ms: raceMs() }];
   if (net) for (const p of [...net.peers.values()].slice(0, MAX_PLAYERS - 1)) {
     const q = p.presence || {}, shirt = q.lk?.shirt;
     const hl = Number.isFinite(+p.state?.hl) ? Math.round(num(p.state.hl, 1, NHOLES + 1)) : Math.round(num(q.hole, 1, NHOLES));
@@ -2547,11 +2849,12 @@ if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
     input: (dx, dy) => { mouseDX += dx; mouseDY += dy; },
     teleport: h => { placeOnTee(h); settleGolfer(true); setMode('address'); updateHud(); },
     put: (x, y, z) => { ball.p.set(x, y, z); ball.v.set(0, 0, 0); S.ballLive = true; S.flightT = 0; S.restT = 0; },
+    hit: (vx, vy, vz) => launch({ v: V(vx, vy, vz), spin: 0, kind: 'full' }), get coMayHit() { return coMayHit; },
     aimAt: (x, z) => { aimAt(V(x, 0, z)); golferOrigin(S.golferG); },
     setClub,
     fire: () => fireCannon(), get cannon() { return S.cannon; },
     tick: (n, dt = 1 / 60) => { for (let i = 0; i < n; i++) { S.realDt = dt; step(dt); } },
-    THREE, get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, get wreck() { return wreck; }, wreckHit, tearDivot, askReset, voteAnswer, get vote() { return vote; }, showMenu, resetBall, resetCart, assistPress, sparSpawn, puzzleTick, followBody, bonkBall, stealCart, theirCartNear, get stolen() { return stolen; }, toTitle, askPin, get spar() { return bot; }, get phys() { return phys; }, RAGDOLL, get assist() { return assist; }, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
+    THREE, startPunch, punchFwd: () => punchFwd(), get others() { return others; }, takeHit, hurt, HP, whackDamage, raceRestart, raceKey, raceMs, get wreck() { return wreck; }, wreckHit, tearDivot, askReset, voteAnswer, get vote() { return vote; }, showMenu, resetBall, resetCart, assistPress, sparSpawn, puzzleTick, followBody, bonkBall, stealCart, theirCartNear, get stolen() { return stolen; }, toTitle, askPin, get spar() { return bot; }, get phys() { return phys; }, RAGDOLL, get assist() { return assist; }, standings, finish, toggleGolf, useCartBay, voiceKey, get voice() { return voice; }, get net() { return net; }, keys, W, get carts() { return carts; }, enterCart, exitCart, leaveAddress, interact, placeWalker, setSlot, setMode, nearCart,
     // Deterministic swing at 60 fps: back for `back` frames, pause, then through; runs until the ball rests.
     swingTest: (power = 1, back = 24, down = 10, club) => {
       if (club != null) setClub(club);

@@ -20,7 +20,7 @@ const SUPABASE_KEY = 'sb_publishable_IEQdSVT6rLr4hyEmQYuHmQ_lTPZruXC';
 const MOUNTAIN = 'mountain';
 // Supabase only tells a newcomer who is already there if presence is switched on by name when joining.
 const PRESENCE = key => ({ key, enabled: true });
-const IDENTITY = ['nm', 'lk', 'sl', 'jt']; // what rides on presence (sl: which cart bay at the first tee, jt: when you joined); everything else is the score
+const IDENTITY = ['nm', 'lk', 'sl', 'jt', 'md']; // what rides on presence (sl: which cart bay at the first tee, jt: when you joined, md: the mode you would play, 'vs' or 'co'); everything else is the score
 export const MAX_PLAYERS = 5;       // a race is five golfers at most; a full public mountain spills into the next one
 
 // Invite codes: five characters, none that read alike (no I, L, O, 0 or 1).
@@ -216,7 +216,7 @@ export async function joinRoom(room, pin, presence, PUBLIC = MOUNTAIN) {
   }, 1000);
 
   return {
-    me, peers, room, pin, locked, shard, leave, get slot() { return mine.sl; },
+    me, peers, room, pin, locked, shard, leave, get slot() { return mine.sl; }, get jt() { return mine.jt; },
     connected: () => connected,
     roster: () => Object.entries(ch.presenceState()).map(([k, m]) => ({ id: k, sl: m[m.length - 1]?.sl })),
     on(k, f) { cbs[k].push(f); },
