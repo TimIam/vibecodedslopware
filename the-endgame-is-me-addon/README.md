@@ -266,9 +266,16 @@ of blocks side by side climbed a layer per block and ran out at 64.
 chequer, sorted from the middle outwards) is worked out once per reach, width and one of 128 headings
 (`teleShape`), and drawn as lists; the wind-up's progress is a count into them.
 
+**Level 5's wall is flat (1.4.3).** In the browser game the city wall is a drum that turns past as the camera
+moves (a cylindrical projection, rooftops on a smaller drum behind, shading over it). Nothing made beforehand can
+be that, and Tim agreed to lose it (2026-11-14). A build patch replaces the drum in `levels/wall` `under()`: the
+rooftops are strips that stand where they are, and each section of wall is a sprite for each state of damage
+(`sectionSprite`, `roofStrip`), drawn at its place in the world, where its hitbox always was.
+`bake-sprites.lua` asks for every one (`wallSprites`). No tower flanks, no shading.
+
 What is still worked out a pixel at a time: the lanes, the beam, rings, sparks, text, the tint over a burning or
-struck prop, the city wall of level 5 (a drum recomposed as the camera moves), the boss (a block of pixel textures
-that moves as one), riders, horses and the animals.
+struck prop or over the boss, the boss (a block of pixel textures that moves as one), riders, horses and the
+animals.
 
 ## The HUD's layer
 

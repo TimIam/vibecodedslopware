@@ -15,7 +15,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const game = path.resolve(root, '../the-endgame-is-me/js');
 export const ADDON = 'TheEndgameIsMe';
-export const VERSION = '1.4.2';
+export const VERSION = '1.4.3';
 
 // in load order: a module comes after everything it imports
 export const MODULES = ['props', 'smoke', 'art', 'levels/forest', 'levels/clearing', 'levels/farms', 'levels/village', 'levels/wall', 'levels/city',
@@ -135,27 +135,43 @@ export function pathDist(`],
     [`const ch = r[flip ? w - x : x - 1];`, `const ch = r.charAt(flip ? w - x : x - 1);`],
   ],
   'levels/wall': [
-    // The wall is a drum recomposed column by column and shaded with two gradients, every frame: three quarters of
-    // this level's frame time in Lua. The picture only changes when the camera moves or a piece is hit, so it is
-    // only recomposed then.
-    [`  oc.globalCompositeOperation = 'source-over';
-  oc.clearRect(0, 0, W, TH);
-  // the wall turns about the boss`, `  // the wall turns about the boss`],
-    [`, C = V.x + piv, CR = V.x + W / 2;
-`, `, C = V.x + piv, CR = V.x + W / 2;
-  const drumKey = piv + '|' + C + '|' + m.wall.map(s => s.drawn + (s.prop && s.prop.hitT > 0 && s.prop.state === 'up' ? 'h' + Math.ceil(s.prop.hitT / 0.03) : '')).join(',');
-  const stale = off.drumKey !== drumKey;
-  off.drumKey = drumKey;
-  if (stale) {
-  oc.globalCompositeOperation = 'source-over';
-  oc.clearRect(0, 0, W, TH);
-`],
-    [`  oc.globalCompositeOperation = 'source-over';
-
-  // the wall's shadow on the water`, `  oc.globalCompositeOperation = 'source-over';
-  }
+    // The wall was a drum turning past as the camera moved: every screen column looked up the wall's texture through
+    // a cylindrical projection, with the rooftops on a smaller drum behind and two gradients of shading over it,
+    // recomposed whenever the camera moved or a piece was hit. No picture made beforehand can be that. In the addon
+    // the wall is flat (Tim, 2026-11-14: "yes that is fine"): the rooftops are strips that stand where they are,
+    // and each section of wall is a sprite for each state of damage, at its place in the world, which is where its
+    // hitbox always was. No tower flanks, no shading, and a hit flashes the section's rectangle.
+    [/  const tex = h\.sprite\(`wl-tex-[\s\S]*?  oc\.globalCompositeOperation = 'source-over';\n\n  \/\/ the wall's shadow on the water/,
+      `  const C = V.x + W / 2;
 
   // the wall's shadow on the water`],
+    [`  ctx.drawImage(off, V.x, 0);
+}`, `  for (let k = 0; k * 256 < WW; k++) {
+    if (k * 256 + 256 < V.x || k * 256 > V.x + W) continue;
+    ctx.drawImage(roofStrip(m, k, h), k * 256, 0);
+  }
+  for (let i = 0; i < m.wall.length; i++) {
+    const s = m.wall[i];
+    if (s.x1 < V.x - 2 || s.x0 > V.x + W + 2) continue;
+    ctx.drawImage(sectionSprite(m, i, stageOf(s), h), s.x0, 0);
+    const p = s.prop;
+    if (p && p.hitT > 0 && p.state === 'up') { ctx.fillStyle = 'rgba(255,255,255,' + (p.hitT / 0.12 * 0.45).toFixed(3) + ')'; ctx.fillRect(s.x0, 0, s.x1 - s.x0, TH); }
+  }
+}
+// the rooftops behind the wall, in strips 256 wide, and one section of the wall in one state of damage (0 whole to
+// 4 breached): sprites of their own
+function roofStrip(m, k, h) {
+  return h.sprite('wl-roofs-' + m.key + '-' + k, Math.min(256, WW - k * 256), RH, c => { c.translate(-k * 256, 0); paintRoofs(c, h, m.key % 997); });
+}
+function sectionSprite(m, i, st, h) {
+  const s = m.wall[i];
+  return h.sprite('wl-sec-' + m.key + '-' + i + '-' + st, s.x1 - s.x0, TH, c => { c.translate(-(s.x0 + TEXOFF), 0); paintSection(c, s, st, h); });
+}
+// every one of them, for tools/bake-sprites.lua
+function wallSprites(m, h) {
+  for (let k = 0; k * 256 < WW; k++) roofStrip(m, k, h);
+  for (let i = 0; i < m.wall.length; i++) for (let st = 0; st <= 4; st++) sectionSprite(m, i, st, h);
+}`],
   ],
   save: [
     // typed arrays are tagged tables here, and nothing in a Lua graph has a constructor

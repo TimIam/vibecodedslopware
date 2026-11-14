@@ -845,167 +845,16 @@ M.under = function(ctx, g, h)
 local m = g.map;
 local V = h.VIEW;
 local W = h.W;
-local tex = h.sprite(("wl-tex-" .. __str(m.key)), M.TEXW, M.TH, function(c) 
-do
-local __t91, __t92 = __it(m.wall), 0;
-while __t92 < __t91.length do
-local s = __t91[__t92]; __t92 = __t92 + 1;
-M.paintSection(c, s, 0, h);
-s.drawn = 0;
-end;
-end;
-end);
-local tc = tex:getContext("2d");
-do
-local __t94, __t95 = __it(m.wall), 0;
-while __t95 < __t94.length do
-local s = __t94[__t95]; __t95 = __t95 + 1;
-local st = M.stageOf(s);
-if (st ~= s.drawn) then
-M.paintSection(tc, s, st, h);
-s.drawn = st;
-end;
-end;
-end;
-local roofs = h.sprite(("wl-roofs-" .. __str(m.key)), M.WW, M.RH, function(c) 
-return M.paintRoofs(c, h, __mfmod((m.key or __NaN), 997));
-end);
-local off = h.sprite("wl-off", W, M.TH, function() 
-
-end);
-local oc = off:getContext("2d");
-local piv = ((W / 2) + __mmax((-38), __mmin(38, __mfloor((((g.boss.x or __NaN) - (V.x or __NaN)) - (W / 2)) + 0.5))));
-local C = ((V.x or __NaN) + piv);
-local CR = ((V.x or __NaN) + (W / 2));
-local drumKey = ((((__str(piv) .. "|") .. __str(C)) .. "|") .. __join(__map(m.wall, function(s) 
-return (__str(s.drawn) .. (((__T(s.prop) and ((s.prop.hitT or __NaN) > 0)) and (s.prop.state == "up")) and ("h" .. __str(__mceil(((s.prop.hitT or __NaN) / 0.03)))) or ""));
-end), ","));
-local stale = (off.drumKey ~= drumKey);
-off.drumKey = drumKey;
-if stale then
-oc.globalCompositeOperation = "source-over";
-oc:clearRect(0, 0, W, M.TH);
-for sx = 0, __mceil(W) - 1 do
-local q = (((sx + 0.5) - (W / 2)) / M.R2);
-local th = __masin(q);
-local u = __mfmod(__mfloor((CR + (th * M.R))), M.WW);
-oc:drawImage(roofs, __mfmod((u + M.WW), M.WW), 0, 1, M.RH, sx, __mfloor(((-M.CURVE2) * (1 - __mcos(th))) + 0.5), 1, M.RH);
-end;
-for sx = 0, __mceil(W) - 1 do
-local q = (((sx + 0.5) - piv) / M.R);
-local th = __masin(q);
-local u = __mmax(0, __mmin((M.TEXW - 1), (__mfloor((C + (th * M.R))) + M.TEXOFF)));
-oc:drawImage(tex, u, 0, 1, M.TH, sx, __mfloor(((-M.CURVE) * (1 - __mcos(th))) + 0.5), 1, M.TH);
-end;
-local side = h.sprite("wl-towerside", 8, M.TH, function(c) 
-for x = 0, 8 - 1 do
-for y = 2, 44 - 1 do
-local col;
-if ((__mfmod((y - 11), 4) == 3) or (y == 10)) then col = M.ST[0]; else col = M.pick(M.ST, (((1.9 - (x * 0.12)) + ((h.hash(x, y) - 0.5) * 0.8)) + ((__mfmod((y - 11), 4) == 0) and 0.4 or 0))); end;
-if (y < 8) then
-if ((y < 4) and (__mfmod(x, 3) == 1)) then col = nil; elseif ((y == 2) or (y == 4)) then col = M.ST[4]; else col = M.ST[2]; end;
-end;
-if ((y == 8) or (y == 9)) then
-col = ((__mfmod((x + y), 2) ~= 0) and M.INK or M.ST[3]);
-end;
-if ((y > 37) and (h.hash((x * 3), y) < ((y - 37) * 0.1))) then
-col = M.MOSS[0];
-end;
-if (y == 43) then
-col = "#1d2a2e";
-end;
-if __T(col) then
-M.dot(c, x, y, col);
-end;
-end;
-end;
-end);
-do
-local __t101, __t102 = __it(m.wall), 0;
-while __t102 < __t101.length do
-repeat
-local s = __t101[__t102]; __t102 = __t102 + 1;
-if ((s.kind ~= "wl_tower") or (M.stageOf(s) >= 4)) then
-do break end;
-end;
-local mid = (((s.x0 or __NaN) + (s.x1 or __NaN)) / 2);
-local right = (mid > C);
-local ex;
-if right then ex = s.x0; else ex = s.x1; end;
-local th = ((ex - C) / M.R);
-if (__mabs(th) > 1.45) then
-do break end;
-end;
-local n = __mfloor((9 * __mabs(__msin(th))) + 0.5);
-local e = (piv + (M.R * __msin(th)));
-for i = 0, n - 1 do
-repeat
-local sx = __mfloor((right and ((e - 1) - i) or (e + i)) + 0.5);
-if ((sx < 0) or (sx >= W)) then
-do break end;
-end;
-local q = (((sx + 0.5) - piv) / M.R);
-local yo = __mfloor(((-M.CURVE) * (1 - __mcos(__masin(__mmax((-1), __mmin(1, q)))))) + 0.5);
-oc:drawImage(side, (right and (7 - __mmin(7, i)) or __mmin(7, i)), 0, 1, M.TH, sx, yo, 1, M.TH);
-until true;
-end;
-local sx = __mfloor((right and ((e - 1) - n) or (e + n)) + 0.5);
-if (((n ~= 0) and (sx >= 0)) and (sx < W)) then
-local q = (((sx + 0.5) - piv) / M.R);
-local yo = __mfloor(((-M.CURVE) * (1 - __mcos(__masin(__mmax((-1), __mmin(1, q)))))) + 0.5);
-oc.fillStyle = "rgba(10,8,6,0.55)";
-oc:fillRect(sx, (yo + 10), 1, 33);
-end;
-until true;
-end;
-end;
-oc.globalCompositeOperation = "source-atop";
-local grd = oc:createLinearGradient(0, 0, W, 0);
-for i = 0, 10 do
-local q = (((((i / 10) - 0.5) * 2) * (W / 2)) / M.R);
-local th = __masin(q);
-local e = ((1 - __mcos(th)) / (1 - __mcos(__masin(((W / 2) / M.R)))));
-local a = ((th < 0) and (0.1 + (e * 0.3)) or (0.08 + (e * 0.6)));
-grd:addColorStop((i / 10), ("rgba(8,10,14," .. __toFixed(a, 3) .. ")"));
-end;
-oc.fillStyle = grd;
-oc:fillRect(0, 0, W, M.TH);
-local hi = oc:createLinearGradient(0, 0, W, 0);
-hi:addColorStop(0.05, "rgba(255,236,190,0)");
-hi:addColorStop(0.3, "rgba(255,236,190,0.05)");
-hi:addColorStop(0.55, "rgba(255,236,190,0)");
-oc.fillStyle = hi;
-oc:fillRect(0, 0, W, M.TH);
-do
-local __t106, __t107 = __it(m.wall), 0;
-while __t107 < __t106.length do
-repeat
-local s = __t106[__t107]; __t107 = __t107 + 1;
-local p = s.prop;
-if (((not __T(p)) or ((p.hitT or __NaN) <= 0)) or (p.state ~= "up")) then
-do break end;
-end;
-local a = M.toScreen(s.x0, C, W, piv);
-local b = M.toScreen(s.x1, C, W, piv);
-if ((b < 0) or (a > W)) then
-do break end;
-end;
-oc.fillStyle = ("rgba(255,255,255," .. __toFixed((((p.hitT or __NaN) / 0.12) * 0.45), 3) .. ")");
-oc:fillRect(__mfloor(a), 0, __mceil((b - a)), M.TH);
-until true;
-end;
-end;
-oc.globalCompositeOperation = "source-over";
-end;
+local C = ((V.x or __NaN) + (W / 2));
 ctx.fillStyle = "rgba(6,10,14,0.28)";
 ctx:fillRect(V.x, (M.MOAT0 + 2), W, 4);
 ctx.fillStyle = "rgba(6,10,14,0.14)";
 ctx:fillRect(V.x, (M.MOAT0 + 6), W, 3);
 if (__mabs((M.OLD_X - C)) < W) then
 do
-local __t109, __t110 = __it({[0]={[0]=(M.OLD_X - 8), 49, length=2}, {[0]=(M.OLD_X + 7), 50, length=2}, {[0]=(M.OLD_X - 9), 61, length=2}, {[0]=(M.OLD_X + 8), 62, length=2}, {[0]=(M.OLD_X + 2), 56, length=2}, length=5}), 0;
-while __t110 < __t109.length do
-local __t112 = __t109[__t110]; __t110 = __t110 + 1; local x, y; x = __t112[0]; y = __t112[1];
+local __t91, __t92 = __it({[0]={[0]=(M.OLD_X - 8), 49, length=2}, {[0]=(M.OLD_X + 7), 50, length=2}, {[0]=(M.OLD_X - 9), 61, length=2}, {[0]=(M.OLD_X + 8), 62, length=2}, {[0]=(M.OLD_X + 2), 56, length=2}, length=5}), 0;
+while __t92 < __t91.length do
+local __t94 = __t91[__t92]; __t92 = __t92 + 1; local x, y; x = __t94[0]; y = __t94[1];
 ctx.fillStyle = M.INK;
 ctx:fillRect((x - 1), (y - 3), 4, 5);
 ctx.fillStyle = M.WOOD[1];
@@ -1050,12 +899,67 @@ ctx.fillStyle = "#4a6a34";
 ctx:fillRect(x, y, 2, 1);
 until true;
 end;
-ctx:drawImage(off, V.x, 0);
+do
+local k = 0;
+while ((k * 256) < M.WW) do
+repeat
+if ((((k * 256) + 256) < (V.x or __NaN)) or ((k * 256) > ((V.x or __NaN) + W))) then
+do break end;
 end;
--- levels/wall:613
+ctx:drawImage(M.roofStrip(m, k, h), (k * 256), 0);
+until true;
+k = k + 1;
+end;
+end;
+for i = 0, (m.wall.length or #m.wall) - 1 do
+repeat
+local s = m.wall[i];
+if (((s.x1 or __NaN) < ((V.x or __NaN) - 2)) or ((s.x0 or __NaN) > (((V.x or __NaN) + W) + 2))) then
+do break end;
+end;
+ctx:drawImage(M.sectionSprite(m, i, M.stageOf(s), h), s.x0, 0);
+local p = s.prop;
+if ((__T(p) and ((p.hitT or __NaN) > 0)) and (p.state == "up")) then
+ctx.fillStyle = (("rgba(255,255,255," .. __toFixed((((p.hitT or __NaN) / 0.12) * 0.45), 3)) .. ")");
+ctx:fillRect(s.x0, 0, ((s.x1 or __NaN) - (s.x0 or __NaN)), M.TH);
+end;
+until true;
+end;
+end;
+-- levels/wall:544
+M.roofStrip = function(m, k, h) 
+do return h.sprite(((("wl-roofs-" .. __str(m.key)) .. "-") .. __str(k)), __mmin(256, (M.WW - (k * 256))), M.RH, function(c) 
+c:translate(((-k) * 256), 0);
+M.paintRoofs(c, h, __mfmod((m.key or __NaN), 997));
+end) end;
+end;
+-- levels/wall:547
+M.sectionSprite = function(m, i, st, h) 
+local s = m.wall[i];
+do return h.sprite(((((("wl-sec-" .. __str(m.key)) .. "-") .. __str(i)) .. "-") .. __str(st)), ((s.x1 or __NaN) - (s.x0 or __NaN)), M.TH, function(c) 
+c:translate((-((s.x0 or __NaN) + M.TEXOFF)), 0);
+M.paintSection(c, s, st, h);
+end) end;
+end;
+-- levels/wall:552
+M.wallSprites = function(m, h) 
+do
+local k = 0;
+while ((k * 256) < M.WW) do
+M.roofStrip(m, k, h);
+k = k + 1;
+end;
+end;
+for i = 0, (m.wall.length or #m.wall) - 1 do
+for st = 0, 4 do
+M.sectionSprite(m, i, st, h);
+end;
+end;
+end;
+-- levels/wall:562
 M.ground = function(ctx, m, h) 
 local hash, vnoise;
-local __t115 = h; hash = __t115.hash; vnoise = __t115.vnoise;
+local __t102 = h; hash = __t102.hash; vnoise = __t102.vnoise;
 for y = 0, __mceil(m.h) - 1 do
 for x = 0, __mceil(m.w) - 1 do
 local col;
@@ -1085,9 +989,9 @@ end;
 end;
 end;
 do
-local __t120, __t121 = __it({[0]={[0]=160, 146, 90, 22, length=4}, {[0]=520, 150, 70, 20, length=4}, {[0]=1100, 144, 110, 26, length=4}, length=3}), 0;
-while __t121 < __t120.length do
-local __t123 = __t120[__t121]; __t121 = __t121 + 1; local fx, fy, fw, fh; fx = __t123[0]; fy = __t123[1]; fw = __t123[2]; fh = __t123[3];
+local __t107, __t108 = __it({[0]={[0]=160, 146, 90, 22, length=4}, {[0]=520, 150, 70, 20, length=4}, {[0]=1100, 144, 110, 26, length=4}, length=3}), 0;
+while __t108 < __t107.length do
+local __t110 = __t107[__t108]; __t108 = __t108 + 1; local fx, fy, fw, fh; fx = __t110[0]; fy = __t110[1]; fw = __t110[2]; fh = __t110[3];
 do
 local y = fy;
 while (y < __mmin((m.h or __NaN), (fy + fh))) do
@@ -1172,9 +1076,9 @@ y = y + 1;
 end;
 end;
 do
-local __t134, __t135 = __it({[0]=(gx - 14), (gx + 13), length=2}), 0;
-while __t135 < __t134.length do
-local px = __t134[__t135]; __t135 = __t135 + 1;
+local __t121, __t122 = __it({[0]=(gx - 14), (gx + 13), length=2}), 0;
+while __t122 < __t121.length do
+local px = __t121[__t122]; __t122 = __t122 + 1;
 ctx.fillStyle = M.INK;
 ctx:fillRect((px - 1), (M.MOAT1 - 1), 4, 7);
 ctx.fillStyle = "#55564f";
@@ -1191,7 +1095,7 @@ ctx.fillStyle = ((t < 0.1) and "#8f8f84" or ((t < 0.16) and "#c8b85a" or ((t < 0
 ctx:fillRect(x, y, 1, 1);
 end;
 end;
--- levels/wall:670
+-- levels/wall:619
 M.paintHouse = function(c, kind, W, D, v, h) 
 local wallH = ((kind == "wl_barn") and 7 or 6);
 local pal = ((kind == "wl_cottage") and M.THATCH or ((kind == "wl_house") and M.SLATE or M.SHINGLE));
@@ -1258,9 +1162,9 @@ end;
 M.dot(c, dx, (by - 4), M.INK);
 M.dot(c, (dx + 1), (by - 4), M.INK);
 do
-local __t143, __t144 = __it({[0]=((ox + 2) + __mfmod(v, 2)), ((ox + W) - 5), length=2}), 0;
-while __t144 < __t143.length do
-local wx = __t143[__t144]; __t144 = __t144 + 1;
+local __t130, __t131 = __it({[0]=((ox + 2) + __mfmod(v, 2)), ((ox + W) - 5), length=2}), 0;
+while __t131 < __t130.length do
+local wx = __t130[__t131]; __t131 = __t131 + 1;
 if (__mabs((wx - dx)) > 3) then
 c.fillStyle = M.INK;
 c:fillRect((wx - 1), (by - 4), 4, 3);
@@ -1315,7 +1219,7 @@ M.dot(c, x, mid, "#2a1a10");
 end;
 end;
 end;
--- levels/wall:733
+-- levels/wall:682
 M.paintWatch = function(c, v, h) 
 local cx = 9;
 local roofB = 11;
@@ -1363,7 +1267,7 @@ end;
 M.dot(c, cx, 0, "#e8c050");
 M.dot(c, cx, 1, M.IRON[2]);
 end;
--- levels/wall:763
+-- levels/wall:712
 M.drawBuilding = function(ctx, p, g, h) 
 local d = M.kinds[p.kind];
 local v = __mfmod((p.seed or __NaN), 4);
@@ -1417,7 +1321,7 @@ ctx:drawImage(h.tinted(spr, "#ffffff"), sx, sy);
 ctx.globalAlpha = 1;
 end;
 end;
--- levels/wall:792
+-- levels/wall:741
 M.drawRuin = function(ctx, p, g, h) 
 local d = M.kinds[p.kind];
 local v = __mfmod((p.seed or __NaN), 3);
@@ -1471,7 +1375,7 @@ ctx:drawImage(h.tinted(spr, "#120c08"), sx, sy);
 ctx.globalAlpha = 1;
 end;
 end;
--- levels/wall:812
+-- levels/wall:761
 M.drawCart = function(ctx, p, g, h) 
 if (p.state == "down") then
 do return M.drawRuin(ctx, p, g, h) end;
@@ -1496,9 +1400,9 @@ end;
 c.fillStyle = M.WOOD[2];
 c:fillRect(1, 6, 9, 1);
 do
-local __t164, __t165 = __it({[0]=1, 7, length=2}), 0;
-while __t165 < __t164.length do
-local wx = __t164[__t165]; __t165 = __t165 + 1;
+local __t151, __t152 = __it({[0]=1, 7, length=2}), 0;
+while __t152 < __t151.length do
+local wx = __t151[__t152]; __t152 = __t152 + 1;
 c.fillStyle = M.INK;
 c:fillRect(wx, 6, 3, 3);
 c.fillStyle = M.WOOD[1];
@@ -1519,7 +1423,7 @@ ctx:drawImage(h.tinted(spr, "#ffffff"), sx, sy);
 ctx.globalAlpha = 1;
 end;
 end;
--- levels/wall:829
+-- levels/wall:778
 M.drawStall = function(ctx, p, g, h) 
 if (p.state == "down") then
 do return M.drawRuin(ctx, p, g, h) end;
@@ -1564,7 +1468,7 @@ ctx:drawImage(h.tinted(spr, "#ffffff"), sx, sy);
 ctx.globalAlpha = 1;
 end;
 end;
--- levels/wall:850
+-- levels/wall:799
 M.drawRubble = function(ctx, p, g, h) 
 local v = __mfmod((p.seed or __NaN), 3);
 local k = p.kind;
@@ -1610,21 +1514,21 @@ c.fillStyle = M.ST[5];
 c:fillRect(2, 4, 1, 3);
 else
 do
-local __t173, __t174 = __it(__map({[0]={[0]=1, 4, 3, length=3}, {[0]=4, 2, 3, length=3}, {[0]=6, 5, 3, length=3}, {[0]=3, 6, 2, length=3}, length=4}, function(__t177) local x, y, s; x = __t177[0]; y = __t177[1]; s = __t177[2];
+local __t160, __t161 = __it(__map({[0]={[0]=1, 4, 3, length=3}, {[0]=4, 2, 3, length=3}, {[0]=6, 5, 3, length=3}, {[0]=3, 6, 2, length=3}, length=4}, function(__t164) local x, y, s; x = __t164[0]; y = __t164[1]; s = __t164[2];
 return {[0]=(x + ((v == 1) and 1 or 0)), y, s, length=3};
 end)), 0;
-while __t174 < __t173.length do
-local __t176 = __t173[__t174]; __t174 = __t174 + 1; local x, y, s; x = __t176[0]; y = __t176[1]; s = __t176[2];
+while __t161 < __t160.length do
+local __t163 = __t160[__t161]; __t161 = __t161 + 1; local x, y, s; x = __t163[0]; y = __t163[1]; s = __t163[2];
 c.fillStyle = M.INK;
 c:fillRect((x - 1), (y - 1), (s + 2), (s + 1));
 end;
 end;
 do
-local __t178, __t179 = __it(__map({[0]={[0]=1, 4, 3, length=3}, {[0]=4, 2, 3, length=3}, {[0]=6, 5, 3, length=3}, {[0]=3, 6, 2, length=3}, length=4}, function(__t182) local x, y, s; x = __t182[0]; y = __t182[1]; s = __t182[2];
+local __t165, __t166 = __it(__map({[0]={[0]=1, 4, 3, length=3}, {[0]=4, 2, 3, length=3}, {[0]=6, 5, 3, length=3}, {[0]=3, 6, 2, length=3}, length=4}, function(__t169) local x, y, s; x = __t169[0]; y = __t169[1]; s = __t169[2];
 return {[0]=(x + ((v == 1) and 1 or 0)), y, s, length=3};
 end)), 0;
-while __t179 < __t178.length do
-local __t181 = __t178[__t179]; __t179 = __t179 + 1; local x, y, s; x = __t181[0]; y = __t181[1]; s = __t181[2];
+while __t166 < __t165.length do
+local __t168 = __t165[__t166]; __t166 = __t166 + 1; local x, y, s; x = __t168[0]; y = __t168[1]; s = __t168[2];
 c.fillStyle = M.ST[3];
 c:fillRect(x, y, s, (s - 1));
 c.fillStyle = M.ST[5];
@@ -1715,22 +1619,22 @@ end;
 local f = ((p.hp or __NaN) / (p.maxhp or __NaN));
 do return ((f > 0.8) and 0 or ((f > 0.55) and 1 or ((f > 0.3) and 2 or 3))) end;
 end;
--- levels/wall:607
+-- levels/wall:556
 M.toScreen = function(x, C, W, piv) 
 local th = ((x - C) / M.R);
 do return ((__mabs(th) >= (math.pi / 2)) and ((th < 0) and (-1) or (W + 1)) or (piv + (M.R * __msin(th)))) end;
 end;
--- levels/wall:611
+-- levels/wall:560
 M.GR = {[0]="#28381e", "#2f4224", "#374c2a", "#415833", length=4};
--- levels/wall:612
+-- levels/wall:561
 M.DIRT = {[0]="#3f3222", "#4e3f2a", "#5e4c32", "#6e5a3a", length=4};
--- levels/wall:665
+-- levels/wall:614
 M.THATCH = {[0]="#4a3a1e", "#64502a", "#7e6834", "#9a8244", "#b49a56", length=5};
--- levels/wall:666
+-- levels/wall:615
 M.SLATE = {[0]="#262b34", "#343b48", "#454e5e", "#5a6476", "#727c90", length=5};
--- levels/wall:667
+-- levels/wall:616
 M.SHINGLE = {[0]="#3a2016", "#55301e", "#6e4028", "#875234", "#9e6440", length=5};
--- levels/wall:847
+-- levels/wall:796
 M.shadeHex = function(c) 
 return ("#" .. __join(__map({[0]=1, 3, 5, length=3}, function(i) 
 return __padStart(__toString(__mfloor((__parseInt(__slice(c, i, (i + 2)), 16) * 0.72)), 16), 2, "0");

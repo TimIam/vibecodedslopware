@@ -146,6 +146,14 @@ end
 for n = 1, #SEEDS do
   local t0, before = os.clock(), #order
   for _, kit in ipairs(KITS) do play(n, kit, STEPS) end
+  -- level 5's wall: every section in every state of damage, and the rooftops behind it
+  if n == 5 then
+    local g = W.createGame(SEEDS[n])
+    W.jumpToLevel(g, n)
+    Rm.sprites, Rm.similar = RT.Map(), RT.Map()
+    RT.modules["levels/wall"].wallSprites(g.map, Rm.H_ART)
+    collect()
+  end
   print(string.format("level %d: %d new sprites (%.0f s)", n, #order - before, os.clock() - t0))
 end
 
