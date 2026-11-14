@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Christmas Tree Planner</title>
-<meta name="description" content="Photograph your room to find where a Christmas tree fits, build and decorate a 3D tree from 15 real species and a dozen artificial ones, and scan your own ornaments to hang on it.">
+<meta name="description" content="Photograph your room to find where a Christmas tree fits, build and decorate a 3D tree from 15 real species and a dozen artificial ones, design your own ornaments, and scan the ones you have.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎄</text></svg>">
 <link rel="stylesheet" href="/site-nav.css">
 <style>
@@ -32,7 +32,7 @@ input[type=color]{width:38px;height:32px;border:1px solid var(--line);background
 .radios,.checks{display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0}
 .radios label,.checks label{cursor:pointer}
 /* ---------- builder ---------- */
-#tab-builder{display:grid;grid-template-columns:minmax(300px,380px) 1fr;grid-template-rows:minmax(0,1fr)}
+#tab-builder,#tab-designer{display:grid;grid-template-columns:minmax(300px,380px) 1fr;grid-template-rows:minmax(0,1fr)}
 .b-left{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
 .ltabs{display:flex;border-bottom:1px solid var(--line)}
 .ltab{flex:1;background:none;border:0;padding:10px 4px;cursor:pointer;color:var(--dim);border-bottom:2px solid transparent;min-height:44px}
@@ -74,6 +74,16 @@ input[type=color]{width:38px;height:32px;border:1px solid var(--line);background
 .floatbar{position:absolute;left:50%;top:10px;transform:translateX(-50%);max-width:min(640px,90%);background:#3a1414ee;border:1px solid #ff4a4a;border-radius:10px;padding:8px 10px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;z-index:3}
 .floatbar span{flex:1 1 260px}
 .hint{position:absolute;right:10px;bottom:10px;font-size:11.5px;color:var(--muted);background:#0d0c0b99;padding:4px 8px;border-radius:6px}
+/* ---------- designer ---------- */
+.profile{position:absolute;left:10px;bottom:10px;background:#0d0c0bcc;border:1px solid var(--line);border-radius:10px;padding:6px}
+.profile canvas{display:block;width:176px;height:192px;touch-action:none;cursor:grab}
+.view3d.paint canvas.gl{cursor:cell}
+.sub{margin:14px 0 4px;color:var(--gold);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.slider{display:grid;grid-template-columns:88px 1fr 70px;align-items:center;gap:6px;margin:4px 0;font-size:12.5px;color:var(--dim)}.slider .sv{font-size:11.5px;text-align:right}
+.layer{border:1px solid var(--line);border-radius:9px;padding:6px 9px 8px;margin:8px 0;background:var(--panel2)}.layer .lh{display:flex;justify-content:space-between;align-items:center;gap:6px}.layer .lh span{display:flex;gap:3px}
+.layer input[type=text]{width:100%;margin:4px 0}.sw.mini{width:20px;height:20px}.lthumb{width:40px;height:40px;object-fit:cover;border-radius:6px}
+.dot{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:middle;border:1px solid #0008}
+.cards.small{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}.cards.small .card{padding:6px;gap:4px;font-size:12.5px}.card.on{border-color:var(--gold)}
 /* ---------- room ---------- */
 #tab-room{display:grid;grid-template-columns:1fr minmax(300px,380px);grid-template-rows:minmax(0,1fr)}
 .r-stage{display:flex;flex-direction:column;min-width:0;min-height:0;padding:10px;gap:10px}
@@ -110,7 +120,7 @@ input[type=color]{width:38px;height:32px;border:1px solid var(--line);background
 #toast.on{opacity:1;transform:translate(-50%,0)}
 @media(max-width:860px){
   main{height:auto}
-  #tab-builder,#tab-room{display:flex;flex-direction:column;height:auto}
+  #tab-builder,#tab-designer,#tab-room{display:flex;flex-direction:column;height:auto}
   .b-left{order:2;border-right:0;max-height:none}.b-right{order:1;height:78vh}
   .r-panel{border-left:0}.r-stage{padding:6px}.stagebox{min-height:50vh}
   .i-stage{grid-template-columns:1fr}.td{width:150px;height:150px}.rotbox input{width:120px}.hint{display:none}
@@ -128,11 +138,13 @@ input[type=color]{width:38px;height:32px;border:1px solid var(--line);background
   <h1>🎄 Christmas Tree Planner</h1>
   <button role="tab" data-tab="room">🏠 Room Importer</button>
   <button role="tab" data-tab="builder">🌲 Tree Builder</button>
+  <button role="tab" data-tab="designer">🎨 Ornament Designer</button>
   <button role="tab" data-tab="ornaments">📷 Ornament Importer</button>
 </div>
 <main>
   <section id="tab-room" hidden></section>
   <section id="tab-builder" hidden></section>
+  <section id="tab-designer" hidden></section>
   <section id="tab-ornaments" hidden></section>
 </main>
 <script type="module" src="./js/app.js"></script>

@@ -373,7 +373,7 @@ export class Course {
       if (k === 0) this.cartSpots.push({ p: Hn.frame.w(-5.2, 0, -5.6), yaw: Hn.frame.yaw });
       if (!summit) {
         // Tee box for hole k+1.
-        const tee = { x: 5.5, z: -3.2 };
+        const tee = { x: 5.5, z: 0 };      // on the hole's centre line
         this.zone(P, 'tee', tee.x, tee.z, 1.6, { y: 0, rz: 2.2, wobble: 0.02 });
         for (const s of [-1, 1]) { const m = this.prop(P, 'tee_marker', tee.x + 1.1, tee.z + s * 1.9, { y: 0, scale: 0.8, outline: 0.02 }); if (m) m.traverse(o => { if (o.isMesh && o.material.name === 'marker') o.material = toon(['#ff5d73', '#3fa7ff', '#ffd23f', '#a76bff'][k % 4]); }); }
         const Hnext = this.H[k];
@@ -907,8 +907,15 @@ export class Course {
     // A glow that main.js switches on while the bay is waiting for your cart.
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(pl + 0.4, pw + 0.4).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0, depthWrite: false }));
     glow.position.set(x, y + 0.035, z); glow.renderOrder = 2; H.group.add(glow);
-    this.sign(H, x1 + 2.6, -PAD + 1.2, y, k === NHOLES ? ['CART PARKING', 'park it to finish'] : ['PARK HERE', 'then tee off on ' + (k + 1)], Math.PI * 0.85);
-    const bay = { k, frame: H.frame, x, y, z, hx: pl / 2, hz: pw / 2, glow, p: H.frame.w(x, y, z), yaw: H.frame.yaw, side: H.frame.in.clone() };
+    // The checkpoint marker: a glowing outline round the bay and a beam of light over it, seen from below.
+    const shape = new THREE.Shape(); shape.moveTo(-pl / 2 - 0.25, -pw / 2 - 0.25); shape.lineTo(pl / 2 + 0.25, -pw / 2 - 0.25); shape.lineTo(pl / 2 + 0.25, pw / 2 + 0.25); shape.lineTo(-pl / 2 - 0.25, pw / 2 + 0.25);
+    const hole = new THREE.Path(); hole.moveTo(-pl / 2 + 0.1, -pw / 2 + 0.1); hole.lineTo(-pl / 2 + 0.1, pw / 2 - 0.1); hole.lineTo(pl / 2 - 0.1, pw / 2 - 0.1); hole.lineTo(pl / 2 - 0.1, -pw / 2 + 0.1); shape.holes.push(hole);
+    const ring = new THREE.Mesh(new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+    ring.position.set(x, y + 0.045, z); ring.renderOrder = 3; H.group.add(ring);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(Math.min(pl, pw) * 0.42, Math.min(pl, pw) * 0.5, 14, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+    beam.position.set(x, y + 7, z); beam.renderOrder = 3; beam.visible = false; H.group.add(beam);
+    this.sign(H, x1 + 2.6, -PAD + 1.2, y, k === NHOLES ? ['CHECKPOINT', 'drive through to finish'] : ['CHECKPOINT ' + k, 'drive through, tee off ' + (k + 1)], Math.PI * 0.85);
+    const bay = { k, frame: H.frame, x, y, z, hx: pl / 2, hz: pw / 2, glow, ring, beam, p: H.frame.w(x, y, z), yaw: H.frame.yaw, side: H.frame.in.clone() };
     this.bays[k] = bay;
     if (k === NHOLES) this.parking = bay;
     return bay;
@@ -1044,7 +1051,11 @@ export class Course {
     const light = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), toon(0xff3b30, { unique: true, emissive: 0xff3b30, emissiveIntensity: 0.8 })); light.position.y = 1.25; root.add(light);
     this.world.add(new Collider('cyl', { pos: F.w(x, y + 0.6, pz), r: 0.2, hh: 0.6, surf: 'metal', hole: H.i, tag: 'gatepost' }));
     const col = this.world.add(new Collider('box', { pos: F.w(x, y + 0.9, z), quat: F.q.clone(), half: new THREE.Vector3(0.1, 0.12, len / 2 + 0.1), surf: 'metal', hole: H.i, tag: 'gate' }));
-    const g = { p: F.w(x, y, z), open: 0, until: -9, col };
+    // The arm is too high for the cart's bumpers to feel it as a wall (they would slide under it like a
+    // ceiling), so a road-wide stop under it, from wheel height to the arm, is what actually stops carts and
+    // golfers. The ball ignores it and only bounces off the arm itself.
+    const stop = this.world.add(new Collider('box', { pos: F.w(x, y + 0.65, z), quat: F.q.clone(), half: new THREE.Vector3(0.3, 0.4, len / 2 + 0.1), surf: 'metal', hole: H.i, tag: 'gatestop' }));
+    const g = { p: F.w(x, y, z), open: 0, until: -9, col, stop };
     this.animators.push(() => { arm.rotation.x = s * g.open * 1.45; light.material.color.setHex(g.open > 0.5 ? 0x3ddc84 : 0xff3b30); light.material.emissive.setHex(g.open > 0.5 ? 0x3ddc84 : 0xff3b30); });
     this.puzzles.gates.push(g);
     return g;
@@ -1166,7 +1177,7 @@ export class Course {
       if (honks.some(h => h.distanceTo(g.p) < 10)) { if (this.t > g.until) said.push(['gate', g.p]); g.until = this.t + 4; }
       const want = this.t < g.until ? 1 : 0;
       g.open = THREE.MathUtils.clamp(g.open + THREE.MathUtils.clamp(want - g.open, -dt * 1.4, dt * 2.5), 0, 1);
-      g.col.enabled = g.open < 0.4;
+      g.col.enabled = g.stop.enabled = g.open < 0.4;
     }
     for (const k of P.rocks) this.rockStep(k, dt, pushers, said);
     for (const pl of P.plates) {

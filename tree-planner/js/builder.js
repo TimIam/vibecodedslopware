@@ -362,7 +362,7 @@ export class Builder {
         d.skirt ? h('div', { class: 'field' }, h('label', {}, 'Color'), h('input', { type: 'color', value: d.skirt.color, onchange: e => this.change(x => { x.skirt.color = e.target.value; }) }), h('label', {}, 'Trim / accent'), h('input', { type: 'color', value: d.skirt.color2 || '#f7f7f2', onchange: e => this.change(x => { x.skirt.color2 = e.target.value; }) })) : null),
       sec('📷 Custom', customs.length > 0,
         customs.length ? h('div', { class: 'grid-btns' }, customs.map(a => h('button', { class: 'chip thumb' + (p.type === 'custom' && p.customId === a.id ? ' on' : ''), onclick: () => { this.pick = { type: 'custom', customId: a.id, color: 'white', finish: 'matte', size: 'M' }; this.setTool('place'); this.renderLeft(); } }, h('img', { src: a.cutout, alt: '' }), a.name))) : h('p', { class: 'muted' }, 'No custom ornaments yet.'),
-        h('button', { class: 'btn', onclick: () => this.app.show('ornaments') }, '📷 Import my own ornaments')));
+        h('div', { class: 'field' }, h('button', { class: 'btn', onclick: () => this.app.show('designer') }, '🎨 Design an ornament'), h('button', { class: 'btn', onclick: () => this.app.show('ornaments') }, '📷 Import my own'))));
   }
   autoPlace(n) {
     if (!this.pick) return;

@@ -148,6 +148,15 @@ h1,h2,h3,.lil{font-family:"Lilita One",Nunito,sans-serif;font-weight:400;letter-
 #clubs{transition:opacity .15s,bottom .15s}
 body.gripping #clubs{opacity:.4;bottom:-44px}
 body.gripping #shot{opacity:0}
+/* golf stance: the golfer and the ball are bottom centre, so everything that lives there moves to a column on
+   the left, clear of the climb bar, and the club bar shrinks */
+body.addressing #clubs{left:66px;bottom:14px;transform:none;gap:5px}
+body.addressing #clubs div{width:min(50px,5.4vw);padding:4px 1px 3px;border-radius:11px}
+body.addressing #clubs b{font-size:min(12px,1.45vw)}
+body.addressing #meter{left:66px;bottom:74px;transform:none;width:clamp(200px,30vw,280px)}
+body.addressing #prompt{left:66px;bottom:134px;transform:none;width:clamp(200px,30vw,280px);box-sizing:border-box;white-space:normal;text-align:left;font-size:12.5px;line-height:1.35;padding:6px 11px}
+body.addressing #shot{left:66px;bottom:auto;top:200px;transform:translateY(10px);max-width:clamp(200px,30vw,280px);white-space:normal;font-size:13px}
+body.addressing #shot.show{transform:none}
 #flagMark i{display:none;font-style:normal;color:var(--red);font-size:16px}
 #flagMark.off i{display:inline-block;font-size:24px;line-height:1}
 #flagMark.off{transform:translate(-50%,-50%);padding:5px 13px;background:var(--sun);font-size:16px;animation:pinPulse .7s ease-in-out infinite alternate}
@@ -290,7 +299,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 <div class="hud chunk" id="cannonUI" hidden><b>🎯 Time the cannon!</b><div class="ctrack"><i class="sweet"></i><i id="cneedle"></i></div><small>Press <kbd>E</kbd> to fire when the needle is in the red</small></div>
 <div class="hud" id="tip"><div class="tipcard chunk"><b>Your mouse is your hands.</b><span id="tipText"></span></div></div>
 <div class="hud" id="clubs">
-  <div><b>Hands</b><kbd>1</kbd></div><div><b>Driver</b><kbd>2</kbd></div><div><b>Wedge</b><kbd>3</kbd></div><div><b>Putter</b><kbd>4</kbd></div><div><b>Iron</b><kbd>5</kbd></div>
+  <div><b>Hands</b><kbd>1</kbd></div><div><b>Driver</b><kbd>2</kbd></div><div><b>Iron</b><kbd>3</kbd></div><div><b>Wedge</b><kbd>4</kbd></div><div><b>Putter</b><kbd>5</kbd></div>
 </div>
 <div class="hud" id="mute">🔊 M</div>
 <div class="hud" id="view">👁 V first person</div>
@@ -307,7 +316,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
     <span class="k">right mouse</span><span>while gripping: pull back and push forward to thrust</span>
     <span class="k"><kbd>H</kbd></span><span>show the real hit boxes</span>
     <span class="k"><kbd>P</kbd></span><span>a sparring partner in front of you, or reset it (Esc menu: punching bag or fights back)</span>
-    <span class="k"><kbd>1</kbd>–<kbd>5</kbd> wheel</span><span>hands, driver, wedge, putter, iron</span>
+    <span class="k"><kbd>1</kbd>–<kbd>5</kbd> wheel</span><span>hands, driver, iron, wedge, putter</span>
     <span class="k"><kbd>F</kbd></span><span>hold to look at the flag</span>
     <span class="k"><kbd>R</kbd></span><span>unplayable lie: back to your last shot, +1</span>
     <span class="k"><kbd>T</kbd> <kbd>G</kbd></span><span>tantrum · dance</span>
@@ -382,7 +391,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
     <div class="keys">
       <span class="k">mouse</span><span><b>Right click</b> by your ball for the golf stance: you are lined up on the hole, pull the mouse back and swing it through. <b>Hold left mouse</b> to swing the club freely at anything, friends included.</span>
       <span class="k"><kbd>WASD</kbd></span><span>run anywhere, and shuffle while you grip</span>
-      <span class="k"><kbd>1</kbd>–<kbd>5</kbd></span><span>hands, driver, wedge, putter, iron</span>
+      <span class="k"><kbd>1</kbd>–<kbd>5</kbd></span><span>hands, driver, iron, wedge, putter</span>
       <span class="k"><kbd>E</kbd></span><span>your one golf cart is parked at the first tee. Lose it and you start again. The climb only counts once it is parked in the bay at the summit</span>
       <span class="k">race</span><span>up to five golfers, and the fastest to the top wins: strokes do not count, the clock does. Clubs and carts hurt, so mind your health bar</span>
       <span class="k"><kbd>K</kbd></span><span>voice chat with golfers near you (optional)</span>

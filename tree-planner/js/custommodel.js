@@ -2,6 +2,7 @@
 // asset: { model: 'lathe'|'inflate'|'flat', heightIn, widthIn, profile:[r per row, 0..1 of half-width],
 //          field:{w,h,data:[0..1]} (inflate), _tex: THREE.Texture of the cutout }
 import * as THREE from 'three';
+import { buildDesigned } from './designmodel.js';
 
 const texCache = new Map();
 export function assetTexture(asset) {
@@ -12,6 +13,7 @@ export function assetTexture(asset) {
 }
 
 export function buildCustomMesh(asset) {
+  if (asset.kind === 'designed') return buildDesigned(asset.recipe, assetTexture(asset));
   const H = asset.heightIn, W = asset.widthIn, tex = assetTexture(asset);
   const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45, metalness: 0.1, alphaTest: 0.4, side: THREE.DoubleSide, transparent: false });
   let geo;

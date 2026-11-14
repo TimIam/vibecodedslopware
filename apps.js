@@ -1386,6 +1386,27 @@ window.SLOPWARE = {
      "note": "punching with bare hands",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 31,
+     "date": "2026-11-14T04:39:13-07:00",
+     "note": "checkpoints, safe hop-out, centred tees",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 32,
+     "date": "2026-11-14T07:38:38-07:00",
+     "note": "keys 1-5 are hands, driver, iron, wedge, putter",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 33,
+     "date": "2026-11-14T09:44:10-07:00",
+     "note": "golf-stance HUD moves left, boom gates stop carts",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
@@ -1507,16 +1528,23 @@ window.SLOPWARE = {
   },
   "tree-planner": {
    "visits": 0,
-   "prompts": 3,
-   "tokens": 522626,
+   "prompts": 5,
+   "tokens": 922188,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
      "date": "2026-11-13T17:40:24-07:00",
      "note": "room importer, tree builder, ornament importer",
+     "prompts": 2,
+     "tokens": 516101
+    },
+    {
+     "n": 2,
+     "date": "2026-11-14T08:42:02-07:00",
+     "note": "Ornament Designer tab",
      "prompts": 3,
-     "tokens": 522626
+     "tokens": 406087
     }
    ]
   },

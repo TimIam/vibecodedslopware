@@ -244,7 +244,7 @@ export class World {
     _c.set(x, y, z); _v.set(0, -1, 0);
     let best = Infinity, col = null;
     for (const c of this.cols) {
-      if (!c.enabled || c.tag === 'pin' || c.tag === 'cartbody' || c.tag === 'post') continue;
+      if (!c.enabled || c.tag === 'pin' || c.tag === 'cartbody' || c.tag === 'post' || c.tag === 'gatestop') continue;
       const a = c.aabb;
       if (x < a.min.x || x > a.max.x || z < a.min.z || z > a.max.z || a.min.y > y) continue;
       const t = c.ray(_c, _v, maxDrop);
@@ -282,7 +282,7 @@ export class World {
     for (let iter = 0; iter < 3; iter++) {
       let any = false;
       for (const c of this.cols) {
-        if (!c.enabled) continue;
+        if (!c.enabled || c.tag === 'gatestop') continue;
         const a = c.aabb;
         if (p.x + R < a.min.x || p.x - R > a.max.x || p.y + R < a.min.y || p.y - R > a.max.y || p.z + R < a.min.z || p.z - R > a.max.z) continue;
         const depth = c.contact(p, R, _n, _c);
