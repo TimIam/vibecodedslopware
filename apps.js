@@ -191,6 +191,11 @@ window.SLOPWARE = {
      "n": 8,
      "date": "2026-11-14T09:48:53-07:00",
      "note": "more of the game is pre-rendered pictures, a faster castle"
+    },
+    {
+     "n": 9,
+     "date": "2026-11-14T12:38:34-07:00",
+     "note": "fire, ice and smoke are pre-rendered pictures"
     }
    ]
   },
