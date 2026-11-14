@@ -34,6 +34,7 @@ function Texture:SetTexture(file, wrapH, wrapV, filter)
   assert(filter == nil or filter == "NEAREST" or filter == "LINEAR" or filter == "TRILINEAR", "SetTexture filter mode")
   self.file, self.filter = file, filter
 end
+function Texture:SetAlpha(a) assert(type(a) == "number" and a >= 0 and a <= 1, "SetAlpha range"); self.alpha = a end
 function Texture:SetDrawLayer(layer, sub)
   assert(layer == "BACKGROUND" or layer == "BORDER" or layer == "ARTWORK" or layer == "OVERLAY", "SetDrawLayer: " .. tostring(layer))
   assert(sub == nil or (sub >= -8 and sub <= 7 and sub == math.floor(sub)), "SetDrawLayer sublevel")

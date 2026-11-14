@@ -237,8 +237,24 @@ on a sheet as a texture. One that is not (a state no bot reached) is painted, so
 not complete; run the bake again after the level art changes. A sprite the game draws on again after making it
 loses its name (`Canvas:getContext`): it is a work surface, not a picture.
 
-What is still worked out a pixel at a time: the effects (ice, fire, smoke, the attack arcs and lanes, the beam,
-rings, sparks), text, the boss (a block of pixel textures that moves as one), riders, horses and the animals.
+**Effects as sprites (1.4.1).** Fire, ice and smoke were a hash of every pixel's place and of the time, which no
+picture made beforehand can match. In the addon each is now one of a fixed set of pictures (`src/gfx.lua`, "effects
+as sprites"): a fire of a given size is one of eight frames that loop (in four states of fading), an ice floor of a
+given size is one of three patterns, with its own alpha per pixel. They are made by Lua, named like the game's
+sprites and drawn with `drawImage`, so they are textures where they are on a sheet (`bake-sprites.lua` asks for
+every one: `RT.effectSprites`, and for every puff of smoke) and are copied into the grid where they are not. This
+is the addon's own art: close to the browser game's, not pixel for pixel the same. A texture of the list may carry
+an alpha (a fire fading, a cloud thinning: `s.a`, `SetAlpha`).
+
+**Over cells that hold something.** A see-through sprite or rectangle does not have to give up where the grid
+already holds something (ice over a scorch mark, smoke over anything painted). The texture is shown, and each cell
+under it is set to what painting would have left, given that the texture is now under it (`Screen.flat`): a solid
+pixel empties the cell; over a solid cell the pixel is blended in; and where both are see-through the cell keeps
+its alpha and takes the colour (pixel over cell), which comes to exactly the same picture whatever is underneath.
+
+What is still worked out a pixel at a time: the attack arcs and lanes, the beam, rings, sparks, text, the tint
+over a burning or struck prop, water, the boss (a block of pixel textures that moves as one), riders, horses and
+the animals.
 
 ## The HUD's layer
 

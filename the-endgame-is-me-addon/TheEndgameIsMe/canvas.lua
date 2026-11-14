@@ -616,6 +616,7 @@ end
 function SMeta:drawImage(img, dx, dy) blit(self, img, dx, dy, nil) end   -- (replaced below, once the list of textures exists)
 -- smoke: a see-through cloud as a dither instead of a blend, which costs a fraction as much
 function SMeta:drawDithered(img, dx, dy, alpha)
+  if Screen.puff and Screen.puff(self, img, dx, dy, alpha) then return end
   if alpha >= 0.97 then blit(self, img, dx, dy, nil) elseif alpha > 0.03 then blit(self, img, dx, dy, alpha) end
 end
 
@@ -826,7 +827,7 @@ function Screen.sprite(owner, e, wx, wy)
   local s = sprites[n]
   if not s then s = {}; sprites[n] = s end
   sprites.n = n
-  s.owner, s.e, s.x, s.y, s.z, s.hi = owner, e, wx, wy, z, sprites.pad ~= nil
+  s.owner, s.e, s.x, s.y, s.z, s.hi, s.a = owner, e, wx, wy, z, sprites.pad ~= nil, 1
   return true
 end
 
@@ -834,13 +835,18 @@ end
 -- flat rectangle of one colour (e.rect: a shadow, a health bar; e.rgb, e.a). Nothing is punched, because a
 -- see-through pixel has to be blended over what is under it and the client can only do that for textures: so it
 -- goes on the list only where nothing is in the grid under it. False if it has to be painted.
-function Screen.flat(owner, e, wx, wy)
+--   img: the sprite's own canvas. With it, the picture may lie where cells already hold something (an ice floor over
+--   scorch marks, smoke over whatever was painted): the texture is shown, and each solid cell under it gets the
+--   picture's pixel blended in, which is what painting would have left there (see the loop below). A flat rectangle
+--   may do the same without one.
+function Screen.flat(owner, e, wx, wy, alpha, img)
   if not imageMode then return false end
   local x0, y0 = wx - viewX, wy - viewY
   local x1, y1 = x0 + e.w - 1, y0 + e.h - 1
   if x1 < 0 or y1 < 0 or x0 >= W or y0 >= H then return true end
   local cx0, cy0, cx1, cy1 = x0 < 0 and 0 or x0, y0 < 0 and 0 or y0, x1 >= W and W - 1 or x1, y1 >= H and H - 1 or y1
   -- the tiles say "something near": then the cells themselves say whether anything is really under it
+  local lay = nil     -- the cells under it that hold something, when it may lie over them
   if Screen.under(wx, wy, e.w, e.h) == 2 then
     local gx = (cx0 + ox) % W
     local n = cx1 - cx0 + 1
@@ -848,8 +854,10 @@ function Screen.flat(owner, e, wx, wy)
     if first > n then first = n end
     for sy = cy0, cy1 do
       local row = ((sy + oy) % H) * W + 1
-      for i = row + gx, row + gx + first - 1 do if cur[i] ~= nil then return false end end
-      for i = row, row + n - first - 1 do if cur[i] ~= nil then return false end end
+      for i = row + gx, row + gx + first - 1 do if cur[i] ~= nil then if not (img or e.rect) then return false end lay = true; break end end
+      if lay then break end
+      for i = row, row + n - first - 1 do if cur[i] ~= nil then if not (img or e.rect) then return false end lay = true; break end end
+      if lay then break end
     end
   end
   local z, st = 0, zstamp
@@ -865,11 +873,49 @@ function Screen.flat(owner, e, wx, wy)
     for tx = tx0, tx1 do ztf[r + tx] = st; zt[r + tx] = z + 1 end
   end
   markSprite(cx0, cy0, cx1, cy1)
+  if lay then
+    -- What painting would have left in each cell that holds something, given that the picture is also shown as a
+    -- texture under the grid. p = the picture's pixel, c = the cell, S = whatever is under both:
+    --   p solid:                 the cell is emptied and the texture shows
+    --   c solid:                 c becomes p over c, which hides the texture
+    --   both see-through:        painting gives p over (c over S); the client will show c' over (p over S). They
+    --                            are equal for every S when c' keeps c's alpha and takes the colour (p over c).
+    local rect = e.rect
+    local spx, SW, ga, f, m = not rect and img.px, not rect and img.width, alpha or 1, frame, mask
+    local rrgb, ra = rect and e.rgb, rect and e.a
+    for sy = cy0, cy1 do
+      local row = ((sy + oy) % H) * W + 1
+      local srow = not rect and (sy - y0) * SW + 1 - x0
+      for sx = cx0, cx1 do
+        local i = row + (sx + ox) % W
+        local d = cur[i]
+        if d ~= nil and not (m and m[i]) then
+          local v, pa
+          if rect then v, pa = rrgb, ra
+          else
+            v = spx[srow + sx]
+            if v ~= nil then
+              if v < A1 then pa = ga else local va = floor(v / A1); v = v - va * A1; pa = va / 255 * ga end
+            end
+          end
+          if v ~= nil then
+            if mark[i] ~= f then mark[i] = f; nNow = nNow + 1; now[nNow] = i end
+            if pa >= 0.998 then cur[i] = nil
+            elseif d < A1 then cur[i] = mix(d, v, pa)
+            else
+              local da = floor(d / A1)
+              cur[i] = da * A1 + mix(d - da * A1, v, pa)
+            end
+          end
+        end
+      end
+    end
+  end
   local n = sprites.n + 1
   local s = sprites[n]
   if not s then s = {}; sprites[n] = s end
   sprites.n = n
-  s.owner, s.e, s.x, s.y, s.z, s.hi = owner, e, wx, wy, z, sprites.pad ~= nil
+  s.owner, s.e, s.x, s.y, s.z, s.hi, s.a = owner, e, wx, wy, z, sprites.pad ~= nil, alpha or 1
   return true
 end
 
@@ -894,7 +940,8 @@ local function listed(img)
   return e
 end
 function SMeta:drawImage(img, dx, dy)
-  if img.key and img.keyVer == img.ver and imageMode and not inHud and RT.spriteImages and self.globalAlpha >= 0.998 then
+  local ga = self.globalAlpha
+  if img.key and img.keyVer == img.ver and imageMode and not inHud and RT.spriteImages and ga > 0.002 then
     local e = listed(img)
     if e then
       if e.frame ~= frame then e.frame, e.used = frame, 0 end
@@ -903,14 +950,41 @@ function SMeta:drawImage(img, dx, dy)
       if not owner then owner = {}; e.uses[n] = owner end
       local wx, wy = floor(dx + self.tx + 0.5) + viewX, floor(dy + self.ty + 0.5) + viewY
       local ok
-      if e.solid then
+      -- drawn see-through, it is blended by the client like a picture with see-through pixels
+      if e.solid and ga >= 0.998 then
         if not e.spans then e.spans = spansOf(img) end
         ok = Screen.sprite(owner, e, wx, wy)
-      else ok = Screen.flat(owner, e, wx, wy) end
+      else ok = Screen.flat(owner, e, wx, wy, ga >= 0.998 and 1 or ga, img) end
       if ok then e.used = n; return end
     end
   end
   blit(self, img, dx, dy, nil)
+end
+
+-- A puff of smoke (render.js drawSmoke, through drawDithered): where its sprite is on a sheet and nothing is in the
+-- grid under it, a texture at the cloud's alpha, which is how the browser game draws it. Otherwise it is dithered
+-- into the grid as before. Screen.blendSmoke makes that copy a blend instead, so the tests can compare the two.
+Screen.blendSmoke = false
+function Screen.puff(self, img, dx, dy, alpha)
+  if alpha <= 0.03 then return true end
+  if img.key and img.keyVer == img.ver and imageMode and not inHud and RT.spriteImages then
+    local e = listed(img)
+    if e then
+      if e.frame ~= frame then e.frame, e.used = frame, 0 end
+      local n = e.used + 1
+      local owner = e.uses[n]
+      if not owner then owner = {}; e.uses[n] = owner end
+      if Screen.flat(owner, e, floor(dx + self.tx + 0.5) + viewX, floor(dy + self.ty + 0.5) + viewY, alpha, img) then e.used = n; return true end
+    end
+  end
+  if Screen.blendSmoke then
+    local was = self.globalAlpha
+    self.globalAlpha = alpha
+    blit(self, img, dx, dy, nil)
+    self.globalAlpha = was
+    return true
+  end
+  return false
 end
 
 -- A rectangle of one colour, six pixels or more (a prop's shadow, a flash over the whole picture, a bar): one

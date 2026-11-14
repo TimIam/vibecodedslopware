@@ -304,16 +304,60 @@ end
 -- rest of a level when frames get slow (/endgame effects).
 RT.lean = false
 RT.host.lean = function() return RT.lean end
+-- ------------------------------------------------------------------------------------------------ effects as sprites
+
+-- Fire, ice and smoke were worked out afresh as they were drawn: a hash of every pixel's place and of the time. That
+-- cannot be a picture made beforehand, because no two are alike. Here each is instead one of a fixed set of
+-- pictures: a fire of a given size is one of eight frames that loop, an ice floor of a given size is one of three
+-- patterns. The pictures are made by the code below, named like the game's own sprites (RT.host.named), and drawn
+-- with drawImage, so the Screen shows them as textures where they are on a sheet (tools/bake-sprites.lua bakes
+-- every one that can occur: RT.effectSprites) and copies them into the grid where they are not. They look like the
+-- browser game's but are not pixel for pixel the same: this is the addon's own art.
+local sqrt2, sin, ceil = math.sqrt, math.sin, math.ceil
+local newCanvas, named = RT.newCanvas, RT.host.named
+local A1 = 16777216
 local FIRE = { PAL.fire0, PAL.fire1, PAL.fire2, PAL.fire3 }
--- render.js drawFires. The flicker is a hash of where and when, and "when" moves ten times a second, so a fire's
--- pixels are worked out once per flicker and drawn from the list on the frames between (while it is not fading).
-local firePx = setmetatable({}, { __mode = "k" })   -- a fire → { fr, fade, cx, cy, r, -, four lists of x, y by colour, their lengths }
-local points, SCREEN = RT.Screen.points, RT.Screen.ctx
+local FIRE_RGB = {}
+for k = 1, 4 do FIRE_RGB[k] = RT.parseColor(FIRE[k]).rgb end
+local fx = {}                       -- name → canvas
+RT.fx = fx
+
+-- A fire: r in half pixels (3.5 to 6 from the boss's breath), frame 0 to 7 of its flicker, and how far it has
+-- faded in or out in quarters (4 = burning steadily; a fading fire is thinner as well as fainter).
+local function fireSprite(r2, fr, q)
+  local key = "fire|" .. r2 .. "|" .. fr .. "|" .. q
+  local c = fx[key]
+  if c then return c end
+  local r = r2 / 2
+  local R = ceil(r)
+  local S = R * 2 + 1
+  c = newCanvas(S, S)
+  local px = c.px
+  local k = 0.45 * (2 - q / 4)
+  for py = -R, R do
+    for qx = -R, R do
+      local d = sqrt2(qx * qx + py * py) / r
+      if not (d > 1) then
+        local h = hash((qx + R) * 7 + fr * 31 + r2 * 131, (py + R) * 13 + fr)
+        if not (h < 0.15 + d * k) then
+          px[(py + R) * S + qx + R + 1] = FIRE_RGB[(d < 0.35 and h > 0.6) and 4 or d < 0.6 and 3 or h > 0.7 and 2 or 1]
+        end
+      end
+    end
+  end
+  c.ver = c.ver + 1
+  named(c, key)
+  fx[key] = c
+  return c
+end
+RT.fireSprite = fireSprite
+
+-- render.js drawFires
 function RT.drawFires(ctx, g)
   local fr = floor(g.t * 10)
   if RT.lean then fr = fr - fr % 2 end   -- light effects: the flicker changes five times a second, not ten
+  fr = fr % 8
   local fires = g.fires
-  local fill = ctx.fillRect
   local vx, vy = RT.Screen.vx, RT.Screen.vy
   for i = 0, fires.length - 1 do
     local f = fires[i]
@@ -321,137 +365,92 @@ function RT.drawFires(ctx, g)
     if f.t < 0.25 then fade = f.t / 0.25
     elseif f.t > f.life - 1.2 then fade = math.max(0, (f.life - f.t) / 1.2)
     else fade = 1 end
-    local r = f.r
-    local R = math.ceil(r)
+    local r2 = floor(f.r * 2 + 0.5)
+    if r2 < 2 then r2 = 2 end
+    local R = ceil(r2 / 2)
     local cx, cy = floor(f.x + 0.5), floor(f.y + 0.5)
-    -- one that is wholly off the screen draws nothing
-    if cx + R >= vx and cx - R < vx + 320 and cy + R >= vy and cy - R < vy + 180 then
-      local c = firePx[f]
-      if not c then c = {}; firePx[f] = c end
-      if c[1] ~= fr or c[2] ~= fade or c[3] ~= cx or c[4] ~= cy or c[5] ~= r then
-        c[1], c[2], c[3], c[4], c[5] = fr, fade, cx, cy, r
-        local l1, l2, l3, l4 = c[7], c[8], c[9], c[10]
-        if not l1 then l1, l2, l3, l4 = {}, {}, {}, {}; c[7], c[8], c[9], c[10] = l1, l2, l3, l4 end
-        local n1, n2, n3, n4 = 0, 0, 0, 0
-        local k = 0.45 * (2 - fade)
-        for py = -R, R do
-          local wy = cy + py
-          local hy = wy * 13 + fr
-          for px = -R, R do
-            local d = sqrt(px * px + py * py) / r
-            if not (d > 1) then
-              local wx = cx + px
-              local h = hash(wx * 7 + fr * 31, hy)
-              if not (h < 0.15 + d * k) then
-                if d < 0.35 and h > 0.6 then l4[n4 + 1], l4[n4 + 2] = wx, wy; n4 = n4 + 2
-                elseif d < 0.6 then l3[n3 + 1], l3[n3 + 2] = wx, wy; n3 = n3 + 2
-                elseif h > 0.7 then l2[n2 + 1], l2[n2 + 2] = wx, wy; n2 = n2 + 2
-                else l1[n1 + 1], l1[n1 + 2] = wx, wy; n1 = n1 + 2 end
-              end
-            end
-          end
-        end
-        c[11], c[12], c[13], c[14] = n1, n2, n3, n4
-      end
-      -- a fire's pixels are each drawn once, so the order among its four colours does not matter
-      if ctx == SCREEN then
-        for q = 1, 4 do points(c[6 + q], c[10 + q], FIRE[q], fade) end
-      else
-        ctx.globalAlpha = fade
-        for q = 1, 4 do
-          ctx.fillStyle = FIRE[q]
-          local l = c[6 + q]
-          for j = 1, c[10 + q], 2 do fill(ctx, l[j], l[j + 1], 1, 1) end
-        end
-      end
+    if fade > 0.002 and cx + R >= vx and cx - R < vx + 320 and cy + R >= vy and cy - R < vy + 180 then
+      local q = ceil(fade * 4)
+      if q < 1 then q = 1 end
+      -- each fire flickers out of step with the next
+      ctx.globalAlpha = fade
+      ctx:drawImage(fireSprite(r2, (fr + i * 3) % 8, q), cx - R, cy - R)
     end
   end
   ctx.globalAlpha = 1
 end
 
--- ------------------------------------------------------------------------------------------------ ice floors and lanes
+-- An ice floor: its radius (the ability's reach: four sizes) and one of three patterns. Cracks are whiter and less
+-- see-through than the ice, so the picture carries its own alpha, and the floor's fade is the texture's.
+local ICE_RGB = { 0xffffff, RT.parseColor(PAL.ice1).rgb, RT.parseColor(PAL.ice0).rgb, RT.parseColor(PAL.ice2).rgb }
+local CRACK_A, ICE_A = floor(0.7 * 255 + 0.5) * A1, floor(0.45 * 255 + 0.5) * A1
+local function iceSprite(r, v)
+  local key = "ice|" .. r .. "|" .. v
+  local c = fx[key]
+  if c then return c end
+  local R = ceil(r)
+  local S = R * 2 + 1
+  c = newCanvas(S, S)
+  local px, glints, n = c.px, {}, 0
+  for py = -R, R do
+    for qx = -R, R do
+      local d = sqrt2(qx * qx + py * py) / r
+      if not (d > 1) then
+        local h = hash((qx + R) * 3 + v * 977, (py + R) * 5 + v * 31)
+        if not (d > 0.85 and h < (d - 0.85) * 5) then
+          local crack = d > 0.2 and abs(sin(atan2(py, qx) * 5 + v * 2.1)) < 0.08
+          px[(py + R) * S + qx + R + 1] = crack and CRACK_A + ICE_RGB[1] or ICE_A + ICE_RGB[h > 0.82 and 2 or (qx + py) % 2 == 1 and 3 or 4]
+          if h > 0.996 then glints[n + 1], glints[n + 2] = qx, py; n = n + 2 end
+        end
+      end
+    end
+  end
+  c.ver = c.ver + 1
+  named(c, key)
+  c.glints, c.nGlints = glints, n
+  fx[key] = c
+  return c
+end
+RT.iceSprite = iceSprite
 
--- render.js drawIce. An ice floor is a disc as wide as the ability reaches (thousands of pixels once it is
--- upgraded), and the game works every pixel of it out again each frame: a square root, a hash, an arctangent and a
--- sine apiece, for up to three floors. In the client that was most of a frame. Nothing about a floor's pixels
--- changes while it lies there except how faded it is and which of its few glints are lit, so they are worked out
--- once, sorted by colour, and drawn from the lists. Same arithmetic: the picture is identical.
-local sin, ceil = math.sin, math.ceil
-local icePx = setmetatable({}, { __mode = "k" })   -- a floor → { cx, cy, r, seed, lists = { crack, ice1, ice0, ice2 }, glints }
-local ICE = { "#ffffff", PAL.ice1, PAL.ice0, PAL.ice2 }
-local iceGeo = {}   -- a radius → its disc's pixels: offsets, distance from the middle (0 to 1), angle times five
+-- render.js drawIce
 RT.host.iceFloor = function(ctx, i, g)
   local fade
   if i.t < 0.2 then fade = i.t / 0.2
   elseif i.t > i.life - 1.2 then fade = math.max(0, (i.life - i.t) / 1.2)
   else fade = 1 end
-  -- light effects: a floor fades in six steps, not on every frame (each step recolours the whole disc)
+  -- light effects: a floor fades in six steps, not on every frame
   if RT.lean and fade < 1 then fade = ceil(fade * 6) / 6 end
-  local r, seed = i.r, i.seed
+  local r = i.r
   local R = ceil(r)
   local cx, cy = floor(i.x + 0.5), floor(i.y + 0.5)
   local vx, vy = RT.Screen.vx, RT.Screen.vy
-  if not (cx + R >= vx and cx - R < vx + 320 and cy + R >= vy and cy - R < vy + 180) then return end
-  local c = icePx[i]
-  if not c or c.cx ~= cx or c.cy ~= cy or c.r ~= r or c.seed ~= seed then
-    c = { cx = cx, cy = cy, r = r, seed = seed, { n = 0 }, { n = 0 }, { n = 0 }, { n = 0 }, glints = { n = 0 } }
-    icePx[i] = c
-    local glints = c.glints
-    -- how far out and at what angle each pixel of a disc this size lies is the same for every floor of that size
-    local geo = iceGeo[r]
-    if not geo then
-      geo = { n = 0, x = {}, y = {}, d = {}, a = {} }
-      iceGeo[r] = geo
-      local gx, gy, gd, ga, n = geo.x, geo.y, geo.d, geo.a, 0
-      for py = -R, R do
-        for px = -R, R do
-          local d = sqrt(px * px + py * py) / r
-          if not (d > 1) then n = n + 1; gx[n], gy[n], gd[n], ga[n] = px, py, d, atan2(py, px) * 5 end
-        end
-      end
-      geo.n = n
-    end
-    local gx, gy, gd, ga = geo.x, geo.y, geo.d, geo.a
-    for q = 1, geo.n do
-      local px, py, d = gx[q], gy[q], gd[q]
-      local wx, wy = cx + px, cy + py
-      local h = hash(wx * 3 + seed, wy * 5)
-      if not (d > 0.85 and h < (d - 0.85) * 5) then
-        local crack = d > 0.2 and abs(sin(ga[q] + seed)) < 0.08
-        local list = c[crack and 1 or h > 0.82 and 2 or (px + py) % 2 == 1 and 3 or 4]
-        local n = list.n
-        list[n + 1], list[n + 2] = wx, wy
-        list.n = n + 2
-        if h > 0.996 then
-          n = glints.n
-          glints[n + 1], glints[n + 2] = wx, wy
-          glints.n = n + 2
-        end
-      end
-    end
-  end
-  local fill = ctx.fillRect
-  if ctx == SCREEN then
-    for k = 1, 4 do points(c[k], c[k].n, ICE[k], fade * (k == 1 and 0.7 or 0.45)) end
-  else
-    for k = 1, 4 do
-      local list = c[k]
-      ctx.globalAlpha = fade * (k == 1 and 0.7 or 0.45)
-      ctx.fillStyle = ICE[k]
-      for j = 1, list.n, 2 do fill(ctx, list[j], list[j + 1], 1, 1) end
-    end
-  end
-  local glints, fr = c.glints, floor(g.t * 4)
-  if glints.n > 0 then
-    ctx.globalAlpha = fade
+  if fade <= 0.002 or not (cx + R >= vx and cx - R < vx + 320 and cy + R >= vy and cy - R < vy + 180) then return end
+  local spr = iceSprite(r, i.seed % 3)
+  ctx.globalAlpha = fade
+  ctx:drawImage(spr, cx - R, cy - R)
+  -- its few glints, a third of them lit at a time
+  local glints, fr = spr.glints, floor(g.t * 4)
+  if spr.nGlints > 0 then
     ctx.fillStyle = "#ffffff"
-    for j = 1, glints.n, 2 do
-      local wx = glints[j]
-      if (fr + wx) % 3 == 0 then fill(ctx, wx, glints[j + 1], 1, 1) end
+    local fill = ctx.fillRect
+    for j = 1, spr.nGlints, 2 do
+      local wx = cx + glints[j]
+      if (fr + wx) % 3 == 0 then fill(ctx, wx, cy + glints[j + 1], 1, 1) end
     end
   end
   ctx.globalAlpha = 1
 end
+
+-- every effect picture that can occur, for tools/bake-sprites.lua: fires of every size, frame and fade, and an ice
+-- floor of each size the ability can reach (ranges: the radii to make)
+function RT.effectSprites(iceRanges)
+  for r2 = 6, 13 do for fr = 0, 7 do for q = 1, 4 do fireSprite(r2, fr, q) end end end
+  for _, r in ipairs(iceRanges or {}) do for v = 0, 2 do iceSprite(r, v) end end
+  return fx
+end
+
+-- ------------------------------------------------------------------------------------------------ lanes
 
 -- render.js drawLane's loop: the strip a charge or a beam is about to cover. The game walks the whole square around
 -- the boss out to the lane's length (a beam's is hundreds of pixels: a third of a million tests a frame) and throws

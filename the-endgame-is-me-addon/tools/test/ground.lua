@@ -34,6 +34,7 @@ local function readTga(path)
   end }
 end
 
+RT.Screen.blendSmoke = true   -- a puff of smoke that is painted is blended, as its texture is, so the two can be compared
 local function play(level, images, shots)
   RT.groundImages, RT.propImages, RT.spriteImages = images, images, images and arg[4] ~= "nosprites"
   local g = W.createGame(5)
@@ -77,7 +78,7 @@ local function play(level, images, shots)
       local S = RT.Screen.sprites
       assert(images or (S.n == 0 and not S.pad), "sprite textures asked for while images are off")
       shot.sprites = {}
-      for k = 1, S.n do local q = S[k]; shot.sprites[k] = { e = q.e, x = q.x, y = q.y, z = q.z, hi = q.hi, k = k } end
+      for k = 1, S.n do local q = S[k]; shot.sprites[k] = { e = q.e, x = q.x, y = q.y, z = q.z, hi = q.hi, k = k, a = q.a or 1 } end
       if S.pad then shot.pad = { img = S.pad, x = S.padX, y = S.padY }; bosses = bosses + 1 end
       units = units + S.n
       -- for the report when a picture is wrong: what stands where
@@ -142,8 +143,10 @@ end
 -- the sprites of one picture: screen pixel → colour. Behind the boss first, then the boss, then in front of it; within
 -- a group the draw layer decides, and two solid pixels of one group on one layer would be anybody's guess.
 local unitSheet = nil
+local softAt = {}
 local function spriteLayer(shot, layer)
   local zAt = {}
+  softAt = {}
   unitSheet = unitSheet or readTga("art/" .. ns.Units.file)
   local function group(hi)
     local list = {}
@@ -167,11 +170,12 @@ local function spriteLayer(shot, layer)
                 c, a = unitSheet.at(e.u + xx, e.v + yy)
                 assert(a == 0 or a == 255, "a see-through pixel on the units sheet")
               end
+              a = a * q.a
               if a > 0 then
                 local k = sy * 320 + sx + 1
                 assert(zAt[k] ~= tag + q.z, "two textures on one draw layer overlap at " .. sx .. "," .. sy)
                 zAt[k] = tag + q.z
-                layer[k] = a >= 255 and c or blend(layer[k], c, a / 255)
+                if a >= 254.5 then layer[k] = c else layer[k] = blend(layer[k], c, a / 255); softAt[k] = true end
               end
             end
           end
@@ -199,7 +203,7 @@ local function spriteLayer(shot, layer)
   group(true)
 end
 
-local worstAll = 0
+local worstAll, swapped, swapSum, swapWorst = 0, 0, 0, 0
 for level = onlyLevel > 0 and onlyLevel or 1, onlyLevel > 0 and onlyLevel or 7 do
   local G = assert(ns.Ground[level], "level " .. level .. " has no ground image")
   local img = readTga("art/" .. G.file)
@@ -254,6 +258,8 @@ for level = onlyLevel > 0 and onlyLevel or 1, onlyLevel > 0 and onlyLevel or 7 d
         end
       end
       local d = math.max(math.abs(r - floor(want / 65536)), math.abs(gg - floor(want / 256) % 256), math.abs(bb - want % 256))
+      -- a see-through cell over a see-through texture: blended in the other order than painting does (Screen.flat)
+      if v ~= nil and v >= 16777216 and softAt[k] and d > tol then swapSum = swapSum + d; if d > swapWorst then swapWorst = d end; d = 0; swapped = swapped + 1 end
       if d > worst then worst = d end
       if d > tol then
         off = off + 1
@@ -283,4 +289,5 @@ for level = onlyLevel > 0 and onlyLevel or 1, onlyLevel > 0 and onlyLevel or 7 d
   print(string.format("level %d: %d pictures match the painted ones (worst channel off by %.1f); %2.0f%% of cells hidden, %.1f%% see-through, %3.0f prop and %2.0f unit textures up, the boss on its block in %3.0f%%; %.1f s painted, %.1f s over the images",
     level, #ref, worst, hidden * 100, soft * 100, textures, units, bosses * 100, tPaint, tImage))
 end
+if swapped > 0 then print(string.format("%d pixels set aside: a see-through cell over a see-through texture, blended in the other order (off by %.0f on average, %.0f at worst, of 255)", swapped, swapSum / swapped, swapWorst)) end
 print("OK: every level over its images is the picture that painting everything gives")

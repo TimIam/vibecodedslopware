@@ -539,6 +539,7 @@ local function syncSprites()
     end
     if ts.x ~= s.x or ts.y ~= s.y then ts.x, ts.y = s.x, s.y; t:SetPoint("TOPLEFT", D.grid, "TOPLEFT", s.x, -s.y) end
     if ts.z ~= s.z then ts.z = s.z; t:SetDrawLayer(SLAYER[floor(s.z / 16)], s.z % 16 - 8) end
+    if ts.a ~= s.a then ts.a = s.a; t:SetAlpha(s.a) end
     if not ts.on then t:Show(); ts.on = true end
   end
   -- the ones that were up and were not drawn this frame give their textures back

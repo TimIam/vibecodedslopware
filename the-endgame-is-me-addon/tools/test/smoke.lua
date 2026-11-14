@@ -125,6 +125,7 @@ local function checkPicture(where)
       local t, e, U = ts.tex, q.e, q.e.sheet or ns.Units
       local p = t.points.TOPLEFT
       assert(t.shown and t.parent == (q.hi and hi or lo), where .. ": a texture of the list is hidden or in the wrong frame")
+      assert(math.abs((t.alpha or 1) - (q.a or 1)) < 1e-9, where .. ": a texture of the list has the wrong alpha")
       assert(t.w == e.w and t.h == e.h and p.rel == grid and p.x == q.x and p.y == -q.y, where .. ": a texture of the list is the wrong size or in the wrong place")
       if e.rect then
         local c = assert(ts.src == e and t.color, where .. ": a flat rectangle has no colour")

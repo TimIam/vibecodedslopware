@@ -10,8 +10,10 @@
 -- before, so the list only has to be good, not complete.
 --   lua5.1 tools/bake-sprites.lua [steps]      (on Windows: bash tools/wsl.sh lua5.1 tools/bake-sprites.lua)
 --   node tools/build.mjs
--- Left out: a sprite the game draws on again after making it (a work surface; getContext drops its name), smoke
--- (drawn dithered, not copied), anything larger than 256 pixels a side, and any name that came out as two
+-- Also baked, by asking for every one that can occur: the puffs of smoke (render.js smokeSprite) and the addon's own
+-- effect pictures (src/gfx.lua: fires, ice floors).
+-- Left out: a sprite the game draws on again after making it (a work surface; getContext drops its name),
+-- anything larger than 256 pixels a side, and any name that came out as two
 -- different pictures (reported: its name is missing something the picture depends on).
 local STEPS = tonumber(arg[1] or 5000)
 local SEEDS = { 1101, 2202, 3303, 4404, 5505, 6606, 7707 }   -- as tools/bake-art.lua: the layouts the addon uses
@@ -67,7 +69,7 @@ end
 local function collect()
   for key, entry in pairs(Rm.sprites.idx) do
     local cv = entry[1]
-    if type(key) == "string" and type(cv) == "table" and cv.key == key and cv.keyVer == cv.ver and not key:find("^smoke|") and cv.width <= MAX and cv.height <= MAX then
+    if type(key) == "string" and type(cv) == "table" and cv.key == key and cv.keyVer == cv.ver and cv.width <= MAX and cv.height <= MAX then
       local s = sig(cv)
       local was = found[key]
       if not was then
@@ -122,6 +124,25 @@ local function play(n, kit, steps)
 end
 
 os.execute("mkdir -p art")
+-- every puff of smoke, and every effect picture
+do
+  Rm.sprites, Rm.similar = RT.Map(), RT.Map()
+  local radii = Rm.SMOKE_R
+  for i = 0, radii.length - 1 do for db = 0, 4 do for v = 0, 2 do Rm.smokeSprite(radii[i], db, v) end end end
+  local before = #order
+  collect()
+  print(string.format("smoke: %d puffs", #order - before))
+  -- the ice floor's reach at each level of the ability
+  local g = W.createGame(1)
+  g.points = 1e9
+  W.buyAbility(g, "ice")
+  local ranges = { g.abil.ice.range }
+  while W.upgradeAbility(g, "ice") do ranges[#ranges + 1] = g.abil.ice.range end
+  before = #order
+  for key, cv in pairs(RT.effectSprites(ranges)) do RT.set(Rm.sprites, key, cv) end
+  collect()
+  print(string.format("effects: %d pictures (ice floors of radius %s)", #order - before, concat(ranges, ", ")))
+end
 for n = 1, #SEEDS do
   local t0, before = os.clock(), #order
   for _, kit in ipairs(KITS) do play(n, kit, STEPS) end
