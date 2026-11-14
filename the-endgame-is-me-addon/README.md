@@ -143,6 +143,14 @@ per level and only shown or hidden after that).
   order from an empty cache: one that comes out differently is left to the grid and reported, so the name can be
   fixed.
 
+## The minimap button
+
+A round button on the rim of the minimap opens and closes the game (`minimapButton` in `src/app.lua`): drag it round
+the rim, `/endgame minimap` hides or shows it. Its picture is a warlock in pixels, drawn as a grid of letters in
+`tools/make-icon.mjs`, which writes `art/minimap.tga` (20 by 20 in the top left of a 32 by 32 file, shown at 20 by
+20 so each pixel of it is a whole number of screen pixels). The frame has a name, `TheEndgameIsMeMinimapButton`,
+as minimap buttons do, so that addons which gather them up can find it.
+
 ## Which game the addon is made from
 
 `GAME_COMMIT` holds the commit whose `the-endgame-is-me/js` the addon is transpiled from; `tools/build.mjs` reads the

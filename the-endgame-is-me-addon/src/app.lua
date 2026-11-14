@@ -1332,9 +1332,70 @@ local function settingsPage()
   S.RegisterAddOnCategory(cat)
 end
 
+-- ------------------------------------------------------------------------------------------------ the minimap button
+
+-- A round button on the rim of the minimap, like the ones other addons put there: a click opens or closes the game,
+-- a drag moves it round the rim (kept in TheEndgameIsMeDB.minimap, in degrees), and /endgame minimap hides or
+-- shows it. Its picture is a warlock in pixels (Art/minimap.tga, drawn by tools/make-icon.mjs: 20 by 20 in the top
+-- left of a 32 by 32 file).
+local function minimapButton()
+  local mm = _G.Minimap
+  if not mm or A.mini then return end
+  local b = _G.CreateFrame("Button", "TheEndgameIsMeMinimapButton", mm)
+  A.mini = b
+  b:SetSize(31, 31)
+  b:SetFrameStrata("MEDIUM")
+  b:SetFrameLevel(8)
+  b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  b:RegisterForDrag("LeftButton")
+  b:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+  local back = b:CreateTexture(nil, "BACKGROUND")
+  back:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+  back:SetSize(20, 20)
+  back:SetPoint("TOPLEFT", b, "TOPLEFT", 6, -5)
+  local icon = b:CreateTexture(nil, "ARTWORK")
+  icon:SetTexture("Interface\\AddOns\\" .. ADDON .. "\\Art\\minimap.tga", "CLAMP", "CLAMP", "NEAREST")
+  icon:SetTexCoord(0, 20 / 32, 0, 20 / 32)
+  icon:SetSize(20, 20)
+  icon:SetPoint("TOPLEFT", b, "TOPLEFT", 6, -5)
+  local ring = b:CreateTexture(nil, "OVERLAY")
+  ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+  ring:SetSize(53, 53)
+  ring:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+  local function place()
+    local a = math.rad(ns.DB.minimap or 215)
+    local r = (mm:GetWidth() or 140) / 2 + 5
+    b:ClearAllPoints()
+    b:SetPoint("CENTER", mm, "CENTER", math.cos(a) * r, math.sin(a) * r)
+  end
+  A.placeMini = place
+  local function follow()
+    local cx, cy = _G.GetCursorPosition()
+    local scale = mm:GetEffectiveScale()
+    local mx, my = mm:GetCenter()
+    if not (cx and mx) then return end
+    ns.DB.minimap = math.deg(math.atan2(cy / scale - my, cx / scale - mx)) % 360
+    place()
+  end
+  b:SetScript("OnDragStart", function() b:SetScript("OnUpdate", function() guard("moving the minimap button", follow) end) end)
+  b:SetScript("OnDragStop", function() b:SetScript("OnUpdate", nil) end)
+  b:SetScript("OnClick", function() A.toggle() end)
+  b:SetScript("OnEnter", function()
+    local tip = _G.GameTooltip
+    if not tip then return end
+    tip:SetOwner(b, "ANCHOR_LEFT")
+    tip:AddLine("The Endgame is Me")
+    tip:AddLine("Click to play. Drag to move this button.", 1, 1, 1)
+    tip:Show()
+  end)
+  b:SetScript("OnLeave", function() if _G.GameTooltip then _G.GameTooltip:Hide() end end)
+  place()
+  if ns.DB.minimapHide then b:Hide() else b:Show() end
+end
+
 ev:SetScript("OnEvent", function(self, event, arg1)
   if event == "ADDON_LOADED" then
-    if arg1 == ADDON then Store.init(); Keys.init(); ns.Sound.init(); guard("the options page", settingsPage) end
+    if arg1 == ADDON then Store.init(); Keys.init(); ns.Sound.init(); guard("the options page", settingsPage); guard("the minimap button", minimapButton) end
   elseif event == "PLAYER_LOGOUT" then
     A.saveNow()
   elseif event == "UI_SCALE_CHANGED" or event == "DISPLAY_SIZE_CHANGED" then
@@ -1359,6 +1420,10 @@ _G.SlashCmdList["THEENDGAMEISME"] = function(msg)
     ns.DB.scale = (n and n >= 1 and n <= 8) and floor(n) or 0
     if D.frame then D.applyScale() end
     RT.print("window scale: " .. (ns.DB.scale == 0 and "automatic" or (ns.DB.scale .. " screen pixels per game pixel")))
+  elseif cmd == "minimap" then
+    ns.DB.minimapHide = not ns.DB.minimapHide or nil
+    if A.mini then if ns.DB.minimapHide then A.mini:Hide() else A.mini:Show() end end
+    RT.print("minimap button: " .. (ns.DB.minimapHide and "hidden" or "shown") .. ". /endgame minimap switches it.")
   elseif cmd == "perf" then
     ns.DB.perf = not ns.DB.perf
     RT.print("timings in the title bar: " .. (ns.DB.perf and "on" or "off"))

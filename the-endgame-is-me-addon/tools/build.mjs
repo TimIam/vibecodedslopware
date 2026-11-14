@@ -15,7 +15,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const game = path.resolve(root, '../the-endgame-is-me/js');
 export const ADDON = 'TheEndgameIsMe';
-export const VERSION = '1.4.3';
+export const VERSION = '1.5.0';
 
 // in load order: a module comes after everything it imports
 export const MODULES = ['props', 'smoke', 'art', 'levels/forest', 'levels/clearing', 'levels/farms', 'levels/village', 'levels/wall', 'levels/city',
@@ -564,6 +564,7 @@ Keys:    Controls, on the game's menu and on the pause menu, puts any of that on
 Slots:   in the Hoard, between levels, click a slot to pick which ability goes on that button.
 Options: /endgame scale 1-8 (or auto)   how many screen pixels per game pixel
          /endgame fps 30               draw less often, if it drags your frame rate down
+         /endgame minimap              hide or show the button on the minimap
          /endgame perf                 show timings in the title bar
          /endgame ground off           paint the ground a pixel at a time instead of using the images in Art
          /endgame calm, /endgame mute, /endgame reset (moves the window back to the middle)
@@ -576,7 +577,8 @@ The game_*.lua files are generated from the game's JavaScript. Do not edit them 
     }
     if (ground.files.length + props.files.length + units.files.length) {
       fs.mkdirSync(path.join(c.dir, 'Art'));
-      for (const f of [...ground.files, ...props.files, ...units.files]) fs.copyFileSync(path.join(ground.dir, f), path.join(c.dir, 'Art', f));
+      // (and the minimap button's picture, tools/make-icon.mjs)
+      for (const f of [...ground.files, ...props.files, ...units.files, ...(fs.existsSync(path.join(ground.dir, 'minimap.tga')) ? ['minimap.tga'] : [])]) fs.copyFileSync(path.join(ground.dir, f), path.join(c.dir, 'Art', f));
     }
     console.log(`${c.client}: ${path.relative(path.resolve(root, '..'), c.dir)} (Interface ${c.interface}, ${fileList().length} Lua files, ${sounds.files.length} sounds, ${props.sprites} named sprites, ${ground.files.length} ground images, ${props.count} props on ${props.files.length} sheets, ${units.count} unit pictures)`);
     if (process.argv.includes('--zip')) {

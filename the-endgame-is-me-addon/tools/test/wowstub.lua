@@ -29,7 +29,7 @@ function Texture:SetColorTexture(r, g, b, a) assert(type(r) == "number" and type
 function Texture:SetVertexColor(r, g, b, a) assert(r >= 0 and r <= 1 and g >= 0 and g <= 1 and b >= 0 and b <= 1, "SetVertexColor range"); assert(a == nil or (a >= 0 and a <= 1), "SetVertexColor alpha"); self.vr, self.vg, self.vb, self.va = r, g, b, a or 1; Stub.colourCalls = (Stub.colourCalls or 0) + 1 end
 Texture.SetSnapToPixelGrid, Texture.SetTexelSnappingBias = noop, noop
 function Texture:SetTexture(file, wrapH, wrapV, filter)
-  assert(type(file) == "string" and file:find("^Interface\\AddOns\\", 1), "SetTexture wants a path under Interface/AddOns")
+  assert(type(file) == "string" and file:find("^Interface\\", 1), "SetTexture wants a path under Interface")
   assert((wrapH == nil or wrapH == "CLAMP" or wrapH == "REPEAT") and (wrapV == nil or wrapV == "CLAMP" or wrapV == "REPEAT"), "SetTexture wrap mode")
   assert(filter == nil or filter == "NEAREST" or filter == "LINEAR" or filter == "TRILINEAR", "SetTexture filter mode")
   self.file, self.filter = file, filter
@@ -68,6 +68,8 @@ function Frame:GetFrameLevel() return self.level or 1 end
 function Frame:StartMoving() self.moving = true end
 function Frame:StopMovingOrSizing() self.moving = false end
 Frame.SetFrameStrata, Frame.SetClampedToScreen, Frame.RegisterForDrag = noop, noop, noop
+function Frame:RegisterForClicks(...) for _, v in ipairs({ ... }) do assert(type(v) == "string" and v:find("Button"), "RegisterForClicks") end end
+function Frame:SetHighlightTexture(file) assert(type(file) == "string" and file:find("^Interface\\", 1), "SetHighlightTexture") end
 function Frame:SetClipsChildren(on) self.clips = on and true or false end
 function Frame:SetIsFrameBuffer(on) self.buffer = on and true or false end
 function Frame:SetFlattensRenderLayers(on) self.flat = on and true or false end
@@ -77,6 +79,7 @@ function Frame:SetParent(p)
   if p then p.children[#p.children + 1] = self end
 end
 function Frame:GetWidth() return self.w or 0 end
+function Frame:GetCenter() return self.cx or 900, self.cy or 500 end
 function Frame:GetHeight() return self.h or 0 end
 function Frame:GetFrameStrata() return "HIGH" end
 function Frame:GetAlpha() return 1 end
@@ -120,6 +123,8 @@ function CreateFrame(kind, name, parent, template)
 end
 
 UIParent = CreateFrame("Frame", "UIParent")
+Minimap = CreateFrame("Frame", "Minimap", UIParent)
+Minimap.w, Minimap.h = 140, 140
 UIParent.scale, UIParent.w, UIParent.h = UISCALE, W / UISCALE, H / UISCALE
 UIParent.points = { BOTTOMLEFT = { x = 0, y = 0 } }
 STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"

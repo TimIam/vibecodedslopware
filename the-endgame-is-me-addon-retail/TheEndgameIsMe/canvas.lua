@@ -1083,6 +1083,9 @@ function Screen.hudBegin(k)
   local L = layers[k or 1]
   hud = L
   world.cur, world.mark, world.now, world.nNow, world.ox, world.oy, world.mask, world.occ = cur, mark, now, nNow, ox, oy, mask, occOn
+  -- The panes belong to the HUD: they go when it is drawn again, and stay while it is kept. (Cleared with every
+  -- frame, they showed on the one frame in three that draws the HUD and flashed under the text in the corners.)
+  if L == layers[1] then Screen.panes.n = 0 end
   -- wipe what the layer held
   local c, list = L.cur, L.now
   for i = 1, L.nNow do c[list[i]] = nil end
@@ -1102,7 +1105,8 @@ end
 function Screen.presentHud(k, set)
   local L = layers[k]
   if not L.drawn and not L.kept and L.live then
-    -- a frame without it: whatever the layer still holds goes
+    -- a frame without it: whatever the layer still holds goes, and the HUD's panes with it
+    if k == 1 then Screen.panes.n = 0 end
     local c, list = L.cur, L.now
     for i = 1, L.nNow do c[list[i]] = nil end
     L.prev, L.now = L.now, L.prev
@@ -1145,7 +1149,6 @@ local function newFrame()
   if inHud then Screen.hudEnd() end
   for k = 1, 2 do layers[k].drawn, layers[k].kept = false, false end
   frame = frame + 1
-  Screen.panes.n = 0
   sprites.n, sprites.pad = 0, nil
   zstamp = zstamp + 1
   nTouched = 0
@@ -1164,6 +1167,7 @@ function Screen.begin(bg, trail, vx, vy, fg, water)
   if not full and (math.abs(vx - viewX) >= W or math.abs(vy - viewY) >= H) then full = true end
   bgC, trailC, fgC, waterC = bg, trail, fg or nil, water
   imageMode = bg.image ~= nil
+  if not imageMode then Screen.panes.n = 0 end
   Screen.ground = bg.image or nil
   local px, py = viewX, viewY
   viewX, viewY = vx, vy
@@ -1217,6 +1221,7 @@ end
 -- A frame with no level under it (the menu, the ending card): everything is cleared to one colour first.
 function Screen.beginPlain(rgb)
   newFrame()
+  Screen.panes.n = 0
   for i = 1, W * H do
     if base[i] ~= rgb or cur[i] ~= rgb then
       if base[i] == nil then local t = ttile[i]; baseCnt[t] = baseCnt[t] + 1 end

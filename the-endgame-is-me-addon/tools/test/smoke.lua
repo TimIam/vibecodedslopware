@@ -26,7 +26,7 @@ assert(toc:match("## SavedVariables: TheEndgameIsMeDB"), "TOC does not declare t
 say("loaded " .. files .. " files from " .. dir)
 
 -- nothing but the addon's intended globals may leak
-local allowed = { TheEndgameIsMeDB = 1, TheEndgameIsMeFrame = 1, SLASH_THEENDGAMEISME1 = 1, SLASH_THEENDGAMEISME2 = 1, TheEndgameIsMe_OnCompartmentClick = 1 }
+local allowed = { TheEndgameIsMeDB = 1, TheEndgameIsMeFrame = 1, SLASH_THEENDGAMEISME1 = 1, SLASH_THEENDGAMEISME2 = 1, TheEndgameIsMe_OnCompartmentClick = 1, TheEndgameIsMeMinimapButton = 1 }
 local before = {}
 for k in pairs(_G) do before[k] = true end
 Stub.event("ADDON_LOADED", "SomeOtherAddon")
@@ -621,6 +621,8 @@ for lv = 2, 7 do
     frames(1)
     assert(A.mode == "play" or A.mode == "store" or A.mode == "loading", "level " .. lv .. " stopped in mode " .. A.mode .. ": " .. tostring(A.err))
     if A.mode ~= "play" then break end
+    -- the panel behind the HUD is there on every frame, not only on the frames that draw the HUD again
+    if i > 3 and RT.Screen.ground and not RT.lean then assert(RT.Screen.panes.n >= 1, "level " .. lv .. ", frame " .. i .. ": the HUD's panel is gone between two drawings of the HUD") end
   end
   local per = (os.clock() - c0) / perLevel * 1000
   for _, k in ipairs(keys) do Stub.key(view, k, false) end
@@ -755,6 +757,34 @@ TheEndgameIsMeDB.perf = true; frames(130); TheEndgameIsMeDB.perf = false
 SlashCmdList["THEENDGAMEISME"]("bench")
 assert(tostring(TheEndgameIsMeDB.log[#TheEndgameIsMeDB.log]):find("bench: recolour"), "the benchmark did not report")
 say("bench: " .. tostring(TheEndgameIsMeDB.log[#TheEndgameIsMeDB.log]))
+-- the minimap button: on the minimap, with its picture; a click opens and closes the game, a drag moves it round the
+-- rim, /endgame minimap hides and shows it
+do
+  local b = assert(A.mini, "no minimap button")
+  assert(b.parent == Minimap and Stub.visible(b), "the minimap button is not on the minimap, or hidden")
+  local icon
+  for _, t in ipairs(b.regions) do if t.file and t.file:find("minimap.tga", 1, true) then icon = t end end
+  assert(icon and icon.filter == "NEAREST" and icon.w == 20 and icon.h == 20 and math.abs(icon.coord[2] - 20 / 32) < 1e-9, "the minimap button has no picture, or the wrong part of it")
+  assert(io.open(dir .. "/Art/minimap.tga", "rb"), "the minimap picture is not in the addon folder")
+  local was = D.frame:IsShown()
+  b.scripts.OnClick(b, "LeftButton")
+  assert(D.frame:IsShown() ~= was, "a click on the minimap button did not " .. (was and "close" or "open") .. " the game")
+  b.scripts.OnClick(b, "LeftButton")
+  assert(D.frame:IsShown() == was, "a second click on the minimap button did not undo the first")
+  local p0 = b.points.CENTER
+  local x0, y0 = p0.x, p0.y
+  Stub.cursor[1], Stub.cursor[2] = 5000, 5000
+  b.scripts.OnDragStart(b)
+  b.scripts.OnUpdate(b, 0.016)
+  b.scripts.OnDragStop(b)
+  local p1 = b.points.CENTER
+  assert(p1.rel == Minimap and (p1.x ~= x0 or p1.y ~= y0) and type(TheEndgameIsMeDB.minimap) == "number" and b.scripts.OnUpdate == nil, "dragging the minimap button did not move it, or it kept following the cursor")
+  assert(math.abs(math.sqrt(p1.x ^ 2 + p1.y ^ 2) - 75) < 0.01, "the minimap button left the rim of the minimap")
+  SlashCmdList["THEENDGAMEISME"]("minimap")
+  assert(not b:IsShown() and TheEndgameIsMeDB.minimapHide == true, "/endgame minimap did not hide the button")
+  SlashCmdList["THEENDGAMEISME"]("minimap")
+  assert(b:IsShown() and TheEndgameIsMeDB.minimapHide == nil, "/endgame minimap did not show the button again")
+end
 for _, l in ipairs(TheEndgameIsMeDB.log or {}) do assert(not l:find("ERROR", 1, true), "the addon logged an error: " .. l) end
 for k in pairs(_G) do assert(before[k] or allowed[k], "the addon leaked a global: " .. tostring(k)) end
 
