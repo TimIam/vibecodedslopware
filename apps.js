@@ -1432,6 +1432,13 @@ window.SLOPWARE = {
      "note": "golf-stance HUD moves left, boom gates stop carts",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 34,
+     "date": "2026-11-14T16:35:04-07:00",
+     "note": "swaying grass, rim light and a colour grade",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
