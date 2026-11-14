@@ -121,12 +121,21 @@ local function checkPicture(where)
       local q = S[k]
       local rec = assert(byOwner[q.owner], where .. ": a unit the game drew as a texture has none")
       local ts = q.hi and rec.hi or rec.lo
-      local t, e, U = ts.tex, q.e, ns.Units
+      -- a picture from the units' sheet or the level's prop sheet, or a flat rectangle of one colour
+      local t, e, U = ts.tex, q.e, q.e.sheet or ns.Units
       local p = t.points.TOPLEFT
-      assert(t.shown and t.parent == (q.hi and hi or lo) and t.file == "Interface\\AddOns\\TheEndgameIsMe\\Art\\" .. U.file and t.filter == "NEAREST", where .. ": a unit texture is hidden, in the wrong frame or from the wrong file")
-      assert(t.w == e.w and t.h == e.h and p.rel == grid and p.x == q.x and p.y == -q.y, where .. ": a unit texture is the wrong size or in the wrong place")
-      assert(math.abs(t.coord[1] * U.tw - e.u) < 1e-6 and math.abs(t.coord[3] * U.th - e.v) < 1e-6 and math.abs(t.coord[2] * U.tw - e.u - e.w) < 1e-6 and math.abs(t.coord[4] * U.th - e.v - e.h) < 1e-6,
-        where .. ": a unit texture shows the wrong part of the sheet")
+      assert(t.shown and t.parent == (q.hi and hi or lo), where .. ": a texture of the list is hidden or in the wrong frame")
+      assert(t.w == e.w and t.h == e.h and p.rel == grid and p.x == q.x and p.y == -q.y, where .. ": a texture of the list is the wrong size or in the wrong place")
+      if e.rect then
+        local c = assert(ts.src == e and t.color, where .. ": a flat rectangle has no colour")
+        assert(math.abs(c[1] * 255 - math.floor(e.rgb / 65536)) < 0.01 and math.abs(c[2] * 255 - math.floor(e.rgb / 256) % 256) < 0.01 and math.abs(c[3] * 255 - e.rgb % 256) < 0.01 and math.abs(c[4] - e.a) < 1e-6,
+          where .. ": a flat rectangle is the wrong colour")
+      else
+        assert(ts.src == U and t.file == "Interface\\AddOns\\TheEndgameIsMe\\Art\\" .. U.file and t.filter == "NEAREST", where .. ": a texture of the list is from the wrong file")
+        assert(io.open(dir .. "/Art/" .. U.file, "rb"), where .. ": a sheet is not in the addon folder")
+        assert(math.abs(t.coord[1] * U.tw - e.u) < 1e-6 and math.abs(t.coord[3] * U.th - e.v) < 1e-6 and math.abs(t.coord[2] * U.tw - e.u - e.w) < 1e-6 and math.abs(t.coord[4] * U.th - e.v - e.h) < 1e-6,
+          where .. ": a texture of the list shows the wrong part of its sheet")
+      end
       assert(({ BACKGROUND = 0, BORDER = 16, ARTWORK = 32, OVERLAY = 48 })[t.layer] + t.sub + 8 == q.z, where .. ": a unit texture is on the wrong draw layer")
     end
     for _, f in ipairs({ lo, hi }) do assert(Stub.visible(f) and (f.clips or f.buffer), where .. ": a sprite frame is hidden or not cut to the picture") end

@@ -524,9 +524,11 @@ end
 -- grid. A prop is drawn that way only while both of these hold; otherwise the level's own art paints it into the
 -- grid as before, which looks the same:
 --   it is as it was made: standing, full health, not burning, not flashing from a hit, not moved
---   nothing is on the cells under it yet (Screen.clear). The frame is drawn back to front, so whatever is there
+--   nothing is in the grid under it yet (Screen.under). The frame is drawn back to front, so whatever is there
 --   belongs behind the prop, and a texture under the grid cannot cover it. Whatever comes later is in front, and
 --   the grid is on top anyway.
+-- With nothing at all under it, it is shown on the props' own layer. With only textures under it (an adventurer
+-- standing behind a wall), it joins their list, one layer above them.
 RT.propImages = true
 local Screen = RT.Screen
 local sheet = nil     -- { map, P, by = { [prop] = entry } } for the level being drawn
@@ -544,7 +546,7 @@ local function bind(g, P)
         if q.x == e.px and q.y == e.py and q.kind == e.kind then p = q; break end
       end
     end
-    if p then by[p] = e end
+    if p then by[p] = e; e.sheet = P end
   end
   return { map = g.map, P = P, by = by }
 end
@@ -570,7 +572,10 @@ RT.host.propDraw = function(p)
   local e = sheet.by[p]
   if not e then return false end
   if p.state ~= "up" or p.burning or p.hitT > 0 or p.hp ~= e.hp or p.x ~= e.px or p.y ~= e.py or p.fallA ~= 0 or p.broken then return false end
-  if not Screen.clear(e.x, e.y, e.w, e.h) then return false end
+  local under = Screen.under(e.x, e.y, e.w, e.h)
+  if under == 2 then return false end
+  -- with an adventurer or the boss behind it, it goes on their list, a layer above them (Screen.flat)
+  if under == 1 then return Screen.flat(p, e, e.x, e.y) end
   local n = wanted.n + 1
   wanted.n, wanted[n] = n, e
   return true

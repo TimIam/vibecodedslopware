@@ -700,7 +700,45 @@ local sprites = { n = 0, pad = nil, padX = 0, padY = 0 }
 Screen.sprites = sprites
 local SPRITE_LAYERS = 64
 local zt, ztf, zstamp = {}, {}, 0     -- screen tile → the draw layer the next sprite there must take, and when that was set
-for t = 1, TW * TH do zt[t] = 0; ztf[t] = 0 end
+local spt = {}                         -- screen tile → the frame in which a texture of this list was last put there
+for t = 1, TW * TH do zt[t] = 0; ztf[t] = 0; spt[t] = 0 end
+local function markSprite(x0, y0, x1, y1)
+  local f = frame
+  local tx0, tx1 = floor(x0 / TILE), floor(x1 / TILE)
+  for ty = floor(y0 / TILE), floor(y1 / TILE) do
+    local r = ty * TW + 1
+    for tx = tx0, tx1 do spt[r + tx] = f end
+  end
+end
+
+-- What lies under this world rectangle so far this frame (by tiles, so near counts as under):
+--   0  nothing: the ground image and the props' own layer
+--   1  textures of this list only (adventurers, the boss, props put on the list)
+--   2  something in the grid: painted this frame, or retained (a scorch mark, water)
+function Screen.under(wx, wy, w, h)
+  local x0, y0 = wx - viewX, wy - viewY
+  local x1, y1 = x0 + w - 1, y0 + h - 1
+  if x0 < 0 then x0 = 0 end
+  if y0 < 0 then y0 = 0 end
+  if x1 >= W then x1 = W - 1 end
+  if y1 >= H then y1 = H - 1 end
+  if x1 < x0 or y1 < y0 then return 0 end
+  local f, any = frame, 0
+  local tx0, tx1 = floor(x0 / TILE), floor(x1 / TILE)
+  for ty = floor(y0 / TILE), floor(y1 / TILE) do
+    local r = ty * TW + 1
+    for tx = tx0, tx1 do
+      if occ[r + tx] == f then return 2 end
+      if spt[r + tx] == f then any = 1 end
+    end
+  end
+  tx0, tx1 = floor((x0 + ox) / TILE), floor((x1 + ox) / TILE)
+  for ty = floor((y0 + oy) / TILE), floor((y1 + oy) / TILE) do
+    local r = (ty % TH) * TW + 1
+    for tx = tx0, tx1 do if baseCnt[r + tx % TW] > 0 then return 2 end end
+  end
+  return any
+end
 
 -- is anything drawn this frame, or retained, in the tiles that screen columns x0..x1 cross on screen row sy?
 local function rowBusy(sy, x0, x1)
@@ -778,7 +816,39 @@ function Screen.sprite(owner, e, wx, wy)
     for tx = tx0, tx1 do ztf[r + tx] = st; zt[r + tx] = z + 1 end
   end
   punch(e.spans, e.w, e.h, x0, y0)
-  if occOn then markRect(cx0, cy0, cx1, cy1) end
+  markSprite(cx0, cy0, cx1, cy1)
+  local n = sprites.n + 1
+  local s = sprites[n]
+  if not s then s = {}; sprites[n] = s end
+  sprites.n = n
+  s.owner, s.e, s.x, s.y, s.z, s.hi = owner, e, wx, wy, z, sprites.pad ~= nil
+  return true
+end
+
+-- The same for a picture that may be see-through in places (a prop with its shadow, from its level's sheet) or a
+-- flat rectangle of one colour (e.rect: a shadow, a health bar; e.rgb, e.a). Nothing is punched, because a
+-- see-through pixel has to be blended over what is under it and the client can only do that for textures: so it
+-- goes on the list only where nothing is in the grid under it. False if it has to be painted.
+function Screen.flat(owner, e, wx, wy)
+  if not imageMode then return false end
+  local x0, y0 = wx - viewX, wy - viewY
+  local x1, y1 = x0 + e.w - 1, y0 + e.h - 1
+  if x1 < 0 or y1 < 0 or x0 >= W or y0 >= H then return true end
+  if Screen.under(wx, wy, e.w, e.h) == 2 then return false end
+  local cx0, cy0, cx1, cy1 = x0 < 0 and 0 or x0, y0 < 0 and 0 or y0, x1 >= W and W - 1 or x1, y1 >= H and H - 1 or y1
+  local z, st = 0, zstamp
+  local tx0, tx1 = floor(cx0 / TILE), floor(cx1 / TILE)
+  local ty0, ty1 = floor(cy0 / TILE), floor(cy1 / TILE)
+  for ty = ty0, ty1 do
+    local r = ty * TW + 1
+    for tx = tx0, tx1 do if ztf[r + tx] == st and zt[r + tx] > z then z = zt[r + tx] end end
+  end
+  if z >= SPRITE_LAYERS then return false end
+  for ty = ty0, ty1 do
+    local r = ty * TW + 1
+    for tx = tx0, tx1 do ztf[r + tx] = st; zt[r + tx] = z + 1 end
+  end
+  markSprite(cx0, cy0, cx1, cy1)
   local n = sprites.n + 1
   local s = sprites[n]
   if not s then s = {}; sprites[n] = s end
@@ -796,7 +866,7 @@ function Screen.padSprite(img, wx, wy)
   local x0, y0 = wx - viewX, wy - viewY
   if x0 + SW <= 0 or y0 + SH <= 0 or x0 >= W or y0 >= H then return true end
   punch(spans, SW, SH, x0, y0)
-  if occOn then markRect(x0 < 0 and 0 or x0, y0 < 0 and 0 or y0, x0 + SW > W and W - 1 or x0 + SW - 1, y0 + SH > H and H - 1 or y0 + SH - 1) end
+  markSprite(x0 < 0 and 0 or x0, y0 < 0 and 0 or y0, x0 + SW > W and W - 1 or x0 + SW - 1, y0 + SH > H and H - 1 or y0 + SH - 1)
   sprites.pad, sprites.padX, sprites.padY = img, wx, wy
   zstamp = zstamp + 1   -- what comes after is in a group of its own, over the boss
   return true

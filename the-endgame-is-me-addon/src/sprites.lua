@@ -65,6 +65,29 @@ local function sheet()
 end
 
 local SHADOW, Z_OPTS = "rgba(8,10,6,.4)", { shadow = false, alpha = 0.7 }
+
+-- The small flat things drawn with a unit (its shadow, its health bar, the spark over one standing in fire) are
+-- rectangles of one colour. Where nothing is in the grid under them they are textures too (Screen.flat), each kept
+-- for its unit under a key of its own; otherwise they are filled in as before.
+local rects, parts = {}, setmetatable({}, { __mode = "k" })
+local function rect(style, w, h)
+  local key = style .. "|" .. w .. "|" .. h
+  local e = rects[key]
+  if not e then
+    local c = RT.parseColor(style)
+    e = { rect = true, w = w, h = h, rgb = c.rgb, a = c.a }
+    rects[key] = e
+  end
+  return e
+end
+local function bar(ctx, owner, slot, style, x, y, w, h)
+  if w <= 0 or h <= 0 then return end
+  local t = parts[owner]
+  if not t then t = { {}, {}, {}, {} }; parts[owner] = t end
+  if Screen.flat(t[slot], rect(style, w, h), x, y) then return end
+  ctx.fillStyle = style
+  ctx:fillRect(x, y, w, h)
+end
 local paintUnit = Rm.drawUnit
 RT.paintUnit = paintUnit
 Rm.drawUnit = function(ctx, u, g)
@@ -76,24 +99,18 @@ Rm.drawUnit = function(ctx, u, g)
   local x, uy = floor(u.x + 0.5), floor(u.y + 0.5)
   local y = uy - (T(u.dance) and fmod(floor(u.dance * 7), 2) or 0)
   if not Screen.sprite(u, e, x + e.ax, y + e.ay) then return paintUnit(ctx, u, g) end
-  ctx.fillStyle = SHADOW
-  ctx:fillRect(x - 1, uy + 1, 3, 1)
+  bar(ctx, u, 1, SHADOW, x - 1, uy + 1, 3, 1)
   if u.role == "pet" then return end
   if u.state == "afk" then
     local z = floor(g.t * 2) % 3
     art.drawText(ctx, "Z", x + 2 + z, y - 9 - z * 2, PAL.cream, Z_OPTS)
   end
-  if T(u.inFire) and T(u.fireOk) then
-    ctx.fillStyle = PAL.fire2
-    ctx:fillRect(x, y - tall - 2, 1, 1)
-  end
+  if T(u.inFire) and T(u.fireOk) then bar(ctx, u, 2, PAL.fire2, x, y - tall - 2, 1, 1) end
   local hp, maxhp = u.hp, u.maxhp
   if hp and maxhp and hp < maxhp and T(u.party.engaged) then
     local w = max(0, ceil(3 * hp / maxhp))
-    ctx.fillStyle = PAL.hpBg
-    ctx:fillRect(x - 1, y - tall - 3, 3, 1)
-    ctx.fillStyle = hp / maxhp > 0.4 and PAL.heal or PAL.red
-    ctx:fillRect(x - 1, y - tall - 3, w, 1)
+    bar(ctx, u, 3, PAL.hpBg, x - 1, y - tall - 3, 3, 1)
+    bar(ctx, u, 4, hp / maxhp > 0.4 and PAL.heal or PAL.red, x - 1, y - tall - 3, w, 1)
   end
 end
 
@@ -130,14 +147,11 @@ Rm.drawAdd = function(ctx, a, g)
   local x, y = floor(a.x + 0.5), floor(a.y + 0.5)
   local lift = (a.kind == "gnasher" and (a.swing or 0) > 0) and 1 or 0
   if not Screen.sprite(a, e, x + e.ax, y + e.ay - lift) then return paintAdd(ctx, a, g) end
-  ctx.fillStyle = SHADOW
-  ctx:fillRect(x - ceil(r), y + 1, ceil(r) * 2 + 1, 1)
+  bar(ctx, a, 1, SHADOW, x - ceil(r), y + 1, ceil(r) * 2 + 1, 1)
   local hp, maxhp = a.hp, a.maxhp
   if hp and maxhp and hp < maxhp then
     local bx, by = x - 2, y - (a.kind == "necro" and 9 or 7)
-    ctx.fillStyle = PAL.ink
-    ctx:fillRect(bx, by, 5, 1)
-    ctx.fillStyle = PAL.gold
-    ctx:fillRect(bx, by, max(1, floor(5 * hp / maxhp + 0.5)), 1)
+    bar(ctx, a, 3, PAL.ink, bx, by, 5, 1)
+    bar(ctx, a, 4, PAL.gold, bx, by, max(1, floor(5 * hp / maxhp + 0.5)), 1)
   end
 end

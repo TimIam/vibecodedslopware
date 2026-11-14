@@ -142,8 +142,8 @@ end
 -- the sprites of one picture: screen pixel → colour. Behind the boss first, then the boss, then in front of it; within
 -- a group the draw layer decides, and two solid pixels of one group on one layer would be anybody's guess.
 local unitSheet = nil
-local function spriteLayer(shot)
-  local layer, zAt = {}, {}
+local function spriteLayer(shot, layer)
+  local zAt = {}
   unitSheet = unitSheet or readTga("art/" .. ns.Units.file)
   local function group(hi)
     local list = {}
@@ -158,13 +158,20 @@ local function spriteLayer(shot)
           for xx = 0, e.w - 1 do
             local sx = q.x + xx - shot.vx
             if sx >= 0 and sx < 320 then
-              local c, a = unitSheet.at(e.u + xx, e.v + yy)
-              assert(a == 0 or a == 255, "a see-through pixel on the units sheet")
-              if a == 255 then
+              local c, a
+              if e.rect then c, a = e.rgb, floor(e.a * 255 + 0.5)
+              elseif e.sheet then
+                sheets[e.sheet.file] = sheets[e.sheet.file] or readTga("art/" .. e.sheet.file)
+                c, a = sheets[e.sheet.file].at(e.u + xx, e.v + yy)
+              else
+                c, a = unitSheet.at(e.u + xx, e.v + yy)
+                assert(a == 0 or a == 255, "a see-through pixel on the units sheet")
+              end
+              if a > 0 then
                 local k = sy * 320 + sx + 1
-                assert(zAt[k] ~= tag + q.z, "two unit textures on one draw layer overlap at " .. sx .. "," .. sy)
+                assert(zAt[k] ~= tag + q.z, "two textures on one draw layer overlap at " .. sx .. "," .. sy)
                 zAt[k] = tag + q.z
-                layer[k] = c
+                layer[k] = a >= 255 and c or blend(layer[k], c, a / 255)
               end
             end
           end
@@ -190,7 +197,6 @@ local function spriteLayer(shot)
     end
   end
   group(true)
-  return layer
 end
 
 local worstAll = 0
@@ -211,7 +217,15 @@ for level = onlyLevel > 0 and onlyLevel or 1, onlyLevel > 0 and onlyLevel or 7 d
     local a, b = ref[s], got[s]
     assert(a.vx == b.vx and a.vy == b.vy, "level " .. level .. ": the two runs did not stay in step")
     local layer = propLayer(b)
-    local moving = spriteLayer(b)
+    -- under the grid: the ground image, the props' layer, then the list of textures in its order
+    local below = {}
+    for k = 1, 57600 do
+      local wx, wy = (k - 1) % 320 + b.vx, floor((k - 1) / 320) + b.vy
+      local under = (wx >= 0 and wy >= 0 and wx < G.w and wy < G.h) and (img.at(wx, wy)) or 0x141a12
+      if layer[k] then under = propOver(under, layer[k]) end
+      below[k] = under
+    end
+    spriteLayer(b, below)
     for k = 1, 57600 do
       local want, v = a.snap[k], b.snap[k]
       local sx, sy = (k - 1) % 320, floor((k - 1) / 320)
@@ -219,10 +233,7 @@ for level = onlyLevel > 0 and onlyLevel or 1, onlyLevel > 0 and onlyLevel or 7 d
       -- grid's cell, the panes, the HUD layer's cell, the cursor layer's cell
       local r, gg, bb
       if v == nil or v >= 16777216 then
-        local wx, wy = sx + b.vx, sy + b.vy
-        local under = (wx >= 0 and wy >= 0 and wx < G.w and wy < G.h) and (img.at(wx, wy)) or 0x141a12
-        if layer[k] then under = propOver(under, layer[k]) end
-        if moving[k] then under = moving[k] end
+        local under = below[k]
         r, gg, bb = floor(under / 65536), floor(under / 256) % 256, under % 256
         if v ~= nil then
           local al, c = floor(v / 16777216) / 255, v % 16777216

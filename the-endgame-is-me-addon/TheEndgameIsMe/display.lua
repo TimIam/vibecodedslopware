@@ -491,10 +491,9 @@ D.panes = panes
 local SLAYER = { [0] = "BACKGROUND", "BORDER", "ARTWORK", "OVERLAY" }
 local recs = setmetatable({}, { __mode = "k" })   -- unit → its textures
 local live, spare, sstamp = {}, {}, 0
-local function spriteTex(parent, U)
+local function spriteTex(parent)
   local t = parent:CreateTexture(nil, "ARTWORK")
   if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false); t:SetTexelSnappingBias(0) end
-  t:SetTexture(DIR .. U.file, "CLAMP", "CLAMP", "NEAREST")
   t:Hide()
   return { tex = t, on = false }
 end
@@ -514,17 +513,28 @@ local function syncSprites()
     rec.stamp = sstamp
     local ts, other
     if s.hi then
-      if not rec.hi then rec.hi = spriteTex(D.spriteHi, U) end
+      if not rec.hi then rec.hi = spriteTex(D.spriteHi) end
       ts, other = rec.hi, rec.lo
     else
-      if not rec.lo then rec.lo = spriteTex(D.spriteLo, U) end
+      if not rec.lo then rec.lo = spriteTex(D.spriteLo) end
       ts, other = rec.lo, rec.hi
     end
     if other and other.on then other.tex:Hide(); other.on = false end
     local t, e = ts.tex, s.e
     if ts.e ~= e then
       ts.e = e
-      t:SetTexCoord(e.u / U.tw, (e.u + e.w) / U.tw, e.v / U.th, (e.v + e.h) / U.th)
+      -- a flat rectangle of one colour, or a picture cut from a sheet: the units' own, or the level's props
+      if e.rect then
+        if ts.src ~= e then
+          ts.src = e
+          t:SetColorTexture(floor(e.rgb / 65536) * K, floor(e.rgb / 256) % 256 * K, (e.rgb % 256) * K, e.a)
+          t:SetTexCoord(0, 1, 0, 1)
+        end
+      else
+        local sheet = e.sheet or U
+        if ts.src ~= sheet then ts.src = sheet; t:SetTexture(DIR .. sheet.file, "CLAMP", "CLAMP", "NEAREST") end
+        t:SetTexCoord(e.u / sheet.tw, (e.u + e.w) / sheet.tw, e.v / sheet.th, (e.v + e.h) / sheet.th)
+      end
       t:SetSize(e.w, e.h)
     end
     if ts.x ~= s.x or ts.y ~= s.y then ts.x, ts.y = s.x, s.y; t:SetPoint("TOPLEFT", D.grid, "TOPLEFT", s.x, -s.y) end
