@@ -22,6 +22,7 @@
     ":Hide": "a56778eb72d0",
     ":IsShown": "f42b6c4da859",
     ":IsVisible": "315e4fad01a8",
+    ":SetAlpha": "7fdabf15db10",
     ":SetScale": "a9ee09be1ab3",
     ":Show": "525ddbde6a30",
     ":SetDrawLayer": "f516ef13c571",
@@ -30,6 +31,8 @@
     ":SetParent": "6df7fa59c41d",
     ":SetScript": "55e8f428732d",
     ":GetText": "66365e8f9dac",
+    ":RegisterForClicks": "7f21aa3d0dae",
+    ":SetHighlightTexture": "de1732d18e00",
     ":SetAutoFocus": "e38c459bb111",
     ":SetFont": "3981d917d9df",
     ":SetJustifyH": "e804eecf83f2",
@@ -59,6 +62,7 @@
     ":SetVertexColor": "b4774c02c350",
     ":EnableMouse": "771d745a791c",
     ":GetBottom": "436e6c367c8f",
+    ":GetCenter": "91b0920e7fd1",
     ":GetHeight": "44e5c4e46409",
     ":GetLeft": "53f8a7931e6f",
     ":GetTop": "07aef21716ea",
@@ -86,6 +90,7 @@
     ":Hide": "a56778eb72d0",
     ":IsShown": "f42b6c4da859",
     ":IsVisible": "315e4fad01a8",
+    ":SetAlpha": "7fdabf15db10",
     ":SetScale": "a9ee09be1ab3",
     ":Show": "525ddbde6a30",
     ":SetDrawLayer": "f516ef13c571",
@@ -94,6 +99,8 @@
     ":SetParent": "6df7fa59c41d",
     ":SetScript": "55e8f428732d",
     ":GetText": "66365e8f9dac",
+    ":RegisterForClicks": "7f21aa3d0dae",
+    ":SetHighlightTexture": "de1732d18e00",
     ":SetAutoFocus": "e38c459bb111",
     ":SetFont": "3981d917d9df",
     ":SetJustifyH": "e804eecf83f2",
@@ -123,6 +130,7 @@
     ":SetVertexColor": "b4774c02c350",
     ":EnableMouse": "771d745a791c",
     ":GetBottom": "436e6c367c8f",
+    ":GetCenter": "91b0920e7fd1",
     ":GetHeight": "44e5c4e46409",
     ":GetLeft": "53f8a7931e6f",
     ":GetTop": "07aef21716ea",
@@ -364,10 +372,10 @@
  },
  "released": {
   "endgame": {
-   "version": "1.4.3",
-   "at": "2026-11-14T22:00:24.672Z",
+   "version": "1.5.0",
+   "at": "2026-11-14T23:26:41.587Z",
    "for": [
-    "released by hand: level 5 wall as sprites"
+    "released by hand: minimap button, HUD panel flicker"
    ]
   },
   "pie": {
@@ -378,5 +386,22 @@
    ]
   }
  },
- "pendingCurseforge": []
+ "pendingCurseforge": [
+  {
+   "addon": "endgame",
+   "client": "forever",
+   "file": "TheEndgameIsMe-1.5.0.zip",
+   "gameVersion": "1.60.1",
+   "why": "1.5.0",
+   "changelog": "1.5.0: a button on the minimap opens the game (a small warlock; drag it round the rim, or hide it with /endgame minimap). The dark panel behind the score no longer flickers at the start of a level. Close the game and start it again after updating."
+  },
+  {
+   "addon": "endgame",
+   "client": "retail",
+   "file": "TheEndgameIsMe-Retail-1.5.0.zip",
+   "gameVersion": "12.1.5",
+   "why": "1.5.0",
+   "changelog": "1.5.0: a button on the minimap opens the game (a small warlock; drag it round the rim, or hide it with /endgame minimap). The dark panel behind the score no longer flickers at the start of a level. Close the game and start it again after updating."
+  }
+ ]
 }
