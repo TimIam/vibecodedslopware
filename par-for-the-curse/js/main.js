@@ -1078,8 +1078,8 @@ function toggleView() {
   toast(S.fpv ? '👁 First person view' : '🎥 Third person view');
   updateHud();
 }
-// Number keys 1-5: bare hands, driver, wedge, putter, iron (values are CLUBS indices, -1 for none).
-const SLOTS = [-1, 3, 1, 0, 2];
+// Number keys 1-5: bare hands, driver, iron, wedge, putter (values are CLUBS indices, -1 for none).
+const SLOTS = [-1, 3, 2, 1, 0];
 const heldClub = () => (S.noClub || S.mode === 'drive' ? -1 : swing.ci);
 function setClub(i) {
   if (S.mode === 'walk' || S.mode === 'drive') {
