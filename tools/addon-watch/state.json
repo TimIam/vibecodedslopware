@@ -378,22 +378,5 @@
    ]
   }
  },
- "pendingCurseforge": [
-  {
-   "addon": "endgame",
-   "client": "forever",
-   "file": "TheEndgameIsMe-1.4.1.zip",
-   "gameVersion": "1.60.1",
-   "why": "1.4.1",
-   "changelog": "1.4.1: fire, ice and smoke are pre-rendered pictures too, and smoke is properly see-through. Close the game and start it again after updating."
-  },
-  {
-   "addon": "endgame",
-   "client": "retail",
-   "file": "TheEndgameIsMe-Retail-1.4.1.zip",
-   "gameVersion": "12.1.5",
-   "why": "1.4.1",
-   "changelog": "1.4.1: fire, ice and smoke are pre-rendered pictures too, and smoke is properly see-through. Close the game and start it again after updating."
-  }
- ]
+ "pendingCurseforge": []
 }
