@@ -1500,6 +1500,21 @@ window.SLOPWARE = {
     }
    ]
   },
+  "tree-planner": {
+   "visits": 0,
+   "prompts": 2,
+   "tokens": 516101,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-13T17:40:24-07:00",
+     "note": "room importer, tree builder, ornament importer",
+     "prompts": 2,
+     "tokens": 516101
+    }
+   ]
+  },
   "binding-order": {
    "visits": 11,
    "prompts": 2,
