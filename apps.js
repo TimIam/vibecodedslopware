@@ -1400,6 +1400,13 @@ window.SLOPWARE = {
      "note": "keys 1-5 are hands, driver, iron, wedge, putter",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 33,
+     "date": "2026-11-14T09:44:10-07:00",
+     "note": "golf-stance HUD moves left, boom gates stop carts",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
@@ -1522,7 +1529,7 @@ window.SLOPWARE = {
   "tree-planner": {
    "visits": 0,
    "prompts": 5,
-   "tokens": 920311,
+   "tokens": 922188,
    "sharedWith": null,
    "versions": [
     {
@@ -1537,7 +1544,7 @@ window.SLOPWARE = {
      "date": "2026-11-14T08:42:02-07:00",
      "note": "Ornament Designer tab",
      "prompts": 3,
-     "tokens": 404210
+     "tokens": 406087
     }
    ]
   },
