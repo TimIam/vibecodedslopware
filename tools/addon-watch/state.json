@@ -378,22 +378,5 @@
    ]
   }
  },
- "pendingCurseforge": [
-  {
-   "addon": "endgame",
-   "client": "forever",
-   "file": "TheEndgameIsMe-1.4.3.zip",
-   "gameVersion": "1.60.1",
-   "why": "1.4.3",
-   "changelog": "1.4.3: the city wall of level 5 is pre-rendered too, as a flat wall with a picture for each section and state of damage. That level draws a third faster. Close the game and start it again after updating."
-  },
-  {
-   "addon": "endgame",
-   "client": "retail",
-   "file": "TheEndgameIsMe-Retail-1.4.3.zip",
-   "gameVersion": "12.1.5",
-   "why": "1.4.3",
-   "changelog": "1.4.3: the city wall of level 5 is pre-rendered too, as a flat wall with a picture for each section and state of damage. That level draws a third faster. Close the game and start it again after updating."
-  }
- ]
+ "pendingCurseforge": []
 }
