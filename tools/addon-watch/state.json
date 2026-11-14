@@ -378,22 +378,5 @@
    ]
   }
  },
- "pendingCurseforge": [
-  {
-   "addon": "endgame",
-   "client": "forever",
-   "file": "TheEndgameIsMe-1.4.2.zip",
-   "gameVersion": "1.60.1",
-   "why": "1.4.2",
-   "changelog": "1.4.2: the moat and the canals are part of the pre-rendered ground, so ice and smoke over water cost next to nothing, and the castle no longer runs out of layers along its walls. Close the game and start it again after updating."
-  },
-  {
-   "addon": "endgame",
-   "client": "retail",
-   "file": "TheEndgameIsMe-Retail-1.4.2.zip",
-   "gameVersion": "12.1.5",
-   "why": "1.4.2",
-   "changelog": "1.4.2: the moat and the canals are part of the pre-rendered ground, so ice and smoke over water cost next to nothing, and the castle no longer runs out of layers along its walls. Close the game and start it again after updating."
-  }
- ]
+ "pendingCurseforge": []
 }
