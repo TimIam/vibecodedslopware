@@ -364,10 +364,10 @@
  },
  "released": {
   "endgame": {
-   "version": "1.3.2",
-   "at": "2026-11-13T19:54:50.432Z",
+   "version": "1.3.3",
+   "at": "2026-11-14T10:59:59.115Z",
    "for": [
-    "released by hand: fire and ice drawn from lists, ash bursts"
+    "released by hand: crushing pays in full, castle rules by hand"
    ]
   },
   "pie": {
@@ -378,5 +378,22 @@
    ]
   }
  },
- "pendingCurseforge": []
+ "pendingCurseforge": [
+  {
+   "addon": "endgame",
+   "client": "forever",
+   "file": "TheEndgameIsMe-1.3.3.zip",
+   "gameVersion": "1.60.1",
+   "why": "1.3.3",
+   "changelog": "1.3.3: knocking a tree, a crop or a building down now pays its whole value, so levels 2 and 4 can be finished without fire. The castle runs faster."
+  },
+  {
+   "addon": "endgame",
+   "client": "retail",
+   "file": "TheEndgameIsMe-Retail-1.3.3.zip",
+   "gameVersion": "12.1.5",
+   "why": "1.3.3",
+   "changelog": "1.3.3: knocking a tree, a crop or a building down now pays its whole value, so levels 2 and 4 can be finished without fire. The castle runs faster."
+  }
+ ]
 }
