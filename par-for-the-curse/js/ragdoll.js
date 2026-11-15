@@ -44,7 +44,8 @@ export const RAGDOLL = {
   getUp: 0.8,         // seconds to stiffen back up after a knockout
   maxAccel: 1500,     // cap on any motor's angular acceleration, rad/s², so one bad frame can't fling a limb
   hz: 240,            // physics steps per second (about: each frame is cut into equal steps of about this size)
-  grip: { freq: 70, damping: 1, trailArm: 0.15 },     // the spring that keeps the trail hand on the club while swinging (rad/s, ratio)
+  grip: { freq: 70, damping: 1, trailArm: 0.15, tip: 1 / 3 },     // the spring that keeps the trail hand on the club while swinging (rad/s, ratio,
+                      // and the share of the forearm's mass that a push on the hand moves: a rod swung from one end moves a third)
   snap: 1.5,          // metres: a body this far from where it should be is put straight back (teleports, respawns)
 };
 
@@ -239,7 +240,7 @@ export class Ragdolls {
     // The hand is pulled onto the club and the club is left alone: the swing steers the club, and a trail
     // hand dragging on it knocked it off the line the player swung.
     implicit(_c, _a.subVectors(p2, p1), _b.subVectors(v1, v2), RAGDOLL.grip.freq, RAGDOLL.grip.damping, h);
-    B1.applyImpulseAtPoint(_c.multiplyScalar(B1.mass()), p1, true);
+    B1.applyImpulseAtPoint(_c.multiplyScalar(B1.mass() * RAGDOLL.grip.tip), p1, true);
   }
   // Where a golfer's body is (the hips) and how fast it is going, or null without one.
   hips(golfer) {
@@ -306,7 +307,10 @@ export class Ragdolls {
       implicit(_c, _a, _b, w0, zeta, h);
       // Swing and twist (about the limb's own length) each get the inertia they actually move.
       if (j.round) _c.multiplyScalar(j.Is);
-      else { const t = _c.dot(j.axis); _c.addScaledVector(j.axis, -t).multiplyScalar(j.Is).addScaledVector(j.axis, t * j.It); }
+      // The split is along the limb's length as it is now, not as the pose wants it. A limb that has fallen far
+      // behind its pose (the follow-through of a stance shot) would otherwise take a swing-sized push about its
+      // own thin length, spin up, overshoot, and keep spinning: the arms whirled after every full shot.
+      else { const ax = _p.set(0, 1, 0).applyQuaternion(_q2.set(qc.x, qc.y, qc.z, qc.w)), t = _c.dot(ax); _c.addScaledVector(ax, -t).multiplyScalar(j.Is).addScaledVector(ax, t * j.It); }
       C.applyTorqueImpulse(_c, true);
     }
     if (d.grip) this.holdGrip(d, h);
