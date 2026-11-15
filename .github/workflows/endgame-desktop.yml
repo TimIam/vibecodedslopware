@@ -42,14 +42,16 @@ jobs:
       - name: Ad-hoc sign the Mac app
         if: matrix.name == 'mac'
         run: |
-          codesign --force --deep --sign - "dist/mac-universal/The Endgame is Me.app"
-          codesign --verify --deep --strict "dist/mac-universal/The Endgame is Me.app"
+          ls dist/mac-universal
+          APP=$(ls -d dist/mac-universal/*.app | head -1)
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict "$APP"
       # zip here so the Mac app keeps its symlinks and permissions on the way through
       - name: Zip
         shell: bash
         run: |
           cd dist/${{ matrix.folder }}
-          if [ "${{ matrix.name }}" = mac ]; then ditto -c -k --sequesterRsrc --keepParent "The Endgame is Me.app" ../../endgame-${{ matrix.name }}.zip
+          if [ "${{ matrix.name }}" = mac ]; then ditto -c -k --sequesterRsrc --keepParent "$(ls -d *.app | head -1)" ../../endgame-${{ matrix.name }}.zip
           elif [ "${{ matrix.name }}" = windows ]; then 7z a -tzip ../../endgame-${{ matrix.name }}.zip . > /dev/null
           else zip -qry --symlinks ../../endgame-${{ matrix.name }}.zip .; fi
       - uses: actions/upload-artifact@v4
