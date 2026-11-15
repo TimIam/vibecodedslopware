@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ceasefire</title>
+<meta name="description" content="Reverse chess: two AI generals play to win, and you deploy duck-egg-blue UN peacekeeper pawns from the side of the board until the game locks up in stalemate.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕊️</text></svg>">
+<link rel="stylesheet" href="/site-nav.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <button class="mute" id="mute" type="button" aria-label="Toggle sound">♪ Sound on</button>
+  <a class="site-coffee" style="margin-left:0" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<main id="app">
+  <section id="table">
+    <canvas id="board" aria-label="Chessboard"></canvas>
+  </section>
+
+  <aside id="panel">
+    <header>
+      <div class="crest">UN · SECURITY COUNCIL</div>
+      <h1 id="m-name">Ceasefire</h1>
+      <div id="m-where" class="where"></div>
+    </header>
+    <dl id="stats">
+      <div><dt>Round</dt><dd id="s-round">–</dd></div>
+      <div><dt>Helmets</dt><dd id="s-res">–</dd></div>
+      <div><dt>Casualties</dt><dd id="s-cas">–</dd></div>
+    </dl>
+    <div id="mob">
+      <div class="mob w"><span class="lbl">White</span><span class="bar"><i id="mob-w"></i></span><b id="mob-wn">–</b></div>
+      <div class="mob b"><span class="lbl">Black</span><span class="bar"><i id="mob-b"></i></span><b id="mob-bn">–</b></div>
+      <p class="mob-note">legal moves left. Get either one to zero without a check.</p>
+    </div>
+    <div id="prompt" aria-live="polite"></div>
+    <div id="buttons">
+      <button id="b-abstain" type="button" title="Space">Abstain</button>
+      <button id="b-hint" type="button" title="H">Advisor</button>
+      <button id="b-threats" type="button" title="T" aria-pressed="true">Their moves</button>
+      <button id="b-speed" type="button" title="F">Speed 1×</button>
+      <button id="b-restart" type="button" title="R">Restart</button>
+      <button id="b-menu" type="button" title="Esc">Missions</button>
+    </div>
+    <ol id="log" aria-label="Move log"></ol>
+  </aside>
+
+  <div id="ticker" aria-live="off"><span class="tag">UN NEWS</span><div class="crawl"><span id="crawl"></span></div></div>
+
+  <div id="title" class="overlay">
+    <div class="card">
+      <div class="crest">UNITED NATIONS · DEPARTMENT OF PEACE OPERATIONS</div>
+      <h1 class="big">CEASEFIRE</h1>
+      <p class="tag">Two generals are playing chess. Your job is to make sure nobody wins.</p>
+      <div class="how">
+        <p><b>The generals</b> play real chess against each other. Each one wants checkmate.</p>
+        <p><b>You</b> deploy duck-egg-blue peacekeepers. After a move you can walk a new one onto the <b>a- or h-file</b> (the sidelines), drop one <b>next to a helmet already on the board</b>, step a helmet one square, or abstain.</p>
+        <p><b>Peacekeepers</b> can't be captured and block everything except knights, which jump over them.</p>
+        <p><b>You win</b> on a <b>stalemate</b>: the side to move has no legal moves and is not in check. You lose on a checkmate, or when your mandate runs out.</p>
+      </div>
+      <ol id="missions"></ol>
+      <p class="fine">Plain chess, minus castling and en passant. Pawns promote to queens.</p>
+    </div>
+  </div>
+
+  <div id="brief" class="overlay" hidden>
+    <div class="card">
+      <div class="crest" id="br-where"></div>
+      <h2 id="br-name"></h2>
+      <p id="br-text"></p>
+      <ul class="terms">
+        <li><b id="br-res"></b> peacekeepers</li>
+        <li>Mandate: <b id="br-man"></b> rounds</li>
+        <li id="br-dep"></li>
+      </ul>
+      <p class="tip" id="br-tip"></p>
+      <p class="stars-key">★ ceasefire &nbsp; ★ within <span id="br-par"></span> rounds &nbsp; ★ <span id="br-cas"></span> casualties or fewer</p>
+      <div class="row"><button id="br-go" type="button" class="primary">Deploy</button><button id="br-back" type="button">Back</button></div>
+    </div>
+  </div>
+
+  <div id="result" class="overlay" hidden>
+    <div class="card">
+      <div class="crest" id="rs-crest"></div>
+      <h2 id="rs-head"></h2>
+      <div id="rs-stars" class="stars"></div>
+      <p id="rs-text"></p>
+      <div class="row"><button id="rs-next" type="button" class="primary">Next mission</button><button id="rs-retry" type="button">Retry</button><button id="rs-menu" type="button">Missions</button></div>
+    </div>
+  </div>
+</main>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
