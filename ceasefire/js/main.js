@@ -78,13 +78,13 @@ function headline(t) {
 
 // ---------- state ----------
 let g = null, missionIdx = 0;
-let speed = save.speed || 1;
+let speed = [0.5, 1, 2].includes(save.speed) ? save.speed : 1;
 let showThreats = save.threats ?? true;
 let selected = -1, hover = -1, hintAct = null;
 let anim = null;        // { piece, from, to, t0, dur, cap }
 let drops = [];         // peacekeeper landing animations
 let puffs = [];         // capture smoke
-let aiTimer = 0, busy = false;
+let running = false, paused = false, nextTick = 0, pauseLeft = 0;
 
 const unlocked = i => i === 0 || (save.stars[MISSIONS[i - 1].id] || 0) > 0 || i <= (save.maxOpen || 0);
 
@@ -211,7 +211,14 @@ function draw(now) {
     ctx.fillStyle = rg; ctx.fillRect(cx - S / 2, cy - S / 2, S, S);
   }
 
-  const you = g.phase === 'deploy' && !busy;
+  const you = running && g.ready;
+  // the clock: time until the next general moves
+  if ((running || paused) && g.phase === 'play') {
+    const left = (paused ? pauseLeft : Math.max(0, nextTick - now)) / clockMs();
+    ctx.fillStyle = 'rgba(255,255,255,.08)'; ctx.fillRect(ox, oy - 24, 8 * S, 6);
+    ctx.fillStyle = g.alert === 'mate' ? '#e0604f' : g.turn === 'w' ? '#efe7d4' : '#8a8a98';
+    ctx.fillRect(ox, oy - 24, 8 * S * Math.min(1, left), 6);
+  }
   // what the side to move could do next
   if (showThreats && g.phase !== 'over') {
     const seen = new Set();
@@ -226,12 +233,12 @@ function draw(now) {
   if (you) {
     if (selected >= 0) {
       ring(selected, '#b5dcd6', 4);
-      for (const t of C.redeploySquares(g.board, selected)) dot(t, 'rgba(91,146,229,.75)', 0.17);
+      for (const t of g.moveTargets(selected)) dot(t, 'rgba(91,146,229,.75)', 0.17);
     } else if (g.reserves > 0) {
       for (const s of C.deploySquares(g.board)) dot(s, 'rgba(70,140,200,.45)', 0.11);
     }
     if (hover >= 0) {
-      const can = selected >= 0 ? C.redeploySquares(g.board, selected).includes(hover) : (g.reserves > 0 && C.canDeploy(g.board, hover));
+      const can = selected >= 0 ? g.canMove(selected, hover) : g.canInsert(hover);
       if (can) { const [cx, cy] = sqCenter(hover); drawPeacekeeper(cx, cy, S * 0.92, 0.45); }
     }
     if (hintAct && hintAct.to !== undefined) {
@@ -287,7 +294,7 @@ function draw(now) {
     ctx.fillRect(ox, oy, 8 * S, 8 * S);
   }
 }
-function loop(now) { draw(now); requestAnimationFrame(loop); }
+function loop(now) { clockTick(now); draw(now); requestAnimationFrame(loop); }
 requestAnimationFrame(loop);
 
 // ---------- panel ----------
@@ -305,15 +312,22 @@ function paint() {
   document.querySelector('.mob.w').classList.toggle('next', g.turn === 'w' && g.phase !== 'over');
   document.querySelector('.mob.b').classList.toggle('next', g.turn === 'b' && g.phase !== 'over');
   const pr = $('prompt'); pr.className = '';
-  const you = g.phase === 'deploy' && !busy;
+  const pips = '<span class="pips">' + Array.from({ length: g.bank }, (_, i) => `<i class="${i < g.orders ? 'on' : ''}"></i>`).join('') + '</span>';
   if (g.phase === 'over') pr.innerHTML = g.result.win ? '<b>Ceasefire.</b> Nobody can move. Nobody wins.' : '<b>The war is over.</b> Somebody won. That was the one thing you had to stop.';
-  else if (you) {
-    const side = SIDE[g.turn];
-    if (g.alert === 'mate') { pr.className = 'danger'; pr.innerHTML = `<b>CHECKMATE INCOMING.</b> ${side}'s king is mated. Put a helmet in the line of fire or the war ends.`; }
-    else if (g.alert === 'check') { pr.className = 'danger'; pr.innerHTML = `<b>${side} is in check.</b> Don't seal off the king's escape squares. Block the line if you can.`; }
-    else { pr.className = 'you'; pr.innerHTML = `<b>Your deployment.</b> ${side} moves next and has ${g.turn === 'w' ? mw : mb} legal moves. ${selected >= 0 ? 'Pick a square next to the selected helmet.' : g.reserves ? 'Place a helmet, or click one on the board to step it.' : 'Out of helmets. Click one to step it.'}`; }
-  } else pr.innerHTML = `${SIDE[g.turn]}'s general is thinking…`;
-  $('b-abstain').disabled = !you; $('b-hint').disabled = !you;
+  else if (paused) pr.innerHTML = `<b>Paused.</b> The generals are frozen mid-thought. Press Space or Resume. ${pips}`;
+  else if (!running) pr.innerHTML = 'Pick a mission to begin.';
+  else {
+    const side = SIDE[g.turn], n = g.turn === 'w' ? mw : mb;
+    const how = !g.ready ? 'No orders ready. The next general\'s move earns one.'
+      : selected >= 0 ? 'Click any lit square to move the selected helmet there.'
+      : g.reserves ? 'Click a lit square to insert a helmet, or click a helmet to move it.' : 'Out of helmets. Click one on the board to move it.';
+    if (g.alert === 'mate') { pr.className = 'danger'; pr.innerHTML = `<b>CHECKMATE ON THE BOARD.</b> ${side}'s king is mated. Get a helmet into the line of fire before the clock runs out. ${pips}`; }
+    else if (g.alert === 'check') { pr.className = 'danger'; pr.innerHTML = `<b>${side} is in check.</b> Don't seal off the king's escape squares. Block the line if you can. ${pips}`; }
+    else { pr.className = g.ready ? 'you' : ''; pr.innerHTML = `<b>Orders</b> ${pips} ${side} moves next with ${n} legal moves. ${how}`; }
+  }
+  $('b-pause').disabled = !g || g.phase !== 'play' || (!running && !paused);
+  $('b-pause').textContent = paused ? 'Resume' : 'Pause';
+  $('b-hint').disabled = !(running && g.ready);
   $('b-threats').setAttribute('aria-pressed', String(showThreats));
   $('b-speed').textContent = `Speed ${speed}×`;
   const log = $('log');
@@ -329,30 +343,36 @@ function paint() {
 }
 
 // ---------- flow ----------
+// The generals move on a clock and never wait. `running` is true while a
+// mission is live and not paused; the render loop fires the ticks.
+const clockMs = () => (g ? g.m.clock : 2600) / speed;
 function startMission(i) {
   missionIdx = i;
-  clearTimeout(aiTimer);
   g = new Game(MISSIONS[i]);
-  selected = -1; hintAct = null; anim = null; drops = []; puffs = []; busy = false;
+  selected = -1; hintAct = null; anim = null; drops = []; puffs = [];
+  paused = false; running = true; pauseLeft = 0;
+  nextTick = performance.now() + clockMs() + 600; // a beat to read the board
   news = [];
-  headline(`Peacekeeping mission "${g.m.name}" begins. ${g.m.reserves} helmets issued.`);
+  headline(`Peacekeeping mission "${g.m.name}" begins. ${g.m.reserves} helmets issued. The generals will not wait.`);
   headline(pick(FILLER));
   for (const o of ['title', 'brief', 'result']) $(o).hidden = true;
   paint();
-  schedule();
 }
-function schedule() {
-  clearTimeout(aiTimer);
-  if (g.phase === 'ai') {
-    busy = true; paint();
-    aiTimer = setTimeout(doAI, 520 / speed);
-  } else { busy = false; paint(); if (g.phase === 'over') finish(); }
+function stop() { running = false; paused = false; }
+function setPaused(p) {
+  if (!g || g.phase !== 'play' || (!running && !paused)) return;
+  if (p && !paused) { pauseLeft = Math.max(0, nextTick - performance.now()); running = false; paused = true; }
+  else if (!p && paused) { nextTick = performance.now() + pauseLeft; running = true; paused = false; }
+  paint();
 }
-function doAI() {
-  const before = g.board;
-  const m = g.aiMove();
-  if (!m) return schedule();
-  anim = { piece: m.piece, from: m.from, to: m.to, t0: performance.now(), dur: 300 / speed, cap: m.cap };
+function clockTick(now) {
+  if (!running || !g || g.phase !== 'play' || now < nextTick) return;
+  nextTick = now + clockMs();
+  const ordersBefore = g.orders;
+  const m = g.tick();
+  if (g.phase === 'over') { running = false; paint(); finish(); return; }
+  if (!m) return;
+  anim = { piece: m.piece, from: m.from, to: m.to, t0: performance.now(), dur: Math.min(300, clockMs() * 0.4), cap: m.cap };
   if (m.cap) {
     sfx.capture();
     const [cx, cy] = sqCenter(m.to);
@@ -363,43 +383,37 @@ function doAI() {
       `${NAME[C.kindOf(m.cap)][0].toUpperCase() + NAME[C.kindOf(m.cap)].slice(1)} lost at ${C.sqName(m.to)}. Toll rises to ${g.casualties}.`,
     ]));
   } else sfx.move();
-  if (m.san.includes('#')) headline(`${SIDE[m.side]} announces checkmate. UN scrambles a response.`);
+  if (m.san.includes('#')) headline(`${SIDE[m.side]} announces checkmate. UN has until the next move to respond.`);
   else if (m.san.includes('+')) { sfx.check(); headline(pick([`${SIDE[g.turn]} king under fire. Embassy evacuated.`, `Check on the ${SIDE[g.turn].toLowerCase()} king. Diplomats reach for the phones.`])); }
   else if (Math.random() < 0.18) headline(pick(FILLER));
-  if (g.phase === 'deploy' && !muted) setTimeout(() => tone(880, 0.06, 'sine', 0.05), 320 / speed);
-  hintAct = null; selected = -1;
-  if (g.phase === 'over') setTimeout(schedule, 400 / speed);
-  else if (g.phase === 'ai') setTimeout(schedule, 300 / speed);
-  else { busy = false; paint(); }
+  if (g.orders > ordersBefore) setTimeout(() => tone(880, 0.06, 'sine', 0.05), 120);
+  hintAct = null;
+  if (selected >= 0 && g.board[selected] !== 'U') selected = -1;
   paint();
 }
 function afterAct(a) {
   hintAct = null; selected = -1;
-  const alert = g.alert;
-  if (a.type === 'deploy') {
-    g.log.push({ side: 'u', san: `☮ ${C.sqName(a.to)}`.slice(2) });
+  if (a.type === 'insert') {
+    g.log.push({ side: 'u', san: C.sqName(a.to) });
     sfx.deploy();
     const [cx, cy] = sqCenter(a.to);
+    const edge = (a.to & 7) === 0 || (a.to & 7) === 7;
     const edgeX = (a.to & 7) < 4 ? ox - S * 0.5 : ox + 8 * S + S * 0.5;
-    drops.push({ s: a.to, t0: performance.now(), dur: 420, fx: (a.to & 7) === 0 || (a.to & 7) === 7 ? edgeX : cx, fy: (a.to & 7) === 0 || (a.to & 7) === 7 ? cy - S * 0.3 : cy - S * 1.3 });
+    drops.push({ s: a.to, t0: performance.now(), dur: 380, fx: edge ? edgeX : cx, fy: edge ? cy - S * 0.3 : cy - S * 1.3 });
     headline(pick([
-      `Peacekeeper deployed to ${C.sqName(a.to)}. Locals unsure what it is for.`,
+      `Peacekeeper inserted at ${C.sqName(a.to)}. Locals unsure what it is for.`,
       `Blue helmet takes up position on ${C.sqName(a.to)}. "I'm just standing here," it says.`,
       `UN presence on ${C.sqName(a.to)} confirmed. Both generals file complaints.`,
       `New peacekeeper on ${C.sqName(a.to)}. ${g.reserves} still in the motor pool.`,
     ]));
-  } else if (a.type === 'redeploy') {
+  } else {
     g.log.push({ side: 'u', san: `${C.sqName(a.from)}→${C.sqName(a.to)}` });
     sfx.step();
-    drops.push({ s: a.to, t0: performance.now(), dur: 260, fx: sqCenter(a.from)[0], fy: sqCenter(a.from)[1] });
-    headline(`Peacekeeper repositions from ${C.sqName(a.from)} to ${C.sqName(a.to)}.`);
-  } else {
-    g.log.push({ side: 'u', san: 'abstains' });
-    sfx.abstain();
-    headline(pick(['UN abstains. Press room groans.', 'The peacekeepers hold their positions.', 'No new deployments. A spokesperson cites "strategic patience".']));
+    drops.push({ s: a.to, t0: performance.now(), dur: 300, fx: sqCenter(a.from)[0], fy: sqCenter(a.from)[1] });
+    headline(`Peacekeeper relocated from ${C.sqName(a.from)} to ${C.sqName(a.to)}.`);
   }
-  if (alert && g.phase !== 'over') headline(alert === 'mate' ? 'A peacekeeper steps into the line of fire. The checkmate is off.' : 'The king survives the check. Talks continue.');
-  schedule();
+  if (g.phase === 'over') { running = false; paint(); finish(); return; }
+  paint();
 }
 function finish() {
   const r = g.result;
@@ -422,19 +436,19 @@ function finish() {
     $('rs-stars').innerHTML = [0, 1, 2].map(i => `<span class="${i < st ? '' : 'off'}">★</span>`).join('');
     const stuck = SIDE[g.turn];
     $('rs-text').textContent = r.win
-      ? `${stuck} has no legal moves and isn't in check, so nobody wins. ${g.round - 1} rounds (par ${g.m.par}), ${g.casualties} casualties (cap ${g.m.casualties}), ${g.deployed} helmets deployed.${r.reason === 'self' ? ' The last move was the generals\' own.' : ''}`
+      ? `${stuck} has no legal moves and isn't in check, so nobody wins. ${g.round - 1} rounds (par ${g.m.par}), ${g.casualties} casualties (cap ${g.m.casualties}), ${g.deployed} helmets inserted.${r.reason === 'self' ? ' The last move was the generals\' own.' : ''}`
       : r.reason === 'mandate'
         ? `${g.m.mandate} rounds and the war is still going. The Security Council has stopped paying for helmets.`
-        : `${SIDE[r.by]} found a checkmate. A helmet in the line of fire, or one less square filled around the king, could have stopped it.`;
+        : `${SIDE[r.by]} found a checkmate and the clock ran out before a helmet got in the way.`;
     $('rs-next').hidden = !(r.win && missionIdx < MISSIONS.length - 1);
     card.hidden = false;
     ($('rs-next').hidden ? $('rs-retry') : $('rs-next')).focus();
-  }, 900 / speed);
+  }, 900);
 }
 
 // ---------- input ----------
 function tryAct(a) {
-  if (!g || g.phase !== 'deploy' || busy) return false;
+  if (!g || !running || !a) return false;
   if (!g.act(a)) { sfx.bad(); return false; }
   afterAct(a); return true;
 }
@@ -444,33 +458,41 @@ cv.addEventListener('pointermove', e => {
 });
 cv.addEventListener('pointerleave', () => { hover = -1; });
 cv.addEventListener('pointerdown', e => {
-  if (!g || g.phase !== 'deploy' || busy) return;
+  if (!g || !running || g.phase !== 'play') return;
   const r = cv.getBoundingClientRect();
   const s = sqAt(e.clientX - r.left, e.clientY - r.top);
   if (s < 0) { selected = -1; paint(); return; }
   if (selected >= 0) {
     if (s === selected) { selected = -1; paint(); return; }
-    if (g.board[s] === 'U') { selected = s; paint(); return; }
-    if (tryAct({ type: 'redeploy', from: selected, to: s })) return;
+    if (g.board[s] === 'U') { selected = s; sfx.step(); paint(); return; }
+    if (!g.ready) { sfx.bad(); headline('No orders ready. The next general\'s move earns one.'); return; }
+    if (tryAct({ type: 'move', from: selected, to: s })) return;
+    headline('A helmet can only go to the sidelines or next to another helmet.');
     selected = -1; paint(); return;
   }
   if (g.board[s] === 'U') { selected = s; sfx.step(); paint(); return; }
-  if (g.reserves > 0 && C.canDeploy(g.board, s)) { tryAct({ type: 'deploy', to: s }); return; }
+  if (!g.ready) { sfx.bad(); headline('No orders ready. The next general\'s move earns one.'); return; }
+  if (g.canInsert(s)) { tryAct({ type: 'insert', to: s }); return; }
   sfx.bad();
-  if (g.board[s]) headline('Peacekeepers can only be placed on empty squares.');
-  else headline(g.reserves ? 'Too far from the sidelines. Deploy on the a- or h-file, or next to another helmet.' : 'Out of helmets. Step an existing one instead.');
+  if (g.board[s]) headline('Peacekeepers can only go on empty squares.');
+  else headline(g.reserves ? 'Too far from the sidelines. Insert on the a- or h-file, or next to another helmet.' : 'Out of helmets. Move an existing one instead.');
 });
 
-$('b-abstain').onclick = () => tryAct({ type: 'abstain' });
+$('b-pause').onclick = () => setPaused(!paused);
 $('b-hint').onclick = () => {
-  if (!g || g.phase !== 'deploy') return;
+  if (!g || !running || !g.ready) return;
   hintAct = advise(g);
-  if (hintAct.type === 'abstain') headline('Advisor: "Honestly? Do nothing this turn."');
-  else if (hintAct.type === 'redeploy') headline(`Advisor suggests stepping the helmet on ${C.sqName(hintAct.from)} to ${C.sqName(hintAct.to)}.`);
+  if (!hintAct) headline('Advisor: "Honestly? Hold your orders for now."');
+  else if (hintAct.type === 'move') headline(`Advisor suggests moving the helmet on ${C.sqName(hintAct.from)} to ${C.sqName(hintAct.to)}.`);
   else headline(`Advisor suggests a helmet on ${C.sqName(hintAct.to)}.`);
 };
 $('b-threats').onclick = () => { showThreats = !showThreats; save.threats = showThreats; persist(); paint(); };
-$('b-speed').onclick = () => { speed = speed === 1 ? 2 : speed === 2 ? 4 : 1; save.speed = speed; persist(); paint(); };
+$('b-speed').onclick = () => {
+  const left = Math.max(0, nextTick - performance.now()) * speed;
+  speed = speed === 1 ? 2 : speed === 2 ? 0.5 : 1; save.speed = speed; persist();
+  nextTick = performance.now() + left / speed;
+  paint();
+};
 $('b-restart').onclick = () => g && startMission(missionIdx);
 $('b-menu').onclick = showTitle;
 $('rs-next').onclick = () => showBrief(missionIdx + 1);
@@ -482,17 +504,17 @@ $('br-go').onclick = () => startMission(missionIdx);
 addEventListener('keydown', e => {
   if (e.target.closest && e.target.closest('input,textarea')) return;
   const k = e.key.toLowerCase();
-  if (k === ' ' && g?.phase === 'deploy' && $('result').hidden) { e.preventDefault(); tryAct({ type: 'abstain' }); }
+  if (k === ' ' && g?.phase === 'play' && $('result').hidden && $('title').hidden && $('brief').hidden) { e.preventDefault(); setPaused(!paused); }
   else if (k === 'h') $('b-hint').click();
   else if (k === 't') $('b-threats').click();
   else if (k === 'f') $('b-speed').click();
   else if (k === 'r' && g) startMission(missionIdx);
-  else if (k === 'escape') { if (!$('title').hidden && g) $('title').hidden = true; else showTitle(); }
+  else if (k === 'escape') { if (selected >= 0) { selected = -1; paint(); } else showTitle(); }
 });
 
 // ---------- menus ----------
 function showTitle() {
-  clearTimeout(aiTimer);
+  stop();
   const ol = $('missions'); ol.innerHTML = '';
   MISSIONS.forEach((m, i) => {
     const li = document.createElement('li'), b = document.createElement('button');
@@ -514,12 +536,12 @@ function showBrief(i) {
   $('br-text').textContent = m.brief;
   $('br-res').textContent = m.reserves;
   $('br-man').textContent = m.mandate;
-  $('br-dep').innerHTML = m.deploy === 'both' ? 'You act after <b>every</b> move' : 'You act only after <b>Black</b> moves';
+  $('br-dep').innerHTML = (m.orders === 'black' ? 'An order for every <b>Black</b> move' : 'An order for <b>every</b> move') + ` (save up to ${m.bank ?? 2})`;
   $('br-tip').textContent = m.tip;
   $('br-par').textContent = m.par;
   $('br-cas').textContent = m.casualties;
   // preview position behind the card
-  g = new Game(m); paint();
+  stop(); g = new Game(m); paint();
   $('title').hidden = true; $('result').hidden = true; $('brief').hidden = false;
   $('br-go').focus();
 }
@@ -537,13 +559,17 @@ window.__cf = {
   act: a => tryAct(a),
   hint: () => advise(g),
   set speed(v) { speed = v; }, get speed() { return speed; },
+  pause: p => setPaused(p),
+  get selected() { return selected; }, sqAt: (x, y) => sqAt(x, y),
+  // fire the next general's move now
+  tick: () => { nextTick = 0; clockTick(performance.now()); },
   // play the advisor until the game ends; resolves with the result
   bot: () => new Promise(res => {
-    const tick = () => {
+    const step = () => {
       if (g.phase === 'over') return res(g.result);
-      if (g.phase === 'deploy' && !busy) tryAct(advise(g));
-      setTimeout(tick, 60);
+      if (running && g.ready) { const a = advise(g); if (a) tryAct(a); }
+      setTimeout(step, 50);
     };
-    tick();
+    step();
   }),
 };

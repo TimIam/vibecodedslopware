@@ -61,7 +61,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 #buttons button:hover:not(:disabled), .row button:hover { background: #22385a; }
 #buttons button:disabled { opacity: .4; cursor: default; }
-#b-abstain { border-color: var(--egg-d); }
+#b-pause { border-color: var(--egg-d); }
+.pips { display: inline-flex; gap: 4px; vertical-align: -1px; margin: 0 4px; }
+.pips i { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--egg-d); }
+.pips i.on { background: var(--egg); border-color: var(--egg); box-shadow: 0 0 6px var(--egg); }
 #b-threats[aria-pressed="false"] { opacity: .6; }
 button.primary { background: var(--un) !important; border-color: #7eaaf0 !important; color: #fff; font-weight: 700; }
 

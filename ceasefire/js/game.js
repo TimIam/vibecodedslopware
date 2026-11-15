@@ -1,4 +1,8 @@
 // Turn flow, shared by the page and the headless sim (no DOM in here).
+//
+// The generals play each other on a clock and never wait for you. Every
+// general's move earns you an order (up to `bank` saved), and you can spend
+// one at any moment: insert a new peacekeeper, or pick one up and move it.
 import * as C from './chess.js';
 
 export class Game {
@@ -11,22 +15,34 @@ export class Game {
     this.round = 1;
     this.reserves = mission.reserves;
     this.casualties = 0;
-    this.phase = 'ai';           // 'ai' | 'deploy' | 'over'
-    this.result = null;          // { win, reason, by }
+    this.phase = 'play';         // 'play' | 'over'
+    this.result = null;          // { win, reason, by, stars }
     this.log = [];               // { san, side, round }
     this.deployed = 0;
     this.lastMove = null;
-    this.alert = null;           // 'check' | 'mate' when a deployment is urgent
+    this.bank = mission.bank ?? 2;
+    this.orders = mission.startOrders ?? 1;
   }
 
   get status() { return C.status(this.board, this.turn); }
+  // 'mate' or 'check' while the side to move is in trouble: block it before the clock runs out
+  get alert() {
+    if (this.phase !== 'play') return null;
+    const st = this.status;
+    return st.over && st.result === 'checkmate' ? 'mate' : st.check ? 'check' : null;
+  }
 
-  // One general makes a move. Returns the move (with san) or null.
-  aiMove() {
-    if (this.phase !== 'ai') return null;
+  // The clock ticks: the side to move plays, unless the war is already decided.
+  tick() {
+    if (this.phase !== 'play') return null;
+    const st = this.status;
+    if (st.over) {
+      if (st.result === 'stalemate') this.end(true, 'stalemate');
+      else this.end(false, 'checkmate', C.other(this.turn));
+      return null;
+    }
     const side = this.turn;
     const m = C.chooseMove(this.board, side, { ...this.m.ai, rng: this.rng });
-    if (!m) return null; // shouldn't happen: settle() catches dead positions
     m.san = C.moveSAN(this.board, m);
     m.piece = this.board[m.from];
     m.side = side;
@@ -35,29 +51,19 @@ export class Game {
     this.lastMove = m;
     this.log.push({ san: m.san, side, round: this.round });
     this.turn = C.other(side);
-    const deployNow = this.m.deploy === 'both' || side === 'b';
     if (side === 'b') this.round++;
-    if (deployNow && this.reservesOrMoves()) {
-      const st = this.status;
-      if (st.over && st.result === 'stalemate') return this.end(true, 'self', m), m;
-      this.phase = 'deploy';
-      this.alert = st.over ? 'mate' : st.check ? 'check' : null;
-    } else this.settle();
+    if (this.m.orders !== 'black' || side === 'b') this.orders = Math.min(this.bank, this.orders + 1);
+    const after = this.status;
+    if (after.over && after.result === 'stalemate') this.end(true, 'self');
+    else if (this.round > this.m.mandate && !after.over) this.end(false, 'mandate');
+    // a checkmate is not final until the next tick: you get the gap to block it
     return m;
   }
 
-  reservesOrMoves() { return this.reserves > 0 || this.board.includes('U'); }
-
-  // After a deployment (or a move without one): has the war stopped?
-  settle() {
-    this.alert = null;
+  // After one of your orders: did it lock the game?
+  check() {
     const st = this.status;
-    if (st.over) {
-      if (st.result === 'stalemate') return this.end(true, 'stalemate');
-      return this.end(false, 'checkmate', C.other(this.turn));
-    }
-    if (this.round > this.m.mandate) return this.end(false, 'mandate');
-    this.phase = 'ai';
+    if (st.over && st.result === 'stalemate') this.end(true, 'stalemate');
   }
 
   end(win, reason, by) {
@@ -72,68 +78,70 @@ export class Game {
     return s;
   }
 
-  // ---------- your actions ----------
-  canDeploy(s) { return this.phase === 'deploy' && this.reserves > 0 && C.canDeploy(this.board, s); }
-  deploy(s) {
-    if (!this.canDeploy(s)) return false;
+  // ---------- your orders ----------
+  get ready() { return this.phase === 'play' && this.orders > 0; }
+  canInsert(s) { return this.ready && this.reserves > 0 && C.canDeploy(this.board, s); }
+  insert(s) {
+    if (!this.canInsert(s)) return false;
     this.board = this.board.slice(); this.board[s] = 'U';
-    this.reserves--; this.deployed++;
-    this.lastAction = { type: 'deploy', to: s };
-    this.settle();
+    this.reserves--; this.deployed++; this.orders--;
+    this.lastAction = { type: 'insert', to: s };
+    this.check();
     return true;
   }
-  canRedeploy(from, to) {
-    return this.phase === 'deploy' && C.redeploySquares(this.board, from).includes(to);
+  // A peacekeeper can be moved anywhere a new one could go (sidelines or next
+  // to another helmet), as long as it isn't only propping itself up.
+  moveTargets(from) {
+    if (this.board[from] !== 'U') return [];
+    const b = this.board.slice(); b[from] = null;
+    return C.deploySquares(b).filter(s => s !== from);
   }
-  redeploy(from, to) {
-    if (!this.canRedeploy(from, to)) return false;
+  canMove(from, to) { return this.ready && this.moveTargets(from).includes(to); }
+  move(from, to) {
+    if (!this.canMove(from, to)) return false;
     this.board = this.board.slice(); this.board[from] = null; this.board[to] = 'U';
-    this.lastAction = { type: 'redeploy', from, to };
-    this.settle();
-    return true;
-  }
-  abstain() {
-    if (this.phase !== 'deploy') return false;
-    this.lastAction = { type: 'abstain' };
-    this.settle();
+    this.orders--;
+    this.lastAction = { type: 'move', from, to };
+    this.check();
     return true;
   }
 
   // Everything you could do right now, as {type, to, from}.
   actions() {
-    if (this.phase !== 'deploy') return [];
-    const out = [{ type: 'abstain' }];
-    if (this.reserves > 0) for (const s of C.deploySquares(this.board)) out.push({ type: 'deploy', to: s });
+    if (!this.ready) return [];
+    const out = [];
+    if (this.reserves > 0) for (const s of C.deploySquares(this.board)) out.push({ type: 'insert', to: s });
     for (let s = 0; s < 64; s++) if (this.board[s] === 'U')
-      for (const t of C.redeploySquares(this.board, s)) out.push({ type: 'redeploy', from: s, to: t });
+      for (const t of this.moveTargets(s)) out.push({ type: 'move', from: s, to: t });
     return out;
   }
   act(a) {
-    if (a.type === 'deploy') return this.deploy(a.to);
-    if (a.type === 'redeploy') return this.redeploy(a.from, a.to);
-    return this.abstain();
+    if (!a) return false;
+    if (a.type === 'insert') return this.insert(a.to);
+    if (a.type === 'move') return this.move(a.from, a.to);
+    return false;
   }
 }
 
-// A simple advisor: greedy one-step search used by the sim and the hint button.
+// A simple advisor: greedy one-step search used by the sim and the Advisor
+// button. Returns null when holding the order is better than any action.
 export function advise(g) {
-  const acts = g.actions();
-  let best = null, bestSc = -Infinity;
-  for (const a of acts) {
-    const b = g.board.slice();
-    if (a.type === 'deploy') b[a.to] = 'U';
-    else if (a.type === 'redeploy') { b[a.from] = null; b[a.to] = 'U'; }
+  const score = b => {
     const side = g.turn;
     const mv = C.legalMoves(b, side);
-    let sc;
-    if (!mv.length) sc = C.inCheck(b, side) ? -1e9 : 1e9;
-    else {
-      const ov = C.legalMoves(b, C.other(side)).length;
-      // squeeze whichever army is closer to stuck; keep reserves when it doesn't help
-      sc = -Math.min(mv.length, ov) * 12 - (mv.length + ov) - (a.type === 'deploy' ? 1.5 : 0);
-      if (C.inCheck(b, side) && mv.length <= 2) sc -= 40;
-    }
-    sc += g.rng() * 0.5;
+    if (!mv.length) return C.inCheck(b, side) ? -1e9 : 1e9;
+    const ov = C.legalMoves(b, C.other(side)).length;
+    // squeeze whichever army is closer to stuck
+    let sc = -Math.min(mv.length, ov) * 12 - (mv.length + ov);
+    if (C.inCheck(b, side) && mv.length <= 2) sc -= 40;
+    return sc;
+  };
+  let best = null, bestSc = score(g.board) + 2; // holding keeps an order in the bank
+  for (const a of g.actions()) {
+    const b = g.board.slice();
+    if (a.type === 'insert') b[a.to] = 'U';
+    else { b[a.from] = null; b[a.to] = 'U'; }
+    const sc = score(b) - (a.type === 'insert' ? 1.5 : 0) + g.rng() * 0.5;
     if (sc > bestSc) { bestSc = sc; best = a; }
   }
   return best;
