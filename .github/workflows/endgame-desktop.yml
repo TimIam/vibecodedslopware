@@ -9,6 +9,10 @@ on:
     branches: [main, endgame-desktop]
     paths: ['the-endgame-is-me/**', 'the-endgame-is-me-desktop/**', 'splash.js', '.github/workflows/endgame-desktop.yml']
 
+permissions:
+  contents: read
+  id-token: write   # lets the Windows job sign in to Azure for code signing, with no stored password
+
 concurrency:
   group: endgame-desktop-${{ github.ref }}
   cancel-in-progress: true
@@ -46,6 +50,39 @@ jobs:
           APP=$(ls -d dist/mac-universal/*.app | head -1)
           codesign --force --deep --sign - "$APP"
           codesign --verify --deep --strict "$APP"
+      # Windows: sign the .exe and its DLLs with Azure Trusted Signing (account vibecodedslopware, resource group
+      # slopware-signing). Off until the repository variable SIGNING_PROFILE names the certificate profile, which
+      # Azure only issues after the identity check. GitHub signs in to Azure as the app slopware-github-signing
+      # (AZURE_CLIENT_ID), trusted for pushes to main and endgame-desktop only.
+      - name: Sign in to Azure
+        if: matrix.name == 'windows' && vars.SIGNING_PROFILE != ''
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Sign the Windows build
+        if: matrix.name == 'windows' && vars.SIGNING_PROFILE != ''
+        uses: azure/trusted-signing-action@v0
+        with:
+          endpoint: https://wus2.codesigning.azure.net/
+          trusted-signing-account-name: vibecodedslopware
+          certificate-profile-name: ${{ vars.SIGNING_PROFILE }}
+          files-folder: the-endgame-is-me-desktop/dist/win-unpacked
+          files-folder-filter: exe,dll
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          exclude-environment-credential: true
+          exclude-workload-identity-credential: true
+          exclude-managed-identity-credential: true
+          exclude-shared-token-cache-credential: true
+          exclude-visual-studio-credential: true
+          exclude-visual-studio-code-credential: true
+          exclude-azure-powershell-credential: true
+          exclude-azure-developer-cli-credential: true
+          exclude-interactive-browser-credential: true
       # zip here so the Mac app keeps its symlinks and permissions on the way through
       - name: Zip
         shell: bash

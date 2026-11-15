@@ -43,7 +43,8 @@ where you set it live (or put a branch such as `beta` in config.json to set that
 
 ## Known gaps
 
-- Windows: the .exe is not code-signed. Windows' Smart App Control refuses unsigned programs outright (it blocks this
+- Windows: signed in CI by Azure Trusted Signing once the repository variable SIGNING_PROFILE is set (see the
+  workflow); until then the .exe is unsigned. Smart App Control refuses unsigned programs outright (it blocks this
   build on Tim's PC), and SmartScreen may warn. Signing it (Azure Trusted Signing, or an OV certificate) fixes both.
 - macOS: ad-hoc signed only. Fine when Steam installs it; a Developer ID signature and notarization would let it run
   anywhere and are needed if it is ever sold outside Steam.
