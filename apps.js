@@ -1111,6 +1111,21 @@ window.SLOPWARE = {
     }
    ]
   },
+  "ceasefire": {
+   "visits": 0,
+   "prompts": 2,
+   "tokens": 191841,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-14T18:43:07-07:00",
+     "note": "reverse chess where UN peacekeepers force a stalemate",
+     "prompts": 2,
+     "tokens": 191841
+    }
+   ]
+  },
   "pit-crew": {
    "visits": 19,
    "prompts": 12,
