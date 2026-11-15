@@ -17,7 +17,7 @@ kept in the app's user data folder (`%APPDATA%\The Endgame is Me`, `~/Library/Ap
     npm start               # run it from source
     npm run build:win       # dist/win-unpacked/TheEndgameIsMe.exe
     npm run build:linux     # dist/linux-unpacked/TheEndgameIsMe (builds on Windows too)
-    npm run build:mac       # dist/mac-universal/The Endgame is Me.app (macOS only)
+    npm run build:mac       # dist/mac-universal/TheEndgameIsMe.app (macOS only)
 
 CI does all three on every push that touches the game (`.github/workflows/endgame-desktop.yml`); each comes out as a
 zip artifact of the run. The Mac app is ad-hoc signed there.
@@ -29,7 +29,7 @@ One-off, in Steamworks (partner.steamgames.com), after paying the Steam Direct f
    Put the ids in `steam/config.json`.
 2. Installation > General Installation > Launch Options, one per OS:
    - Windows: executable `TheEndgameIsMe.exe`
-   - macOS: executable `The Endgame is Me.app`
+   - macOS: executable `TheEndgameIsMe.app`
    - Linux: executable `TheEndgameIsMe`
 3. Publish the app config.
 
