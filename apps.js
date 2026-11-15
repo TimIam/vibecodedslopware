@@ -1113,8 +1113,8 @@ window.SLOPWARE = {
   },
   "ceasefire": {
    "visits": 0,
-   "prompts": 4,
-   "tokens": 302119,
+   "prompts": 5,
+   "tokens": 308785,
    "sharedWith": null,
    "versions": [
     {
@@ -1128,8 +1128,8 @@ window.SLOPWARE = {
      "n": 2,
      "date": "2026-11-14T19:45:55-07:00",
      "note": "generals play on a clock, insert or move helmets any time",
-     "prompts": 2,
-     "tokens": 111480
+     "prompts": 3,
+     "tokens": 118146
     }
    ]
   },
@@ -1459,6 +1459,13 @@ window.SLOPWARE = {
      "n": 34,
      "date": "2026-11-14T16:35:04-07:00",
      "note": "swaying grass, rim light and a colour grade",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 35,
+     "date": "2026-11-15T05:54:13-07:00",
+     "note": "arms no longer whirl after a stance shot",
      "prompts": 0,
      "tokens": 0
     }
