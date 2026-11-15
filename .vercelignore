@@ -24,3 +24,6 @@ the-endgame-is-me-addon/
 the-endgame-is-me-addon-retail/
 party-health-pie-addon/
 .github/
+
+# The Endgame is Me desktop (Steam) wrapper: Electron build tools, not part of the site
+the-endgame-is-me-desktop/

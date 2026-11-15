@@ -32,6 +32,7 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     if (go === 'new') return 'Start a new shift. The rocks are waiting.';
     if (go === 'continue') return info ? `Level ${info.level}, ${fmt(info.score)} points${info.ng ? `, New Game +${info.ng > 1 ? info.ng : ''}` : ''}.` : 'Nothing saved yet.';
     if (go === 'plus') return 'Every ability you own, back at the rocks. The heroes have been practising.';
+    if (go === 'quit') return 'Back to the desktop. Your save stays where it is.';
     return 'Your name, sound, music, and which horns.';
   }
   // The hint shows at once whenever it changes, and stays up while the mouse is on a menu item; with the mouse
@@ -55,6 +56,7 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     disarm();
     item('continue').disabled = !saves.info();
     item('plus').hidden = !saves.plus();
+    item('quit').hidden = !window.slopDesktop;   // only the desktop (Steam) build can close itself
   }
   function firstItem() { return item('continue').disabled ? item('new') : item('continue'); }
 
@@ -92,6 +94,7 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     audio.play('menuGo');
     if (go === 'settings') { open('settings', 'title'); return; }
     if (go === 'continue') { actions.cont(); return; }
+    if (go === 'quit') { window.slopDesktop?.quit(); return; }
     // starting over would overwrite the save, so that takes a second press
     if (saves.info() && armed !== go) {
       disarm();

@@ -464,7 +464,8 @@ $('store').addEventListener('change', e => {
 
 function fit() {
   const dpr = window.devicePixelRatio || 1;
-  const availW = innerWidth, availH = innerHeight - 52;
+  const bar = document.querySelector(".site-topbar") ? 52 : 0;   // the desktop build has no site bar
+  const availW = innerWidth, availH = innerHeight - bar;
   const fitScale = Math.min(availW / W, availH / H);
   // whole-number scales in device pixels keep the pixels square; fall back to a plain fit on tiny screens
   let s = Math.floor(fitScale * dpr);

@@ -1,0 +1,59 @@
+# Builds The Endgame is Me for Steam on Windows, macOS and Linux (see the-endgame-is-me-desktop/README.md).
+# Each platform builds on its own runner, because a Mac app has to be made (and signed) on a Mac.
+# The three folders come out as run artifacts, ready for steam/upload.mjs.
+name: Endgame desktop builds
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, endgame-desktop]
+    paths: ['the-endgame-is-me/**', 'the-endgame-is-me-desktop/**', 'splash.js', '.github/workflows/endgame-desktop.yml']
+
+concurrency:
+  group: endgame-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, script: 'build:win', folder: win-unpacked, name: windows }
+          - { os: macos-latest, script: 'build:mac', folder: mac-universal, name: mac }
+          - { os: ubuntu-latest, script: 'build:linux', folder: linux-unpacked, name: linux }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: the-endgame-is-me-desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: the-endgame-is-me-desktop/package-lock.json
+      - run: npm ci
+      - run: npm run ${{ matrix.script }}
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # Apple Silicon will not open an app whose signature no longer matches it, so the Mac build gets an ad-hoc
+      # signature (no Apple account needed). Steam does not quarantine what it installs, so this is enough to run.
+      - name: Ad-hoc sign the Mac app
+        if: matrix.name == 'mac'
+        run: |
+          codesign --force --deep --sign - "dist/mac-universal/The Endgame is Me.app"
+          codesign --verify --deep --strict "dist/mac-universal/The Endgame is Me.app"
+      # zip here so the Mac app keeps its symlinks and permissions on the way through
+      - name: Zip
+        shell: bash
+        run: |
+          cd dist/${{ matrix.folder }}
+          if [ "${{ matrix.name }}" = mac ]; then ditto -c -k --sequesterRsrc --keepParent "The Endgame is Me.app" ../../endgame-${{ matrix.name }}.zip
+          elif [ "${{ matrix.name }}" = windows ]; then 7z a -tzip ../../endgame-${{ matrix.name }}.zip . > /dev/null
+          else zip -qry --symlinks ../../endgame-${{ matrix.name }}.zip .; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: endgame-${{ matrix.name }}
+          path: the-endgame-is-me-desktop/endgame-${{ matrix.name }}.zip
+          if-no-files-found: error
