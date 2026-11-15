@@ -1113,8 +1113,8 @@ window.SLOPWARE = {
   },
   "ceasefire": {
    "visits": 0,
-   "prompts": 2,
-   "tokens": 191841,
+   "prompts": 4,
+   "tokens": 302119,
    "sharedWith": null,
    "versions": [
     {
@@ -1122,7 +1122,14 @@ window.SLOPWARE = {
      "date": "2026-11-14T18:43:07-07:00",
      "note": "reverse chess where UN peacekeepers force a stalemate",
      "prompts": 2,
-     "tokens": 191841
+     "tokens": 190639
+    },
+    {
+     "n": 2,
+     "date": "2026-11-14T19:45:55-07:00",
+     "note": "generals play on a clock, insert or move helmets any time",
+     "prompts": 2,
+     "tokens": 111480
     }
    ]
   },
