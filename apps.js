@@ -1475,6 +1475,13 @@ window.SLOPWARE = {
      "note": "cannon fixes, looser cart tyres, grippy bigger islands, pace tweaks",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 37,
+     "date": "2026-11-17T13:52:28-07:00",
+     "note": "checkpoint beam fades as the camera nears, no screen wash driving through",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
