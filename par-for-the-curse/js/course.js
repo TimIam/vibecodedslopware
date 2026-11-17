@@ -774,9 +774,12 @@ export class Course {
     this.block(H, 9, 22, -6, 6, 0);
     this.block(H, 60, 71, -6, 6, 7);
     const F = H.frame, flat = new THREE.Quaternion();
-    this.mover(H, { size: [6, 1.2, 6], motion: (t, c) => { c.pos.copy(F.w(30, 1.5 - 0.6, 5 * Math.sin(t * 0.7))); c.quat.copy(F.q); } });
-    this.mover(H, { size: [6, 1.2, 6], motion: (t, c) => { c.pos.copy(F.w(41 + 2.5 * Math.sin(t * 0.55), 3.5 - 0.6, -2.5 * Math.cos(t * 0.7))); c.quat.copy(F.q); } });
-    this.mover(H, { size: [6, 1.2, 6], motion: (t, c) => { c.pos.copy(F.w(53.5, 5.25 + 2.05 * Math.sin(t * 0.5) - 0.6, 0)); c.quat.copy(F.q); } });
+    // Three floating islands, 8 m across and topped with thick shaggy rough ('moss') so a ball that lands on
+    // one stays on it. The gaps between them are 2 to 3 m.
+    const isle = { size: [8, 1.2, 8], surf: 'moss', mat: roughMat };
+    this.mover(H, { ...isle, motion: (t, c) => { c.pos.copy(F.w(29, 1.5 - 0.6, 4 * Math.sin(t * 0.7))); c.quat.copy(F.q); } });
+    this.mover(H, { ...isle, motion: (t, c) => { c.pos.copy(F.w(41 + 2 * Math.sin(t * 0.55), 3.5 - 0.6, -2.5 * Math.cos(t * 0.7))); c.quat.copy(F.q); } });
+    this.mover(H, { ...isle, motion: (t, c) => { c.pos.copy(F.w(53, 5.25 + 2.05 * Math.sin(t * 0.5) - 0.6, 0)); c.quat.copy(F.q); } });
     this.sign(H, 20, -5, 0, ['PLATFORMS', 'MOVE. DEAL.'], 0.3);
     this.prop(H, 'tree_pine', 12, 5, { trunk: 0.35 }); this.prop(H, 'bush', 68, -5, {});
     this.zone(H, 'sand', 65, 4, 1.6);

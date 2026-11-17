@@ -306,7 +306,8 @@ function faceFoe(dt) {
   if (best !== null) S.camYaw += best * (1 - Math.exp(-dt * FACE.rate));
 }
 const TWIST = { max: 1.1, back: 2.5 };     // how far past the arms a swing can turn the body, how fast it unwinds
-const GRIP_WALK = 2.4;       // how fast you can walk with the club in your hands (it was a shuffle)
+const MOVE_PACE = 0.9;       // every walking and running speed, 10% slower than first tuned
+const GRIP_WALK = 2.88;      // how fast you can walk while fighting (club in your hands): 2.4, then 20% quicker
 const HIT_STOP = 0.07;       // seconds the world nearly stops when a club lands on someone, so you feel it land
 // A club strike on another golfer: to a real player over the network, or to the sparring partner here.
 function whackTo(id, e) { if (id === SPAR.id) sparHit(e); else if (net) net.event(e); }
@@ -1038,6 +1039,14 @@ addEventListener('mousemove', e => {
   }
 });
 addEventListener('wheel', e => { if (S.mode !== 'title' && S.mode !== 'drive' && !S.paused) cycleClub(e.deltaY > 0 ? -1 : 1); }, { passive: true });
+// Tabbing out swallows the key-up and mouse-up events, so whatever was held when you left would stay held
+// (running off in that direction) when you came back. Let go of everything instead.
+function letGoOfEverything() {
+  keys.clear(); S.aimHeld = false; S.lmb = false;
+  if (assist && assist.phase === 'charge') assist.reset();
+}
+addEventListener('blur', letGoOfEverything);
+document.addEventListener('visibilitychange', () => { if (document.hidden) letGoOfEverything(); });
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvas;
   // Letting go of the mouse (Esc) opens the menu; taking it back closes it.
@@ -1208,7 +1217,7 @@ function walkStep(dt) {
   let mx = fx_ * fw - fz_ * rt, mz = fz_ * fw + fx_ * rt;
   const ml = Math.hypot(mx, mz); if (ml > 0) { mx /= ml; mz /= ml; }
   const hands = S.noClub, run = keys.has('shift');
-  const top = S.emote || S.ko || S.hold ? 0 : S.grip ? GRIP_WALK : (run ? (hands ? 7.8 : 6.5) : (hands ? 4 : 3.3));
+  const top = S.emote || S.ko || S.hold ? 0 : S.grip ? GRIP_WALK : (run ? (hands ? 7.8 : 6.5) : (hands ? 4 : 3.3)) * MOVE_PACE;
   if (!S.emote && !S.ko && !S.hold && !S.grip && keys.has(' ') && W.grounded) { W.v.y = hands ? 7.2 : 6.4; W.grounded = false; me.squash = 0.5; A.play('pop', 0.3); }
   const n = 2, h = dt / n;
   for (let i = 0; i < n; i++) {
@@ -1776,7 +1785,9 @@ function cannon(sn) {
   const H = course.holes[7], piv = sn.pivot;
   const tl = sn.frame.local(H.cup, V());
   const yaw0 = Math.atan2(tl.x - piv.position.x, tl.z - piv.position.z);
-  S.cannon = { sn, t: 0, yaw0, off: 0, phase: Math.random() * Math.PI * 2 };
+  // Where the shot into the cannon came from: if the cannon then blows the ball out of bounds, that is where
+  // it goes back to, so you have to land it in the red circle again.
+  S.cannon = { sn, t: 0, yaw0, off: 0, phase: Math.random() * Math.PI * 2, from: S.shotFrom.clone(), fromHole: S.shotHole, fromY: S.shotY };
   sn.barrel.rotation.x = -CANNON.elev;
   sendEv({ k: 'cannonIn' });
 }
@@ -1816,7 +1827,7 @@ function fireCannon() {
   pop(perfect ? 'BULLSEYE!' : Math.abs(C.off) < CANNON.sweet * 3 ? 'CLOSE!' : 'WIDE!', perfect ? 'great' : 'bad');
   if (perfect) { fx.sparks(M, 30); A.play('fanfare'); }
   S.ballLive = true; S.flightT = 0; S.restT = 0; S.firstLand = true; S.cupCheck = true;
-  S.shotFrom.copy(course.sensors.find(s => s.kind === 'cannon').p).add(V(0, BALL_R, 0));
+  S.shotFrom.copy(C.from); S.shotHole = C.fromHole; S.shotY = C.fromY;
   sendEv({ k: 'cannon' });
 }
 
@@ -1879,6 +1890,16 @@ function poseMe(dt) {
       const up = clamp(swing.target.y / 1.55, 0, 1);
       s.tilt = 0.38 - 0.24 * up; s.lean = clamp(-a * 0.12, -0.14, 0.14); s.knee = 0.04 + Math.abs(a) * 0.012 + up * 0.01;
       s.look = V(clamp(swing.head.x * 0.45, -0.6, 0.6), 0.45 + up * 0.25, 1.4);
+      // Walking while fighting: short boxer's steps in the direction you are moving, so the legs are not
+      // planted while you slide about.
+      if (S.mode === 'walk' && W.grounded && W.amt > 0.02) {
+        const k = clamp(W.amt * 3, 0, 1), sw = Math.sin(W.phase), cw = Math.cos(W.phase);
+        let mx = W.v.dot(f), mz = W.v.dot(w); const ml = Math.hypot(mx, mz) || 1; mx /= ml; mz /= ml;
+        const st = 0.13 * k;
+        s.feet[0].x += mx * sw * st; s.feet[0].z += mz * sw * st; s.feet[0].y += Math.max(0, cw) * 0.09 * k;
+        s.feet[1].x -= mx * sw * st; s.feet[1].z -= mz * sw * st; s.feet[1].y += Math.max(0, -cw) * 0.09 * k;
+        s.hop += Math.abs(cw) * 0.025 * k;
+      }
       const kf = S.kick != null && kickFoot(S.kick, swing.R.ankle);
       if (kf) { s.feet[0].copy(kf); const k = Math.min(1, kf.y / KICK_OUT.y); s.tilt -= KICK.lean * k; s.hipZ = -0.02 - 0.05 * k; }
     } else s.look = swing.ball.clone();

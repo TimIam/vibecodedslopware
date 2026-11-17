@@ -15,6 +15,7 @@ export const SURF = {
   green: { roll: 0.1, e: 0.2, slide: 0.32 },
   rough: { roll: 0.65, e: 0.16, slide: 0.6 },
   sand: { roll: 2.4, e: 0.03, slide: 0.95 },
+  moss: { roll: 3.2, e: 0.05, slide: 1.3 },     // the floating islands on hole 8: a ball that lands stays
   wood: { roll: 0.11, e: 0.45, slide: 0.25 },
   stone: { roll: 0.15, e: 0.55, slide: 0.3 },
   rock: { roll: 0.2, e: 0.5, slide: 0.35 },

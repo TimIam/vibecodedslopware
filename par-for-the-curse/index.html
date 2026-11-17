@@ -56,7 +56,8 @@ h1,h2,h3,.lil{font-family:"Lilita One",Nunito,sans-serif;font-weight:400;letter-
 .ctrack{position:relative;height:22px;margin-top:6px;border:3px solid var(--ink);border-radius:12px;background:linear-gradient(90deg,#d8eefc,#fff 50%,#d8eefc);overflow:hidden}
 .ctrack .sweet{position:absolute;left:45.1%;width:9.8%;top:0;bottom:0;background:#ff3d3d}
 #cneedle{position:absolute;top:-2px;bottom:-2px;width:6px;margin-left:-3px;background:var(--ink);border-radius:3px;left:50%}
-#cannonUI.hot{animation:wob .12s infinite alternate}
+#cannonUI.hot{animation:cwob .12s infinite alternate}
+@keyframes cwob{from{transform:translateX(-50%)}to{transform:translateX(-50%) rotate(1.5deg) scale(1.03)}}
 #cannonUI.hot b{color:var(--red)}
 #tip{right:16px;bottom:66px;transform:translateY(10px);opacity:0;transition:.3s}
 #tip.show{opacity:1;transform:none;animation:nudge 1.6s ease-in-out infinite}

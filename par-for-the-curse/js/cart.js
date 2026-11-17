@@ -7,7 +7,8 @@ import { G as GRAV, SURF, ACTOR, Collider } from './physics.js';
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const _p = V(), _n = V(), _c = V(), _h = V(), _v = V();
-export const CART = { accel: 7.5, brake: 18, reverse: 5, max: 14, coast: 2.2, step: 0.55, empty: 6 };   // empty: how hard a cart with nobody in it slows to a stop
+export const CART = { accel: 7.5, brake: 18, reverse: 5, max: 14, coast: 2.2, step: 0.55, empty: 6,
+  stick: 0.015, airG: 0.85 };   // stick: metres per physics step the road may fall away below the cart's own arc before it flies (was 0.1); airG: gravity in the air, a bit floaty   // empty: how hard a cart with nobody in it slows to a stop
 export const SEAT = V(0.28, 0.69, 0.05);
 export const BUMP = { off: 0.4, r: 0.45 };      // a cart as two circles for cart-on-cart and cart-on-golfer: centres this far fore and aft, this radius
 const NOT_FOR_BODIES = new Set(['pin', 'road', 'cliff', 'cartbody', 'post']);
@@ -120,14 +121,16 @@ export class Cart {
         continue;
       }
       if (this.grounded) {
-        // A sudden drop means the road has ended (the ray has slipped off the slab's edge): take off.
-        if (g && g.y > oy - 0.1) {
+        // The road falling away faster than the cart would fall (a crest, the lip of a ramp, the end of the
+        // road) throws it into the air with the rise it had. Below walking pace it just follows the ground.
+        const fly = Math.abs(this.speed) > 3 ? oy + this.rise * h - 0.5 * GRAV * h * h - CART.stick : oy - 0.1;
+        if (g && g.y > fly) {
           this.rise += (THREE.MathUtils.clamp((g.y - oy) / h, -Math.abs(this.speed), Math.abs(this.speed)) - this.rise) * 0.4;
           this.pos.y = g.y; this.surf = g.col.surf;
           g.col.pointVel(this.pos, this.carry);
         } else { this.grounded = false; this.vy = Math.max(this.rise, -3); }
       } else {
-        this.vy -= GRAV * h; this.pos.y += this.vy * h;
+        this.vy -= GRAV * CART.airG * h; this.pos.y += this.vy * h;
         if (g && this.vy <= 0 && this.pos.y <= g.y + 0.02) {
           if (ev.land) ev.land(-this.vy);
           this.pos.y = g.y; this.grounded = true; this.rise = 0; this.vy = 0; this.surf = g.col.surf;

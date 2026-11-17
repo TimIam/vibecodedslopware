@@ -12,7 +12,7 @@ export const ASSIST = {
   back: 1.9, putterBack: 0.7,      // how far round the backswing goes at full power
   side: 0.32,                      // radians a completely missed shot starts off line
   pure: 0.14,                      // this close to straight is a pure strike
-  up: 0.85,                        // seconds from empty to full power
+  up: 1.13,                        // seconds from empty to full power (was 0.85: 25% slower so the landing circle is easier to stop)
   shake: 0.4, shakeRate: 6,        // after the first full rise the hands shake, this much more every pass
 };
 export class Assist {
