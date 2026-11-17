@@ -1506,7 +1506,11 @@ function bayTick(t, dt) {
     if (fl > 0) { a = fl / CHECK.flash; col = 0x3ddc84; }
     else if (want) a = 0.55 + Math.sin(t * 4) * 0.25;
     b.glow.material.color.setHex(col); b.glow.material.opacity = a * 0.6;
-    b.beam.material.color.setHex(col); b.beam.material.opacity = a * 0.35; b.beam.visible = a > 0.01;
+    // The beam is for spotting the bay from afar: it fades out as the camera comes near, so driving through
+    // it never washes the screen.
+    const r = b.beam.geometry.parameters.radiusBottom, cd = Math.hypot(camera.position.x - b.p.x, camera.position.z - b.p.z);
+    const near = THREE.MathUtils.smoothstep(cd, r + 6, r + 20), ba = a * 0.35 * near;
+    b.beam.material.color.setHex(col); b.beam.material.opacity = ba; b.beam.visible = ba > 0.004;
     b.ring.material.color.setHex(col); b.ring.material.opacity = a; b.ring.visible = a > 0.01;
   }
 }
