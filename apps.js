@@ -1468,6 +1468,13 @@ window.SLOPWARE = {
      "note": "arms no longer whirl after a stance shot",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 36,
+     "date": "2026-11-17T13:18:29-07:00",
+     "note": "cannon fixes, looser cart tyres, grippy bigger islands, pace tweaks",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
