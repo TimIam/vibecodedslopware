@@ -42,9 +42,12 @@ ns.METALS = {
 	{ key = "silver", name = "Silver", hi = Hex("F2F3F5"), lo = Hex("A4A7AD") },
 	{ key = "gold", name = "Gold", hi = Hex("FFE27A"), lo = Hex("A8831E") },
 	{ key = "brass", name = "Brass", hi = Hex("D9BE6E"), lo = Hex("7A6228") },
+	-- No rim and no dividers: the wedges meet edge to edge.
+	{ key = "none", name = "None", none = true, hi = Hex("C9CED6"), lo = Hex("6C727C") },
 }
 
 ns.SIZE_MIN, ns.SIZE_MAX = 90, 420
+ns.RAID_SIZE_MIN, ns.RAID_SIZE_MAX = 200, 640
 
 local DEFAULTS = {
 	size = 200,
@@ -53,6 +56,7 @@ local DEFAULTS = {
 	playerAlpha = 1,
 	flash = true,
 	mouseover = true,
+	moveInCombat = true, -- dragging in combat moves the pies where you let go
 	roleIcons = true,
 	dispelGlow = true,
 	lowFill = Hex("770000"),
@@ -62,11 +66,15 @@ local DEFAULTS = {
 	shieldColor = Hex("2E9BFF"),
 	healColor = Hex("7CFFB0"),
 	targetColor = Hex("FFFF00"),
+	raidLayout = "groups", -- "groups": a pie per raid group; "single": one pie for the whole raid
+	groupColumns = 4,
+	ownGroupFirst = true,
+	raidSize = 360,
 }
 
 -- Per-class and per-resource tables hold only what the player has changed.
 local function Fresh()
-	return { classColors = {}, resourceColors = {}, petColors = {}, petOff = {}, resourceOff = {} }
+	return { classColors = {}, resourceColors = {}, petColors = {}, petOff = {}, resourceOff = {}, hiddenGroups = {} }
 end
 
 function ns.InitDB()
