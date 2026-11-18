@@ -125,6 +125,11 @@ window.SLOPWARE = {
      "n": 5,
      "date": "2026-11-13T07:02:34-07:00",
      "note": "1.1.2 downloads, countdown and /php debuffs notes"
+    },
+    {
+     "n": 6,
+     "date": "2026-11-17T16:34:50-07:00",
+     "note": "1.2.0 downloads, raid, combat drag and None border notes"
     }
    ]
   },
@@ -211,6 +216,19 @@ window.SLOPWARE = {
      "n": 12,
      "date": "2026-11-14T16:25:43-07:00",
      "note": "a minimap button, and no more flicker behind the score"
+    }
+   ]
+  },
+  "whelp": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-18T03:49:03-07:00",
+     "note": "five-star reviews for tanks, healers and DPS (WoW Classic Forever addon)"
     }
    ]
   },
