@@ -1,0 +1,27 @@
+name: Publish Lantern Links
+on:
+  push:
+    branches: [release/lantern-links-271b435]
+permissions:
+  contents: read
+concurrency:
+  group: addon-watch
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Verify the release and prepare the deploy
+        run: |
+          test "$(git rev-parse HEAD)" = 271b4352b75784eaff57b85c766ccb546496765b
+          mkdir -p tools/addon-watch/.work
+          echo '{"sha":"271b4352b75784eaff57b85c766ccb546496765b","addons":{}}' > tools/addon-watch/.work/plan.json
+      - name: Deploy the site
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: node tools/addon-watch/watch.mjs deploy
