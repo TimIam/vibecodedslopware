@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { make, toon, RAW_OUT } from './assets.js';
 import { SEA_Y } from './course.js';
+import { backNine } from './nine.js';
 
 export class Sky {
   constructor(scene) {
@@ -15,6 +16,7 @@ export class Sky {
         void main(){
           float h = vD.y;
           vec3 top = s2l(vec3(0.27,0.55,0.95)), mid = s2l(vec3(0.55,0.80,1.0)), hor = s2l(vec3(0.93,0.95,0.92)), low = s2l(vec3(0.62,0.84,0.95));
+          ${backNine ? 'top = s2l(vec3(.31,.33,.63)); mid = s2l(vec3(.74,.57,.71)); hor = s2l(vec3(1.,.83,.64)); low = s2l(vec3(.62,.76,.82));' : ''}
           vec3 c = h > 0. ? mix(hor, mix(mid, top, smoothstep(0.15, 0.7, h)), smoothstep(0.0, 0.18, h)) : mix(hor, low, smoothstep(0.0, -0.2, h));
           float s = max(0., dot(vD, uSun));
           c += s2l(vec3(1.0,0.93,0.7)) * (smoothstep(0.9965, 0.998, s) * 1.2 + pow(s, 60.) * 0.35 + pow(s, 6.) * 0.08);

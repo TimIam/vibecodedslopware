@@ -5,10 +5,16 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Collider, BALL_R } from './physics.js';
-import { make, toon, addOutline, gradientMap, manifest } from './assets.js';
+import { backNine, holeNumber } from './nine.js';
+import { buildBackHole, buildBackRoad } from './back-nine.js';
+import { make, toon, addOutline, gradientMap, manifest, has } from './assets.js';
 const pm = n => manifest.props?.objects?.[n] || {};
 
 const WALL_H = 0.6;
+const contactSound = {
+  tee: 'turf', fairway: 'turf', green: 'turf', rough: 'turf', moss: 'turf',
+  wood: 'wood', sand: 'sand', metal: 'metal', rock: 'rock', stone: 'rock',
+};
 export const SIDE = 80, PAD = 9, RISE = 7, NHOLES = 9, CUP_R = 0.16, SEA_Y = -40;
 const CORNERS = [[40, 40], [-40, 40], [-40, -40], [40, -40]];
 const DIRS = [[-1, 0], [0, -1], [1, 0], [0, 1]];
@@ -60,24 +66,28 @@ function makeTerrain(g1, g2, stripes) {
       vec3 col; float up = vWN.y;
       float n = vnoise(vWP.xz * 0.35) * 0.6 + vnoise(vWP.xz * 1.9) * 0.4;
       if (up > 0.72) {
-        float stripe = ${stripes ? 'step(0.5, fract((vWP.x + vWP.z) * 0.09))' : 'smoothstep(0.35, 0.75, vnoise(vWP.xz * 0.6))'};
-        col = mix(s2l(vec3(${g1})), s2l(vec3(${g2})), stripe) * (0.9 + n * 0.2);
+        vec2 lanes = vec2(vWP.x + vWP.z, vWP.x - vWP.z);
+        vec2 cut = smoothstep(vec2(-0.14), vec2(0.14), sin(lanes * vec2(0.95, 0.87)));
+        float stripe = ${stripes ? 'dot(cut, vec2(.68, .32))' : 'smoothstep(0.28, 0.76, n)'};
+        col = mix(s2l(vec3(${g1})), s2l(vec3(${g2})), stripe) * (0.85 + n * 0.30);
       } else if (up > 0.2) {
         col = s2l(vec3(0.29,0.60,0.21)) * (0.92 + n * 0.16);
       } else {
         float w = vnoise(vec2(vWP.x + vWP.z, vWP.y) * vec2(0.08, 0.5)) * 1.4;
         float band = fract(vWP.y * 0.32 + w);
         vec3 c1 = s2l(vec3(0.85,0.58,0.36)), c2 = s2l(vec3(0.74,0.47,0.29)), c3 = s2l(vec3(0.92,0.70,0.45));
-        col = band < 0.4 ? c1 : (band < 0.75 ? c2 : c3);
-        col *= 0.88 + vnoise(vec2(vWP.x + vWP.z, vWP.y) * 1.3) * 0.18;
+        col = mix(mix(c1, c2, smoothstep(.30, .43, band)), c3, smoothstep(.69, .78, band));
+        float seam = smoothstep(.06, .12, band) * (1.0 - smoothstep(.13, .19, band));
+        col = mix(col, s2l(vec3(.98,.79,.57)), seam * .55);
+        col *= 0.83 + vnoise(vec2((vWP.x + vWP.z) * .85, vWP.y * 3.5)) * 0.30;
         if (up < -0.5) col *= 0.55;
       }
       vec4 diffuseColor = vec4(diffuse * col, opacity);`);
   };
   return m;
 }
-export const terrainMat = makeTerrain('0.42,0.80,0.30', '0.35,0.71,0.25', true);
-const roughMat = makeTerrain('0.30,0.62,0.22', '0.25,0.53,0.19', false);
+export const terrainMat = makeTerrain('0.50,0.83,0.42', '0.38,0.74,0.37', true);
+const roughMat = makeTerrain('0.30,0.62,0.32', '0.25,0.55,0.29', false);
 // Grass tufts: a few blades per tuft, lit as if they were the ground they stand on (normals point up),
 // darker at the root, and swaying in a wind that rolls across the mountain. They shrink away with distance.
 const TUFT_H = 0.3;
@@ -135,27 +145,39 @@ const sandMat = (() => {
   const m = new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   m.onBeforeCompile = sh => {
     worldVaryings(sh);
+    zoneVaryings(sh);
     sh.fragmentShader = sh.fragmentShader.replace('vec4 diffuseColor = vec4( diffuse, opacity );', `
       float n = vnoise(vWP.xz * 6.0) * 0.5 + vnoise(vWP.xz * 1.2) * 0.5;
-      float rake = smoothstep(0.35, 0.5, abs(fract((vWP.x + vWP.z * 0.3) * 1.6) - 0.5));
-      vec3 col = s2l(vec3(0.98,0.86,0.58)) * (0.9 + n * 0.12) * (0.93 + rake * 0.07);
+      float radius = length(vZone);
+      float rake = cos(23.0 * length(vZone - vec2(-.58,.43)) + .28 * n);
+      vec3 col = mix(s2l(vec3(.99,.87,.61)), s2l(vec3(.78,.59,.36)), .14 * rake + .16 + .56 * smoothstep(.80,1.0,radius));
+      col *= .91 + n * .16;
       vec4 diffuseColor = vec4(diffuse * col, opacity);`);
   };
   return m;
 })();
 const teeMat = toon(0x7fd65c, { params: { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 } });
+function zoneVaryings(sh) {
+  sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vZone;')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvZone = uv;');
+  sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vZone;');
+}
 export const waterMat = (() => {
   const m = new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap, transparent: true, opacity: 0.92, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
   m.userData.uTime = { value: 0 };
   m.onBeforeCompile = sh => {
     sh.uniforms.uTime = m.userData.uTime;
     worldVaryings(sh);
+    zoneVaryings(sh);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uTime;')
       .replace('vec4 diffuseColor = vec4( diffuse, opacity );', `
       vec2 p = vWP.xz * 0.5;
       float n = vnoise(p + vec2(uTime * 0.3, uTime * 0.2)) + vnoise(p * 2.3 - vec2(uTime * 0.25, -uTime * 0.15)) * 0.6;
-      float sparkle = smoothstep(1.12, 1.25, n);
-      vec3 col = mix(s2l(vec3(0.20,0.62,0.86)), s2l(vec3(0.33,0.78,0.93)), smoothstep(0.6, 1.1, n)) + sparkle * 0.7;
+      float edge = length(vZone) + .016 * sin(n * 8.0 + uTime);
+      float ripple = cos(30.0 * edge - 1.5 * uTime + n);
+      vec3 col = mix(s2l(vec3(.13,.52,.67)), s2l(vec3(.38,.83,.76)), smoothstep(.44,.98,edge));
+      col = mix(col, s2l(vec3(.83,.97,.87)), smoothstep(.91,.99,ripple) * smoothstep(.57,.85,edge) * .63);
+      col += smoothstep(1.17, 1.28, n) * .20;
       vec4 diffuseColor = vec4(diffuse * col, opacity);`);
   };
   return m;
@@ -315,15 +337,20 @@ export class Course {
   // Ground decals for greens, bunkers, ponds and tees, plus the zones the physics reads.
   zone(H, type, x, z, r, o = {}) {
     const y = o.y ?? this.groundY(H, x, z, 30) ?? 0;
-    const shape = new THREE.Shape();
     const seg = 40, wob = o.wobble ?? 0.12, rx = r, rz = o.rz ?? r, seed = Math.random() * 10;
     const radAt = a => 1 + Math.sin(a * 3 + seed) * wob * 0.6 + Math.sin(a * 5 + seed * 2) * wob * 0.4;
-    for (let i = 0; i <= seg; i++) {
+    // Unit-disc UVs let the rake and shoreline follow the actual wobbly outline.
+    const pos = [0, 0, 0], uv = [0, 0], idx = [];
+    for (let i = 0; i < seg; i++) {
       const a = i / seg * Math.PI * 2, k = radAt(a);
-      const px = Math.cos(a) * rx * k, pz = Math.sin(a) * rz * k;
-      i ? shape.lineTo(px, -pz) : shape.moveTo(px, -pz);
+      const dx = Math.cos(a), dz = Math.sin(a);
+      pos.push(dx * rx * k, 0, dz * rz * k); uv.push(dx, dz);
+      idx.push(0, 1 + (i + 1) % seg, 1 + i);
     }
-    const geo = new THREE.ShapeGeometry(shape, 2); geo.rotateX(-Math.PI / 2);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx); geo.computeVertexNormals();
     const mat = type === 'green' ? greenMat : type === 'sand' ? sandMat : type === 'water' ? waterMat : teeMat;
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, y + (type === 'water' ? 0.012 : type === 'sand' ? 0.018 : 0.01), z);
@@ -332,7 +359,7 @@ export class Course {
     if (type === 'sand') {
       // A soft darker rim around bunkers reads as a lip.
       const rim = new THREE.Mesh(geo, toon(0xc8a46a, { params: { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 } }));
-      rim.scale.set(1.08, 1, 1.08); rim.position.copy(mesh.position); rim.position.y -= 0.004; H.group.add(rim);
+      rim.scale.set(1.05, 1, 1.05); rim.rotation.copy(mesh.rotation); rim.position.copy(mesh.position); rim.position.y -= 0.004; H.group.add(rim);
     }
     const wy = H.frame.o.y + y;
     this.zones.push({ type, frame: H.frame, x, z, rx: rx * 0.97, rz: rz * 0.97, y: wy, rot: o.rot || 0, radAt, hole: H.i });
@@ -381,24 +408,28 @@ export class Course {
   contact(c, vn, p) {
     if (c.thing != null && vn > 1.5) this.fx.event('thing', { i: c.thing, zone: c.zone, p, vn });
     if (c.tag && this.hits.has(c.tag)) this.hits.get(c.tag)(c, vn, p);
-    else if (vn > 2) this.fx.sound(c.surf === 'wood' ? 'wood' : c.surf === 'sand' ? 'sand' : 'thud', Math.min(1, vn / 14), p);
+    else if (vn > 2) this.fx.sound(contactSound[c.surf] || 'thud', Math.min(1, vn / 14), p);
   }
 
   /* ----- the holes ----- */
   build() {
     this.hits = new Map();
-    this.hits.set('leaf', (c, vn, p) => { if (vn > 2) this.fx.sound('sand', 0.5, p); });
+    this.hits.set('leaf', (c, vn, p) => { if (vn > 2) this.fx.sound('rustle', Math.min(0.7, vn / 14), p); });
     const H = [];
     for (let i = 1; i <= NHOLES; i++) H.push({ i, frame: frames[i], group: this.frameGroup(frames[i]) });
     this.H = H;
     this.buildPads();
     const builders = [this.hole1, this.hole2, this.hole3, this.hole4, this.hole5, this.hole6, this.hole7, this.hole8, this.hole9];
-    builders.forEach((b, k) => b.call(this, H[k]));
+    if (backNine) {
+      H.forEach(h => buildBackHole(this, h, woodMat));
+      this.hits.set('goose', (c, vn, p) => { c.goose.userData.honk = .5; this.fx.sound('honk', 1, p); });
+      this.hits.set('bumper', (c, vn, p) => { c.mesh.userData.flash = 1; this.fx.sound('bumper', 1, p); });
+    } else builders.forEach((b, k) => b.call(this, H[k]));
     // Where the auto-aim points from each part of a hole (hole-local x, z): along the line you would
     // actually play, not straight at a flag round the corner.
     const aims = { 1: [[60, 0]], 2: [[34, 0], [50, 0], [64, 0]], 3: [[63, 0]], 4: [[40, 0], [62, 0]], 5: [[40, 0], [53, 0], [66, 0]],
       6: [[29, 0], [41, 0], [52, 0], [66, 0]], 7: [[32, 4.2], [67, 0]], 8: [[30, 0], [41, 0], [53.5, 0], [66, 0]], 9: [[37, 0], [60, 0]] };
-    for (const [i, pts] of Object.entries(aims)) this.holes[i].aims = pts;
+    if (!backNine) for (const [i, pts] of Object.entries(aims)) this.holes[i].aims = pts;
     this.ringRoad();
     this.decorate();
     this.grow();
@@ -446,10 +477,22 @@ export class Course {
       // Pad dressing.
       const dress = summit ? [] : [['bush', -7.6, -7.6], ['flowers', -7.8, 7.6], ['flowers', 7.6, -7.8], ['rock_b', 6.2, 7.8]];
       for (const [n, x, z] of dress) this.prop(P, n, ox + x, z, { y: oy, scale: 0.8 + Math.random() * 0.4 });
+      // Rest stops sit on the pad margins, away from the cart bays and the approach to the cup.
+      if (k === 0 || k === 4 || summit) {
+        const restProp = (name, x, z, rot, surf) => {
+          if (!has(name)) return;
+          const model = this.prop(P, name, ox + x, z, { y: oy, rot, scale: 1, outline: 0.009 });
+          this.solidify(model, { surf, hole: P.i });
+        };
+        const benchX = summit ? 4.7 : -4.5;
+        restProp('parasol_bench', benchX, 7.25, Math.PI - 0.2, 'wood');
+        restProp('goose_bag', benchX + 1.45, 7.0, Math.PI - 0.7, 'metal');
+        if (k === 0 || summit) restProp('tee_clock', summit ? -6.8 : 1.0, -6.5, 0.18, 'metal');
+      }
     }
     // The first tee gets a welcome sign, a cart and a lamp.
     const P0 = { i: 1, frame: this.H[0].frame, group: this.H[0].group };
-    this.sign(P0, 2.5, -7.2, 0, ['WELCOME TO', 'MOUNT BOGEY', 'no refunds · no mulligans'], Math.PI * 0.08);
+    this.sign(P0, 2.5, -7.2, 0, ['WELCOME TO', backNine ? 'LANTERN LINKS' : 'MOUNT BOGEY', backNine ? 'harbor tees 10–18' : 'no refunds · no mulligans'], Math.PI * 0.08);
     this.prop(P0, 'lamp', 8, 7.5, { y: 0, scale: 1 });
   }
   makeCup(H, p) {
@@ -961,7 +1004,7 @@ export class Course {
     ring.position.set(x, y + 0.045, z); ring.renderOrder = 3; H.group.add(ring);
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(Math.min(pl, pw) * 0.42, Math.min(pl, pw) * 0.5, 14, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
     beam.position.set(x, y + 7, z); beam.renderOrder = 3; beam.visible = false; H.group.add(beam);
-    this.sign(H, x1 + 2.6, -PAD + 1.2, y, k === NHOLES ? ['CHECKPOINT', 'drive through to finish'] : ['CHECKPOINT ' + k, 'drive through, tee off ' + (k + 1)], Math.PI * 0.85);
+    this.sign(H, x1 + 2.6, -PAD + 1.2, y, k === NHOLES ? ['CHECKPOINT', 'drive through to finish'] : ['CHECKPOINT ' + holeNumber(k), 'drive through, tee off ' + holeNumber(k + 1)], Math.PI * 0.85);
     const bay = { k, frame: H.frame, x, y, z, hx: pl / 2, hz: pw / 2, glow, ring, beam, p: H.frame.w(x, y, z), yaw: H.frame.yaw, side: H.frame.in.clone() };
     this.bays[k] = bay;
     if (k === NHOLES) this.parking = bay;
@@ -1012,7 +1055,8 @@ export class Course {
         return line;
       };
       const lin = (pts, x) => { for (let i = 1; i < pts.length; i++) if (x <= pts[i][0]) { const a = pts[i - 1], b = pts[i], t = (x - a[0]) / (b[0] - a[0]); return a[1] + (b[1] - a[1]) * t; } return pts[pts.length - 1][1]; };
-      this['ring' + n](H, { off, w, P, corner, end, road, lin });
+      const layout = { off, w, P, corner, end, road, lin };
+      if (backNine) buildBackRoad(this, H, layout); else this['ring' + n](H, layout);
       this.parkingBay(H, n, 73, 83, -off - w / 2 - 0.5, RISE);
       this.cartRoute[n] = route;
     }
