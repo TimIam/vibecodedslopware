@@ -393,14 +393,5 @@
    ]
   }
  },
- "pendingCurseforge": [
-  {
-   "addon": "whelp",
-   "client": "forever",
-   "file": "Whelp-1.0.0.zip",
-   "gameVersion": "1.60.1",
-   "why": "first release",
-   "changelog": "First release."
-  }
- ]
+ "pendingCurseforge": []
 }
