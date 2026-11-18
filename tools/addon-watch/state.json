@@ -384,7 +384,23 @@
    "for": [
     "released by hand: raids, combat dragging, None border, scaled outlines, faster loading"
    ]
+  },
+  "whelp": {
+   "version": "1.0.0",
+   "at": "2026-11-18T13:19:11.648Z",
+   "for": [
+    "first release"
+   ]
   }
  },
- "pendingCurseforge": []
+ "pendingCurseforge": [
+  {
+   "addon": "whelp",
+   "client": "forever",
+   "file": "Whelp-1.0.0.zip",
+   "gameVersion": "1.60.1",
+   "why": "first release",
+   "changelog": "First release."
+  }
+ ]
 }

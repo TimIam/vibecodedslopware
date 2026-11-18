@@ -51,6 +51,19 @@
           "zip": "PartyHealthPie-Retail-{v}.zip"
         }
       }
+    },
+    "whelp": {
+      "name": "Whelp",
+      "kind": "folder",
+      "root": "whelp-addon",
+      "page": "whelp",
+      "curseforge": { "project": 1814519, "releaseType": { "forever": "release" } },
+      "builds": {
+        "forever": {
+          "folder": "whelp-addon/Whelp",
+          "zip": "Whelp-{v}.zip"
+        }
+      }
     }
   }
 }
