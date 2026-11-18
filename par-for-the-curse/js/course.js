@@ -64,24 +64,28 @@ function makeTerrain(g1, g2, stripes) {
       vec3 col; float up = vWN.y;
       float n = vnoise(vWP.xz * 0.35) * 0.6 + vnoise(vWP.xz * 1.9) * 0.4;
       if (up > 0.72) {
-        float stripe = ${stripes ? 'step(0.5, fract((vWP.x + vWP.z) * 0.09))' : 'smoothstep(0.35, 0.75, vnoise(vWP.xz * 0.6))'};
-        col = mix(s2l(vec3(${g1})), s2l(vec3(${g2})), stripe) * (0.9 + n * 0.2);
+        vec2 lanes = vec2(vWP.x + vWP.z, vWP.x - vWP.z);
+        vec2 cut = smoothstep(vec2(-0.14), vec2(0.14), sin(lanes * vec2(0.95, 0.87)));
+        float stripe = ${stripes ? 'dot(cut, vec2(.68, .32))' : 'smoothstep(0.28, 0.76, n)'};
+        col = mix(s2l(vec3(${g1})), s2l(vec3(${g2})), stripe) * (0.85 + n * 0.30);
       } else if (up > 0.2) {
         col = s2l(vec3(0.29,0.60,0.21)) * (0.92 + n * 0.16);
       } else {
         float w = vnoise(vec2(vWP.x + vWP.z, vWP.y) * vec2(0.08, 0.5)) * 1.4;
         float band = fract(vWP.y * 0.32 + w);
         vec3 c1 = s2l(vec3(0.85,0.58,0.36)), c2 = s2l(vec3(0.74,0.47,0.29)), c3 = s2l(vec3(0.92,0.70,0.45));
-        col = band < 0.4 ? c1 : (band < 0.75 ? c2 : c3);
-        col *= 0.88 + vnoise(vec2(vWP.x + vWP.z, vWP.y) * 1.3) * 0.18;
+        col = mix(mix(c1, c2, smoothstep(.30, .43, band)), c3, smoothstep(.69, .78, band));
+        float seam = smoothstep(.06, .12, band) * (1.0 - smoothstep(.13, .19, band));
+        col = mix(col, s2l(vec3(.98,.79,.57)), seam * .55);
+        col *= 0.83 + vnoise(vec2((vWP.x + vWP.z) * .85, vWP.y * 3.5)) * 0.30;
         if (up < -0.5) col *= 0.55;
       }
       vec4 diffuseColor = vec4(diffuse * col, opacity);`);
   };
   return m;
 }
-export const terrainMat = makeTerrain('0.42,0.80,0.30', '0.35,0.71,0.25', true);
-const roughMat = makeTerrain('0.30,0.62,0.22', '0.25,0.53,0.19', false);
+export const terrainMat = makeTerrain('0.50,0.83,0.42', '0.38,0.74,0.37', true);
+const roughMat = makeTerrain('0.30,0.62,0.32', '0.25,0.55,0.29', false);
 // Grass tufts: a few blades per tuft, lit as if they were the ground they stand on (normals point up),
 // darker at the root, and swaying in a wind that rolls across the mountain. They shrink away with distance.
 const TUFT_H = 0.3;
@@ -139,27 +143,39 @@ const sandMat = (() => {
   const m = new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   m.onBeforeCompile = sh => {
     worldVaryings(sh);
+    zoneVaryings(sh);
     sh.fragmentShader = sh.fragmentShader.replace('vec4 diffuseColor = vec4( diffuse, opacity );', `
       float n = vnoise(vWP.xz * 6.0) * 0.5 + vnoise(vWP.xz * 1.2) * 0.5;
-      float rake = smoothstep(0.35, 0.5, abs(fract((vWP.x + vWP.z * 0.3) * 1.6) - 0.5));
-      vec3 col = s2l(vec3(0.98,0.86,0.58)) * (0.9 + n * 0.12) * (0.93 + rake * 0.07);
+      float radius = length(vZone);
+      float rake = cos(23.0 * length(vZone - vec2(-.58,.43)) + .28 * n);
+      vec3 col = mix(s2l(vec3(.99,.87,.61)), s2l(vec3(.78,.59,.36)), .14 * rake + .16 + .56 * smoothstep(.80,1.0,radius));
+      col *= .91 + n * .16;
       vec4 diffuseColor = vec4(diffuse * col, opacity);`);
   };
   return m;
 })();
 const teeMat = toon(0x7fd65c, { params: { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 } });
+function zoneVaryings(sh) {
+  sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec2 vZone;')
+    .replace('#include <begin_vertex>', '#include <begin_vertex>\nvZone = uv;');
+  sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vZone;');
+}
 export const waterMat = (() => {
   const m = new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap, transparent: true, opacity: 0.92, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
   m.userData.uTime = { value: 0 };
   m.onBeforeCompile = sh => {
     sh.uniforms.uTime = m.userData.uTime;
     worldVaryings(sh);
+    zoneVaryings(sh);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uTime;')
       .replace('vec4 diffuseColor = vec4( diffuse, opacity );', `
       vec2 p = vWP.xz * 0.5;
       float n = vnoise(p + vec2(uTime * 0.3, uTime * 0.2)) + vnoise(p * 2.3 - vec2(uTime * 0.25, -uTime * 0.15)) * 0.6;
-      float sparkle = smoothstep(1.12, 1.25, n);
-      vec3 col = mix(s2l(vec3(0.20,0.62,0.86)), s2l(vec3(0.33,0.78,0.93)), smoothstep(0.6, 1.1, n)) + sparkle * 0.7;
+      float edge = length(vZone) + .016 * sin(n * 8.0 + uTime);
+      float ripple = cos(30.0 * edge - 1.5 * uTime + n);
+      vec3 col = mix(s2l(vec3(.13,.52,.67)), s2l(vec3(.38,.83,.76)), smoothstep(.44,.98,edge));
+      col = mix(col, s2l(vec3(.83,.97,.87)), smoothstep(.91,.99,ripple) * smoothstep(.57,.85,edge) * .63);
+      col += smoothstep(1.17, 1.28, n) * .20;
       vec4 diffuseColor = vec4(diffuse * col, opacity);`);
   };
   return m;
@@ -319,15 +335,20 @@ export class Course {
   // Ground decals for greens, bunkers, ponds and tees, plus the zones the physics reads.
   zone(H, type, x, z, r, o = {}) {
     const y = o.y ?? this.groundY(H, x, z, 30) ?? 0;
-    const shape = new THREE.Shape();
     const seg = 40, wob = o.wobble ?? 0.12, rx = r, rz = o.rz ?? r, seed = Math.random() * 10;
     const radAt = a => 1 + Math.sin(a * 3 + seed) * wob * 0.6 + Math.sin(a * 5 + seed * 2) * wob * 0.4;
-    for (let i = 0; i <= seg; i++) {
+    // Unit-disc UVs let the rake and shoreline follow the actual wobbly outline.
+    const pos = [0, 0, 0], uv = [0, 0], idx = [];
+    for (let i = 0; i < seg; i++) {
       const a = i / seg * Math.PI * 2, k = radAt(a);
-      const px = Math.cos(a) * rx * k, pz = Math.sin(a) * rz * k;
-      i ? shape.lineTo(px, -pz) : shape.moveTo(px, -pz);
+      const dx = Math.cos(a), dz = Math.sin(a);
+      pos.push(dx * rx * k, 0, dz * rz * k); uv.push(dx, dz);
+      idx.push(0, 1 + (i + 1) % seg, 1 + i);
     }
-    const geo = new THREE.ShapeGeometry(shape, 2); geo.rotateX(-Math.PI / 2);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx); geo.computeVertexNormals();
     const mat = type === 'green' ? greenMat : type === 'sand' ? sandMat : type === 'water' ? waterMat : teeMat;
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x, y + (type === 'water' ? 0.012 : type === 'sand' ? 0.018 : 0.01), z);
@@ -336,7 +357,7 @@ export class Course {
     if (type === 'sand') {
       // A soft darker rim around bunkers reads as a lip.
       const rim = new THREE.Mesh(geo, toon(0xc8a46a, { params: { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 } }));
-      rim.scale.set(1.08, 1, 1.08); rim.position.copy(mesh.position); rim.position.y -= 0.004; H.group.add(rim);
+      rim.scale.set(1.05, 1, 1.05); rim.rotation.copy(mesh.rotation); rim.position.copy(mesh.position); rim.position.y -= 0.004; H.group.add(rim);
     }
     const wy = H.frame.o.y + y;
     this.zones.push({ type, frame: H.frame, x, z, rx: rx * 0.97, rz: rz * 0.97, y: wy, rot: o.rot || 0, radAt, hole: H.i });
