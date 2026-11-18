@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { loadAssets, make, toon, addOutline } from './assets.js';
 import { World, BALL_R, G as GRAV, ACTOR, POWER } from './physics.js';
 import { Course, frames, NHOLES, CUP_R, SEA_Y, RISE, padPos } from './course.js';
+import { backNine, holeNumber, saveKey, courseUrl } from './nine.js';
 import { Golfer, Swing, CLUBS, SKINS, SHIRTS, PANTS, HATS, runPose, sitPose } from './golfer.js';
 import { Cart, collideBody, BUMP } from './cart.js';
 import { Particles, Confetti, Trail } from './fx.js';
@@ -82,9 +83,9 @@ function loadLook() {
 }
 function saveLook() { try { localStorage.setItem('pftc-look', JSON.stringify(look)); } catch (e) {} }
 function save() {
-  try { localStorage.setItem('pftc-save', JSON.stringify({ hole: S.hole, strokes: S.strokes, holeStrokes: S.holeStrokes, falls: S.falls, lost: Math.round(S.lost), best: S.best, finished: S.finished, ft: S.finMs, crown: S.crown, park: S.awaitPark | 0, bays: S.bays | 0, ball: ball.p.toArray().map(v => +v.toFixed(3)), aim: S.aim, startedAt: S.startedAt, g: S.golferG.toArray().map(v => +v.toFixed(2)), cart: [...carts[0].pos.toArray().map(v => +v.toFixed(2)), +carts[0].yaw.toFixed(3)] })); } catch (e) {}
+  try { localStorage.setItem(saveKey, JSON.stringify({ hole: S.hole, strokes: S.strokes, holeStrokes: S.holeStrokes, falls: S.falls, lost: Math.round(S.lost), best: S.best, finished: S.finished, ft: S.finMs, crown: S.crown, park: S.awaitPark | 0, bays: S.bays | 0, ball: ball.p.toArray().map(v => +v.toFixed(3)), aim: S.aim, startedAt: S.startedAt, g: S.golferG.toArray().map(v => +v.toFixed(2)), cart: [...carts[0].pos.toArray().map(v => +v.toFixed(2)), +carts[0].yaw.toFixed(3)] })); } catch (e) {}
 }
-function loadSave() { try { return JSON.parse(localStorage.getItem('pftc-save') || 'null'); } catch (e) { return null; } }
+function loadSave() { try { return JSON.parse(localStorage.getItem(saveKey) || 'null'); } catch (e) { return null; } }
 
 /* ---------------- quips ---------------- */
 const Q = {
@@ -235,7 +236,7 @@ function resetBall() {
   const n = S.holeStrokes + 1;
   placeOnTee(nextCup()); S.holeStrokes = n; S.strokes++; trail.clear();      // the tee of your next cup, not a hole you fell back to
   if (S.mode === 'walk') placeWalker(true);
-  toast('⛳ Ball back on the tee of hole ' + S.hole + ', +1 stroke.'); updateHud(); save();
+  toast('⛳ Ball back on the tee of hole ' + holeNumber(S.hole) + ', +1 stroke.'); updateHud(); save();
 }
 function resetCart() {
   if (S.mode === 'title' || S.mode === 'loading' || held()) return;
@@ -331,7 +332,7 @@ function puzzleTick(dt) {
   for (const [what, p] of course.driveTick(dt, at, honks, pushers)) {
     const near = proximity(p);
     if (what === 'gate') A.play('click', near);
-    if (what === 'plate') { A.play('click', near); A.play('beep', near * 0.6); if (near > 0.5) toast('🌉 The rock is on the plate: the drawbridge stays down.'); }
+    if (what === 'plate') { A.play('click', near); A.play('beep', near * 0.6); if (near > 0.5) toast(backNine ? '🌉 Weigh-in complete. Cross before the bridge lifts!' : '🌉 The rock is on the plate: the drawbridge stays down.'); }
     if (what === 'bridge') A.play('womp', near * 0.5);
     if (what === 'rocklost') A.play('womp', near * 0.7);
     if (what === 'rockback') { fx.poof(p.clone()); A.play('poof', near * 0.7); }
@@ -832,11 +833,11 @@ async function boot() {
       S.bays = (+sv.bays | 0) & 0x3fe;
       settleGolfer(true);
       $('continueNote').hidden = false;
-      $('continueNote').textContent = `Picking up on hole ${S.hole}, ${S.strokes} strokes in.`;
+      $('continueNote').textContent = `Picking up on hole ${holeNumber(S.hole)}, ${S.strokes} strokes in.`;
       restored = true;
     } catch (e) {
       console.error('save could not be restored', e);
-      try { localStorage.setItem('pftc-save-bad', JSON.stringify(sv)); } catch (e2) {}
+      try { localStorage.setItem(saveKey + '-bad', JSON.stringify(sv)); } catch (e2) {}
       Object.assign(S, { hole: 1, strokes: 0, holeStrokes: 0, falls: 0, lost: 0, best: 0, finished: false, crown: false, aim: 0, startedAt: 0, savedG: null, cartToBall: false });
       me.setCrown(false);
     }
@@ -903,12 +904,13 @@ function setupTitle() {
   $('randomize').onclick = () => { Object.assign(look, { skin: pick(SKINS), shirt: pick(SHIRTS), pants: pick(PANTS), hat: pick(SHIRTS), hatType: pick(HATS), stache: Math.random() < 0.35 }); me.setLook(look); if (S.crown) me.setCrown(true); saveLook(); setupTitle(); A.play('poof'); };
   setupRoom();
   $('play').onclick = teeOff; menuSetup();
-  $('restartClimb').onclick = () => { if (confirm('Start the climb over from hole 1? Your stroke count resets.')) { resetClimb(); start(); } };
+  $('restartClimb').onclick = () => { if (confirm('Start this nine over from hole ' + holeNumber(1) + '? Your stroke count resets.')) { resetClimb(); start(); } };
 }
 /* ---------------- rooms: invite codes and PINs ---------------- */
 // No code is the public mountain. A code is a private room; a 4-digit PIN locks it (see net.js for how).
 // The invite link carries the code and never the PIN.
 const roomCode = () => S.room.toUpperCase();
+const pinKey = () => (backNine ? 'pftc-back-pin:' : 'pftc-pin:') + S.room;
 function roomLabel(note, bad) {
   const priv = S.room !== 'mountain';
   for (const [id, m] of [['modeVs', 'vs'], ['modeCo', 'co']]) { const b = $(id); b.disabled = !priv; b.classList.toggle('on', (priv ? modeWant : 'vs') === m); }
@@ -922,22 +924,27 @@ function roomLabel(note, bad) {
 }
 function setupRoom() {
   if (S.room) return roomLabel();      // the title is being redrawn (Random look); keep what is typed
+  const select = $('nineSelect');
+  select.value = backNine ? 'back' : 'front';
+  select.onchange = () => location.assign(courseUrl(select.value === 'back', S.room));
+  $('otherNine').textContent = backNine ? 'Play the front nine' : 'Play the back nine';
+  $('otherNine').onclick = () => location.assign(courseUrl(!backNine, S.room));
   const codeEl = $('roomCode'), pinEl = $('roomPin');
   S.room = cleanCode(new URLSearchParams(location.search).get('room')) || 'mountain'; S.pin = '';
-  try { S.pin = S.room === 'mountain' ? '' : cleanPin(sessionStorage.getItem('pftc-pin:' + S.room)); } catch (e) {}
+  try { S.pin = S.room === 'mountain' ? '' : cleanPin(sessionStorage.getItem(pinKey())); } catch (e) {}
   codeEl.value = S.room === 'mountain' ? '' : roomCode(); pinEl.value = S.pin;
   const typed = () => {
     S.room = cleanCode(codeEl.value) || 'mountain';
     const digits = pinEl.value.replace(/\D/g, '').slice(0, 4); if (pinEl.value !== digits) pinEl.value = digits;
     S.pin = S.room === 'mountain' ? '' : cleanPin(digits);
-    try { history.replaceState(null, '', location.pathname + (S.room === 'mountain' ? '' : '?room=' + roomCode())); } catch (e) {}
+    try { history.replaceState(null, '', courseUrl(backNine, S.room)); } catch (e) {}
     roomLabel();
   };
   codeEl.oninput = pinEl.oninput = typed;
   for (const [id, m] of [['modeVs', 'vs'], ['modeCo', 'co']]) $(id).onclick = () => { modeWant = m; try { localStorage.setItem('pftc-mode', m); } catch (e) {} if (net) net.presence({ md: m }); roomLabel(); A.play('click'); };
   $('newRoom').onclick = () => { codeEl.value = newCode(); typed(); pinEl.focus(); A.play('click'); };
   $('copyInvite').onclick = () => {
-    const u = location.origin + location.pathname + (S.room === 'mountain' ? '' : '?room=' + roomCode());
+    const u = courseUrl(backNine, S.room).href;
     const done = () => toast(S.pin ? 'Invite link copied. Tell them the PIN yourself: it is not in the link.' : 'Invite link copied');
     navigator.clipboard.writeText(u).then(done, () => toast(escapeHtml(u)));
   };
@@ -1059,6 +1066,7 @@ document.addEventListener('pointerlockchange', () => {
 });
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
+  if (e.target === $('nineSelect')) return;
   // Esc with the mouse free opens and closes the menu (with the mouse held, the browser frees it first).
   if (k === 'escape' && playing() && $('finish').hidden) { if (performance.now() - menuAt > 300) showMenu($('menu').hidden); return; }
   if (!$('menu').hidden && (e.target === $('musicTrack') || k === 'tab')) return;
@@ -1446,10 +1454,10 @@ function ballRested() {
   if (h < S.shotHole && dropped > 8) {
     S.falls++; S.lost += dropped;
     const big = dropped > 20;
-    quip(big ? 'bigfall' : 'fall', { m: Math.round(dropped), h });
+    quip(big ? 'bigfall' : 'fall', { m: Math.round(dropped), h: holeNumber(h) });
     A.play('womp', 1); addRage(big ? 40 : 25);
     sendEv({ k: 'fall', m: Math.round(dropped), from: S.shotHole, to: h });
-    if (h < nextCup()) toast('🪜 Down on hole ' + h + '. You already cleared it: just play back up. Your next cup is still hole ' + nextCup() + '.');
+    if (h < nextCup()) toast('🪜 Down on hole ' + holeNumber(h) + '. You already cleared it: just play back up. Your next cup is still hole ' + holeNumber(nextCup()) + '.');
   }
   if (h !== S.hole) { S.hole = h; updateHud(); }
   const z = course.zoneAt(ball.p);
@@ -1483,7 +1491,7 @@ function holed(h) {
   setTimeout(() => { A.play(diff <= 0 ? 'cheer' : 'ooh', diff <= 0 ? 1 : 0.6); if (diff <= -1) A.play('fanfare'); }, 300);
   confetti.burst(H.cup.clone().add(V(0, 0.3, 0)), diff <= 0 ? 260 : 90, diff <= 0 ? 7 : 4);
   fx.sparks(H.cup.clone().add(V(0, 0.2, 0)), 30);
-  pop(`${label}<small>hole ${h} in ${n}</small>`, diff <= 0 ? 'big' : 'big meh');
+  pop(`${label}<small>hole ${holeNumber(h)} in ${n}</small>`, diff <= 0 ? 'big' : 'big meh');
   quip(name, { n });
   S.best = Math.max(S.best, h);
   addRage(diff <= 0 ? -40 : -15);
@@ -1499,7 +1507,7 @@ function coSunk(h, n, par, nm) {
   const H = course.holes[h], diff = n - par;
   A.play('cup', 1); setTimeout(() => A.play(diff <= 0 ? 'cheer' : 'ooh', diff <= 0 ? 1 : 0.6), 300);
   confetti.burst(H.cup.clone().add(V(0, 0.3, 0)), diff <= 0 ? 200 : 80, diff <= 0 ? 6 : 4);
-  pop((n === 1 ? 'HOLE IN ONE!' : diff < 0 ? 'UNDER PAR!' : diff === 0 ? 'PAR' : '+' + diff) + '<small>' + nm + ' sank hole ' + h + ' for the team</small>', diff <= 0 ? 'big' : 'big meh');
+  pop((n === 1 ? 'HOLE IN ONE!' : diff < 0 ? 'UNDER PAR!' : diff === 0 ? 'PAR' : '+' + diff) + '<small>' + nm + ' sank hole ' + holeNumber(h) + ' for the team</small>', diff <= 0 ? 'big' : 'big meh');
   S.best = Math.max(S.best, h); addRage(-20);
   setTimeout(() => { if (h < NHOLES) showHoleCard(); needPark(h); updateHud(); }, 2800);
 }
@@ -1531,7 +1539,7 @@ function bayTick(t, dt) {
 function touchBay(b) {
   S.bays |= 1 << b.k; b.flash = CHECK.flash;
   A.play('beep', 1); A.play('cup', 0.5); fx.sparks(b.p.clone().add(V(0, 0.6, 0)), 24);
-  pop('✅ CHECKPOINT<small>' + (b.k === NHOLES ? 'the summit' : 'tee ' + (b.k + 1) + ' unlocked') + '</small>', 'good', b.p.clone().add(V(0, 1.6, 0)));
+  pop('✅ CHECKPOINT<small>' + (b.k === NHOLES ? 'the summit' : 'tee ' + holeNumber(b.k + 1) + ' unlocked') + '</small>', 'good', b.p.clone().add(V(0, 1.6, 0)));
   save();
 }
 function needPark(k) {
@@ -1541,8 +1549,8 @@ function needPark(k) {
     pop('Now the cart<small>drive it through the checkpoint at the top</small>', 'big meh');
     toast('✅ Ball is in. The climb counts once your cart has touched the checkpoint at the summit.');
   } else {
-    pop('Checkpoint ' + k + '<small>drive your cart through it, then tee off on ' + (k + 1) + '</small>', 'big meh');
-    toast('✅ No tee shot on hole ' + (k + 1) + ' until your cart touches the glowing checkpoint on the cart road beside this tee.');
+    pop('Checkpoint ' + holeNumber(k) + '<small>drive your cart through it, then tee off on ' + holeNumber(k + 1) + '</small>', 'big meh');
+    toast('✅ No tee shot on hole ' + holeNumber(k + 1) + ' until your cart touches the glowing checkpoint on the cart road beside this tee.');
   }
 }
 // Checkpoint k touched (and, in co-op, by everyone): the next tee is open.
@@ -1550,7 +1558,7 @@ function parked() {
   const k = S.awaitPark;
   if (k === NHOLES) return finish();
   S.awaitPark = 0; ball.frozen = false;
-  pop('Tee ' + (k + 1) + ' open<small>go hit it</small>', 'good');
+  pop('Tee ' + holeNumber(k + 1) + ' open<small>go hit it</small>', 'good');
   updateHud(); save();
 }
 function finish() {
@@ -1576,7 +1584,7 @@ $('stayTop').onclick = () => { $('finish').hidden = true; setMode('walk'); lockP
 function showHoleCard(fly = false) {
   const H = course.holes[S.hole]; if (!H) return;
   if (fly && (S.mode === 'address' || S.mode === 'walk') && H.cup) S.intro = { t: 0, dur: 3.4, cup: H.cup.clone(), moved: 0 };
-  $('hcNum').textContent = `Hole ${S.hole}`; $('hcName').textContent = H.name; $('hcPar').textContent = `Par ${H.par}`; $('hcBlurb').textContent = H.blurb;
+  $('hcNum').textContent = `Hole ${holeNumber(S.hole)}`; $('hcName').textContent = H.name; $('hcPar').textContent = `Par ${H.par}`; $('hcBlurb').textContent = H.blurb;
   const el = $('holeCard'); el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
 }
 
@@ -2425,7 +2433,7 @@ function render(dt) {
 /* ---------------- HUD ---------------- */
 function updateHud() {
   const H = course.holes[S.hole];
-  $('hHole').textContent = S.hole; $('hName').textContent = H ? H.name + (S.hole < nextCup() && !S.awaitPark ? ' · ✓ next cup: ' + nextCup() : '') : ''; $('hPar').textContent = H ? H.par : '';
+  $('hHole').textContent = holeNumber(S.hole); $('hName').textContent = H ? H.name + (S.hole < nextCup() && !S.awaitPark ? ' · ✓ next cup: ' + holeNumber(nextCup()) : '') : ''; $('hPar').textContent = H ? H.par : '';
   $('hTotal').textContent = S.strokes; $('hFalls').textContent = S.falls;
   [...$('clubs').children].forEach((el, i) => el.classList.toggle('on', SLOTS[i] === (S.noClub ? -1 : swing.ci)));
   $('mute').textContent = A.isMuted() ? '🔇 M' : '🔊 M';
@@ -2485,7 +2493,7 @@ function promptText() {
     if (nc) return '<kbd>E</kbd>: hop in the cart';
     return (S.noClub ? '<b>Left click</b> right fist · <b>Right click</b> left fist · flick the mouse up for an uppercut, sideways for a hook · <kbd>2</kbd>–<kbd>5</kbd> clubs' : '<b>Hold left mouse</b> to swing freely · <b>Right click</b> by your ball for the golf stance') + ' · <kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump';
   }
-  if (S.mode === 'drive' && S.awaitPark && !touchedBay(S.awaitPark)) return (S.awaitPark === NHOLES ? '✅ Drive through the checkpoint at the summit to finish' : '✅ Drive through the glowing checkpoint beside hole ' + (S.awaitPark + 1) + "'s tee") + ' · <kbd>Space</kbd> brake';
+  if (S.mode === 'drive' && S.awaitPark && !touchedBay(S.awaitPark)) return (S.awaitPark === NHOLES ? '✅ Drive through the checkpoint at the summit to finish' : '✅ Drive through the glowing checkpoint beside hole ' + holeNumber(S.awaitPark + 1) + "'s tee") + ' · <kbd>Space</kbd> brake';
   if (S.mode === 'drive' && S.cart && (course.puzzles?.gates || []).some(g => g.open < 0.4 && g.p.distanceTo(S.cart.pos) < 14)) return '🚧 <b>Click</b> to honk and the gate arm lifts · <kbd>Space</kbd> brake';
   if (S.mode === 'drive') return '<kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> brake · <b>Click</b> honk · <kbd>E</kbd> hop out';
   if (S.mode === 'address') return GOLF_HINT + ' · <b>Right click</b> steps away';
@@ -2552,7 +2560,7 @@ async function connect() {
   }
   S.netTries = 0; $('netStatus').title = '';
   S.pin = net.pin;
-  try { if (net.pin) sessionStorage.setItem('pftc-pin:' + S.room, net.pin); else sessionStorage.removeItem('pftc-pin:' + S.room); } catch (e) {}
+  try { if (net.pin) sessionStorage.setItem(pinKey(), net.pin); else sessionStorage.removeItem(pinKey()); } catch (e) {}
   if (typedPin && !net.pin) toast('Room ' + roomCode() + ' was already open, so it has no PIN.');
   roomLabel(); netLabel();
   useCartBay(net.slot);
@@ -2626,7 +2634,7 @@ function sendEv(e) { if (net) net.event(e); if (e.k === 'sink' || e.k === 'fall'
 function remoteEvent(p, e) {
   const nm = `<b style="color:${escapeHtml(p.presence?.lk?.shirt || '#fff')}">${escapeHtml(p.presence?.nm || 'Golfer')}</b>`;
   const o = others.get(p.id);
-  if (e.k === 'fall') { toast(`😂 ${nm} fell ${+e.m || 0} m (hole ${+e.from || '?'} → ${+e.to || '?'})`); if (o) A.play('womp', 0.3 * proximity(o.ball.position)); }
+  if (e.k === 'fall') { toast(`😂 ${nm} fell ${+e.m || 0} m (hole ${+e.from ? holeNumber(+e.from) : '?'} → ${+e.to ? holeNumber(+e.to) : '?'})`); if (o) A.play('womp', 0.3 * proximity(o.ball.position)); }
   else if (e.k === 'shot' && S.coop) { coYield(p.id); S.coLast = p.id; S.coRestT = 0; }
   else if (e.k === 'sink' && S.coop && p.id === S.coOwner) coSunk(+e.h | 0, +e.n | 0, +e.par | 0, nm);
   else if (e.k === 'rock' && nums(e.at, 3) && nums(e.v, 3)) {
@@ -2636,7 +2644,7 @@ function remoteEvent(p, e) {
     if (+e.lost) { if (!(k.lost > 0)) { k.lost = 2.5; k.mesh.visible = false; } }
     else { if (k.p.distanceTo(at) > 0.15) k.p.lerp(at, k.p.distanceTo(at) > 3 ? 1 : 0.5); k.v.fromArray(e.v); k.by = p.id; }
   }
-  else if (e.k === 'sink') { const d = (+e.n || 0) - (+e.par || 0); toast(`⛳ ${nm} sank hole ${+e.h || '?'} in ${+e.n || '?'}${+e.n === 1 ? ' — ACE!' : d < 0 ? ' (under par!)' : ''}`); if (o) confetti.burst(o.ball.position.clone(), 80, 4); }
+  else if (e.k === 'sink') { const d = (+e.n || 0) - (+e.par || 0); toast(`⛳ ${nm} sank hole ${+e.h ? holeNumber(+e.h) : '?'} in ${+e.n || '?'}${+e.n === 1 ? ' — ACE!' : d < 0 ? ' (under par!)' : ''}`); if (o) confetti.burst(o.ball.position.clone(), 80, 4); }
   else if (e.k === 'sea') toast(`🌊 ${nm} hit it into the sea`);
   else if (e.k === 'finish') toast(`👑 ${nm} FINISHED THE CLIMB in ${fmtTime(clamp(+e.ms || 0, 0, 1e9), true)}!`);
   else if (e.k === 'rv') voteEvent(p, e, nm);
@@ -2919,7 +2927,7 @@ function standings() {
 function renderBoard() {
   S.boardT = S.t;
   const rows = standings();
-  const html = rows.map((r, i) => `<tr${r.me ? ' class="me"' : ''}><td>${i + 1}</td><td><i class="dot" style="background:${escapeHtml(r.shirt || '#999')}"></i>${r.crown ? '👑 ' : ''}${escapeHtml(r.nm)}</td><td>${r.done ? '🏁 Finished' : r.pk ? 'Parking the cart' : 'Hole ' + r.hole}</td><td>${r.done ? fmtTime(r.ft, true) : fmtTime(r.ms)}</td><td>${r.fa}</td></tr>`).join('');
+  const html = rows.map((r, i) => `<tr${r.me ? ' class="me"' : ''}><td>${i + 1}</td><td><i class="dot" style="background:${escapeHtml(r.shirt || '#999')}"></i>${r.crown ? '👑 ' : ''}${escapeHtml(r.nm)}</td><td>${r.done ? '🏁 Finished' : r.pk ? 'Parking the cart' : 'Hole ' + holeNumber(r.hole)}</td><td>${r.done ? fmtTime(r.ft, true) : fmtTime(r.ms)}</td><td>${r.fa}</td></tr>`).join('');
   $('boardRows').innerHTML = html; $('finRows').innerHTML = html;
   $('playerCount').textContent = (rows.length === 1 ? 'just you (so far)' : `${rows.length} golfers on the mountain`)
     + (S.room === 'mountain' ? ' · public mountain' : ' · room ' + roomCode() + (S.pin ? ' · PIN ' + S.pin : ''));

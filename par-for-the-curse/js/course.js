@@ -5,6 +5,8 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Collider, BALL_R } from './physics.js';
+import { backNine, holeNumber } from './nine.js';
+import { buildBackHole, buildBackRoad } from './back-nine.js';
 import { make, toon, addOutline, gradientMap, manifest, has } from './assets.js';
 const pm = n => manifest.props?.objects?.[n] || {};
 
@@ -418,12 +420,16 @@ export class Course {
     this.H = H;
     this.buildPads();
     const builders = [this.hole1, this.hole2, this.hole3, this.hole4, this.hole5, this.hole6, this.hole7, this.hole8, this.hole9];
-    builders.forEach((b, k) => b.call(this, H[k]));
+    if (backNine) {
+      H.forEach(h => buildBackHole(this, h, woodMat));
+      this.hits.set('goose', (c, vn, p) => { c.goose.userData.honk = .5; this.fx.sound('honk', 1, p); });
+      this.hits.set('bumper', (c, vn, p) => { c.mesh.userData.flash = 1; this.fx.sound('bumper', 1, p); });
+    } else builders.forEach((b, k) => b.call(this, H[k]));
     // Where the auto-aim points from each part of a hole (hole-local x, z): along the line you would
     // actually play, not straight at a flag round the corner.
     const aims = { 1: [[60, 0]], 2: [[34, 0], [50, 0], [64, 0]], 3: [[63, 0]], 4: [[40, 0], [62, 0]], 5: [[40, 0], [53, 0], [66, 0]],
       6: [[29, 0], [41, 0], [52, 0], [66, 0]], 7: [[32, 4.2], [67, 0]], 8: [[30, 0], [41, 0], [53.5, 0], [66, 0]], 9: [[37, 0], [60, 0]] };
-    for (const [i, pts] of Object.entries(aims)) this.holes[i].aims = pts;
+    if (!backNine) for (const [i, pts] of Object.entries(aims)) this.holes[i].aims = pts;
     this.ringRoad();
     this.decorate();
     this.grow();
@@ -486,7 +492,7 @@ export class Course {
     }
     // The first tee gets a welcome sign, a cart and a lamp.
     const P0 = { i: 1, frame: this.H[0].frame, group: this.H[0].group };
-    this.sign(P0, 2.5, -7.2, 0, ['WELCOME TO', 'MOUNT BOGEY', 'no refunds · no mulligans'], Math.PI * 0.08);
+    this.sign(P0, 2.5, -7.2, 0, ['WELCOME TO', backNine ? 'LANTERN LINKS' : 'MOUNT BOGEY', backNine ? 'harbor tees 10–18' : 'no refunds · no mulligans'], Math.PI * 0.08);
     this.prop(P0, 'lamp', 8, 7.5, { y: 0, scale: 1 });
   }
   makeCup(H, p) {
@@ -998,7 +1004,7 @@ export class Course {
     ring.position.set(x, y + 0.045, z); ring.renderOrder = 3; H.group.add(ring);
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(Math.min(pl, pw) * 0.42, Math.min(pl, pw) * 0.5, 14, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
     beam.position.set(x, y + 7, z); beam.renderOrder = 3; beam.visible = false; H.group.add(beam);
-    this.sign(H, x1 + 2.6, -PAD + 1.2, y, k === NHOLES ? ['CHECKPOINT', 'drive through to finish'] : ['CHECKPOINT ' + k, 'drive through, tee off ' + (k + 1)], Math.PI * 0.85);
+    this.sign(H, x1 + 2.6, -PAD + 1.2, y, k === NHOLES ? ['CHECKPOINT', 'drive through to finish'] : ['CHECKPOINT ' + holeNumber(k), 'drive through, tee off ' + holeNumber(k + 1)], Math.PI * 0.85);
     const bay = { k, frame: H.frame, x, y, z, hx: pl / 2, hz: pw / 2, glow, ring, beam, p: H.frame.w(x, y, z), yaw: H.frame.yaw, side: H.frame.in.clone() };
     this.bays[k] = bay;
     if (k === NHOLES) this.parking = bay;
@@ -1049,7 +1055,8 @@ export class Course {
         return line;
       };
       const lin = (pts, x) => { for (let i = 1; i < pts.length; i++) if (x <= pts[i][0]) { const a = pts[i - 1], b = pts[i], t = (x - a[0]) / (b[0] - a[0]); return a[1] + (b[1] - a[1]) * t; } return pts[pts.length - 1][1]; };
-      this['ring' + n](H, { off, w, P, corner, end, road, lin });
+      const layout = { off, w, P, corner, end, road, lin };
+      if (backNine) buildBackRoad(this, H, layout); else this['ring' + n](H, layout);
       this.parkingBay(H, n, 73, 83, -off - w / 2 - 0.5, RISE);
       this.cartRoute[n] = route;
     }

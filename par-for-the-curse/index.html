@@ -223,6 +223,7 @@ kbd{display:inline-block;min-width:22px;padding:0 6px;border:2px solid var(--ink
 #menu .vol input{width:100%;accent-color:var(--red)}
 #menu .vol output{text-align:right;color:#6a5f70}
 #menu .vol select{grid-column:2/-1;min-width:0;font:inherit;color:var(--ink);background:white;border:2px solid var(--ink);border-radius:8px;padding:5px 8px}
+#nineSelect{min-width:0;max-width:100%;font:800 14px Nunito,sans-serif;color:var(--ink);background:#fffbed;border:2px solid var(--ink);border-radius:9px;padding:7px 9px}
 #menu .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
 #menu .acts .btn{width:100%}
 #menu .note{margin:10px 0 0;font-weight:800;font-size:12px;color:#6a5f70}
@@ -372,7 +373,8 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 <div class="overlay" id="title" hidden>
   <div class="panel">
     <h1>Par for the <span>Curse</span></h1>
-    <p class="sub">Multiplayer rage golf up Mount Bogey: nine floating holes, one physical swing, and a very long way down. Fall off and you play from wherever you land.</p>
+    <p class="sub">Multiplayer rage golf up Mount Bogey. Pick a nine, bring your cart, and play from wherever you land.</p>
+    <div class="row"><label for="nineSelect">Course</label><select id="nineSelect"><option value="front">Front nine · Mount Bogey (1–9)</option><option value="back">Back nine · Lantern Links (10–18)</option></select></div>
     <p id="continueNote" hidden></p>
     <div class="row"><label for="name">Your name</label><input type="text" id="name" maxlength="16" placeholder="Golfer" autocomplete="off" spellcheck="false"></div>
     <div class="room">
@@ -441,6 +443,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
   <div class="bigstats"><div><b id="finTime">0</b><span>your time</span></div><div><b id="finPlace">1st</b><span>place</span></div><div><b id="finStrokes">0</b><span>strokes</span></div><div><b id="finFalls">0</b><span>falls</span></div></div>
   <table class="standings"><thead><tr><th>#</th><th>Golfer</th><th>Where</th><th>Time</th><th>Falls</th></tr></thead><tbody id="finRows"></tbody></table>
   <div style="display:flex;gap:10px;margin-top:16px"><button class="btn" id="stayTop" style="flex:1;background:#fff;color:var(--ink)">Stay up here</button><button class="btn" id="climbAgain" style="flex:1">Climb again</button></div>
+  <button class="btn small" id="otherNine">Play the back nine</button>
 </div></div>
 
 <script>
@@ -455,7 +458,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
       ['loaders/GLTFLoader.js', 'geometries/RoundedBoxGeometry.js'].forEach(function (f) { imports['three/addons/' + f] = J + f + q; });
       imports[J + 'utils/BufferGeometryUtils.js'] = J + 'utils/BufferGeometryUtils.js' + q;
       var base = new URL('js/', location.href).href;
-      ['assets', 'audio', 'cart', 'course', 'fx', 'golfer', 'net', 'physics', 'sky', 'voice', 'wreck', 'controls', 'ragdoll', 'post'].forEach(function (m) { imports[base + m + '.js'] = base + m + '.js' + q; });
+      ['assets', 'audio', 'back-nine', 'cart', 'course', 'nine', 'fx', 'golfer', 'net', 'physics', 'sky', 'voice', 'wreck', 'controls', 'ragdoll', 'post'].forEach(function (m) { imports[base + m + '.js'] = base + m + '.js' + q; });
     }
     var map = document.createElement('script'); map.type = 'importmap'; map.textContent = JSON.stringify({ imports: imports });
     var main = document.createElement('script'); main.type = 'module'; main.src = 'js/main.js' + q;
@@ -464,7 +467,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
 </script>
 <script>
   // Climb bar ticks, one per hole.
-  (function () { const t = document.getElementById('climbTrack'); for (let i = 0; i <= 9; i++) { const d = document.createElement('i'); d.className = 'tick'; d.style.bottom = (i / 9 * 100) + '%'; d.innerHTML = i && i < 9 ? '<b>' + (i + 1) + '</b>' : i === 0 ? '<b>1</b>' : ''; t.appendChild(d); } })();
+  (function () { const t = document.getElementById('climbTrack'), first = new URLSearchParams(location.search).get('nine') === 'back' ? 10 : 1; for (let i = 0; i <= 9; i++) { const d = document.createElement('i'); d.className = 'tick'; d.style.bottom = (i / 9 * 100) + '%'; d.innerHTML = i < 9 ? '<b>' + (first + i) + '</b>' : ''; t.appendChild(d); } })();
 </script>
 </body>
 </html>
