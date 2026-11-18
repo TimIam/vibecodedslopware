@@ -9,6 +9,10 @@ import { make, toon, addOutline, gradientMap, manifest } from './assets.js';
 const pm = n => manifest.props?.objects?.[n] || {};
 
 const WALL_H = 0.6;
+const contactSound = {
+  tee: 'turf', fairway: 'turf', green: 'turf', rough: 'turf', moss: 'turf',
+  wood: 'wood', sand: 'sand', metal: 'metal', rock: 'rock', stone: 'rock',
+};
 export const SIDE = 80, PAD = 9, RISE = 7, NHOLES = 9, CUP_R = 0.16, SEA_Y = -40;
 const CORNERS = [[40, 40], [-40, 40], [-40, -40], [40, -40]];
 const DIRS = [[-1, 0], [0, -1], [1, 0], [0, 1]];
@@ -381,13 +385,13 @@ export class Course {
   contact(c, vn, p) {
     if (c.thing != null && vn > 1.5) this.fx.event('thing', { i: c.thing, zone: c.zone, p, vn });
     if (c.tag && this.hits.has(c.tag)) this.hits.get(c.tag)(c, vn, p);
-    else if (vn > 2) this.fx.sound(c.surf === 'wood' ? 'wood' : c.surf === 'sand' ? 'sand' : 'thud', Math.min(1, vn / 14), p);
+    else if (vn > 2) this.fx.sound(contactSound[c.surf] || 'thud', Math.min(1, vn / 14), p);
   }
 
   /* ----- the holes ----- */
   build() {
     this.hits = new Map();
-    this.hits.set('leaf', (c, vn, p) => { if (vn > 2) this.fx.sound('sand', 0.5, p); });
+    this.hits.set('leaf', (c, vn, p) => { if (vn > 2) this.fx.sound('rustle', Math.min(0.7, vn / 14), p); });
     const H = [];
     for (let i = 1; i <= NHOLES; i++) H.push({ i, frame: frames[i], group: this.frameGroup(frames[i]) });
     this.H = H;

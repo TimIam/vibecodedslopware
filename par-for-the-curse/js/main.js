@@ -1406,7 +1406,7 @@ function launch(r) {
   trail.clear();
   const speed = r.v.length();
   if (r.kind === 'putt') A.play('putt', clamp(speed / 6, 0.3, 1));
-  else A.play('hit', clamp(speed / 30, 0.4, 1), { pure: r.kind === 'pure' });
+  else A.play('hit', clamp(speed / 30, 0.4, 1), { club: CLUBS[swing.ci].id, kind: r.kind });
   const mph = v => Math.round(v * 2.237);
   $('shot').innerHTML = `<b>${CLUBS[swing.ci].name}</b> · head ${mph(r.headSpeed)} mph · ball ${mph(speed)} mph` + (r.kind === 'pure' ? ' · <em>PURE</em>' : r.kind === 'topped' ? ' · <em class="bad">TOPPED</em>' : r.kind === 'shank' ? ' · <em class="bad">SHANK</em>' : '') + (r.where === 'toe' || r.where === 'heel' ? ` · off the ${r.where}` : '');
   $('shot').classList.add('show'); clearTimeout(launch.t); launch.t = setTimeout(() => $('shot').classList.remove('show'), 4000);
@@ -1415,7 +1415,7 @@ function launch(r) {
   else if (r.kind === 'shank') { pop('SHANK!', 'bad', ball.p.clone().add(V(0, 0.4, 0))); quip('topped'); addRage(10); }
   else if (r.kind === 'toe' || r.kind === 'heel') { pop('off the ' + r.kind, 'bad', ball.p.clone().add(V(0, 0.4, 0))); addRage(4); }
   if (r.kind !== 'putt' && speed > 25) shake(0.1);
-  sendEv({ k: 'hit', at: ball.p.toArray().map(n => +n.toFixed(2)), s: +speed.toFixed(1) });
+  sendEv({ k: 'hit', at: ball.p.toArray().map(n => +n.toFixed(2)), s: +speed.toFixed(1), club: CLUBS[swing.ci].id, kind: r.kind });
   updateHud();
 }
 
@@ -2650,7 +2650,12 @@ function remoteEvent(p, e) {
   else if (e.k === 'down') toast(e.by === net.me ? `🥊 You knocked ${nm} down!` : `💫 ${nm} was knocked down`);
   else if (e.k === 'shout' && o && typeof e.text === 'string') { speech(o.golfer, e.text.slice(0, 40)); A.play('chat', proximity(o.ball.position)); }
   else if (e.k === 'emote' && o) { o.emote = e.e === 'tantrum' ? 'tantrum' : 'dance'; o.emoteT = 0; }
-  else if (e.k === 'hit' && o) { const pp = nums(e.at, 3) ? V().fromArray(e.at) : o.ball.position.clone(); A.play('hit', clamp((+e.s || 10) / 30, 0.2, 1) * proximity(pp) * 0.7); }
+  else if (e.k === 'hit' && o) {
+    const pp = nums(e.at, 3) ? V().fromArray(e.at) : o.ball.position.clone();
+    const putt = e.kind === 'putt';
+    const level = clamp((+e.s || 10) / (putt ? 6 : 30), 0.2, 1) * proximity(pp) * 0.7;
+    A.play(putt ? 'putt' : 'hit', level, { club: e.club, kind: e.kind });
+  }
   else if (e.k === 'cannon' && o) A.play('cannon', proximity(o.ball.position) * 0.8);
   else if (e.k === 'whack' && e.to === net.me && Array.isArray(e.v)) takeHit(p, nm, e);
   else if (e.k === 'bonk' && e.to === net.me && Array.isArray(e.v)) {

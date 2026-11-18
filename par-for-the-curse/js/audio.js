@@ -50,21 +50,48 @@ function burst(dur, vol, freq, type = 'lowpass', t = ctx.currentTime, q = 0.8, f
   env(g, t, 0.003, vol, dur); n.connect(f); f.connect(g); g.connect(sfx); n.start(t, Math.random()); n.stop(t + dur + 0.1);
 }
 
+// A club strike has a short ball click and a separate resonance from the head.
+function strike(club, kind, v, t) {
+  let body = 680, ring = 2560, decay = 0.095; // iron
+  if (club === 'driver') { body = 395; ring = 3280; decay = 0.19; }
+  if (club === 'wedge') { body = 890; ring = 1850; decay = 0.055; }
+  const pitch = 0.97 + Math.random() * 0.06;
+  const thin = kind === 'topped' || kind === 'shank';
+  burst(0.018, 0.8 * v, thin ? 4000 : 3000, 'bandpass', t, 0.7);
+  tone('triangle', body * pitch, body * 0.66, 0.044, (thin ? 0.14 : 0.48) * v, t);
+  tone('sine', ring * pitch, ring * pitch * 0.985, thin ? 0.048 : decay, 0.27 * v, t);
+  if (club === 'wedge') burst(0.075, 0.32 * v, 2150, 'bandpass', t + 0.006, 0.65, 740);
+  if (kind === 'pure') tone('sine', ring * 1.5, ring * 1.49, 0.28, 0.13 * v, t + 0.008);
+}
+
 export function play(name, vol = 1, opt = {}) {
-  if (!ctx || muted) return;
-  const t = ctx.currentTime, v = Math.max(0.02, Math.min(1.2, vol));
+  if (!ctx || muted || !(vol > 0)) return;
+  const t = ctx.currentTime, v = Math.min(1.2, vol);
   switch (name) {
-    case 'hit': { // driver/iron "tock", brighter when pure
-      tone('sine', 1300 + v * 400, 500, 0.09, 0.5 * v, t);
-      tone('triangle', 2600, 1800, 0.05, 0.25 * v, t);
-      burst(0.04, 0.5 * v, 4000, 'highpass', t);
-      if (opt.pure) { tone('sine', 2093, 2093, 0.5, 0.12, t + 0.02); tone('sine', 3136, 3136, 0.6, 0.08, t + 0.04); }
+    case 'hit': strike(opt.club, opt.kind, v, t); break;
+    case 'putt': {
+      const f = 760 + Math.random() * 55;
+      tone('sine', f, f * 0.94, 0.069, 0.36 * v, t);
+      tone('sine', f * 2.7, f * 2.6, 0.024, 0.15 * v, t);
+      burst(0.012, 0.28 * v, 2300, 'bandpass', t);
       break;
     }
-    case 'putt': tone('sine', 900, 700, 0.06, 0.35 * v, t); burst(0.02, 0.2 * v, 3000, 'highpass', t); break;
     case 'thud': tone('sine', 140, 60, 0.12, 0.45 * v, t); burst(0.06, 0.25 * v, 600, 'lowpass', t); break;
     case 'wood': tone('triangle', 420, 260, 0.08, 0.4 * v, t); burst(0.03, 0.3 * v, 1800, 'bandpass', t, 2); break;
-    case 'sand': burst(0.25, 0.35 * v, 2500, 'bandpass', t, 0.6, 900); break;
+    case 'turf':
+      tone('sine', 235, 102, 0.055, 0.38 * v, t);
+      burst(0.078, 0.46 * v, 1600, 'lowpass', t, 0.65, 360);
+      break;
+    case 'metal':
+      burst(0.018, 0.42 * v, 3700, 'bandpass', t);
+      tone('sine', 1120, 1110, 0.22, 0.30 * v, t);
+      tone('sine', 2735, 2710, 0.10, 0.16 * v, t);
+      break;
+    case 'sand':
+      burst(0.048, 0.53 * v, 760, 'lowpass', t);
+      burst(0.16, 0.46 * v, 3600, 'bandpass', t + 0.012, 0.7, 930);
+      for (let i = 0; i < 5; i++) burst(0.012, 0.17 * v, 2100 + Math.random() * 2300, 'bandpass', t + 0.045 + i * 0.021 + Math.random() * 0.012);
+      break;
     case 'divot': burst(0.18, 0.45 * v, 700, 'lowpass', t, 0.7, 200); tone('sine', 110, 50, 0.15, 0.3 * v, t); break;
     case 'splash': burst(0.7, 0.6 * v, 3000, 'lowpass', t, 0.5, 300); burst(0.3, 0.3 * v, 6000, 'highpass', t + 0.05); tone('sine', 300, 90, 0.25, 0.2 * v, t); break;
     case 'boing': { const o = tone('sine', 180, 520, 0.35, 0.45 * v, t); tone('triangle', 90, 260, 0.3, 0.2 * v, t); break; }
@@ -74,7 +101,16 @@ export function play(name, vol = 1, opt = {}) {
     case 'honk': for (let i = 0; i < 2; i++) { const o = tone('sawtooth', 430, 360, 0.16, 0.18 * v, t + i * 0.2); const f = ctx.createBiquadFilter(); } burst(0.3, 0.1 * v, 900, 'bandpass', t, 3); break;
     case 'cannon': burst(1.2, 0.9 * v, 800, 'lowpass', t, 0.5, 60); tone('sine', 110, 30, 0.6, 0.8 * v, t); break;
     case 'fuse': burst(0.9, 0.2 * v, 5000, 'highpass', t, 0.5); break;
-    case 'cup': for (let i = 0; i < 4; i++) tone('triangle', 1400 - i * 150, 1200 - i * 150, 0.05, 0.2 * v, t + i * 0.06 + Math.random() * 0.02); tone('sine', 300, 160, 0.2, 0.35 * v, t + 0.28); break;
+    case 'cup': {
+      // Rim, opposite wall, then a tightening rattle against the liner.
+      const pitch = 0.97 + Math.random() * 0.06;
+      for (const [delay, freq, level] of [[0, 1280, 0.32], [0.082, 740, 0.43], [0.139, 920, 0.25], [0.176, 680, 0.18], [0.202, 710, 0.10]]) {
+        tone('triangle', freq * pitch, freq * pitch * 0.93, 0.042, level * v, t + delay);
+        burst(0.016, level * v, 2100, 'bandpass', t + delay);
+      }
+      tone('sine', 390, 295, 0.17, 0.35 * v, t + 0.078);
+      break;
+    }
     case 'whistle': tone('sine', 1500, 260, 1.4, 0.12 * v, t, sfx, 0.05); break;
     case 'womp': { const n = [392, 370, 349, 294]; n.forEach((f, i) => { const d = i === 3 ? 0.9 : 0.32; const o = tone('sawtooth', f, i === 3 ? f * 0.96 : f, d, 0.09 * v, t + i * 0.36, sfx, 0.03); }); break; }
     case 'cheer': burst(1.8, 0.35 * v, 1800, 'bandpass', t, 0.4); for (let i = 0; i < 18; i++) burst(0.03, 0.15 * v, 2500, 'highpass', t + 0.1 + Math.random() * 1.4); break;
