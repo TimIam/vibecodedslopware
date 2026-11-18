@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Collider, BALL_R } from './physics.js';
-import { make, toon, addOutline, gradientMap, manifest } from './assets.js';
+import { make, toon, addOutline, gradientMap, manifest, has } from './assets.js';
 const pm = n => manifest.props?.objects?.[n] || {};
 
 const WALL_H = 0.6;
@@ -450,6 +450,18 @@ export class Course {
       // Pad dressing.
       const dress = summit ? [] : [['bush', -7.6, -7.6], ['flowers', -7.8, 7.6], ['flowers', 7.6, -7.8], ['rock_b', 6.2, 7.8]];
       for (const [n, x, z] of dress) this.prop(P, n, ox + x, z, { y: oy, scale: 0.8 + Math.random() * 0.4 });
+      // Rest stops sit on the pad margins, away from the cart bays and the approach to the cup.
+      if (k === 0 || k === 4 || summit) {
+        const restProp = (name, x, z, rot, surf) => {
+          if (!has(name)) return;
+          const model = this.prop(P, name, ox + x, z, { y: oy, rot, scale: 1, outline: 0.009 });
+          this.solidify(model, { surf, hole: P.i });
+        };
+        const benchX = summit ? 4.7 : -4.5;
+        restProp('parasol_bench', benchX, 7.25, Math.PI - 0.2, 'wood');
+        restProp('goose_bag', benchX + 1.45, 7.0, Math.PI - 0.7, 'metal');
+        if (k === 0 || summit) restProp('tee_clock', summit ? -6.8 : 1.0, -6.5, 0.18, 'metal');
+      }
     }
     // The first tee gets a welcome sign, a cart and a lamp.
     const P0 = { i: 1, frame: this.H[0].frame, group: this.H[0].group };
