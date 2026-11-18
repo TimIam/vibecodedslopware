@@ -1500,6 +1500,41 @@ window.SLOPWARE = {
      "note": "checkpoint beam fades as the camera nears, no screen wash driving through",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 38,
+     "date": "2026-11-18T04:00:36-07:00",
+     "note": "Give golf clubs, course surfaces and the cup distinct sounds",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 39,
+     "date": "2026-11-18T04:06:17-07:00",
+     "note": "Give the cart a motor, tires and horn and add a soundtrack selector",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 40,
+     "date": "2026-11-18T11:30:31-07:00",
+     "note": "Dress Mount Bogey rest stops with Blender-built clubhouse props",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 41,
+     "date": "2026-11-18T11:34:55-07:00",
+     "note": "Cross-cut the fairways and shape sandstone, sand and water to the terrain",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 42,
+     "date": "2026-11-18T11:42:49-07:00",
+     "note": "Add Lantern Links, a selectable back nine with harbor holes and cart puzzles",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
