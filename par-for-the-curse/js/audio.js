@@ -1,4 +1,4 @@
-// Every sound is synthesised: no audio files. Plus a little plucky music loop, wind, and an
+// Every sound is synthesised: no audio files. Plus selectable music, wind, and an
 // announcer that uses the browser's speech synthesis to be unhelpful out loud.
 let ctx = null, master = null, sfx = null, music = null, whooshGain = null, windGain = null, noiseBuf = null;
 let muted = false, musicOn = true, voiceOn = true;
@@ -13,7 +13,7 @@ export function setVolume(k, v) {
   try { localStorage.setItem('pftc-vol', JSON.stringify(vol)); } catch (e) {}
   if (master) master.gain.value = muted ? 0 : 0.8 * vol.master;
   if (sfx) sfx.gain.value = vol.sfx;
-  if (music) music.gain.value = mus(0.16);
+  if (k === 'music') mixMusic();
 }
 try { muted = localStorage.getItem('pftc-muted') === '1'; musicOn = localStorage.getItem('pftc-music') !== '0'; voiceOn = localStorage.getItem('pftc-voice') !== '0'; } catch (e) {}
 
@@ -44,10 +44,10 @@ function tone(type, f0, f1, dur, vol, t = ctx.currentTime, dest = sfx, a = 0.004
   o.type = type; o.frequency.setValueAtTime(f0, t); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
   env(g, t, a, vol, dur); o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + a + 0.05); return o;
 }
-function burst(dur, vol, freq, type = 'lowpass', t = ctx.currentTime, q = 0.8, f1) {
+function burst(dur, vol, freq, type = 'lowpass', t = ctx.currentTime, q = 0.8, f1, dest = sfx) {
   const n = noise(), f = ctx.createBiquadFilter(), g = ctx.createGain();
   f.type = type; f.frequency.setValueAtTime(freq, t); if (f1) f.frequency.exponentialRampToValueAtTime(f1, t + dur); f.Q.value = q;
-  env(g, t, 0.003, vol, dur); n.connect(f); f.connect(g); g.connect(sfx); n.start(t, Math.random()); n.stop(t + dur + 0.1);
+  env(g, t, 0.003, vol, dur); n.connect(f); f.connect(g); g.connect(dest); n.start(t, Math.random()); n.stop(t + dur + 0.1);
 }
 
 // A club strike has a short ball click and a separate resonance from the head.
@@ -77,6 +77,31 @@ export function play(name, vol = 1, opt = {}) {
       break;
     }
     case 'thud': tone('sine', 140, 60, 0.12, 0.45 * v, t); burst(0.06, 0.25 * v, 600, 'lowpass', t); break;
+    case 'cartHorn': {
+      // A small two-reed horn. Hold the notes together, then let the reeds fall out of tune.
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.16 * v, t + 0.018);
+      g.gain.setValueAtTime(0.16 * v, t + 0.17); g.gain.linearRampToValueAtTime(0, t + 0.23);
+      g.connect(sfx);
+      for (const f of [370, 466]) {
+        const reed = ctx.createOscillator(); reed.type = 'triangle';
+        reed.frequency.setValueAtTime(f, t); reed.frequency.setValueAtTime(f, t + 0.17);
+        reed.frequency.linearRampToValueAtTime(f * 0.96, t + 0.23);
+        reed.connect(g); reed.start(t); reed.stop(t + 0.24);
+      }
+      break;
+    }
+    case 'cartCrash':
+      burst(0.085, 0.7 * v, 1600, 'bandpass', t, 0.8, 420);
+      tone('triangle', 198, 77, 0.13, 0.46 * v, t);
+      tone('sine', 844, 801, 0.16, 0.2 * v, t + 0.017);
+      burst(0.045, 0.27 * v, 3100, 'bandpass', t + 0.064);
+      break;
+    case 'cartLand':
+      tone('sine', 125, 54, 0.19, 0.58 * v, t);
+      burst(0.085, 0.46 * v, 800, 'lowpass', t);
+      tone('triangle', 360, 270, 0.085, 0.21 * v, t + 0.068);
+      break;
     case 'wood': tone('triangle', 420, 260, 0.08, 0.4 * v, t); burst(0.03, 0.3 * v, 1800, 'bandpass', t, 2); break;
     case 'turf':
       tone('sine', 235, 102, 0.055, 0.38 * v, t);
@@ -157,7 +182,7 @@ export function slowmo(on) {
       const beat = () => { const tt = ctx.currentTime; tone('sine', 70, 40, 0.14, 0.4, tt); tone('sine', 66, 38, 0.16, 0.3, tt + 0.22); };
       beat(); slowBeat = setInterval(beat, 900);
     }
-    if (music) music.gain.setTargetAtTime(mus(0.03), t, 0.15);
+    mixMusic(0.15);
     if (windGain) windGain.gain.setTargetAtTime(0.01, t, 0.15);
   } else {
     burst(0.45, 0.3, 200, 'bandpass', t, 0.9, 2600);
@@ -168,56 +193,120 @@ export function slowmo(on) {
       stop.forEach(o => o.stop(t + 0.35));
     }
     clearInterval(slowBeat);
-    if (music) music.gain.setTargetAtTime(mus(0.16), t, 0.3);
+    mixMusic(0.3);
   }
 }
-// The cart's little electric whine.
+// Motor and gear whine follow wheel speed. Tire noise needs ground contact.
 let eng = null;
-export function engine(v) {
-  if (!ctx) return;
+export function engine(cart, input) {
+  if (!ctx || (!cart && !eng)) return;
   if (!eng) {
-    const o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
-    o.type = 'sawtooth'; o.frequency.value = 70; f.type = 'lowpass'; f.frequency.value = 900; g.gain.value = 0;
-    o.connect(f); f.connect(g); g.connect(sfx); o.start();
-    eng = { o, g };
+    const motor = ctx.createOscillator(), gear = ctx.createOscillator(), tires = noise(true);
+    const motorGain = ctx.createGain(), gearGain = ctx.createGain(), tireGain = ctx.createGain();
+    for (const g of [motorGain, gearGain, tireGain]) { g.gain.value = 0; g.connect(sfx); }
+    motor.type = 'triangle'; motor.connect(motorGain); gear.connect(gearGain);
+    const tread = ctx.createBiquadFilter(); tread.type = 'bandpass'; tread.Q.value = 0.65;
+    tires.connect(tread); tread.connect(tireGain);
+    motor.start(); gear.start(); tires.start();
+    eng = { motor, gear, tread, motorGain, gearGain, tireGain, active: false, reverseAt: 0 };
   }
-  const t = ctx.currentTime, a = Math.min(1, Math.abs(v));
-  eng.o.frequency.setTargetAtTime(60 + a * 210, t, 0.05);
-  eng.g.gain.setTargetAtTime(muted || v === 0 ? 0 : 0.03 + a * 0.05, t, 0.06);
+  const t = ctx.currentTime;
+  if (!cart) {
+    if (eng.active) for (const g of [eng.motorGain, eng.gearGain, eng.tireGain]) g.gain.setTargetAtTime(0, t, 0.035);
+    eng.active = false;
+    return;
+  }
+  eng.active = true;
+  const speed = Math.min(1, Math.abs(cart.speed) / 14);
+  const load = input.brake ? 0 : Math.abs(input.throttle);
+  const rpm = 54 + speed * 165 + load * 14;
+  eng.motor.frequency.setTargetAtTime(rpm, t, 0.09);
+  eng.gear.frequency.setTargetAtTime(rpm * 3.03, t, 0.11);
+  eng.motorGain.gain.setTargetAtTime(0.012 + 0.045 * speed + 0.038 * load, t, 0.07);
+  eng.gearGain.gain.setTargetAtTime((0.012 + 0.035 * load) * speed, t, 0.08);
+  const scrub = input.brake ? 1 : Math.abs(input.steer) * speed;
+  const hard = ['metal', 'stone', 'rock', 'wood'].includes(cart.surf);
+  eng.tread.frequency.setTargetAtTime((hard ? 880 : 420) + speed * 500 + scrub * 1250, t, 0.07);
+  eng.tireGain.gain.setTargetAtTime(cart.grounded ? speed * (0.14 + scrub * 0.32) : 0, t, 0.045);
+  if (cart.speed < -0.6 && t >= eng.reverseAt) {
+    tone('sine', 790, 790, 0.14, 0.075, t, sfx, 0.012);
+    eng.reverseAt = t + 0.82;
+  }
 }
 export function wind(strength) {
   if (!ctx || !windGain) return;
   windGain.gain.setTargetAtTime(muted ? 0 : 0.035 + Math.min(1, strength) * 0.12, ctx.currentTime, 0.4);
 }
 
-// A breezy little loop: ukulele-ish plucks over a walking bass, pentatonic so it never clashes.
+export const tracks = [
+  { id: 'clubhouse', title: 'Clubhouse Stroll', bpm: 104, play: clubhouse },
+  { id: 'switchback', title: 'Switchback Rally', bpm: 124, play: switchback },
+  { id: 'moon', title: 'Moon over Mount Bogey', bpm: 76, play: moon },
+];
+let track = tracks[0], musicStep = 0;
+try { track = tracks.find(x => x.id === localStorage.getItem('pftc-track')) || track; } catch (e) {}
+export function selectedTrack() { return musicOn ? track.id : 'off'; }
+export function selectTrack(id) {
+  if (id === 'off') { setMusic(false); return; }
+  const choice = tracks.find(x => x.id === id);
+  if (!choice) return;
+  if (choice !== track) { track = choice; musicStep = 0; }
+  try { localStorage.setItem('pftc-track', id); } catch (e) {}
+  setMusic(true);
+}
+function mixMusic(time = 0.018) {
+  if (music) music.gain.setTargetAtTime(mus(slowNodes ? 0.03 : 0.16), ctx.currentTime, time);
+}
+function pluck(f, t, level) {
+  const o = ctx.createOscillator(), g = ctx.createGain(), fl = ctx.createBiquadFilter();
+  o.type = 'triangle'; o.frequency.value = f; fl.type = 'lowpass'; fl.frequency.setValueAtTime(3200, t); fl.frequency.exponentialRampToValueAtTime(500, t + 0.3);
+  env(g, t, 0.003, level, 0.35); o.connect(fl); fl.connect(g); g.connect(music); o.start(t); o.stop(t + 0.5);
+}
+const clubhouseChords = [[262, 330, 392], [220, 262, 330], [175, 220, 262], [196, 247, 294]];
+function clubhouse(bar, s, t, beat) {
+  const ch = clubhouseChords[bar], bass = ch[0] / 2;
+  if (s % 4 === 0) pluck(bass, t, 0.5);
+  if (s === 6) pluck(bass * 1.5, t, 0.3);
+  pluck(ch[[0, 1, 2, 1, 2, 1, 0, 2][s]] * 2, t, s % 2 ? 0.16 : 0.24);
+  if (s % 2 && Math.random() < 0.18) pluck(ch[(s + 1) % 3] * 4, t + beat / 4, 0.08);
+}
+function switchback(bar, s, t) {
+  const root = [110, 131, 98, 147][bar];
+  if (s % 4 === 0) tone('sine', 134, 43, 0.16, 0.66, t, music);
+  if (s === 2 || s === 6) burst(0.095, 0.6, 1850, 'bandpass', t, 0.7, 840, music);
+  if (s % 2) burst(0.055, 0.23, 6300, 'highpass', t, 0.7, undefined, music);
+  const bass = [1, 0, 1, 1.5, 0, 2, 0, 1.5][s] * root;
+  if (bass) tone('triangle', bass, bass, 0.16, 0.46, t, music);
+  if (s === 1 || s === 4 || s === 7) pluck(root * (s === 7 ? 5 : 4), t, 0.32);
+}
+function moon(bar, s, t, beat) {
+  const chord = [[147, 175, 220, 262], [117, 147, 175, 220], [131, 165, 196, 247], [110, 139, 165, 196]][bar];
+  if (s === 0) {
+    tone('sine', chord[0] / 2, chord[0] / 2, 2.6 * beat, 0.53, t, music, 0.07);
+    for (const f of chord.slice(1)) tone('triangle', f, f, 2.8 * beat, 0.16, t, music, 0.22);
+  }
+  if (s === 0 || s === 3 || s === 6) {
+    const f = chord[(bar + s) % 4] * 2;
+    tone('sine', f, f, 1.1, 0.42, t, music, 0.008);
+    tone('sine', f * 2.98, f * 2.98, 0.23, 0.12, t, music);
+  }
+}
 function startMusic() {
-  const bpm = 104, beat = 60 / bpm;
-  const prog = [[262, 330, 392], [220, 262, 330], [175, 220, 262], [196, 247, 294]];
-  const bass = [131, 110, 87, 98];
-  let step = 0, next = ctx.currentTime + 0.2;
-  const pluck = (f, t, vol) => {
-    const o = ctx.createOscillator(), g = ctx.createGain(), fl = ctx.createBiquadFilter();
-    o.type = 'triangle'; o.frequency.value = f; fl.type = 'lowpass'; fl.frequency.setValueAtTime(3200, t); fl.frequency.exponentialRampToValueAtTime(500, t + 0.3);
-    env(g, t, 0.003, vol, 0.35); o.connect(fl); fl.connect(g); g.connect(music); o.start(t); o.stop(t + 0.5);
-  };
+  let next = ctx.currentTime + 0.04;
   setInterval(() => {
-    if (!ctx) return;
-    while (next < ctx.currentTime + 0.3) {
-      const bar = Math.floor(step / 8) % 4, ch = prog[bar], s = step % 8;
-      if (s % 4 === 0) pluck(bass[bar], next, 0.5);
-      if (s === 6) pluck(bass[bar] * 1.5, next, 0.3);
-      const pat = [0, 1, 2, 1, 2, 1, 0, 2];
-      pluck(ch[pat[s]] * 2, next, s % 2 ? 0.16 : 0.24);
-      if (Math.random() < 0.18 && s % 2 === 1) pluck(ch[(s + 1) % 3] * 4, next + beat / 4, 0.08);
-      step++; next += beat / 2;
+    if (!musicOn || !vol.music) return;
+    next = Math.max(next, ctx.currentTime);
+    const beat = 60 / track.bpm;
+    while (next < ctx.currentTime + 0.13) {
+      track.play(Math.floor(musicStep / 8) % 4, musicStep % 8, next, beat);
+      musicStep++; next += beat / 2;
     }
   }, 60);
 }
 
 export function setMuted(m) { muted = m; try { localStorage.setItem('pftc-muted', m ? '1' : '0'); } catch (e) {} if (master) master.gain.value = m ? 0 : 0.8 * vol.master; if (m && window.speechSynthesis) speechSynthesis.cancel(); }
 export function isMuted() { return muted; }
-export function setMusic(on) { musicOn = on; try { localStorage.setItem('pftc-music', on ? '1' : '0'); } catch (e) {} if (music) music.gain.value = mus(0.16); }
+export function setMusic(on) { musicOn = on; try { localStorage.setItem('pftc-music', on ? '1' : '0'); } catch (e) {} mixMusic(); }
 export function musicIsOn() { return musicOn; }
 export function setVoice(on) { voiceOn = on; try { localStorage.setItem('pftc-voice', on ? '1' : '0'); } catch (e) {} if (!on && window.speechSynthesis) speechSynthesis.cancel(); }
 export function voiceIsOn() { return voiceOn; }

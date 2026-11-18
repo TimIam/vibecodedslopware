@@ -222,6 +222,7 @@ kbd{display:inline-block;min-width:22px;padding:0 6px;border:2px solid var(--ink
 #menu .vol{display:grid;grid-template-columns:96px 1fr 52px;align-items:center;gap:8px;margin-top:9px;font-weight:900;font-size:14px}
 #menu .vol input{width:100%;accent-color:var(--red)}
 #menu .vol output{text-align:right;color:#6a5f70}
+#menu .vol select{grid-column:2/-1;min-width:0;font:inherit;color:var(--ink);background:white;border:2px solid var(--ink);border-radius:8px;padding:5px 8px}
 #menu .acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
 #menu .acts .btn{width:100%}
 #menu .note{margin:10px 0 0;font-weight:800;font-size:12px;color:#6a5f70}
@@ -326,7 +327,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
     <span class="k"><kbd>Tab</kbd></span><span>race standings</span>
     <span class="k"><kbd>K</kbd></span><span>voice chat with golfers near you: on, then mute and unmute · <kbd>Shift</kbd>+<kbd>K</kbd> leaves</span>
     <span class="k"><kbd>Enter</kbd></span><span>twice: ask to reset the map (everyone back to the first tee). The others have to agree: <kbd>Y</kbd> yes, <kbd>U</kbd> no</span>
-    <span class="k"><kbd>Esc</kbd></span><span>menu: volume, reset your ball, your cart or the map</span>
+    <span class="k"><kbd>Esc</kbd></span><span>menu: choose music, adjust volume, reset your ball, your cart or the map</span>
     <span class="k"><kbd>M</kbd> <kbd>N</kbd> <kbd>B</kbd></span><span>mute · music · announcer</span>
   </div>
 </div>
@@ -409,6 +410,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
   <label class="vol">Everything<input type="range" min="0" max="100" data-vol="master"><output></output></label>
   <label class="vol">Effects<input type="range" min="0" max="100" data-vol="sfx"><output></output></label>
   <label class="vol">Music<input type="range" min="0" max="100" data-vol="music"><output></output></label>
+  <label class="vol">Soundtrack<select id="musicTrack"><option value="off">Off</option></select></label>
   <label class="vol">Announcer<input type="range" min="0" max="100" data-vol="announcer"><output></output></label>
   <label class="vol">Voice chat<input type="range" min="0" max="100" data-vol="chat"><output></output></label>
   <label class="vol" title="How hard every joint pulls toward its pose: floppy ragdolls to stiff fighters">Body<input type="range" min="10" max="250" id="stiff"><output></output></label>

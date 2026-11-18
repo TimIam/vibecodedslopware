@@ -255,12 +255,16 @@ function showMenu(on) {
   if (on) {
     $('clickToPlay').hidden = true; if (document.pointerLockElement) document.exitPointerLock();
     $('stiff').value = Math.round(RAGDOLL.stiffness * 100); $('stiff').nextElementSibling.textContent = stiffWord();
+    $('musicTrack').value = A.selectedTrack();
     for (const el of m.querySelectorAll('[data-vol]')) { el.value = Math.round(A.getVolume(el.dataset.vol) * 100); el.nextElementSibling.textContent = el.value; }
   } else if (document.pointerLockElement !== canvas) { $('clickToPlay').hidden = false; lockPointer(); }
 }
 const stiffWord = () => (RAGDOLL.stiffness < 0.4 ? 'floppy' : RAGDOLL.stiffness < 0.8 ? 'loose' : RAGDOLL.stiffness < 1.3 ? 'normal' : RAGDOLL.stiffness < 1.9 ? 'firm' : 'stiff');
 function menuSetup() {
   const m = $('menu');
+  const selector = $('musicTrack');
+  for (const track of A.tracks) selector.add(new Option(track.title, track.id));
+  selector.onchange = () => A.selectTrack(selector.value);
   for (const el of m.querySelectorAll('[data-vol]')) el.oninput = () => {
     A.setVolume(el.dataset.vol, el.value / 100); el.nextElementSibling.textContent = el.value; chatVolume();
     if (el.dataset.vol === 'master' || el.dataset.vol === 'sfx') A.play('click');
@@ -361,7 +365,7 @@ function wreckers() {
       const d = dir.lengthSq() > 0.25 ? dir.clone().normalize() : V(c.pos.x - b.x, 0, c.pos.z - b.z).normalize();
       c.knock(d.x * WRECK.kick, d.z * WRECK.kick);
       if (c.grounded) { c.grounded = false; c.vy = WRECK.up; }
-      fx.sparks(c.pos.clone().add(V(0, 0.8, 0)), 14); A.play('thud', S.cart === c ? 1 : proximity(c.pos));
+      fx.sparks(c.pos.clone().add(V(0, 0.8, 0)), 14); A.play('cartCrash', S.cart === c ? 1 : proximity(c.pos));
       if (S.cart === c) { shake(0.4); pop('WRECKED!', 'bad', c.pos.clone().add(V(0, 1.2, 0))); addRage(6); }
     }
     if (S.mode === 'walk' && !(S.ko > 0) && S.t - (S.wreckT ?? -9) > WRECK.gap && S.golferG.clone().add(V(0, 0.5, 0)).distanceTo(b) < wr.R + 0.45) {
@@ -564,7 +568,7 @@ const cartPose = c => [c.pos.x, c.pos.y, c.pos.z, c.yaw, c.speed].map(x => +x.to
 function dropStolen(tell) {
   if (!stolen) return;
   const s = stolen; stolen = null;
-  if (S.cart === s.cart) { S.cart = null; A.engine(0); }
+  if (S.cart === s.cart) { S.cart = null; A.engine(); }
   if (tell && net) net.event({ k: 'back', to: s.owner, pose: cartPose(s.cart) });     // (not 'p': the network puts the sender's id there)
   s.cart.mesh.removeFromParent(); const i = carts.indexOf(s.cart); if (i > 0) carts.splice(i, 1);
   const o = others.get(s.owner); if (o) o.cartHide = false;
@@ -986,7 +990,7 @@ async function teeOff() {
 
 function resetClimb() {
   Object.assign(S, { strokes: 0, holeStrokes: 0, falls: 0, lost: 0, rage: 0, finished: false, finMs: 0, startedAt: 0, awaitPark: 0, bays: 0, best: 0, hp: HP.max, ko: 0, down: false, goAt: 0 });
-  S.savedG = null; S.cartToBall = false; if (S.cart) { S.cart = null; A.engine(0); } useCartBay(net ? net.slot : 0); carts[0].reset();
+  S.savedG = null; S.cartToBall = false; if (S.cart) { S.cart = null; A.engine(); } useCartBay(net ? net.slot : 0); carts[0].reset();
   placeOnTee(1); settleGolfer(true); save();
 }
 function start() {
@@ -1027,7 +1031,7 @@ canvas.addEventListener('mousedown', e => {
   if (e.button === 2) { if (S.lmb || S.grip) S.aimHeld = true; else toggleGolf(); }
   if (e.button === 0 && S.mode !== 'address') S.lmb = true;
   if (e.button === 0 && S.mode === 'address') assistPress();
-  if (e.button === 0 && S.mode === 'drive') { A.play('beep', 1); S.honkAt = S.t; if (S.cart) sendEv({ k: 'honk', at: S.cart.pos.toArray().map(n => +n.toFixed(2)) }); }
+  if (e.button === 0 && S.mode === 'drive') { A.play('cartHorn', 1); S.honkAt = S.t; if (S.cart) sendEv({ k: 'honk', at: S.cart.pos.toArray().map(n => +n.toFixed(2)) }); }
 });
 addEventListener('mouseup', e => { if (e.button === 2) S.aimHeld = false; if (e.button === 0) { S.lmb = false; if (assist && S.mode === 'address') assist.release(); } });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -1057,6 +1061,7 @@ addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   // Esc with the mouse free opens and closes the menu (with the mouse held, the browser frees it first).
   if (k === 'escape' && playing() && $('finish').hidden) { if (performance.now() - menuAt > 300) showMenu($('menu').hidden); return; }
+  if (!$('menu').hidden && (e.target === $('musicTrack') || k === 'tab')) return;
   if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
   if (k === 'tab') { e.preventDefault(); $('board').hidden = false; renderBoard(); return; }
   if (S.mode === 'title') return;
@@ -1072,7 +1077,7 @@ addEventListener('keydown', e => {
   if (k === 'y' && !e.repeat) voteAnswer(true);
   if (k === 'u' && !e.repeat) voteAnswer(false);
   if (k === 'k' && !e.repeat) voiceKey(e.shiftKey);
-  if (k === 'n') { A.setMusic(!A.musicIsOn()); toast(A.musicIsOn() ? 'Music on' : 'Music off'); }
+  if (k === 'n' && !e.repeat) { A.setMusic(!A.musicIsOn()); $('musicTrack').value = A.selectedTrack(); toast(A.musicIsOn() ? 'Music on' : 'Music off'); }
   if (k === 'b') { A.setVoice(!A.voiceIsOn()); toast(A.voiceIsOn() ? 'Announcer on' : 'Announcer off'); }
   if (k === 't') { startEmote('tantrum', 2.2); quip('tantrum', {}, false); sendEv({ k: 'emote', e: 'tantrum' }); addRage(-30); }
   if (k === 'g') { startEmote('dance', 2.4); sendEv({ k: 'emote', e: 'dance' }); }
@@ -1165,7 +1170,7 @@ function enterCart(c) {
 }
 function exitCart(toBall) {
   const c = S.cart; if (!c) return;
-  S.cart = null; A.engine(0);
+  S.cart = null; A.engine();
   const H = c.heading(), L = V(H.z, 0, -H.x);
   // You leave with whatever speed the cart had, and it carries on without you.
   W.v.copy(H).multiplyScalar(c.speed); W.carry.set(0, 0, 0);
@@ -1264,8 +1269,16 @@ function cartEvents(c, driven) {
   // Only a cart you are in shakes your camera; an empty one just makes noise wherever it is.
   const near = driven ? 1 : proximity(c.pos);
   return {
-    hit: (v, col) => { if (window.__cartHits) window.__cartHits.push({ at: c.pos.toArray().map(n => +n.toFixed(1)), v: +v.toFixed(1), tag: col && col.tag, surf: col && col.surf, kind: col && col.kind }); if (driven) shake(Math.min(0.5, v * 0.05)); A.play('thud', Math.min(1, v / 10) * near); fx.sparks(c.pos.clone().add(V(0, 0.8, 0)), 8); },
-    land: v => { if (v > 3) { if (driven) shake(Math.min(0.4, v * 0.03)); A.play('thud', Math.min(1, v / 12) * near); fx.dust(c.pos, 14, 1); } },
+    hit: (v, col) => {
+      if (window.__cartHits) window.__cartHits.push({ at: c.pos.toArray().map(n => +n.toFixed(1)), v: +v.toFixed(1), tag: col && col.tag, surf: col && col.surf, kind: col && col.kind });
+      if (driven) shake(Math.min(0.5, v * 0.05));
+      if (S.t >= (c.crashSoundAt ?? 0)) {
+        A.play('cartCrash', Math.min(1, v / 10) * near);
+        c.crashSoundAt = S.t + 0.14;
+      }
+      fx.sparks(c.pos.clone().add(V(0, 0.8, 0)), 8);
+    },
+    land: v => { if (v > 3) { if (driven) shake(Math.min(0.4, v * 0.03)); A.play('cartLand', Math.min(1, v / 12) * near); fx.dust(c.pos, 14, 1); } },
   };
 }
 // Carts with nobody in them. One that reaches the sea goes back to the first tee and you don't go with it.
@@ -1284,11 +1297,12 @@ function driveStep(dt) {
   const throttle = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0);
   const steer = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0);
   S.cartSteer = lerp(S.cartSteer || 0, steer, 1 - Math.exp(-dt * 8));
-  c.update(dt, { throttle, steer, brake: keys.has(' ') }, world, cartEvents(c, true));
+  const input = { throttle, steer, brake: keys.has(' ') };
+  c.update(dt, input, world, cartEvents(c, true));
   bumperCart(c);
   if (S.cart) c.seat(S.golferG);
   const H = c.heading(); S.walkYaw = yawFacing(H.x, H.z);
-  A.engine(c.speed / 14 || 0.001);
+  A.engine(c, input);
   if (c.grounded && Math.abs(c.speed) > 8 && Math.random() < dt * 16) fx.dust(c.pos.clone().addScaledVector(H, -1), 2, 0.5);
   if (c.pos.y < SEA_Y + 0.5) {
     fx.bigSplash(V(c.pos.x, SEA_Y, c.pos.z)); A.play('splash', 1); A.play('womp', 0.8); addRage(20); quip('cartSea');
@@ -1691,7 +1705,7 @@ function step(dt) {
   if (S.mode === 'drive') driveStep(dt);
   idleCarts(dt);
   cartContacts();
-  if (S.mode !== 'drive') A.engine(0);
+  if (S.mode !== 'drive') A.engine();
   if ((S.mode === 'address' || S.mode === 'walk') && !ball.frozen && !S.ballLive && !(S.coop && S.coOwner !== 'me')) {
     // If the resting ball gets knocked (a bonk, a sweeper), it is in play again.
     if (ball.v.distanceTo(ball.gVel) > 0.6 || !ball.grounded && ball.airT > 0.15) { S.ballLive = true; S.flightT = 0; S.restT = 0; S.shotFrom.copy(ball.p); S.shotY = ball.p.y; S.shotHole = S.hole; }
@@ -2315,7 +2329,7 @@ function cartContacts() {
     if (hard > 1.5 && S.t - (o.crashT ?? -9) > 0.4) {
       o.crashT = S.t;
       const at = mine.pos.clone().lerp(c.pos, 0.5).add(V(0, 0.7, 0)), driving = S.cart === mine;
-      A.play('thud', clamp(hard / 8, 0.3, 1) * (driving ? 1 : proximity(at))); fx.sparks(at, 14);
+      A.play('cartCrash', clamp(hard / 8, 0.3, 1) * (driving ? 1 : proximity(at))); fx.sparks(at, 14);
       if (driving) { shake(Math.min(0.5, hard * 0.05)); pop('CRUNCH!', 'bad', at); }
       // The cart that was hit never sees the overlap (this one has already backed out of it), so it is told.
       net.event({ k: 'crash', to: id, v: [+(-mine.hit.x * mine.hit.j).toFixed(2), +(-mine.hit.z * mine.hit.j).toFixed(2)] });
@@ -2642,7 +2656,7 @@ function remoteEvent(p, e) {
       const j = V(e.v[0], 0, e.v[1]).clampLength(0, 12);
       c.knock(j.x, j.z);
       const driving = S.cart === c;
-      A.play('thud', clamp(j.length() / 6, 0.3, 1) * (driving ? 1 : proximity(c.pos))); fx.sparks(c.pos.clone().add(V(0, 0.7, 0)), 14);
+      A.play('cartCrash', clamp(j.length() / 6, 0.3, 1) * (driving ? 1 : proximity(c.pos))); fx.sparks(c.pos.clone().add(V(0, 0.7, 0)), 14);
       if (driving) { shake(Math.min(0.5, j.length() * 0.07)); pop('CRUNCH!', 'bad', c.pos.clone().add(V(0, 1, 0))); }
       if (window.__crashes) window.__crashes.push('got ' + j.length().toFixed(1));
     }
@@ -2668,7 +2682,7 @@ function remoteEvent(p, e) {
     toast(by === 'club' ? `🏌️ ${nm} whacked your ball!` : by ? `🦶 ${nm} kicked your ball!` : `💥 ${nm} bonked your ball!`);
     if (by) addRage(10);
   }
-  else if (e.k === 'honk' && o && nums(e.at, 3)) { const p = V().fromArray(e.at); A.play('beep', proximity(p) * 0.7); if (p.distanceTo(o.G) < 6) honks.push(p); }
+  else if (e.k === 'honk' && o && nums(e.at, 3)) { const p = V().fromArray(e.at); A.play('cartHorn', proximity(p) * 0.7); if (p.distanceTo(o.G) < 6) honks.push(p); }
   else if (e.k === 'tumble' && o) toast(+e.sea ? `🌊 ${e.by === net.me ? 'You knocked' : (others.get(e.by)?.nameHtml || 'Someone') + ' knocked'} ${nm} into the sea!` : e.by ? `🪂 ${e.by === net.me ? 'You' : others.get(e.by)?.nameHtml || 'Someone'} knocked ${nm} ${Math.round(+e.m || 0)} m down!` : `🪂 ${nm} tumbled ${Math.round(+e.m || 0)} m down`);
   else if (e.k === 'steal' && e.to === net.me && o) {
     const c = carts[0];
