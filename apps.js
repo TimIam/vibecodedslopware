@@ -1884,6 +1884,19 @@ window.SLOPWARE = {
      "tokens": 39010
     }
    ]
+  },
+  "hot-cell": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-19T12:38:04-07:00",
+     "note": "relay capsules with two glovebox hands"
+    }
+   ]
   }
  }
 };
