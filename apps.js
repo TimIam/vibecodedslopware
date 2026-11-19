@@ -2,6 +2,19 @@
 window.SLOPWARE = {
  "visitsSince": "2026-10-07",
  "apps": {
+  "mostly-sword": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-19T12:44:14-07:00",
+     "note": "Blender-built Abyss and online duels"
+    }
+   ]
+  },
   "bonsai": {
    "visits": 78,
    "prompts": 10,
