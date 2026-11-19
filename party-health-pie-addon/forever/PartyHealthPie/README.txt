@@ -1,4 +1,4 @@
-PARTY HEALTH PIE
+HEAL PIE
 A circular 5-man party health meter for World of Warcraft: Classic Forever.
 https://vibecodedslopware.com/party-health-pie/
 
@@ -20,7 +20,7 @@ INSTALL
      ...\_forever_\Interface\AddOns\PartyHealthPie\PartyHealthPie.toc
 
 4. Start the game. On the character select screen, click AddOns and make
-   sure Party Health Pie is ticked.
+   sure Heal Pie is ticked.
 
 
 FIRST USE

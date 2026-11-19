@@ -561,7 +561,7 @@ end
 function ns.SetDemo(on, raid)
 	if on and InCombatLockdown() then
 		-- Fake wedges over hover areas still aimed at real players would be misleading.
-		print("Party Health Pie: the preview can't start during combat.")
+		print("Heal Pie: the preview can't start during combat.")
 		return
 	end
 	ns.demo = on or false
@@ -693,9 +693,9 @@ function ns.ApplyGameMouseover()
 		SaveBindings(GetCurrentBindingSet())
 	end
 	if GetCVarBool("enableMouseoverCast") then
-		print("Party Health Pie: turned on the game's Mouseover Cast option, so hovering a wedge casts on that player. You can change it under Options > Combat.")
+		print("Heal Pie: turned on the game's Mouseover Cast option, so hovering a wedge casts on that player. You can change it under Options > Combat.")
 	else
-		print("Party Health Pie: couldn't turn on Mouseover Cast. Please enable it under Options > Combat.")
+		print("Heal Pie: couldn't turn on Mouseover Cast. Please enable it under Options > Combat.")
 	end
 end
 
@@ -861,7 +861,7 @@ local function DescribeDebuff(unit, id, dispellable, shown)
 end
 
 local function ReportDebuffs()
-	local say = function(text) print("Party Health Pie: " .. text) end
+	local say = function(text) print("Heal Pie: " .. text) end
 	if not ns.db.dispelGlow then say("the debuff glow is turned off in the settings.") end
 	local found = false
 	for _, slot in ipairs(ns.slots) do

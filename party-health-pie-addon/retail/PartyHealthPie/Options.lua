@@ -1,4 +1,4 @@
--- The addon menu, under Options > AddOns > Party Health Pie (or /php).
+-- The addon menu, under Options > AddOns > Heal Pie (or /php).
 local _, ns = ...
 
 local RED, GOLD = "|cffff6060", "|cffffd100"
@@ -166,7 +166,7 @@ end
 
 local function Build(content)
 	local y = -12
-	Label(content, "Party Health Pie", 16, y, "GameFontNormalHuge")
+	Label(content, "Heal Pie", 16, y, "GameFontNormalHuge")
 	y = y - 30
 	Label(content, "Drag the circle to move it. |cffffffff/php demo|r previews a party, |cffffffff/php demo raid|r a raid.", 16, y)
 	y = y - 26
@@ -337,7 +337,7 @@ end
 
 function ns.CreateOptions()
 	local panel = CreateFrame("Frame")
-	panel.name = "Party Health Pie"
+	panel.name = "Heal Pie"
 
 	-- About a hundred widgets most players never look at, so they are built the first time the panel opens.
 	local function BuildOnce()
@@ -360,7 +360,7 @@ end
 
 function ns.OpenOptions()
 	if not category then
-		print(RED .. "Party Health Pie:|r the options are not ready yet.")
+		print(RED .. "Heal Pie:|r the options are not ready yet.")
 		return
 	end
 	Settings.OpenToCategory(category:GetID())

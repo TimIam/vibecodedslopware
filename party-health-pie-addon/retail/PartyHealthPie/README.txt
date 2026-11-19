@@ -1,4 +1,4 @@
-PARTY HEALTH PIE (RETAIL)
+HEAL PIE (RETAIL)
 A circular 5-man party health meter for World of Warcraft: Midnight.
 
 
@@ -19,7 +19,7 @@ INSTALL
      ...\_retail_\Interface\AddOns\PartyHealthPie\PartyHealthPie.toc
 
 4. Start the game. On the character select screen, click AddOns and make
-   sure Party Health Pie is ticked.
+   sure Heal Pie is ticked.
 
 
 FIRST USE

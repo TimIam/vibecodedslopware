@@ -379,10 +379,10 @@
    ]
   },
   "pie": {
-   "version": "1.2.0",
-   "at": "2026-11-17T23:34:43.797Z",
+   "version": "1.2.1",
+   "at": "2026-11-19T19:14:37.245Z",
    "for": [
-    "released by hand: raids, combat dragging, None border, scaled outlines, faster loading"
+    "released by hand: renamed to Heal Pie in the game"
    ]
   },
   "whelp": {
