@@ -143,6 +143,16 @@ window.SLOPWARE = {
      "n": 6,
      "date": "2026-11-17T16:34:50-07:00",
      "note": "1.2.0 downloads, raid, combat drag and None border notes"
+    },
+    {
+     "n": 7,
+     "date": "2026-11-19T12:12:15-07:00",
+     "note": "list the addon under its CurseForge name on the site"
+    },
+    {
+     "n": 8,
+     "date": "2026-11-19T12:14:42-07:00",
+     "note": "1.2.1 downloads and rename note"
     }
    ]
   },
@@ -529,6 +539,19 @@ window.SLOPWARE = {
      "n": 2,
      "date": "2026-10-31T22:21:38Z",
      "note": "lead tip, abilities, slugs, roots, goals, sound"
+    }
+   ]
+  },
+  "hot-cell": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-19T12:38:04-07:00",
+     "note": "relay capsules with two glovebox hands"
     }
    ]
   },
@@ -1548,6 +1571,13 @@ window.SLOPWARE = {
      "note": "Add Lantern Links, a selectable back nine with harbor holes and cart puzzles",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 43,
+     "date": "2026-11-19T16:02:34-07:00",
+     "note": "slop blob on the blimp, vibecodedslopware.com banner in green",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
@@ -1895,19 +1925,6 @@ window.SLOPWARE = {
      "note": "stop the screen flashing black on real GPUs",
      "prompts": 2,
      "tokens": 39010
-    }
-   ]
-  },
-  "hot-cell": {
-   "visits": 0,
-   "prompts": null,
-   "tokens": null,
-   "sharedWith": null,
-   "versions": [
-    {
-     "n": 1,
-     "date": "2026-11-19T12:38:04-07:00",
-     "note": "relay capsules with two glovebox hands"
     }
    ]
   }
