@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#151a19"><title>Hot Cell · Vibe Coded Slopware</title>
+<meta name="description" content="A two-handed glovebox arcade game. Pass three sealed dummy capsules across the bench and beat your best shift.">
+<link rel="stylesheet" href="/site-nav.css"><link rel="stylesheet" href="station.css">
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site"><a href="/">‹ &nbsp; Vibe Coded Slopware</a><a class="site-coffee" href="https://buymeacoffee.com/twilliamja0">Buy me a coffee</a></nav>
+<main>
+<header><div><div class="eyebrow">PLUTONIUM LAB &nbsp;/&nbsp; GLOVEBOX SIMULATOR</div><h1>HOT CELL<span>.</span></h1></div>
+<div class="idplate"><b>GB–04</b><small>OPERATOR STATION</small></div></header>
+<div class="console">
+<section class="machine" aria-label="Interactive glovebox">
+<div class="machinebar"><strong><i></i> CHAMBER VIEW</strong><span>CAM 01 &nbsp;/&nbsp; COLOR</span></div>
+<div class="bezel"><canvas id="world" width="960" height="530" tabindex="0" aria-label="Playable chamber. Move with arrow keys, Space to grip or release, Q to switch gloves."></canvas></div>
+<div class="rail"><div class="handbuttons"><button id="left" aria-pressed="true">L <span>Left glove</span></button><button id="right" aria-pressed="false">R <span>Right glove</span></button></div><button id="sound" aria-pressed="false">Sound off</button></div>
+</section>
+<aside>
+<section class="ticket"><div class="tickethead">SHIFT ORDER <b>GB / 04</b></div><h2>Capsule relay</h2><p>Pass each sealed dummy capsule across the bench and park it in its matching socket.</p><div id="rows"></div><div class="barcode" aria-hidden="true"></div></section>
+<section class="meter"><div class="meterhead">SHIFT CLOCK <span id="runstate">STANDBY</span></div><output id="clock">00:00.0</output><div class="best">PERSONAL BEST <span id="best">—</span></div></section>
+</aside>
+</div>
+<div class="message" role="status"><b id="phase">01 / PICKUP</b><span id="hint">Drag a capsule onto the striped handoff pad.</span><button id="again">Reset shift</button></div>
+<footer><span><kbd>Drag</kbd> grip &amp; carry</span><span><kbd>↑ ↓ ← →</kbd> move</span><span><kbd>Space</kbd> grip / release</span><span><kbd>Q</kbd> switch glove</span></footer>
+</main>
+<script src="/site-nav.js"></script><script src="game.js"></script><script src="scene.js"></script>
+</body></html>
