@@ -7,6 +7,7 @@ Plain static site, no build step. Each project lives in its own folder and gets 
 | Path | What |
 |---|---|
 | `index.html` | Home page: the card list |
+| `mostly-sword/` | Mostly Sword, a mouse-steered medieval physics arena. The Abyss is a five-bout solo run. Online rooms use the existing public Supabase Realtime project, with one browser simulating both fighters. The editable Blender scene, generation script and demo research are in `mostly-sword/source/`. |
 | `bonsai/` | Desk Bonsai |
 | `bonsai-idle/` | Bonsai Idle |
 | `strange-weather/` | Strange Weather, a Godot 4.7 web export. Source lives in `C:\Projects\NewerGameIdeas\strange-weather`; rebuild with its `tools/publish_web.sh`, then copy `build/web/*` here |
