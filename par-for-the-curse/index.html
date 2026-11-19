@@ -455,7 +455,7 @@ body.raging::after{content:"";position:fixed;inset:52px 0 0;pointer-events:none;
     var T = 'https://cdn.jsdelivr.net/npm/three@0.160.0/', J = T + 'examples/jsm/';
     var imports = { three: T + 'build/three.module.js' + q, 'three/addons/': J, '@dimforge/rapier3d-compat': 'https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/+esm' };
     if (q) {
-      ['loaders/GLTFLoader.js', 'geometries/RoundedBoxGeometry.js'].forEach(function (f) { imports['three/addons/' + f] = J + f + q; });
+      ['loaders/GLTFLoader.js', 'geometries/RoundedBoxGeometry.js', 'geometries/DecalGeometry.js'].forEach(function (f) { imports['three/addons/' + f] = J + f + q; });
       imports[J + 'utils/BufferGeometryUtils.js'] = J + 'utils/BufferGeometryUtils.js' + q;
       var base = new URL('js/', location.href).href;
       ['assets', 'audio', 'back-nine', 'cart', 'course', 'nine', 'fx', 'golfer', 'net', 'physics', 'sky', 'voice', 'wreck', 'controls', 'ragdoll', 'post'].forEach(function (m) { imports[base + m + '.js'] = base + m + '.js' + q; });

@@ -1,5 +1,6 @@
 // Sky dome, toon sea, drifting clouds, background islands, balloons, a blimp and some gulls.
 import * as THREE from 'three';
+import { DecalGeometry } from 'three/addons/geometries/DecalGeometry.js';
 import { make, toon, RAW_OUT } from './assets.js';
 import { SEA_Y } from './course.js';
 import { backNine } from './nine.js';
@@ -83,14 +84,39 @@ export class Sky {
     const blimp = make('blimp');
     blimp.userData = { r: 150, y: 95, sp: -0.025, a: 2, bob: 0, blimp: true };
     scene.add(blimp); this.floaters.push(blimp);
-    // Banner trailing the blimp.
+    // The studio's slop blob (from the Vibe Coded Slopware logo), wrapped onto the middle of the hull on both
+    // sides. The decal is cut from the hull itself, so it follows the curve.
+    // It sits across the red band round the middle, so it is cut from the band as well as the hull.
+    let hull = null; const skins = []; blimp.traverse(o => { if (o.isMesh && /^blimp(_stripe)?$/.test(o.material.name)) { skins.push(o); if (o.material.name === 'blimp') hull = o; } });
+    if (hull) {
+      const logo = new THREE.TextureLoader().load('assets/slop-blob.png');
+      logo.colorSpace = THREE.SRGBColorSpace; logo.magFilter = THREE.NearestFilter; logo.anisotropy = 4;
+      const decalMat = new THREE.MeshLambertMaterial({ map: logo, emissive: 0xffffff, emissiveMap: logo, emissiveIntensity: 0.3, transparent: true, alphaTest: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 });
+      blimp.updateMatrixWorld(true);
+      const bb = new THREE.Box3().setFromObject(hull), mid = bb.getCenter(new THREE.Vector3()), rx = (bb.max.x - bb.min.x) / 2, h = (bb.max.y - bb.min.y) * 0.62;
+      for (const side of [1, -1]) {
+        for (const skin of skins) {
+          const geo = new DecalGeometry(skin, new THREE.Vector3(mid.x + side * rx, mid.y, mid.z + 0.2), new THREE.Euler(0, side * Math.PI / 2, 0), new THREE.Vector3(h * 550 / 410, h, rx * 1.6));
+          const d = new THREE.Mesh(geo, decalMat); d.renderOrder = 2; blimp.add(d);
+        }
+      }
+    }
+    // Banner trailing the blimp: the studio's address, in slop green.
     const c = document.createElement('canvas'); c.width = 1024; c.height = 128;
     const g = c.getContext('2d'); g.fillStyle = '#fff6df'; g.fillRect(0, 0, 1024, 128);
-    g.fillStyle = '#e63946'; g.font = '900 78px "Trebuchet MS", system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('PAR FOR THE CURSE', 512, 68);
+    const words = 'vibecodedslopware.com';
+    g.font = '900 84px "Trebuchet MS", system-ui'; const px = Math.floor(84 * Math.min(1, 960 / g.measureText(words).width));
+    g.font = '900 ' + px + 'px "Trebuchet MS", system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+    g.lineWidth = 10; g.strokeStyle = '#0b3d1e'; g.strokeText(words, 512, 66);
+    g.fillStyle = '#4cc63a'; g.fillText(words, 512, 66);
     const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-    const banner = new THREE.Mesh(new THREE.PlaneGeometry(16, 2), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
-    banner.rotation.y = Math.PI / 2; banner.position.set(0, -1, -16);
-    blimp.add(banner);
+    // Two one-sided faces back to back, so the address reads the right way round from either side.
+    const bannerMat = new THREE.MeshBasicMaterial({ map: tex });
+    for (const turn of [Math.PI / 2, -Math.PI / 2]) {
+      const banner = new THREE.Mesh(new THREE.PlaneGeometry(16, 2), bannerMat);
+      banner.rotation.y = turn; banner.position.set(0, -1, -16);
+      blimp.add(banner);
+    }
     // Gulls: little flapping V shapes.
     this.gulls = [];
     const gullGeo = new THREE.BufferGeometry();
