@@ -365,7 +365,7 @@ dd {
 }
 #touch {
   position: absolute;
-  inset: auto 3vw 65px;
+  inset: auto 3vw 96px;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -393,7 +393,7 @@ dd {
 }
 .touch-buttons {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
 }
 .touch-buttons button {
@@ -463,7 +463,7 @@ dd {
     top: 6px;
   }
   #touch {
-    bottom: 39px;
+    bottom: 77px;
   }
 }
 .help-actions {

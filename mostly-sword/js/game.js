@@ -34,6 +34,9 @@ let drag = null,
   lungingUntil = 0,
   stick = [0, 0],
   touchGuard = false,
+  touchRun = false,
+  jumpStart = null,
+  jumpSequence = 0,
   touchShort = false;
 const validInvite = (new URL(location.href).searchParams.get('room') || '').trim().toUpperCase();
 let audio = null,
@@ -81,6 +84,8 @@ function clearInputs() {
   remote = neutral();
   drag = null;
   touchGuard = false;
+  touchRun = false;
+  jumpStart = null;
   touchShort = false;
   stick = [0, 0];
   grabbingUntil = lungingUntil = 0;
@@ -226,6 +231,12 @@ function cut() {
   input.yaw = cutSide * 1.52;
   input.pitch = cutSide === 1 ? 0.08 : 0.37;
 }
+function releaseJump() {
+  if (jumpStart === null) return;
+  input.jumpId=++jumpSequence;
+  input.jumpPower = clamp((performance.now() - jumpStart) / 420, 0, 1);
+  jumpStart = null;
+}
 const usedKeys = [
   'KeyW',
   'KeyA',
@@ -235,6 +246,10 @@ const usedKeys = [
   'KeyK',
   'KeyE',
   'Space',
+  'KeyF',
+  'KeyR',
+  'ControlLeft',
+  'ControlRight',
   'ShiftLeft',
   'ShiftRight',
   'ArrowLeft',
@@ -255,22 +270,35 @@ window.addEventListener('keydown', (e) => {
   keys.add(e.code);
   if (!e.repeat && e.code === 'KeyJ') cut();
   if (!e.repeat && e.code === 'KeyE') grabbingUntil = performance.now() + 200;
-  if (!e.repeat && e.code.startsWith('Shift')) lungingUntil = performance.now() + 200;
+  if (!e.repeat && e.code === 'KeyF') lungingUntil = performance.now() + 200;
+  if (!e.repeat && e.code === 'Space') jumpStart = performance.now();
 });
-window.addEventListener('keyup', (e) => keys.delete(e.code));
+window.addEventListener('keyup', (e) => {
+  keys.delete(e.code);
+  if (e.code === 'Space') releaseJump();
+});
 canvas.oncontextmenu = (e) => e.preventDefault();
 canvas.onpointerdown = (e) => {
   if (mode === 'menu' || resultShown) return;
   canvas.setPointerCapture(e.pointerId);
   canvas.focus();
-  if (e.button === 2) {
-    touchGuard = true;
-    return;
-  }
-  drag = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false };
+  if (e.pointerType === 'mouse') touchGuard = Boolean(e.buttons & 2);
+  drag = {
+    id: e.pointerId,
+    x: e.clientX,
+    y: e.clientY,
+    sx: e.clientX,
+    sy: e.clientY,
+    moved: false,
+    guard: touchGuard
+  };
 };
 canvas.onpointermove = (e) => {
   if (!drag || drag.id !== e.pointerId) return;
+  if (e.pointerType === 'mouse') {
+    touchGuard = Boolean(e.buttons & 2);
+    drag.guard ||= touchGuard;
+  }
   const dx = e.clientX - drag.x,
     dy = e.clientY - drag.y;
   if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) drag.moved = true;
@@ -280,11 +308,11 @@ canvas.onpointermove = (e) => {
   drag.y = e.clientY;
 };
 canvas.onpointerup = (e) => {
-  if (e.button === 2) touchGuard = false;
-  else if (drag?.id === e.pointerId) {
-    if (!drag.moved) cut();
+  if (drag?.id === e.pointerId) {
+    if (!drag.moved && !drag.guard && e.button !== 2) cut();
     drag = null;
   }
+  if (e.pointerType === 'mouse') touchGuard = false;
 };
 canvas.onpointercancel = () => {
   drag = null;
@@ -316,6 +344,8 @@ document.querySelectorAll('[data-press]').forEach((button) => {
     e.preventDefault();
     button.setPointerCapture(e.pointerId);
     if (kind === 'guard') touchGuard = true;
+    if (kind === 'run') touchRun = true;
+    if (kind === 'jump') jumpStart = performance.now();
     if (kind === 'short') touchShort = true;
     if (kind === 'cut') cut();
     if (kind === 'grab') grabbingUntil = performance.now() + 200;
@@ -323,8 +353,11 @@ document.querySelectorAll('[data-press]').forEach((button) => {
   };
   button.onlostpointercapture = () => {
     if (kind === 'guard') touchGuard = false;
+    if (kind === 'run') touchRun = false;
+    if (kind === 'jump') jumpStart = null;
     if (kind === 'short') touchShort = false;
   };
+  if (kind === 'jump') button.onpointerup = releaseJump;
 });
 function readInput(dt) {
   const held = (k) => Number(keys.has(k));
@@ -333,7 +366,9 @@ function readInput(dt) {
   input.yaw = clamp(input.yaw + (held('ArrowLeft') - held('ArrowRight')) * dt * 5, -1.75, 1.75);
   input.pitch = clamp(input.pitch + (held('ArrowUp') - held('ArrowDown')) * dt * 4, -0.95, 1.24);
   input.guard = touchGuard || keys.has('KeyK');
-  input.short = touchShort || keys.has('Space');
+  input.short = touchShort || keys.has('KeyR');
+  input.run = touchRun || keys.has('ShiftLeft') || keys.has('ShiftRight');
+  input.crouch = jumpStart !== null || keys.has('ControlLeft') || keys.has('ControlRight');
   input.grab = performance.now() < grabbingUntil;
   input.thrust = performance.now() < lungingUntil;
 }
@@ -355,7 +390,10 @@ function updateHud() {
       ? 'Abyss · ' + game.round + ' / 5'
       : 'Duel · ' + scores[local] + ' – ' + scores[1 - local];
   $('weapon').textContent =
-    weapons[p.weapon].name + (p.short ? ' · Short grip' : p.guard ? ' · Guard' : '');
+    weapons[p.weapon].name +
+    (p.guard ? ' · Guard' : p.short ? ' · Short grip' : '') +
+    (p.height > 0.01 ? ' · Airborne' : p.running ? ' · Running' : p.bend > 0.55 ? ' · Crouched' : '') +
+    (p.exhausted ? ' · Winded' : '');
   const item = nearby(game, p);
   $('equipHint').textContent = item
     ? (matchMedia('(pointer:coarse)').matches ? 'Swap' : 'E to swap') + ' · ' + weapons[item.w].name
@@ -413,7 +451,7 @@ function displayState(now) {
     p: game.p.map((p, i) => {
       const old = previous.p[i],
         res = { ...p };
-      for (const k of ['x', 'z', 'yaw', 'pitch', 'walk', 'down', 'recoil'])
+      for (const k of ['x', 'z', 'yaw', 'pitch', 'walk', 'down', 'recoil', 'height', 'bend', 'vx', 'vz'])
         res[k] = old[k] + (p[k] - old[k]) * u;
       const d = p.face - old.face;
       res.face = old.face + Math.atan2(Math.sin(d), Math.cos(d)) * u;

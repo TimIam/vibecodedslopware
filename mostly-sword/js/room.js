@@ -18,7 +18,9 @@ function controls(data) {
   ]) {
     result[k] = Number.isFinite(data?.[k]) ? clamp(data[k], -limit, limit) : 0;
   }
-  for (const k of ['guard', 'short', 'grab', 'thrust']) result[k] = data?.[k] === true;
+  for (const k of ['guard', 'short', 'grab', 'thrust', 'run', 'crouch']) result[k] = data?.[k] === true;
+  result.jumpId = Number.isSafeInteger(data?.jumpId) && data.jumpId > 0 ? data.jumpId : 0;
+  result.jumpPower = Number.isFinite(data?.jumpPower) ? clamp(data.jumpPower, 0, 1) : 0;
   return result;
 }
 function isState(s) {
@@ -51,7 +53,9 @@ function isState(s) {
           'stun',
           'recoil',
           'down',
-          'extension'
+          'extension',
+          'height',
+          'bend'
         ].every((k) => Number.isFinite(p[k])) &&
         bounded(p.hp, 0, 100) &&
         bounded(p.balance, 0, 100)
@@ -72,7 +76,7 @@ export function openRoom(code, host, callbacks) {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     realtime: { params: { eventsPerSecond: 35 } }
   });
-  const channel = client.channel('mostly-sword:v1:' + code, { config: { broadcast: { self: false } } });
+  const channel = client.channel('mostly-sword:v2:' + code, { config: { broadcast: { self: false } } });
   const id = crypto.randomUUID();
   let peer = '',
     connected = false,

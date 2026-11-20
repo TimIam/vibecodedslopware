@@ -30,6 +30,45 @@ function reach(rig, side, goal) {
   aimJoint(arm, elbow, mid);
   aimJoint(elbow, hand, goal);
 }
+// Place the boot relative to the floor and solve the knee toward the facing direction.
+// The supporting boot travels backward in body space as the hips pass over it.
+function stepLeg(rig, p, side, sign) {
+  const thigh = rig['Thigh' + side],
+    shin = rig['Shin' + side];
+  const phase = (p.walk + (side === 'R' ? Math.PI : 0)) % (2 * Math.PI);
+  const travel = phase < Math.PI ? 0.5 - phase / Math.PI : -0.5 + (phase - Math.PI) / Math.PI;
+  const swing = phase > Math.PI ? Math.sin(phase - Math.PI) : 0;
+  const speed = Math.hypot(p.vx, p.vz),
+    gait = Math.min(1, speed / 0.85);
+  const c = Math.cos(p.face),
+    s = Math.sin(p.face);
+  const stride = gait * travel * (p.running ? 0.79 : 0.58);
+  const sideStep = (stride * (p.vx * c - p.vz * s)) / Math.max(0.01, speed);
+  const forwardStep = (stride * (p.vz * c + p.vx * s)) / Math.max(0.01, speed);
+  const goal = rig.root.localToWorld(
+    v(
+      sign * (0.155 + 0.035 * p.bend) + sideStep,
+      0.068 + swing * gait * (p.running ? 0.17 : 0.1) + Math.min(0.12, p.height * 0.35),
+      forwardStep + sign * 0.055
+    )
+  );
+  const hip = thigh.getWorldPosition(v()),
+    axis = goal.clone().sub(hip);
+  const a = shin.position.length(),
+    b = 0.39,
+    d = clamp(axis.length(), 0.08, a + b - 0.0001);
+  axis.normalize();
+  const pole = v(sign * 0.09, 0, 1).applyQuaternion(rig.root.quaternion);
+  pole.addScaledVector(axis, -pole.dot(axis)).normalize();
+  const along = (a * a - b * b + d * d) / (2 * d);
+  const knee = hip
+    .clone()
+    .addScaledVector(axis, along)
+    .addScaledVector(pole, Math.sqrt(Math.max(0, a * a - along * along)));
+  aimJoint(thigh, shin, knee);
+  const bootDir = thigh.worldToLocal(goal.clone()).sub(shin.position).normalize();
+  shin.quaternion.setFromUnitVectors(v(0, -1, 0), bootDir);
+}
 export async function createView(canvas) {
   const renderer = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.65));
@@ -201,22 +240,26 @@ export async function createView(canvas) {
       rig.fall = null;
     }
     const speed = Math.min(1, Math.hypot(p.vx, p.vz));
-    root.position.set(p.x, 0, p.z);
+    root.position.set(p.x, p.height, p.z);
     root.rotation.set(0, p.face, 0);
     rig.Hips.position.y =
-      0.91 - 0.05 * speed + 0.022 * Math.sin(p.walk * 2) * speed - 0.18 * (p.stun ? 1 : 0);
+      0.865 -
+      0.03 * speed +
+      0.018 * Math.cos(p.walk * 2) * speed -
+      0.24 * p.bend -
+      0.13 * (p.stun ? 1 : 0);
     rig.Hips.rotation.set(-0.1 * p.recoil, 0, 0.14 * (p.stun ? 1 : 0));
-    rig.Chest.rotation.set(0.08 + p.recoil * 0.21, p.yaw * 0.12, 0.03 * Math.sin(p.walk) * speed);
+    const localSide = p.vx * Math.cos(p.face) - p.vz * Math.sin(p.face);
+    const localForward = p.vz * Math.cos(p.face) + p.vx * Math.sin(p.face);
+    rig.Chest.rotation.set(
+      0.08 + p.recoil * 0.21 + localForward * 0.038 + p.bend * 0.15,
+      p.yaw * 0.12,
+      -localSide * 0.04 + 0.03 * Math.sin(p.walk) * speed
+    );
     rig.Head.rotation.set(-0.04 - p.recoil * 0.14, -p.yaw * 0.1, 0);
-    for (const [k, sign] of [
-      ['L', 1],
-      ['R', -1]
-    ]) {
-      const stride = Math.sin(p.walk) * sign * speed;
-      rig['Thigh' + k].rotation.set(-0.15 + stride * 0.52 - 0.43 * (p.stun ? 1 : 0), 0, sign * 0.11);
-      rig['Shin' + k].rotation.x = 0.25 + Math.max(0, -stride) * 0.52 + 0.69 * (p.stun ? 1 : 0);
-    }
     root.updateMatrixWorld(true);
+    stepLeg(rig, p, 'L', 1);
+    stepLeg(rig, p, 'R', -1);
     const [h, t] = blade(p),
       hand = v(...h),
       tip = v(...t),
