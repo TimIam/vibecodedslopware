@@ -27,6 +27,11 @@ window.SLOPWARE = {
      "n": 4,
      "date": "2026-11-20T04:26:16-07:00",
      "note": "independent grip motors, grappling and armored limb contact"
+    },
+    {
+     "n": 5,
+     "date": "2026-11-20T04:40:04-07:00",
+     "note": "lower duel latency with direct peer transport and guest prediction"
     }
    ]
   },
