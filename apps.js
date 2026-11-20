@@ -22,6 +22,11 @@ window.SLOPWARE = {
      "n": 3,
      "date": "2026-11-20T03:23:05-07:00",
      "note": "add Rapier ragdolls, spring-driven recovery and shoulder-led swings"
+    },
+    {
+     "n": 4,
+     "date": "2026-11-20T04:26:16-07:00",
+     "note": "independent grip motors, grappling and armored limb contact"
     }
    ]
   },
