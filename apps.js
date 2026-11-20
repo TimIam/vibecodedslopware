@@ -32,6 +32,11 @@ window.SLOPWARE = {
      "n": 5,
      "date": "2026-11-20T04:40:04-07:00",
      "note": "lower duel latency with direct peer transport and guest prediction"
+    },
+    {
+     "n": 6,
+     "date": "2026-11-20T04:44:04-07:00",
+     "note": "show the duel before starting the peer connection"
     }
    ]
   },
