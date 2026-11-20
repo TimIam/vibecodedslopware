@@ -43,6 +43,10 @@ function fighter(i, weapon) {
     walk: 0,
     grabLatch: false,
     down: 0,
+    recovery: 0,
+    rollSide: 1,
+    torso: 0,
+    torsoSpeed: 0,
     thrustLatch: false,
     thrustTime: 0,
     extension: 0,
@@ -84,22 +88,54 @@ export function makeRound(round = 1, solo = true, loadout = 0) {
   }
   return game;
 }
+// The reference take shows a fall onto the back, a side roll, then a low rise.
+export const RECOVERY = 2.85;
+function ease(t) {
+  const u = clamp(t, 0, 1);
+  return u * u * (3 - 2 * u);
+}
+export function groundPose(p) {
+  const t = RECOVERY - p.recovery;
+  const fall = ease(t / 0.48);
+  const low = fall * (1 - ease((t - 1.22) / 1.63));
+  const back = fall * (1 - ease((t - 1.05) / 1.04));
+  const side = ease((t - 0.8) / 0.72) * (1 - ease((t - 1.72) / 0.92)) * p.rollSide;
+  return { low, back, side };
+}
+function bodyAxis(p, pose) {
+  const pitch = -1.38 * pose.back,
+    roll = 0.78 * pose.side;
+  const side = -Math.sin(roll),
+    front = Math.sin(pitch) * Math.cos(roll);
+  return [
+    Math.cos(p.face) * side + Math.sin(p.face) * front,
+    Math.cos(pitch) * Math.cos(roll),
+    -Math.sin(p.face) * side + Math.cos(p.face) * front
+  ];
+}
 export function blade(p) {
-  const s = Math.sin(p.face),
-    c = Math.cos(p.face);
+  const pose = groundPose(p);
+  const s = Math.sin(p.face + p.torso),
+    c = Math.cos(p.face + p.torso);
   const reach = weapons[p.weapon].reach * (p.short ? 0.71 : 1);
   const gripSide = -0.25 + Math.sin(p.yaw) * 0.23;
-  const gripFront = 0.32 + 0.1 * Math.cos(p.yaw) + p.extension * 0.16;
+  const gripFront = 0.32 + 0.1 * Math.cos(p.yaw) + p.extension * 0.16 - pose.back * 0.35;
   const h = [
     p.x + c * gripSide + s * gripFront,
-    1.13 + p.height - p.bend * 0.24 + 0.15 * Math.sin(p.pitch) + 0.09 * p.extension,
+    1.13 +
+      p.height -
+      p.bend * 0.24 * (1 - pose.low) +
+      0.15 * Math.sin(p.pitch) +
+      0.09 * p.extension -
+      0.84 * pose.low,
     p.z - s * gripSide + c * gripFront
   ];
-  const a = p.face + p.yaw,
-    horizontal = reach * Math.cos(p.pitch);
+  const a = p.face + p.torso + p.yaw,
+    pitch = p.pitch * (1 - pose.low) + 0.1 * pose.low,
+    horizontal = reach * Math.cos(pitch);
   return [
     h,
-    [h[0] + Math.sin(a) * horizontal, h[1] + reach * Math.sin(p.pitch), h[2] + Math.cos(a) * horizontal]
+    [h[0] + Math.sin(a) * horizontal, h[1] + reach * Math.sin(pitch), h[2] + Math.cos(a) * horizontal]
   ];
 }
 const sub = (a, b) => a.map((v, i) => v - b[i]);
@@ -142,6 +178,31 @@ export function nearby(g, p) {
 function advance(g, i, input, dt) {
   const p = g.p[i],
     other = g.p[1 - i];
+  if (p.recovery > 0) {
+    p.recovery = Math.max(0, p.recovery - dt);
+    p.x += p.vx * dt;
+    p.z += p.vz * dt;
+    const radius = Math.hypot(p.x, p.z);
+    if (radius > 7.8) {
+      p.x *= 7.8 / radius;
+      p.z *= 7.8 / radius;
+    }
+    p.vx *= Math.exp(-7 * dt);
+    p.vz *= Math.exp(-7 * dt);
+    p.vy -= 9.81 * dt;
+    p.height = Math.max(0, p.height + p.vy * dt);
+    if (!p.height) p.vy = 0;
+    p.recoil = Math.max(0, p.recoil - dt * 3);
+    p.cooldown = 0.12;
+    p.jumpId = input.jumpId || p.jumpId;
+    p.thrustLatch = input.thrust;
+    p.grabLatch = input.grab;
+    if (p.recovery < 1.1) p.bend += (0.4 - p.bend) * Math.min(1, dt * 8);
+    if (!p.recovery) {
+      p.balance = 52;
+    }
+    return;
+  }
   const angle = Math.atan2(other.x - p.x, other.z - p.z) - p.face;
   p.face += clamp(Math.atan2(Math.sin(angle), Math.cos(angle)), -5.8 * dt, 5.8 * dt);
   const s = Math.sin(p.face),
@@ -227,7 +288,10 @@ function advance(g, i, input, dt) {
   const spring =
     weapons[p.weapon].spring * (p.short ? 1.5 : 1) * (p.stun ? 0.28 : 1) * (p.bind ? 0.24 : 1);
   const damper = 2 * Math.sqrt(spring) * 0.68;
-  p.wy += ((targetY - p.yaw) * spring - p.wy * damper) * dt;
+  // Shoulders start the turn; the grip and forearm finish the remaining angle.
+  p.torsoSpeed += ((targetY * 0.34 - p.torso) * 85 - p.torsoSpeed * 12) * dt;
+  p.torso += p.torsoSpeed * dt;
+  p.wy += ((targetY * 0.66 - p.yaw) * spring - p.wy * damper) * dt;
   p.wp += ((targetP - p.pitch) * spring - p.wp * damper) * dt;
   p.yaw += p.wy * dt;
   p.pitch += p.wp * dt;
@@ -295,7 +359,7 @@ export function tick(g, input, dt = STEP) {
   g.clashDelay = Math.max(0, g.clashDelay - dt);
   const clash = near(blades[0], blades[1]);
   const braced = g.p.some((p) => p.guard && !p.height && p.balance > 14);
-  const touching = clash.d < (braced ? 0.13 : 0.095);
+  const touching = !a.recovery && !b.recovery && clash.d < (braced ? 0.13 : 0.095);
   if (touching && Math.max(...velocity) > 1.4 && !g.clashDelay) {
     g.clashDelay = 0.24;
     for (const [i, p] of g.p.entries()) {
@@ -312,11 +376,11 @@ export function tick(g, input, dt = STEP) {
   for (let i = 0; i < 2; i++) {
     const p = g.p[i],
       o = g.p[1 - i];
-    if (p.cooldown || p.guard || p.stun || velocity[i] < 1.4) continue;
-    const body = [
-      [o.x, o.height + 0.59 - o.bend * 0.16, o.z],
-      [o.x, o.height + 1.7 - o.bend * 0.24, o.z]
-    ];
+    if (p.cooldown || p.guard || p.stun || p.recovery || velocity[i] < 1.4) continue;
+    const pose = groundPose(o),
+      axis = bodyAxis(o, pose);
+    const hip = [o.x, o.height + 0.865 - o.bend * 0.24 * (1 - pose.low) - pose.low * 0.65, o.z];
+    const body = [-0.25, 0.83].map((offset) => hip.map((n, j) => n + axis[j] * offset));
     const contact = near(blades[i], body);
     if (contact.d > 0.32) continue;
     // A held bind continues to protect the covered line until the blades separate.
@@ -329,7 +393,13 @@ export function tick(g, input, dt = STEP) {
     p.cooldown = 0.42;
     o.vx += Math.sin(p.face) * momentum * 0.23;
     o.vz += Math.cos(p.face) * momentum * 0.23;
-    if (o.balance < 12) {
+    if (!o.recovery && o.hp > 0 && o.balance < 12 && momentum >= 4) {
+      o.recovery = RECOVERY;
+      o.rollSide = Math.sin(p.face + p.yaw - o.face) >= 0 ? 1 : -1;
+      o.guard = o.running = false;
+      o.bind = o.stun = o.extension = o.thrustTime = 0;
+      o.wy = o.wp = o.torsoSpeed = 0;
+    } else if (!o.recovery && o.balance < 12) {
       o.stun = 0.67;
       o.balance = 35;
     }

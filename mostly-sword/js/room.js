@@ -54,6 +54,9 @@ function isState(s) {
           'recoil',
           'down',
           'extension',
+          'torso',
+          'rollSide',
+          'recovery',
           'height',
           'bend'
         ].every((k) => Number.isFinite(p[k])) &&
@@ -76,7 +79,7 @@ export function openRoom(code, host, callbacks) {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     realtime: { params: { eventsPerSecond: 35 } }
   });
-  const channel = client.channel('mostly-sword:v2:' + code, { config: { broadcast: { self: false } } });
+  const channel = client.channel('mostly-sword:v3:' + code, { config: { broadcast: { self: false } } });
   const id = crypto.randomUUID();
   let peer = '',
     connected = false,

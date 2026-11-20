@@ -1,130 +1,150 @@
+import R from '../vendor/rapier-0.19.3.mjs';
 import { Vector3, Quaternion } from '../vendor/three.js';
+import { STEP, RECOVERY, clamp, weapons } from './arena.js';
 
-// Take the last live pose as the initial condition. A constrained particle skeleton
-// carries each armor segment down to the floor, including the released weapon.
-export function startFall(rig, gear, state) {
+export const physicsReady = R.init();
+const v = (x = 0, y = 0, z = 0) => new Vector3(x, y, z);
+const up = v(0, 1, 0);
+const zero = v();
+
+// Each body starts in the last displayed pose. Its orientation represents a
+// rotation relative to that pose, so all joint anchors share the same rest frame.
+export function startFall(rig, state, terminal) {
+  const world = new R.World({ x: 0, y: -9.81, z: 0 });
+  world.timestep = STEP;
+  world.numSolverIterations = 8;
+  world.createCollider(R.ColliderDesc.cuboid(18, 0.15, 18).setTranslation(0, -0.15, 0).setFriction(0.85));
   rig.root.updateWorldMatrix(true, true);
-  const nodes = {},
-    particles = {},
-    constraints = [],
-    segments = [];
-  const world = (node) => node.getWorldPosition(new Vector3());
-  const forward = new Vector3(Math.sin(state.face), 0, Math.cos(state.face));
-  const side = new Vector3(forward.z, 0, -forward.x);
-  function particle(name, position, radius) {
-    const velocity = forward
-      .clone()
-      .multiplyScalar(-1.15 - position.y * 0.8)
-      .addScaledVector(side, 0.3 * position.y)
-      .add(new Vector3(state.vx * 0.15, 0.12, state.vz * 0.15));
-    particles[name] = {
-      pos: position,
-      prev: position.clone().addScaledVector(velocity, -1 / 90),
-      radius
+  const parts = [];
+  function segment(node, endLocal, radius, mass, parent, hinge) {
+    endLocal = endLocal.clone();
+    const start = node.getWorldPosition(v());
+    const initial = node.getWorldQuaternion(new Quaternion());
+    const delta = node.localToWorld(endLocal.clone()).sub(start);
+    const body = world.createRigidBody(
+      R.RigidBodyDesc.dynamic()
+        .setTranslation(start.x, start.y, start.z)
+        .setLinvel(
+          state.vx * 0.3 - Math.sin(state.face) * start.y * 1.35,
+          0.05,
+          state.vz * 0.3 - Math.cos(state.face) * start.y * 1.35
+        )
+        .setAngularDamping(1.1)
+        .setLinearDamping(0.28)
+    );
+    const center = delta.clone().multiplyScalar(0.5);
+    const shape = R.ColliderDesc.capsule(Math.max(0.007, center.length() - radius), radius)
+      .setTranslation(center.x, center.y, center.z)
+      .setRotation(new Quaternion().setFromUnitVectors(up, delta.clone().normalize()))
+      .setMass(mass)
+      .setFriction(0.68);
+    world.createCollider(shape, body);
+    if (parent) {
+      const pivot = start.clone().sub(parent.start);
+      const joint = hinge ? R.JointData.revolute(pivot, zero, hinge) : R.JointData.spherical(pivot, zero);
+      const connection = world.createImpulseJoint(joint, parent.body, body, true);
+      connection.setContactsEnabled(false);
+      if (hinge) connection.setLimits(-1.65, 1.65);
+    }
+    const part = {
+      node,
+      body,
+      start,
+      initial,
+      endLocal,
+      delta,
+      mass,
+      targetPos: v(),
+      targetRot: new Quaternion()
     };
+    parts.push(part);
+    return part;
   }
-  function link(a, b) {
-    const p = particles[a].pos,
-      q = particles[b].pos;
-    constraints.push([a, b, p.distanceTo(q)]);
+  const hips = segment(rig.Hips, rig.Chest.position, 0.145, 7);
+  const chest = segment(rig.Chest, rig.Head.position, 0.16, 9, hips);
+  segment(rig.Head, v(0, 0.22, 0), 0.12, 3, chest);
+  const lateral = v(Math.cos(state.face), 0, -Math.sin(state.face));
+  for (const side of ['L', 'R']) {
+    const thigh = rig['Thigh' + side],
+      shin = rig['Shin' + side];
+    const arm = rig['UpperArm' + side],
+      forearm = rig['Forearm' + side];
+    const leg = segment(thigh, shin.position, 0.085, 4, hips);
+    segment(shin, v(0, -0.39, 0.025), 0.075, 2.8, leg, lateral);
+    const shoulder = segment(arm, forearm.position, 0.07, 2.3, chest);
+    const elbow = forearm.getWorldPosition(v());
+    const elbowAxis = elbow
+      .clone()
+      .sub(arm.getWorldPosition(v()))
+      .cross(rig['Hand' + side].getWorldPosition(v()).sub(elbow));
+    segment(
+      forearm,
+      rig['Hand' + side].position,
+      0.062,
+      1.6,
+      shoulder,
+      elbowAxis.lengthSq() > 0.000001 ? elbowAxis.normalize() : lateral
+    );
   }
-  function segment(node, a, b) {
-    link(a, b);
-    const start = particles[b].pos.clone().sub(particles[a].pos).normalize();
-    segments.push({ node, a, b, start, initial: node.getWorldQuaternion(new Quaternion()) });
+  const item = rig.gear[state.weapon];
+  if (terminal) {
+    segment(item, v(0, weapons[state.weapon].reach / item.scale.y, 0), 0.038, 1.4);
   }
-  for (const name of [
-    'Hips',
-    'Chest',
-    'Head',
-    ...['R', 'L'].flatMap((s) => ['UpperArm', 'Forearm', 'Hand', 'Thigh', 'Shin'].map((k) => k + s))
-  ]) {
-    const node = rig[name];
-    nodes[name] = { node, pos: node.position.clone(), rot: node.quaternion.clone() };
-    particle(name, world(node), name === 'Head' ? 0.17 : name === 'Chest' ? 0.18 : 0.09);
-  }
-  particle('Crown', rig.Head.localToWorld(new Vector3(0, 0.22, 0)), 0.12);
-  segment(rig.Hips, 'Hips', 'Chest');
-  segment(rig.Chest, 'Chest', 'Head');
-  segment(rig.Head, 'Head', 'Crown');
-  for (const s of ['R', 'L']) {
-    const thigh = 'Thigh' + s,
-      shin = 'Shin' + s,
-      arm = 'UpperArm' + s,
-      elbow = 'Forearm' + s,
-      hand = 'Hand' + s;
-    particle('Foot' + s, rig[shin].localToWorld(new Vector3(0, -0.39, 0.025)), 0.08);
-    link('Hips', thigh);
-    link('Chest', thigh);
-    link('Chest', arm);
-    link('Head', arm);
-    link('Hips', arm);
-    segment(rig[thigh], thigh, shin);
-    segment(rig[shin], shin, 'Foot' + s);
-    segment(rig[arm], arm, elbow);
-    segment(rig[elbow], elbow, hand);
-  }
-  link('UpperArmR', 'UpperArmL');
-  link('ThighR', 'ThighL');
-  link('UpperArmR', 'ThighL');
-  link('UpperArmL', 'ThighR');
-  const item = gear[state.weapon],
-    itemPosition = item.position.clone(),
-    itemRotation = item.quaternion.clone();
-  particle('Grip', itemPosition, 0.055);
-  const axis = new Vector3(0, 1, 0).applyQuaternion(itemRotation);
-  particle('Tip', itemPosition.clone().addScaledVector(axis, 0.86), 0.04);
-  segment(item, 'Grip', 'Tip');
-  const points = Object.values(particles),
-    delta = new Vector3(),
-    q = new Quaternion(),
-    parentQ = new Quaternion();
-  let carry = 0;
-  function step() {
-    for (const p of points) {
-      delta.copy(p.pos).sub(p.prev).multiplyScalar(0.996);
-      if (p.pos.y < p.radius + 0.009) {
-        delta.x *= 0.86;
-        delta.z *= 0.86;
-      }
-      p.prev.copy(p.pos);
-      p.pos.add(delta);
-      p.pos.y -= 9.81 / 8100;
+
+  // During a recoverable fall, kinematic targets pull the ends of the limbs
+  // through damped springs. The first moments of the fall remain unpowered.
+  let driven = false,
+    carry = 0;
+  const handGoal = v();
+  function attachSprings() {
+    for (const p of parts) {
+      const goal = p.node.localToWorld(p.endLocal.clone());
+      p.anchor = world.createRigidBody(
+        R.RigidBodyDesc.kinematicPositionBased().setTranslation(goal.x, goal.y, goal.z)
+      );
+      world.createImpulseJoint(
+        R.JointData.spring(0, p.mass * 115, p.mass * 14, p.delta, zero),
+        p.body,
+        p.anchor,
+        true
+      );
     }
-    for (let iter = 0; iter < 9; iter++) {
-      for (const [a, b, length] of constraints) {
-        const p = particles[a].pos,
-          n = particles[b].pos;
-        delta.copy(n).sub(p);
-        const len = delta.length();
-        delta.multiplyScalar(((len - length) * 0.5) / Math.max(0.00001, len));
-        p.add(delta);
-        n.sub(delta);
-      }
-      for (const p of points) p.pos.y = Math.max(p.radius, p.pos.y);
-    }
+    driven = true;
   }
   return {
-    update(dt) {
-      carry += dt;
-      while (carry >= 1 / 90) {
-        step();
-        carry -= 1 / 90;
+    terminal,
+    update(dt, recovery = 0) {
+      if (!terminal) {
+        if (!driven && RECOVERY - recovery >= 0.34) attachSprings();
+        rig.HandR.getWorldPosition(handGoal);
+        for (const p of parts) {
+          p.node.getWorldPosition(p.targetPos);
+          p.node.getWorldQuaternion(p.targetRot);
+          if (p.anchor) p.goal = p.node.localToWorld(p.endLocal.clone());
+        }
       }
-      for (const { node, a, b, start, initial } of segments) {
-        const from = particles[a].pos,
-          to = particles[b].pos;
-        node.position.copy(node.parent.worldToLocal(from.clone()));
-        q.setFromUnitVectors(start, delta.copy(to).sub(from).normalize()).multiply(initial);
-        node.quaternion.copy(node.parent.getWorldQuaternion(parentQ).invert()).multiply(q);
-        node.updateWorldMatrix(false, true);
+      carry += clamp(dt, 0, 0.12);
+      while (carry >= STEP) {
+        for (const p of parts) if (p.anchor) p.anchor.setNextKinematicTranslation(p.goal);
+        world.step();
+        carry -= STEP;
       }
+      const blend = terminal ? 0 : 1 - clamp(recovery / 0.48, 0, 1);
+      for (const p of parts) {
+        const pos = v().copy(p.body.translation());
+        const rot = new Quaternion().copy(p.body.rotation()).multiply(p.initial);
+        if (blend) {
+          pos.lerp(p.targetPos, blend);
+          rot.slerp(p.targetRot, blend);
+        }
+        p.node.position.copy(p.node.parent.worldToLocal(pos));
+        p.node.quaternion.copy(p.node.parent.getWorldQuaternion(new Quaternion()).invert()).multiply(rot);
+        p.node.updateWorldMatrix(false, true);
+      }
+      if (!terminal) item.position.add(rig.HandR.getWorldPosition(v()).sub(handGoal));
     },
-    reset() {
-      for (const { node, pos, rot } of Object.values(nodes)) {
-        node.position.copy(pos);
-        node.quaternion.copy(rot);
-      }
+    dispose() {
+      world.free();
     }
   };
 }

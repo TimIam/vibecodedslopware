@@ -1,6 +1,6 @@
 import * as T from '../vendor/three.js';
-import { blade, clamp, weapons } from './arena.js';
-import { startFall } from './fall.js';
+import { blade, clamp, groundPose, weapons } from './arena.js';
+import { physicsReady, startFall } from './fall.js';
 const v = (x = 0, y = 0, z = 0) => new T.Vector3(x, y, z);
 const up = v(0, 1, 0);
 const lengths = [1.23, 0.845, 1.6];
@@ -32,7 +32,7 @@ function reach(rig, side, goal) {
 }
 // Place the boot relative to the floor and solve the knee toward the facing direction.
 // The supporting boot travels backward in body space as the hips pass over it.
-function stepLeg(rig, p, side, sign) {
+function stepLeg(rig, p, side, sign, ground) {
   const thigh = rig['Thigh' + side],
     shin = rig['Shin' + side];
   const phase = (p.walk + (side === 'R' ? Math.PI : 0)) % (2 * Math.PI);
@@ -49,7 +49,7 @@ function stepLeg(rig, p, side, sign) {
     v(
       sign * (0.155 + 0.035 * p.bend) + sideStep,
       0.068 + swing * gait * (p.running ? 0.17 : 0.1) + Math.min(0.12, p.height * 0.35),
-      forwardStep + sign * 0.055
+      forwardStep + sign * 0.055 + ground.back * (0.49 + sign * 0.13)
     )
   );
   const hip = thigh.getWorldPosition(v()),
@@ -111,12 +111,13 @@ export async function createView(canvas) {
   rim.position.set(4, 5, -5);
   scene.add(rim);
   const loader = new T.GLTFLoader();
-  const [arena, knight, ...equipment] = await Promise.all(
-    ['arena', 'knight', ...weapons.map((w) => w.mesh)].map(
+  const [, arena, knight, ...equipment] = await Promise.all([
+    physicsReady,
+    ...['arena', 'knight', ...weapons.map((w) => w.mesh)].map(
       async (name) =>
         (await loader.loadAsync(new URL('../assets/' + name + '.glb', import.meta.url).href)).scene
     )
-  );
+  ]);
   arena.traverse((o) => {
     if (o.isMesh) {
       o.receiveShadow = true;
@@ -180,6 +181,15 @@ export async function createView(canvas) {
       scene.add(copy);
       return copy;
     });
+    rig.bindPose = [
+      'Hips',
+      'Chest',
+      'Head',
+      ...['L', 'R'].flatMap((side) => ['Thigh', 'Shin', 'UpperArm', 'Forearm'].map((limb) => limb + side))
+    ].map((name) => {
+      const node = rig[name];
+      return { node, position: node.position.clone(), rotation: node.quaternion.clone() };
+    });
     return rig;
   }
   const rigs = [makeRig(0), makeRig(1)],
@@ -230,15 +240,26 @@ export async function createView(canvas) {
   function pose(p, i, now, dt) {
     const rig = rigs[i],
       root = rig.root;
-    if (p.down > 0) {
-      if (!rig.fall) rig.fall = startFall(rig, rig.gear, p);
+    const terminal = p.down > 0;
+    const falling = terminal || p.recovery > 0;
+    if (rig.fall && (!falling || terminal !== rig.fall.terminal)) {
+      rig.fall.dispose();
+      rig.fall = null;
+    }
+    if (falling && !rig.fall) rig.fall = startFall(rig, p, terminal);
+    if (terminal) {
+      rig.wasFalling = true;
       rig.fall.update(dt);
       return;
     }
-    if (rig.fall) {
-      rig.fall.reset();
-      rig.fall = null;
+    if (rig.wasFalling || falling) {
+      for (const { node, position, rotation } of rig.bindPose) {
+        node.position.copy(position);
+        node.quaternion.copy(rotation);
+      }
     }
+    rig.wasFalling = falling;
+    const ground = groundPose(p);
     const speed = Math.min(1, Math.hypot(p.vx, p.vz));
     root.position.set(p.x, p.height, p.z);
     root.rotation.set(0, p.face, 0);
@@ -246,20 +267,25 @@ export async function createView(canvas) {
       0.865 -
       0.03 * speed +
       0.018 * Math.cos(p.walk * 2) * speed -
-      0.24 * p.bend -
+      0.24 * p.bend * (1 - ground.low) -
+      0.65 * ground.low -
       0.13 * (p.stun ? 1 : 0);
-    rig.Hips.rotation.set(-0.1 * p.recoil, 0, 0.14 * (p.stun ? 1 : 0));
+    rig.Hips.rotation.set(
+      -0.1 * p.recoil - 1.38 * ground.back,
+      0,
+      0.14 * (p.stun ? 1 : 0) + 0.78 * ground.side
+    );
     const localSide = p.vx * Math.cos(p.face) - p.vz * Math.sin(p.face);
     const localForward = p.vz * Math.cos(p.face) + p.vx * Math.sin(p.face);
     rig.Chest.rotation.set(
       0.08 + p.recoil * 0.21 + localForward * 0.038 + p.bend * 0.15,
-      p.yaw * 0.12,
+      p.torso,
       -localSide * 0.04 + 0.03 * Math.sin(p.walk) * speed
     );
     rig.Head.rotation.set(-0.04 - p.recoil * 0.14, -p.yaw * 0.1, 0);
     root.updateMatrixWorld(true);
-    stepLeg(rig, p, 'L', 1);
-    stepLeg(rig, p, 'R', -1);
+    stepLeg(rig, p, 'L', 1, ground);
+    stepLeg(rig, p, 'R', -1, ground);
     const [h, t] = blade(p),
       hand = v(...h),
       tip = v(...t),
@@ -269,6 +295,7 @@ export async function createView(canvas) {
       p.short || p.guard || p.weapon === 2
         ? hand.clone().addScaledVector(dir, p.short ? 0.24 : 0.1)
         : root.localToWorld(v(0.29, 1.05 + 0.035 * Math.sin(now * 2), 0.25));
+    leftGoal.lerp(root.localToWorld(v(0.36, 0.1, 0.02)), ground.low);
     reach(rig, 'L', leftGoal);
     rig.gear.forEach((m, k) => {
       m.visible = k === p.weapon;
@@ -280,6 +307,7 @@ export async function createView(canvas) {
         if (p.short) m.position.addScaledVector(dir, -weapons[k].reach * 0.29);
       }
     });
+    if (rig.fall) rig.fall.update(dt, p.recovery);
   }
   const watch = v(),
     focus = v();

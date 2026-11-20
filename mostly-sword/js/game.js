@@ -233,7 +233,7 @@ function cut() {
 }
 function releaseJump() {
   if (jumpStart === null) return;
-  input.jumpId=++jumpSequence;
+  input.jumpId = ++jumpSequence;
   input.jumpPower = clamp((performance.now() - jumpStart) / 420, 0, 1);
   jumpStart = null;
 }
@@ -392,7 +392,17 @@ function updateHud() {
   $('weapon').textContent =
     weapons[p.weapon].name +
     (p.guard ? ' · Guard' : p.short ? ' · Short grip' : '') +
-    (p.height > 0.01 ? ' · Airborne' : p.running ? ' · Running' : p.bend > 0.55 ? ' · Crouched' : '') +
+    (p.recovery > 1.5
+      ? ' · Knocked down'
+      : p.recovery > 0
+        ? ' · Getting up'
+        : p.height > 0.01
+          ? ' · Airborne'
+          : p.running
+            ? ' · Running'
+            : p.bend > 0.55
+              ? ' · Crouched'
+              : '') +
     (p.exhausted ? ' · Winded' : '');
   const item = nearby(game, p);
   $('equipHint').textContent = item
@@ -451,8 +461,22 @@ function displayState(now) {
     p: game.p.map((p, i) => {
       const old = previous.p[i],
         res = { ...p };
-      for (const k of ['x', 'z', 'yaw', 'pitch', 'walk', 'down', 'recoil', 'height', 'bend', 'vx', 'vz'])
+      for (const k of [
+        'x',
+        'z',
+        'yaw',
+        'pitch',
+        'torso',
+        'walk',
+        'down',
+        'recoil',
+        'height',
+        'bend',
+        'vx',
+        'vz'
+      ])
         res[k] = old[k] + (p[k] - old[k]) * u;
+      if (old.recovery >= p.recovery) res.recovery = old.recovery + (p.recovery - old.recovery) * u;
       const d = p.face - old.face;
       res.face = old.face + Math.atan2(Math.sin(d), Math.cos(d)) * u;
       return res;
