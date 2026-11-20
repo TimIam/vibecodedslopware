@@ -12,6 +12,11 @@ window.SLOPWARE = {
      "n": 1,
      "date": "2026-11-19T12:44:14-07:00",
      "note": "Blender-built Abyss and online duels"
+    },
+    {
+     "n": 2,
+     "date": "2026-11-20T02:18:13-07:00",
+     "note": "planted footwork, charged jumps and contact-based guards"
     }
    ]
   },
