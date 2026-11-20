@@ -17,6 +17,11 @@ window.SLOPWARE = {
      "n": 2,
      "date": "2026-11-20T02:18:13-07:00",
      "note": "planted footwork, charged jumps and contact-based guards"
+    },
+    {
+     "n": 3,
+     "date": "2026-11-20T03:23:05-07:00",
+     "note": "add Rapier ragdolls, spring-driven recovery and shoulder-led swings"
     }
    ]
   },
