@@ -1,4 +1,6 @@
 import { STEP, weapons, ranks, clamp, neutral, makeRound, tick, bot } from './arena.js';
+import { makeYard, frameInput, stepYard, maxFrames, tail } from './yard.js';
+import { gripLabel } from './grabs.js';
 import { freeHandTarget } from './hands.js';
 import { regionNames } from './contact.js';
 import { playContact } from './audio.js';
@@ -93,6 +95,9 @@ function menu(message = '', lobby = false) {
   if (lobby) warmLobby();
   else leaveLobby();
   mode = 'menu';
+  yardWorker?.terminate();
+  yardWorker = null;
+  show('yardPanel', false);
   local = 0;
   paused = false;
   clearInputs();
@@ -200,6 +205,175 @@ $('solo').onclick = () => {
   local = 0;
   begin(true);
 };
+let clip = [],
+  yardState = 'live',
+  cursor = 0,
+  yardWorker = null,
+  comparisons = [];
+const weaponChoice = () => $('yardWeapon').selectedIndex,
+  armorChoice = () => $('yardArmor').selectedIndex;
+function resetYard(state) {
+  game = makeYard(weaponChoice(), armorChoice());
+  cursor = 0;
+  lastEvent = 0;
+  carry = 0;
+  yardState = state;
+  clearInputs();
+  show('message', false);
+  canvas.focus({ preventScroll: true });
+  paintBench();
+}
+function paintBench() {
+  const recording = yardState === 'recording',
+    playing = yardState === 'playing',
+    stopped = yardState === 'paused';
+  setHudText('record', recording ? 'Stop recording' : 'Record drag');
+  $('replay').disabled = !clip.length || recording;
+  $('yardPause').disabled = !(playing || stopped);
+  $('yardStep').disabled = !stopped || cursor >= clip.length + tail;
+  $('yardHit').disabled = recording || !comparisons[weaponChoice()]?.firstHit;
+  $('yardWeapon').disabled = $('yardArmor').disabled = recording;
+  setHudText('yardPause', stopped ? 'Resume' : 'Pause');
+  const time = (cursor * STEP).toFixed(2) + ' s';
+  setHudText(
+    'yardClock',
+    recording
+      ? 'REC · ' + time
+      : playing
+        ? 'Replay · ' + time
+        : stopped
+          ? 'Paused · ' + time
+          : yardState === 'done'
+            ? 'End · ' + time
+            : ''
+  );
+}
+function compareTake() {
+  yardWorker?.terminate();
+  comparisons = [];
+  show('yardResults', !!clip.length);
+  for (const td of $('yardResults').querySelectorAll('td')) td.textContent = '…';
+  if (!clip.length) return;
+  const worker = new Worker(new URL('./yard-worker.js', import.meta.url), { type: 'module' });
+  yardWorker = worker;
+  worker.onmessage = ({ data: r }) => {
+    if (worker !== yardWorker) return;
+    if (r.ready) {
+      worker.postMessage({ clip, armor: armorChoice() });
+      return;
+    }
+    comparisons[r.weapon] = r;
+    const cells = $('yardResults').tBodies[0].rows[r.weapon].cells;
+    [r.start, r.reverse, r.settle].forEach((value, i) => (cells[i + 1].textContent = value ?? '—'));
+    paintBench();
+    if (comparisons.filter(Boolean).length === 3) {
+      worker.terminate();
+      yardWorker = null;
+    }
+  };
+  worker.onerror = () => {
+    if (worker === yardWorker) {
+      setHudText('yardContact', 'Timing comparison unavailable. Replay is ready.');
+      worker.terminate();
+      yardWorker = null;
+    }
+  };
+}
+function finishRecording() {
+  cursor = clip.length;
+  yardState = 'ready';
+  compareTake();
+  paintBench();
+  setHudText(
+    'yardContact',
+    clip.length ? 'Take saved. Choose a weapon and replay.' : 'No movement recorded.'
+  );
+}
+function yardEvent(serial) {
+  const e = game.event;
+  if (game.serial !== serial && e?.type === 'hit') {
+    game.marker = e;
+    setHudText('yardContact', e.part + ' → ' + e.piece + ' · ' + regionNames[e.region]);
+  }
+}
+function replayFrame() {
+  if (cursor >= clip.length + tail) return;
+  const serial = game.serial;
+  stepYard(game, frameInput(clip, cursor++));
+  yardEvent(serial);
+  if (cursor >= clip.length + tail) yardState = 'done';
+}
+function yardTick() {
+  if (yardState === 'playing') replayFrame();
+  else if (['live', 'recording', 'ready'].includes(yardState)) {
+    const serial = game.serial;
+    if (yardState === 'recording') {
+      clip.push({ ...input });
+      cursor++;
+    }
+    stepYard(game, input);
+    yardEvent(serial);
+    if (yardState === 'recording' && cursor >= maxFrames) finishRecording();
+  }
+  paintBench();
+}
+$('practice').onclick = () => {
+  local = 0;
+  host = false;
+  begin(true);
+  mode = 'yard';
+  clip = [];
+  comparisons = [];
+  $('yardPanel').open = !matchMedia('(max-width:650px),(max-height:540px)').matches;
+  show('yardPanel', true);
+  show('yardResults', false);
+  resetYard('live');
+  updateHud();
+  setHudText('yardContact', 'Record a drag and reverse it to compare weapons.');
+};
+$('record').onclick = () => {
+  if (yardState === 'recording') {
+    finishRecording();
+    return;
+  }
+  yardWorker?.terminate();
+  yardWorker = null;
+  comparisons = [];
+  clip = [];
+  show('yardResults', false);
+  resetYard('recording');
+  setHudText('yardContact', 'Drag on the arena. Stop when finished (6 s max).');
+};
+$('replay').onclick = () => {
+  resetYard('playing');
+  setHudText('yardContact', 'Replaying the recorded take.');
+};
+$('yardPause').onclick = () => {
+  yardState = yardState === 'paused' ? 'playing' : 'paused';
+  paintBench();
+};
+$('yardStep').onclick = () => {
+  replayFrame();
+  paintBench();
+};
+$('yardHit').onclick = () => {
+  const frame = comparisons[weaponChoice()]?.firstHit;
+  if (!frame) return;
+  resetYard('paused');
+  while (cursor < frame) replayFrame();
+  paintBench();
+};
+$('yardWeapon').onchange = () => {
+  resetYard('live');
+  setHudText(
+    'yardContact',
+    clip.length ? 'Replay the take with this weapon.' : 'Drag on the arena to steer.'
+  );
+};
+$('yardArmor').onchange = () => {
+  $('yardWeapon').onchange();
+  compareTake();
+};
 $('online').onclick = () => menu('Share a room code or join a friend.', true);
 $('back').onclick = () => menu();
 $('host').onclick = () => connect(true, makeCode());
@@ -221,7 +395,7 @@ $('copy').onclick = async () => {
 };
 $('helpBtn').onclick = () => {
   clearInputs();
-  paused = mode === 'solo';
+  paused = mode === 'solo' || mode === 'yard';
   $('help').showModal();
 };
 $('closeHelp').onclick = () => $('help').close();
@@ -280,7 +454,7 @@ window.addEventListener('keydown', (e) => {
     $('help').open ||
     resultShown ||
     !usedKeys.includes(e.code) ||
-    e.target.closest('button,a,input')
+    e.target.closest('button,a,input,select,summary')
   )
     return;
   e.preventDefault();
@@ -448,8 +622,8 @@ function handHint(p, other) {
     const target = freeHandTarget(game, local, side);
     const action = p['grip' + side]
       ? 'release grip'
-      : target === other
-        ? 'grapple'
+      : target?.part
+        ? 'grab ' + gripLabel(target)
         : target
           ? 'take ' + weapons[target.w].name
           : '';
@@ -479,7 +653,13 @@ function updateHud() {
   setHudText('myName', local === 0 ? 'You · Moss' : 'You · Rust');
   setHudText(
     'foeName',
-    mode === 'solo' ? ranks[Math.min(2, Math.floor((game.round - 1) / 2))] : local === 0 ? 'Rust' : 'Moss'
+    mode === 'yard'
+      ? 'Practice dummy'
+      : mode === 'solo'
+        ? ranks[Math.min(2, Math.floor((game.round - 1) / 2))]
+        : local === 0
+          ? 'Rust'
+          : 'Moss'
   );
   $('myHp').value = p.hp;
   $('foeHp').value = o.hp;
@@ -488,14 +668,18 @@ function updateHud() {
   setHudText('condition', worst >= 20 ? 'Wounded ' + regionNames[p.wounds.indexOf(worst)] : '');
   setHudText(
     'round',
-    mode === 'solo' ? 'Abyss · ' + game.round + ' / 5' : 'Duel · ' + scores[local] + ' – ' + scores[1 - local]
+    mode === 'yard'
+      ? 'Practice yard'
+      : mode === 'solo'
+        ? 'Abyss · ' + game.round + ' / 5'
+        : 'Duel · ' + scores[local] + ' – ' + scores[1 - local]
   );
   setHudText(
     'weapon',
     'L · ' +
-      (p.gripL ? 'Grappling' : weapons[p.left]?.name || 'Free') +
+      (p.gripL ? 'Holding ' + gripLabel(p.grabL) : weapons[p.left]?.name || 'Free') +
       '   /   R · ' +
-      (p.gripR ? 'Grappling' : weapons[p.right]?.name || 'Free') +
+      (p.gripR ? 'Holding ' + gripLabel(p.grabR) : weapons[p.right]?.name || 'Free') +
       (p.guard ? ' · Guard' : p.short ? ' · Short grip' : '') +
       (p.recovery > 1.5
         ? ' · Knocked down'
@@ -625,6 +809,13 @@ function frame(now) {
   } else if (!paused) {
     if (mode === 'online' && host) runHost(performance.now());
     else readInput(dt);
+    if (mode === 'yard') {
+      carry += dt;
+      while (carry >= STEP) {
+        carry -= STEP;
+        yardTick();
+      }
+    }
     if (mode === 'solo') {
       carry += dt;
       while (carry >= STEP) {
@@ -647,11 +838,17 @@ function frame(now) {
       tone(game.event.type, game.event.surface);
       if (game.event.type === 'clash') message('Steel on steel', 0.55);
       if (game.event.type === 'summon') message($('foeName').textContent + ' enters the pit', 1.85);
-      if (game.event.type === 'hit' && Number.isInteger(game.event.region)) {
+      if (mode !== 'yard' && game.event.type === 'hit' && Number.isInteger(game.event.region)) {
         const region = regionNames[game.event.region];
         const contact =
           game.event.surface === 'plate' ? 'armor struck' : game.event.kind === 'cut' ? 'cut' : 'impact';
-        message((game.event.target === local ? 'Your ' : 'Rival’s ') + region + ' · ' + contact, 0.85);
+        message(
+          (game.event.target === local ? 'Your ' : 'Rival’s ') +
+            region +
+            ' · ' +
+            (game.event.part ? game.event.part + ' on ' + game.event.piece : contact),
+          0.85
+        );
       }
     }
     if (game.winner >= 0 && game.p[1 - game.winner].down > 0.85 && !resultShown) finish();
@@ -664,7 +861,7 @@ function frame(now) {
 try {
   if (validCode(validInvite)) warmLobby();
   view = await createView(canvas);
-  $('solo').disabled = $('online').disabled = false;
+  $('practice').disabled = $('solo').disabled = $('online').disabled = false;
   if (validCode(validInvite)) {
     $('code').value = validInvite;
     menu('Your invite is ready. Select Join to enter.', true);

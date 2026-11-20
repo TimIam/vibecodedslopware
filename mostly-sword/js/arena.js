@@ -1,5 +1,6 @@
+import { heldArm, refreshGrips, restrainedAim } from './grabs.js';
 import { driveArm } from './motors.js';
-import { applyWound, bodyContact, sweptContact, touchingBody } from './contact.js';
+import { applyWound, bodyContact, weaponContact, touchingBody } from './contact.js';
 import { handState, heldHand, nearestLoot, updateHands } from './hands.js';
 import { jointPose, reachableGrip, supportDistance } from './pose.js';
 // Fixed-step rules shared by the solo run and the duel host. Units are metres and seconds.
@@ -277,7 +278,8 @@ export function advance(g, i, input, dt) {
   const targetP = p.guard ? clamp(0.46 + input.pitch * 0.78, -0.45, 1.28) : input.pitch * (1 - p.extension);
   const spring = weapons[p.weapon].spring * (p.short ? 1.5 : 1) * (p.stun ? 0.28 : 1) * (p.bind ? 0.24 : 1);
   const armStrength = 1 - p.wounds[heldHand(p) === 'L' ? 2 : 3] * 0.005;
-  driveArm(p, targetY, targetP, spring * armStrength, dt);
+  const hold = restrainedAim(other, p, heldHand(p));
+  driveArm(p, hold?.yaw ?? targetY, hold?.pitch ?? targetP, spring * armStrength, dt);
   if (p.left >= 0 && p.right >= 0) {
     const off = {
       yaw: p.offYaw,
@@ -288,7 +290,14 @@ export function advance(g, i, input, dt) {
       torsoSpeed: p.offTorsoSpeed
     };
     const stiffness = weapons[p.left].spring * (1 - p.wounds[2] * 0.005) * (p.bind ? 0.24 : 1);
-    driveArm(off, input.offYaw ?? 0.54, input.offPitch ?? 0.56, stiffness, dt);
+    const offHold = restrainedAim(other, p, 'L');
+    driveArm(
+      off,
+      offHold?.yaw ?? input.offYaw ?? 0.54,
+      offHold?.pitch ?? input.offPitch ?? 0.56,
+      stiffness,
+      dt
+    );
     p.offYaw = off.yaw;
     p.offPitch = off.pitch;
     p.offTorso = off.torso;
@@ -345,18 +354,24 @@ export function tick(g, input, dt = STEP) {
     return;
   }
   const old = g.p.map((p) => ({ ...p }));
-  g.p.forEach((_, i) => advance(g, i, input[i], dt));
+  g.p.forEach((_, i) => {
+    if (!g.practice || i === 0) advance(g, i, input[i], dt);
+  });
+  if (g.practice) g.p[1].recoil = Math.max(0, g.p[1].recoil - 3 * dt);
   const [a, b] = g.p,
     dx = b.x - a.x,
     dz = b.z - a.z,
     distance = Math.max(0.0001, Math.hypot(dx, dz));
   if (distance < 0.64) {
-    const push = (0.64 - distance) * 0.5;
+    const push = (0.64 - distance) * (g.practice ? 1 : 0.5);
     a.x -= (dx / distance) * push;
     a.z -= (dz / distance) * push;
-    b.x += (dx / distance) * push;
-    b.z += (dz / distance) * push;
+    if (!g.practice) {
+      b.x += (dx / distance) * push;
+      b.z += (dz / distance) * push;
+    }
   }
+  refreshGrips(g);
   g.clashDelay = Math.max(0, g.clashDelay - dt);
   // Include both the old and new spacing for fighters crossing the broad phase.
   if (distance > 3.8 && Math.hypot(old[0].x - old[1].x, old[0].z - old[1].z) > 3.8) {
@@ -384,6 +399,7 @@ export function tick(g, input, dt = STEP) {
   for (let i = 0; i < 2; i++) {
     const p = g.p[i],
       j = 1 - i;
+    if (g.practice && i === 1) continue;
     const previous = embedded.get(p) || {};
     for (const side of hands) {
       const was = previous[side];
@@ -395,7 +411,7 @@ export function tick(g, input, dt = STEP) {
       else if (was && !was.clear && !touchingBody(blades[i][side], poses[j], was.width)) was.clear = true;
       if (p.cooldown || p.guard || p.stun || p.recovery) continue;
       const active = p.offhand ? 'L' : heldHand(p);
-      if (side !== active || p['grip' + side]) continue;
+      if (side !== active || p['grip' + side] || heldArm(g.p[j], side)) continue;
       const weapon = held(p, side);
       const moving = speed(blades[i][side], oldBlades[i][side]);
       if (moving < (weapon < 0 ? 0.85 : 1.15)) continue;
@@ -406,7 +422,8 @@ export function tick(g, input, dt = STEP) {
         poses[j],
         weapon,
         dt,
-        p.short
+        p.short && side === heldHand(p),
+        g.p[j].armor
       );
       if (!hit) continue;
       if (previous[side]) {
@@ -421,16 +438,19 @@ export function tick(g, input, dt = STEP) {
   let clash = null,
     clashSpeed = [0, 0],
     clashSides;
-  if (!a.recovery && !b.recovery)
+  if (!a.recovery && !b.recovery && !g.practice && distance < 3.3)
     for (const lhs of hands)
       for (const rhs of hands) {
         if (held(a, lhs) < 0 || held(b, rhs) < 0) continue;
-        const contact = sweptContact(
+        const contact = weaponContact(
           oldBlades[0][lhs],
           blades[0][lhs],
+          held(a, lhs),
+          a.short && lhs === heldHand(a),
           oldBlades[1][rhs],
           blades[1][rhs],
-          a.guard || b.guard ? 0.095 : 0.067
+          held(b, rhs),
+          b.short && rhs === heldHand(b)
         );
         if (contact && (!clash || contact.time < clash.time)) {
           clash = contact;
@@ -456,7 +476,7 @@ export function tick(g, input, dt = STEP) {
       }
       p.cooldown = Math.max(p.cooldown, 0.1);
     }
-    event(g, 'clash', clash.pos, -1);
+    event(g, 'clash', clash.pos, -1, { part: clash.part, piece: clash.piece });
     return;
   }
   for (const { i, weapon, side, hit: contact, targetYaw, targetPitch } of ordered) {
@@ -483,19 +503,31 @@ export function tick(g, input, dt = STEP) {
     if (details.surface === 'plate' && weapon >= 0) {
       // The plate checks this hand's velocity in the motor. Damage to the
       // opponent and rebound of the attacker are both part of host state.
-      const recoil = weapon === 1 ? -0.25 : -0.52;
-      if (side === heldHand(p)) {
-        p.wy *= recoil;
-        p.wp *= recoil;
-      } else {
-        p.offWY *= recoil;
-        p.offWP *= recoil;
-      }
+      const primary = side === heldHand(p),
+        angle = p.face + (primary ? p.torso + p.yaw : p.offTorso + p.offYaw);
+      const pitch = primary ? p.pitch : p.offPitch,
+        wy = primary ? 'wy' : 'offWY',
+        wp = primary ? 'wp' : 'offWP';
+      const y = [Math.cos(angle), 0, -Math.sin(angle)];
+      const z = [-Math.sin(angle) * Math.sin(pitch), Math.cos(pitch), -Math.cos(angle) * Math.sin(pitch)];
+      const normal = contact.normal,
+        project = (a, b) => a.reduce((sum, v, k) => sum + v * b[k], 0);
+      const velocity = y.map((v, k) => v * p[wy] * Math.cos(pitch) + z[k] * p[wp]);
+      const into = Math.min(0, project(velocity, normal));
+      const slide = velocity.map((v, k) => (v - 1.28 * into * normal[k]) * 0.78);
+      p[wy] = project(slide, y) / Math.max(0.25, Math.cos(pitch));
+      p[wp] = project(slide, z);
       p.bind = Math.max(p.bind, weapon === 1 ? 0.07 : 0.105);
       p.recoil = Math.max(p.recoil, 0.25);
     }
     o.recoil = 1;
     p.cooldown = 0.24;
+    if (g.practice && i === 0) {
+      o.hp = o.balance = 100;
+      o.wounds.fill(0);
+      event(g, 'hit', contact.pos, 1, details);
+      continue;
+    }
     o.vx += Math.sin(p.face) * momentum * 0.23;
     o.vz += Math.cos(p.face) * momentum * 0.23;
     if (!o.recovery && o.hp > 0 && o.balance < 12 && momentum >= 4) {

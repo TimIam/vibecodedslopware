@@ -1,3 +1,11 @@
+import {
+  weaponShape,
+  featureName,
+  armorShell,
+  shellSpace,
+  shellNormal,
+  unit as normalize
+} from './shapes.js';
 /* The duel host tests weapon segments against the same joint targets used by the Blender rig.
  * Local-space capsule sizes are in game metres. Positions are ordinary [x, y, z] arrays.
  */
@@ -75,58 +83,106 @@ export function touchingBody(segment, pose, width) {
   );
 }
 
-export function bodyContact(oldSegment, segment, oldPose, pose, weapon, dt, short = false) {
-  const grip = short ? 0.29 : 0;
-  const startFraction = weapon < 0 ? 0.48 : weapon === 1 ? 0.68 : 0.16;
-  const first = Math.max(0.04, (startFraction - grip) / (1 - grip));
-  const active = [mix(segment[0], segment[1], first), segment[1]];
-  const before = [mix(oldSegment[0], oldSegment[1], first), oldSegment[1]];
-  const width = weapon < 0 ? 0.08 : weapon === 0 ? 0.024 : 0.054;
+const origin = [
+  [0, 0, 0],
+  [0, 0, 0]
+];
+export function bodyContact(oldSegment, segment, oldPose, pose, weapon, dt, short = false, armor = 0) {
+  const before = weaponShape(oldSegment, weapon, short),
+    now = weaponShape(segment, weapon, short);
   let best = null;
   for (const [start, end, radius, region, lo = 0.025, hi = 0.98] of parts) {
-    // Capsule hemispheres count toward the silhouette. Inset their centers
-    // so a swing over the crown or beside the collar remains a miss.
-    const oldLimb = limbSegment(oldPose, start, end, lo, hi);
-    const limb = limbSegment(pose, start, end, lo, hi);
-    const hit = sweptContact(before, active, oldLimb, limb, radius + width);
-    if (!hit) continue;
-    const bladeMotion = sub(mix(...active, hit.s), mix(...before, hit.s));
-    const limbMotion = sub(mix(...limb, hit.t), mix(...oldLimb, hit.t));
-    const motion = sub(bladeMotion, limbMotion);
-    const speed = Math.hypot(...motion) / dt;
-    if (speed < (weapon < 0 ? 0.9 : 1.15)) continue;
-    // Simultaneous initial overlaps choose the most central contact rather than
-    // privileging whichever limb happens to be first in the skeleton array.
-    const depth = hit.d / (radius + width);
-    if (
-      best &&
-      (best.time < hit.time - 1e-6 || (Math.abs(best.time - hit.time) < 1e-6 && best.depth <= depth))
-    )
-      continue;
-    best = {
-      ...hit,
-      width,
-      direction: motion.map((n) => n / (speed * dt)),
-      speed,
-      depth,
-      region,
-      segment: start,
-      along: grip + (1 - grip) * (first + hit.s * (1 - first))
-    };
+    const oldLimb = limbSegment(oldPose, start, end, lo, hi),
+      limb = limbSegment(pose, start, end, lo, hi);
+    const span = travel(oldSegment, segment) + travel(oldLimb, limb);
+    // Include the rear of a poleaxe, its side blade and the maximum armor thickness.
+    if (near(segment, limb).d > span + radius + (weapon === 2 ? 0.73 : 0.43)) continue;
+    const plated = coverageFor(armor, start) === 'plate';
+    const shell = plated && armorShell(pose, start, end),
+      last = plated && armorShell(oldPose, start, end);
+    for (const [index, shape] of now.entries()) {
+      const a = before[index].line,
+        b = shape.line,
+        r = shape.r;
+      const relative = sub(sub(b[1], a[1]), sub(limb[1], oldLimb[1]));
+      if (Math.max(Math.hypot(...relative), travel(a, b) + travel(oldLimb, limb)) < dt * 0.89) continue;
+      if (near(b, limb).d > travel(a, b) + travel(oldLimb, limb) + radius + r + 0.14) continue;
+      let hit = sweptContact(a, b, oldLimb, limb, radius + r);
+      let surface = 'cloth',
+        piece = 'padding',
+        normal;
+      if (shell) {
+        const prev = a.map((q) => shellSpace(q, last, r)),
+          curr = b.map((q) => shellSpace(q, shell, r));
+        const plate = sweptContact(prev, curr, origin, origin, 1);
+        if (plate && (!hit || plate.time <= hit.time + 0.0008)) {
+          const local = mix(...at(prev, curr, plate.time), plate.s);
+          normal = shellNormal(local, shell, r);
+          const point = mix(...at(a, b, plate.time), plate.s);
+          hit = { ...plate, pos: point.map((v, k) => v - r * normal[k]), d: plate.d * (radius + r) };
+          surface = 'plate';
+          piece = shell.piece;
+        }
+      }
+      if (!hit) continue;
+      const t = hit.time;
+      const axis = mix(...at(oldLimb, limb, t), hit.t),
+        point = mix(...at(a, b, t), hit.s);
+      if (!normal) normal = normalize(sub(point, axis));
+      const motion = sub(
+        sub(mix(...b, hit.s), mix(...a, hit.s)),
+        sub(mix(...limb, hit.t), mix(...oldLimb, hit.t))
+      );
+      const speed = Math.hypot(...motion) / dt;
+      if (speed < (weapon < 0 ? 0.9 : 1.15)) continue;
+      const depth = hit.d / (radius + r);
+      if (best && (best.time < t - 0.00001 || (Math.abs(best.time - t) < 0.00001 && best.depth <= depth)))
+        continue;
+      const direction = normalize(motion);
+      best = {
+        ...hit,
+        width: r,
+        direction,
+        speed,
+        depth,
+        region,
+        segment: start,
+        surface,
+        piece,
+        normal,
+        part: featureName(shape, direction),
+        along: near([point, point], segment).t
+      };
+    }
   }
+  return best;
+}
+export function weaponContact(oldA, a, wa, shortA, oldB, b, wb, shortB) {
+  const a0 = weaponShape(oldA, wa, shortA),
+    a1 = weaponShape(a, wa, shortA);
+  const b0 = weaponShape(oldB, wb, shortB),
+    b1 = weaponShape(b, wb, shortB);
+  let best = null;
+  for (const [i, left] of a1.entries())
+    for (const [j, right] of b1.entries()) {
+      const hit = sweptContact(a0[i].line, left.line, b0[j].line, right.line, left.r + right.r);
+      if (hit && (!best || hit.time < best.time)) best = { ...hit, part: left.part, piece: right.part };
+    }
   return best;
 }
 
 export function applyWound(target, hit, weapon, momentum) {
-  const surface = coverageFor(target.armor, hit.segment);
+  const surface = hit.surface ?? coverageFor(target.armor, hit.segment);
   // The poleaxe shaft and mace transfer impact. On a plated segment the edge
   // glances, preserving far more balance transfer than health damage.
-  const edge = weapon === 0 || (weapon === 2 && hit.along >= 0.65);
+  const edge = hit.part
+    ? ['edge', 'point', 'axe edge', 'beak', 'spike'].includes(hit.part)
+    : weapon === 0 || (weapon === 2 && hit.along >= 0.65);
   const plated = surface === 'plate';
   const kind = edge && !plated ? 'cut' : 'impact';
   const protection = plated ? (edge ? 0.25 : 0.64) : 1;
   const force = (4 + momentum * 2.55) * (weapon < 0 ? 0.6 : 1);
-  const damage = force * protection;
+  const damage = force * protection * (['flat', 'guard', 'haft', 'axe blade'].includes(hit.part) ? 0.48 : 1);
   const vital = [1.24, 1.05, 0.58, 0.58, 0.7, 0.7][hit.region];
   target.hp = Math.max(0, target.hp - damage * vital);
   target.wounds[hit.region] = Math.min(100, target.wounds[hit.region] + damage * 1.65);
@@ -134,5 +190,5 @@ export function applyWound(target, hit, weapon, momentum) {
     0,
     target.balance - (6 + momentum * (weapon === 1 ? 4.2 : 3.3)) * (hit.region >= 4 ? 1.2 : 1)
   );
-  return { region: hit.region, surface, kind };
+  return { region: hit.region, surface, kind, part: hit.part, piece: hit.piece, normal: hit.normal };
 }

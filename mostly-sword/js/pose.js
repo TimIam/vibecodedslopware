@@ -1,5 +1,5 @@
 // Blender local pivot distances are shared by the authoritative hit capsules and the visible rig.
-import { heldHand, gripPoint } from './hands.js';
+import { heldHand } from './hands.js';
 
 const add = (a, b) => a.map((n, i) => n + b[i]);
 const sub = (a, b) => a.map((n, i) => n - b[i]);
@@ -119,6 +119,7 @@ function limb(origin, goal, pole, a, b) {
 export function jointPose(p, primary, ground, opponent, offSegment) {
   const f = torsoFrame(p, ground);
   const pose = {
+    face: p.face,
     Hips: f.Hips,
     Chest: f.Chest,
     Head: f.Head,
@@ -140,7 +141,7 @@ export function jointPose(p, primary, ground, opponent, offSegment) {
       lead = side === active;
     const segment = lead ? primary : offSegment;
     let hand;
-    if (opponent && p['grip' + side]) hand = gripPoint(opponent, side);
+    if (opponent && p['grip' + side] && p['grab' + side]) hand = p['grab' + side].point;
     else if (lead || (segment && p[side === 'L' ? 'left' : 'right'] >= 0)) hand = segment[0];
     else if (support) {
       hand = add(primary[0], scale(unit(primaryDir), support));

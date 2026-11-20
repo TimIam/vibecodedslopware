@@ -29,6 +29,27 @@ function controls(data) {
   result.jumpPower = Number.isFinite(data?.jumpPower) ? clamp(data.jumpPower, 0, 1) : 0;
   return result;
 }
+function validGrip(a) {
+  const vector = (v) => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
+  return (
+    a &&
+    ['sleeve', 'forearm', 'wrist', 'gear'].includes(a.part) &&
+    ['L', 'R'].includes(a.side) &&
+    vector(a.from) &&
+    vector(a.span) &&
+    Number.isFinite(a.progress) &&
+    a.progress >= 0 &&
+    a.progress <= 1 &&
+    Number.isFinite(a.t) &&
+    a.t >= 0 &&
+    a.t <= 1 &&
+    vector(a.point) &&
+    vector(a.offset) &&
+    Number.isFinite(a.yaw) &&
+    Number.isFinite(a.pitch) &&
+    [-1, 0, 1, 2].includes(a.weapon)
+  );
+}
 function isState(s) {
   const bounded = (n, min, max) => Number.isFinite(n) && n >= min && n <= max;
   const item = (w) => Number.isInteger(w) && w >= 0 && w < 3;
@@ -53,6 +74,9 @@ function isState(s) {
         item(p.weapon) &&
         [p.right, p.left].every((w) => w === -1 || item(w)) &&
         [p.gripL, p.gripR, p.offhand].every((flag) => typeof flag === 'boolean') &&
+        ['L', 'R'].every((side) =>
+          p['grip' + side] ? validGrip(p['grab' + side]) : p['grab' + side] === null
+        ) &&
         Number.isInteger(p.armor) &&
         bounded(p.armor, 0, 2) &&
         Array.isArray(p.wounds) &&
@@ -131,7 +155,7 @@ export function leaveLobby() {
 export function openRoom(code, host, callbacks) {
   const client = warmClient || roomClient();
   warmClient = null;
-  const channel = client.channel('mostly-sword:v5:' + code, { config: { broadcast: { self: false } } });
+  const channel = client.channel('mostly-sword:v7:' + code, { config: { broadcast: { self: false } } });
   const id = crypto.randomUUID();
   let peer = '',
     connected = false,

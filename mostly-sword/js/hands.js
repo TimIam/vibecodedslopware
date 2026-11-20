@@ -1,3 +1,4 @@
+import { findGrip, refreshGrips } from './grabs.js';
 // X moves the held equipment between the two sockets. A grip on the rival is
 // bound to its physical hand and is released when the hands exchange equipment.
 export function handState(weapon) {
@@ -6,6 +7,8 @@ export function handState(weapon) {
     left: -1,
     gripL: false,
     gripR: false,
+    grabL: null,
+    grabR: null,
     leftId: 0,
     rightId: 0,
     swapId: 0
@@ -24,22 +27,6 @@ function offset(p, side, front) {
     s = Math.sin(p.face);
   return [p.x + c * side + s * front, p.z - s * side + c * front];
 }
-export function gripPoint(other, side) {
-  // A hand reaching across the gap meets the opposite shoulder.
-  const [x, z] = offset(other, side === 'L' ? -0.16 : 0.16, 0.09);
-  return [x, 1.23 + other.height - 0.24 * other.bend, z];
-}
-function shoulder(p, side) {
-  const [x, z] = offset(p, side === 'L' ? 0.22 : -0.22, 0.08);
-  return [x, 1.26 + p.height - 0.24 * p.bend, z];
-}
-function canReach(p, other, side) {
-  if (other.recovery || other.down || other.hp <= 0) return false;
-  const shoulderPos = shoulder(p, side),
-    goal = gripPoint(other, side);
-  return Math.hypot(goal[0] - shoulderPos[0], goal[1] - shoulderPos[1], goal[2] - shoulderPos[2]) <= 0.77;
-}
-
 export function nearestLoot(g, p, side) {
   const [x, z] = offset(p, side === 'L' ? 0.16 : side === 'R' ? -0.16 : 0, 0.12);
   let best,
@@ -60,19 +47,13 @@ export function freeHandTarget(g, i, side) {
     other = g.p[1 - i];
   if (p.recovery || p.stun || p.down || p.hp <= 0) return null;
   const item = nearestLoot(g, p, side);
-  if (
-    !g.scouting &&
-    canReach(p, other, side) &&
-    (!item || p.bend < 0.5) &&
-    (p.wounds?.[side === 'L' ? 2 : 3] ?? 0) < 90
-  )
-    return other;
+  if (!g.scouting && (!item || p.bend < 0.5) && (p.wounds?.[side === 'L' ? 2 : 3] ?? 0) < 90)
+    return findGrip(p, other, side) || item;
   return item;
 }
 
 function handAction(g, i, side) {
-  const p = g.p[i],
-    other = g.p[1 - i];
+  const p = g.p[i];
   const slot = side === 'L' ? 'left' : 'right',
     grip = 'grip' + side;
   if (p[grip]) {
@@ -89,7 +70,8 @@ function handAction(g, i, side) {
     p[slot] = -1;
   } else {
     const item = freeHandTarget(g, i, side);
-    if (item === other) {
+    if (item?.part) {
+      p['grab' + side] = item;
       p[grip] = true;
     } else if (item) {
       p[slot] = item.w;
@@ -122,10 +104,11 @@ export function updateHands(g, input, dt) {
       p.weapon = Math.max(0, heldWeapon(p));
     }
   }
+  refreshGrips(g, dt);
   // The host solves each hand tether once. Equal and opposite impulses let a
   // backstep tug the other fighter and allow two opponents to resist each other.
   for (const [i, p] of g.p.entries()) {
-    if (!p.gripL && !p.gripR) continue;
+    if (p.grabL?.progress !== 1 && p.grabR?.progress !== 1) continue;
     const other = g.p[1 - i];
     const dx = other.x - p.x,
       dz = other.z - p.z,

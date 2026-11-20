@@ -487,6 +487,27 @@ dd {
   justify-content: space-between;
   gap: 1rem;
 }
+#yardPanel {
+  position:absolute; top:85px; left:3vw; width:min(285px,92vw); max-height:calc(100% - 157px);
+  overflow:auto; color:var(--ink); background:#17221df2; border:1px solid var(--rule); border-radius:6px;
+  font-size:.83rem; box-shadow:0 4px 16px #10191542;
+}
+#yardPanel summary { cursor:pointer; padding:.5rem .7rem; font-weight:650; }
+#yardClock {float:right;color:var(--green);font-size:.76rem;font-variant-numeric:tabular-nums}
+.bench {padding:0 .7rem .6rem; display:grid; gap:.48rem}
+.bench-kit,.bench-actions {display:flex;gap:.34rem;flex-wrap:wrap}
+.bench-kit label {flex:1;color:var(--dim);font-size:.75rem}
+.bench select,.bench button {font:inherit;color:var(--ink);background:#2a3630;border:1px solid var(--rule);border-radius:4px;padding:.28rem .42rem}
+.bench select {display:block;width:100%;margin-top:.15rem}
+.bench button:disabled {cursor:default;opacity:.42}
+#record {color:#ddedce;border-color:#93af85}
+#yardContact {color:#e5cf9c;min-height:1.3em}
+.bench table {width:100%;border-collapse:collapse;font-size:.75rem;font-variant-numeric:tabular-nums}
+.bench caption {text-align:left;color:var(--dim);margin-bottom:.2rem}
+.bench th,.bench td {text-align:right;padding:.1rem .2rem}
+.bench th:first-child {text-align:left}
+.bench thead {border-bottom:1px solid var(--rule)}
+@media(max-width:650px),(max-height:540px){#yardPanel{top:58px;width:min(255px,82vw);max-height:calc(100% - 145px)}}
 .help-actions a {
   color: var(--green);
 }

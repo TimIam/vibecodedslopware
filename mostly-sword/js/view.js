@@ -145,6 +145,59 @@ export async function createView(canvas) {
   }
   const rigs = [makeRig(0), makeRig(1)],
     drops = [];
+  const wood = new T.MeshStandardMaterial({ color: 0x795437, roughness: 1 });
+  const sack = new T.MeshStandardMaterial({ color: 0xb39a6f, roughness: 1 });
+  const stand = new T.Group();
+  function timber(x, y, z, w, h, d) {
+    const m = new T.Mesh(new T.BoxGeometry(w, h, d), wood);
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    stand.add(m);
+  }
+  timber(0, 0.045, 0, 0.84, 0.09, 0.16);
+  timber(0, 0.047, 0, 0.16, 0.095, 0.63);
+  timber(0, 0.58, -0.14, 0.085, 1.08, 0.09);
+  const dummyRig = rigs[1];
+  dummyRig.root.add(stand);
+  const clothMaterials = [];
+  dummyRig.root.traverse((o) => {
+    if (o.isMesh && o.name.startsWith('Padded')) {
+      const original = o.material,
+        tinted = (m) => {
+          const c = m.clone();
+          c.color.lerp(sack.color, 0.76);
+          return c;
+        };
+      clothMaterials.push([o, original, Array.isArray(original) ? original.map(tinted) : tinted(original)]);
+    }
+  });
+  const head = new T.Mesh(new T.SphereGeometry(1, 12, 10), sack);
+  head.scale.set(0.138, 0.156, 0.129);
+  head.position.set(0, 0.15, 0);
+  dummyRig.Head.add(head);
+  const stitch = new T.Mesh(new T.TorusGeometry(0.104, 0.004, 6, 28), wood);
+  stitch.position.set(0, 0.065, 0);
+  stitch.rotation.x = Math.PI / 2;
+  dummyRig.Head.add(stitch);
+  let dummyVisible;
+  const marker = new T.ArrowHelper(up, v(), 0.23, 0xffdd83, 0.065, 0.038);
+  marker.line.material.depthTest = marker.cone.material.depthTest = false;
+  marker.line.renderOrder = marker.cone.renderOrder = 5;
+  scene.add(marker);
+  function showTraining(g) {
+    const practice = !!g.practice;
+    if (practice !== dummyVisible) {
+      dummyVisible = practice;
+      stand.visible = practice;
+      for (const [mesh, original, tinted] of clothMaterials) mesh.material = practice ? tinted : original;
+    }
+    head.visible = stitch.visible = practice && !g.p[1].armor;
+    marker.visible = practice && !!g.marker;
+    if (marker.visible) {
+      marker.position.set(...g.marker.pos);
+      marker.setDirection(v(...g.marker.normal).normalize());
+    }
+  }
   function addDropSlot() {
     const set = equipment.map((model) => {
       const m = model.clone(true);
@@ -270,6 +323,7 @@ export async function createView(canvas) {
     qualityCheck = 0,
     nextShadow = 0;
   function draw(g, mode, local, dt, now) {
+    showTraining(g);
     const duel = !g.solo && mode !== 'menu';
     frameTime += (dt - frameTime) * 0.09;
     if (now >= qualityCheck || (!duel && renderRatio !== fullRatio)) {
@@ -304,6 +358,8 @@ export async function createView(canvas) {
     if (seal.visible) seal.material.opacity = 0.57 + 0.33 * Math.sin(now * 2.5);
     for (let i = 0; i < 2; i++) {
       pose(g.p[i], i, g.p[1 - i], dt);
+      if (i === 1 && head.visible) dummyRig.Head.getObjectByName('PaddedHead_mesh').visible = false;
+      else if (i === 1 && !g.p[1].armor) dummyRig.Head.getObjectByName('PaddedHead_mesh').visible = true;
       const visible = !(i === 1 && seal.visible);
       rigs[i].root.visible = visible;
       if (!visible)
