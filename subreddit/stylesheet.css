@@ -1,0 +1,143 @@
+/* r/VibeCodedSlopware: old Reddit stylesheet.
+ *
+ * Paste into Mod Tools > Edit stylesheet (old.reddit.com/r/<sub>/about/stylesheet), after uploading these images
+ * on the same page with exactly these names (art from tools/subreddit-art.mjs, in subreddit/img/):
+ *   header        img/header.png         the splash, frozen after the shine, 2560×192
+ *   arrows        img/arrows.png         pixel vote arrows: up, up hover, upvoted, down, down hover, downvoted
+ *   sidebarglob   img/sidebar-glob.png   the goo mascot, shades on
+ *
+ * Palette is the splash's own: GOO greens for the page, SUN orange for titles, CHROME blue for downvotes.
+ */
+
+/* ---- page ----------------------------------------------------------------- */
+body {
+  background: #04140c;
+  color: #c9e8c0;
+}
+.content, .side, .footer-parent, .debuginfo { background: transparent; }
+a { color: #8cec48; }
+a:visited { color: #44c23a; }
+.md { color: #c9e8c0; }
+.md a { color: #8cec48; }
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { color: #d8ff86; }
+.md blockquote { border-left: 3px solid #1c8a3c; color: #8fae88; }
+.md code, .md pre { background: #021008; border: 1px solid #0e5238; color: #d8ff86; }
+.md hr { background: #0e5238; border-color: #0e5238; }
+
+/* ---- header: the splash frame ---------------------------------------------- */
+#header {
+  height: 192px;
+  background: #0b0630 url(%%header%%) center top no-repeat;
+  image-rendering: pixelated;
+  border-bottom: 3px solid #44c23a;
+}
+#sr-header-area { background: rgba(2, 16, 8, 0.85); border-bottom: 1px solid #0e5238; }
+#sr-header-area a, #sr-more-link { color: #8cec48; }
+#sr-more-link { background: #021008; }
+#header-bottom-left { position: absolute; bottom: 0; left: 0; }
+#header-img.default-header { opacity: 0; }  /* the snoo would sit on the sky */
+.pagename a { color: #fff0c0; text-shadow: 2px 2px 0 #100728; }
+#header .tabmenu li a { background: #021008; color: #8cec48; border: 2px solid #0e5238; border-bottom: none; border-radius: 0; }
+#header .tabmenu li.selected a { background: #04140c; color: #ff8a3a; border-color: #44c23a; }
+#header-bottom-right { background: rgba(2, 16, 8, 0.85); border-radius: 0; color: #c9e8c0; }
+#header-bottom-right a { color: #8cec48; }
+
+/* ---- posts ------------------------------------------------------------------ */
+.link .title, .link a.title, .link a.title:visited {
+  font-family: "Press Start 2P", "Pixelify Sans", "Silkscreen", "VT323", "Lucida Console", "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.7;
+  font-weight: normal;
+  color: #ff8a3a;
+  text-shadow: 1px 1px 0 #2a0f05;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+.link a.title:visited { color: #c97036; }
+.link a.title:hover { color: #ffd24a; }
+.link .domain, .link .domain a { color: #4a7a4a; }
+.thing .tagline, .thing .tagline a { color: #6f9a6a; }
+.thing .tagline a.author { color: #8cec48; }
+.thing .rank { color: #1c8a3c; font-family: "Courier New", monospace; }
+.link { background: #071d11; border: 2px solid #0e5238; padding: 6px 4px; margin: 0 0 6px 0; }
+.link:hover { border-color: #1c8a3c; }
+.link.stickied { border-color: #ff8a3a; }
+.link.stickied a.title { color: #ffd24a; }
+.flat-list.buttons li a, .flat-list.buttons li a:visited { color: #6f9a6a; font-weight: bold; }
+.flat-list.buttons li a:hover { color: #d8ff86; }
+.linkflairlabel { background: #1c8a3c; color: #04140c; border: none; border-radius: 0; }
+.thumbnail.self, .thumbnail.default { filter: hue-rotate(80deg) brightness(0.7); }
+
+/* scores: green when untouched, orange when upvoted, blue when downvoted */
+.score, .score.unvoted { color: #6fa66a; font-weight: bold; }
+.score.likes { color: #ff8a3a; }
+.score.dislikes { color: #2f80e8; }
+
+/* ---- vote arrows: 24×24 cells in one sprite --------------------------------- */
+.arrow, .arrow.up, .arrow.upmod, .arrow.down, .arrow.downmod {
+  width: 24px;
+  height: 24px;
+  margin: 2px auto;
+  background-image: url(%%arrows%%);
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.arrow.up { background-position: 0 0; }
+.arrow.up:hover { background-position: -24px 0; }
+.arrow.upmod, .arrow.upmod:hover { background-position: -48px 0; }
+.arrow.down { background-position: -72px 0; }
+.arrow.down:hover { background-position: -96px 0; }
+.arrow.downmod, .arrow.downmod:hover { background-position: -120px 0; }
+
+/* ---- sidebar: the glob up top ----------------------------------------------- */
+.side { background: transparent; color: #c9e8c0; }
+.side .spacer:first-child,
+.side .titlebox { background: transparent; }
+.side:before {
+  content: "";
+  display: block;
+  width: 300px;
+  height: 213px;
+  margin: 8px 0 4px;
+  background: url(%%sidebarglob%%) center top no-repeat;
+  image-rendering: pixelated;
+}
+.titlebox h1 a { color: #ff8a3a; font-family: "Press Start 2P", "Pixelify Sans", "Silkscreen", "VT323", "Courier New", monospace; }
+.titlebox .bottom, .titlebox .tagline { border-color: #0e5238; color: #6f9a6a; }
+.titlebox form.toggle, .leavemoderator, .titlebox .subscribers, .titlebox .users-online { color: #8fae88; }
+.side .md { background: #071d11; border: 2px solid #0e5238; padding: 8px; }
+.sidebox .spacer, .sidecontentbox .content { background: #071d11; border: 2px solid #0e5238; }
+.sidecontentbox .title h1 { color: #d8ff86; }
+.morelink, .sidebox.submit .morelink {
+  background: #1c8a3c;
+  border: 2px solid #44c23a;
+  border-radius: 0;
+  box-shadow: 3px 3px 0 #021008;
+}
+.morelink a, .morelink:hover a { color: #04140c; font-family: "Press Start 2P", "Silkscreen", "VT323", "Courier New", monospace; font-size: 10px; }
+.morelink:hover { background: #44c23a; }
+.morelink .nub, .sidebox .spacer .nub { display: none; }
+.sidebox.create, .premium-banner-outer { display: none; }
+input[type="text"], input[type="search"], textarea, select {
+  background: #021008;
+  color: #d8ff86;
+  border: 2px solid #0e5238;
+  border-radius: 0;
+}
+
+/* ---- comments --------------------------------------------------------------- */
+.comment .md, .commentarea .comment { background: transparent; }
+.comment { border-left: 2px dotted #0e5238; }
+.comment .tagline .author { color: #8cec48; }
+.comment .tagline .submitter { color: #ff8a3a; }
+.comment .tagline .moderator { color: #04140c; background: #44c23a; }
+.usertext-edit textarea { background: #021008; color: #d8ff86; }
+.panestack-title, .menuarea { border-color: #0e5238; color: #8fae88; }
+.nextprev a, .next-suggestions a {
+  background: #021008;
+  border: 2px solid #1c8a3c;
+  border-radius: 0;
+  color: #8cec48;
+}
+.footer-parent, .footer { color: #4a7a4a; background: transparent; }
+.footer .col { border-color: #0e5238; }

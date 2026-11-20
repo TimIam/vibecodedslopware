@@ -1,0 +1,110 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>r/VibeCodedSlopware preview</title>
+<!-- A rough copy of old Reddit's listing markup and base layout, with subreddit/stylesheet.css on top.
+     The stylesheet's %%name%% image tokens are swapped for img/*.png here, the way Reddit swaps in uploads. -->
+<style>
+  body { margin: 0; font: 10px verdana, arial, sans-serif; }
+  #header { position: relative; }
+  #sr-header-area { height: 18px; line-height: 18px; padding: 0 8px; font-size: 9px; text-transform: uppercase; }
+  #header-bottom-left { padding: 0 8px; }
+  .pagename { font: bold 18px verdana, sans-serif; margin-right: 12px; }
+  .tabmenu { display: inline-block; list-style: none; margin: 0; padding: 0; }
+  .tabmenu li { display: inline-block; margin-right: 3px; }
+  .tabmenu li a { display: inline-block; padding: 2px 6px; font-weight: bold; text-decoration: none; }
+  #header-bottom-right { position: absolute; right: 0; bottom: 0; padding: 4px 8px; }
+  .side { float: right; width: 300px; margin: 0 8px 0 12px; }
+  .content { margin: 7px 330px 0 8px; }
+  .thing { display: flex; align-items: flex-start; }
+  .rank { width: 22px; text-align: right; font-size: 14px; margin-top: 18px; }
+  .midcol { width: 40px; text-align: center; }
+  .arrow { cursor: pointer; display: block; }
+  .score { font-size: 13px; text-align: center; }
+  .thumbnail { width: 70px; height: 50px; margin: 0 8px; background: #2a5a8a; }
+  .entry { flex: 1; }
+  p.title { margin: 2px 0 4px; }
+  a.title { text-decoration: none; }
+  .tagline { margin: 0; }
+  .flat-list { list-style: none; padding: 0; margin: 2px 0 0; }
+  .flat-list li { display: inline; margin-right: 6px; }
+  .flat-list a { text-decoration: none; }
+  .linkflairlabel { display: inline-block; padding: 0 3px; margin-right: 4px; font-size: 9px; }
+  .titlebox h1 { font-size: 15px; margin: 6px 0; }
+  .titlebox h1 a { text-decoration: none; }
+  .morelink { text-align: center; padding: 8px; margin: 8px 0; }
+  .morelink a { text-decoration: none; }
+  .md { font-size: 12px; line-height: 1.5; }
+  .md p { margin: 0 0 8px; }
+</style>
+<style id="sub"></style>
+
+<div id="header">
+  <div id="sr-header-area">my subreddits &nbsp;|&nbsp; <a>popular</a> - <a>all</a> - <a>random</a></div>
+  <div id="header-bottom-left">
+    <a id="header-img" class="default-header"></a>
+    <span class="pagename redditname"><a>VibeCodedSlopware</a></span>
+    <ul class="tabmenu"><li class="selected"><a>hot</a></li><li><a>new</a></li><li><a>rising</a></li><li><a>top</a></li><li><a>wiki</a></li></ul>
+  </div>
+  <div id="header-bottom-right"><a>timiam</a> (1) | <a>preferences</a> | <a>logout</a></div>
+</div>
+
+<div class="side">
+  <div class="spacer"><div class="morelink"><a>Submit a new link</a></div></div>
+  <div class="spacer"><div class="morelink"><a>Submit a new text post</a></div></div>
+  <div class="spacer">
+    <div class="titlebox">
+      <h1><a>VibeCodedSlopware</a></h1>
+      <span class="subscribers">420 readers</span> · <span class="users-online">69 users here now</span>
+      <div class="md">
+        <p>Games made with vibes. Shipped with bugs.</p>
+        <p><strong>100% hand-prompted.</strong> Post your runs, your bugs, and your bugs that are features.</p>
+        <p><a>vibecodedslopware.com</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="content"><div id="siteTable" class="sitetable linklisting">
+  <div class="thing link stickied"><span class="rank"></span>
+    <div class="midcol likes"><div class="arrow upmod"></div><div class="score likes">128</div><div class="arrow down"></div></div>
+    <a class="thumbnail self"></a>
+    <div class="entry"><p class="title"><a class="title">Welcome to the slop. Read before posting</a> <span class="domain">(self.VibeCodedSlopware)</span></p>
+      <p class="tagline">submitted 3 days ago by <a class="author">timiam</a></p>
+      <ul class="flat-list buttons"><li><a class="comments">24 comments</a></li><li><a>share</a></li><li><a>save</a></li></ul></div></div>
+  <div class="thing link"><span class="rank">1</span>
+    <div class="midcol unvoted"><div class="arrow up"></div><div class="score unvoted">57</div><div class="arrow down"></div></div>
+    <a class="thumbnail"></a>
+    <div class="entry"><p class="title"><span class="linkflairlabel">PIT CREW '26</span><a class="title">Changed all four tires in 2.1 seconds and the car still left without me</a> <span class="domain">(i.redd.it)</span></p>
+      <p class="tagline">submitted 5 hours ago by <a class="author">lugnut_larry</a></p>
+      <ul class="flat-list buttons"><li><a class="comments">18 comments</a></li><li><a>share</a></li><li><a>save</a></li></ul></div></div>
+  <div class="thing link"><span class="rank">2</span>
+    <div class="midcol dislikes"><div class="arrow up"></div><div class="score dislikes">-4</div><div class="arrow downmod"></div></div>
+    <a class="thumbnail self"></a>
+    <div class="entry"><p class="title"><span class="linkflairlabel">BUG</span><a class="title">The goo blob looked at me through its sunglasses. Is that intended</a> <span class="domain">(self.VibeCodedSlopware)</span></p>
+      <p class="tagline">submitted 9 hours ago by <a class="author">definitely_not_a_bot</a></p>
+      <ul class="flat-list buttons"><li><a class="comments">3 comments</a></li><li><a>share</a></li><li><a>save</a></li></ul></div></div>
+  <div class="thing link"><span class="rank">3</span>
+    <div class="midcol unvoted"><div class="arrow up"></div><div class="score unvoted">212</div><div class="arrow down"></div></div>
+    <a class="thumbnail"></a>
+    <div class="entry"><p class="title"><span class="linkflairlabel">PAR FOR THE CURSE</span><a class="title">Hole in one off the blimp. Recorded proof, no edits</a> <span class="domain">(v.redd.it)</span></p>
+      <p class="tagline">submitted 1 day ago by <a class="author">bogey_man</a></p>
+      <ul class="flat-list buttons"><li><a class="comments">41 comments</a></li><li><a>share</a></li><li><a>save</a></li></ul></div></div>
+</div></div>
+
+<script>
+  fetch('stylesheet.css').then(r => r.text()).then(css => {
+    const files = { header: 'header', arrows: 'arrows', sidebarglob: 'sidebar-glob' };
+    document.getElementById('sub').textContent = css.replace(/%%(\w+)%%/g, (_, n) => `img/${files[n]}.png`);
+  });
+  // click arrows to see the voted sprites
+  document.querySelectorAll('.midcol').forEach(col => col.addEventListener('click', e => {
+    const a = e.target.closest('.arrow'); if (!a) return;
+    const up = a.classList.contains('up') || a.classList.contains('upmod');
+    const [u, d] = col.querySelectorAll('.arrow'), s = col.querySelector('.score');
+    const was = col.classList.contains(up ? 'likes' : 'dislikes');
+    col.className = 'midcol ' + (was ? 'unvoted' : up ? 'likes' : 'dislikes');
+    s.className = 'score ' + (was ? 'unvoted' : up ? 'likes' : 'dislikes');
+    u.className = 'arrow ' + (!was && up ? 'upmod' : 'up');
+    d.className = 'arrow ' + (!was && !up ? 'downmod' : 'down');
+  }));
+</script>
