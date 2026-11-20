@@ -1,4 +1,7 @@
-import { STEP, weapons, ranks, clamp, neutral, makeRound, nearby, tick, bot } from './arena.js';
+import { STEP, weapons, ranks, clamp, neutral, makeRound, tick, bot } from './arena.js';
+import { freeHandTarget } from './hands.js';
+import { regionNames } from './contact.js';
+import { playContact } from './audio.js';
 import { createView } from './view.js';
 import { makeCode, validCode, openRoom } from './room.js';
 
@@ -29,11 +32,13 @@ let latest = null,
   hintUntil = 0;
 const keys = new Set();
 let drag = null,
-  cutSide = 1,
-  grabbingUntil = 0,
+  handSequence = 0,
   lungingUntil = 0,
   stick = [0, 0],
   touchGuard = false,
+  mouseSecondary = false,
+  offhandUntil = 0,
+  boutSequence = 0,
   touchRun = false,
   jumpStart = null,
   jumpSequence = 0,
@@ -41,32 +46,8 @@ let drag = null,
 const validInvite = (new URL(location.href).searchParams.get('room') || '').trim().toUpperCase();
 let audio = null,
   sound = false;
-function tone(type) {
-  if (!sound || !audio) return;
-  const t = audio.currentTime,
-    notes =
-      type === 'clash'
-        ? [832, 1426, 2149]
-        : type === 'equip'
-          ? [330, 495]
-          : type === 'fall'
-            ? [90, 56]
-            : [128, 72];
-  for (const [i, hz] of notes.entries()) {
-    const osc = audio.createOscillator(),
-      gain = audio.createGain();
-    osc.type = type === 'clash' ? 'triangle' : 'sine';
-    osc.frequency.setValueAtTime(hz, t);
-    osc.frequency.exponentialRampToValueAtTime(
-      Math.max(35, hz * (type === 'clash' ? 0.91 : 0.54)),
-      t + 0.16
-    );
-    gain.gain.setValueAtTime(0.1 / (i + 1), t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.23);
-    osc.connect(gain).connect(audio.destination);
-    osc.start(t);
-    osc.stop(t + 0.25);
-  }
+function tone(type, surface) {
+  if (sound && audio) playContact(audio, type, surface);
 }
 $('sound').onclick = async () => {
   sound = !sound;
@@ -84,11 +65,13 @@ function clearInputs() {
   remote = neutral();
   drag = null;
   touchGuard = false;
+  mouseSecondary = false;
+  offhandUntil = 0;
   touchRun = false;
   jumpStart = null;
   touchShort = false;
   stick = [0, 0];
-  grabbingUntil = lungingUntil = 0;
+  lungingUntil = 0;
   $('stick').firstElementChild.style.transform = '';
 }
 function closeRoom() {
@@ -119,16 +102,18 @@ function menu(message = '', lobby = false) {
   game.p[1].x = 0.74;
   game.p[1].z = -0.27;
   game.p[1].face = -1.12;
-  game.p[1].weapon = 2;
+  game.p[1].right = game.p[1].weapon = 2;
 }
 function message(s, duration = 2) {
   $('message').textContent = s;
   show('message', true);
   hintUntil = performance.now() + duration * 1000;
 }
-function begin(solo, round = 1, loadout = 0) {
+function begin(solo, round = 1, gear = null) {
   mode = solo ? 'solo' : 'online';
-  game = makeRound(round, solo, loadout);
+  game = makeRound(round, solo, gear?.weapon ?? 0);
+  if (host && !solo) game.boutId = ++boutSequence;
+  if (gear) Object.assign(game.p[0], { right: gear.right, left: gear.left });
   if (round === 1) scores = [0, 0];
   resultShown = false;
   scoreCounted = false;
@@ -167,7 +152,7 @@ function connect(isHost, code) {
       if (room === active) menu(msg, true);
     },
     input(value) {
-      remote = value;
+      if (value.boutId === game.boutId) remote = value;
     },
     state(state) {
       if (mode !== 'online') return;
@@ -226,10 +211,17 @@ window.addEventListener('pagehide', closeRoom);
 window.addEventListener('blur', () => {
   clearInputs();
 });
-function cut() {
-  cutSide = input.yaw >= 0 ? -1 : 1;
-  input.yaw = cutSide * 1.52;
-  input.pitch = cutSide === 1 ? 0.08 : 0.37;
+function cut(secondary = false) {
+  const yaw = secondary ? 'offYaw' : 'yaw';
+  const cutSide = input[yaw] >= 0 ? -1 : 1;
+  input[yaw] = cutSide * 1.52;
+  input[secondary ? 'offPitch' : 'pitch'] = cutSide === 1 ? 0.08 : 0.37;
+}
+function steer(secondary, dx, dy) {
+  const yaw = secondary ? 'offYaw' : 'yaw',
+    pitch = secondary ? 'offPitch' : 'pitch';
+  input[yaw] = clamp(input[yaw] + dx, -1.75, 1.75);
+  input[pitch] = clamp(input[pitch] + dy, -0.95, 1.24);
 }
 function releaseJump() {
   if (jumpStart === null) return;
@@ -245,6 +237,8 @@ const usedKeys = [
   'KeyJ',
   'KeyK',
   'KeyE',
+  'KeyQ',
+  'KeyX',
   'Space',
   'KeyF',
   'KeyR',
@@ -269,7 +263,9 @@ window.addEventListener('keydown', (e) => {
   e.preventDefault();
   keys.add(e.code);
   if (!e.repeat && e.code === 'KeyJ') cut();
-  if (!e.repeat && e.code === 'KeyE') grabbingUntil = performance.now() + 200;
+  if (!e.repeat && e.code === 'KeyE') activateHand('rightId');
+  if (!e.repeat && e.code === 'KeyQ') activateHand('leftId');
+  if (!e.repeat && e.code === 'KeyX') activateHand('swapId');
   if (!e.repeat && e.code === 'KeyF') lungingUntil = performance.now() + 200;
   if (!e.repeat && e.code === 'Space') jumpStart = performance.now();
 });
@@ -278,11 +274,16 @@ window.addEventListener('keyup', (e) => {
   if (e.code === 'Space') releaseJump();
 });
 canvas.oncontextmenu = (e) => e.preventDefault();
+function activateHand(id) {
+  input[id] = ++handSequence;
+  input.boutId = game.boutId;
+  if (mode === 'online' && !host) room?.send('input', input);
+}
 canvas.onpointerdown = (e) => {
   if (mode === 'menu' || resultShown) return;
   canvas.setPointerCapture(e.pointerId);
   canvas.focus();
-  if (e.pointerType === 'mouse') touchGuard = Boolean(e.buttons & 2);
+  if (e.pointerType === 'mouse') mouseSecondary = Boolean(e.buttons & 2);
   drag = {
     id: e.pointerId,
     x: e.clientX,
@@ -290,33 +291,38 @@ canvas.onpointerdown = (e) => {
     sx: e.clientX,
     sy: e.clientY,
     moved: false,
-    guard: touchGuard
+    secondary: mouseSecondary
   };
 };
 canvas.onpointermove = (e) => {
   if (!drag || drag.id !== e.pointerId) return;
   if (e.pointerType === 'mouse') {
-    touchGuard = Boolean(e.buttons & 2);
-    drag.guard ||= touchGuard;
+    mouseSecondary = Boolean(e.buttons & 2);
+    drag.secondary ||= mouseSecondary;
   }
-  const dx = e.clientX - drag.x,
-    dy = e.clientY - drag.y;
+  const dx = e.pointerType === 'mouse' && e.movementX ? e.movementX : e.clientX - drag.x,
+    dy = e.pointerType === 'mouse' && e.movementY ? e.movementY : e.clientY - drag.y;
   if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 4) drag.moved = true;
-  input.yaw = clamp(input.yaw - dx * 0.019, -1.75, 1.75);
-  input.pitch = clamp(input.pitch - dy * 0.013, -0.95, 1.24);
+  const dual = game.p[local].left >= 0 && game.p[local].right >= 0;
+  if (mouseSecondary && dual) steer(true, -dx * 0.024, -dy * 0.017);
+  if (!(mouseSecondary && dual) || e.buttons & 1) steer(false, -dx * 0.024, -dy * 0.017);
   drag.x = e.clientX;
   drag.y = e.clientY;
 };
 canvas.onpointerup = (e) => {
   if (drag?.id === e.pointerId) {
-    if (!drag.moved && !drag.guard && e.button !== 2) cut();
+    if (!drag.moved && !drag.secondary && e.button !== 2) cut();
+    if (!drag.moved && drag.secondary && game.p[local].left >= 0 && game.p[local].right >= 0) {
+      cut(true);
+      offhandUntil = performance.now() + 165;
+    }
     drag = null;
   }
-  if (e.pointerType === 'mouse') touchGuard = false;
+  if (e.pointerType === 'mouse') mouseSecondary = false;
 };
 canvas.onpointercancel = () => {
   drag = null;
-  touchGuard = false;
+  mouseSecondary = false;
 };
 const pad = $('stick');
 function moveStick(e) {
@@ -348,11 +354,17 @@ document.querySelectorAll('[data-press]').forEach((button) => {
     if (kind === 'jump') jumpStart = performance.now();
     if (kind === 'short') touchShort = true;
     if (kind === 'cut') cut();
-    if (kind === 'grab') grabbingUntil = performance.now() + 200;
+    if (['leftId', 'rightId', 'swapId'].includes(kind)) activateHand(kind);
+    if (kind === 'offhand') {
+      mouseSecondary = true;
+      offhandUntil = performance.now() + 165;
+      cut(true);
+    }
     if (kind === 'thrust') lungingUntil = performance.now() + 200;
   };
   button.onlostpointercapture = () => {
     if (kind === 'guard') touchGuard = false;
+    if (kind === 'offhand') mouseSecondary = false;
     if (kind === 'run') touchRun = false;
     if (kind === 'jump') jumpStart = null;
     if (kind === 'short') touchShort = false;
@@ -363,34 +375,65 @@ function readInput(dt) {
   const held = (k) => Number(keys.has(k));
   input.fwd = clamp(held('KeyW') - held('KeyS') + stick[1], -1, 1);
   input.side = clamp(held('KeyD') - held('KeyA') + stick[0], -1, 1);
-  input.yaw = clamp(input.yaw + (held('ArrowLeft') - held('ArrowRight')) * dt * 5, -1.75, 1.75);
-  input.pitch = clamp(input.pitch + (held('ArrowUp') - held('ArrowDown')) * dt * 4, -0.95, 1.24);
-  input.guard = touchGuard || keys.has('KeyK');
+  const dual = game.p[local].right >= 0 && game.p[local].left >= 0;
+  steer(
+    mouseSecondary && dual,
+    (held('ArrowLeft') - held('ArrowRight')) * dt * 5,
+    (held('ArrowUp') - held('ArrowDown')) * dt * 4
+  );
+  input.guard = touchGuard || keys.has('KeyK') || (mouseSecondary && !dual);
+  input.offhand = (mouseSecondary || performance.now() < offhandUntil) && dual;
+  input.boutId = game.boutId;
   input.short = touchShort || keys.has('KeyR');
   input.run = touchRun || keys.has('ShiftLeft') || keys.has('ShiftRight');
   input.crouch = jumpStart !== null || keys.has('ControlLeft') || keys.has('ControlRight');
-  input.grab = performance.now() < grabbingUntil;
   input.thrust = performance.now() < lungingUntil;
+}
+const coarseControls = matchMedia('(pointer:coarse)').matches || navigator.maxTouchPoints > 0;
+function handHint(p, other) {
+  const hints = new Map();
+  for (const [side, slot, key] of [
+    ['L', 'left', 'Q'],
+    ['R', 'right', 'E']
+  ]) {
+    if (p[slot] >= 0) continue;
+    const target = freeHandTarget(game, local, side);
+    const action = p['grip' + side]
+      ? 'release grip'
+      : target === other
+        ? 'grapple'
+        : target
+          ? 'take ' + weapons[target.w].name
+          : '';
+    if (!action) continue;
+    const control = coarseControls ? slot : key;
+    hints.set(action, hints.has(action) ? hints.get(action) + ' / ' + control : control);
+  }
+  return (
+    [...hints].map(([action, keys]) => keys + ' to ' + action).join(' · ') ||
+    (game.scouting ? 'Choose your gear, then enter the sun seal.' : '')
+  );
 }
 function updateHud() {
   const p = game.p[local],
     o = game.p[1 - local];
   $('myName').textContent = local === 0 ? 'You · Moss' : 'You · Rust';
   $('foeName').textContent =
-    mode === 'solo'
-      ? ranks[Math.min(2, Math.floor((game.round - 1) / 2))]
-      : local === 0
-        ? 'Rust'
-        : 'Moss';
+    mode === 'solo' ? ranks[Math.min(2, Math.floor((game.round - 1) / 2))] : local === 0 ? 'Rust' : 'Moss';
   $('myHp').value = p.hp;
   $('foeHp').value = o.hp;
   $('balance').value = p.balance;
+  const worst = Math.max(...p.wounds);
+  $('condition').textContent = worst >= 20 ? 'Wounded ' + regionNames[p.wounds.indexOf(worst)] : '';
   $('round').textContent =
     mode === 'solo'
       ? 'Abyss · ' + game.round + ' / 5'
       : 'Duel · ' + scores[local] + ' – ' + scores[1 - local];
   $('weapon').textContent =
-    weapons[p.weapon].name +
+    'L · ' +
+    (p.gripL ? 'Grappling' : weapons[p.left]?.name || 'Free') +
+    '   /   R · ' +
+    (p.gripR ? 'Grappling' : weapons[p.right]?.name || 'Free') +
     (p.guard ? ' · Guard' : p.short ? ' · Short grip' : '') +
     (p.recovery > 1.5
       ? ' · Knocked down'
@@ -404,12 +447,8 @@ function updateHud() {
               ? ' · Crouched'
               : '') +
     (p.exhausted ? ' · Winded' : '');
-  const item = nearby(game, p);
-  $('equipHint').textContent = item
-    ? (matchMedia('(pointer:coarse)').matches ? 'Swap' : 'E to swap') + ' · ' + weapons[item.w].name
-    : game.scouting
-      ? 'Choose your gear, then enter the sun seal.'
-      : '';
+  document.querySelector('[data-press="offhand"]').hidden = !(p.left >= 0 && p.right >= 0);
+  $('equipHint').textContent = handHint(p, o);
 }
 function finish() {
   resultShown = true;
@@ -449,13 +488,13 @@ function finish() {
       : 'Next round';
   show('again', solo || host);
   $('again').onclick = () => {
-    begin(solo, complete ? 1 : game.round + 1, solo && !complete ? game.p[0].weapon : 0);
+    begin(solo, complete ? 1 : game.round + 1, solo && !complete ? game.p[0] : null);
   };
 }
 // Interpolate remote transforms between host snapshots, keeping all hits on the host.
 function displayState(now) {
   if (!previous || !latest || mode !== 'online' || host || latest.round !== previous.round) return game;
-  const u = clamp((now - arrival) / 83, 0, 1);
+  const u = clamp((now - arrival) * 0.024, 0, 1);
   return {
     ...game,
     p: game.p.map((p, i) => {
@@ -467,6 +506,9 @@ function displayState(now) {
         'yaw',
         'pitch',
         'torso',
+        'offYaw',
+        'offPitch',
+        'offTorso',
         'walk',
         'down',
         'recoil',
@@ -506,17 +548,23 @@ function frame(now) {
     }
     if (mode === 'online' && room) {
       netClock += dt;
-      if (netClock >= 1 / 12) {
-        netClock %= 1 / 12;
+      if (netClock >= 1 / 24) {
+        netClock %= 1 / 24;
         room.send(host ? 'state' : 'input', host ? { ...game, score: scores } : input);
       }
     }
     if (game.event && game.event.n !== lastEvent) {
       lastEvent = game.event.n;
       view.burst(game.event);
-      tone(game.event.type);
+      tone(game.event.type, game.event.surface);
       if (game.event.type === 'clash') message('Steel on steel', 0.55);
       if (game.event.type === 'summon') message($('foeName').textContent + ' enters the pit', 1.85);
+      if (game.event.type === 'hit' && Number.isInteger(game.event.region)) {
+        const region = regionNames[game.event.region];
+        const contact =
+          game.event.surface === 'plate' ? 'armor struck' : game.event.kind === 'cut' ? 'cut' : 'impact';
+        message((game.event.target === local ? 'Your ' : 'Rival’s ') + region + ' · ' + contact, 0.85);
+      }
     }
     if (game.winner >= 0 && game.p[1 - game.winner].down > 0.85 && !resultShown) finish();
     if (hintUntil < now) show('message', false);

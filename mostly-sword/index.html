@@ -68,6 +68,7 @@
           <span id="myName">You</span
           ><progress id="myHp" max="100" value="100" aria-label="Your health"></progress
           ><progress id="balance" max="100" value="100" aria-label="Your balance"></progress>
+          <small id="condition"></small>
         </div>
         <span id="round"></span>
         <div class="meters foe">
@@ -81,9 +82,10 @@
         <div id="stick" aria-label="Movement pad"><i></i></div>
         <div class="touch-buttons">
           <button data-press="guard">Guard</button><button data-press="short">Grip</button
-          ><button data-press="grab">Swap</button><button data-press="thrust">Thrust</button
+          ><button data-press="swapId">Swap</button><button data-press="leftId">Left hand</button
+          ><button data-press="rightId">Right hand</button><button data-press="thrust">Thrust</button
           ><button data-press="cut">Swing</button> <button data-press="run">Run</button
-          ><button data-press="jump">Jump</button>
+          ><button data-press="jump">Jump</button><button data-press="offhand" hidden>Left swing</button>
         </div>
       </div>
       <section class="panel" id="result" hidden>
@@ -100,9 +102,9 @@
           <dd>Advance, strafe, or back away. You face your rival automatically.</dd>
           <dt>Drag left mouse</dt>
           <dd>Steer your weapon. Reverse the drag to swing back.</dd>
-          <dt>Right mouse / K</dt>
+          <dt>Right drag / K</dt>
           <dd>
-            Brace and steer your blade with a right drag or the arrow keys. A block needs blade contact.
+            Right drag braces a single weapon or swings your left weapon when holding two. K braces either loadout. Angle the blade into contact to block.
           </dd>
           <dt>Space</dt>
           <dd>Hold to gather, release to jump. Longer holds give a higher hop.</dd>
@@ -112,8 +114,10 @@
           <dd>Hold to crouch and walk low.</dd>
           <dt>R / F</dt>
           <dd>Hold R for a short grip. Tap F to thrust.</dd>
-          <dt>E</dt>
-          <dd>Swap with a weapon on the ground within reach.</dd>
+          <dt>Q / E</dt>
+          <dd>Tap Q for the left hand or E for the right. A free hand grabs a nearby rival or picks up a weapon. Tap again to release. Crouch to favor a weapon on the ground.</dd>
+          <dt>X</dt>
+          <dd>Exchange the weapons in your hands.</dd>
           <dt>J / arrow keys</dt>
           <dd>Swing with J or steer the blade with the arrows.</dd>
           <dt>Touch</dt>

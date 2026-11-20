@@ -2,7 +2,6 @@ import R from '../vendor/rapier-0.19.3.mjs';
 import { Vector3, Quaternion } from '../vendor/three.js';
 import { STEP, RECOVERY, clamp, weapons } from './arena.js';
 
-export const physicsReady = R.init();
 const v = (x = 0, y = 0, z = 0) => new Vector3(x, y, z);
 const up = v(0, 1, 0);
 const zero = v();
@@ -86,16 +85,19 @@ export function startFall(rig, state, terminal) {
       elbowAxis.lengthSq() > 0.000001 ? elbowAxis.normalize() : lateral
     );
   }
-  const item = rig.gear[state.weapon];
-  if (terminal) {
-    segment(item, v(0, weapons[state.weapon].reach / item.scale.y, 0), 0.038, 1.4);
+  const gear = [];
+  for (const side of ['L', 'R']) {
+    const id = side === 'L' ? state.left : state.right;
+    const item = rig.gearByHand[side][id];
+    if (!item) continue;
+    gear.push({ item, hand: rig['Hand' + side], goal: v() });
+    if (terminal) segment(item, v(0, weapons[id].reach / item.scale.y, 0), 0.038, id === 2 ? 2.2 : 1.4);
   }
 
   // During a recoverable fall, kinematic targets pull the ends of the limbs
   // through damped springs. The first moments of the fall remain unpowered.
   let driven = false,
     carry = 0;
-  const handGoal = v();
   function attachSprings() {
     for (const p of parts) {
       const goal = p.node.localToWorld(p.endLocal.clone());
@@ -116,7 +118,7 @@ export function startFall(rig, state, terminal) {
     update(dt, recovery = 0) {
       if (!terminal) {
         if (!driven && RECOVERY - recovery >= 0.34) attachSprings();
-        rig.HandR.getWorldPosition(handGoal);
+        for (const held of gear) held.hand.getWorldPosition(held.goal);
         for (const p of parts) {
           p.node.getWorldPosition(p.targetPos);
           p.node.getWorldQuaternion(p.targetRot);
@@ -141,7 +143,8 @@ export function startFall(rig, state, terminal) {
         p.node.quaternion.copy(p.node.parent.getWorldQuaternion(new Quaternion()).invert()).multiply(rot);
         p.node.updateWorldMatrix(false, true);
       }
-      if (!terminal) item.position.add(rig.HandR.getWorldPosition(v()).sub(handGoal));
+      if (!terminal)
+        for (const held of gear) held.item.position.add(held.hand.getWorldPosition(v()).sub(held.goal));
     },
     dispose() {
       world.free();

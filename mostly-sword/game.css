@@ -295,6 +295,14 @@ progress::-moz-progress-bar {
   padding: 0.6rem 0.85rem;
   display: grid;
   gap: 3px;
+  max-width: calc(94vw - 7.5rem);
+}
+#condition {
+  color: #f0bd93;
+  font-weight: 500;
+}
+#condition:empty {
+  display: none;
 }
 .gear span + span {
   font-size: 0.87rem;
@@ -406,6 +414,13 @@ dd {
   touch-action: none;
 }
 @media (max-width: 650px) and (orientation: portrait) {
+  .gear {
+    font-size: 0.83rem;
+    padding: 0.4rem 0.55rem;
+  }
+  .gear span + span {
+    font-size: 0.77rem;
+  }
   #intro {
     left: 6vw;
     top: auto;

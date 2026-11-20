@@ -234,6 +234,67 @@ for sign,letter in [(-1,"R"),(1,"L")]:
         ball(shin,steel,0,.001-i*.044,-.381-i*.008,.061-i*.004,.062-i*.004,.053-i*.009,10)
 flush()
 
+# Padded kit on the same joint pivots as the plate harness. The web rig can
+# change coverage by exchanging the two mesh children of each pivot.
+module("kit")
+kitroot = pivot("PaddedKit")
+kit_joints = {}
+for name in ["Hips", "Chest", "Head"] + [
+    part + side for side in ("R", "L")
+    for part in ("UpperArm", "Forearm", "Hand", "Thigh", "Shin")
+]:
+    original = bpy.data.objects[name]
+    kit_joints[name] = pivot("Padded" + name, original.location,
+                             kit_joints.get(original.parent.name, kitroot))
+
+linen = mat("Undyed linen", (.44, .35, .24), 0, .94)
+hose = mat("Wool hose", (.119, .099, .082), 0, .96)
+skin = mat("Complexion", (.54, .31, .19), 0, .8)
+hair = mat("Chestnut hair", (.084, .043, .024), 0, .92)
+stitch = mat("Waxed seam", (.25, .17, .1), 0, .96)
+hips, chest, head = (kit_joints[n] for n in ("Hips", "Chest", "Head"))
+loft(hips, cloth, [(-.16,.203,.148),(-.10,.206,.148),(.06,.183,.137),(.14,.169,.128)], 16)
+loft(hips, leather, [(.06,.187,.14),(.10,.183,.14)], 16)
+cuboid(hips, brass, 0,-.142,.08,.041,.012,.03)
+loft(chest, cloth, [(-.03,.167,.132),(.11,.179,.146),(.27,.224,.156),
+                   (.36,.211,.143),(.43,.157,.114),(.47,.102,.088)], 16)
+loft(chest, linen, [(.425,.133,.107),(.48,.094,.086),(.51,.079,.076)], 14)
+for sign in [-1,1]:
+    for i in range(1,4):
+        x = sign*i*.033
+        shaft(chest, stitch, (x,-.137+.008*i,.06),(x*1.12,-.158+.006*i,.28),.0035,.0035,5)
+    for i in range(3):
+        shaft(chest, linen,(sign*.022,-.142+.009*i,.32+i*.031),
+              (-sign*.018,-.139+.009*i,.337+i*.031),.0035,.0035,5)
+loft(head,skin,[(-.045,.072,.067),(.015,.073,.068),(.046,.085,.088,0,-.014),
+                (.094,.112,.103),(.17,.122,.11),(.232,.113,.104),(.261,.071,.078)],16)
+loft(head,hair,[(.186,.124,.112,0,.009),(.23,.119,.114),(.268,.095,.094),(.289,.032,.052)],16)
+for sign in [-1,1]:
+    ball(head,skin,sign*.117,.002,.123,.019,.025,.034)
+    shaft(head,hair,(sign*.018,-.112,.173),(sign*.078,-.095,.18),.006,.006,6)
+    ball(head,dark,sign*.050,-.104,.153,.014,.005,.005)
+    shaft(head,hair,(sign*.111,.004,.192),(sign*.113,.006,.13),.017,.012,8)
+ball(head,skin,0,-.111,.129,.021,.024,.03)
+shaft(head,stitch,(-.026,-.097,.083),(.026,-.097,.083),.003,.003,6)
+for sign, side in [(-1,"R"),(1,"L")]:
+    arm, elbow, hand, thigh, shin = (kit_joints[n+side] for n in ("UpperArm","Forearm","Hand","Thigh","Shin"))
+    ball(arm,cloth,0,0,-.014,.095,.091,.085)
+    shaft(arm,linen,(0,0,-.045),(sign*.048,0,-.282),.085,.061,12)
+    ball(elbow,linen,0,0,0,.064,.062,.061)
+    shaft(elbow,linen,(0,0,0),(sign*.012,0,-.208),.065,.047,12)
+    for z in [-.145,-.185]:
+        shaft(elbow,stitch,(sign*.009,0,z),(sign*.010,0,z-.012),.055,.053,12)
+    loft(hand,leather,[(-.071,.042,.044),(-.022,.048,.051),(.041,.049,.047)],10)
+    for j in range(4):
+        ball(hand,leather,(j-1.5)*.017,-.032,-.070,.012,.020,.029,8)
+    ball(hand,leather,sign*.035,-.032,-.042,.020,.022,.033)
+    shaft(thigh,hose,(0,0,-.008),(sign*.023,0,-.422),.101,.069,12)
+    ball(shin,hose,0,0,0,.073,.069,.076)
+    shaft(shin,hose,(0,0,-.024),(0,0,-.345),.068,.045,12)
+    shaft(shin,leather,(0,0,-.240),(0,-.004,-.407),.061,.052,12)
+    loft(shin,leather,[(-.455,.066,.132,0,-.054),(-.428,.069,.135,0,-.056),(-.393,.055,.081,0,-.026)],12)
+flush()
+
 for item in ["sword","mace","poleaxe"]:
     module(item)
     p=pivot(item.capitalize())
@@ -412,6 +473,7 @@ for name, collection in library.items():
 
 # Stage the editable assembly with all modules visible for artists.
 library["knight"].objects.get("Knight").location=(-.9,-.7,0)
+kitroot.location=(-2.0,-.7,0)
 for i,name in enumerate(["sword","mace","poleaxe"]):
     obj=next(o for o in library[name].objects if o.parent is None)
     obj.location=(.8+i*.61,-.35,.52 if name=="poleaxe" else .18)

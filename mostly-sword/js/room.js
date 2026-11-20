@@ -14,11 +14,15 @@ function controls(data) {
     ['fwd', 1],
     ['side', 1],
     ['yaw', 1.75],
+    ['offYaw', 1.75],
+    ['offPitch', 1.25],
     ['pitch', 1.25]
   ]) {
     result[k] = Number.isFinite(data?.[k]) ? clamp(data[k], -limit, limit) : 0;
   }
-  for (const k of ['guard', 'short', 'grab', 'thrust', 'run', 'crouch']) result[k] = data?.[k] === true;
+  for (const k of ['guard', 'short', 'offhand', 'thrust', 'run', 'crouch']) result[k] = data?.[k] === true;
+  for (const k of ['leftId', 'rightId', 'swapId', 'boutId'])
+    result[k] = Number.isSafeInteger(data?.[k]) && data[k] > 0 ? data[k] : 0;
   result.jumpId = Number.isSafeInteger(data?.jumpId) && data.jumpId > 0 ? data.jumpId : 0;
   result.jumpPower = Number.isFinite(data?.jumpPower) ? clamp(data.jumpPower, 0, 1) : 0;
   return result;
@@ -29,6 +33,8 @@ function isState(s) {
   return (
     s?.solo === false &&
     s.scouting === false &&
+    Number.isSafeInteger(s.boutId) &&
+    s.boutId > 0 &&
     [-1, 0, 1].includes(s.winner) &&
     Number.isInteger(s.round) &&
     bounded(s.round, 1, 3) &&
@@ -41,6 +47,13 @@ function isState(s) {
       (p) =>
         p &&
         item(p.weapon) &&
+        [p.right, p.left].every((w) => w === -1 || item(w)) &&
+        [p.gripL, p.gripR, p.offhand].every((flag) => typeof flag === 'boolean') &&
+        Number.isInteger(p.armor) &&
+        bounded(p.armor, 0, 2) &&
+        Array.isArray(p.wounds) &&
+        p.wounds.length === 6 &&
+        p.wounds.every((w) => bounded(w, 0, 100)) &&
         [
           'x',
           'z',
@@ -55,6 +68,9 @@ function isState(s) {
           'down',
           'extension',
           'torso',
+          'offYaw',
+          'offPitch',
+          'offTorso',
           'rollSide',
           'recovery',
           'height',
@@ -64,11 +80,16 @@ function isState(s) {
         bounded(p.balance, 0, 100)
     ) &&
     Array.isArray(s.loot) &&
-    s.loot.length === 2 &&
-    s.loot.every((p) => p && item(p.w) && bounded(p.x, -8, 8) && bounded(p.z, -8, 8)) &&
+    s.loot.length <= 4 &&
+    s.loot.every((p) => p && (item(p.w) || p.w === -1) && bounded(p.x, -8, 8) && bounded(p.z, -8, 8)) &&
     (s.event === null ||
       (Number.isSafeInteger(s.event?.n) &&
         ['fall', 'hit', 'equip', 'clash'].includes(s.event.type) &&
+        (!['fall', 'hit'].includes(s.event.type) ||
+          (Number.isInteger(s.event.region) &&
+            bounded(s.event.region, 0, 5) &&
+            ['cut', 'impact'].includes(s.event.kind) &&
+            ['plate', 'cloth'].includes(s.event.surface))) &&
         Array.isArray(s.event.pos) &&
         s.event.pos.length === 3 &&
         s.event.pos.every(Number.isFinite)))
@@ -79,7 +100,7 @@ export function openRoom(code, host, callbacks) {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     realtime: { params: { eventsPerSecond: 35 } }
   });
-  const channel = client.channel('mostly-sword:v3:' + code, { config: { broadcast: { self: false } } });
+  const channel = client.channel('mostly-sword:v4:' + code, { config: { broadcast: { self: false } } });
   const id = crypto.randomUUID();
   let peer = '',
     connected = false,

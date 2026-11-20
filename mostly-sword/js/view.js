@@ -1,6 +1,11 @@
 import * as T from '../vendor/three.js';
-import { blade, clamp, groundPose, weapons } from './arena.js';
-import { physicsReady, startFall } from './fall.js';
+import { blade, groundPose, weapons } from './arena.js';
+import { startFall } from './fall.js';
+import { physicsReady } from './motors.js';
+import { jointPose } from './pose.js';
+import { heldHand } from './hands.js';
+import { loadKit, attachKit } from './kit.js';
+import { duelCamera } from './camera.js';
 const v = (x = 0, y = 0, z = 0) => new T.Vector3(x, y, z);
 const up = v(0, 1, 0);
 const lengths = [1.23, 0.845, 1.6];
@@ -8,66 +13,6 @@ function aimJoint(joint, child, target) {
   const dir = joint.parent.worldToLocal(target.clone()).sub(joint.position).normalize();
   joint.quaternion.setFromUnitVectors(child.position.clone().normalize(), dir);
   joint.updateWorldMatrix(false, true);
-}
-function reach(rig, side, goal) {
-  const arm = rig['UpperArm' + side],
-    elbow = rig['Forearm' + side],
-    hand = rig['Hand' + side];
-  const origin = arm.getWorldPosition(v()),
-    delta = goal.clone().sub(origin),
-    len = delta.length();
-  delta.normalize();
-  const a = elbow.position.length(),
-    b = hand.position.length(),
-    d = clamp(len, 0.04, a + b - 0.001);
-  const axial = (a * a - b * b + d * d) / (2 * d);
-  const outward = v(side === 'R' ? -1 : 1, -0.68, -0.5).applyQuaternion(rig.root.quaternion);
-  outward.addScaledVector(delta, -outward.dot(delta)).normalize();
-  const mid = origin
-    .clone()
-    .addScaledVector(delta, axial)
-    .addScaledVector(outward, Math.sqrt(Math.max(0, a * a - axial * axial)));
-  aimJoint(arm, elbow, mid);
-  aimJoint(elbow, hand, goal);
-}
-// Place the boot relative to the floor and solve the knee toward the facing direction.
-// The supporting boot travels backward in body space as the hips pass over it.
-function stepLeg(rig, p, side, sign, ground) {
-  const thigh = rig['Thigh' + side],
-    shin = rig['Shin' + side];
-  const phase = (p.walk + (side === 'R' ? Math.PI : 0)) % (2 * Math.PI);
-  const travel = phase < Math.PI ? 0.5 - phase / Math.PI : -0.5 + (phase - Math.PI) / Math.PI;
-  const swing = phase > Math.PI ? Math.sin(phase - Math.PI) : 0;
-  const speed = Math.hypot(p.vx, p.vz),
-    gait = Math.min(1, speed / 0.85);
-  const c = Math.cos(p.face),
-    s = Math.sin(p.face);
-  const stride = gait * travel * (p.running ? 0.79 : 0.58);
-  const sideStep = (stride * (p.vx * c - p.vz * s)) / Math.max(0.01, speed);
-  const forwardStep = (stride * (p.vz * c + p.vx * s)) / Math.max(0.01, speed);
-  const goal = rig.root.localToWorld(
-    v(
-      sign * (0.155 + 0.035 * p.bend) + sideStep,
-      0.068 + swing * gait * (p.running ? 0.17 : 0.1) + Math.min(0.12, p.height * 0.35),
-      forwardStep + sign * 0.055 + ground.back * (0.49 + sign * 0.13)
-    )
-  );
-  const hip = thigh.getWorldPosition(v()),
-    axis = goal.clone().sub(hip);
-  const a = shin.position.length(),
-    b = 0.39,
-    d = clamp(axis.length(), 0.08, a + b - 0.0001);
-  axis.normalize();
-  const pole = v(sign * 0.09, 0, 1).applyQuaternion(rig.root.quaternion);
-  pole.addScaledVector(axis, -pole.dot(axis)).normalize();
-  const along = (a * a - b * b + d * d) / (2 * d);
-  const knee = hip
-    .clone()
-    .addScaledVector(axis, along)
-    .addScaledVector(pole, Math.sqrt(Math.max(0, a * a - along * along)));
-  aimJoint(thigh, shin, knee);
-  const bootDir = thigh.worldToLocal(goal.clone()).sub(shin.position).normalize();
-  shin.quaternion.setFromUnitVectors(v(0, -1, 0), bootDir);
 }
 export async function createView(canvas) {
   const renderer = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -111,8 +56,9 @@ export async function createView(canvas) {
   rim.position.set(4, 5, -5);
   scene.add(rim);
   const loader = new T.GLTFLoader();
-  const [, arena, knight, ...equipment] = await Promise.all([
+  const [, kit, arena, knight, ...equipment] = await Promise.all([
     physicsReady,
+    loadKit(loader),
     ...['arena', 'knight', ...weapons.map((w) => w.mesh)].map(
       async (name) =>
         (await loader.loadAsync(new URL('../assets/' + name + '.glb', import.meta.url).href)).scene
@@ -173,14 +119,17 @@ export async function createView(canvas) {
       };
       o.material = Array.isArray(o.material) ? o.material.map(tint) : tint(o.material);
     });
-    rig.gear = equipment.map((model) => {
-      const copy = model.clone(true);
-      copy.traverse((m) => {
-        if (m.isMesh) m.castShadow = true;
+    const equipHand = () =>
+      equipment.map((model) => {
+        const copy = model.clone(true);
+        copy.traverse((m) => {
+          if (m.isMesh) m.castShadow = true;
+        });
+        scene.add(copy);
+        return copy;
       });
-      scene.add(copy);
-      return copy;
-    });
+    rig.gearByHand = { L: equipHand(), R: equipHand() };
+    rig.setArmor = attachKit(rig, kit, i);
     rig.bindPose = [
       'Hips',
       'Chest',
@@ -194,7 +143,7 @@ export async function createView(canvas) {
   }
   const rigs = [makeRig(0), makeRig(1)],
     drops = [];
-  for (let i = 0; i < 2; i++) {
+  function addDropSlot() {
     const set = equipment.map((model) => {
       const m = model.clone(true);
       scene.add(m);
@@ -204,12 +153,14 @@ export async function createView(canvas) {
   }
   const sparkGeo = new T.BufferGeometry(),
     sparks = [],
-    positions = new Float32Array(24 * 3);
+    positions = new Float32Array(24 * 3),
+    colors = new Float32Array(24 * 3);
   sparkGeo.setAttribute('position', new T.BufferAttribute(positions, 3));
+  sparkGeo.setAttribute('color', new T.BufferAttribute(colors, 3));
   sparkGeo.setDrawRange(0, 0);
   const sparkCloud = new T.Points(
     sparkGeo,
-    new T.PointsMaterial({ color: 0xffd58e, size: 0.055, transparent: true, depthWrite: false })
+    new T.PointsMaterial({ vertexColors: true, size: 0.035, transparent: true, depthWrite: false })
   );
   sparkCloud.frustumCulled = false;
   scene.add(sparkCloud);
@@ -229,17 +180,23 @@ export async function createView(canvas) {
   const moon = new T.Color(0x1b2328),
     hall = new T.Color(0x333537);
   function burst(e) {
-    if (e.type === 'equip') return;
-    for (let i = 0; i < (e.type === 'clash' ? 18 : 8); i++)
+    if (!['clash', 'hit', 'fall'].includes(e.type)) return;
+    const metal = e.type === 'clash' || e.surface === 'plate';
+    const palette = metal ? [0xffe6ac, 0xff9e48] : [0xb89d7c, 0x86654b];
+    for (let i = 0; i < (metal ? 16 : 5); i++)
       sparks.push({
         pos: v(...e.pos),
-        vel: v((Math.random() - 0.5) * 3, Math.random() * 2.8, (Math.random() - 0.5) * 3),
-        life: 0.16 + Math.random() * 0.22
+        vel: v((Math.random() - 0.5) * 3, Math.random() * 2.8, (Math.random() - 0.5) * 3).multiplyScalar(
+          metal ? 1 : 0.4
+        ),
+        color: new T.Color(palette[i % 2]),
+        life: 0.11 + Math.random() * (metal ? 0.23 : 0.12)
       });
   }
-  function pose(p, i, now, dt) {
+  function pose(p, i, opponent, dt) {
     const rig = rigs[i],
       root = rig.root;
+    rig.setArmor(p.armor ?? 2);
     const terminal = p.down > 0;
     const falling = terminal || p.recovery > 0;
     if (rig.fall && (!falling || terminal !== rig.fall.terminal)) {
@@ -260,53 +217,46 @@ export async function createView(canvas) {
     }
     rig.wasFalling = falling;
     const ground = groundPose(p);
-    const speed = Math.min(1, Math.hypot(p.vx, p.vz));
     root.position.set(p.x, p.height, p.z);
     root.rotation.set(0, p.face, 0);
-    rig.Hips.position.y =
-      0.865 -
-      0.03 * speed +
-      0.018 * Math.cos(p.walk * 2) * speed -
-      0.24 * p.bend * (1 - ground.low) -
-      0.65 * ground.low -
-      0.13 * (p.stun ? 1 : 0);
-    rig.Hips.rotation.set(
-      -0.1 * p.recoil - 1.38 * ground.back,
-      0,
-      0.14 * (p.stun ? 1 : 0) + 0.78 * ground.side
-    );
-    const localSide = p.vx * Math.cos(p.face) - p.vz * Math.sin(p.face);
-    const localForward = p.vz * Math.cos(p.face) + p.vx * Math.sin(p.face);
-    rig.Chest.rotation.set(
-      0.08 + p.recoil * 0.21 + localForward * 0.038 + p.bend * 0.15,
-      p.torso,
-      -localSide * 0.04 + 0.03 * Math.sin(p.walk) * speed
-    );
-    rig.Head.rotation.set(-0.04 - p.recoil * 0.14, -p.yaw * 0.1, 0);
     root.updateMatrixWorld(true);
-    stepLeg(rig, p, 'L', 1, ground);
-    stepLeg(rig, p, 'R', -1, ground);
-    const [h, t] = blade(p),
-      hand = v(...h),
-      tip = v(...t),
-      dir = tip.clone().sub(hand).normalize();
-    reach(rig, 'R', hand);
-    const leftGoal =
-      p.short || p.guard || p.weapon === 2
-        ? hand.clone().addScaledVector(dir, p.short ? 0.24 : 0.1)
-        : root.localToWorld(v(0.29, 1.05 + 0.035 * Math.sin(now * 2), 0.25));
-    leftGoal.lerp(root.localToWorld(v(0.36, 0.1, 0.02)), ground.low);
-    reach(rig, 'L', leftGoal);
-    rig.gear.forEach((m, k) => {
-      m.visible = k === p.weapon;
-      if (m.visible) {
-        m.position.copy(hand);
+    const lead = heldHand(p),
+      other = lead === 'R' ? 'L' : 'R';
+    const primary = blade(p, lead),
+      secondary = blade(p, other);
+    const joints = jointPose(p, primary, ground, opponent, secondary);
+    rig.Hips.position.copy(root.worldToLocal(v(...joints.Hips)));
+    rig.Hips.rotation.set(...joints.hipsRotation);
+    rig.Chest.rotation.set(...joints.chestRotation);
+    rig.Head.rotation.set(...joints.headRotation);
+    root.updateMatrixWorld(true);
+    for (const side of ['L', 'R']) {
+      const thigh = rig['Thigh' + side],
+        shin = rig['Shin' + side];
+      const arm = rig['UpperArm' + side],
+        elbow = rig['Forearm' + side];
+      aimJoint(thigh, shin, v(...joints['Shin' + side]));
+      const bootDir = thigh
+        .worldToLocal(v(...joints['Foot' + side]))
+        .sub(shin.position)
+        .normalize();
+      shin.quaternion.setFromUnitVectors(v(0, -1, 0), bootDir);
+      aimJoint(arm, elbow, v(...joints['Forearm' + side]));
+      aimJoint(elbow, rig['Hand' + side], v(...joints['Hand' + side]));
+      const segment = side === lead ? primary : secondary;
+      const id = side === 'L' ? p.left : p.right;
+      rig.gearByHand[side].forEach((m, k) => {
+        m.visible = k === id;
+        if (!m.visible) return;
+        const dir = v(...segment[1])
+          .sub(v(...segment[0]))
+          .normalize();
+        m.position.set(...joints['Hand' + side]);
         m.quaternion.setFromUnitVectors(up, dir);
-        const scale = weapons[k].reach / lengths[k];
-        m.scale.setScalar(scale);
-        if (p.short) m.position.addScaledVector(dir, -weapons[k].reach * 0.29);
-      }
-    });
+        m.scale.setScalar(weapons[k].reach / lengths[k]);
+        if (side === lead && p.short) m.position.addScaledVector(dir, -weapons[k].reach * 0.29);
+      });
+    }
     if (rig.fall) rig.fall.update(dt, p.recovery);
   }
   const watch = v(),
@@ -331,11 +281,15 @@ export async function createView(canvas) {
     seal.visible = abyss && g.scouting;
     if (seal.visible) seal.material.opacity = 0.57 + 0.33 * Math.sin(now * 2.5);
     for (let i = 0; i < 2; i++) {
-      pose(g.p[i], i, now, dt);
+      pose(g.p[i], i, g.p[1 - i], dt);
       const visible = !(i === 1 && seal.visible);
       rigs[i].root.visible = visible;
-      if (!visible) for (const m of rigs[i].gear) m.visible = false;
-      drops[i].forEach((m, k) => {
+      if (!visible)
+        for (const hand of Object.values(rigs[i].gearByHand)) for (const m of hand) m.visible = false;
+    }
+    while (drops.length < g.loot.length) addDropSlot();
+    drops.forEach((slot, i) => {
+      slot.forEach((m, k) => {
         const drop = g.loot[i];
         m.visible = drop?.w === k && mode !== 'menu';
         if (m.visible) {
@@ -344,7 +298,7 @@ export async function createView(canvas) {
           m.scale.setScalar(0.89);
         }
       });
-    }
+    });
     fires.forEach((s, i) => s.scale.setScalar(1.7 + Math.sin(now * 7 + i) * 0.1));
     for (let i = sparks.length - 1; i >= 0; i--) {
       const s = sparks[i];
@@ -355,9 +309,13 @@ export async function createView(canvas) {
         s.pos.addScaledVector(s.vel, dt);
       }
     }
-    sparks.slice(-24).forEach((s, i) => s.pos.toArray(positions, i * 3));
+    sparks.slice(-24).forEach((s, i) => {
+      s.pos.toArray(positions, i * 3);
+      s.color.toArray(colors, i * 3);
+    });
     sparkGeo.setDrawRange(0, Math.min(24, sparks.length));
     sparkGeo.attributes.position.needsUpdate = true;
+    sparkGeo.attributes.color.needsUpdate = true;
     const menu = mode === 'menu',
       p = g.p[local],
       o = g.p[1 - local];
@@ -369,16 +327,7 @@ export async function createView(canvas) {
       camera.filmOffset = camera.aspect > 1.1 ? -6 : 0;
     } else {
       camera.filmOffset = 0;
-      const dx = Math.sin(p.face),
-        dz = Math.cos(p.face),
-        wide = camera.aspect < 0.95 ? 1.26 : 1;
-      eye = v(p.x - dx * 3.4 * wide + dz * 0.78, 2.16, p.z - dz * 3.4 * wide - dx * 0.78);
-      const r = Math.hypot(eye.x, eye.z);
-      if (r > 9.15) {
-        eye.x *= 9.15 / r;
-        eye.z *= 9.15 / r;
-      }
-      target = v(p.x + (o.x - p.x) * 0.46, 1.02, p.z + (o.z - p.z) * 0.46);
+      [eye, target] = duelCamera(p, o, camera.aspect);
     }
     if (lastMode !== mode) {
       watch.copy(eye);
