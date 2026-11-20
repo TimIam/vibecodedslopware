@@ -16,7 +16,9 @@ function aimJoint(joint, child, target) {
 }
 export async function createView(canvas) {
   const renderer = new T.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.65));
+  const fullRatio = Math.min(devicePixelRatio, 1.65);
+  let renderRatio = fullRatio;
+  renderer.setPixelRatio(renderRatio);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = T.PCFSoftShadowMap;
   renderer.toneMapping = T.ACESFilmicToneMapping;
@@ -264,7 +266,27 @@ export async function createView(canvas) {
   let lastMode = '',
     cw = 0,
     ch = 0;
+  let frameTime = 1 / 60,
+    qualityCheck = 0,
+    nextShadow = 0;
   function draw(g, mode, local, dt, now) {
+    const duel = !g.solo && mode !== 'menu';
+    frameTime += (dt - frameTime) * 0.09;
+    if (now >= qualityCheck || (!duel && renderRatio !== fullRatio)) {
+      let next = fullRatio;
+      if (duel) {
+        next = renderRatio;
+        if (frameTime > 0.025) next = Math.max(fullRatio * 0.6, renderRatio * 0.8);
+        if (frameTime < 0.018) next = Math.min(fullRatio, renderRatio * 1.08);
+      }
+      if (Math.abs(next - renderRatio) > 0.001) renderer.setPixelRatio((renderRatio = next));
+      qualityCheck = now + (frameTime < 0.018 ? 3 : 0.8);
+    }
+    renderer.shadowMap.autoUpdate = !duel;
+    if (duel && now >= nextShadow) {
+      renderer.shadowMap.needsUpdate = true;
+      nextShadow = now + (frameTime > 0.025 ? 1 / 15 : 1 / 45);
+    }
     const w = canvas.clientWidth,
       h = canvas.clientHeight;
     if (w !== cw || h !== ch) {

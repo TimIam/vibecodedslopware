@@ -3,7 +3,8 @@ import { freeHandTarget } from './hands.js';
 import { regionNames } from './contact.js';
 import { playContact } from './audio.js';
 import { createView } from './view.js';
-import { makeCode, validCode, openRoom } from './room.js';
+import { guestPrediction } from './prediction.js';
+import { makeCode, validCode, openRoom, warmLobby, leaveLobby } from './room.js';
 
 const $ = (id) => document.getElementById(id),
   canvas = $('arena');
@@ -25,11 +26,18 @@ let remote = neutral(),
 let latest = null,
   previous = null,
   arrival = 0,
-  netClock = 0,
   carry = 0,
   prevTime = 0,
   lastEvent = 0,
   hintUntil = 0;
+let prediction = guestPrediction(),
+  inputAck = 0,
+  lastInputSent = -Infinity,
+  spacing = 1000 / 24;
+let hostTimer,
+  hostTime = 0,
+  snapshotDue = 0,
+  sentEvent = 0;
 const keys = new Set();
 let drag = null,
   handSequence = 0,
@@ -75,12 +83,15 @@ function clearInputs() {
   $('stick').firstElementChild.style.transform = '';
 }
 function closeRoom() {
+  clearInterval(hostTimer);
   const old = room;
   room = null;
   old?.close();
 }
 function menu(message = '', lobby = false) {
   closeRoom();
+  if (lobby) warmLobby();
+  else leaveLobby();
   mode = 'menu';
   local = 0;
   paused = false;
@@ -112,6 +123,9 @@ function message(s, duration = 2) {
 function begin(solo, round = 1, gear = null) {
   mode = solo ? 'solo' : 'online';
   game = makeRound(round, solo, gear?.weapon ?? 0);
+  prediction = guestPrediction();
+  inputAck = 0;
+  lastInputSent = -Infinity;
   if (host && !solo) game.boutId = ++boutSequence;
   if (gear) Object.assign(game.p[0], { right: gear.right, left: gear.left });
   if (round === 1) scores = [0, 0];
@@ -119,7 +133,14 @@ function begin(solo, round = 1, gear = null) {
   scoreCounted = false;
   lastEvent = 0;
   latest = previous = null;
-  carry = netClock = 0;
+  carry = 0;
+  clearInterval(hostTimer);
+  if (!solo && host) {
+    hostTime = performance.now();
+    snapshotDue = hostTime;
+    sentEvent = 0;
+    hostTimer = setInterval(() => runHost(performance.now()), STEP * 1000);
+  }
   clearInputs();
   $('stage').className = 'playing';
   show('intro', false);
@@ -160,10 +181,12 @@ function connect(isHost, code) {
         begin(false, state.round);
       }
       if (Array.isArray(state.score)) scores = state.score;
-      previous = latest;
+      previous = latest?.boutId === state.boutId ? latest : null;
+      if (previous) spacing += (clamp(performance.now() - arrival, 8, 90) - spacing) * 0.25;
       latest = state;
       arrival = performance.now();
-      game = structuredClone(state);
+      game = state;
+      prediction.accept(state);
     }
   };
   try {
@@ -277,7 +300,7 @@ canvas.oncontextmenu = (e) => e.preventDefault();
 function activateHand(id) {
   input[id] = ++handSequence;
   input.boutId = game.boutId;
-  if (mode === 'online' && !host) room?.send('input', input);
+  sendGuestInput();
 }
 canvas.onpointerdown = (e) => {
   if (mode === 'menu' || resultShown) return;
@@ -389,6 +412,31 @@ function readInput(dt) {
   input.crouch = jumpStart !== null || keys.has('ControlLeft') || keys.has('ControlRight');
   input.thrust = performance.now() < lungingUntil;
 }
+function sendGuestInput() {
+  if (mode !== 'online' || host || !room || !game.boutId || resultShown) return;
+  readInput(0);
+  room.send('input', input);
+  lastInputSent = performance.now();
+}
+// Edge-triggered controls can leave before the next rendering or network tick.
+// Mouse motion is coalesced to the fastest cadence of the current path.
+for (const event of [
+  'keydown',
+  'keyup',
+  'pointerdown',
+  'pointerup',
+  'pointermove',
+  'pointercancel',
+  'blur'
+]) {
+  window.addEventListener(event, (e) => {
+    if (mode !== 'online' || host || !room || (e.code && !usedKeys.includes(e.code))) return;
+    if (e.repeat || (event === 'pointermove' && !drag && !stick.some(Boolean))) return;
+    if (event === 'pointermove' && performance.now() - lastInputSent < (room.fast ? 12 : 42)) return;
+    if (['KeyQ', 'KeyE', 'KeyX'].includes(e.code) && event === 'keydown') return;
+    sendGuestInput();
+  });
+}
 const coarseControls = matchMedia('(pointer:coarse)').matches || navigator.maxTouchPoints > 0;
 function handHint(p, other) {
   const hints = new Map();
@@ -414,41 +462,56 @@ function handHint(p, other) {
     (game.scouting ? 'Choose your gear, then enter the sun seal.' : '')
   );
 }
+function setHudText(id, value) {
+  const element = $(id);
+  if (element.textContent !== value) element.textContent = value;
+}
 function updateHud() {
+  const network = $('network');
+  network.hidden = mode !== 'online';
+  if (!network.hidden)
+    setHudText(
+      'network',
+      (room?.fast ? 'Peer link' : 'Relay') + (room?.rtt != null ? ' · ' + room.rtt + ' ms' : '')
+    );
   const p = game.p[local],
     o = game.p[1 - local];
-  $('myName').textContent = local === 0 ? 'You · Moss' : 'You · Rust';
-  $('foeName').textContent =
-    mode === 'solo' ? ranks[Math.min(2, Math.floor((game.round - 1) / 2))] : local === 0 ? 'Rust' : 'Moss';
+  setHudText('myName', local === 0 ? 'You · Moss' : 'You · Rust');
+  setHudText(
+    'foeName',
+    mode === 'solo' ? ranks[Math.min(2, Math.floor((game.round - 1) / 2))] : local === 0 ? 'Rust' : 'Moss'
+  );
   $('myHp').value = p.hp;
   $('foeHp').value = o.hp;
   $('balance').value = p.balance;
   const worst = Math.max(...p.wounds);
-  $('condition').textContent = worst >= 20 ? 'Wounded ' + regionNames[p.wounds.indexOf(worst)] : '';
-  $('round').textContent =
-    mode === 'solo'
-      ? 'Abyss · ' + game.round + ' / 5'
-      : 'Duel · ' + scores[local] + ' – ' + scores[1 - local];
-  $('weapon').textContent =
+  setHudText('condition', worst >= 20 ? 'Wounded ' + regionNames[p.wounds.indexOf(worst)] : '');
+  setHudText(
+    'round',
+    mode === 'solo' ? 'Abyss · ' + game.round + ' / 5' : 'Duel · ' + scores[local] + ' – ' + scores[1 - local]
+  );
+  setHudText(
+    'weapon',
     'L · ' +
-    (p.gripL ? 'Grappling' : weapons[p.left]?.name || 'Free') +
-    '   /   R · ' +
-    (p.gripR ? 'Grappling' : weapons[p.right]?.name || 'Free') +
-    (p.guard ? ' · Guard' : p.short ? ' · Short grip' : '') +
-    (p.recovery > 1.5
-      ? ' · Knocked down'
-      : p.recovery > 0
-        ? ' · Getting up'
-        : p.height > 0.01
-          ? ' · Airborne'
-          : p.running
-            ? ' · Running'
-            : p.bend > 0.55
-              ? ' · Crouched'
-              : '') +
-    (p.exhausted ? ' · Winded' : '');
+      (p.gripL ? 'Grappling' : weapons[p.left]?.name || 'Free') +
+      '   /   R · ' +
+      (p.gripR ? 'Grappling' : weapons[p.right]?.name || 'Free') +
+      (p.guard ? ' · Guard' : p.short ? ' · Short grip' : '') +
+      (p.recovery > 1.5
+        ? ' · Knocked down'
+        : p.recovery > 0
+          ? ' · Getting up'
+          : p.height > 0.01
+            ? ' · Airborne'
+            : p.running
+              ? ' · Running'
+              : p.bend > 0.55
+                ? ' · Crouched'
+                : '') +
+      (p.exhausted ? ' · Winded' : '')
+  );
   document.querySelector('[data-press="offhand"]').hidden = !(p.left >= 0 && p.right >= 0);
-  $('equipHint').textContent = handHint(p, o);
+  setHudText('equipHint', handHint(p, o));
 }
 function finish() {
   resultShown = true;
@@ -493,11 +556,13 @@ function finish() {
 }
 // Interpolate remote transforms between host snapshots, keeping all hits on the host.
 function displayState(now) {
-  if (!previous || !latest || mode !== 'online' || host || latest.round !== previous.round) return game;
-  const u = clamp((now - arrival) * 0.024, 0, 1);
+  if (!latest || mode !== 'online' || host) return game;
+  const u = clamp((now - arrival) / spacing, 0, 1);
   return {
     ...game,
     p: game.p.map((p, i) => {
+      if (i === local && prediction.fighter) return prediction.fighter;
+      if (!previous) return p;
       const old = previous.p[i],
         res = { ...p };
       for (const k of [
@@ -525,6 +590,30 @@ function displayState(now) {
     })
   };
 }
+// Authority runs on its own fixed-step clock. A slow draw need not delay the
+// next simulation step or hold a confirmed hit until another screen refresh.
+function runHost(now) {
+  if (!host || mode !== 'online' || !room || now <= hostTime) return;
+  const elapsed = Math.min(0.1, (now - hostTime) / 1000);
+  hostTime = now;
+  readInput(elapsed);
+  carry += elapsed;
+  while (carry >= STEP) {
+    tick(game, [input, remote]);
+    inputAck = Math.max(inputAck, remote.clientTick || 0);
+    carry -= STEP;
+  }
+  if (!scoreCounted && game.winner >= 0) {
+    scores[game.winner]++;
+    scoreCounted = true;
+  }
+  if (now >= snapshotDue || game.serial !== sentEvent) {
+    const period = 1000 / (room.fast ? 60 : 24);
+    snapshotDue = now >= snapshotDue ? Math.max(now + 1, snapshotDue + period) : now + period;
+    sentEvent = game.serial;
+    room.send('state', { ...game, score: scores, inputAck });
+  }
+}
 function frame(now) {
   const dt = Math.min(0.09, Math.max(0, (now - prevTime) / 1000));
   prevTime = now;
@@ -534,11 +623,12 @@ function frame(now) {
     game.p[1].yaw = 0.13 + 0.25 * Math.sin(now * 0.00065);
     game.p[1].pitch = 0.9 + 0.11 * Math.sin(now * 0.0006);
   } else if (!paused) {
-    readInput(dt);
-    if (mode === 'solo' || host) {
+    if (mode === 'online' && host) runHost(performance.now());
+    else readInput(dt);
+    if (mode === 'solo') {
       carry += dt;
       while (carry >= STEP) {
-        tick(game, [input, mode === 'solo' ? bot(game) : remote]);
+        tick(game, [input, bot(game)]);
         carry -= STEP;
       }
       if (!scoreCounted && game.winner >= 0) {
@@ -546,12 +636,10 @@ function frame(now) {
         scoreCounted = true;
       }
     }
-    if (mode === 'online' && room) {
-      netClock += dt;
-      if (netClock >= 1 / 24) {
-        netClock %= 1 / 24;
-        room.send(host ? 'state' : 'input', host ? { ...game, score: scores } : input);
-      }
+    if (mode === 'online' && room && !host) {
+      const interval = room.fast ? 1 / 60 : 1 / 24;
+      if (now - arrival < 250) input.clientTick = prediction.step(input, dt);
+      if (now - lastInputSent >= interval * 1000 - 1) sendGuestInput();
     }
     if (game.event && game.event.n !== lastEvent) {
       lastEvent = game.event.n;
@@ -574,13 +662,13 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 try {
+  if (validCode(validInvite)) warmLobby();
   view = await createView(canvas);
-  menu();
   $('solo').disabled = $('online').disabled = false;
   if (validCode(validInvite)) {
     $('code').value = validInvite;
     menu('Your invite is ready. Select Join to enter.', true);
-  }
+  } else menu();
   requestAnimationFrame(frame);
 } catch (e) {
   console.error(e);

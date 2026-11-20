@@ -162,7 +162,7 @@ function event(g, type, pos, target, details = {}) {
 }
 export const nearby = (g, p) => nearestLoot(g, p);
 
-function advance(g, i, input, dt) {
+export function advance(g, i, input, dt) {
   const p = g.p[i],
     other = g.p[1 - i];
   if (p.recovery > 0) {

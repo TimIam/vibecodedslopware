@@ -1,4 +1,6 @@
 import { createClient } from '../vendor/realtime.js';
+import { packState, unpackState } from './packets.js';
+import { openPeerLink } from './peer.js';
 import { clamp, neutral } from './arena.js';
 
 // This is the same public Realtime project used by the site's other multiplayer games.
@@ -21,7 +23,7 @@ function controls(data) {
     result[k] = Number.isFinite(data?.[k]) ? clamp(data[k], -limit, limit) : 0;
   }
   for (const k of ['guard', 'short', 'offhand', 'thrust', 'run', 'crouch']) result[k] = data?.[k] === true;
-  for (const k of ['leftId', 'rightId', 'swapId', 'boutId'])
+  for (const k of ['leftId', 'rightId', 'swapId', 'boutId', 'clientTick'])
     result[k] = Number.isSafeInteger(data?.[k]) && data[k] > 0 ? data[k] : 0;
   result.jumpId = Number.isSafeInteger(data?.jumpId) && data.jumpId > 0 ? data.jumpId : 0;
   result.jumpPower = Number.isFinite(data?.jumpPower) ? clamp(data.jumpPower, 0, 1) : 0;
@@ -32,6 +34,8 @@ function isState(s) {
   const item = (w) => Number.isInteger(w) && w >= 0 && w < 3;
   return (
     s?.solo === false &&
+    Number.isSafeInteger(s.inputAck) &&
+    s.inputAck >= 0 &&
     s.scouting === false &&
     Number.isSafeInteger(s.boutId) &&
     s.boutId > 0 &&
@@ -71,6 +75,18 @@ function isState(s) {
           'offYaw',
           'offPitch',
           'offTorso',
+          'wy',
+          'wp',
+          'vy',
+          'torsoSpeed',
+          'offWY',
+          'offWP',
+          'offTorsoSpeed',
+          'bind',
+          'landing',
+          'thrustTime',
+          'fatigue',
+          'cooldown',
           'rollSide',
           'recovery',
           'height',
@@ -95,31 +111,60 @@ function isState(s) {
         s.event.pos.every(Number.isFinite)))
   );
 }
-export function openRoom(code, host, callbacks) {
-  const client = createClient(url, key, {
+// Start the existing room socket while the player reads or enters the code.
+function roomClient() {
+  return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     realtime: { params: { eventsPerSecond: 35 } }
   });
-  const channel = client.channel('mostly-sword:v4:' + code, { config: { broadcast: { self: false } } });
+}
+let warmClient;
+export function warmLobby() {
+  if (warmClient) return;
+  warmClient = roomClient();
+  warmClient.realtime.connect();
+}
+export function leaveLobby() {
+  warmClient?.realtime.disconnect();
+  warmClient = null;
+}
+export function openRoom(code, host, callbacks) {
+  const client = warmClient || roomClient();
+  warmClient = null;
+  const channel = client.channel('mostly-sword:v5:' + code, { config: { broadcast: { self: false } } });
   const id = crypto.randomUUID();
   let peer = '',
     connected = false,
     closed = false,
     lastSeen = 0,
-    since = performance.now(),
-    sequence = 0,
-    lastSeq = -1;
-  function send(type, value, to = peer) {
+    since = performance.now();
+  let sequence = 0,
+    lastFrame = -1,
+    link,
+    pingAt = 0,
+    rtt = null;
+  function relay(packet) {
     if (connected && !closed)
-      channel
-        .send({ type: 'broadcast', event: 'duel', payload: { id, to, type, value, seq: ++sequence } })
-        .catch(() => {});
+      channel.send({ type: 'broadcast', event: 'duel', payload: packet }).catch(() => {});
+  }
+  function send(type, value, to = peer) {
+    if (closed) return;
+    const packet = { id, to, type, value: type === 'state' ? packState(value) : value, seq: ++sequence };
+    if (
+      peer &&
+      ['input', 'state', 'ping', 'pong', 'bye'].includes(type) &&
+      link?.write(packet) &&
+      type !== 'bye'
+    )
+      return;
+    relay(packet);
   }
   function close() {
     if (closed) return;
     send('bye');
     closed = true;
     clearInterval(timer);
+    link?.close();
     client
       .removeChannel(channel)
       .finally(() => client.realtime.disconnect())
@@ -131,7 +176,15 @@ export function openRoom(code, host, callbacks) {
       callbacks.error(reason);
     }
   }
-  channel.on('broadcast', { event: 'duel' }, ({ payload: m }) => {
+  function startLink() {
+    if (closed || link) return;
+    try {
+      link = openPeerLink(!host, (data) => send('rtc', data), receive);
+    } catch {
+      link = null;
+    }
+  }
+  function receive(m) {
     if (closed || !m || typeof m.id !== 'string' || m.id === id || (m.to && m.to !== id)) return;
     if (host && m.type === 'knock') {
       if (peer && peer !== m.id) {
@@ -142,7 +195,10 @@ export function openRoom(code, host, callbacks) {
       peer = m.id;
       lastSeen = performance.now();
       send('seat', null);
-      if (fresh) callbacks.start();
+      if (fresh) {
+        callbacks.start();
+        setTimeout(startLink, 0);
+      }
       return;
     }
     if (!host && !peer && m.type === 'full') {
@@ -153,38 +209,81 @@ export function openRoom(code, host, callbacks) {
       peer = m.id;
       lastSeen = performance.now();
       callbacks.start();
+      setTimeout(startLink, 0);
       return;
     }
-    if (!peer || m.id !== peer || m.to !== id || !(m.seq > lastSeq)) return;
-    lastSeq = m.seq;
+    if (!peer || m.id !== peer || m.to !== id) return;
     lastSeen = performance.now();
+    if (m.type === 'rtc') {
+      startLink();
+      link?.signal(m.value);
+      return;
+    }
     if (m.type === 'bye') {
       fail('The other fighter left the room.');
       return;
     }
-    if (host && m.type === 'input') callbacks.input(controls(m.value));
-    if (!host && m.type === 'state' && isState(m.value)) callbacks.state(m.value);
-  });
+    if (m.type === 'ping') {
+      send('pong', m.value);
+      return;
+    }
+    if (m.type === 'pong' && m.value === pingAt) {
+      rtt = Math.round(lastSeen - pingAt);
+      return;
+    }
+    // Control traffic uses a separate ordering domain. A delayed relay ping
+    // cannot invalidate a newer direct-path gameplay frame, or vice versa.
+    if (!Number.isSafeInteger(m.seq) || m.seq <= lastFrame) return;
+    if (host && m.type === 'input') {
+      lastFrame = m.seq;
+      callbacks.input(controls(m.value));
+    }
+    if (!host && m.type === 'state') {
+      const state = unpackState(m.value);
+      if (isState(state)) {
+        lastFrame = m.seq;
+        callbacks.state(state);
+      }
+    }
+  }
+  channel.on('broadcast', { event: 'duel' }, ({ payload }) => receive(payload));
   channel.subscribe((status) => {
     if (closed) return;
     if (status === 'SUBSCRIBED') {
       connected = true;
       since = performance.now();
-      callbacks.ready();
-      if (!host) send('knock', null, '');
-    } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status))
-      fail('Room connection lost. Open a new duel to reconnect.');
+      if (!peer) {
+        callbacks.ready();
+        if (!host) send('knock', null, '');
+      }
+    } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)) {
+      connected = false;
+      if (!link?.open) fail('Room connection lost. Open a new duel to reconnect.');
+    }
   });
   const timer = setInterval(() => {
     const now = performance.now();
     if (peer) {
+      link?.check(now);
       if (now - lastSeen > 15000) fail('The other fighter disconnected.');
-      else send('ping');
+      else if (now - pingAt >= 1000) {
+        pingAt = now;
+        send('ping', now);
+      }
     } else if (!connected && now - since > 16000) fail('Could not reach the room server.');
     else if (!host && connected) {
       if (now - since > 9000) fail('No host answered that code. Check the code and try again.');
       else send('knock', null, '');
     }
-  }, 750);
-  return { close, send };
+  }, 350);
+  return {
+    close,
+    send,
+    get fast() {
+      return Boolean(link?.open);
+    },
+    get rtt() {
+      return rtt;
+    }
+  };
 }
