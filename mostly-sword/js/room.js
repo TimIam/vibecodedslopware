@@ -197,7 +197,6 @@ export function openRoom(code, host, callbacks) {
       send('seat', null);
       if (fresh) {
         callbacks.start();
-        setTimeout(startLink, 0);
       }
       return;
     }
@@ -209,7 +208,10 @@ export function openRoom(code, host, callbacks) {
       peer = m.id;
       lastSeen = performance.now();
       callbacks.start();
-      setTimeout(startLink, 0);
+      // Some browsers start a networking process the first time WebRTC is
+      // used. Let the relay deliver the first playable frame before doing so.
+      requestAnimationFrame(() => requestAnimationFrame(startLink));
+      setTimeout(startLink, 1500);
       return;
     }
     if (!peer || m.id !== peer || m.to !== id) return;
