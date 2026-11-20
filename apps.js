@@ -37,6 +37,11 @@ window.SLOPWARE = {
      "n": 6,
      "date": "2026-11-20T04:44:04-07:00",
      "note": "show the duel before starting the peer connection"
+    },
+    {
+     "n": 7,
+     "date": "2026-11-20T05:02:24-07:00",
+     "note": "Add contact-point grappling, shaped armor impacts and a replayable practice yard"
     }
    ]
   },
