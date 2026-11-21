@@ -3,11 +3,17 @@
 The private sales and downloads dashboard for vibecodedslopware.com. It is meant to live at
 **admin.vibecodedslopware.com**, for the owner (Tim) and one collaborator (Josh).
 
-**Status (2026-11-21):** implemented and tested locally on branch `claude/storefront-analytics-dashboard-6198ce`.
-The database migration **is applied** to forageAIv2, with the owner's approval (see "Live database" below).
-None of the following has been done yet: deploying it, adding the DNS record, exposing the schema,
-creating keys, adding members, pushing or merging. Each one is a separate step below that needs the
-owner's go-ahead.
+**Status (2026-11-21):** live on production at https://vibecodedslopware.com/admin/. It was merged to
+`main` and deployed with the owner's approval. Already in place: the migration, the Vercel env vars
+`STOREFRONT_SUPABASE_URL`, `STOREFRONT_SUPABASE_PUBLISHABLE_KEY`, `STOREFRONT_TRACK_SECRET` and
+`CRON_SECRET`, the daily cron, and the `admin.vibecodedslopware.com` domain on the project.
+Still waiting:
+- the Porkbun DNS record;
+- exposing the `storefront` schema;
+- the Auth redirect URL;
+- the dedicated secret key (until it exists, tracking and syncing do nothing);
+- store keys;
+- adding members.
 
 ## What it shows
 
@@ -149,7 +155,7 @@ Each item needs the owner's action or explicit approval. None of them has been d
 4. **Email template**: to sign in by code, the *Magic Link* template must include `{{ .Token }}`.
    Without it, only the link works. That still signs in, as long as the redirect URL is allowed.
    The template is shared with ForageAI, so check its wording before you edit it.
-5. **Vercel environment variables** (Production only). Set them with `npx vercel env add NAME
+5. **Vercel environment variables** (Production only; all set on 2026-11-21 except the secret key and the store keys). Set them with `npx vercel env add NAME
    production` and never commit them:
    - `STOREFRONT_SUPABASE_URL` = `https://dgpfngeqozrbwmjgnzuw.supabase.co`
    - `STOREFRONT_SUPABASE_PUBLISHABLE_KEY`: the publishable key (it is public)
