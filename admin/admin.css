@@ -1,0 +1,27 @@
+:root { color-scheme: light dark; --fg: #1d1d1f; --bg: #fafaf8; --muted: #6b6b6b; --line: #ddd; --warn: #8a5a00; --warnbg: #fff4dc; --na: #a0a0a0; }
+@media (prefers-color-scheme: dark) { :root { --fg: #eee; --bg: #161616; --muted: #9a9a9a; --line: #333; --warn: #ffcf70; --warnbg: #3a2c10; --na: #666; } }
+* { box-sizing: border-box; }
+body { font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; color: var(--fg); background: var(--bg); margin: 0 auto; padding: 16px 20px 60px; max-width: 1280px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+h1 { font-size: 20px; margin: 6px 0 12px; }
+h2 { font-size: 16px; margin: 28px 0 8px; }
+h3 { font-size: 15px; margin: 22px 0 6px; }
+.muted { color: var(--muted); }
+.banner { background: var(--warnbg); color: var(--warn); padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; font-weight: 600; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+label { display: inline-flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
+input, select, button { font: inherit; padding: 5px 8px; border: 1px solid var(--line); border-radius: 5px; background: transparent; color: var(--fg); }
+button { cursor: pointer; }
+.grid { border-collapse: collapse; width: 100%; margin: 6px 0 14px; }
+.grid th, .grid td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+.grid th { font-size: 12px; color: var(--muted); font-weight: 600; }
+.grid td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.game h3 { margin-bottom: 2px; }
+.ids { font-size: 11px; color: var(--muted); word-break: break-all; }
+.state-unavailable { color: var(--na); }
+.state-pending { color: var(--muted); font-style: italic; }
+.tag { display: block; font-size: 10px; color: var(--muted); }
+.tag.partial { color: var(--warn); }
+.legend { margin: 8px 0 12px; }
+pre { white-space: pre-wrap; background: rgba(127,127,127,.1); padding: 8px; border-radius: 5px; }
+.scroll { overflow-x: auto; }

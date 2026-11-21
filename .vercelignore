@@ -27,3 +27,7 @@ party-health-pie-addon/
 
 # Whelp WoW addon source and its test; the download page is whelp/
 whelp-addon/
+
+# Storefront analytics: database migrations and operator docs (the dashboard itself is admin/ + api/)
+supabase/
+docs/
