@@ -4,9 +4,10 @@ The private sales and downloads dashboard for vibecodedslopware.com. It is meant
 **admin.vibecodedslopware.com**, for the owner (Tim) and one collaborator (Josh).
 
 **Status (2026-11-21):** implemented and tested locally on branch `claude/storefront-analytics-dashboard-6198ce`.
-None of the following has been done yet: deploying it, adding the DNS record, applying the database
-migration, creating keys, adding members, pushing or merging. Each one is a separate step below
-that needs the owner's go-ahead.
+The database migration **is applied** to forageAIv2, with the owner's approval (see "Live database" below).
+None of the following has been done yet: deploying it, adding the DNS record, exposing the schema,
+creating keys, adding members, pushing or merging. Each one is a separate step below that needs the
+owner's go-ahead.
 
 ## What it shows
 
@@ -135,10 +136,11 @@ Access comes only from a row in `storefront.members`:
 
 Each item needs the owner's action or explicit approval. None of them has been done.
 
-1. **Apply the migration** to forageAIv2. Live migrations on this project are applied one at a time
-   (its history holds ForageAI's migrations, not this repo's), so **do not run `supabase db push`
-   from this repo**. Apply this one file instead: use the Supabase SQL editor, or the Supabase MCP
-   `apply_migration` with the name `storefront_analytics`. Afterwards, run the Security Advisor.
+1. ~~**Apply the migration**~~ **Done 2026-11-21.** Both files in `supabase/migrations/` were applied
+   one at a time, as `storefront_analytics` and `storefront_revoke_public_execute`. Live migrations
+   on this project are applied individually (its history holds ForageAI's migrations, not this
+   repo's), so **never run `supabase db push` from this repo**. Apply any future storefront
+   migration the same way.
 2. **Expose the schema**: Dashboard → Project Settings → Data API → Exposed schemas → add
    `storefront`. Until this is done the dashboard refuses every request. Exposing the schema is
    safe because RLS and grants gate it.
@@ -177,6 +179,24 @@ Each item needs the owner's action or explicit approval. None of them has been d
 9. **Turn tracking on**: deploy, then set `"firstPartyTrackingSince": "YYYY-MM-DD"` in the catalog
    to the deploy date. Until it is set, every first-party cell says "not live yet" and shows no
    number.
+
+## Live database (forageAIv2, applied 2026-11-21)
+
+These checks ran right after applying:
+
+- Every `storefront` function body on live matches the tested PGlite copy (md5 of all 12).
+- RLS is on for all 10 tables and there are 18 policies.
+- `anon` has no table grants, no schema usage and no function execute. The follow-up migration
+  removed default `PUBLIC` execute on `import_metrics` and `report`; before that, `anon` could not
+  reach them anyway, because it had no schema usage.
+- `storefront.members` is empty.
+- In a rolled-back transaction, a made-up signed-in non-member got `member_role() = null` and 0 rows
+  from members, metrics and the report.
+- The Security Advisor showed no `storefront` findings; everything it listed predates this work, in
+  `public`. Once `storefront` is exposed (prerequisite 2), expect the lint "Signed-In Users Can
+  Execute SECURITY DEFINER Function" for `member_role`, `is_member` and `is_owner`. That is
+  intentional: they only ever report the caller's own role. They need definer rights to read
+  `auth.users` and `members`.
 
 ## Onboarding (do this later, by hand)
 
@@ -230,7 +250,7 @@ because days that were not imported are unknown, not zero.
 
 ```bash
 npm install
-npm run test:storefront                 # 36 tests, PGlite, no network
+npm run test:storefront                 # 37 tests, PGlite, no network
 STOREFRONT_DEV=pglite npm run dev       # http://localhost:3131/admin/ with fixture data
 ```
 
@@ -244,8 +264,8 @@ STOREFRONT_DEV=pglite npm run dev       # http://localhost:3131/admin/ with fixt
 
 ### Test results (2026-11-21, Node 25.8.1, Windows)
 
-`node --test tools/storefront.test.mjs`: **36 passed, 0 failed.** The existing Mostly Sword suites
-still pass (46 passed in total). The tests cover:
+`node --test tools/storefront.test.mjs`: **37 passed, 0 failed.** The existing Mostly Sword suites
+still pass (47 passed in total). The tests cover:
 
 - **Access control.** `anon` can read and call nothing. A signed-in non-member gets 0 rows from
   every table and the report. Non-members can't write the catalog, imports or metrics. Members

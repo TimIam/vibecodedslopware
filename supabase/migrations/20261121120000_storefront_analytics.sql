@@ -12,7 +12,7 @@
 --     functions at the bottom, which are granted to service_role only.
 -- anon gets nothing.
 --
--- Checked in only. Not applied to any live database by the session that wrote it.
+-- forageAIv2 applies migrations one at a time: apply this file on its own (never `supabase db push`).
 
 create schema if not exists storefront;
 revoke all on schema storefront from public;

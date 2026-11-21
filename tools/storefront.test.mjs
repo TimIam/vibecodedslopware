@@ -65,6 +65,14 @@ describe("access control (RLS + grants)", () => {
     await assert.rejects(db.anon().rpc("report", { p_from: "2026-01-01", p_to: "2026-12-31" }), /permission denied/);
   });
 
+  test("anon has no schema usage and no execute on any storefront function", async () => {
+    const r = (await db.pg.query(`select has_schema_privilege('anon', 'storefront', 'USAGE') as usage,
+      (select json_agg(p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'storefront' and has_function_privilege('anon', p.oid, 'EXECUTE')) as fns`)).rows[0];
+    assert.equal(r.usage, false);
+    assert.equal(r.fns, null);
+  });
+
   test("a signed-in non-member sees zero rows everywhere and has no role", async () => {
     const u = db.user(OUTSIDER);
     assert.equal(await u.rpc("member_role"), null);
