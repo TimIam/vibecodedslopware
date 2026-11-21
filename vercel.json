@@ -36,6 +36,12 @@
       "destination": "/:slug/:path*"
     }
   ],
+  "crons": [
+    {
+      "path": "/api/storefront-sync",
+      "schedule": "0 9 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/admin/(.*)",

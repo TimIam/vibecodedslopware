@@ -2,7 +2,7 @@
 //
 // Upserts the catalog, folds old first-party visitor hashes into daily counts, then runs every
 // store adapter whose credentials are configured. Steam runs only with STEAM_FINANCIAL_SYNC_ENABLED=1.
-// Not scheduled yet: add the cron entry in docs/storefront-analytics.md when this is deployed.
+// Scheduled daily at 09:00 UTC by the crons entry that tools/versions.mjs writes into vercel.json.
 import crypto from "node:crypto";
 import { serviceDb, storefrontEnv } from "../lib/storefront/db.js";
 import { json } from "../lib/storefront/http.js";

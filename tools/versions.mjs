@@ -193,6 +193,8 @@ fs.writeFileSync(path.join(root, "vercel.json"), JSON.stringify({
     { source: "/v/:slug/:n/", destination: "/:slug/" },
     { source: "/v/:slug/:n/:path*", destination: "/:slug/:path*" },
   ],
+  // Storefront analytics refresh (api/storefront-sync.js); Vercel sends Bearer $CRON_SECRET
+  crons: [{ path: "/api/storefront-sync", schedule: "0 9 * * *" }],
   headers: [
     { source: "/admin/(.*)", headers: ADMIN_HEADERS },
     { source: "/(.*)", has: [{ type: "host", value: ADMIN_HOST }], headers: ADMIN_HEADERS },
