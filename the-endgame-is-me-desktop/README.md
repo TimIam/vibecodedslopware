@@ -11,6 +11,27 @@ gate, links opening in the player's browser, one instance at a time. Saves are t
 kept in the app's user data folder (`%APPDATA%\The Endgame is Me`, `~/Library/Application Support/The Endgame is Me`,
 `~/.config/The Endgame is Me`).
 
+## Controls (v17)
+
+The game itself (`../the-endgame-is-me/js/controls.js` and `js/nav.js`) handles keyboard and controller, so the
+desktop build needs nothing extra. The title menu has a **Controls** panel (next to **Phenotype**, the old Settings)
+with a Keyboard / Controller toggle and remappable slots, saved in localStorage under `bosshours.controls`.
+
+| Action | Keyboard | Controller |
+| --- | --- | --- |
+| Walk | WASD / arrows | Left stick or d-pad: orthogonal movement |
+| Turn and walk | | Right stick: tank turn, forward/back |
+| Slot 1 (swipe) | J | L3 |
+| Slot 2 (stomp) | K | R3 |
+| Slots 3, 4, 5 | Q, E, R | RB, LB, RT |
+| Roar | Space | A |
+| Pause | Esc | Start |
+| Fullscreen | F11 / Alt+Enter | Select |
+
+Moving with several inputs at once never adds up: the walk vector is clamped to length 1. Every menu works by arrow keys
+or controller with a square cursor; select with A, or Space, Enter or Tab. On a Steam Deck the game reads the built-in
+controls as a standard gamepad (use Steam's "Gamepad" layout, not a keyboard one), and the page has Deck-sized CSS.
+
 ## Building
 
     npm ci
@@ -33,20 +54,32 @@ One-off, in Steamworks (partner.steamgames.com), after paying the Steam Direct f
    - Linux: executable `TheEndgameIsMe`
 3. Publish the app config.
 
-Each release: let CI build, then from WSL (not Git Bash: the Mac app's symlinks would be lost)
+Each release: let CI build, then either upload from WSL (not Git Bash: the Mac app's symlinks would be lost)
 
     gh run list -w "Endgame desktop builds" -R TimIam/vibecodedslopware
     bash steam/upload.sh <run-id> <your-steamworks-login>
 
-steamcmd asks for the password and Steam Guard code itself. The build then shows in Steamworks > SteamPipe > Builds,
-where you set it live (or put a branch such as `beta` in config.json to set that branch live on upload).
+where steamcmd asks for the password and Steam Guard code itself, or (as done so far) upload the run's three zips in
+Steamworks > SteamPipe > Web Uploads, one per depot. Either way the build then shows in SteamPipe > Builds, where you
+set it live on the default branch (Steam asks for approval in the mobile app).
+
+## Other stores
+
+- itch.io (`vibecodedslopware/the-endgame-is-me`): `butler push` the CI zips to the `windows`, `mac` and `linux`
+  channels and a zip of `app/game/` to `html5`, with `--userversion <game version>`.
+- Epic Games Store: upload the Windows zip's contents with BuildPatchTool to the product's artifact, then make the new
+  binary active for Windows in the Developer Portal. macOS waits on notarization.
+
+Released: v17 (Phenotype menu, remappable keyboard and controller controls, controller menus) on 2026-11-22 to Steam
+(build 26855100), itch.io and Epic (17-win-1).
 
 ## Known gaps
 
-- Windows: signed in CI by Azure Trusted Signing once the repository variable SIGNING_PROFILE is set (see the
-  workflow); until then the .exe is unsigned. Smart App Control refuses unsigned programs outright (it blocks this
-  build on Tim's PC), and SmartScreen may warn. Signing it (Azure Trusted Signing, or an OV certificate) fixes both.
+- Windows: signed in CI by Azure Artifact (Trusted) Signing over GitHub OIDC (see the workflow). The Azure federated
+  credentials must match GitHub's subject format,
+  `repo:TimIam@92952477/vibecodedslopware@1387589836:ref:refs/heads/<branch>`, or the sign-in step fails.
 - macOS: ad-hoc signed only. Fine when Steam installs it; a Developer ID signature and notarization would let it run
   anywhere and are needed if it is ever sold outside Steam.
 - No Steamworks SDK yet: no achievements, no Steam Cloud saves, and the Steam overlay does not draw over Electron.
-- Keyboard and mouse only. On a Steam Deck it needs a Steam Input layout (or controller support in the game).
+- Controller support is tested with simulated gamepads only, not yet on a real controller or Steam Deck.
+- The app's own version (`package.json`) is still 1.0.0; the game version is the site's stamp (17).
