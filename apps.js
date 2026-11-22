@@ -1910,6 +1910,13 @@ window.SLOPWARE = {
      "note": "fell the keep tower like a tree, crushing pays in full, debug Hoard",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 17,
+     "date": "2026-11-22T14:15:30-07:00",
+     "note": "Phenotype menu, remappable keyboard and controller controls, menus by arrows and gamepad",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
