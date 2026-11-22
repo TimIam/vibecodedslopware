@@ -35,7 +35,7 @@ function beacon(course, hole, x, z, y, scale = 1) {
   port.position.set(-.40, 1.22, 0);
   tower.add(port);
   tower.position.set(x, y, z);
-  tower.scale.setScalar(scale); hole.group.add(tower);
+  tower.scale.setScalar(scale); tower.userData.label = 'beacon'; hole.group.add(tower);      // userData.label: what the level editor calls it
   course.solidify(tower, { hole: hole.i, surf: 'stone' });
 }
 

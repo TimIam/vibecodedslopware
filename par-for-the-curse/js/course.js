@@ -210,7 +210,7 @@ const stripeTex = canvasTex(64, 16, (g, w, h) => { for (let i = 0; i < 4; i++) {
 
 /* ---------------- course ---------------- */
 export class Course {
-  constructor(scene, world) {
+  constructor(scene, world, level = null) {
     this.scene = scene; this.world = world;
     this.root = new THREE.Group(); scene.add(this.root);
     this.camBlockers = [this.root];   // what the camera may not pass through
@@ -219,6 +219,9 @@ export class Course {
     this.fx = { sound: () => {}, event: () => {} };
     this.things = [];      // rocks, plants and trees that can be hit: see wreck.js
     this.t = 0;
+    // Level overlay (js/levels.js): records the builder calls in build() and applies the saved edits to them.
+    // With no edits (and no editor) it is null and the course builds exactly as written here.
+    this.rec = level?.attach?.(this, { woodMat, roughMat, stoneMat }) || null;
     this.build();
     world.onContact = (c, vn, p) => this.contact(c, vn, p);
   }
@@ -418,19 +421,21 @@ export class Course {
     const H = [];
     for (let i = 1; i <= NHOLES; i++) H.push({ i, frame: frames[i], group: this.frameGroup(frames[i]) });
     this.H = H;
-    this.buildPads();
+    const R = this.rec;     // level overlay hooks (js/levels.js): which pad, hole or road each builder call belongs to
+    R?.begin('pads'); this.buildPads(); R?.end();
     const builders = [this.hole1, this.hole2, this.hole3, this.hole4, this.hole5, this.hole6, this.hole7, this.hole8, this.hole9];
     if (backNine) {
-      H.forEach(h => buildBackHole(this, h, woodMat));
+      H.forEach(h => { R?.begin('hole', h); buildBackHole(this, h, woodMat); R?.end(); });
       this.hits.set('goose', (c, vn, p) => { c.goose.userData.honk = .5; this.fx.sound('honk', 1, p); });
       this.hits.set('bumper', (c, vn, p) => { c.mesh.userData.flash = 1; this.fx.sound('bumper', 1, p); });
-    } else builders.forEach((b, k) => b.call(this, H[k]));
+    } else builders.forEach((b, k) => { R?.begin('hole', H[k]); b.call(this, H[k]); R?.end(); });
     // Where the auto-aim points from each part of a hole (hole-local x, z): along the line you would
     // actually play, not straight at a flag round the corner.
     const aims = { 1: [[60, 0]], 2: [[34, 0], [50, 0], [64, 0]], 3: [[63, 0]], 4: [[40, 0], [62, 0]], 5: [[40, 0], [53, 0], [66, 0]],
       6: [[29, 0], [41, 0], [52, 0], [66, 0]], 7: [[32, 4.2], [67, 0]], 8: [[30, 0], [41, 0], [53.5, 0], [66, 0]], 9: [[37, 0], [60, 0]] };
     if (!backNine) for (const [i, pts] of Object.entries(aims)) this.holes[i].aims = pts;
     this.ringRoad();
+    R?.applyAdds(); R?.finish();      // the overlay's new pieces: after the road (puzzles exist), before the grass
     this.decorate();
     this.grow();
   }
@@ -1056,8 +1061,10 @@ export class Course {
       };
       const lin = (pts, x) => { for (let i = 1; i < pts.length; i++) if (x <= pts[i][0]) { const a = pts[i - 1], b = pts[i], t = (x - a[0]) / (b[0] - a[0]); return a[1] + (b[1] - a[1]) * t; } return pts[pts.length - 1][1]; };
       const layout = { off, w, P, corner, end, road, lin };
+      this.rec?.begin('road', H);      // level overlay (js/levels.js): this road and bay belong to hole n
       if (backNine) buildBackRoad(this, H, layout); else this['ring' + n](H, layout);
       this.parkingBay(H, n, 73, 83, -off - w / 2 - 0.5, RISE);
+      this.rec?.end();
       this.cartRoute[n] = route;
     }
   }

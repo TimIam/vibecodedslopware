@@ -15,6 +15,7 @@ import { Post } from './post.js';
 import * as A from './audio.js';
 import { joinRoom, newCode, cleanCode, cleanPin, MAX_PLAYERS } from './net.js';
 import { Voice, voiceGain } from './voice.js';
+import { loadLevel } from './levels.js';
 
 const $ = id => document.getElementById(id);
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -30,6 +31,8 @@ const canvas = $('game');
 // The loading watchdog lives in index.html; these are no-ops if it is missing.
 const LD = window.__load || { set() {}, ok() {}, fail() {} };
 const DEBUG = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+// The level editor (js/editor.js): only on localhost, with ?edit in the address.
+const EDIT = DEBUG && new URLSearchParams(location.search).has('edit');
 // Let the loading message paint before a heavy synchronous stage (a hidden tab gets no frames, so skip).
 const paint = () => document.hidden ? Promise.resolve() : new Promise(r => { const t = setTimeout(r, 80); requestAnimationFrame(() => { clearTimeout(t); setTimeout(r, 0); }); });
 const renderer = (() => {
@@ -83,6 +86,7 @@ function loadLook() {
 }
 function saveLook() { try { localStorage.setItem('pftc-look', JSON.stringify(look)); } catch (e) {} }
 function save() {
+  if (EDIT) return;      // the level editor: test drives must not overwrite the real climb
   try { localStorage.setItem(saveKey, JSON.stringify({ hole: S.hole, strokes: S.strokes, holeStrokes: S.holeStrokes, falls: S.falls, lost: Math.round(S.lost), best: S.best, finished: S.finished, ft: S.finMs, crown: S.crown, park: S.awaitPark | 0, bays: S.bays | 0, ball: ball.p.toArray().map(v => +v.toFixed(3)), aim: S.aim, startedAt: S.startedAt, g: S.golferG.toArray().map(v => +v.toFixed(2)), cart: [...carts[0].pos.toArray().map(v => +v.toFixed(2)), +carts[0].yaw.toFixed(3)] })); } catch (e) {}
 }
 function loadSave() { try { return JSON.parse(localStorage.getItem(saveKey) || 'null'); } catch (e) { return null; } }
@@ -781,10 +785,13 @@ function useCartBay(slot) {
 async function boot() {
   resize();
   LD.set('Loading the models');
+  // Saved edits to the holes (levels/front.json or back.json, made with the level editor). Missing: none.
+  const levelP = loadLevel(backNine ? 'back' : 'front', { edit: EDIT });
   await loadAssets('assets', p => { $('loadbar').style.width = Math.round(p * 100) + '%'; });
   LD.set('Building the mountain'); await paint();
   world = new World();
-  course = new Course(scene, world);
+  const level = await levelP;
+  course = new Course(scene, world, level);
   sky = new Sky(scene);
   fx = new Particles(scene); fx.setScale(innerHeight - 52);
   confetti = new Confetti(scene);
@@ -819,7 +826,7 @@ async function boot() {
   scene.add(aimDots);
   // Start position: saved progress, or the first tee.
   // A save that cannot be restored must never brick the game: keep a copy and start from the tee.
-  const sv = loadSave();
+  const sv = EDIT ? null : loadSave();      // the editor never restores a run into edited geometry
   const num = a => Array.isArray(a) && a.length >= 3 && a.every(Number.isFinite);
   let restored = false;
   if (sv && num(sv.ball)) {
@@ -848,6 +855,7 @@ async function boot() {
   LD.ok();
   $('loading').hidden = true; $('title').hidden = false;
   requestAnimationFrame(frame);
+  if (EDIT) import('./editor.js').then(m => m.startEditor(editorApi(level))).catch(e => console.error('the level editor did not start:', e));
 }
 function proximity(p) { if (!p) return 1; const d = camera.position.distanceTo(p); return clamp(1.4 - d / 40, 0.05, 1); }
 
@@ -930,7 +938,7 @@ function setupRoom() {
   $('otherNine').textContent = backNine ? 'Play the front nine' : 'Play the back nine';
   $('otherNine').onclick = () => location.assign(courseUrl(!backNine, S.room));
   const codeEl = $('roomCode'), pinEl = $('roomPin');
-  S.room = cleanCode(new URLSearchParams(location.search).get('room')) || 'mountain'; S.pin = '';
+  S.room = cleanCode(new URLSearchParams(location.search).get('room')) || (EDIT ? 'edit' : 'mountain'); S.pin = '';      // editor test drives stay private
   try { S.pin = S.room === 'mountain' ? '' : cleanPin(sessionStorage.getItem(pinKey())); } catch (e) {}
   codeEl.value = S.room === 'mountain' ? '' : roomCode(); pinEl.value = S.pin;
   const typed = () => {
@@ -1809,7 +1817,11 @@ function cannon(sn) {
   ballMesh.visible = false; trail.clear();
   A.play('fuse', 1); quip('cannon');
   const H = course.holes[7], piv = sn.pivot;
-  const tl = sn.frame.local(H.cup, V());
+  // The cup in the frame the barrel's pivot hangs in: the hole's, unless the level editor (js/levels.js)
+  // moved or turned the cannon, which hangs it in a group of its own.
+  const G = piv.parent, inHole = G === course.H[sn.hole - 1].group;
+  if (!inHole) G.updateWorldMatrix(true, false);
+  const tl = inHole ? sn.frame.local(H.cup, V()) : G.worldToLocal(H.cup.clone());
   const yaw0 = Math.atan2(tl.x - piv.position.x, tl.z - piv.position.z);
   // Where the shot into the cannon came from: if the cannon then blows the ball out of bounds, that is where
   // it goes back to, so you have to land it in the red circle again.
@@ -2931,6 +2943,14 @@ function renderBoard() {
   $('boardRows').innerHTML = html; $('finRows').innerHTML = html;
   $('playerCount').textContent = (rows.length === 1 ? 'just you (so far)' : `${rows.length} golfers on the mountain`)
     + (S.room === 'mountain' ? ' · public mountain' : ' · room ' + roomCode() + (S.pin ? ' · PIN ' + S.pin : ''));
+}
+
+/* ---------------- level editor (localhost with ?edit only) ---------------- */
+// What js/editor.js needs from the game.
+function editorApi(level) {
+  return { S, ball, camera, scene, canvas, renderer, post, keys, level, backNine, setMode, start, toTitle, updateHud, letGo: letGoOfEverything,
+    get course() { return course; }, get world() { return world; }, get wreck() { return wreck; }, get me() { return me; },
+    teleport: h => { placeOnTee(h); settleGolfer(true); setMode('address'); updateHud(); } };
 }
 
 /* ---------------- debug hooks for headless testing (localhost only) ---------------- */
