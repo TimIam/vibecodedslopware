@@ -149,7 +149,7 @@ function setVersion(id, from, to) {
     for (const f of [tocOf(b.folder), path.join(rel(b.folder), 'README.txt')]) {
       if (!fs.existsSync(f)) continue;
       const t = fs.readFileSync(f, 'utf8');
-      fs.writeFileSync(f, t.replace(new RegExp(`(## Version: |Party Health Pie |v)${esc(from)}\\b`, 'g'), `$1${to}`));
+      fs.writeFileSync(f, t.replace(new RegExp(`(## Version: |Party Health Pie |Heal Pie |v)${esc(from)}\\b`, 'g'), `$1${to}`));
     }
   }
 }

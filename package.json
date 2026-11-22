@@ -7,12 +7,15 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "node tools/dev.mjs"
+    "dev": "node tools/dev.mjs",
+    "test:storefront": "node --test tools/storefront.test.mjs",
+    "test:levels": "node --test tools/levels-publish.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.134.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.3.16",
     "playwright-core": "^1.64.1"
   }
 }

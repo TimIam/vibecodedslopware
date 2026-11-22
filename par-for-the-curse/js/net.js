@@ -15,9 +15,12 @@
 // Without the right PIN you can see that the room is locked and nothing else: you never reach the
 // channel the game is on. That keeps strangers and wrong guesses out. It is not bank-grade: someone
 // who has the code and is willing to try all 10,000 PINs one connection at a time would get in.
+import { backNine } from './nine.js';
+
 const SUPABASE_URL = 'https://dgpfngeqozrbwmjgnzuw.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_IEQdSVT6rLr4hyEmQYuHmQ_lTPZruXC';
 const MOUNTAIN = 'mountain';
+const channelCourse = backNine ? 'back:' : '';
 // Supabase only tells a newcomer who is already there if presence is switched on by name when joining.
 const PRESENCE = key => ({ key, enabled: true });
 const IDENTITY = ['nm', 'lk', 'sl', 'jt', 'md']; // what rides on presence (sl: which cart bay at the first tee, jt: when you joined, md: the mode you would play, 'vs' or 'co'); everything else is the score
@@ -45,9 +48,9 @@ const getClient = () => clientP || (clientP = loadLib()
   .catch(e => { clientP = null; throw e; }));
 
 async function channelName(room, pin) {
-  if (!pin) return 'pftc:' + room;
+  if (!pin) return 'pftc:' + channelCourse + room;
   const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`pftc|${room}|${pin}`));
-  return 'pftc:' + room + ':' + [...new Uint8Array(d)].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
+  return 'pftc:' + channelCourse + room + ':' + [...new Uint8Array(d)].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const roomError = code => Object.assign(new Error(code), { code });
@@ -80,7 +83,7 @@ export async function joinRoom(room, pin, presence, PUBLIC = MOUNTAIN) {
   // The lobby: is anyone here, and is the room locked?
   let lobby = null, lockedThere = false;
   if (room !== PUBLIC) {
-    lobby = client.channel('pftc-lobby:' + room, { config: { presence: PRESENCE(me) } });
+    lobby = client.channel('pftc-lobby:' + channelCourse + room, { config: { presence: PRESENCE(me) } });
     let first = null; const firstSync = new Promise(r => { first = r; });
     lobby.on('presence', { event: 'sync' }, () => first());
     await new Promise((res, rej) => {

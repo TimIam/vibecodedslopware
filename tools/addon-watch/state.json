@@ -379,10 +379,17 @@
    ]
   },
   "pie": {
-   "version": "1.1.2",
-   "at": "2026-11-13T14:02:11.068Z",
+   "version": "1.2.1",
+   "at": "2026-11-19T19:14:37.245Z",
    "for": [
-    "released by hand: debuff countdown rounding, minutes, /php debuffs"
+    "released by hand: renamed to Heal Pie in the game"
+   ]
+  },
+  "whelp": {
+   "version": "1.0.0",
+   "at": "2026-11-18T13:19:11.648Z",
+   "for": [
+    "first release"
    ]
   }
  },

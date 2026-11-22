@@ -1,4 +1,4 @@
--- The addon menu, under Options > AddOns > Party Health Pie (or /php).
+-- The addon menu, under Options > AddOns > Heal Pie (or /php).
 local _, ns = ...
 
 local RED, GOLD = "|cffff6060", "|cffffd100"
@@ -146,7 +146,7 @@ local function MetalChooser(parent, y)
 	local x = 16
 	for _, metal in ipairs(ns.METALS) do
 		local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-		button:SetSize(92, 24)
+		button:SetSize(80, 24)
 		button:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
 		button:SetText(metal.name)
 		button:SetScript("OnClick", function()
@@ -155,7 +155,7 @@ local function MetalChooser(parent, y)
 			ns.RefreshOptions()
 		end)
 		buttons[metal.key] = button
-		x = x + 98
+		x = x + 86
 	end
 	AddRefresher(function()
 		for key, button in pairs(buttons) do
@@ -166,19 +166,19 @@ end
 
 local function Build(content)
 	local y = -12
-	Label(content, "Party Health Pie", 16, y, "GameFontNormalHuge")
+	Label(content, "Heal Pie", 16, y, "GameFontNormalHuge")
 	y = y - 30
-	Label(content, "Drag the circle to move it. |cffffffff/php demo|r previews a sample party.", 16, y)
+	Label(content, "Drag the circle to move it. |cffffffff/php demo|r previews a party, |cffffffff/php demo raid|r a raid.", 16, y)
 	y = y - 26
 
 	local preview = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
 	preview:SetSize(150, 24)
 	preview:SetPoint("TOPLEFT", content, "TOPLEFT", 16, y)
 	preview:SetScript("OnClick", function()
-		ns.SetDemo(not ns.demo)
+		ns.SetDemo(not (ns.demo and not ns.demoRaid), false)
 		ns.RefreshOptions()
 	end)
-	AddRefresher(function() preview:SetText(ns.IsDemo() and "Stop Preview" or "Preview Party") end)
+	AddRefresher(function() preview:SetText((ns.IsDemo() and not ns.demoRaid) and "Stop Preview" or "Preview Party") end)
 
 	local reset = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
 	reset:SetSize(150, 24)
@@ -190,10 +190,19 @@ local function Build(content)
 		ns.RefreshOptions()
 	end)
 	y = y - 42
+	local raidPreview = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+	raidPreview:SetSize(150, 24)
+	raidPreview:SetPoint("TOPLEFT", content, "TOPLEFT", 16, y + 12)
+	raidPreview:SetScript("OnClick", function()
+		ns.SetDemo(not (ns.demo and ns.demoRaid), true)
+		ns.RefreshOptions()
+	end)
+	AddRefresher(function() raidPreview:SetText((ns.IsDemo() and ns.demoRaid) and "Stop Preview" or "Preview Raid") end)
+	y = y - 30
 
 	Heading(content, "Size and Transparency", y)
 	y = y - 28
-	Slider(content, 16, y, "Size", ns.SIZE_MIN, ns.SIZE_MAX, 2, Pixels,
+	Slider(content, 16, y, "Size (party and group pies)", ns.SIZE_MIN, ns.SIZE_MAX, 2, Pixels,
 		function() return ns.db.size end, function(v) ns.db.size = v end)
 	y = y - 50
 	Slider(content, 16, y, "Border opacity", 0, 1, 0.05, Percent,
@@ -201,6 +210,33 @@ local function Build(content)
 	y = y - 50
 	Slider(content, 16, y, "Player color opacity", 0, 1, 0.05, Percent,
 		function() return ns.db.playerAlpha end, function(v) ns.db.playerAlpha = v end)
+	y = y - 56
+
+	Heading(content, "Raids", y)
+	y = y - 28
+	Check(content, 16, y, "A pie for each raid group",
+		function() return ns.db.raidLayout ~= "single" end,
+		function(v) ns.db.raidLayout = v and "groups" or "single"; ns.RefreshOptions() end)
+	y = y - 28
+	Check(content, 16, y, "One big pie with a wedge for everyone in the raid",
+		function() return ns.db.raidLayout == "single" end,
+		function(v) ns.db.raidLayout = v and "single" or "groups"; ns.RefreshOptions() end)
+	y = y - 30
+	Check(content, 16, y, "Put your own group first",
+		function() return ns.db.ownGroupFirst end, function(v) ns.db.ownGroupFirst = v end)
+	y = y - 32
+	Label(content, "Show groups", 16, y - 4)
+	for g = 1, 8 do
+		Check(content, 100 + (g - 1) * 52, y, tostring(g),
+			function() return not ns.db.hiddenGroups[g] end,
+			function(v) ns.db.hiddenGroups[g] = (not v) or nil end)
+	end
+	y = y - 34
+	Slider(content, 16, y, "Group pies per row", 1, 8, 1, function(v) return tostring(math.floor(v + 0.5)) end,
+		function() return ns.db.groupColumns end, function(v) ns.db.groupColumns = math.floor(v + 0.5) end)
+	y = y - 50
+	Slider(content, 16, y, "Big raid pie size", ns.RAID_SIZE_MIN, ns.RAID_SIZE_MAX, 2, Pixels,
+		function() return ns.db.raidSize end, function(v) ns.db.raidSize = v end)
 	y = y - 56
 
 	Heading(content, "Border Metal", y)
@@ -228,6 +264,9 @@ local function Build(content)
 			ns.db.mouseover = v
 			if v then ns.ApplyGameMouseover() end
 		end)
+	y = y - 30
+	Check(content, 16, y, "Drag it in combat too (it moves when you let go; changes wait for combat to end)",
+		function() return ns.db.moveInCombat end, function(v) ns.db.moveInCombat = v end)
 	y = y - 40
 
 	Heading(content, "Low Health", y)
@@ -298,18 +337,22 @@ end
 
 function ns.CreateOptions()
 	local panel = CreateFrame("Frame")
-	panel.name = "Party Health Pie"
+	panel.name = "Heal Pie"
 
-	local scroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-	scroll:SetPoint("TOPLEFT", 4, -4)
-	scroll:SetPoint("BOTTOMRIGHT", -28, 4)
-	local content = CreateFrame("Frame", nil, scroll)
-	content:SetSize(600, 1)
-	scroll:SetScrollChild(content)
-
-	local height = Build(content)
-	content:SetHeight(height)
-	ns.RefreshOptions()
+	-- About a hundred widgets most players never look at, so they are built the first time the panel opens.
+	local function BuildOnce()
+		panel:SetScript("OnShow", function() ns.RefreshOptions() end)
+		local scroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
+		scroll:SetPoint("TOPLEFT", 4, -4)
+		scroll:SetPoint("BOTTOMRIGHT", -28, 4)
+		local content = CreateFrame("Frame", nil, scroll)
+		content:SetSize(600, 1)
+		scroll:SetScrollChild(content)
+		content:SetHeight(Build(content))
+		ns.RefreshOptions()
+	end
+	panel:SetScript("OnShow", BuildOnce)
+	ns.BuildOptions = BuildOnce
 
 	category = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
 	Settings.RegisterAddOnCategory(category)
@@ -317,7 +360,7 @@ end
 
 function ns.OpenOptions()
 	if not category then
-		print(RED .. "Party Health Pie:|r the options are not ready yet.")
+		print(RED .. "Heal Pie:|r the options are not ready yet.")
 		return
 	end
 	Settings.OpenToCategory(category:GetID())

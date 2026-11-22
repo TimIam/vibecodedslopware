@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Mostly Sword · Vibe Coded Slopware</title>
+    <meta
+      name="description"
+      content="Steer every swing in a torchlit physics arena. Fight five bouts solo or invite a friend to a live duel."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'%3E%3Ctext y='66' font-size='65'%3E⚔️%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/site-nav.css" />
+    <link rel="stylesheet" href="./game.css" />
+  </head>
+  <body>
+    <nav class="site-topbar" aria-label="Site navigation">
+      <a class="site-home" href="/" aria-label="Vibe Coded Slopware home"
+        >← <span class="site-long">vibe coded </span>slopware</a
+      >
+      <div class="nav-actions">
+        <button id="sound" aria-pressed="false">Sound off</button><button id="helpBtn">Controls</button>
+      </div>
+      <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener"
+        >☕ Support<span class="site-long"> my streams</span></a
+      >
+    </nav>
+    <main id="stage" class="menu">
+      <canvas id="arena" tabindex="0" aria-label="3D sword arena"></canvas>
+      <div class="shade"></div>
+      <section id="intro">
+        <div class="brand-mark" aria-hidden="true">⚔</div>
+        <h1>Mostly<br /><em>Sword.</em></h1>
+        <p class="lead">A torchlit pit. Two suits of armor. Just enough dignity for one of you.</p>
+        <div class="choices" id="choices">
+          <button class="primary" id="solo" disabled>Enter the Abyss <small>Solo</small></button>
+          <button class="secondary" id="online" disabled>Online duel <small>2 players</small></button>
+        </div>
+        <div id="lobby" hidden>
+          <h2>Online duel</h2>
+          <div id="roomForm">
+            <button class="primary" id="host">Create a room</button>
+            <form id="joinForm">
+              <input
+                id="code"
+                aria-label="Six-character room code"
+                maxlength="6"
+                placeholder="Room code"
+                autocomplete="off"
+                autocapitalize="characters"
+                spellcheck="false"
+                required
+              /><button class="secondary">Join</button>
+            </form>
+          </div>
+          <div id="invite" hidden>
+            <label>Room code <b id="inviteCode"></b></label
+            ><button id="copy" class="secondary">Copy invite link</button>
+          </div>
+          <button class="text-btn" id="back">Back</button>
+        </div>
+        <p id="notice" role="status">Opening the armory…</p>
+      </section>
+      <section id="hud" hidden aria-label="Duel status">
+        <div class="meters">
+          <span id="myName">You</span
+          ><progress id="myHp" max="100" value="100" aria-label="Your health"></progress
+          ><progress id="balance" max="100" value="100" aria-label="Your balance"></progress>
+          <small id="condition"></small>
+        </div>
+        <span id="round"></span>
+        <div class="meters foe">
+          <span id="foeName">Challenger</span
+          ><progress id="foeHp" max="100" value="100" aria-label="Opponent health"></progress>
+        </div>
+      </section>
+      <div class="gear" id="gear" hidden><span id="weapon"></span><span id="equipHint"></span></div>
+      <p id="message" role="status" hidden></p>
+      <div id="touch" hidden>
+        <div id="stick" aria-label="Movement pad"><i></i></div>
+        <div class="touch-buttons">
+          <button data-press="guard">Guard</button><button data-press="short">Grip</button
+          ><button data-press="swapId">Swap</button><button data-press="leftId">Left hand</button
+          ><button data-press="rightId">Right hand</button><button data-press="thrust">Thrust</button
+          ><button data-press="cut">Swing</button> <button data-press="run">Run</button
+          ><button data-press="jump">Jump</button><button data-press="offhand" hidden>Left swing</button>
+        </div>
+      </div>
+      <section class="panel" id="result" hidden>
+        <h2 id="resultTitle"></h2>
+        <p id="resultText"></p>
+        <button id="again" class="primary">Fight again</button
+        ><button class="text-btn" id="leave">Leave arena</button>
+      </section>
+      <button id="exit" class="text-btn" hidden>Leave arena</button>
+      <dialog id="help">
+        <h2>Controls</h2>
+        <dl>
+          <dt>W A S D</dt>
+          <dd>Advance, strafe, or back away. You face your rival automatically.</dd>
+          <dt>Drag left mouse</dt>
+          <dd>Steer your weapon. Reverse the drag to swing back.</dd>
+          <dt>Right drag / K</dt>
+          <dd>
+            Right drag braces a single weapon or swings your left weapon when holding two. K braces either loadout. Angle the blade into contact to block.
+          </dd>
+          <dt>Space</dt>
+          <dd>Hold to gather, release to jump. Longer holds give a higher hop.</dd>
+          <dt>Shift</dt>
+          <dd>Hold to lower your stance and run. Forward steps cover more ground than backsteps.</dd>
+          <dt>Ctrl</dt>
+          <dd>Hold to crouch and walk low.</dd>
+          <dt>R / F</dt>
+          <dd>Hold R for a short grip. Tap F to thrust.</dd>
+          <dt>Q / E</dt>
+          <dd>Tap Q for the left hand or E for the right. A free hand grabs a nearby rival or picks up a weapon. Tap again to release. Crouch to favor a weapon on the ground.</dd>
+          <dt>X</dt>
+          <dd>Exchange the weapons in your hands.</dd>
+          <dt>J / arrow keys</dt>
+          <dd>Swing with J or steer the blade with the arrows.</dd>
+          <dt>Touch</dt>
+          <dd>Move with the left pad. Drag the arena to steer, or tap Swing.</dd>
+        </dl>
+        <div class="help-actions">
+          <button class="primary" id="closeHelp">Got it</button
+          ><a href="./source/Undercroft.blend" download>Blender scene</a>
+        </div>
+      </dialog>
+    </main>
+    <script src="/site-nav.js"></script>
+    <script type="module" src="./js/game.js"></script>
+  </body>
+</html>

@@ -1,4 +1,4 @@
-PARTY HEALTH PIE
+HEAL PIE
 A circular 5-man party health meter for World of Warcraft: Classic Forever.
 https://vibecodedslopware.com/party-health-pie/
 
@@ -20,13 +20,14 @@ INSTALL
      ...\_forever_\Interface\AddOns\PartyHealthPie\PartyHealthPie.toc
 
 4. Start the game. On the character select screen, click AddOns and make
-   sure Party Health Pie is ticked.
+   sure Heal Pie is ticked.
 
 
 FIRST USE
 
 /php        opens the settings (also under Options > AddOns)
 /php demo   previews a sample party; type it again to stop
+/php demo raid  previews a sample raid, laid out as your raid settings say
 /php debuffs  lists each member's debuffs and why one has no countdown
 
 Drag the circle to move it. Hover a wedge to see that player's tooltip, and
@@ -34,12 +35,21 @@ press a heal key to cast on them or their pet. Middle and side mouse buttons
 work too, if they're bound to an action bar slot, spell, item or macro.
 Left-click a wedge to target them.
 
+You can drag it in combat too. The game won't let it follow the cursor then, so
+faint discs show where it will go, and it moves when you let go. Turn this off
+under Mouseover Healing in the settings.
+
 Each wedge shows a tank, healer or DPS symbol for that player's role in the
 group. Someone with no role set gets no symbol.
 
 When a player has a debuff you can dispel, the symbol takes the debuff's color
 and glows, the glow fades as it runs out, and a countdown shows the seconds
 left. If several qualify, it shows the one ending soonest.
+
+In a raid you get a pie for each raid group, with your own group first, laid
+out in rows you can size. Or switch to one big pie with a wedge for everyone.
+Both are under Raids in the settings, where you can also hide groups. Changes
+to the layout wait until combat ends.
 
 On first login the addon turns on the game's Mouseover Cast option so hovering
 works. You can change that under Options > Combat, or turn off Mouseover

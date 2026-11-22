@@ -2,6 +2,49 @@
 window.SLOPWARE = {
  "visitsSince": "2026-10-07",
  "apps": {
+  "mostly-sword": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-19T12:44:14-07:00",
+     "note": "Blender-built Abyss and online duels"
+    },
+    {
+     "n": 2,
+     "date": "2026-11-20T02:18:13-07:00",
+     "note": "planted footwork, charged jumps and contact-based guards"
+    },
+    {
+     "n": 3,
+     "date": "2026-11-20T03:23:05-07:00",
+     "note": "add Rapier ragdolls, spring-driven recovery and shoulder-led swings"
+    },
+    {
+     "n": 4,
+     "date": "2026-11-20T04:26:16-07:00",
+     "note": "independent grip motors, grappling and armored limb contact"
+    },
+    {
+     "n": 5,
+     "date": "2026-11-20T04:40:04-07:00",
+     "note": "lower duel latency with direct peer transport and guest prediction"
+    },
+    {
+     "n": 6,
+     "date": "2026-11-20T04:44:04-07:00",
+     "note": "show the duel before starting the peer connection"
+    },
+    {
+     "n": 7,
+     "date": "2026-11-20T05:02:24-07:00",
+     "note": "Add contact-point grappling, shaped armor impacts and a replayable practice yard"
+    }
+   ]
+  },
   "bonsai": {
    "visits": 78,
    "prompts": 10,
@@ -125,6 +168,21 @@ window.SLOPWARE = {
      "n": 5,
      "date": "2026-11-13T07:02:34-07:00",
      "note": "1.1.2 downloads, countdown and /php debuffs notes"
+    },
+    {
+     "n": 6,
+     "date": "2026-11-17T16:34:50-07:00",
+     "note": "1.2.0 downloads, raid, combat drag and None border notes"
+    },
+    {
+     "n": 7,
+     "date": "2026-11-19T12:12:15-07:00",
+     "note": "list the addon under its CurseForge name on the site"
+    },
+    {
+     "n": 8,
+     "date": "2026-11-19T12:14:42-07:00",
+     "note": "1.2.1 downloads and rename note"
     }
    ]
   },
@@ -211,6 +269,19 @@ window.SLOPWARE = {
      "n": 12,
      "date": "2026-11-14T16:25:43-07:00",
      "note": "a minimap button, and no more flicker behind the score"
+    }
+   ]
+  },
+  "whelp": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-18T03:49:03-07:00",
+     "note": "five-star reviews for tanks, healers and DPS (WoW Classic Forever addon)"
     }
    ]
   },
@@ -498,6 +569,19 @@ window.SLOPWARE = {
      "n": 2,
      "date": "2026-10-31T22:21:38Z",
      "note": "lead tip, abilities, slugs, roots, goals, sound"
+    }
+   ]
+  },
+  "hot-cell": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-19T12:38:04-07:00",
+     "note": "relay capsules with two glovebox hands"
     }
    ]
   },
@@ -1466,6 +1550,69 @@ window.SLOPWARE = {
      "n": 35,
      "date": "2026-11-15T05:54:13-07:00",
      "note": "arms no longer whirl after a stance shot",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 36,
+     "date": "2026-11-17T13:18:29-07:00",
+     "note": "cannon fixes, looser cart tyres, grippy bigger islands, pace tweaks",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 37,
+     "date": "2026-11-17T13:52:28-07:00",
+     "note": "checkpoint beam fades as the camera nears, no screen wash driving through",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 38,
+     "date": "2026-11-18T04:00:36-07:00",
+     "note": "Give golf clubs, course surfaces and the cup distinct sounds",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 39,
+     "date": "2026-11-18T04:06:17-07:00",
+     "note": "Give the cart a motor, tires and horn and add a soundtrack selector",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 40,
+     "date": "2026-11-18T11:30:31-07:00",
+     "note": "Dress Mount Bogey rest stops with Blender-built clubhouse props",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 41,
+     "date": "2026-11-18T11:34:55-07:00",
+     "note": "Cross-cut the fairways and shape sandstone, sand and water to the terrain",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 42,
+     "date": "2026-11-18T11:42:49-07:00",
+     "note": "Add Lantern Links, a selectable back nine with harbor holes and cart puzzles",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 43,
+     "date": "2026-11-19T16:02:34-07:00",
+     "note": "slop blob on the blimp, vibecodedslopware.com banner in green",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 44,
+     "date": "2026-11-22T04:38:25-07:00",
+     "note": "dev-only level editor",
      "prompts": 0,
      "tokens": 0
     }

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Whelp · Vibe Coded Slopware</title>
+<meta name="description" content="Whelp: five-star reviews for your tanks, healers and DPS, inside World of Warcraft Classic Forever. Ratings on tooltips, Consumer Alerts, and a nudge to review your party after every dungeon. Free addon.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⭐</text></svg>">
+<style>
+:root{--bg:#f4f0e6;--fg:#1f1d1a;--dim:#6b665c;--card:#fffdf7;--line:#ddd5c4;--accent:#c72222;--accent-fg:#fff}
+@media (prefers-color-scheme:dark){:root{--bg:#15171a;--fg:#ece8df;--dim:#9a958a;--card:#1d2024;--line:#2e3238;--accent:#ff5a4a;--accent-fg:#15171a}}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}
+main{max-width:760px;margin:0 auto;padding:40px 16px 120px}
+h1{font-size:clamp(38px,8vw,64px);line-height:1.02;margin:28px 0 12px;letter-spacing:-1.5px}
+.lede{font-size:clamp(18px,2.6vw,21px);margin:0 0 8px;max-width:600px}
+.hint{color:var(--dim);font-style:italic;font-family:Georgia,serif;margin:0 0 32px}
+.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:28px}
+.btn{display:inline-flex;flex-direction:column;padding:13px 20px;border-radius:12px;text-decoration:none;border:1px solid var(--line);color:inherit;background:var(--card);transition:transform .15s,border-color .15s}
+.btn:hover{transform:translateY(-2px);border-color:var(--accent)}
+.btn b{font-size:16.5px}
+.btn small{color:var(--dim);font-size:12.5px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.primary small{color:inherit;opacity:.8}
+.note{color:var(--dim);font-size:13.5px;max-width:600px;margin:-14px 0 26px}
+figure{margin:0 0 8px}
+figure img{display:block;width:100%;max-width:760px;height:auto;border-radius:12px;border:1px solid var(--line)}
+figcaption{color:var(--dim);font-size:13px;margin-top:6px}
+h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:36px 0 12px;font-weight:600}
+ul,ol{margin:0;padding-left:22px}
+li{margin:7px 0}
+li b{font-weight:600}
+code{font:13.5px Consolas,monospace;border:1px solid var(--line);border-radius:5px;padding:1px 5px;background:var(--card);overflow-wrap:anywhere}
+.path{display:block;margin:6px 0;padding:8px 10px;width:fit-content;max-width:100%}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:15px}
+footer{margin-top:56px;color:var(--dim);font-size:13px}
+</style>
+<link rel="stylesheet" href="/site-nav.css">
+<script src="/track.js" defer></script>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<main>
+  <h1>Whelp</h1>
+  <p class="lede">Real reviews from real party members. Rate your tanks, healers and DPS out of five stars, right inside World of Warcraft: Classic Forever.</p>
+  <p class="hint">“Pulled the library, the cathedral and somehow a guard from Tirisfal.” ★☆☆☆☆</p>
+
+  <div class="cta">
+    <a class="btn primary" href="/whelp/Whelp-1.0.0.zip" download>
+      <b>Download for Classic Forever</b><small>v1.0.0 · 0.02 MB · free</small>
+    </a>
+  </div>
+  <p class="note">A first release. It’s been tested against a stand-in for the game, not yet in a real dungeon run, so the windows may still need some tidying.</p>
+
+  <figure>
+    <img src="/whelp/preview.png" width="1040" height="520" alt="A player tooltip showing a 1.7-star Whelp rating and a Consumer Alert; a toast asking how Scarlet Monastery was; chat alerts for a 4.8-star healer and a 1.7-star tank; and a review page for the tank Gorbash with one- and two-star reviews.">
+    <figcaption>A mockup of the addon’s windows, not an in-game screenshot.</figcaption>
+  </figure>
+
+  <h2>Install</h2>
+  <ol>
+    <li><b>Exit World of Warcraft.</b></li>
+    <li><b>Unzip the download.</b> You get a folder called <code>Whelp</code>.</li>
+    <li><b>Move that folder into your AddOns folder:</b>
+      <code class="path">C:\Program Files (x86)\World of Warcraft\_forever_\Interface\AddOns</code>
+      On a Mac, the folder starts with <code>/Applications/World of Warcraft/</code>. If you installed the game somewhere else, look there.
+    </li>
+    <li><b>Check the folder isn’t doubled.</b> This file should exist:
+      <code class="path">...\AddOns\Whelp\Whelp.toc</code>
+    </li>
+    <li><b>Start the game.</b> On the character select screen, click <b>AddOns</b> and make sure Whelp is ticked.</li>
+    <li><b>Try it.</b> Type <code>/whelp</code> in chat, or right-click a player and pick <b>See reviews</b>.</li>
+  </ol>
+
+  <h2>If it doesn’t show up</h2>
+  <ul>
+    <li><b>Not in the AddOns list?</b> Look for a doubled folder like <code>AddOns\Whelp\Whelp\</code>.</li>
+    <li><b>Marked out of date?</b> Tick <b>Load out of date AddOns</b> on the same screen.</li>
+    <li><b>Updating?</b> Exit the game, delete the old folder and install the new one. Your reviews are kept.</li>
+  </ul>
+
+  <h2>Writing reviews</h2>
+  <ul>
+    <li><b>After a dungeon</b>, Whelp asks how it went. Click <b>Write reviews</b> to rate the party.</li>
+    <li><b>Your current group and your last 15 parties</b> are listed, so you can review people after the group breaks up.</li>
+    <li><b>Pick a role</b> to review them as: Tank, Healer or DPS. Someone who tanked one night and healed the next can get a review for each.</li>
+    <li><b>Give one to five stars</b>, from “Not good” to “Great”.</li>
+    <li><b>Tick highlights</b>, four good and four bad for each role: “Steady pulls” or “Chain-pulled the whole wing”, “Dispels like a champ” or “Was DPSing instead”, “Interrupts!” or “Needed on everything”.</li>
+    <li><b>Write up to 140 characters.</b> Change your mind later and your new review replaces the old one.</li>
+  </ul>
+
+  <h2>Reading reviews</h2>
+  <ul>
+    <li><b>Tooltips</b> show a player’s stars, their rating per role and their most common highlight.</li>
+    <li><b>Their page</b> lists every review, newest first, with stars, highlights and where it happened.</li>
+    <li><b>A chat line</b> tells you when someone with reviews joins your group.</li>
+    <li><b>Consumer Alert:</b> three or more reviews averaging under two stars get a red warning. Group at your own risk.</li>
+    <li><b>Not recommended:</b> reviews from players who have written fewer than three are filed away at the bottom of the page.</li>
+    <li><b>Elite:</b> players who have written 20 or more reviews get a badge. <b>Claimed</b> means the player uses Whelp too.</li>
+  </ul>
+
+  <h2>Commands</h2>
+  <div class="keys">
+    <span><code>/whelp</code></span><span>write a review of your party, or a recent one (<code>/yelp</code> works too)</span>
+    <span><code>/whelp Name</code></span><span>read a player’s reviews (add <code>-Realm</code> for another realm)</span>
+    <span><code>/whelp target</code></span><span>read your target’s reviews</span>
+    <span><code>/whelp me</code></span><span>read what other Whelp users wrote about you</span>
+    <span><code>/whelp prompt</code></span><span>turn the after-dungeon question on or off</span>
+    <span><code>/whelp share</code></span><span>turn sharing your reviews on or off</span>
+    <span><code>/whelp tooltip</code></span><span>turn ratings on tooltips on or off</span>
+    <span><code>/whelp alerts</code></span><span>turn the join alerts on or off</span>
+  </div>
+
+  <h2>How reviews get around</h2>
+  <ul>
+    <li>Reviews travel between Whelp users over guild and group addon chat. The more of your guild runs it, the more reviews you see.</li>
+    <li>Everyone only sends their own reviews, so nobody can post one in someone else’s name.</li>
+    <li>That also means you only hear from Whelp users who are online in your guild or group. Reviews you’ve already received are saved.</li>
+    <li>Turn off <code>/whelp share</code> and your reviews stay on your computer.</li>
+    <li>A run ends when you leave the group, enter another instance, or stay outside for two minutes. Corpse runs don’t count. You’re asked for reviews after four minutes in an instance or a boss kill.</li>
+  </ul>
+
+  <h2>What’s new</h2>
+  <ul>
+    <li><b>1.0.0:</b> first release.</li>
+  </ul>
+
+  <footer>Made with questionable judgment and an AI pair programmer. Reviews are the opinions of the reviewer and not of the healer.</footer>
+</main>
+</body>
+</html>

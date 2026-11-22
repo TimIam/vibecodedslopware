@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { loadAssets, make, toon, addOutline } from './assets.js';
 import { World, BALL_R, G as GRAV, ACTOR, POWER } from './physics.js';
 import { Course, frames, NHOLES, CUP_R, SEA_Y, RISE, padPos } from './course.js';
+import { backNine, holeNumber, saveKey, courseUrl } from './nine.js';
 import { Golfer, Swing, CLUBS, SKINS, SHIRTS, PANTS, HATS, runPose, sitPose } from './golfer.js';
 import { Cart, collideBody, BUMP } from './cart.js';
 import { Particles, Confetti, Trail } from './fx.js';
@@ -14,6 +15,7 @@ import { Post } from './post.js';
 import * as A from './audio.js';
 import { joinRoom, newCode, cleanCode, cleanPin, MAX_PLAYERS } from './net.js';
 import { Voice, voiceGain } from './voice.js';
+import { loadLevel, siteEditAccess } from './levels.js';
 
 const $ = id => document.getElementById(id);
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -29,6 +31,11 @@ const canvas = $('game');
 // The loading watchdog lives in index.html; these are no-ops if it is missing.
 const LD = window.__load || { set() {}, ok() {}, fail() {} };
 const DEBUG = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+// The level editor (js/editor.js), with ?edit in the address: on localhost it saves through tools/dev.mjs;
+// on the live site it opens only for a signed-in admin member (siteEditAccess in levels.js, checked in boot)
+// and publishes through /api/admin. Players without ?edit never load it.
+const WANT_EDIT = new URLSearchParams(location.search).has('edit');
+let EDIT = DEBUG && WANT_EDIT;
 // Let the loading message paint before a heavy synchronous stage (a hidden tab gets no frames, so skip).
 const paint = () => document.hidden ? Promise.resolve() : new Promise(r => { const t = setTimeout(r, 80); requestAnimationFrame(() => { clearTimeout(t); setTimeout(r, 0); }); });
 const renderer = (() => {
@@ -82,9 +89,10 @@ function loadLook() {
 }
 function saveLook() { try { localStorage.setItem('pftc-look', JSON.stringify(look)); } catch (e) {} }
 function save() {
-  try { localStorage.setItem('pftc-save', JSON.stringify({ hole: S.hole, strokes: S.strokes, holeStrokes: S.holeStrokes, falls: S.falls, lost: Math.round(S.lost), best: S.best, finished: S.finished, ft: S.finMs, crown: S.crown, park: S.awaitPark | 0, bays: S.bays | 0, ball: ball.p.toArray().map(v => +v.toFixed(3)), aim: S.aim, startedAt: S.startedAt, g: S.golferG.toArray().map(v => +v.toFixed(2)), cart: [...carts[0].pos.toArray().map(v => +v.toFixed(2)), +carts[0].yaw.toFixed(3)] })); } catch (e) {}
+  if (EDIT) return;      // the level editor: test drives must not overwrite the real climb
+  try { localStorage.setItem(saveKey, JSON.stringify({ hole: S.hole, strokes: S.strokes, holeStrokes: S.holeStrokes, falls: S.falls, lost: Math.round(S.lost), best: S.best, finished: S.finished, ft: S.finMs, crown: S.crown, park: S.awaitPark | 0, bays: S.bays | 0, ball: ball.p.toArray().map(v => +v.toFixed(3)), aim: S.aim, startedAt: S.startedAt, g: S.golferG.toArray().map(v => +v.toFixed(2)), cart: [...carts[0].pos.toArray().map(v => +v.toFixed(2)), +carts[0].yaw.toFixed(3)] })); } catch (e) {}
 }
-function loadSave() { try { return JSON.parse(localStorage.getItem('pftc-save') || 'null'); } catch (e) { return null; } }
+function loadSave() { try { return JSON.parse(localStorage.getItem(saveKey) || 'null'); } catch (e) { return null; } }
 
 /* ---------------- quips ---------------- */
 const Q = {
@@ -235,7 +243,7 @@ function resetBall() {
   const n = S.holeStrokes + 1;
   placeOnTee(nextCup()); S.holeStrokes = n; S.strokes++; trail.clear();      // the tee of your next cup, not a hole you fell back to
   if (S.mode === 'walk') placeWalker(true);
-  toast('⛳ Ball back on the tee of hole ' + S.hole + ', +1 stroke.'); updateHud(); save();
+  toast('⛳ Ball back on the tee of hole ' + holeNumber(S.hole) + ', +1 stroke.'); updateHud(); save();
 }
 function resetCart() {
   if (S.mode === 'title' || S.mode === 'loading' || held()) return;
@@ -255,12 +263,16 @@ function showMenu(on) {
   if (on) {
     $('clickToPlay').hidden = true; if (document.pointerLockElement) document.exitPointerLock();
     $('stiff').value = Math.round(RAGDOLL.stiffness * 100); $('stiff').nextElementSibling.textContent = stiffWord();
+    $('musicTrack').value = A.selectedTrack();
     for (const el of m.querySelectorAll('[data-vol]')) { el.value = Math.round(A.getVolume(el.dataset.vol) * 100); el.nextElementSibling.textContent = el.value; }
   } else if (document.pointerLockElement !== canvas) { $('clickToPlay').hidden = false; lockPointer(); }
 }
 const stiffWord = () => (RAGDOLL.stiffness < 0.4 ? 'floppy' : RAGDOLL.stiffness < 0.8 ? 'loose' : RAGDOLL.stiffness < 1.3 ? 'normal' : RAGDOLL.stiffness < 1.9 ? 'firm' : 'stiff');
 function menuSetup() {
   const m = $('menu');
+  const selector = $('musicTrack');
+  for (const track of A.tracks) selector.add(new Option(track.title, track.id));
+  selector.onchange = () => A.selectTrack(selector.value);
   for (const el of m.querySelectorAll('[data-vol]')) el.oninput = () => {
     A.setVolume(el.dataset.vol, el.value / 100); el.nextElementSibling.textContent = el.value; chatVolume();
     if (el.dataset.vol === 'master' || el.dataset.vol === 'sfx') A.play('click');
@@ -306,7 +318,8 @@ function faceFoe(dt) {
   if (best !== null) S.camYaw += best * (1 - Math.exp(-dt * FACE.rate));
 }
 const TWIST = { max: 1.1, back: 2.5 };     // how far past the arms a swing can turn the body, how fast it unwinds
-const GRIP_WALK = 2.4;       // how fast you can walk with the club in your hands (it was a shuffle)
+const MOVE_PACE = 0.9;       // every walking and running speed, 10% slower than first tuned
+const GRIP_WALK = 2.88;      // how fast you can walk while fighting (club in your hands): 2.4, then 20% quicker
 const HIT_STOP = 0.07;       // seconds the world nearly stops when a club lands on someone, so you feel it land
 // A club strike on another golfer: to a real player over the network, or to the sparring partner here.
 function whackTo(id, e) { if (id === SPAR.id) sparHit(e); else if (net) net.event(e); }
@@ -326,7 +339,7 @@ function puzzleTick(dt) {
   for (const [what, p] of course.driveTick(dt, at, honks, pushers)) {
     const near = proximity(p);
     if (what === 'gate') A.play('click', near);
-    if (what === 'plate') { A.play('click', near); A.play('beep', near * 0.6); if (near > 0.5) toast('🌉 The rock is on the plate: the drawbridge stays down.'); }
+    if (what === 'plate') { A.play('click', near); A.play('beep', near * 0.6); if (near > 0.5) toast(backNine ? '🌉 Weigh-in complete. Cross before the bridge lifts!' : '🌉 The rock is on the plate: the drawbridge stays down.'); }
     if (what === 'bridge') A.play('womp', near * 0.5);
     if (what === 'rocklost') A.play('womp', near * 0.7);
     if (what === 'rockback') { fx.poof(p.clone()); A.play('poof', near * 0.7); }
@@ -360,7 +373,7 @@ function wreckers() {
       const d = dir.lengthSq() > 0.25 ? dir.clone().normalize() : V(c.pos.x - b.x, 0, c.pos.z - b.z).normalize();
       c.knock(d.x * WRECK.kick, d.z * WRECK.kick);
       if (c.grounded) { c.grounded = false; c.vy = WRECK.up; }
-      fx.sparks(c.pos.clone().add(V(0, 0.8, 0)), 14); A.play('thud', S.cart === c ? 1 : proximity(c.pos));
+      fx.sparks(c.pos.clone().add(V(0, 0.8, 0)), 14); A.play('cartCrash', S.cart === c ? 1 : proximity(c.pos));
       if (S.cart === c) { shake(0.4); pop('WRECKED!', 'bad', c.pos.clone().add(V(0, 1.2, 0))); addRage(6); }
     }
     if (S.mode === 'walk' && !(S.ko > 0) && S.t - (S.wreckT ?? -9) > WRECK.gap && S.golferG.clone().add(V(0, 0.5, 0)).distanceTo(b) < wr.R + 0.45) {
@@ -563,7 +576,7 @@ const cartPose = c => [c.pos.x, c.pos.y, c.pos.z, c.yaw, c.speed].map(x => +x.to
 function dropStolen(tell) {
   if (!stolen) return;
   const s = stolen; stolen = null;
-  if (S.cart === s.cart) { S.cart = null; A.engine(0); }
+  if (S.cart === s.cart) { S.cart = null; A.engine(); }
   if (tell && net) net.event({ k: 'back', to: s.owner, pose: cartPose(s.cart) });     // (not 'p': the network puts the sender's id there)
   s.cart.mesh.removeFromParent(); const i = carts.indexOf(s.cart); if (i > 0) carts.splice(i, 1);
   const o = others.get(s.owner); if (o) o.cartHide = false;
@@ -775,10 +788,20 @@ function useCartBay(slot) {
 async function boot() {
   resize();
   LD.set('Loading the models');
+  // Edits to the holes made with the level editor: on the site, the published course (or levels/*.json
+  // until there is one); on localhost, levels/front.json or back.json. Missing: none.
+  let site = null, editRefused = null;
+  if (WANT_EDIT && !DEBUG) {
+    LD.set('Checking the admin sign-in');
+    site = await siteEditAccess(backNine ? 'back' : 'front').catch(e => ({ ok: false, why: String(e.message || e) }));
+    if (site.ok) EDIT = true; else { editRefused = site.why; site = null; }
+  }
+  const levelP = loadLevel(backNine ? 'back' : 'front', { edit: EDIT, site, published: !DEBUG });
   await loadAssets('assets', p => { $('loadbar').style.width = Math.round(p * 100) + '%'; });
   LD.set('Building the mountain'); await paint();
   world = new World();
-  course = new Course(scene, world);
+  const level = await levelP;
+  course = new Course(scene, world, level);
   sky = new Sky(scene);
   fx = new Particles(scene); fx.setScale(innerHeight - 52);
   confetti = new Confetti(scene);
@@ -813,7 +836,7 @@ async function boot() {
   scene.add(aimDots);
   // Start position: saved progress, or the first tee.
   // A save that cannot be restored must never brick the game: keep a copy and start from the tee.
-  const sv = loadSave();
+  const sv = EDIT ? null : loadSave();      // the editor never restores a run into edited geometry
   const num = a => Array.isArray(a) && a.length >= 3 && a.every(Number.isFinite);
   let restored = false;
   if (sv && num(sv.ball)) {
@@ -827,11 +850,11 @@ async function boot() {
       S.bays = (+sv.bays | 0) & 0x3fe;
       settleGolfer(true);
       $('continueNote').hidden = false;
-      $('continueNote').textContent = `Picking up on hole ${S.hole}, ${S.strokes} strokes in.`;
+      $('continueNote').textContent = `Picking up on hole ${holeNumber(S.hole)}, ${S.strokes} strokes in.`;
       restored = true;
     } catch (e) {
       console.error('save could not be restored', e);
-      try { localStorage.setItem('pftc-save-bad', JSON.stringify(sv)); } catch (e2) {}
+      try { localStorage.setItem(saveKey + '-bad', JSON.stringify(sv)); } catch (e2) {}
       Object.assign(S, { hole: 1, strokes: 0, holeStrokes: 0, falls: 0, lost: 0, best: 0, finished: false, crown: false, aim: 0, startedAt: 0, savedG: null, cartToBall: false });
       me.setCrown(false);
     }
@@ -842,6 +865,8 @@ async function boot() {
   LD.ok();
   $('loading').hidden = true; $('title').hidden = false;
   requestAnimationFrame(frame);
+  if (EDIT) import('./editor.js').then(m => m.startEditor(editorApi(level))).catch(e => console.error('the level editor did not start:', e));
+  else if (editRefused) { $('continueNote').hidden = false; $('continueNote').textContent = `No level editor: ${editRefused}.`; }
 }
 function proximity(p) { if (!p) return 1; const d = camera.position.distanceTo(p); return clamp(1.4 - d / 40, 0.05, 1); }
 
@@ -898,12 +923,13 @@ function setupTitle() {
   $('randomize').onclick = () => { Object.assign(look, { skin: pick(SKINS), shirt: pick(SHIRTS), pants: pick(PANTS), hat: pick(SHIRTS), hatType: pick(HATS), stache: Math.random() < 0.35 }); me.setLook(look); if (S.crown) me.setCrown(true); saveLook(); setupTitle(); A.play('poof'); };
   setupRoom();
   $('play').onclick = teeOff; menuSetup();
-  $('restartClimb').onclick = () => { if (confirm('Start the climb over from hole 1? Your stroke count resets.')) { resetClimb(); start(); } };
+  $('restartClimb').onclick = () => { if (confirm('Start this nine over from hole ' + holeNumber(1) + '? Your stroke count resets.')) { resetClimb(); start(); } };
 }
 /* ---------------- rooms: invite codes and PINs ---------------- */
 // No code is the public mountain. A code is a private room; a 4-digit PIN locks it (see net.js for how).
 // The invite link carries the code and never the PIN.
 const roomCode = () => S.room.toUpperCase();
+const pinKey = () => (backNine ? 'pftc-back-pin:' : 'pftc-pin:') + S.room;
 function roomLabel(note, bad) {
   const priv = S.room !== 'mountain';
   for (const [id, m] of [['modeVs', 'vs'], ['modeCo', 'co']]) { const b = $(id); b.disabled = !priv; b.classList.toggle('on', (priv ? modeWant : 'vs') === m); }
@@ -917,22 +943,27 @@ function roomLabel(note, bad) {
 }
 function setupRoom() {
   if (S.room) return roomLabel();      // the title is being redrawn (Random look); keep what is typed
+  const select = $('nineSelect');
+  select.value = backNine ? 'back' : 'front';
+  select.onchange = () => location.assign(courseUrl(select.value === 'back', S.room));
+  $('otherNine').textContent = backNine ? 'Play the front nine' : 'Play the back nine';
+  $('otherNine').onclick = () => location.assign(courseUrl(!backNine, S.room));
   const codeEl = $('roomCode'), pinEl = $('roomPin');
-  S.room = cleanCode(new URLSearchParams(location.search).get('room')) || 'mountain'; S.pin = '';
-  try { S.pin = S.room === 'mountain' ? '' : cleanPin(sessionStorage.getItem('pftc-pin:' + S.room)); } catch (e) {}
+  S.room = cleanCode(new URLSearchParams(location.search).get('room')) || (EDIT ? (DEBUG ? 'edit' : newCode()) : 'mountain'); S.pin = '';      // editor test drives stay private (a room of their own on the live site)
+  try { S.pin = S.room === 'mountain' ? '' : cleanPin(sessionStorage.getItem(pinKey())); } catch (e) {}
   codeEl.value = S.room === 'mountain' ? '' : roomCode(); pinEl.value = S.pin;
   const typed = () => {
     S.room = cleanCode(codeEl.value) || 'mountain';
     const digits = pinEl.value.replace(/\D/g, '').slice(0, 4); if (pinEl.value !== digits) pinEl.value = digits;
     S.pin = S.room === 'mountain' ? '' : cleanPin(digits);
-    try { history.replaceState(null, '', location.pathname + (S.room === 'mountain' ? '' : '?room=' + roomCode())); } catch (e) {}
+    try { history.replaceState(null, '', courseUrl(backNine, S.room)); } catch (e) {}
     roomLabel();
   };
   codeEl.oninput = pinEl.oninput = typed;
   for (const [id, m] of [['modeVs', 'vs'], ['modeCo', 'co']]) $(id).onclick = () => { modeWant = m; try { localStorage.setItem('pftc-mode', m); } catch (e) {} if (net) net.presence({ md: m }); roomLabel(); A.play('click'); };
   $('newRoom').onclick = () => { codeEl.value = newCode(); typed(); pinEl.focus(); A.play('click'); };
   $('copyInvite').onclick = () => {
-    const u = location.origin + location.pathname + (S.room === 'mountain' ? '' : '?room=' + roomCode());
+    const u = courseUrl(backNine, S.room).href;
     const done = () => toast(S.pin ? 'Invite link copied. Tell them the PIN yourself: it is not in the link.' : 'Invite link copied');
     navigator.clipboard.writeText(u).then(done, () => toast(escapeHtml(u)));
   };
@@ -985,7 +1016,7 @@ async function teeOff() {
 
 function resetClimb() {
   Object.assign(S, { strokes: 0, holeStrokes: 0, falls: 0, lost: 0, rage: 0, finished: false, finMs: 0, startedAt: 0, awaitPark: 0, bays: 0, best: 0, hp: HP.max, ko: 0, down: false, goAt: 0 });
-  S.savedG = null; S.cartToBall = false; if (S.cart) { S.cart = null; A.engine(0); } useCartBay(net ? net.slot : 0); carts[0].reset();
+  S.savedG = null; S.cartToBall = false; if (S.cart) { S.cart = null; A.engine(); } useCartBay(net ? net.slot : 0); carts[0].reset();
   placeOnTee(1); settleGolfer(true); save();
 }
 function start() {
@@ -1026,7 +1057,7 @@ canvas.addEventListener('mousedown', e => {
   if (e.button === 2) { if (S.lmb || S.grip) S.aimHeld = true; else toggleGolf(); }
   if (e.button === 0 && S.mode !== 'address') S.lmb = true;
   if (e.button === 0 && S.mode === 'address') assistPress();
-  if (e.button === 0 && S.mode === 'drive') { A.play('beep', 1); S.honkAt = S.t; if (S.cart) sendEv({ k: 'honk', at: S.cart.pos.toArray().map(n => +n.toFixed(2)) }); }
+  if (e.button === 0 && S.mode === 'drive') { A.play('cartHorn', 1); S.honkAt = S.t; if (S.cart) sendEv({ k: 'honk', at: S.cart.pos.toArray().map(n => +n.toFixed(2)) }); }
 });
 addEventListener('mouseup', e => { if (e.button === 2) S.aimHeld = false; if (e.button === 0) { S.lmb = false; if (assist && S.mode === 'address') assist.release(); } });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -1038,6 +1069,14 @@ addEventListener('mousemove', e => {
   }
 });
 addEventListener('wheel', e => { if (S.mode !== 'title' && S.mode !== 'drive' && !S.paused) cycleClub(e.deltaY > 0 ? -1 : 1); }, { passive: true });
+// Tabbing out swallows the key-up and mouse-up events, so whatever was held when you left would stay held
+// (running off in that direction) when you came back. Let go of everything instead.
+function letGoOfEverything() {
+  keys.clear(); S.aimHeld = false; S.lmb = false;
+  if (assist && assist.phase === 'charge') assist.reset();
+}
+addEventListener('blur', letGoOfEverything);
+document.addEventListener('visibilitychange', () => { if (document.hidden) letGoOfEverything(); });
 document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === canvas;
   // Letting go of the mouse (Esc) opens the menu; taking it back closes it.
@@ -1046,8 +1085,10 @@ document.addEventListener('pointerlockchange', () => {
 });
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
+  if (e.target === $('nineSelect')) return;
   // Esc with the mouse free opens and closes the menu (with the mouse held, the browser frees it first).
   if (k === 'escape' && playing() && $('finish').hidden) { if (performance.now() - menuAt > 300) showMenu($('menu').hidden); return; }
+  if (!$('menu').hidden && (e.target === $('musicTrack') || k === 'tab')) return;
   if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
   if (k === 'tab') { e.preventDefault(); $('board').hidden = false; renderBoard(); return; }
   if (S.mode === 'title') return;
@@ -1063,7 +1104,7 @@ addEventListener('keydown', e => {
   if (k === 'y' && !e.repeat) voteAnswer(true);
   if (k === 'u' && !e.repeat) voteAnswer(false);
   if (k === 'k' && !e.repeat) voiceKey(e.shiftKey);
-  if (k === 'n') { A.setMusic(!A.musicIsOn()); toast(A.musicIsOn() ? 'Music on' : 'Music off'); }
+  if (k === 'n' && !e.repeat) { A.setMusic(!A.musicIsOn()); $('musicTrack').value = A.selectedTrack(); toast(A.musicIsOn() ? 'Music on' : 'Music off'); }
   if (k === 'b') { A.setVoice(!A.voiceIsOn()); toast(A.voiceIsOn() ? 'Announcer on' : 'Announcer off'); }
   if (k === 't') { startEmote('tantrum', 2.2); quip('tantrum', {}, false); sendEv({ k: 'emote', e: 'tantrum' }); addRage(-30); }
   if (k === 'g') { startEmote('dance', 2.4); sendEv({ k: 'emote', e: 'dance' }); }
@@ -1156,7 +1197,7 @@ function enterCart(c) {
 }
 function exitCart(toBall) {
   const c = S.cart; if (!c) return;
-  S.cart = null; A.engine(0);
+  S.cart = null; A.engine();
   const H = c.heading(), L = V(H.z, 0, -H.x);
   // You leave with whatever speed the cart had, and it carries on without you.
   W.v.copy(H).multiplyScalar(c.speed); W.carry.set(0, 0, 0);
@@ -1208,7 +1249,7 @@ function walkStep(dt) {
   let mx = fx_ * fw - fz_ * rt, mz = fz_ * fw + fx_ * rt;
   const ml = Math.hypot(mx, mz); if (ml > 0) { mx /= ml; mz /= ml; }
   const hands = S.noClub, run = keys.has('shift');
-  const top = S.emote || S.ko || S.hold ? 0 : S.grip ? GRIP_WALK : (run ? (hands ? 7.8 : 6.5) : (hands ? 4 : 3.3));
+  const top = S.emote || S.ko || S.hold ? 0 : S.grip ? GRIP_WALK : (run ? (hands ? 7.8 : 6.5) : (hands ? 4 : 3.3)) * MOVE_PACE;
   if (!S.emote && !S.ko && !S.hold && !S.grip && keys.has(' ') && W.grounded) { W.v.y = hands ? 7.2 : 6.4; W.grounded = false; me.squash = 0.5; A.play('pop', 0.3); }
   const n = 2, h = dt / n;
   for (let i = 0; i < n; i++) {
@@ -1255,8 +1296,16 @@ function cartEvents(c, driven) {
   // Only a cart you are in shakes your camera; an empty one just makes noise wherever it is.
   const near = driven ? 1 : proximity(c.pos);
   return {
-    hit: (v, col) => { if (window.__cartHits) window.__cartHits.push({ at: c.pos.toArray().map(n => +n.toFixed(1)), v: +v.toFixed(1), tag: col && col.tag, surf: col && col.surf, kind: col && col.kind }); if (driven) shake(Math.min(0.5, v * 0.05)); A.play('thud', Math.min(1, v / 10) * near); fx.sparks(c.pos.clone().add(V(0, 0.8, 0)), 8); },
-    land: v => { if (v > 3) { if (driven) shake(Math.min(0.4, v * 0.03)); A.play('thud', Math.min(1, v / 12) * near); fx.dust(c.pos, 14, 1); } },
+    hit: (v, col) => {
+      if (window.__cartHits) window.__cartHits.push({ at: c.pos.toArray().map(n => +n.toFixed(1)), v: +v.toFixed(1), tag: col && col.tag, surf: col && col.surf, kind: col && col.kind });
+      if (driven) shake(Math.min(0.5, v * 0.05));
+      if (S.t >= (c.crashSoundAt ?? 0)) {
+        A.play('cartCrash', Math.min(1, v / 10) * near);
+        c.crashSoundAt = S.t + 0.14;
+      }
+      fx.sparks(c.pos.clone().add(V(0, 0.8, 0)), 8);
+    },
+    land: v => { if (v > 3) { if (driven) shake(Math.min(0.4, v * 0.03)); A.play('cartLand', Math.min(1, v / 12) * near); fx.dust(c.pos, 14, 1); } },
   };
 }
 // Carts with nobody in them. One that reaches the sea goes back to the first tee and you don't go with it.
@@ -1275,11 +1324,12 @@ function driveStep(dt) {
   const throttle = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0);
   const steer = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0);
   S.cartSteer = lerp(S.cartSteer || 0, steer, 1 - Math.exp(-dt * 8));
-  c.update(dt, { throttle, steer, brake: keys.has(' ') }, world, cartEvents(c, true));
+  const input = { throttle, steer, brake: keys.has(' ') };
+  c.update(dt, input, world, cartEvents(c, true));
   bumperCart(c);
   if (S.cart) c.seat(S.golferG);
   const H = c.heading(); S.walkYaw = yawFacing(H.x, H.z);
-  A.engine(c.speed / 14 || 0.001);
+  A.engine(c, input);
   if (c.grounded && Math.abs(c.speed) > 8 && Math.random() < dt * 16) fx.dust(c.pos.clone().addScaledVector(H, -1), 2, 0.5);
   if (c.pos.y < SEA_Y + 0.5) {
     fx.bigSplash(V(c.pos.x, SEA_Y, c.pos.z)); A.play('splash', 1); A.play('womp', 0.8); addRage(20); quip('cartSea');
@@ -1397,7 +1447,7 @@ function launch(r) {
   trail.clear();
   const speed = r.v.length();
   if (r.kind === 'putt') A.play('putt', clamp(speed / 6, 0.3, 1));
-  else A.play('hit', clamp(speed / 30, 0.4, 1), { pure: r.kind === 'pure' });
+  else A.play('hit', clamp(speed / 30, 0.4, 1), { club: CLUBS[swing.ci].id, kind: r.kind });
   const mph = v => Math.round(v * 2.237);
   $('shot').innerHTML = `<b>${CLUBS[swing.ci].name}</b> · head ${mph(r.headSpeed)} mph · ball ${mph(speed)} mph` + (r.kind === 'pure' ? ' · <em>PURE</em>' : r.kind === 'topped' ? ' · <em class="bad">TOPPED</em>' : r.kind === 'shank' ? ' · <em class="bad">SHANK</em>' : '') + (r.where === 'toe' || r.where === 'heel' ? ` · off the ${r.where}` : '');
   $('shot').classList.add('show'); clearTimeout(launch.t); launch.t = setTimeout(() => $('shot').classList.remove('show'), 4000);
@@ -1406,7 +1456,7 @@ function launch(r) {
   else if (r.kind === 'shank') { pop('SHANK!', 'bad', ball.p.clone().add(V(0, 0.4, 0))); quip('topped'); addRage(10); }
   else if (r.kind === 'toe' || r.kind === 'heel') { pop('off the ' + r.kind, 'bad', ball.p.clone().add(V(0, 0.4, 0))); addRage(4); }
   if (r.kind !== 'putt' && speed > 25) shake(0.1);
-  sendEv({ k: 'hit', at: ball.p.toArray().map(n => +n.toFixed(2)), s: +speed.toFixed(1) });
+  sendEv({ k: 'hit', at: ball.p.toArray().map(n => +n.toFixed(2)), s: +speed.toFixed(1), club: CLUBS[swing.ci].id, kind: r.kind });
   updateHud();
 }
 
@@ -1423,10 +1473,10 @@ function ballRested() {
   if (h < S.shotHole && dropped > 8) {
     S.falls++; S.lost += dropped;
     const big = dropped > 20;
-    quip(big ? 'bigfall' : 'fall', { m: Math.round(dropped), h });
+    quip(big ? 'bigfall' : 'fall', { m: Math.round(dropped), h: holeNumber(h) });
     A.play('womp', 1); addRage(big ? 40 : 25);
     sendEv({ k: 'fall', m: Math.round(dropped), from: S.shotHole, to: h });
-    if (h < nextCup()) toast('🪜 Down on hole ' + h + '. You already cleared it: just play back up. Your next cup is still hole ' + nextCup() + '.');
+    if (h < nextCup()) toast('🪜 Down on hole ' + holeNumber(h) + '. You already cleared it: just play back up. Your next cup is still hole ' + holeNumber(nextCup()) + '.');
   }
   if (h !== S.hole) { S.hole = h; updateHud(); }
   const z = course.zoneAt(ball.p);
@@ -1460,7 +1510,7 @@ function holed(h) {
   setTimeout(() => { A.play(diff <= 0 ? 'cheer' : 'ooh', diff <= 0 ? 1 : 0.6); if (diff <= -1) A.play('fanfare'); }, 300);
   confetti.burst(H.cup.clone().add(V(0, 0.3, 0)), diff <= 0 ? 260 : 90, diff <= 0 ? 7 : 4);
   fx.sparks(H.cup.clone().add(V(0, 0.2, 0)), 30);
-  pop(`${label}<small>hole ${h} in ${n}</small>`, diff <= 0 ? 'big' : 'big meh');
+  pop(`${label}<small>hole ${holeNumber(h)} in ${n}</small>`, diff <= 0 ? 'big' : 'big meh');
   quip(name, { n });
   S.best = Math.max(S.best, h);
   addRage(diff <= 0 ? -40 : -15);
@@ -1476,7 +1526,7 @@ function coSunk(h, n, par, nm) {
   const H = course.holes[h], diff = n - par;
   A.play('cup', 1); setTimeout(() => A.play(diff <= 0 ? 'cheer' : 'ooh', diff <= 0 ? 1 : 0.6), 300);
   confetti.burst(H.cup.clone().add(V(0, 0.3, 0)), diff <= 0 ? 200 : 80, diff <= 0 ? 6 : 4);
-  pop((n === 1 ? 'HOLE IN ONE!' : diff < 0 ? 'UNDER PAR!' : diff === 0 ? 'PAR' : '+' + diff) + '<small>' + nm + ' sank hole ' + h + ' for the team</small>', diff <= 0 ? 'big' : 'big meh');
+  pop((n === 1 ? 'HOLE IN ONE!' : diff < 0 ? 'UNDER PAR!' : diff === 0 ? 'PAR' : '+' + diff) + '<small>' + nm + ' sank hole ' + holeNumber(h) + ' for the team</small>', diff <= 0 ? 'big' : 'big meh');
   S.best = Math.max(S.best, h); addRage(-20);
   setTimeout(() => { if (h < NHOLES) showHoleCard(); needPark(h); updateHud(); }, 2800);
 }
@@ -1497,14 +1547,18 @@ function bayTick(t, dt) {
     if (fl > 0) { a = fl / CHECK.flash; col = 0x3ddc84; }
     else if (want) a = 0.55 + Math.sin(t * 4) * 0.25;
     b.glow.material.color.setHex(col); b.glow.material.opacity = a * 0.6;
-    b.beam.material.color.setHex(col); b.beam.material.opacity = a * 0.35; b.beam.visible = a > 0.01;
+    // The beam is for spotting the bay from afar: it fades out as the camera comes near, so driving through
+    // it never washes the screen.
+    const r = b.beam.geometry.parameters.radiusBottom, cd = Math.hypot(camera.position.x - b.p.x, camera.position.z - b.p.z);
+    const near = THREE.MathUtils.smoothstep(cd, r + 6, r + 20), ba = a * 0.35 * near;
+    b.beam.material.color.setHex(col); b.beam.material.opacity = ba; b.beam.visible = ba > 0.004;
     b.ring.material.color.setHex(col); b.ring.material.opacity = a; b.ring.visible = a > 0.01;
   }
 }
 function touchBay(b) {
   S.bays |= 1 << b.k; b.flash = CHECK.flash;
   A.play('beep', 1); A.play('cup', 0.5); fx.sparks(b.p.clone().add(V(0, 0.6, 0)), 24);
-  pop('✅ CHECKPOINT<small>' + (b.k === NHOLES ? 'the summit' : 'tee ' + (b.k + 1) + ' unlocked') + '</small>', 'good', b.p.clone().add(V(0, 1.6, 0)));
+  pop('✅ CHECKPOINT<small>' + (b.k === NHOLES ? 'the summit' : 'tee ' + holeNumber(b.k + 1) + ' unlocked') + '</small>', 'good', b.p.clone().add(V(0, 1.6, 0)));
   save();
 }
 function needPark(k) {
@@ -1514,8 +1568,8 @@ function needPark(k) {
     pop('Now the cart<small>drive it through the checkpoint at the top</small>', 'big meh');
     toast('✅ Ball is in. The climb counts once your cart has touched the checkpoint at the summit.');
   } else {
-    pop('Checkpoint ' + k + '<small>drive your cart through it, then tee off on ' + (k + 1) + '</small>', 'big meh');
-    toast('✅ No tee shot on hole ' + (k + 1) + ' until your cart touches the glowing checkpoint on the cart road beside this tee.');
+    pop('Checkpoint ' + holeNumber(k) + '<small>drive your cart through it, then tee off on ' + holeNumber(k + 1) + '</small>', 'big meh');
+    toast('✅ No tee shot on hole ' + holeNumber(k + 1) + ' until your cart touches the glowing checkpoint on the cart road beside this tee.');
   }
 }
 // Checkpoint k touched (and, in co-op, by everyone): the next tee is open.
@@ -1523,7 +1577,7 @@ function parked() {
   const k = S.awaitPark;
   if (k === NHOLES) return finish();
   S.awaitPark = 0; ball.frozen = false;
-  pop('Tee ' + (k + 1) + ' open<small>go hit it</small>', 'good');
+  pop('Tee ' + holeNumber(k + 1) + ' open<small>go hit it</small>', 'good');
   updateHud(); save();
 }
 function finish() {
@@ -1549,7 +1603,7 @@ $('stayTop').onclick = () => { $('finish').hidden = true; setMode('walk'); lockP
 function showHoleCard(fly = false) {
   const H = course.holes[S.hole]; if (!H) return;
   if (fly && (S.mode === 'address' || S.mode === 'walk') && H.cup) S.intro = { t: 0, dur: 3.4, cup: H.cup.clone(), moved: 0 };
-  $('hcNum').textContent = `Hole ${S.hole}`; $('hcName').textContent = H.name; $('hcPar').textContent = `Par ${H.par}`; $('hcBlurb').textContent = H.blurb;
+  $('hcNum').textContent = `Hole ${holeNumber(S.hole)}`; $('hcName').textContent = H.name; $('hcPar').textContent = `Par ${H.par}`; $('hcBlurb').textContent = H.blurb;
   const el = $('holeCard'); el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
 }
 
@@ -1678,7 +1732,7 @@ function step(dt) {
   if (S.mode === 'drive') driveStep(dt);
   idleCarts(dt);
   cartContacts();
-  if (S.mode !== 'drive') A.engine(0);
+  if (S.mode !== 'drive') A.engine();
   if ((S.mode === 'address' || S.mode === 'walk') && !ball.frozen && !S.ballLive && !(S.coop && S.coOwner !== 'me')) {
     // If the resting ball gets knocked (a bonk, a sweeper), it is in play again.
     if (ball.v.distanceTo(ball.gVel) > 0.6 || !ball.grounded && ball.airT > 0.15) { S.ballLive = true; S.flightT = 0; S.restT = 0; S.shotFrom.copy(ball.p); S.shotY = ball.p.y; S.shotHole = S.hole; }
@@ -1774,9 +1828,15 @@ function cannon(sn) {
   ballMesh.visible = false; trail.clear();
   A.play('fuse', 1); quip('cannon');
   const H = course.holes[7], piv = sn.pivot;
-  const tl = sn.frame.local(H.cup, V());
+  // The cup in the frame the barrel's pivot hangs in: the hole's, unless the level editor (js/levels.js)
+  // moved or turned the cannon, which hangs it in a group of its own.
+  const G = piv.parent, inHole = G === course.H[sn.hole - 1].group;
+  if (!inHole) G.updateWorldMatrix(true, false);
+  const tl = inHole ? sn.frame.local(H.cup, V()) : G.worldToLocal(H.cup.clone());
   const yaw0 = Math.atan2(tl.x - piv.position.x, tl.z - piv.position.z);
-  S.cannon = { sn, t: 0, yaw0, off: 0, phase: Math.random() * Math.PI * 2 };
+  // Where the shot into the cannon came from: if the cannon then blows the ball out of bounds, that is where
+  // it goes back to, so you have to land it in the red circle again.
+  S.cannon = { sn, t: 0, yaw0, off: 0, phase: Math.random() * Math.PI * 2, from: S.shotFrom.clone(), fromHole: S.shotHole, fromY: S.shotY };
   sn.barrel.rotation.x = -CANNON.elev;
   sendEv({ k: 'cannonIn' });
 }
@@ -1816,7 +1876,7 @@ function fireCannon() {
   pop(perfect ? 'BULLSEYE!' : Math.abs(C.off) < CANNON.sweet * 3 ? 'CLOSE!' : 'WIDE!', perfect ? 'great' : 'bad');
   if (perfect) { fx.sparks(M, 30); A.play('fanfare'); }
   S.ballLive = true; S.flightT = 0; S.restT = 0; S.firstLand = true; S.cupCheck = true;
-  S.shotFrom.copy(course.sensors.find(s => s.kind === 'cannon').p).add(V(0, BALL_R, 0));
+  S.shotFrom.copy(C.from); S.shotHole = C.fromHole; S.shotY = C.fromY;
   sendEv({ k: 'cannon' });
 }
 
@@ -1879,6 +1939,16 @@ function poseMe(dt) {
       const up = clamp(swing.target.y / 1.55, 0, 1);
       s.tilt = 0.38 - 0.24 * up; s.lean = clamp(-a * 0.12, -0.14, 0.14); s.knee = 0.04 + Math.abs(a) * 0.012 + up * 0.01;
       s.look = V(clamp(swing.head.x * 0.45, -0.6, 0.6), 0.45 + up * 0.25, 1.4);
+      // Walking while fighting: short boxer's steps in the direction you are moving, so the legs are not
+      // planted while you slide about.
+      if (S.mode === 'walk' && W.grounded && W.amt > 0.02) {
+        const k = clamp(W.amt * 3, 0, 1), sw = Math.sin(W.phase), cw = Math.cos(W.phase);
+        let mx = W.v.dot(f), mz = W.v.dot(w); const ml = Math.hypot(mx, mz) || 1; mx /= ml; mz /= ml;
+        const st = 0.13 * k;
+        s.feet[0].x += mx * sw * st; s.feet[0].z += mz * sw * st; s.feet[0].y += Math.max(0, cw) * 0.09 * k;
+        s.feet[1].x -= mx * sw * st; s.feet[1].z -= mz * sw * st; s.feet[1].y += Math.max(0, -cw) * 0.09 * k;
+        s.hop += Math.abs(cw) * 0.025 * k;
+      }
       const kf = S.kick != null && kickFoot(S.kick, swing.R.ankle);
       if (kf) { s.feet[0].copy(kf); const k = Math.min(1, kf.y / KICK_OUT.y); s.tilt -= KICK.lean * k; s.hipZ = -0.02 - 0.05 * k; }
     } else s.look = swing.ball.clone();
@@ -2290,7 +2360,7 @@ function cartContacts() {
     if (hard > 1.5 && S.t - (o.crashT ?? -9) > 0.4) {
       o.crashT = S.t;
       const at = mine.pos.clone().lerp(c.pos, 0.5).add(V(0, 0.7, 0)), driving = S.cart === mine;
-      A.play('thud', clamp(hard / 8, 0.3, 1) * (driving ? 1 : proximity(at))); fx.sparks(at, 14);
+      A.play('cartCrash', clamp(hard / 8, 0.3, 1) * (driving ? 1 : proximity(at))); fx.sparks(at, 14);
       if (driving) { shake(Math.min(0.5, hard * 0.05)); pop('CRUNCH!', 'bad', at); }
       // The cart that was hit never sees the overlap (this one has already backed out of it), so it is told.
       net.event({ k: 'crash', to: id, v: [+(-mine.hit.x * mine.hit.j).toFixed(2), +(-mine.hit.z * mine.hit.j).toFixed(2)] });
@@ -2386,7 +2456,7 @@ function render(dt) {
 /* ---------------- HUD ---------------- */
 function updateHud() {
   const H = course.holes[S.hole];
-  $('hHole').textContent = S.hole; $('hName').textContent = H ? H.name + (S.hole < nextCup() && !S.awaitPark ? ' · ✓ next cup: ' + nextCup() : '') : ''; $('hPar').textContent = H ? H.par : '';
+  $('hHole').textContent = holeNumber(S.hole); $('hName').textContent = H ? H.name + (S.hole < nextCup() && !S.awaitPark ? ' · ✓ next cup: ' + holeNumber(nextCup()) : '') : ''; $('hPar').textContent = H ? H.par : '';
   $('hTotal').textContent = S.strokes; $('hFalls').textContent = S.falls;
   [...$('clubs').children].forEach((el, i) => el.classList.toggle('on', SLOTS[i] === (S.noClub ? -1 : swing.ci)));
   $('mute').textContent = A.isMuted() ? '🔇 M' : '🔊 M';
@@ -2446,7 +2516,7 @@ function promptText() {
     if (nc) return '<kbd>E</kbd>: hop in the cart';
     return (S.noClub ? '<b>Left click</b> right fist · <b>Right click</b> left fist · flick the mouse up for an uppercut, sideways for a hook · <kbd>2</kbd>–<kbd>5</kbd> clubs' : '<b>Hold left mouse</b> to swing freely · <b>Right click</b> by your ball for the golf stance') + ' · <kbd>WASD</kbd> run · <kbd>Shift</kbd> sprint · <kbd>Space</kbd> jump';
   }
-  if (S.mode === 'drive' && S.awaitPark && !touchedBay(S.awaitPark)) return (S.awaitPark === NHOLES ? '✅ Drive through the checkpoint at the summit to finish' : '✅ Drive through the glowing checkpoint beside hole ' + (S.awaitPark + 1) + "'s tee") + ' · <kbd>Space</kbd> brake';
+  if (S.mode === 'drive' && S.awaitPark && !touchedBay(S.awaitPark)) return (S.awaitPark === NHOLES ? '✅ Drive through the checkpoint at the summit to finish' : '✅ Drive through the glowing checkpoint beside hole ' + holeNumber(S.awaitPark + 1) + "'s tee") + ' · <kbd>Space</kbd> brake';
   if (S.mode === 'drive' && S.cart && (course.puzzles?.gates || []).some(g => g.open < 0.4 && g.p.distanceTo(S.cart.pos) < 14)) return '🚧 <b>Click</b> to honk and the gate arm lifts · <kbd>Space</kbd> brake';
   if (S.mode === 'drive') return '<kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> brake · <b>Click</b> honk · <kbd>E</kbd> hop out';
   if (S.mode === 'address') return GOLF_HINT + ' · <b>Right click</b> steps away';
@@ -2513,7 +2583,7 @@ async function connect() {
   }
   S.netTries = 0; $('netStatus').title = '';
   S.pin = net.pin;
-  try { if (net.pin) sessionStorage.setItem('pftc-pin:' + S.room, net.pin); else sessionStorage.removeItem('pftc-pin:' + S.room); } catch (e) {}
+  try { if (net.pin) sessionStorage.setItem(pinKey(), net.pin); else sessionStorage.removeItem(pinKey()); } catch (e) {}
   if (typedPin && !net.pin) toast('Room ' + roomCode() + ' was already open, so it has no PIN.');
   roomLabel(); netLabel();
   useCartBay(net.slot);
@@ -2587,7 +2657,7 @@ function sendEv(e) { if (net) net.event(e); if (e.k === 'sink' || e.k === 'fall'
 function remoteEvent(p, e) {
   const nm = `<b style="color:${escapeHtml(p.presence?.lk?.shirt || '#fff')}">${escapeHtml(p.presence?.nm || 'Golfer')}</b>`;
   const o = others.get(p.id);
-  if (e.k === 'fall') { toast(`😂 ${nm} fell ${+e.m || 0} m (hole ${+e.from || '?'} → ${+e.to || '?'})`); if (o) A.play('womp', 0.3 * proximity(o.ball.position)); }
+  if (e.k === 'fall') { toast(`😂 ${nm} fell ${+e.m || 0} m (hole ${+e.from ? holeNumber(+e.from) : '?'} → ${+e.to ? holeNumber(+e.to) : '?'})`); if (o) A.play('womp', 0.3 * proximity(o.ball.position)); }
   else if (e.k === 'shot' && S.coop) { coYield(p.id); S.coLast = p.id; S.coRestT = 0; }
   else if (e.k === 'sink' && S.coop && p.id === S.coOwner) coSunk(+e.h | 0, +e.n | 0, +e.par | 0, nm);
   else if (e.k === 'rock' && nums(e.at, 3) && nums(e.v, 3)) {
@@ -2597,7 +2667,7 @@ function remoteEvent(p, e) {
     if (+e.lost) { if (!(k.lost > 0)) { k.lost = 2.5; k.mesh.visible = false; } }
     else { if (k.p.distanceTo(at) > 0.15) k.p.lerp(at, k.p.distanceTo(at) > 3 ? 1 : 0.5); k.v.fromArray(e.v); k.by = p.id; }
   }
-  else if (e.k === 'sink') { const d = (+e.n || 0) - (+e.par || 0); toast(`⛳ ${nm} sank hole ${+e.h || '?'} in ${+e.n || '?'}${+e.n === 1 ? ' — ACE!' : d < 0 ? ' (under par!)' : ''}`); if (o) confetti.burst(o.ball.position.clone(), 80, 4); }
+  else if (e.k === 'sink') { const d = (+e.n || 0) - (+e.par || 0); toast(`⛳ ${nm} sank hole ${+e.h ? holeNumber(+e.h) : '?'} in ${+e.n || '?'}${+e.n === 1 ? ' — ACE!' : d < 0 ? ' (under par!)' : ''}`); if (o) confetti.burst(o.ball.position.clone(), 80, 4); }
   else if (e.k === 'sea') toast(`🌊 ${nm} hit it into the sea`);
   else if (e.k === 'finish') toast(`👑 ${nm} FINISHED THE CLIMB in ${fmtTime(clamp(+e.ms || 0, 0, 1e9), true)}!`);
   else if (e.k === 'rv') voteEvent(p, e, nm);
@@ -2617,7 +2687,7 @@ function remoteEvent(p, e) {
       const j = V(e.v[0], 0, e.v[1]).clampLength(0, 12);
       c.knock(j.x, j.z);
       const driving = S.cart === c;
-      A.play('thud', clamp(j.length() / 6, 0.3, 1) * (driving ? 1 : proximity(c.pos))); fx.sparks(c.pos.clone().add(V(0, 0.7, 0)), 14);
+      A.play('cartCrash', clamp(j.length() / 6, 0.3, 1) * (driving ? 1 : proximity(c.pos))); fx.sparks(c.pos.clone().add(V(0, 0.7, 0)), 14);
       if (driving) { shake(Math.min(0.5, j.length() * 0.07)); pop('CRUNCH!', 'bad', c.pos.clone().add(V(0, 1, 0))); }
       if (window.__crashes) window.__crashes.push('got ' + j.length().toFixed(1));
     }
@@ -2625,7 +2695,12 @@ function remoteEvent(p, e) {
   else if (e.k === 'down') toast(e.by === net.me ? `🥊 You knocked ${nm} down!` : `💫 ${nm} was knocked down`);
   else if (e.k === 'shout' && o && typeof e.text === 'string') { speech(o.golfer, e.text.slice(0, 40)); A.play('chat', proximity(o.ball.position)); }
   else if (e.k === 'emote' && o) { o.emote = e.e === 'tantrum' ? 'tantrum' : 'dance'; o.emoteT = 0; }
-  else if (e.k === 'hit' && o) { const pp = nums(e.at, 3) ? V().fromArray(e.at) : o.ball.position.clone(); A.play('hit', clamp((+e.s || 10) / 30, 0.2, 1) * proximity(pp) * 0.7); }
+  else if (e.k === 'hit' && o) {
+    const pp = nums(e.at, 3) ? V().fromArray(e.at) : o.ball.position.clone();
+    const putt = e.kind === 'putt';
+    const level = clamp((+e.s || 10) / (putt ? 6 : 30), 0.2, 1) * proximity(pp) * 0.7;
+    A.play(putt ? 'putt' : 'hit', level, { club: e.club, kind: e.kind });
+  }
   else if (e.k === 'cannon' && o) A.play('cannon', proximity(o.ball.position) * 0.8);
   else if (e.k === 'whack' && e.to === net.me && Array.isArray(e.v)) takeHit(p, nm, e);
   else if (e.k === 'bonk' && e.to === net.me && Array.isArray(e.v)) {
@@ -2638,7 +2713,7 @@ function remoteEvent(p, e) {
     toast(by === 'club' ? `🏌️ ${nm} whacked your ball!` : by ? `🦶 ${nm} kicked your ball!` : `💥 ${nm} bonked your ball!`);
     if (by) addRage(10);
   }
-  else if (e.k === 'honk' && o && nums(e.at, 3)) { const p = V().fromArray(e.at); A.play('beep', proximity(p) * 0.7); if (p.distanceTo(o.G) < 6) honks.push(p); }
+  else if (e.k === 'honk' && o && nums(e.at, 3)) { const p = V().fromArray(e.at); A.play('cartHorn', proximity(p) * 0.7); if (p.distanceTo(o.G) < 6) honks.push(p); }
   else if (e.k === 'tumble' && o) toast(+e.sea ? `🌊 ${e.by === net.me ? 'You knocked' : (others.get(e.by)?.nameHtml || 'Someone') + ' knocked'} ${nm} into the sea!` : e.by ? `🪂 ${e.by === net.me ? 'You' : others.get(e.by)?.nameHtml || 'Someone'} knocked ${nm} ${Math.round(+e.m || 0)} m down!` : `🪂 ${nm} tumbled ${Math.round(+e.m || 0)} m down`);
   else if (e.k === 'steal' && e.to === net.me && o) {
     const c = carts[0];
@@ -2875,10 +2950,18 @@ function standings() {
 function renderBoard() {
   S.boardT = S.t;
   const rows = standings();
-  const html = rows.map((r, i) => `<tr${r.me ? ' class="me"' : ''}><td>${i + 1}</td><td><i class="dot" style="background:${escapeHtml(r.shirt || '#999')}"></i>${r.crown ? '👑 ' : ''}${escapeHtml(r.nm)}</td><td>${r.done ? '🏁 Finished' : r.pk ? 'Parking the cart' : 'Hole ' + r.hole}</td><td>${r.done ? fmtTime(r.ft, true) : fmtTime(r.ms)}</td><td>${r.fa}</td></tr>`).join('');
+  const html = rows.map((r, i) => `<tr${r.me ? ' class="me"' : ''}><td>${i + 1}</td><td><i class="dot" style="background:${escapeHtml(r.shirt || '#999')}"></i>${r.crown ? '👑 ' : ''}${escapeHtml(r.nm)}</td><td>${r.done ? '🏁 Finished' : r.pk ? 'Parking the cart' : 'Hole ' + holeNumber(r.hole)}</td><td>${r.done ? fmtTime(r.ft, true) : fmtTime(r.ms)}</td><td>${r.fa}</td></tr>`).join('');
   $('boardRows').innerHTML = html; $('finRows').innerHTML = html;
   $('playerCount').textContent = (rows.length === 1 ? 'just you (so far)' : `${rows.length} golfers on the mountain`)
     + (S.room === 'mountain' ? ' · public mountain' : ' · room ' + roomCode() + (S.pin ? ' · PIN ' + S.pin : ''));
+}
+
+/* ---------------- level editor (localhost with ?edit only) ---------------- */
+// What js/editor.js needs from the game.
+function editorApi(level) {
+  return { S, ball, camera, scene, canvas, renderer, post, keys, level, backNine, setMode, start, toTitle, updateHud, letGo: letGoOfEverything,
+    get course() { return course; }, get world() { return world; }, get wreck() { return wreck; }, get me() { return me; },
+    teleport: h => { placeOnTee(h); settleGolfer(true); setMode('address'); updateHud(); } };
 }
 
 /* ---------------- debug hooks for headless testing (localhost only) ---------------- */

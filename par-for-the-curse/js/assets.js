@@ -106,13 +106,13 @@ export const manifest = {};
 
 export async function loadAssets(base, onProgress) {
   const loader = new GLTFLoader();
-  const files = ['golfer', 'clubs', 'props'];
+  const files = ['golfer', 'clubs', 'props', 'clubhouse'];
   let done = 0;
   await Promise.all(files.map(async f => {
     try {
       const [gltf, json] = await Promise.all([
         loader.loadAsync(`${base}/${f}.glb`),
-        fetch(`${base}/${f}.json`).then(r => (r.ok ? r.json() : {})).catch(() => ({})),
+        f === 'clubhouse' ? {} : fetch(`${base}/${f}.json`).then(r => (r.ok ? r.json() : {})).catch(() => ({})),
       ]);
       manifest[f] = json;
       for (const child of [...gltf.scene.children]) {

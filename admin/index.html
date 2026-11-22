@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Storefront analytics · private</title>
+<link rel="stylesheet" href="/admin/admin.css">
+<script type="module" src="/admin/admin.js"></script>
+</head>
+<body>
+<header>
+  <h1>Storefront analytics</h1>
+  <div id="who" hidden><span id="who-role"></span> <button id="sign-out" type="button">Sign out</button></div>
+</header>
+<div id="banner" class="banner" hidden></div>
+
+<section id="signin" hidden>
+  <h2>Sign in</h2>
+  <p class="muted">Private. Only accounts added to the storefront member list can see anything here.</p>
+  <form id="email-form">
+    <label>Email <input id="email" type="email" autocomplete="email" required></label>
+    <button type="submit">Send sign-in code</button>
+  </form>
+  <form id="code-form" hidden>
+    <label>Code from the email <input id="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,10}" required></label>
+    <button type="submit">Sign in</button>
+  </form>
+  <div id="dev-users" hidden><p>Local fixture accounts:</p></div>
+  <p id="signin-msg" class="muted" role="status"></p>
+</section>
+
+<main id="app" hidden>
+  <form id="window" class="row">
+    <label>From <input id="from" type="date" required></label>
+    <label>To <input id="to" type="date" required></label>
+    <button type="submit">Show</button>
+    <span id="status" class="muted" role="status"></span>
+  </form>
+  <details class="legend"><summary>How to read this</summary>
+    <ul>
+      <li><b>Numbers in the window</b> are totals over the chosen dates. <b>Lifetime</b> numbers (itch.io, CurseForge, GitHub) are the store's running total on the date shown, not limited to the window, because those stores publish no history.</li>
+      <li><b>Store clicks</b> count visitors who clicked through to a store. A click is not a purchase or a download.</li>
+      <li><b>unknown</b> means no data yet for something the store can report. <b>n/a</b> means the store has no official source for it. Neither is zero.</li>
+      <li><b>partial</b> means the window reaches past what the source has covered; hover for details.</li>
+      <li>Revenue is shown per currency and never converted or added across currencies.</li>
+    </ul>
+  </details>
+  <section id="level-editor">
+    <h2>Par for the Curse level editor</h2>
+    <p class="row" id="level-links">
+      <a href="/par-for-the-curse/?edit">Edit Mount Bogey (front nine)</a>
+      <a href="/par-for-the-curse/?edit&amp;nine=back">Edit Lantern Links (back nine)</a>
+    </p>
+    <p class="muted" id="level-note">Opens here, signed in as you. Move, change, delete or add obstacles, then Publish: every player gets the new course on their next load, within about 15 seconds. Earlier versions are kept.</p>
+  </section>
+  <div id="games"></div>
+  <h2>Sources</h2>
+  <table id="sources" class="grid"><thead><tr><th>Source</th><th>Last successful refresh</th><th>Last attempt</th><th>Covered through</th><th>Last error</th><th>Docs</th></tr></thead><tbody></tbody></table>
+  <div id="owner-tools" hidden>
+    <h3>Refresh now (owner)</h3>
+    <div id="sync-buttons" class="row"></div>
+  </div>
+  <h2>Import (Epic Games Store or other manual numbers)</h2>
+  <form id="import-form" class="row">
+    <select id="import-source"><option value="epic_import">Epic Games Store</option><option value="manual_import">Other (manual)</option></select>
+    <input id="import-file" type="file" accept=".csv,text/csv" required>
+    <button type="submit">Import</button>
+  </form>
+  <p class="muted">Template header: <code>platform,external_id,date,basis,metric,currency,value</code>. See docs/storefront-analytics.md. A file is imported once; sending the same file again changes nothing.</p>
+  <pre id="import-result" hidden></pre>
+  <h2>Recent refreshes and imports</h2>
+  <table id="runs" class="grid"><thead><tr><th>When</th><th>Source</th><th>Status</th><th>Rows</th><th>Message</th></tr></thead><tbody></tbody></table>
+</main>
+</body>
+</html>

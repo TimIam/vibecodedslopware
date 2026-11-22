@@ -2,12 +2,12 @@
 #
 #   "C:\Program Files\Blender Foundation\Blender 5.1\blender.exe" --background --factory-startup --python par-for-the-curse/tools/build_assets.py
 #
-# Optional env vars:  PFTC_ONLY=golfer,clubs,props   (build/export only those groups)
+# Optional env vars:  PFTC_ONLY=golfer,clubs,props,clubhouse   (build/export only those groups)
 #                     PFTC_NORENDER=1                (skip the preview renders)
 #                     PFTC_PREVIEWS=golfer_parts,... (render only the named previews)
 #
 # Outputs  assets/golfer.glb + golfer.json, assets/clubs.glb + clubs.json, assets/props.glb + props.json,
-#          tools/previews/*.png (Eevee lineups used to eyeball the art).
+#          assets/clubhouse.glb and tools/previews/*.png (Eevee lineups used to eyeball the art).
 #
 # AXES. Geometry is authored in Blender space (Z up, the FRONT of everything is -Y). The glTF exporter's +Y-up
 # conversion maps Blender (x, y, z) -> three.js (x, z, -y), so Blender -Y becomes three +Z ("forward") and
@@ -1699,6 +1699,105 @@ PROPS = ["tree_round", "tree_pine", "tree_palm", "bush", "flowers", "rock_a", "r
          "cannon_base", "cannon_barrel", "golf_cart", "sign_post", "sign_board", "trophy", "balloon", "blimp", "island",
          "fence", "windsock", "windsock_sock", "lamp", "under_rock", "spire"]
 
+CLUBHOUSE = ["tee_clock", "parasol_bench", "goose_bag"]
+
+def build_tee_clock():
+    b = B("tee_clock")
+    b.add(lathe([(0, 0), (.28, 0), (.28, .075), (.22, .11), (.20, .24),
+                 (.13, .29), (.085, .46), (.085, 1.53), (.16, 1.58),
+                 (.16, 1.65), (0, 1.65)], 24), "enamel")
+    for z, radius in [(.12, .211), (.40, .106), (1.47, .092)]:
+        b.add(torus(radius, .017, 24, 6), "brass", Mx((0, 0, z)))
+    # Clock face lies in XZ. Its positive local Z points toward the viewer.
+    face = Mx((0, 0, 1.99), (PI / 2, 0, 0))
+    b.add(lathe([(0, -.12), (.35, -.12), (.41, -.085), (.415, .06),
+                 (.395, .11), (0, .11)], 40), "enamel", face)
+    b.add(lathe([(0, .112), (.358, .112), (.355, .123), (0, .123)], 40), "linen", face)
+    b.add(torus(.372, .025, 40, 8), "brass", face)
+    b.add(torus(.363, .023, 40, 8), "brass", face @ Mx((0, 0, .12)))
+    for i in range(12):
+        angle = i * PI / 6
+        major = i % 3 == 0
+        b.add(rbox(.025 if major else .014, .071 if major else .037, .009),
+              "enamel", face @ Mx((0, 0, .13), (0, 0, -angle)) @ Mx((0, .28, 0)))
+    for angle, length, width in [(56, .175, .037), (-60, .255, .023)]:
+        hand = face @ Mx((0, 0, .145), (0, 0, rad(angle)))
+        b.add(rbox(width, length, .016, .006, 1), "enamel", hand @ Mx((0, length / 2, 0)))
+    b.add(sphere(12, 8), "coral", face @ Mx((0, 0, .16), scale=.034))
+    b.add(sphere(16, 10), "brass", Mx((0, 0, 2.45), scale=(.074, .074, .09)))
+    b.make(sharp=rad(55))
+
+def build_parasol_bench():
+    b = B("parasol_bench")
+    # Bent enamel legs and individual varnished slats leave daylight under the bench.
+    for x in (-.69, .69):
+        b.add(tube([(x, -.27, .038), (x, -.20, .39), (x, .15, .41),
+                    (x, .25, .81)], .038, 8), "enamel")
+        b.add(tube([(x, .16, .40), (x, .29, .038)], .038, 8), "enamel")
+    for y in (-.19, 0, .19):
+        b.add(rbox(1.92, .166, .085, .028, 2), "slat", Mx((0, y, .448)))
+    for z in (.645, .813):
+        b.add(rbox(1.92, .075, .142, .026, 2), "slat", Mx((0, .223, z), (rad(-8), 0, 0)))
+    y = .42
+    b.add(lathe([(0, 0), (.205, 0), (.185, .075), (.055, .11), (.033, .14),
+                 (.033, 2.05), (0, 2.05)], 20), "enamel", Mx((0, y, 0)))
+    # Three vertices per panel give the hem a scallop and the fabric a sewn ridge.
+    verts, faces, materials = [], [], []
+    for i in range(24):
+        a = 2 * PI * i / 24
+        ca, sa = math.cos(a), math.sin(a)
+        sag = math.sin(PI * (i % 3) / 3)
+        for radius, z in [(0.035, 2.29), (.64, 2.14 - .025 * sag),
+                          (1.12, 1.955), (1.12, 1.89 - .07 * sag), (1.08, 1.90 - .07 * sag)]:
+            verts.append((radius * ca, y + radius * sa, z))
+    for i in range(24):
+        a, n = i * 5, ((i + 1) % 24) * 5
+        for j in range(4):
+            faces.append((a + j, a + j + 1, n + j + 1, n + j))
+            materials.append("coral" if i // 3 % 2 == 0 else "linen")
+        faces.append((a + 4, a, n, n + 4))
+        materials.append("linen")
+    b.add((verts, faces, materials), "linen", smooth=False)
+    b.add(sphere(14, 8), "brass", Mx((0, y, 2.29), scale=.063))
+    b.make(sharp=rad(50))
+
+def build_goose_bag():
+    b = B("goose_bag")
+    bag = Mx((0, 0, .02), (rad(-7), rad(-9), 0))
+    b.add(lathe([(0, 0), (.164, 0), (.19, .07), (.188, .23), (.158, .78),
+                 (.184, .94), (.163, .97), (.135, .94), (.13, .85), (0, .85)], 24),
+          "enamel", bag)
+    for z, radius in [(.09, .19), (.79, .16), (.952, .168)]:
+        b.add(torus(radius, .014, 24, 6), "linen", bag @ Mx((0, 0, z)))
+    b.add(rbox(.265, .14, .32, .055, 3), "coral", bag @ Mx((0, -.158, .32)))
+    b.add(rbox(.21, .018, .02, .006, 1), "brass", bag @ Mx((0, -.229, .41)))
+    b.add(tube([(.14, 0, .77), (.29, 0, .72), (.31, 0, .50), (.18, 0, .39)],
+               .025, 8), "slat", bag)
+    for x in (-.13, .13):
+        b.add(tube([(x, .09, .67), (x * 2, .28, 0.018)], .015, 8), "brass")
+    for i, (x, h) in enumerate([(-.095, 1.24), (.035, 1.34), (.10, 1.17)]):
+        end = (x * 1.75, .065, h)
+        b.add(tube([(x, .035, .85), end], .014, 8), "chrome", bag)
+        b.add(rbox(.142, .058, .068, .024, 2), "chrome", bag @ Mx(end, (0, rad(-20 + i * 13), 0)))
+    # Knitted goose headcover with a curved neck, orange bill and a striped cuff.
+    neck = bag @ Mx((-.025, -.083, 0))
+    b.add(tube([(0, 0, .90), (0, 0, 1.08), (0, -.035, 1.24), (.01, -.10, 1.36)],
+               [.045, .063, .056, .065], 12), "linen", neck)
+    b.add(torus(.058, .018, 16, 6), "coral", neck @ Mx((0, 0, 1.065)))
+    b.add(sphere(18, 10), "linen", neck @ Mx((.01, -.12, 1.38), scale=(.096, .112, .088)))
+    b.add(sphere(16, 8), "bill", neck @ Mx((.01, -.239, 1.361), scale=(.065, .098, .029)))
+    for x in (-.065, .085):
+        b.add(sphere(10, 6), "enamel", neck @ Mx((x, -.167, 1.408), scale=.018))
+    b.make(sharp=rad(55))
+
+def build_clubhouse():
+    for name, color in [("enamel", "#174c50"), ("linen", "#fff0c6"), ("coral", "#ea5548"),
+                        ("slat", "#c57d49"), ("brass", "#e4ad53"), ("bill", "#ffa52c")]:
+        mat(name, color)
+    build_tee_clock()
+    build_parasol_bench()
+    build_goose_bag()
+
 def build_props():
     build_tree_round(); build_tree_pine(); build_tree_palm(); build_bush(); build_flowers(); build_rocks(); build_clouds()
     build_flag(); build_tee_marker(); build_mushroom(); build_bumper(); build_windmill(); build_goose(); build_cannon(); build_cart()
@@ -1916,6 +2015,9 @@ def with_club(parts, club):
 
 def previews(groups):
     setup_render()
+    if "clubhouse" in groups:
+        lineup("clubhouse", [(n, one(n, Mx(rot=(0, 0, rad(-15))))) for n in CLUBHOUSE],
+               cam_dir=(0, -1, .22), gap=.35, labels=False)
     if "golfer" in groups:
         lineup("golfer_parts", [(n, one(n)) for n in GOLFER], cam_dir=(0.0, -1, 0.5), gap=0.25, cols=7)
         rows = [("front", golfer_pose(STAND)),
@@ -1992,9 +2094,13 @@ if want("props"):
     summary["props"] = build_props()
     export_glb("props.glb", PROPS)
     built.append("props")
+if want("clubhouse"):
+    build_clubhouse()
+    export_glb("clubhouse.glb", CLUBHOUSE)
+    built.append("clubhouse")
 if not NO_RENDER:
     previews(built)
-for fn in ("golfer.glb", "clubs.glb", "props.glb"):
+for fn in ("golfer.glb", "clubs.glb", "props.glb", "clubhouse.glb"):
     p = os.path.join(ASSETS, fn)
     if os.path.exists(p):
         print(f"SIZE {fn} {os.path.getsize(p)} bytes")

@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: Whelp
+## Notes: Real reviews from real party members. Rate your tanks, healers and DPS out of five stars.
+## Author: timiam
+## Version: 1.0.0
+## SavedVariables: WhelpDB
+
+Data.lua
+Core.lua
+UI.lua

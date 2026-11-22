@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Party Health Pie · Vibe Coded Slopware</title>
+<title>Heal Pie · Vibe Coded Slopware</title>
 <meta name="description" content="A circular 5-man party health meter for World of Warcraft: Classic Forever and retail Midnight, with resources, pets, shields, incoming heals and mouseover healing. Free addon.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥧</text></svg>">
 <style>
@@ -37,6 +37,7 @@ code{font:13.5px Consolas,monospace;border:1px solid var(--line);border-radius:5
 footer{margin-top:56px;color:var(--dim);font-size:13px}
 </style>
 <link rel="stylesheet" href="/site-nav.css">
+<script src="/track.js" defer></script>
 </head>
 <body>
 <nav class="site-topbar" aria-label="Site">
@@ -45,19 +46,19 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
 </nav>
 <script src="/site-nav.js"></script>
 <main>
-  <h1>Party Health Pie</h1>
-  <p class="lede">Your whole 5-man party in one circle. A radial health, resource, pet, shield and incoming-heal meter for World of Warcraft: Classic Forever and retail Midnight.</p>
+  <h1>Heal Pie</h1>
+  <p class="lede">Your whole 5-man party in one circle, or your raid in a pie per group. A radial health, resource, pet, shield and incoming-heal meter for World of Warcraft: Classic Forever and retail Midnight.</p>
   <p class="hint">An early release. Bars are a shape, and the shape can be a pie.</p>
 
   <div class="cta">
-    <a class="btn primary" href="/party-health-pie/PartyHealthPie-1.1.2.zip" download>
-      <b>Download for Classic Forever</b><small>v1.1.2 · 0.3 MB · free</small>
+    <a class="btn primary" href="/party-health-pie/PartyHealthPie-1.2.1.zip" download>
+      <b>Download for Classic Forever</b><small>v1.2.1 · 0.3 MB · free</small>
     </a>
-    <a class="btn primary" href="/party-health-pie/PartyHealthPie-Retail-1.1.2.zip" download>
-      <b>Download for retail (Midnight)</b><small>v1.1.2 · 0.3 MB · free · adds all 13 classes</small>
+    <a class="btn primary" href="/party-health-pie/PartyHealthPie-Retail-1.2.1.zip" download>
+      <b>Download for retail (Midnight)</b><small>v1.2.1 · 0.3 MB · free · adds all 13 classes</small>
     </a>
   </div>
-  <p class="note">The retail build hasn’t been played on a live retail client yet, so treat it as a test release. The debuff glow is new in 1.1.0 and hasn’t been tested in a real group yet.</p>
+  <p class="note">The retail build hasn’t been played on a live retail client yet, so treat it as a test release. Raid layouts and dragging in combat are new in 1.2.0 and haven’t been tested in a real raid yet.</p>
 
   <figure>
     <img src="/party-health-pie/preview.png" width="520" height="260" alt="Two pie meters with five colored wedges each. One shows blue shield bands at the rim and pale green incoming-heal bands. The other shows tank, healer and DPS symbols, with a purple sword and a green shield glowing for players who have a debuff.">
@@ -76,7 +77,7 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
     <li><b>Check the folder isn’t doubled.</b> This file should exist:
       <code class="path">...\AddOns\PartyHealthPie\PartyHealthPie.toc</code>
     </li>
-    <li><b>Start the game.</b> On the character select screen, click <b>AddOns</b> and make sure Party Health Pie is ticked.</li>
+    <li><b>Start the game.</b> On the character select screen, click <b>AddOns</b> and make sure Heal Pie is ticked. It was called Party Health Pie before 1.2.1.</li>
     <li><b>Try it.</b> Type <code>/php demo</code> in chat to see a sample party, and the same again to stop.</li>
   </ol>
 
@@ -114,9 +115,10 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
   <ul>
     <li>Drag it anywhere, and resize it from 90 to 420 pixels.</li>
     <li>Recolor every class, resource, class pet, low-health, shield, incoming-heal and target color.</li>
-    <li>Pick a border: Steel, Iron, Silver, Gold or Brass.</li>
+    <li>Pick a border: Steel, Iron, Silver, Gold or Brass, or None for no rim and no dividers between wedges.</li>
     <li>Set border and player color opacity separately.</li>
     <li>Turn pet wedges and resources on or off for each class.</li>
+    <li>In a raid, get a pie for each raid group with your own group first, in rows you can size, or switch to one big pie with a wedge for everyone. Hide any groups you don’t heal.</li>
     <li>On retail, tick <b>Secondary</b> for a class to show its combo points, holy power, soul shards, chi, arcane charges, essence or runes in place of its main power.</li>
   </ul>
 
@@ -124,13 +126,14 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
   <div class="keys">
     <span><code>/php</code></span><span>open the settings (also under Options &gt; AddOns)</span>
     <span><code>/php demo</code></span><span>preview a sample party</span>
+    <span><code>/php demo raid</code></span><span>preview a sample raid, laid out as your raid settings say</span>
     <span><code>/php debuffs</code></span><span>list each member’s debuffs, and why one has no countdown</span>
   </div>
 
   <h2>Good to know</h2>
   <ul>
     <li>WoW locks mouseover targets during combat. If the party changes mid-fight, wedges may shuffle by party position until combat ends, but each wedge always shows who a hover would hit.</li>
-    <li>The circle can’t be dragged during combat, and size changes apply when combat ends.</li>
+    <li>You can drag it during combat too. The game won’t let it follow the pointer then, so faint discs show where it will land, and it moves when you let go. Turn this off under Mouseover Healing in the settings. Size and raid layout changes apply when combat ends.</li>
     <li>A low-health wedge stays red until the player recovers to 50%. When the game hides party health from addons, it follows the 33% line both ways instead.</li>
     <li>Instant heals have no cast, so they don’t show an incoming-heal band.</li>
     <li>Role symbols come from the role set in the game, so someone with no role has no symbol. They still get the debuff halo and countdown.</li>
@@ -142,6 +145,8 @@ footer{margin-top:56px;color:var(--dim);font-size:13px}
 
   <h2>What’s new</h2>
   <ul>
+    <li><b>1.2.1:</b> the addon is now called Heal Pie in the game too, matching CurseForge. It still installs to the same <code>PartyHealthPie</code> folder and keeps your settings.</li>
+    <li><b>1.2.0:</b> raids, with a pie per raid group or one big pie. Drag it during combat. A None border with no rim or dividers. Outlines and highlights scale down with small pies. Loads faster.</li>
     <li><b>1.1.2:</b> the debuff countdown rounds up, so it no longer reads 0 in its last half second, and long debuffs count in minutes. New <code>/php debuffs</code> command explains a missing countdown.</li>
     <li><b>1.1.1:</b> hovering a wedge shows the player’s tooltip, and heals bound to the middle and side mouse buttons now cast on the wedge under the pointer.</li>
     <li><b>1.1.0:</b> role symbols, and a debuff color, glow and countdown for dispels.</li>

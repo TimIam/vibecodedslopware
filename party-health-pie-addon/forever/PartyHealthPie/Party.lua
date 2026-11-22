@@ -360,6 +360,7 @@ ns.RefreshAll = RefreshAll
 
 local function PetUnitFor(unit)
 	if unit == "player" then return "pet" end
+	if unit:match("^raid%d") then return (unit:gsub("^raid", "raidpet")) end
 	return (unit:gsub("party", "partypet"))
 end
 
@@ -367,50 +368,51 @@ local function AssignUnit(slot, unit, guid)
 	slot.unit, slot.guid, slot.petUnit = unit, guid, unit and PetUnitFor(unit)
 end
 
-local function UpdateRoster()
-	-- Hover areas cannot be repointed in combat, so wedges stay on their unit tokens until it ends.
-	-- Otherwise a hover could cast on someone other than the member drawn there.
-	if InCombatLockdown() then
-		RefreshAll()
-		return
-	end
-
-	local slots = ns.slots
-	AssignUnit(slots[1], "player", Plain(UnitGUID("player")))
-
-	local wanted, order = {}, {}
-	for i = 1, SLOTS - 1 do
-		local unit = "party" .. i
-		if Plain(UnitExists(unit)) then
-			local guid = Plain(UnitGUID(unit)) or unit
-			wanted[guid] = unit
-			order[#order + 1] = guid
-		end
-	end
-
-	for i = 2, SLOTS do
+-- members: { unit =, guid = } in the order new arrivals should fill free wedges. Someone already in
+-- a wedge of these slots keeps it; the rest take the first free ones.
+local function FillSlots(slots, members, first)
+	local wanted = {}
+	for _, m in ipairs(members) do wanted[m.guid] = m.unit end
+	for i = first, #slots do
 		local slot = slots[i]
 		local unit = slot.guid and wanted[slot.guid]
 		if unit then
-			slot.unit = unit
-			slot.petUnit = PetUnitFor(unit)
+			slot.unit, slot.petUnit = unit, PetUnitFor(unit)
 			wanted[slot.guid] = nil
 		else
 			AssignUnit(slot, nil, nil)
 		end
 	end
-
-	for _, guid in ipairs(order) do
-		local unit = wanted[guid]
-		if unit then
-			for i = 2, SLOTS do
+	for _, m in ipairs(members) do
+		if wanted[m.guid] then
+			for i = first, #slots do
 				if not slots[i].guid then
-					AssignUnit(slots[i], unit, guid)
+					AssignUnit(slots[i], m.unit, m.guid)
 					break
 				end
 			end
 		end
 	end
+end
+
+local function PieSlots(pie)
+	local slots = {}
+	for i = 1, pie.wedges do slots[i] = pie.slots[i] end
+	return slots
+end
+
+local function PartyRoster()
+	local pie = ns.partyPie
+	ns.UsePies({ pie })
+	local slots = PieSlots(pie)
+	AssignUnit(slots[1], "player", Plain(UnitGUID("player")))
+
+	local members = {}
+	for i = 1, SLOTS - 1 do
+		local unit = "party" .. i
+		if Plain(UnitExists(unit)) then members[#members + 1] = { unit = unit, guid = Plain(UnitGUID(unit)) or unit } end
+	end
+	FillSlots(slots, members, 2)
 
 	-- Empty wedges hold the unused tokens, so someone joining mid-combat still has a wedge to appear in.
 	local taken = {}
@@ -425,7 +427,84 @@ local function UpdateRoster()
 			taken["party" .. nextToken] = true
 		end
 	end
+end
 
+-- The raid by group, as Blizzard's raid frames read it. If the game hides someone's group number,
+-- they are placed as if the raid were filled in order, five to a group.
+local function RaidGroups()
+	local groups, own = {}, nil
+	local me = Plain(UnitGUID("player"))
+	for i = 1, MAX_RAID_MEMBERS or 40 do
+		local unit = "raid" .. i
+		if Plain(UnitExists(unit)) then
+			local _, _, subgroup = GetRaidRosterInfo(i)
+			subgroup = Plain(subgroup) or math.ceil(i / SLOTS)
+			local guid = Plain(UnitGUID(unit)) or unit
+			groups[subgroup] = groups[subgroup] or {}
+			local list = groups[subgroup]
+			if guid == me then
+				own = subgroup
+				table.insert(list, 1, { unit = unit, guid = guid })
+			else
+				list[#list + 1] = { unit = unit, guid = guid }
+			end
+		end
+	end
+	return groups, own
+end
+
+-- The groups to show, in order: the player's own first if they chose that, then the rest by number.
+local function GroupOrder(groups, own)
+	local order = {}
+	local function Add(g)
+		if groups[g] and #groups[g] > 0 and not ns.db.hiddenGroups[g] then order[#order + 1] = g end
+	end
+	if own and ns.db.ownGroupFirst then Add(own) end
+	for g = 1, 8 do
+		if not (own and ns.db.ownGroupFirst and g == own) then Add(g) end
+	end
+	return order
+end
+
+-- Works out the pies for a raid. Returns, for each pie shown, its member list.
+local function PlanRaid(groups, own)
+	local order = GroupOrder(groups, own)
+	if ns.db.raidLayout == "single" then
+		local everyone = {}
+		for _, g in ipairs(order) do
+			for _, m in ipairs(groups[g]) do everyone[#everyone + 1] = m end
+		end
+		local pie = ns.RaidPie()
+		ns.UsePies({ pie }, #everyone)
+		return { { pie = pie, members = everyone } }
+	end
+	local pies, labels, plan = {}, {}, {}
+	for n, g in ipairs(order) do
+		local pie = ns.GroupPie(n)
+		pies[n], labels[n] = pie, "Group " .. g
+		plan[n] = { pie = pie, members = groups[g] }
+	end
+	if #pies == 0 then pies[1] = ns.partyPie end
+	ns.UsePies(pies, nil, labels)
+	return plan
+end
+
+local function RaidRoster()
+	local groups, own = RaidGroups()
+	for _, entry in ipairs(PlanRaid(groups, own)) do
+		local slots = PieSlots(entry.pie)
+		FillSlots(slots, entry.members, 1)
+	end
+end
+
+local function UpdateRoster()
+	-- Hover areas cannot be repointed in combat, so wedges stay on their unit tokens until it ends.
+	-- Otherwise a hover could cast on someone other than the member drawn there.
+	if InCombatLockdown() then
+		RefreshAll()
+		return
+	end
+	if IsInRaid() then RaidRoster() else PartyRoster() end
 	RefreshAll()
 	ns.SyncHover()
 end
@@ -447,25 +526,65 @@ local DEMO = {
 	{ state = "live", class = "WARLOCK", role = "DAMAGER", powerToken = "MANA", phase = 4.0, pet = 0.5, debuff = { type = 1, seconds = 9 } },
 }
 
+-- A sample raid: all eight groups, the last one short, built from the party preview's members.
+local DEMO_RAID_GROUPS = { 5, 5, 5, 5, 5, 5, 5, 3 }
+local function DemoRaid()
+	local groups, n = {}, 0
+	for g, count in ipairs(DEMO_RAID_GROUPS) do
+		groups[g] = {}
+		for i = 1, count do
+			n = n + 1
+			local base = DEMO[(n - 1) % #DEMO + 1]
+			local d = {}
+			for k, v in pairs(base) do d[k] = v end
+			d.phase = base.phase + n * 0.37
+			d.selected = n == 1
+			if base.debuff and n % 3 ~= 0 then d.debuff = nil end
+			groups[g][i] = { demo = d, guid = "demo" .. n }
+		end
+	end
+	return groups, 1
+end
+
 function ns.IsDemo() return ns.demo == true end
 
-function ns.SetDemo(on)
+local function ClearDemo()
+	for _, pie in ipairs(ns.pies) do
+		for _, slot in ipairs(pie.slots) do
+			slot.demo = nil
+			slot.low = false
+		end
+	end
+end
+
+-- raid: preview a raid instead of a party, laid out the way the raid settings say.
+function ns.SetDemo(on, raid)
 	if on and InCombatLockdown() then
 		-- Fake wedges over hover areas still aimed at real players would be misleading.
-		print("Party Health Pie: the preview can't start during combat.")
+		print("Heal Pie: the preview can't start during combat.")
 		return
 	end
 	ns.demo = on or false
-	for i, slot in ipairs(ns.slots) do
-		slot.demo = on and DEMO[i] or nil
-		slot.low = false
-	end
-	if on then
-		ns.SyncHover()
-		ns.StepDemo(GetTime())
-	else
+	ns.demoRaid = on and raid or nil
+	ClearDemo()
+	if not on then
 		UpdateRoster()
+		return
 	end
+	if raid then
+		local groups, own = DemoRaid()
+		for _, entry in ipairs(PlanRaid(groups, own)) do
+			for i, m in ipairs(entry.members) do entry.pie.slots[i].demo = m.demo end
+		end
+	else
+		ns.UsePies({ ns.partyPie })
+		for i, slot in ipairs(ns.slots) do slot.demo = DEMO[i] end
+	end
+	for _, slot in ipairs(ns.slots) do
+		if not slot.demo then slot.demo = { state = "empty", class = "WARRIOR", powerToken = "MANA", phase = 0 } end
+	end
+	ns.SyncHover()
+	ns.StepDemo(GetTime())
 end
 
 function ns.StepDemo(now)
@@ -482,11 +601,27 @@ function ns.StepDemo(now)
 	RefreshAll()
 end
 
+-- Which pies there are and who is in them, after a setting that changes the raid layout.
+local function Rearrange()
+	if InCombatLockdown() then
+		ns.rosterPending = true
+		return
+	end
+	if ns.demo then
+		ns.SetDemo(true, ns.demoRaid)
+	else
+		UpdateRoster()
+	end
+end
+
 -- ---- Settings changed -----------------------------------------------------------------------
 
 function ns.ApplySettings()
 	curves.fill = nil
-	ns.Layout()
+	ns.SyncMoveSetting()
+	ns.laidOut = false
+	Rearrange()
+	if not ns.laidOut then ns.Layout() end
 	ns.ApplyLook()
 	RefreshAll()
 end
@@ -506,6 +641,23 @@ end
 
 local sincePoll, sinceDemo = 0, 0
 local POLL_SECONDS, DEMO_SECONDS = 0.25, 0.05
+local POLL_BATCH = 10 -- wedges refreshed per poll; a full raid takes a second to go round
+local nextPolled = 1
+
+-- Unit events keep health and power current. The poll is for what has no event, such as a debuff's
+-- countdown or a party member's resurrection, so in a raid it goes round a few wedges at a time.
+local function Poll()
+	local slots = ns.slots
+	if #slots <= POLL_BATCH then
+		RefreshAll()
+		return
+	end
+	for _ = 1, POLL_BATCH do
+		if nextPolled > #slots then nextPolled = 1 end
+		RefreshSlot(slots[nextPolled])
+		nextPolled = nextPolled + 1
+	end
+end
 
 ns.root:SetScript("OnUpdate", function(_, elapsed)
 	local now = GetTime()
@@ -520,7 +672,7 @@ ns.root:SetScript("OnUpdate", function(_, elapsed)
 	elseif sincePoll >= POLL_SECONDS then
 		-- Death, release and resurrection do not all raise a unit event for party members.
 		sincePoll = 0
-		RefreshAll()
+		Poll()
 	end
 end)
 
@@ -541,15 +693,22 @@ function ns.ApplyGameMouseover()
 		SaveBindings(GetCurrentBindingSet())
 	end
 	if GetCVarBool("enableMouseoverCast") then
-		print("Party Health Pie: turned on the game's Mouseover Cast option, so hovering a wedge casts on that player. You can change it under Options > Combat.")
+		print("Heal Pie: turned on the game's Mouseover Cast option, so hovering a wedge casts on that player. You can change it under Options > Combat.")
 	else
-		print("Party Health Pie: couldn't turn on Mouseover Cast. Please enable it under Options > Combat.")
+		print("Heal Pie: couldn't turn on Mouseover Cast. Please enable it under Options > Combat.")
 	end
 end
 
 local dragging = false
 
+local function SavePosition()
+	ns.positionUnsaved = false
+	local point, _, relativePoint, x, y = ns.root:GetPoint(1)
+	if point then ns.db.point = { point, relativePoint, x, y } end
+end
+
 function ns.StartDrag()
+	-- In combat the hover areas take no drags; their secure snippets move the pies instead.
 	if InCombatLockdown() then return end
 	dragging = true
 	ns.root:StartMoving()
@@ -559,11 +718,16 @@ function ns.StopDrag()
 	if not dragging then return end
 	dragging = false
 	ns.root:StopMovingOrSizing()
-	local point, _, relativePoint, x, y = ns.root:GetPoint(1)
-	ns.db.point = { point, relativePoint, x, y }
+	SavePosition()
 end
 
 local function RestorePosition()
+	-- The frame is protected, so after a reload in combat this waits for combat to end.
+	if InCombatLockdown() then
+		ns.restorePending = true
+		return
+	end
+	ns.restorePending = false
 	local p = ns.db.point
 	ns.root:ClearAllPoints()
 	if p then
@@ -576,7 +740,7 @@ end
 local events = CreateFrame("Frame")
 for _, name in ipairs({
 	"ADDON_LOADED", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "UI_SCALE_CHANGED", "DISPLAY_SIZE_CHANGED",
-	"PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED",
+	"PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_LOGOUT",
 	"UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_POWER_FREQUENT", "UNIT_MAXPOWER", "UNIT_ABSORB_AMOUNT_CHANGED", "UNIT_HEAL_PREDICTION", "PLAYER_TARGET_CHANGED",
 	"UNIT_DISPLAYPOWER", "UNIT_PET", "UNIT_CONNECTION", "UPDATE_BINDINGS",
 }) do
@@ -596,17 +760,31 @@ events:SetScript("OnEvent", function(_, event, arg1)
 	end
 	if not ns.db or (issecretvalue and issecretvalue(arg1)) then return end
 
-	if event == "PLAYER_REGEN_DISABLED" then
+	if event == "PLAYER_LOGOUT" then
+		-- A combat move is saved when combat ends; this catches one made as it ended.
+		if ns.positionUnsaved then SavePosition() end
+		return
+	elseif event == "PLAYER_REGEN_DISABLED" then
 		-- Fires just before lockdown, the last chance to let go of a drag in progress.
 		ns.StopDrag()
+		ns.SetCombatDrag(true)
 		return
 	elseif event == "PLAYER_REGEN_ENABLED" then
+		ns.SetCombatDrag(false)
+		if ns.restorePending then RestorePosition() end
+		if ns.positionUnsaved then SavePosition() end
+		if ns.moveSettingPending then ns.SyncMoveSetting() end
 		if ns.layoutPending then
 			ns.layoutPending = false
 			ns.Layout()
 		end
 		if ns.gameMouseoverPending then ns.ApplyGameMouseover() end
-		if not ns.demo then UpdateRoster() end
+		if ns.rosterPending then
+			ns.rosterPending = false
+			Rearrange()
+		elseif not ns.demo then
+			UpdateRoster()
+		end
 		return
 	elseif event == "PLAYER_ENTERING_WORLD" and ns.db.mouseover and not ns.db.gameMouseoverSet then
 		-- Only ever once, so turning the game's option back off is respected.
@@ -683,7 +861,7 @@ local function DescribeDebuff(unit, id, dispellable, shown)
 end
 
 local function ReportDebuffs()
-	local say = function(text) print("Party Health Pie: " .. text) end
+	local say = function(text) print("Heal Pie: " .. text) end
 	if not ns.db.dispelGlow then say("the debuff glow is turned off in the settings.") end
 	local found = false
 	for _, slot in ipairs(ns.slots) do
@@ -724,7 +902,8 @@ SLASH_PARTYHEALTHPIE1 = "/php"
 SLASH_PARTYHEALTHPIE2 = "/healthpie"
 SlashCmdList.PARTYHEALTHPIE = function(input)
 	if input:lower():match("^%s*demo") then
-		ns.SetDemo(not ns.demo)
+		local raid = input:lower():match("^%s*demo%s+raid") ~= nil
+		ns.SetDemo(not (ns.demo and (ns.demoRaid or false) == raid), raid)
 		if ns.RefreshOptions then ns.RefreshOptions() end
 	elseif input:lower():match("^%s*debuff") then
 		ReportDebuffs()

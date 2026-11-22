@@ -36,7 +36,7 @@
       }
     },
     "pie": {
-      "name": "Party Health Pie",
+      "name": "Heal Pie",
       "kind": "folder",
       "root": "party-health-pie-addon",
       "page": "party-health-pie",
@@ -49,6 +49,19 @@
         "retail": {
           "folder": "party-health-pie-addon/retail/PartyHealthPie",
           "zip": "PartyHealthPie-Retail-{v}.zip"
+        }
+      }
+    },
+    "whelp": {
+      "name": "Whelp",
+      "kind": "folder",
+      "root": "whelp-addon",
+      "page": "whelp",
+      "curseforge": { "project": 1814519, "releaseType": { "forever": "release" } },
+      "builds": {
+        "forever": {
+          "folder": "whelp-addon/Whelp",
+          "zip": "Whelp-{v}.zip"
         }
       }
     }
