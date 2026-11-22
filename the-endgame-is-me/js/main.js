@@ -1,7 +1,7 @@
 // The page: input, the fixed-step loop, scaling the 320×180 buffer to the window, the between-maps store,
 // overlays, saves and the best score.
 
-import { createGame, step, nextMap, W, H, ABILITIES, SLOT_KEYS, abilityOffer, buyAbility, upgradeAbility, unmutateAbility, setSlot, createDemo, demoSet, demoStep, newGamePlus, createEnding, endingStep, jumpToLevel, migrate } from './world.js';
+import { createGame, step, nextMap, W, H, ABILITIES, abilityOffer, buyAbility, upgradeAbility, unmutateAbility, setSlot, createDemo, demoSet, demoStep, newGamePlus, createEnding, endingStep, jumpToLevel, migrate } from './world.js';
 import { createRenderer, setCalm } from './render.js';
 import { ICONS, PAL, drawText } from './art.js';
 import { createAudio } from './audio.js';
@@ -11,6 +11,7 @@ import { createAttract } from './attract.js';
 import { createAppearance, currentLook, bossName } from './appearance.js';
 import { writeSave, readSave, saveInfo, clearSave, unlockPlus, plusData } from './save.js';
 import { createDebug, isSecretName } from './debug.js';
+import { controls, keyAction, poll, hit, held, stick, dpad, slotLabel, spaceLabel, onChange, SLOTS, PAD_A, PAD_B } from './controls.js';
 
 const canvas = document.getElementById('game');
 const out = canvas.getContext('2d');
@@ -98,6 +99,7 @@ const menu = createMenu({
   saves: { info: saveInfo, plus: plusData },
   clearBest() { best = 0; try { localStorage.removeItem(BEST_KEY); } catch {} showBest(); },
   hasBest: () => best > 0,
+  slots: () => g.slots.map(id => id && ABILITIES.find(a => a.id === id)?.name),
   calm: {
     get: () => calm,
     set(on) { calm = on; setCalm(on); title.calm = on; try { localStorage.setItem('bosshours.calm', on ? '1' : '0'); } catch {} },
@@ -132,7 +134,8 @@ function secretHint() {
 const keys = new Set();
 const mouse = { x: W / 2 + 40, y: H / 2, l: false };
 const press = {};
-const KEYMAP = { KeyJ: 'slot0', KeyK: 'slot1', KeyF: 'slot1', KeyQ: 'slot2', KeyE: 'slot3', KeyR: 'slot4', Space: 'space' };   // Space roars, or shakes while somebody is in the fur (world.js decides)
+// which key does what lives in controls.js (rebindable); 'space' roars, or shakes while somebody is in the fur (world.js decides)
+const WALK = new Set(['up', 'down', 'left', 'right']);
 
 addEventListener('keydown', e => {
   if (debug.key(e)) return;
@@ -151,8 +154,9 @@ addEventListener('keydown', e => {
   if (mode === 'store') return;
   if (e.code === 'Escape' || e.code === 'KeyP') { if (mode === 'play') pause(); else if (mode === 'paused') resume(); return; }
   if (mode === 'paused' && e.code === 'Space') { e.preventDefault(); resume(); return; }
-  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
-  if (!e.repeat && KEYMAP[e.code]) press[KEYMAP[e.code]] = true;
+  const a = keyAction(e.code);
+  if (a || ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+  if (!e.repeat && a && !WALK.has(a)) press[a] = true;
   keys.add(e.code);
 });
 addEventListener('keyup', e => keys.delete(e.code));
@@ -176,16 +180,40 @@ canvas.addEventListener('pointerdown', e => {
 });
 addEventListener('pointerup', e => { if (e.button === 0) mouse.l = false; });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
+// no long-press or right-click menu anywhere but the name box (a Steam Deck's trackpad right-clicks easily)
+addEventListener('contextmenu', e => { if (!e.target.closest?.('input')) e.preventDefault(); });
 
+// With a controller the boss has no mouse to look at, so it looks ahead of itself: the aim point sits AIM_AT pixels
+// out along its facing, nudged round by a "turn and walk" stick (TURN radians a second at full tilt; world.js turns
+// the boss toward it at its own rate) or set outright by a "face" stick.
+const TURN = 3.4, AIM_AT = 40;
 function readInput() {
-  const k = c => keys.has(c);
-  return {
-    mx: mouse.x + g.cam.x, my: mouse.y + g.cam.y,   // aim in world pixels; the screen scrolls on later levels
-    ax: (k('KeyD') || k('ArrowRight') ? 1 : 0) - (k('KeyA') || k('ArrowLeft') ? 1 : 0),
-    ay: (k('KeyS') || k('ArrowDown') ? 1 : 0) - (k('KeyW') || k('ArrowUp') ? 1 : 0),
-    press: { ...press },
-    hold: { slot0: mouse.l || k('KeyJ') },
-  };
+  const b = g.boss;
+  let r = false, l = false, u = false, d = false, slot0 = mouse.l;
+  for (const c of keys) {
+    const a = keyAction(c);
+    if (a === 'right') r = true; else if (a === 'left') l = true; else if (a === 'down') d = true; else if (a === 'up') u = true; else if (a === 'slot0') slot0 = true;
+  }
+  let ax = (r ? 1 : 0) - (l ? 1 : 0), ay = (d ? 1 : 0) - (u ? 1 : 0);
+  let mx = mouse.x + g.cam.x, my = mouse.y + g.cam.y;   // aim in world pixels; the screen scrolls on later levels
+  if (controls.mode === 'pad') {
+    let turn = 0, face = null;
+    for (const s of ['left', 'right']) {
+      const [x, y] = stick(s), role = controls.sticks[s];
+      if (role === 'move') { ax += x; ay += y; }
+      else if (role === 'tank') { turn += x; ax -= Math.cos(b.face) * y; ay -= Math.sin(b.face) * y; }
+      else if (role === 'aim' && (x || y)) face = Math.atan2(y, x);
+    }
+    const [px, py] = dpad();
+    ax += px; ay += py;
+    const ang = face ?? b.face + Math.max(-1, Math.min(1, turn)) * TURN * DT;
+    mx = b.x + Math.cos(ang) * AIM_AT; my = b.y + Math.sin(ang) * AIM_AT;
+    if (held(controls.pad.slot0)) slot0 = true;
+  }
+  // every way of walking at once (keys, sticks, D-pad) still only adds up to walking: never faster than one of them
+  const len = Math.hypot(ax, ay);
+  if (len > 1) { ax /= len; ay /= len; }
+  return { mx, my, ax, ay, press: { ...press }, hold: { slot0 } };
 }
 
 // ---------------------------------------------------------------------------------------------- flow
@@ -348,6 +376,7 @@ function openStore(opts = {}) {
   $('storeGo').dataset.label ??= $('storeGo').innerHTML;
   $('storeGo').innerHTML = storeDebug ? 'Back to the level' : $('storeGo').dataset.label;
   $('store').hidden = false;
+  ($('abilList').querySelector('.item.sel') || $('storeGo')).focus({ preventScroll: true });
   if (!storeDebug) writeSave(g, 'store');
   cancelAnimationFrame(demoRaf);
   let then = performance.now(), acc = 0;
@@ -380,6 +409,13 @@ function icon(id) {
   return `<svg class="ico" viewBox="0 0 8 8" aria-hidden="true">${rows.map((r, y) => [...r].map((c, x) => c === '#' ? `<rect x="${x}" y="${y}" width="1" height="1"/>` : '').join('')).join('')}</svg>`;
 }
 
+// the Hoard's lists are drawn again after every pick, so whatever had focus is found again by name afterwards
+function redraw(draw) {
+  const k = menu.nav.keyOf(document.activeElement);
+  draw();
+  menu.nav.restore(k, $('store'));
+  menu.nav.restore(`[data-sel="${sel}"]`, $('store'));
+}
 function drawStore() {
   $('storePts').textContent = fmt(g.points);
   for (const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected', b.dataset.tab === tab);
@@ -407,7 +443,7 @@ function drawAbilities() {
   const { o, cost: price, what } = mutateOffer(sel), a = o.it;
   const cost = storeDebug && price != null ? 0 : price;
   const back = storeDebug && o.lvl > 0 ? `<button type="button" class="mutate" id="abilUnmutate"><span>Unmutate <small>debug: one level back off</small></span><b>${o.lvl}</b></button>` : '';
-  const tag = a.passive ? (o.lvl ? `level ${o.lvl}` : 'not grown') : a.space ? 'always on SPACE' : o.owned ? (g.slots.includes(a.id) ?`on ${SLOT_KEYS[g.slots.indexOf(a.id)]}` : 'owned, not slotted') : 'not owned';
+  const tag = a.passive ? (o.lvl ? `level ${o.lvl}` : 'not grown') : a.space ? `always on ${spaceLabel(true).toUpperCase()}` : o.owned ? (g.slots.includes(a.id) ? `on ${slotLabel(g.slots.indexOf(a.id), true)}` : 'owned, not slotted') : 'not owned';
   const desc = a.id === 'summon' && o.owned && o.lvl > 0 ? a.ups[o.lvl - 1] : a.desc;
   $('abilInfo').innerHTML = `<b class="nm">${icon(a.id)} ${a.name}</b><span class="up">${tag}</span><span class="desc">${desc}</span>` +
     (cost == null ? `<span class="up">Fully mutated${a.ups && !a.passive && a.id !== 'summon' ? ': ' + a.ups[a.ups.length - 1][0].toLowerCase() + a.ups[a.ups.length - 1].slice(1) : ''}. Nothing left to grow.</span>`
@@ -432,20 +468,20 @@ function drawSlots() {
   const owned = ABILITIES.filter(a => !a.passive && !a.space && g.owned.has(a.id));
   // each choice shows the key it is already on, to the left of its name; a slot can be changed but never emptied
   // (a slot is only empty while there is not yet anything to put in it)
-  const keyOf = id => { const j = g.slots.indexOf(id); return j >= 0 ? SLOT_KEYS[j] : ''; };
-  const pad = Math.max(...SLOT_KEYS.map(k => k.length));
+  const keyOf = id => { const j = g.slots.indexOf(id); return j >= 0 ? slotLabel(j) : ''; };
+  const pad = Math.max(...SLOTS.map((_, i) => slotLabel(i).length));
   const label = a => `${(keyOf(a.id) || '').padEnd(pad, ' ')} ${a.name}`;
-  $('tabSlots').innerHTML = `<p class="hint">Five slots. Pick what goes where; picking something already on another key swaps them, and the key each one is on shows on its left. Roar needs no slot: it is always on <kbd>Space</kbd>, which shakes your fur instead while somebody is in it.</p>` +
-    g.slots.map((id, i) => `<label class="slot"><kbd>${SLOT_KEYS[i]}</kbd>${icon(id || 'empty')}
+  $('tabSlots').innerHTML = `<p class="hint">Five slots. Pick what goes where; picking something already on another key swaps them, and the key each one is on shows on its left. Roar needs no slot: it is always on <kbd>${spaceLabel(true)}</kbd>, which shakes your fur instead while somebody is in it.</p>` +
+    g.slots.map((id, i) => `<label class="slot"><kbd>${slotLabel(i, true)}</kbd>${icon(id || 'empty')}
       <select data-slot="${i}" ${owned.length ? '' : 'disabled'}>${id ? '' : '<option value="" selected disabled hidden>(empty)</option>'}${owned.map(a => `<option value="${a.id}" ${a.id === id ? 'selected' : ''}>${label(a)}</option>`).join('')}</select></label>`).join('');
 }
 
 $('store').addEventListener('click', e => {
   const t = e.target.closest('button');
   if (!t || t.getAttribute('aria-disabled') === 'true') return;
-  if (t.dataset.tab) { tab = t.dataset.tab; drawStore(); return; }
+  if (t.dataset.tab) { tab = t.dataset.tab; redraw(drawStore); return; }
   if (t.id === 'storeGo') { closeStore(); return; }
-  if (t.dataset.sel) { sel = t.dataset.sel; showDemo(); drawAbilities(); return; }
+  if (t.dataset.sel) { sel = t.dataset.sel; showDemo(); redraw(drawAbilities); return; }
   let ok = false;
   if (t.id === 'abilMutate') {
     const o = abilityOffer(g, sel);
@@ -453,12 +489,14 @@ $('store').addEventListener('click', e => {
     if (ok) showDemo();
   }
   if (t.id === 'abilUnmutate' && storeDebug) { ok = unmutateAbility(g, sel); if (ok) showDemo(); }
-  if (ok) { audio.play('buy'); drawStore(); }
+  if (ok) { audio.play('buy'); redraw(drawStore); }
 });
 $('store').addEventListener('change', e => {
   const s = e.target.closest('select[data-slot]');
-  if (s && s.value) { setSlot(g, +s.dataset.slot, s.value); drawStore(); }
+  if (s && s.value) { setSlot(g, +s.dataset.slot, s.value); redraw(drawStore); }
 });
+// a controller turning up mid-shop changes every key label in it
+onChange(() => { if (mode === 'store') redraw(drawStore); });
 
 // ---------------------------------------------------------------------------------------------- loop
 
@@ -539,15 +577,32 @@ function paint() {
     out.drawImage(buf, 0, 0, canvas.width, canvas.height);
     return;
   }
-  const buf = R.render(g, { mx: mouse.x, my: mouse.y, cursor: mode === 'play', muted: audio.muted });
+  // with a controller the crosshair marks where the boss is facing instead of where the mouse is
+  const b = g.boss, pad = controls.mode === 'pad';
+  const cx = pad ? b.x + Math.cos(b.face) * AIM_AT - g.cam.x : mouse.x, cy = pad ? b.y + Math.sin(b.face) * AIM_AT - g.cam.y : mouse.y;
+  const buf = R.render(g, { mx: cx, my: cy, cursor: mode === 'play', muted: audio.muted });
   debug.draw(buf);
   out.imageSmoothingEnabled = false;
   out.drawImage(buf, 0, 0, canvas.width, canvas.height);
 }
 
+// the controller, once a frame: the menus get first say (walking, picking, binding, fullscreen); otherwise its
+// buttons go to the boss, or move the ending on
+function padFrame(dt) {
+  poll();
+  if (debug.on || menu.pad(mode, dt)) return;
+  if (mode === 'play' && controls.mode === 'pad') {
+    for (const a of [...SLOTS, 'space']) if (hit(controls.pad[a])) press[a] = true;
+    if (hit(controls.pad.pause)) pause();
+  }
+  if (mode === 'ending' && (hit(PAD_A) || hit(PAD_B) || hit(controls.pad.pause))) endingDone();
+}
+
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  if (booted) padFrame(dt);
+  menu.draw(mode);
   if (mode === 'play' && !frozen) {
     acc += dt;
     while (acc >= DT && mode === 'play') {
@@ -623,6 +678,9 @@ if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
       c.drawImage(canvas, (cx - w / 2) * s, (cy - h / 2) * s, w * s, h * s, 0, 0, 1200, 900);
     },
     aim(x, y) { mouse.x = x; mouse.y = y; },
+    input: () => readInput(),
+    controls: () => import('./controls.js'),
+    menu,
     // steps n frames with the given input (and renders once at the end)
     step(n = 60, inp = {}) {
       for (let i = 0; i < n; i++) { if (unkillable()) g.boss.hp = g.boss.maxhp; step(g, { mx: g.boss.x + 30, my: g.boss.y, ax: 0, ay: 0, press: {}, hold: {}, ...inp }, DT); inp = { ...inp, press: {} }; }

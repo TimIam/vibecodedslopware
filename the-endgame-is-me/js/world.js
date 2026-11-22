@@ -14,7 +14,8 @@ export const ARENA = { x0: 5, y0: 16, x1: W - 5, y1: H - 20 };
 export const BOSS_HP = 4000, BOSS_SPEED = 23, BOSS_R = 10;
 export const MULT_STEP = 0.25, MULT_MAX = 5;
 export const RAID_LAPS = 10, FINAL_LAPS = 20;   // a 25-man comes at lap 10, the 40-man at lap 20
-export const SLOT_KEYS = ['LMB', 'RMB', 'Q', 'E', 'R'];
+export const SLOT_KEYS = ['LMB', 'RMB', 'Q', 'E', 'R'];   // what the HUD calls each slot; controls.js rewrites these and KEY_HINT to follow the bindings
+export const KEY_HINT = { space: 'SPC', shake: 'SPACE' };
 
 // base numbers; g.abil holds this run's copy with upgrades applied
 export const ABIL = {
@@ -144,7 +145,7 @@ export const THEMES = [
 export const NG_HP = 0.6, NG_HIT = 0.4, NG_PACE = 0.25;
 
 export const BOSS_NAMES = ['GORMUND THE UNBOTHERED', 'OLD BRISTLES', 'GRUBB, WARDEN OF TWO ROCKS', 'HAROLD',
-  'MORVAK THE AMBLING', 'THE PACING ONE', 'BIG LOUIS', 'UNGOR, WHO WALKS', 'MIKE'];
+  'MORVAK THE AMBLING', 'THE PACING ONE', 'BIG LOUIS', 'UNGOR, WHO WALKS', 'MIKE', 'USIDORE THE BLUE'];
 
 // what the heroes say. Bubbles are 3×5 font, so keep each line short.
 const BARK = {

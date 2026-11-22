@@ -99,6 +99,19 @@ export function createFurPicker(cv, onPick) {
     }
     draw();
   }
+  // the arrows, once the picker is picked up from a controller or the keyboard: left and right walk the ring a
+  // notch, up and down mix in more white or more black
+  function nudge(dh, dl) {
+    h = ((h + dh * 7.5) % 360 + 360) % 360;
+    if (dl) {
+      const k = 1 - a - w, sh = 1 / 12;
+      if (dl > 0) w += Math.min(sh, k);
+      else if (w > 0) w -= Math.min(sh, w);
+      else a = Math.max(0, a - sh);   // no white left to take out, so take out colour
+    }
+    draw();
+    onPick(hex());
+  }
   draw();
-  return { set, get value() { return hex(); } };
+  return { set, nudge, get value() { return hex(); } };
 }

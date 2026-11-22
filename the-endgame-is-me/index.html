@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#141a12">
 <title>The Endgame is Me</title>
 <meta name="description" content="A reverse boss fight in pixel art. You are the boss: pace between a rock and another rock for points, eat the 5-mans, raids and the quiet man on a horse who keep interrupting, and spend the points on new abilities.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐾</text></svg>">
@@ -12,9 +13,9 @@
 <link rel="stylesheet" href="/site-nav.css">
 <style>
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;overflow:hidden;background:#141a12;color:#f4ecd2;font:14px/1.45 "Silkscreen",ui-monospace,Consolas,monospace;user-select:none;-webkit-user-select:none}
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:#141a12;color:#f4ecd2;font:14px/1.45 "Silkscreen",ui-monospace,Consolas,monospace;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 main{position:fixed;inset:52px 0 0;display:grid;place-items:center}
-#game{display:block;image-rendering:pixelated;image-rendering:crisp-edges;outline:none;cursor:none;background:#141a12}
+#game{display:block;image-rendering:crisp-edges;image-rendering:pixelated;outline:none;cursor:none;background:#141a12;touch-action:none}
 .overlay{position:fixed;inset:52px 0 0;display:grid;place-items:center;z-index:10;background:rgba(10,12,8,.55)}
 .overlay[hidden]{display:none}
 .card{width:min(600px,94vw);max-height:calc(100dvh - 72px);overflow:auto;padding:18px 24px 18px;background:#1c1610;border:4px solid #14100c;box-shadow:0 0 0 4px #633b25,0 0 0 8px #14100c,0 18px 50px rgba(0,0,0,.6);text-align:center}
@@ -106,12 +107,13 @@ dd em{font-style:normal;color:#ffd75a;font-size:11px;margin-left:6px}
 button[aria-disabled="true"]{opacity:.5;cursor:default}
 button[aria-disabled="true"]:active{transform:none}
 .hint{font-size:11.5px;color:#aeac9b;margin:0 0 10px}
-.slot{display:grid;grid-template-columns:52px 20px 1fr;gap:8px;align-items:center;margin:6px 0;max-width:420px}
+.slot{display:grid;grid-template-columns:minmax(52px,max-content) 20px 1fr;gap:8px;align-items:center;margin:6px 0;max-width:420px}
 .slot select{font:12px "Silkscreen",monospace;background:#2a2016;color:#f4ecd2;border:2px solid #14100c;padding:5px 6px}
 #preview{width:280px;height:280px;max-width:100%;justify-self:center;image-rendering:pixelated;background:#2c3e23;box-shadow:0 0 0 2px #14100c,inset 0 0 0 2px #364b2a}
 .opt{margin:0;padding:6px 8px 4px;font-size:11px;text-transform:none;letter-spacing:0;background:#2a2016;box-shadow:0 2px 0 #14100c,0 0 0 2px #14100c;display:grid;text-align:left}
 .opt small{font-size:10px;color:#ffd75a}
-.opt.on{background:#6e4229;box-shadow:0 2px 0 #14100c,0 0 0 2px #ffd75a}
+.opt:hover{background:#3a2c1e}
+.opt.on,.opt.on:hover{background:#6e4229;box-shadow:0 2px 0 #14100c,0 0 0 2px #ffd75a}
 .furRow{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 #furPick{width:180px;height:180px;image-rendering:pixelated;cursor:crosshair;touch-action:none;background:#1c1610}
 .furSide{display:grid;grid-template-columns:auto auto;gap:8px 12px;justify-items:start;align-items:start}
@@ -205,6 +207,29 @@ fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
 #soundGate{position:fixed;inset:52px 0 0;z-index:40;display:grid;place-content:center;justify-items:center;gap:6px;background:#0a0806;text-align:center;padding:16px}
 #soundGate[hidden]{display:none}
 #soundGate p{font-size:12px;color:#aeac9b}
+/* the square cursor for walking the menus with the arrows or a controller (nav.js) */
+#navCursor{position:fixed;left:0;top:0;z-index:70;pointer-events:none;border:3px solid #ffd75a;box-shadow:0 0 0 2px #14100c,inset 0 0 0 2px #14100c;animation:navPulse 1s steps(1) infinite}
+#navCursor[hidden]{display:none}
+#navCursor.adjust{border-color:#9fd8ff;animation:none}
+@keyframes navPulse{50%{border-color:#f4ecd2}}
+.navving :focus,.navving :focus-visible{outline:none}
+.ctlMode{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.ctlMode .opt{font-size:13px;padding:9px 14px 7px}
+.ctlMode .note{margin:0 0 0 6px}
+.bind{margin:4px 0 0;padding:7px 10px 5px;font-size:12px}
+.bind .lbl small{color:#aeac9b;margin-left:6px;font-size:10.5px}
+.bind.wait .val{color:#9fd8ff}
+.bind.dim{opacity:.55}
+.stickRow{display:grid;grid-template-columns:104px 1fr;gap:10px;align-items:center;margin:6px 0 0;font-size:12px}
+.stickRow select,.slot select{font:12px "Silkscreen",monospace;background:#2a2016;color:#f4ecd2;border:2px solid #14100c;padding:5px 6px}
+.ctlCols .note{text-align:left;margin-top:8px}
+#notice{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:80;padding:8px 14px 6px;background:#1c1610;box-shadow:0 0 0 2px #14100c,0 0 0 4px #633b25;font-size:12px;color:#f4ecd2;pointer-events:none}
+#notice[hidden]{display:none}
+/* a Steam Deck's 1280x800 screen, or anything played from the sofa with a controller: bigger things to land on */
+@media (max-width:1280px){.radio{padding:4px 12px 4px 2px}.chk{padding:3px 0}.tabs button{padding:10px 16px 8px}.slot select,.stickRow select{padding:7px 8px}}
+html.pad .radio,html.pad .chk{font-size:13px}
+html.pad .item{padding:10px 12px}
+html.pad .bind,html.pad .setRow{padding-top:10px;padding-bottom:8px}
 .touch-only{display:none}
 @media (hover:none) and (pointer:coarse){.touch-only{display:block}}
 </style>
@@ -229,12 +254,13 @@ fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
       <button class="mi" type="button" data-go="new">New Game</button>
       <button class="mi" type="button" data-go="continue" disabled>Continue</button>
       <button class="mi" type="button" data-go="plus" hidden>New Game+</button>
-      <button class="mi" type="button" data-go="settings">Settings</button>
+      <button class="mi" type="button" data-go="settings">Phenotype</button>
+      <button class="mi" type="button" data-go="controls">Controls</button>
       <button class="mi" type="button" data-go="quit" hidden>Quit</button>
     </nav>
     <div class="titleSide">
       <p id="menuHint" aria-live="polite"></p>
-      <p class="note touch-only">Needs a keyboard and mouse.</p>
+      <p class="note touch-only">Needs a keyboard and mouse, or a controller.</p>
       <div id="best"></div>
     </div>
   </div>
@@ -250,10 +276,10 @@ fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
       <li>Step off the path and Aimlessness fades. Go past your leash and you <b>evade</b>: you heal, but the multiplier resets.</li>
       <li><b>5-mans</b> wander in (one is always AFK). After <b>10 laps</b> a 25-man raid shows up; they count down, then dodge your telegraphs because they read the guide. At <b>20 laps</b> comes the 40-man, and nothing else.</li>
       <li>A <b>quiet man on a horse</b> will try to climb your fur and stab the glowing spot on your back. Shake him off, then step on him.</li>
-      <li>Beat the 40-man and <b>the Hoard</b> opens: spend your points on new abilities (adds, a lightning beam, ice, a stun charge, zoomies) and upgrades. Then the next level. Horns, tails, wings and fur colour are free in Settings.</li>
+      <li>Beat the 40-man and <b>the Hoard</b> opens: spend your points on new abilities (adds, a lightning beam, ice, a stun charge, zoomies) and upgrades. Then the next level. Horns, tails, wings and fur colour are free in Phenotype.</li>
       <li>After the Clearing the job changes: woods, farms, villages, a city wall and a castle, all there to be flattened. Wrecking things builds <b>Vengeance</b>. Flatten the castle and you can go home.</li>
     </ul>
-    <div class="keys">
+    <div class="keys" id="hbKeys">
       <span class="k"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>lumber about</span>
       <span class="k"><kbd>mouse</kbd></span><span>face somewhere</span>
       <span class="k"><kbd>LMB</kbd></span><span>swipe (hold it)</span>
@@ -287,13 +313,32 @@ fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
           <h3>Appearance</h3>
           <div class="lookTop">
             <canvas id="preview" width="280" height="280" aria-label="Your boss, turning slowly"></canvas>
-            <canvas id="furPick" width="72" height="72" aria-label="Fur colour: hue ring and saturation and lightness triangle"></canvas>
+            <canvas id="furPick" width="72" height="72" tabindex="0" aria-label="Fur colour: hue ring and saturation and lightness triangle"></canvas>
             <div class="furSide"><span id="furSwatch"></span><button type="button" class="opt" id="furNatural">Natural brown</button>
             <div class="lookDice"><button id="lookDie" class="die" type="button" aria-label="Randomize the whole appearance" title="Random appearance"></button><button id="lookRevert" class="revert" type="button" hidden>revert!!</button></div></div>
           </div>
           <div id="lookRows"></div>
         </div>
       </div>
+    </div>
+    <div class="panelBody" data-panel="controls" hidden>
+      <div class="ctlMode" role="group" aria-label="Input"><button type="button" class="opt" data-mode="keyboard">Use keyboard</button><button type="button" class="opt" data-mode="pad">Use controller</button><span id="padStatus" class="note"></span></div>
+      <div class="setCols ctlCols">
+        <div>
+          <h3>Keyboard</h3>
+          <div id="kbRows"></div>
+          <p class="note">Pick one, then press the key for it. Esc cancels. The mouse aims, and its buttons are always slots 1 and 2. The arrow keys also walk unless they are bound to something. P pauses, M mutes.</p>
+          <button id="kbReset" type="button" class="setRow"><span class="lbl">Reset keyboard</span><span class="val"></span></button>
+        </div>
+        <div>
+          <h3>Controller</h3>
+          <div id="padRows"></div>
+          <div id="stickRows"></div>
+          <p class="note">Pick one, then press the button for it. Esc or Select cancels. Turn and walk: left and right turn the boss, up and down walk it forward and back. The D-pad also walks unless it is bound. Select is fullscreen.</p>
+          <button id="padReset" type="button" class="setRow"><span class="lbl">Reset controller</span><span class="val"></span></button>
+        </div>
+      </div>
+      <button id="ctlFull" type="button" class="setRow"><span class="lbl">Fullscreen</span><span class="val">Select</span></button>
     </div>
     <div class="panelBody" data-panel="credits" hidden>
       <dl class="creditRows">
@@ -359,7 +404,8 @@ fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
     <div class="pauseBtns">
       <button id="resume" type="button">Continue Lumbering</button>
       <button id="pausedHandbook" type="button" class="quiet">Handbook</button>
-      <button id="pausedSettings" type="button" class="quiet">Settings</button>
+      <button id="pausedSettings" type="button" class="quiet">Phenotype</button>
+      <button id="pausedControls" type="button" class="quiet">Controls</button>
       <button id="pausedSave" type="button" class="quiet">Save and Quit</button>
     </div>
     <p id="pausedSecret" class="note" hidden></p>
@@ -376,5 +422,6 @@ fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
     <p class="note">Bosses respawn on reset. Reset is whenever you press R.</p>
   </div>
 </div>
+<div id="notice" role="status" hidden></div>
 </body>
 </html>

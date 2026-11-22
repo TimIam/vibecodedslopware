@@ -1,4 +1,4 @@
-// The boss's name and looks, chosen in Settings. Choices show at once but are only kept when Settings closes and the
+// The boss's name and looks, chosen in Phenotype. Choices show at once but are only kept when Phenotype closes and the
 // player says to save them (menu.js asks); until then `saved` is what localStorage holds and name/look are the draft.
 
 import { LOOKS, BOSS_NAMES } from './world.js';
@@ -13,8 +13,13 @@ const $ = id => document.getElementById(id);
 
 // only what the game's pixel font can draw
 const clean = s => s.toUpperCase().replace(/[^A-Z0-9 .,!?:\-+/'"()*%#<>=[\]_]/g, '').slice(0, MAX_NAME);
+// the dice never bring back a name they replaced in the last 7 presses; with only so many names, if that would
+// leave nothing to pick from, only the name being replaced is kept out
+const RECENT = 7, recent = [];
 const randomName = not => {
-  const list = BOSS_NAMES.filter(n => n !== not);
+  if (not) { recent.push(not); if (recent.length > RECENT) recent.shift(); }
+  let list = BOSS_NAMES.filter(n => !recent.includes(n) && n !== not);
+  if (!list.length) list = BOSS_NAMES.filter(n => n !== not);
   return list[Math.floor(Math.random() * list.length)];
 };
 
@@ -137,6 +142,7 @@ export function createAppearance({ audio, onLook, onName }) {
       timer = setInterval(() => { dir = (dir + 1) % 32; drawPreview(); }, 140);
     },
     hide() { clearInterval(timer); timer = 0; },
+    nudgeFur: (dh, dl) => fur.nudge(dh, dl),
     // anything different from what is saved, whether typed, clicked or rolled
     dirty: () => (name.trim() || saved.name) !== saved.name || !same(look, saved.look),
     save() {

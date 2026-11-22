@@ -1,7 +1,7 @@
 // Draws a game state into a 320×180 buffer. Everything lands on whole pixels.
 
 import { PAL, drawText, textWidth, ICONS, makeBossSprites, bossKey, BOSS_DIRS, BOSS_SIZE, tinted, hash, newCanvas } from './art.js';
-import { W, H, LEASH, CLASS, ADDS, SLOT_KEYS, RAID_LAPS, FINAL_LAPS, BALL, angDiff, pathDist, pathNearest, zoneFace, beamEnd, destRock, spaceKey } from './world.js';
+import { W, H, LEASH, CLASS, ADDS, SLOT_KEYS, KEY_HINT, RAID_LAPS, FINAL_LAPS, BALL, angDiff, pathDist, pathNearest, zoneFace, beamEnd, destRock, spaceKey } from './world.js';
 import { LEVELS } from './levels/index.js';
 import { KINDS, CRITTERS } from './props.js';
 
@@ -1130,7 +1130,7 @@ function drawHud(ctx, g, view) {
   // the five ability slots, then Space: Roar, or Shake for as long as somebody is in the fur
   const n = 6, bs = 14, gap = 3, x0 = Math.round(W / 2 - (n * bs + (n - 1) * gap) / 2), y0 = 160;
   [...g.slots.slice(0, 5).map(k => k === 'roar' ? null : k), spaceKey(g)].forEach((k, i) => {
-    const x = x0 + i * (bs + gap), key = i < 5 ? SLOT_KEYS[i] : 'SPC';
+    const x = x0 + i * (bs + gap), key = i < 5 ? SLOT_KEYS[i] : KEY_HINT.space;
     ctx.fillStyle = PAL.ink; ctx.globalAlpha = 0.8; ctx.fillRect(x, y0, bs, bs); ctx.globalAlpha = 1;
     if (!k) {
       ctx.fillStyle = PAL.rock1;
@@ -1155,7 +1155,7 @@ function drawHud(ctx, g, view) {
   if (b.haste > 0) drawText(ctx, 'ZOOMIES', x0 - 4, 163, PAL.gold, { align: 'right' });
 
   const climber = g.units.find(u => u.role === 'rider' && u.state === 'climb');
-  if (climber && !b.dead) drawText(ctx, 'HE IS IN YOUR FUR! SHAKE! [SPACE]', W / 2, 151, PAL.gold, { align: 'center', alpha: blink ? 1 : 0.55 });
+  if (climber && !b.dead) drawText(ctx, `HE IS IN YOUR FUR! SHAKE! [${KEY_HINT.shake}]`, W / 2, 151, PAL.gold, { align: 'center', alpha: blink ? 1 : 0.55 });
   else if (b.taunt) drawText(ctx, 'TAUNTED', W / 2, 151, PAL.red, { align: 'center' });
 
   if (g.banner) {
