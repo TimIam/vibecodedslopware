@@ -54,8 +54,19 @@ export const LOOK_NAMES = Object.keys(LOOKS);
 // is not waited for twice.
 // In the editor, level.disk is a hash of the file as it was read ('none': there was none), so a save can
 // tell whether it changed on disk since (another tab, a git pull).
-export async function loadLevel(name, { edit = false, base = 'levels', wait = 7000 } = {}) {
+// site: what siteEditAccess() returned (the level editor on the live site): the overlay comes from main
+// as the server read it, not from this deploy's copy, which can be a publish or two behind.
+export async function loadLevel(name, { edit = false, base = 'levels', wait = 7000, site = null } = {}) {
   const url = `${base}/${name}.json`, problems = [], until = Date.now() + wait;
+  if (site) {
+    const buf = site.text == null ? null : new TextEncoder().encode(site.text).buffer;
+    let data = null;
+    if (buf) { try { data = JSON.parse(site.text); } catch (e) { problems.push('it is not valid JSON (' + (e.message || e) + ')'); } }
+    const lv = new Level(name, tidy(data, problems), true);
+    lv.disk = site.sha || 'none'; lv.site = site;
+    if (problems.length) { lv.problem = problems.join('; '); console.warn(`level overlay ${url}: ${lv.problem}`); }
+    return lv;
+  }
   let got = await fetchOnce(url, wait);
   const left = until - Date.now();
   if (got.again && left > 250) { console.warn(`level overlay ${url}: ${got.fail}; asking again`); got = await fetchOnce(url, left); }
@@ -66,6 +77,43 @@ export async function loadLevel(name, { edit = false, base = 'levels', wait = 70
   if (edit) lv.disk = got.missing ? 'none' : got.buf ? await sha256(got.buf) : null;
   if (problems.length) { lv.problem = problems.join('; '); console.warn(`level overlay ${url}: ${lv.problem}`); }
   return lv;
+}
+// The level editor on the live site (not localhost) is for admin members only. The sign-in is the admin
+// page's (vibecodedslopware.com/admin, same origin, session in sessionStorage); the server checks
+// membership on every request, so this only decides whether to open the editor at all.
+// Resolves to { ok, text, sha, role, deployHook, publish(text, base, force) } or { ok: false, why }.
+const ADMIN_SESSION = 'storefront-session';
+export async function siteEditAccess(name) {
+  const no = why => ({ ok: false, why });
+  let s; try { s = JSON.parse(sessionStorage.getItem(ADMIN_SESSION)); } catch (e) { s = null; }
+  if (!s?.access) return no('sign in on the admin page first, then use its Level editor link');
+  let cfg;
+  try { cfg = await (await fetch('/api/admin?view=config', { cache: 'no-store' })).json(); } catch (e) { return no('the admin API did not answer'); }
+  if (cfg?.mode !== 'supabase') return no('the admin sign-in is not set up on this server');
+  // The admin page's own refresh: a session older than an hour gets a new token.
+  const token = async () => {
+    const t = JSON.parse(sessionStorage.getItem(ADMIN_SESSION) || 'null');
+    if (!t?.access) return null;
+    if (Date.now() < t.expires - 60000) return t.access;
+    try {
+      const r = await fetch(`${cfg.supabaseUrl}/auth/v1/token?grant_type=refresh_token`, { method: 'POST', headers: { apikey: cfg.publishableKey, 'content-type': 'application/json' }, body: JSON.stringify({ refresh_token: t.refresh }) });
+      const d = await r.json(); if (!r.ok || !d.access_token) return null;
+      sessionStorage.setItem(ADMIN_SESSION, JSON.stringify({ access: d.access_token, refresh: d.refresh_token, expires: Date.now() + (d.expires_in ?? 3600) * 1000 }));
+      return d.access_token;
+    } catch (e) { return null; }
+  };
+  const call = async (method, query, body) => {
+    const t = await token();
+    if (!t) return { status: 401, data: { error: 'the admin sign-in has run out: sign in on the admin page again' } };
+    const r = await fetch('/api/admin' + query, { method, cache: 'no-store', headers: { authorization: 'Bearer ' + t, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, ok: r.ok, data: await r.json().catch(() => ({})) };
+  };
+  const r = await call('GET', '?view=level&name=' + encodeURIComponent(name));
+  if (r.status === 401) return no('the admin sign-in has run out: sign in on the admin page again');
+  if (r.status === 403) return no('this account is not on the admin member list');
+  if (!r.ok) return no(r.data.error || 'the server answered ' + r.status);
+  return { ok: true, text: r.data.text, sha: r.data.sha, role: r.data.role, deployHook: r.data.deployHook,
+    publish: (text, base, force) => call('POST', '', { action: 'level-publish', name, text, base, force: !!force }) };
 }
 async function fetchOnce(url, wait) {
   const ctl = typeof AbortController === 'function' ? new AbortController() : null, timer = ctl && setTimeout(() => ctl.abort(), wait);
@@ -81,20 +129,33 @@ async function fetchOnce(url, wait) {
 export async function sha256(buf) {
   try { return [...new Uint8Array(await crypto.subtle.digest('SHA-256', buf))].map(b => b.toString(16).padStart(2, '0')).join(''); } catch (e) { return null; }
 }
+// Bounds on every value in an overlay, so no file can freeze a load (a block 1e9 m long would build about
+// 10^8 rocks). The same check runs on the server before a publish (lib/levels-publish.js; keep both the same).
+const MAX_ADDS = 400, MAX_NUM = 500, MAX_ARRAY = 300, MAX_STR = 300, MAX_DEPTH = 8, MIN_STEP = 0.25;
+function saneValue(v, depth = 0, key = '') {
+  if (depth > MAX_DEPTH) return false;
+  if (typeof v === 'number') return Number.isFinite(v) && Math.abs(v) <= MAX_NUM && !(key === 'step' && v < MIN_STEP);
+  if (typeof v === 'string') return v.length <= MAX_STR;
+  if (v === null || typeof v === 'boolean') return true;
+  if (Array.isArray(v)) return v.length <= MAX_ARRAY && v.every(x => saneValue(x, depth + 1, key));
+  if (typeof v === 'object') return Object.keys(v).length <= MAX_ARRAY && Object.entries(v).every(([k, x]) => saneValue(x, depth + 1, k));
+  return false;
+}
 function tidy(d, problems = []) {
   if (d == null) return emptyLevel();
   if (typeof d !== 'object' || Array.isArray(d)) { problems.push('it is not an overlay object'); return emptyLevel(); }
   if (d.version !== 1) { problems.push(`its version is ${JSON.stringify(d.version)}, not 1`); return emptyLevel(); }
   const items = d.items && typeof d.items === 'object' && !Array.isArray(d.items) ? d.items : {};
   let bad = 0;
-  for (const k of Object.keys(items)) if (!items[k] || typeof items[k] !== 'object' || Array.isArray(items[k])) { delete items[k]; bad++; }
-  const add = Array.isArray(d.add) ? d.add.filter(a => a && typeof a.id === 'string' && typeof a.m === 'string' && Array.isArray(a.args) && a.hole >= 1 && a.hole <= 9) : [];
+  for (const k of Object.keys(items)) if (!items[k] || typeof items[k] !== 'object' || Array.isArray(items[k]) || !saneValue(items[k])) { delete items[k]; bad++; }
+  let add = Array.isArray(d.add) ? d.add.filter(a => a && typeof a.id === 'string' && typeof a.m === 'string' && Array.isArray(a.args) && a.hole >= 1 && a.hole <= 9 && saneValue(a)) : [];
+  if (add.length > MAX_ADDS) add = add.slice(0, MAX_ADDS);
   bad += (Array.isArray(d.add) ? d.add.length : 0) - add.length;
   if (bad) problems.push(`${bad} entr${bad === 1 ? 'y' : 'ies'} could not be read and were left out`);
   return { version: 1, items, add };
 }
 export class Level {
-  constructor(name, data, edit) { this.name = name; this.data = data; this.edit = !!edit; this.rec = null; this.problem = null; this.disk = null; }
+  constructor(name, data, edit) { this.name = name; this.data = data; this.edit = !!edit; this.rec = null; this.problem = null; this.disk = null; this.site = null; }
   get empty() { return !Object.keys(this.data.items).length && !this.data.add.length; }
   // Called by the Course constructor before build(). mats: course.js's private materials, for the looks.
   attach(course, mats) {
@@ -353,7 +414,7 @@ function badValue(m, path, v) {
   if (v === null || v === undefined) return !canBeEmpty(m, path);
   const f = (AD[m]?.fields || []).find(f => f[0] === String(path)), t = f ? f[2] ?? 'num' : null;
   if (!t) return false;
-  if (t === 'num' || t === 'deg') return !num(v);      // deg: radians in the file, degrees in the editor
+  if (t === 'num' || t === 'deg') return !num(v) || Math.abs(v) > MAX_NUM;      // deg: radians in the file, degrees in the editor
   if (t === 'bool') return typeof v !== 'boolean';
   if (t === 'lines') return !Array.isArray(v) || !v.length || v.some(s => typeof s !== 'string');
   if (t === 'str' || t === 'props') return typeof v !== 'string';

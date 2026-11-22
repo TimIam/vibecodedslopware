@@ -15,7 +15,7 @@ import { Post } from './post.js';
 import * as A from './audio.js';
 import { joinRoom, newCode, cleanCode, cleanPin, MAX_PLAYERS } from './net.js';
 import { Voice, voiceGain } from './voice.js';
-import { loadLevel } from './levels.js';
+import { loadLevel, siteEditAccess } from './levels.js';
 
 const $ = id => document.getElementById(id);
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -31,8 +31,11 @@ const canvas = $('game');
 // The loading watchdog lives in index.html; these are no-ops if it is missing.
 const LD = window.__load || { set() {}, ok() {}, fail() {} };
 const DEBUG = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
-// The level editor (js/editor.js): only on localhost, with ?edit in the address.
-const EDIT = DEBUG && new URLSearchParams(location.search).has('edit');
+// The level editor (js/editor.js), with ?edit in the address: on localhost it saves through tools/dev.mjs;
+// on the live site it opens only for a signed-in admin member (siteEditAccess in levels.js, checked in boot)
+// and publishes through /api/admin. Players without ?edit never load it.
+const WANT_EDIT = new URLSearchParams(location.search).has('edit');
+let EDIT = DEBUG && WANT_EDIT;
 // Let the loading message paint before a heavy synchronous stage (a hidden tab gets no frames, so skip).
 const paint = () => document.hidden ? Promise.resolve() : new Promise(r => { const t = setTimeout(r, 80); requestAnimationFrame(() => { clearTimeout(t); setTimeout(r, 0); }); });
 const renderer = (() => {
@@ -786,7 +789,13 @@ async function boot() {
   resize();
   LD.set('Loading the models');
   // Saved edits to the holes (levels/front.json or back.json, made with the level editor). Missing: none.
-  const levelP = loadLevel(backNine ? 'back' : 'front', { edit: EDIT });
+  let site = null, editRefused = null;
+  if (WANT_EDIT && !DEBUG) {
+    LD.set('Checking the admin sign-in');
+    site = await siteEditAccess(backNine ? 'back' : 'front').catch(e => ({ ok: false, why: String(e.message || e) }));
+    if (site.ok) EDIT = true; else { editRefused = site.why; site = null; }
+  }
+  const levelP = loadLevel(backNine ? 'back' : 'front', { edit: EDIT, site });
   await loadAssets('assets', p => { $('loadbar').style.width = Math.round(p * 100) + '%'; });
   LD.set('Building the mountain'); await paint();
   world = new World();
@@ -856,6 +865,7 @@ async function boot() {
   $('loading').hidden = true; $('title').hidden = false;
   requestAnimationFrame(frame);
   if (EDIT) import('./editor.js').then(m => m.startEditor(editorApi(level))).catch(e => console.error('the level editor did not start:', e));
+  else if (editRefused) { $('continueNote').hidden = false; $('continueNote').textContent = `No level editor: ${editRefused}.`; }
 }
 function proximity(p) { if (!p) return 1; const d = camera.position.distanceTo(p); return clamp(1.4 - d / 40, 0.05, 1); }
 
@@ -938,7 +948,7 @@ function setupRoom() {
   $('otherNine').textContent = backNine ? 'Play the front nine' : 'Play the back nine';
   $('otherNine').onclick = () => location.assign(courseUrl(!backNine, S.room));
   const codeEl = $('roomCode'), pinEl = $('roomPin');
-  S.room = cleanCode(new URLSearchParams(location.search).get('room')) || (EDIT ? 'edit' : 'mountain'); S.pin = '';      // editor test drives stay private
+  S.room = cleanCode(new URLSearchParams(location.search).get('room')) || (EDIT ? (DEBUG ? 'edit' : newCode()) : 'mountain'); S.pin = '';      // editor test drives stay private (a room of their own on the live site)
   try { S.pin = S.room === 'mountain' ? '' : cleanPin(sessionStorage.getItem(pinKey())); } catch (e) {}
   codeEl.value = S.room === 'mountain' ? '' : roomCode(); pinEl.value = S.pin;
   const typed = () => {

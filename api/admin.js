@@ -4,6 +4,9 @@
 //   GET  /api/admin?from=YYYY-MM-DD&to=...  dashboard for a window (default: last 30 days)
 //   POST /api/admin {action:"import", source:"epic_import"|"manual_import", filename, csv}
 //   POST /api/admin {action:"sync", source:"itch"|"steam"|"curseforge"|"github"}   owner only
+//   GET  /api/admin?view=level&name=front|back   the Par for the Curse level editor: the overlay on main
+//   POST /api/admin {action:"level-publish", name, text, base, force}   commit it to main and deploy
+//        (lib/levels-publish.js; owner and admins)
 //
 // Every data request is authorized by lib/storefront/auth.js (Supabase Auth + storefront.members)
 // and then reads through the caller's own token, so Postgres RLS applies to everything returned.
@@ -16,6 +19,7 @@ import { buildDashboard } from "../lib/storefront/report.js";
 import { devMode, json, windowFrom } from "../lib/storefront/http.js";
 import { steamEnabled } from "../lib/storefront/adapters.js";
 import { runSource, syncCatalog } from "../lib/storefront/sync.js";
+import { LevelError, levelsEnv, publishLevel, readLevel } from "../lib/levels-publish.js";
 
 // The dev backend lives in tools/, which is never deployed; building its path at runtime keeps the
 // bundler from pulling it (or PGlite) into the production function.
@@ -30,7 +34,7 @@ async function backend(request) {
 }
 
 function fail(err) {
-  if (err instanceof AuthError) return json({ error: err.message }, err.status);
+  if (err instanceof AuthError || err instanceof LevelError) return json({ error: err.message }, err.status);
   console.error("admin: request failed", err?.name, err?.status ?? "");
   return json({ error: "request failed" }, 500);
 }
@@ -45,6 +49,11 @@ export async function GET(request) {
   if (!be) return json({ error: "not configured" }, 503);
   try {
     const { db, role } = await authorize(request, be);
+    if (url.searchParams.get("view") === "level") {
+      const cfg = levelsEnv();
+      if (!cfg) return json({ error: "publishing is not set up on the server (LEVELS_GITHUB_TOKEN)", role }, 503);
+      return json({ role, deployHook: !!cfg.hook, ...(await readLevel(cfg, url.searchParams.get("name"))) });
+    }
     const win = windowFrom(url);
     if (!win) return json({ error: "bad date window" }, 400);
     const [rows, games, listings, sourceState, runs, imports] = await Promise.all([
@@ -89,6 +98,13 @@ export async function POST(request) {
       const result = await runSource(body.source, { db: service, env: process.env });
       await db.insert("audit_log", { action: "sync", detail: { source: body.source, ok: result.ok } }).catch(() => {});
       return json(result, result.ok ? 200 : 502);
+    }
+    if (body.action === "level-publish") {
+      const cfg = levelsEnv();
+      if (!cfg) return json({ error: "publishing is not set up on the server (LEVELS_GITHUB_TOKEN)" }, 503);
+      const result = await publishLevel(cfg, { name: body.name, text: body.text, base: body.base, force: body.force === true, who: `the site's ${role}` });
+      if (result.commit) await db.insert("audit_log", { action: "level-publish", detail: { name: body.name, commit: result.commit } }).catch(() => {});
+      return json(result);
     }
     return json({ error: "unknown action" }, 400);
   } catch (err) { return fail(err); }

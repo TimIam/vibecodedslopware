@@ -174,6 +174,13 @@ async function start() {
   config = await fetch("/api/admin?view=config", { cache: "no-store" }).then((r) => r.json()).catch(() => ({ mode: "unconfigured" }));
   if (config.mode === "unconfigured") { $("signin").hidden = false; $("email-form").hidden = true; $("signin-msg").textContent = "The dashboard is not configured on this server."; return; }
   takeFragment();
+  // The level editor reads this page's session from sessionStorage, which is per site: from the
+  // admin. subdomain, send people to the main site's admin page to sign in there.
+  if (location.hostname.startsWith("admin.")) {
+    const apex = `https://${location.hostname.slice(6)}/admin/`;
+    $("level-links").replaceChildren(el("a", { href: apex, text: "Open the main site's admin page" }));
+    $("level-note").textContent = `The game is on another address, so the editor needs the sign-in at ${apex}. Sign in there and use its Level editor links.`;
+  }
 
   const today = new Date().toISOString().slice(0, 10);
   const from = new Date(); from.setUTCDate(from.getUTCDate() - 29);

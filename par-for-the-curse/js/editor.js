@@ -1,7 +1,8 @@
-// Level editor for Par for the Curse. Dev only: main.js loads it on localhost with ?edit in the address
-// (add &nine=back for Lantern Links). It edits the level overlay (levels.js) for the nine on screen: pick a
-// piece of the course and move, turn, change or delete it, or place new obstacles from the palette, then save
-// to levels/front.json or levels/back.json through the dev server (tools/dev.mjs).
+// Level editor for Par for the Curse. main.js loads it with ?edit in the address (add &nine=back for Lantern
+// Links): on localhost always, on the live site only for a signed-in admin member. It edits the level overlay
+// (levels.js) for the nine on screen: pick a piece of the course and move, turn, change or delete it, or place
+// new obstacles from the palette, then save to levels/front.json or levels/back.json through the dev server
+// (tools/dev.mjs), or on the live site publish it (committed to main and deployed, see publishNow).
 // The game sits on its title screen underneath, which keeps its own input, HUD and network quiet; the editor
 // flies the camera through window.__freeCam. Test plays the current hole right here; F2 or ` comes back.
 import * as THREE from 'three';
@@ -84,6 +85,7 @@ const CSS = `
 export function startEditor(api) {
   const { S, camera, scene, canvas, level } = api, C = api.course, rec = C && C.rec, data = level && level.data;
   if (!rec || !data) { console.error('level editor: the course was built without a level recorder'); return; }
+  const SAVE = level.site ? 'Publish' : 'Save';      // the live site publishes (see publishNow)
   // A hole number from the address or a key: whole, 1 to 9 (10 to 18 also name the back nine's), else 1.
   const holeNum = v => { let n = Math.round(+v); if (api.backNine && n >= 10 && n <= 18) n -= 9; return Number.isFinite(n) ? clamp(n, 1, 9) : 1; };
   // sel: the piece selected, or null. multi: two or more pieces moved as one (Shift+click), or null; when
@@ -107,7 +109,7 @@ export function startEditor(api) {
       <button data-a="translate" title="Move (W)">Move</button><button data-a="rotate" title="Turn about up (R)">Turn</button>
       <label title="Snap moves to 0.5 m and turns to 15 degrees"><input type="checkbox" class="le-snap" checked> snap</label>
       <button data-a="undo" title="Ctrl+Z">Undo</button><button data-a="redo" title="Ctrl+Y">Redo</button>
-      <button data-a="save" title="Ctrl+S">Save</button><button data-a="test" title="Save, then play this hole here">Test</button>
+      <button data-a="save" title="${level.site ? 'Ctrl+S: publish to the live site' : 'Ctrl+S'}">${SAVE}</button><button data-a="test" title="${level.site ? 'Play this hole here (does not publish)' : 'Save, then play this hole here'}">Test</button>
       <span class="le-sp"></span><span class="le-status"></span>
     </div>
     <div class="le-p le-left">
@@ -143,7 +145,7 @@ export function startEditor(api) {
   // The line has room for about 65 characters: a longer story goes in tip (its tooltip).
   function status(msg, bad = false, tip = msg) { ui.status.textContent = msg; ui.status.title = tip; ui.status.classList.toggle('bad', bad); statusT = performance.now(); }
   // What the status line says when nothing just happened: a problem with the file stays in view.
-  const idleText = () => (level.problem ? `Problem with levels/${level.name}.json` : E.dirty ? 'Unsaved changes' : '');
+  const idleText = () => (level.problem ? `Problem with levels/${level.name}.json` : E.dirty ? (level.site ? 'Unpublished changes' : 'Unsaved changes') : '');
   function idleStatus() { if (E.placing) return; ui.status.textContent = ui.status.title = idleText(); ui.status.classList.toggle('bad', !!level.problem); statusT = 0; }
   // After the selection or the hole changes: the selection, or nothing (an old error or id would be stale).
   function selStatus() { if (E.placing) return; if (E.sel) status(E.sel.id); else if (E.multi) status(`${E.multi.length} pieces selected`); else idleStatus(); }
@@ -564,6 +566,8 @@ export function startEditor(api) {
   // An inspector field: a path into the arguments, or @off.N / @rot for pieces moved by offsets.
   function setField(it, path, v) {
     if (!editable(it)) return;
+    // levels.js refuses numbers past ±500 on load (they could freeze the build), so don't take them here.
+    if (typeof v === 'number' && Math.abs(v) > 500) { status('Keep numbers between -500 and 500.', true); renderInspector(); return false; }
     if (path[0] === '@') {
       if (it.lockMove && path.startsWith('@off')) { status(`This one can only turn in place: ${it.lockMove}.`, true); renderInspector(); return false; }
       const e = clone(rec.entry(it)) || {}, mv = moveOf(e), off = [...mv.off];
@@ -593,7 +597,7 @@ export function startEditor(api) {
   }
 
   /* ---------------- save ---------------- */
-  function dirty(d) { E.dirty = d; if (d) E.rev++; q('[data-a=save]').textContent = d ? 'Save*' : 'Save'; document.title = (d ? '* ' : '') + document.title.replace(/^\* /, ''); }
+  function dirty(d) { E.dirty = d; if (d) E.rev++; q('[data-a=save]').textContent = d ? SAVE + '*' : SAVE; document.title = (d ? '* ' : '') + document.title.replace(/^\* /, ''); }
   // The file keeps the code's build order, so a diff reads like the holes.
   function fileData() {
     const order = new Map(rec.list.map((it, i) => [it.id, i])), ids = Object.keys(data.items).sort((a, b) => (order.get(a) ?? 1e9) - (order.get(b) ?? 1e9) || (a < b ? -1 : 1));
@@ -616,6 +620,7 @@ export function startEditor(api) {
       }
       level.problem = null;
     }
+    if (level.site) return publishNow(name, rev, body);
     try {
       // level.disk: the file as the editor read it (or last saved it). The dev server answers 409 if the
       // file on disk is not that any more: another tab saved, or a git pull or merge brought in edits.
@@ -644,13 +649,45 @@ export function startEditor(api) {
       return false;
     }
   }
+  // The live site (level.site, from siteEditAccess): Save publishes. The server commits the overlay to main
+  // and starts a production deploy, so every player gets it about a minute later. level.disk is the file's
+  // blob sha on main ('none': no file yet); the server answers 409 if main has moved on since.
+  async function publishNow(name, rev, body) {
+    const where = api.backNine ? 'Lantern Links' : 'Mount Bogey';
+    if (!confirm(`Publish your ${where} edits to vibecodedslopware.com?\n\nThey are committed to the site's code and go live for every player once the deploy finishes (about a minute).`)) {
+      status('Not published', false); return false;
+    }
+    status('Publishing…');
+    try {
+      let r = await level.site.publish(body, level.disk, false);
+      if (r.status === 409) {
+        if (!confirm(`${r.data.error}: someone published ${name}.json from another tab or the repo changed.\n\nPublishing replaces the whole file with what this editor shows, and those changes are lost. Publish anyway?\n\n(Cancel, then reload the page, to pick them up first. Your unpublished edits here are lost on reload.)`)) {
+          status(`Not published: ${name}.json changed since you opened it`, true, 'Not published: it changed on the site since the editor loaded it. Reload to pick that up, or Save again and confirm to replace it.');
+          return false;
+        }
+        r = await level.site.publish(body, level.disk, true);
+      }
+      if (!r.ok) throw new Error(r.data.error || 'the server answered ' + r.status);
+      level.disk = r.data.sha || level.disk;
+      const live = r.data.unchanged ? 'nothing to publish: it is already on the site'
+        : r.data.deploy === 'started' ? 'published: live for everyone in about a minute'
+          : `committed, but the deploy did not start (${r.data.deploy}): deploy main by hand`;
+      if (E.rev !== rev) { status(`${cap(live)} · you changed something meanwhile: Save again`, false); return true; }
+      dirty(false); status(cap(live), r.data.deploy !== 'started' && !r.data.unchanged, r.data.commitUrl ? `${cap(live)}. Commit: ${r.data.commitUrl}` : cap(live));
+      return true;
+    } catch (e) {
+      status('Not published: ' + e.message, true);
+      return false;
+    }
+  }
+  const cap = s => s[0].toUpperCase() + s.slice(1);
   addEventListener('beforeunload', e => { if (E.dirty) { e.preventDefault(); e.returnValue = ''; } });
 
   /* ---------------- test drive ---------------- */
   async function test() {
     if (drag) return;
     stopPlace();      // back from the drive, a click selects again
-    if (E.dirty) await save();      // an unchanged file is left as it is (no rewrite, no diff noise)
+    if (E.dirty && !level.site) await save();      // an unchanged file is left as it is (no rewrite, no diff noise); on the live site a test never publishes
     setActive(false);
     delete window.__freeCam;
     S.fpv = E.fpv; S.savedG = null;
