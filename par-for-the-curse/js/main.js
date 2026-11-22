@@ -788,14 +788,15 @@ function useCartBay(slot) {
 async function boot() {
   resize();
   LD.set('Loading the models');
-  // Saved edits to the holes (levels/front.json or back.json, made with the level editor). Missing: none.
+  // Edits to the holes made with the level editor: on the site, the published course (or levels/*.json
+  // until there is one); on localhost, levels/front.json or back.json. Missing: none.
   let site = null, editRefused = null;
   if (WANT_EDIT && !DEBUG) {
     LD.set('Checking the admin sign-in');
     site = await siteEditAccess(backNine ? 'back' : 'front').catch(e => ({ ok: false, why: String(e.message || e) }));
     if (site.ok) EDIT = true; else { editRefused = site.why; site = null; }
   }
-  const levelP = loadLevel(backNine ? 'back' : 'front', { edit: EDIT, site });
+  const levelP = loadLevel(backNine ? 'back' : 'front', { edit: EDIT, site, published: !DEBUG });
   await loadAssets('assets', p => { $('loadbar').style.width = Math.round(p * 100) + '%'; });
   LD.set('Building the mountain'); await paint();
   world = new World();

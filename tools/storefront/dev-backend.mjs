@@ -67,6 +67,7 @@ export async function devBackend() {
       const u = DEV_USERS[token];
       return u ? { id: u.id, email_confirmed_at: "2026-01-01T00:00:00Z", is_anonymous: false } : null;
     },
+    anon: () => db.anon(),
     dbFor(token) {
       const u = DEV_USERS[token];
       return db.user(u ? u.id : "00000000-0000-4000-8000-00000000ffff");

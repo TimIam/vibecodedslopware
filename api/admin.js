@@ -4,22 +4,25 @@
 //   GET  /api/admin?from=YYYY-MM-DD&to=...  dashboard for a window (default: last 30 days)
 //   POST /api/admin {action:"import", source:"epic_import"|"manual_import", filename, csv}
 //   POST /api/admin {action:"sync", source:"itch"|"steam"|"curseforge"|"github"}   owner only
-//   GET  /api/admin?view=level&name=front|back   the Par for the Curse level editor: the overlay on main
-//   POST /api/admin {action:"level-publish", name, text, base, force}   commit it to main and deploy
-//        (lib/levels-publish.js; owner and admins)
+//   GET  /api/admin?view=course&name=front|back  public: the published Par for the Curse course edits
+//        ({text, id}, text null before the first publish), cached for a few seconds at the CDN
+//   GET  /api/admin?view=level&name=front|back   the level editor: the same, read as the member
+//   POST /api/admin {action:"level-publish", name, text, base, force}   publish a new version; live
+//        for players on their next load (lib/levels-publish.js; owner and admins)
 //
 // Every data request is authorized by lib/storefront/auth.js (Supabase Auth + storefront.members)
 // and then reads through the caller's own token, so Postgres RLS applies to everything returned.
-// Only the owner-triggered sync uses the server's secret key, after authorization.
+// Only the owner-triggered sync uses the server's secret key, after authorization. The one read
+// without a sign-in, view=course, uses the public key and can reach only storefront.published_level.
 import { AuthError, authorize, supabaseBackend } from "../lib/storefront/auth.js";
 import { loadCatalog } from "../lib/storefront/catalog.js";
-import { serviceDb, storefrontEnv } from "../lib/storefront/db.js";
+import { postgrest, serviceDb, storefrontEnv } from "../lib/storefront/db.js";
 import { ImportError, validateImport } from "../lib/storefront/importer.js";
 import { buildDashboard } from "../lib/storefront/report.js";
-import { devMode, json, windowFrom } from "../lib/storefront/http.js";
+import { devMode, json, PRIVATE_HEADERS, windowFrom } from "../lib/storefront/http.js";
 import { steamEnabled } from "../lib/storefront/adapters.js";
 import { runSource, syncCatalog } from "../lib/storefront/sync.js";
-import { LevelError, levelsEnv, publishLevel, readLevel } from "../lib/levels-publish.js";
+import { LevelError, publishLevel, readPublished } from "../lib/levels-publish.js";
 
 // The dev backend lives in tools/, which is never deployed; building its path at runtime keeps the
 // bundler from pulling it (or PGlite) into the production function.
@@ -30,7 +33,7 @@ async function backend(request) {
   }
   const cfg = storefrontEnv();
   if (!cfg) return null;
-  return { mode: "supabase", cfg, ...supabaseBackend(cfg), service: () => serviceDb(cfg) };
+  return { mode: "supabase", cfg, ...supabaseBackend(cfg), anon: () => postgrest({ url: cfg.url, apikey: cfg.publishable }), service: () => serviceDb(cfg) };
 }
 
 function fail(err) {
@@ -47,12 +50,18 @@ export async function GET(request) {
     return json(be.mode === "dev" ? { mode: "dev", users: be.devUsers } : { mode: "supabase", supabaseUrl: be.cfg.url, publishableKey: be.cfg.publishable });
   }
   if (!be) return json({ error: "not configured" }, 503);
+  if (url.searchParams.get("view") === "course") {
+    // Every player's load asks this, so the CDN keeps it for 15 s (a publish reaches everyone within that).
+    try {
+      const r = await readPublished(be.anon(), url.searchParams.get("name"));
+      return new Response(JSON.stringify({ text: r.text, id: r.id }), { headers: { ...PRIVATE_HEADERS, "cache-control": "public, max-age=0, s-maxage=15, stale-while-revalidate=60" } });
+    } catch (err) { return fail(err); }
+  }
   try {
     const { db, role } = await authorize(request, be);
     if (url.searchParams.get("view") === "level") {
-      const cfg = levelsEnv();
-      if (!cfg) return json({ error: "publishing is not set up on the server (LEVELS_GITHUB_TOKEN)", role }, 503);
-      return json({ role, deployHook: !!cfg.hook, ...(await readLevel(cfg, url.searchParams.get("name"))) });
+      const r = await readPublished(db, url.searchParams.get("name"));
+      return json({ role, text: r.text, sha: r.id, at: r.at });
     }
     const win = windowFrom(url);
     if (!win) return json({ error: "bad date window" }, 400);
@@ -100,11 +109,7 @@ export async function POST(request) {
       return json(result, result.ok ? 200 : 502);
     }
     if (body.action === "level-publish") {
-      const cfg = levelsEnv();
-      if (!cfg) return json({ error: "publishing is not set up on the server (LEVELS_GITHUB_TOKEN)" }, 503);
-      const result = await publishLevel(cfg, { name: body.name, text: body.text, base: body.base, force: body.force === true, who: `the site's ${role}` });
-      if (result.commit) await db.insert("audit_log", { action: "level-publish", detail: { name: body.name, commit: result.commit } }).catch(() => {});
-      return json(result);
+      return json(await publishLevel(db, { name: body.name, text: body.text, base: body.base, force: body.force === true }));
     }
     return json({ error: "unknown action" }, 400);
   } catch (err) { return fail(err); }

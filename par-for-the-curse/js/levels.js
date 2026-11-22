@@ -54,9 +54,12 @@ export const LOOK_NAMES = Object.keys(LOOKS);
 // is not waited for twice.
 // In the editor, level.disk is a hash of the file as it was read ('none': there was none), so a save can
 // tell whether it changed on disk since (another tab, a git pull).
-// site: what siteEditAccess() returned (the level editor on the live site): the overlay comes from main
-// as the server read it, not from this deploy's copy, which can be a publish or two behind.
-export async function loadLevel(name, { edit = false, base = 'levels', wait = 7000, site = null } = {}) {
+// published (players on the live site): the course published from the site's level editor comes first
+// (/api/admin?view=course, kept in the site's database); the file in levels/ is used until there is one,
+// and whenever that answer can't be had in time.
+// site: what siteEditAccess() returned (the level editor on the live site): the published course as the
+// server read it for the member.
+export async function loadLevel(name, { edit = false, base = 'levels', wait = 7000, site = null, published = false } = {}) {
   const url = `${base}/${name}.json`, problems = [], until = Date.now() + wait;
   if (site) {
     const buf = site.text == null ? null : new TextEncoder().encode(site.text).buffer;
@@ -67,7 +70,20 @@ export async function loadLevel(name, { edit = false, base = 'levels', wait = 70
     if (problems.length) { lv.problem = problems.join('; '); console.warn(`level overlay ${url}: ${lv.problem}`); }
     return lv;
   }
-  let got = await fetchOnce(url, wait);
+  if (published) {
+    const pub = await fetchOnce('/api/admin?view=course&name=' + encodeURIComponent(name), Math.min(wait, 3500));
+    let d = null;
+    if (pub.buf) { try { d = JSON.parse(new TextDecoder().decode(pub.buf)); } catch (e) { d = null; } }
+    if (typeof d?.text === 'string') {
+      let data = null;
+      try { data = JSON.parse(d.text); } catch (e) { problems.push('the published course is not valid JSON (' + (e.message || e) + ')'); }
+      const lv = new Level(name, tidy(data, problems), edit);
+      if (problems.length) { lv.problem = problems.join('; '); console.warn(`published course ${name}: ${lv.problem}`); }
+      return lv;
+    }
+    if (!pub.buf && !pub.missing) console.warn(`published course ${name}: ${pub.fail}; using ${url}`);
+  }
+  let got = await fetchOnce(url, Math.max(250, until - Date.now()));
   const left = until - Date.now();
   if (got.again && left > 250) { console.warn(`level overlay ${url}: ${got.fail}; asking again`); got = await fetchOnce(url, left); }
   let data = null;
@@ -81,7 +97,8 @@ export async function loadLevel(name, { edit = false, base = 'levels', wait = 70
 // The level editor on the live site (not localhost) is for admin members only. The sign-in is the admin
 // page's (vibecodedslopware.com/admin, same origin, session in sessionStorage); the server checks
 // membership on every request, so this only decides whether to open the editor at all.
-// Resolves to { ok, text, sha, role, deployHook, publish(text, base, force) } or { ok: false, why }.
+// Resolves to { ok, text, sha, role, publish(text, base, force) } or { ok: false, why }. sha is the published
+// version's id ('none' before the first publish); until then the editor starts from the file in levels/.
 const ADMIN_SESSION = 'storefront-session';
 export async function siteEditAccess(name) {
   const no = why => ({ ok: false, why });
@@ -112,7 +129,11 @@ export async function siteEditAccess(name) {
   if (r.status === 401) return no('the admin sign-in has run out: sign in on the admin page again');
   if (r.status === 403) return no('this account is not on the admin member list');
   if (!r.ok) return no(r.data.error || 'the server answered ' + r.status);
-  return { ok: true, text: r.data.text, sha: r.data.sha, role: r.data.role, deployHook: r.data.deployHook,
+  let text = r.data.text;
+  if (typeof text !== 'string') {
+    try { const f = await fetch(`levels/${name}.json`, { cache: 'no-cache' }); text = f.ok ? await f.text() : null; } catch (e) { text = null; }
+  }
+  return { ok: true, text, sha: r.data.sha, role: r.data.role,
     publish: (text, base, force) => call('POST', '', { action: 'level-publish', name, text, base, force: !!force }) };
 }
 async function fetchOnce(url, wait) {

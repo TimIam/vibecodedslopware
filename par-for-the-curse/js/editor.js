@@ -2,7 +2,8 @@
 // Links): on localhost always, on the live site only for a signed-in admin member. It edits the level overlay
 // (levels.js) for the nine on screen: pick a piece of the course and move, turn, change or delete it, or place
 // new obstacles from the palette, then save to levels/front.json or levels/back.json through the dev server
-// (tools/dev.mjs), or on the live site publish it (committed to main and deployed, see publishNow).
+// (tools/dev.mjs), or on the live site publish it (stored in the site's database, live on players' next load;
+// see publishNow).
 // The game sits on its title screen underneath, which keeps its own input, HUD and network quiet; the editor
 // flies the camera through window.__freeCam. Test plays the current hole right here; F2 or ` comes back.
 import * as THREE from 'three';
@@ -649,31 +650,30 @@ export function startEditor(api) {
       return false;
     }
   }
-  // The live site (level.site, from siteEditAccess): Save publishes. The server commits the overlay to main
-  // and starts a production deploy, so every player gets it about a minute later. level.disk is the file's
-  // blob sha on main ('none': no file yet); the server answers 409 if main has moved on since.
+  // The live site (level.site, from siteEditAccess): Save publishes. The server stores the overlay as a new
+  // version of the course, which every player gets on their next load (within about 15 s). level.disk is the
+  // id of the version the editor started from ('none': none published yet); the server answers 409 if
+  // someone has published since.
   async function publishNow(name, rev, body) {
     const where = api.backNine ? 'Lantern Links' : 'Mount Bogey';
-    if (!confirm(`Publish your ${where} edits to vibecodedslopware.com?\n\nThey are committed to the site's code and go live for every player once the deploy finishes (about a minute).`)) {
+    if (!confirm(`Publish your ${where} edits to vibecodedslopware.com?\n\nThey go live for every player on their next load (within about 15 seconds). The version they replace is kept.`)) {
       status('Not published', false); return false;
     }
     status('Publishing…');
     try {
       let r = await level.site.publish(body, level.disk, false);
       if (r.status === 409) {
-        if (!confirm(`${r.data.error}: someone published ${name}.json from another tab or the repo changed.\n\nPublishing replaces the whole file with what this editor shows, and those changes are lost. Publish anyway?\n\n(Cancel, then reload the page, to pick them up first. Your unpublished edits here are lost on reload.)`)) {
-          status(`Not published: ${name}.json changed since you opened it`, true, 'Not published: it changed on the site since the editor loaded it. Reload to pick that up, or Save again and confirm to replace it.');
+        if (!confirm(`${r.data.error}: someone published this course from another tab since you opened it.\n\nPublishing replaces the whole file with what this editor shows, and those changes are lost. Publish anyway?\n\n(Cancel, then reload the page, to pick them up first. Your unpublished edits here are lost on reload.)`)) {
+          status(`Not published: the course changed since you opened it`, true, 'Not published: it changed on the site since the editor loaded it. Reload to pick that up, or Save again and confirm to replace it.');
           return false;
         }
         r = await level.site.publish(body, level.disk, true);
       }
       if (!r.ok) throw new Error(r.data.error || 'the server answered ' + r.status);
       level.disk = r.data.sha || level.disk;
-      const live = r.data.unchanged ? 'nothing to publish: it is already on the site'
-        : r.data.deploy === 'started' ? 'published: live for everyone in about a minute'
-          : `committed, but the deploy did not start (${r.data.deploy}): deploy main by hand`;
+      const live = r.data.unchanged ? 'nothing to publish: it is already on the site' : 'published: live for everyone within about 15 seconds';
       if (E.rev !== rev) { status(`${cap(live)} · you changed something meanwhile: Save again`, false); return true; }
-      dirty(false); status(cap(live), r.data.deploy !== 'started' && !r.data.unchanged, r.data.commitUrl ? `${cap(live)}. Commit: ${r.data.commitUrl}` : cap(live));
+      dirty(false); status(cap(live), false);
       return true;
     } catch (e) {
       status('Not published: ' + e.message, true);

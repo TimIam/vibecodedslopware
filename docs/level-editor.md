@@ -1,50 +1,51 @@
 # Par for the Curse level editor
 
 A level editor for the holes of Par for the Curse. It moves, changes, deletes and adds obstacles, and
-stores the result as an overlay: `par-for-the-curse/levels/front.json` (Mount Bogey) and `back.json`
-(Lantern Links). The holes themselves stay code, and `js/levels.js` applies the overlay when the course
-loads. With empty overlays, the game builds exactly as the code says.
+stores the result as an overlay of the holes, which stay code; `js/levels.js` applies the overlay when the
+course loads. On the site the overlay is published to the site's database; locally it is a file,
+`par-for-the-curse/levels/front.json` (Mount Bogey) or `back.json` (Lantern Links). With no overlay, the
+game builds exactly as the code says.
 
 ## Two ways to open it
 
 - **On the site (admin members).** Sign in at https://vibecodedslopware.com/admin/ and use the
   *Par for the Curse level editor* links. The editor opens in the same tab and uses that sign-in.
-  **Publish** commits the overlay to `main` through GitHub and starts a production deploy. Every
-  player gets the edit about a minute later. Owner and admin members can publish. Each publish is a
-  commit ("Par for the Curse: course edits on ...") and a row in `storefront.audit_log`.
+  **Publish** stores the overlay as a new version in `storefront.levels`, in the same Supabase project
+  as the admin page. Every player gets it on their next load, within about 15 seconds (the CDN keeps
+  `/api/admin?view=course` for 15 s). Nothing is committed and nothing redeploys. Owner and admin members
+  can publish; each publish also writes a row in `storefront.audit_log`.
 - **Locally.** Run `node tools/dev.mjs` and open http://localhost:3131/par-for-the-curse/?edit (add
   `&nine=back` for the back nine, `&hole=N` for a hole). **Save** writes the file into that checkout,
-  through the loopback-only `POST /__dev/pftc-level`. Commit it, rerun `tools/versions.mjs` and deploy
-  as usual.
+  through the loopback-only `POST /__dev/pftc-level`. Locally the game reads only that file, never the
+  published course. A committed file is what players get only until the first publish from the site.
 
 Players never load the editor. On the site, `?edit` without a member sign-in shows the normal game with
 a note.
 
-## Setup for publishing from the site (once)
+## Setup
 
-`/api/admin` needs two server env vars in the Vercel project (Production):
-
-| Variable | What it is |
-|---|---|
-| `LEVELS_GITHUB_TOKEN` | A GitHub fine-grained personal access token. Repository access: only `TimIam/vibecodedslopware`. Permissions: **Contents: Read and write** (Metadata read-only is added automatically). |
-| `LEVELS_DEPLOY_HOOK` | A Vercel deploy hook for branch `main` (Project Settings > Git > Deploy Hooks). Production is not deployed on push, so this is what starts the deploy. |
-
-Optional: `LEVELS_GITHUB_REPO` (default `TimIam/vibecodedslopware`) and `LEVELS_GITHUB_BRANCH`
-(default `main`). The member list is the storefront one (`storefront.members`, see
-`docs/storefront-analytics.md`).
-
-Without the token, the editor still won't open on the site. Instead it shows "publishing is not set up
-on the server". Without the hook, Publish still commits, then says the deploy did not start.
+Nothing beyond the admin page's own setup: the editor uses `STOREFRONT_SUPABASE_URL` and
+`STOREFRONT_SUPABASE_PUBLISHABLE_KEY` and the member list (`storefront.members`, see
+`docs/storefront-analytics.md`). The table and its two functions come from
+`supabase/migrations/20261122120000_storefront_levels.sql`, applied to forageAIv2 on its own like the
+other storefront migrations.
 
 ## Notes
 
-- Publish refuses (409) if the file on `main` changed since the editor loaded it, for example a publish
-  from another tab or a commit from a checkout. The editor asks before it replaces the file.
-- On the site, the editor loads the overlay from `main` (through the API), not from the deployed copy,
-  so a publish that is still deploying is not lost.
-- A deploy from the hook ships whatever is on `main` at that moment, including other sessions' pushed
-  commits. If production was deployed by hand from another branch that is ahead of `main`, a publish
-  rolls production back to `main`. Keep `main` the branch that production comes from.
+- Publish refuses (409) if someone published the same course since the editor loaded it, for example
+  from another tab. The editor asks before it replaces it.
+- Until the first publish of a course, players and the site editor start from the committed file in
+  `levels/`. After that the published version wins; a later commit to that file changes nothing on the
+  site.
+- Every publish is kept. To roll back, republish an older one as the owner in the SQL editor:
+  `insert into storefront.levels (name, body) select name, body from storefront.levels where id = <old id>;`
+  (`select id, name, published_at, published_by from storefront.levels order by id desc` lists them).
+- If the course can't be fetched in 3.5 s, a player builds from the file in `levels/` instead. Players in
+  one room must build the same course, so a player who missed a publish (a stale tab, a failed fetch)
+  can see pushed rocks out of step until they reload.
+- This gives the anonymous role `USAGE` on the `storefront` schema, for `published_level` alone.
+  Postgres lets PUBLIC execute every new function by default, so each new storefront function must
+  revoke that. `tools/storefront.test.mjs` fails if anon can call anything else.
 - Overlays are bounded on the server and again when the game loads: numbers within ±500, at most 400
   added pieces and 3000 edited ones, short strings and lists, and road `step` of at least 0.25. A file
   outside these bounds is refused on publish, and those entries are dropped on load. This stops a single
@@ -55,5 +56,5 @@ on the server". Without the hook, Publish still commits, then says the deploy di
   close this. Sign out on the admin page when you are done.
 - Test drives on the site run in a private room of their own and never publish.
 - Code: `par-for-the-curse/js/levels.js` (overlay, recorder, `siteEditAccess`), `js/editor.js`,
-  `lib/levels-publish.js`, the level routes in `api/admin.js`, and the links in `admin/`. Tests:
-  `node --test tools/levels-publish.test.mjs`.
+  `lib/levels-publish.js`, the level routes in `api/admin.js`, the migration, and the links in `admin/`.
+  Tests: `node --test tools/levels-publish.test.mjs` (runs the migration in PGlite).

@@ -25,7 +25,7 @@ const DELETED = "00000000-0000-4000-8000-000000000006";
 const MFA = "00000000-0000-4000-8000-000000000007";
 const NOW = new Date("2026-11-21T18:00:00Z");
 const samplesOnly = { games: SAMPLE_GAMES, firstPartyTrackingSince: null };
-const TABLES = ["members", "games", "listings", "first_party_events", "first_party_daily", "sync_runs", "imports", "metrics", "source_state", "audit_log"];
+const TABLES = ["members", "games", "listings", "first_party_events", "first_party_daily", "sync_runs", "imports", "metrics", "source_state", "audit_log", "levels"];
 const SERVICE_FNS = [
   ["record_event", { p_platform: "site", p_kind: "site_asset", p_external_id: "/sample-game/SampleGame-1.0.0.zip", p_event: "site_download", p_day: "2026-11-20", p_visitor_hash: "a".repeat(43) }],
   ["sync_catalog", { p_catalog: { games: {} } }],
@@ -65,12 +65,14 @@ describe("access control (RLS + grants)", () => {
     await assert.rejects(db.anon().rpc("report", { p_from: "2026-01-01", p_to: "2026-12-31" }), /permission denied/);
   });
 
-  test("anon has no schema usage and no execute on any storefront function", async () => {
+  // anon has schema usage only for the published Par for the Curse courses (storefront_levels migration).
+  test("anon can execute only storefront.published_level, and read no table", async () => {
     const r = (await db.pg.query(`select has_schema_privilege('anon', 'storefront', 'USAGE') as usage,
       (select json_agg(p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
        where n.nspname = 'storefront' and has_function_privilege('anon', p.oid, 'EXECUTE')) as fns`)).rows[0];
-    assert.equal(r.usage, false);
-    assert.equal(r.fns, null);
+    assert.equal(r.usage, true);
+    assert.deepEqual(r.fns, ["published_level"]);
+    for (const t of TABLES) await assert.rejects(db.anon().select(t), (e) => e.code === "42501", t);
   });
 
   test("a signed-in non-member sees zero rows everywhere and has no role", async () => {
