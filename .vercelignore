@@ -25,14 +25,12 @@ the-endgame-is-me-addon-retail/
 party-health-pie-addon/
 .github/
 
-<<<<<<< HEAD
 # The Endgame is Me desktop (Steam) wrapper: Electron build tools, not part of the site
 the-endgame-is-me-desktop/
-=======
+
 # Whelp WoW addon source and its test; the download page is whelp/
 whelp-addon/
 
 # Storefront analytics: database migrations and operator docs (the dashboard itself is admin/ + api/)
 supabase/
 docs/
->>>>>>> origin/main
