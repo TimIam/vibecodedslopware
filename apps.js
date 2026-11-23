@@ -1917,6 +1917,13 @@ window.SLOPWARE = {
      "note": "Phenotype menu, remappable keyboard and controller controls, menus by arrows and gamepad",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 18,
+     "date": "2026-11-22T17:29:35-07:00",
+     "note": "the secret cow level, a looping City Wall, walls that shoot back",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
