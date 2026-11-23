@@ -197,6 +197,9 @@ export function createAudio() {
     bow: () => noise(0.08, 0.05, { f0: 900, f1: 2600, q: 3 }),
     // an arrow skittering off cobbles; a ballista bolt going into the ground
     clatter: () => { noise(0.03, 0.05, { f0: 3800, f1: 2600, q: 4 }); noise(0.03, 0.035, { f0: 3000, f1: 2200, q: 4, delay: 0.06 }); noise(0.025, 0.02, { f0: 3400, f1: 2400, q: 4, delay: 0.13 }); },
+    // a dead boss's hoard spilling out; one coin landing
+    loot: () => { for (let i = 0; i < 7; i++) tone('triangle', 1800 + i * 160, 2400 + i * 120, 0.06, 0.03, { delay: i * 0.05 }); },
+    coin: () => tone('triangle', 2600, 3100, 0.04, 0.018),
     boltland: () => { tone('sine', 110, 45, 0.22, 0.28); noise(0.12, 0.16, { type: 'lowpass', f0: 900, f1: 120 }); },
     thunk: () => { tone('square', 260, 140, 0.05, 0.05); noise(0.05, 0.08, { f0: 1600, f1: 700, q: 2 }); },
     ballista: () => { tone('sawtooth', 90, 50, 0.18, 0.12); noise(0.35, 0.18, { f0: 500, f1: 1800, q: 1.2 }); },

@@ -20,7 +20,7 @@ const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const MW = 720, MH = 480, CS = 4, COLS = MW / CS, ROWS = MH / CS;
 export const WAVES = 10;
 const WADE = 0.6, MUD = 0.55;         // how fast the boss goes in shallow water, and in a crater
-const BOOM = { r: 20, boss: 110, fuse: 0.12, crater: 7, shake: 0.15, maxShake: 1 };
+const BOOM = { r: 40, boss: 330, fuse: 0.12, crater: 7, shake: 0.15, maxShake: 1 };   // (v20: three times the damage, twice the reach; craters unchanged)
 const STEER = { hp: 50, spd: 9, spdWave: 0.7, near: 4 };
 const MINO = { hp: 10 * 110, r: 6, spd: 17, swing: 70, swingT: 1.3, reach: 6, atk: 0.5, strike: 0.22, charge: { every: 7, wind: 0.8, spd: 125, time: 0.9, dmg: 220, stun: 1.5, min: 34, max: 140 }, roar: { every: 11, wind: 0.6, range: 120, slow: 4 } };
 const wrap = (v, n) => ((v % n) + n) % n;

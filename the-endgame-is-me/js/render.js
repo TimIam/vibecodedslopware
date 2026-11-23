@@ -120,6 +120,7 @@ export function createRenderer() {
       const sy = p.state === 'down' ? p.y - 40 : p.y + (p.h ? p.h / 2 : 0) + (p.sortY || 0);
       list.push({ y: sy, f: () => { draw(ctx, p, g, H_ART); if (p.burning) drawFlames(ctx, p, g.t); } });
     }
+    if (g.loot?.length) for (const l of g.loot) if (onScreen(l.x, l.y, 8)) list.push({ y: l.y - (l.z > 0 ? 0 : 30), f: () => drawLoot(ctx, l, g.t) });
     if (g.stuck?.length) for (const o of g.stuck) if (onScreen(o.x, o.y, 12)) list.push({ y: o.y, f: () => drawLanded(ctx, o) });
     for (const c of g.critters) if (onScreen(c.x, c.y)) list.push({ y: c.y, f: () => (CRITTER_ART[c.kind] || drawCritter)(ctx, c, g, H_ART) });
     if (g.balls) for (const o of g.balls) if (onScreen(o.x, o.y, 8)) list.push({ y: o.y + 1, f: () => drawBall(ctx, o, g) });
@@ -868,8 +869,15 @@ function drawUnit(ctx, u, g) {
   const x = Math.round(u.x), y = Math.round(u.y) - (u.dance ? Math.floor(u.dance * 7) % 2 : 0);
   const fx = u.moving ? u.fx : (b.x > u.x ? 1 : -1);
   const flash = u.hit > 0;
-  const C = c => flash ? '#ffffff' : c;
+  // on fire: blackening as it goes (charred through by the time it kills them), with flames on top
+  const ch = u.burn ? Math.min(1, u.burn.t / 3.2) * 0.9 : 0;
+  const C = c => flash && !ch ? '#ffffff' : ch ? char(c, ch) : c;
   const col = C(PAL[CLASS[u.cls].col]);
+  if (u.burn) {
+    const f = Math.floor(g.t * 14 + u.id);
+    px(ctx, x - 1 + (f % 3), y - 4 - (f % 2), f % 2 ? PAL.fire3 : PAL.fire2);
+    px(ctx, x + ((f >> 1) % 2 ? -1 : 1), y - 3, PAL.fire1);
+  }
   ctx.fillStyle = 'rgba(8,10,6,.4)'; ctx.fillRect(x - 1, Math.round(u.y) + 1, 3, 1);
   if (u.cls === 'voidwalker') {
     // a warlock's voidwalker: a legless blue-black blob with two pale eyes and a ragged hem
@@ -1046,10 +1054,27 @@ function drawAdd(ctx, a, g) {
   }
 }
 
+// a colour scorched toward black by k (0..1)
+const CHAR_TO = [26, 20, 16];
+function char(c, k) {
+  const m = /^#([0-9a-f]{6})$/i.exec(c);
+  if (!m) return c;
+  const n = parseInt(m[1], 16), ch = [n >> 16, (n >> 8) & 255, n & 255].map((v, i) => Math.round(v + (CHAR_TO[i] - v) * k));
+  return '#' + ch.map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
 function drawCorpse(ctx, c) {
   const a = c.t > 30 ? (40 - c.t) / 10 : 1;
   ctx.globalAlpha = Math.max(0, a) * 0.85;
   const x = Math.round(c.x), y = Math.round(c.y);
+  if (c.charred) {
+    // burnt to a crisp: a black husk with grey ash and a last ember, no blood
+    ctx.fillStyle = '#1e1a16'; ctx.fillRect(x - 1, y - 1, 3, 1);
+    px(ctx, x + 2, y - 1, '#2b2520'); px(ctx, x - 1, y, '#4a463e'); px(ctx, x + 1, y, '#5e5a50');
+    if (c.t < 6 && Math.floor(c.t * 3 + x) % 3 === 0) px(ctx, x, y - 1, PAL.fire1);
+    ctx.globalAlpha = 1;
+    return;
+  }
   if (c.critter) {
     if (CORPSE_ART[c.critter]) CORPSE_ART[c.critter](ctx, c, H_ART);
     else { ctx.fillStyle = PAL.brown; ctx.fillRect(x - 1, y - 1, 3, 1); px(ctx, x, y, PAL.blood); }
@@ -1062,6 +1087,38 @@ function drawCorpse(ctx, c) {
   px(ctx, x, y, PAL.blood);
   if (c.t < 8) px(ctx, x - 1, y, PAL.blood);
   ctx.globalAlpha = 1;
+}
+
+// What a dead boss drops: tiny gold coins (one or two pixels, glinting now and then) and little bits of gear, each a
+// few pixels across. Up in the air it has a shadow under it; once down it lies flat (sorted under everyone standing).
+const LOOT_ART = {
+  // rows of a tiny sprite, top to bottom; letters are palette keys: m metal, d dark metal, g gold, w wood, l leather, r red
+  sword: ['....m', '...m.', 'gmm..', '.g...', 'w.g..'],
+  axe: ['.mm.', 'mmw.', '.mw.', '..w.', '..w.'],
+  helm: ['.mmm.', 'mmmmm', 'md.dm', 'm...m'],
+  shield: ['rgggr', 'rrgrr', 'rrgrr', '.rgr.', '..r..'],
+  chest: ['m.m.m', 'mmmmm', 'mdmdm', '.mmm.'],
+  staff: ['..g', '.w.', '.w.', 'w..', 'w..'],
+  boots: ['l..l', 'l..l', 'll.ll'],
+};
+const LOOT_COL = { m: '#c9ccd4', d: '#6d7280', g: '#ffd75a', w: '#8a5a32', l: '#6b4528', r: '#b8332a' };
+function drawLoot(ctx, l, t) {
+  const x = Math.round(l.x), y = Math.round(l.y - l.z);
+  if (l.z > 0.5) { ctx.globalAlpha = 0.35; ctx.fillStyle = '#000'; ctx.fillRect(Math.round(l.x) - 1, Math.round(l.y), l.kind === 'coin' ? 2 : 4, 1); ctx.globalAlpha = 1; }
+  if (l.kind === 'coin') {
+    const edge = l.z > 0 && Math.cos(l.rot) > 0.3;   // spinning in the air: edge on half the time
+    px(ctx, x, y, edge ? '#b8902a' : PAL.gold);
+    if (!edge && l.seed > 0.5) px(ctx, x + 1, y, '#b8902a');
+    if (l.z <= 0 && ((t * 0.7 + l.seed * 9) % 3) < 0.12) px(ctx, x, y - 1, '#fff8d0');   // a glint now and then
+    return;
+  }
+  const rows = LOOT_ART[l.kind], h = rows.length, w = rows[0].length;
+  const flip = l.seed > 0.5;
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const c = rows[j][flip ? w - 1 - i : i];
+    if (c !== '.') px(ctx, x - (w >> 1) + i, y - h + 1 + j, LOOT_COL[c]);
+  }
+  if (l.z <= 0 && ((t * 0.5 + l.seed * 7) % 4) < 0.1) px(ctx, x, y - h, '#fff8d0');
 }
 
 function drawGhost(ctx, o) {

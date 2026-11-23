@@ -1,4 +1,4 @@
-// Bindings for the keyboard and the controller, which of the two is in use, and the gamepad poll. Nothing in here
+// Bindings for the keyboard and the controller, which of the two was touched last, and the gamepad poll. Nothing in here
 // touches the page; main.js reads it once per frame and menu.js shows it in the Controls panel. Saved as
 // bosshours.controls.
 
@@ -7,7 +7,8 @@ import { SLOT_KEYS, KEY_HINT } from './world.js';
 const KEY = 'bosshours.controls';
 export const SLOTS = ['slot0', 'slot1', 'slot2', 'slot3', 'slot4'];
 export const MOVES = ['up', 'down', 'left', 'right'];
-export const STICK_ROLES = { move: 'Move', tank: 'Turn and walk', aim: 'Face', none: 'Nothing' };
+// each role sits on one stick only: giving a stick the other's role swaps them
+export const STICK_ROLES = { move: 'Move', tank: 'Turn and walk', aim: 'Face' };
 
 // keyboard: one key per action. The arrows and F are spare ways in that only count while nothing else is bound to them
 export const KB_DEFAULT = { slot0: 'KeyJ', slot1: 'KeyK', slot2: 'KeyQ', slot3: 'KeyE', slot4: 'KeyR', space: 'Space', up: 'KeyW', left: 'KeyA', down: 'KeyS', right: 'KeyD' };
@@ -15,29 +16,36 @@ const KB_SPARE = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRig
 // the menus and the game need these, so nothing can be bound to them
 const KB_RESERVED = /^(Escape|Tab|Enter|NumpadEnter|KeyP|KeyM|F\d+|Meta|OS|Context|Alt|Control)/;
 
-// controller: standard-mapping button numbers. Swipe and Stomp sit on the stick clicks, as asked; the rest go where
-// the index fingers and the right thumb already are
-export const PAD_DEFAULT = { slot0: 10, slot1: 11, slot2: 5, slot3: 4, slot4: 7, space: 0, pause: 9 };
-export const STICK_DEFAULT = { left: 'move', right: 'tank' };
-export const PAD_NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Select', 'Start', 'L3', 'R3', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right', 'Home'];
-const PAD_SHORT = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'SEL', 'STA', 'L3', 'R3', 'DU', 'DD', 'DL', 'DR', 'HM'];
+// controller: standard-mapping button numbers. Slots 1 and 2 on the bumpers (L1, R1), then the left trigger, the
+// left stick click and the right trigger
+export const PAD_DEFAULT = { slot0: 4, slot1: 5, slot2: 6, slot3: 10, slot4: 7, space: 0, pause: 9 };
+export const STICK_DEFAULT = { left: 'move', right: 'aim' };
+// what the defaults were before v20: a save still on exactly these moves to the new ones
+const PAD_OLD = { slot0: 10, slot1: 11, slot2: 5, slot3: 4, slot4: 7, space: 0, pause: 9 };
+// (shoulders as L1/R1 and triggers as L2/R2, the way the Steam Deck marks them)
+export const PAD_NAMES = ['A', 'B', 'X', 'Y', 'L1', 'R1', 'L2', 'R2', 'Select', 'Start', 'L3', 'R3', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right', 'Home'];
+const PAD_SHORT = ['A', 'B', 'X', 'Y', 'L1', 'R1', 'L2', 'R2', 'SEL', 'STA', 'L3', 'R3', 'DU', 'DD', 'DL', 'DR', 'HM'];
 export const PAD_SELECT = 8, PAD_A = 0, PAD_B = 1;   // Select is always fullscreen; A and B always pick and go back in menus
 const DPAD = { 12: 'up', 13: 'down', 14: 'left', 15: 'right' };
 const DEAD = 0.2;
 
-const state = { mode: 'keyboard', chosen: false, kb: { ...KB_DEFAULT }, pad: { ...PAD_DEFAULT }, sticks: { ...STICK_DEFAULT } };
+// mode is only which one was used last (for the labels and for where the boss looks): both always work
+const state = { mode: 'keyboard', kb: { ...KB_DEFAULT }, pad: { ...PAD_DEFAULT }, sticks: { ...STICK_DEFAULT } };
 try {
   const s = JSON.parse(localStorage.getItem(KEY) || '{}');
   if (s.mode === 'pad' || s.mode === 'keyboard') state.mode = s.mode;
-  state.chosen = !!s.chosen;
   for (const a in KB_DEFAULT) if (typeof s.kb?.[a] === 'string' && !KB_RESERVED.test(s.kb[a])) state.kb[a] = s.kb[a];
-  for (const a in PAD_DEFAULT) if (Number.isInteger(s.pad?.[a]) && s.pad[a] >= 0 && s.pad[a] < 17 && s.pad[a] !== PAD_SELECT) state.pad[a] = s.pad[a];
-  for (const k in STICK_DEFAULT) if (STICK_ROLES[s.sticks?.[k]]) state.sticks[k] = s.sticks[k];
+  const old = (s.v || 1) < 2;
+  const oldPad = old && s.pad && Object.keys(PAD_OLD).every(a => s.pad[a] === PAD_OLD[a]);
+  if (!oldPad) for (const a in PAD_DEFAULT) if (Number.isInteger(s.pad?.[a]) && s.pad[a] >= 0 && s.pad[a] < 17 && s.pad[a] !== PAD_SELECT) state.pad[a] = s.pad[a];
+  const oldSticks = old && (!s.sticks || (s.sticks.left === 'move' && s.sticks.right === 'tank'));
+  if (!oldSticks) for (const k in STICK_DEFAULT) if (STICK_ROLES[s.sticks?.[k]]) state.sticks[k] = s.sticks[k];
+  if (state.sticks.left === state.sticks.right) state.sticks = { ...STICK_DEFAULT };
 } catch {}
 
 const listeners = new Set();
 function changed() {
-  try { localStorage.setItem(KEY, JSON.stringify({ v: 1, ...state })); } catch {}
+  try { localStorage.setItem(KEY, JSON.stringify({ v: 2, ...state })); } catch {}
   rebuild();
   for (const f of listeners) f();
 }
@@ -109,14 +117,19 @@ export function bindPad(action, button) {
   changed();
   return true;
 }
-export function setStick(stick, role) { if (STICK_ROLES[role]) { state.sticks[stick] = role; changed(); } }
+export function setStick(stick, role) {
+  if (!STICK_ROLES[role]) return;
+  const other = stick === 'left' ? 'right' : 'left';
+  if (state.sticks[other] === role) state.sticks[other] = state.sticks[stick];
+  state.sticks[stick] = role;
+  changed();
+}
 export function resetKeys() { state.kb = { ...KB_DEFAULT }; changed(); }
 export function resetPad() { state.pad = { ...PAD_DEFAULT }; state.sticks = { ...STICK_DEFAULT }; changed(); }
-// the player's own pick is final; a controller turning up only switches over if they never picked
-export function setMode(m, chosen = true) {
-  if (m !== 'pad' && m !== 'keyboard') return;
-  if (!chosen && state.chosen) return;
-  state.mode = m; state.chosen = state.chosen || chosen;
+// whichever was touched last: the labels follow it, and so does where the boss looks (the mouse, or the sticks)
+export function setMode(m) {
+  if ((m !== 'pad' && m !== 'keyboard') || m === state.mode) return;
+  state.mode = m;
   changed();
 }
 export const onChange = f => listeners.add(f);
@@ -147,6 +160,7 @@ export function poll() {
   for (let i = 0; i < 17; i++) { const b = gp.buttons[i]; pad.down[i] = b && (b.pressed || b.value > 0.5) ? 1 : 0; }
   const [lx, ly] = deadzone(gp.axes[0] || 0, gp.axes[1] || 0), [rx, ry] = deadzone(gp.axes[2] || 0, gp.axes[3] || 0);
   pad.axes[0] = lx; pad.axes[1] = ly; pad.axes[2] = rx; pad.axes[3] = ry;
+  if (pad.down.some((d, i) => d && !pad.was[i]) || Math.hypot(lx, ly) > 0.3 || Math.hypot(rx, ry) > 0.3) setMode('pad');
   return pad;
 }
 export const hit = i => pad.down[i] && !pad.was[i];
@@ -163,7 +177,7 @@ export function dpad() {
   return [x, y];
 }
 
-addEventListener('gamepadconnected', e => { if (e.gamepad.mapping === 'standard' || !pad.connected) setMode('pad', false); for (const f of listeners) f(); });
+addEventListener('gamepadconnected', () => { for (const f of listeners) f(); });
 addEventListener('gamepaddisconnected', () => { for (const f of listeners) f(); });
 
 // fullscreen: the desktop build asks its window; a browser only allows it from a real key press or click, and a
@@ -176,7 +190,7 @@ export function fullscreen() {
 }
 
 export const controls = {
-  get mode() { return state.mode; }, get chosen() { return state.chosen; },
+  get mode() { return state.mode; },
   get kb() { return state.kb; }, get pad() { return state.pad; }, get sticks() { return state.sticks; },
   get gamepad() { return pad; },
 };

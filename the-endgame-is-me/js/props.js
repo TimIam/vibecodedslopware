@@ -305,7 +305,8 @@ export function addCritter(g, kind, x, y, extra = {}) {
   return c;
 }
 
-export function hurtCritter(g, c, dmg) {
+// fire: it was fire that did it (people it kills lie there charred)
+export function hurtCritter(g, c, dmg, fire = false) {
   if (c.dead) return;
   c.hp -= dmg; c.hitT = 0.12; c.scared = 4;
   if (c.hp > 0) return;
@@ -318,7 +319,8 @@ export function hurtCritter(g, c, dmg) {
   if (v.chaos) API.chaos(g, v.chaos);
   API.sound(g, d.cry || 'kill');
   for (let i = 0; i < 6; i++) { const a = g.rng() * TAU, s = 10 + g.rng() * 25; API.part(g, c.x, c.y - 1, Math.cos(a) * s, Math.sin(a) * s, 0.35, d.bits || 'blood'); }
-  if (!d.leaves && !d.noCorpse) g.corpses.push({ u: null, critter: c.kind, x: c.x, y: c.y, cls: null, t: 0, fx: c.fx });
+  const charred = fire && d.raise === 'skeleton';   // (the townsfolk: the ones that come back as plain skeletons)
+  if (!d.leaves && !d.noCorpse) g.corpses.push({ u: null, critter: c.kind, x: c.x, y: c.y, cls: null, t: 0, fx: c.fx, charred });
   d.onDie?.(g, c);   // (the secret level's steers go off like bombs)
 }
 

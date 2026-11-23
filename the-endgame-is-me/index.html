@@ -70,7 +70,10 @@ dd em{font-style:normal;color:#ffd75a;font-size:11px;margin-left:6px}
 .askWrap[hidden]{display:none}
 .ask{width:min(520px,94vw)}
 .ask h2{color:#ffd75a}
-#humTabs{margin-top:12px}
+.humNav{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:12px}
+#humPage{font-size:11px;color:#aeac9b;min-width:260px;text-align:center}
+.humNav [aria-disabled=true]{opacity:.4}
+.humLead b{color:#ffd75a;font-weight:400}
 .humLead{margin:12px 0 0;font-size:12px;color:#aeac9b;text-align:center}
 .humHabits{width:min(620px,100%);grid-template-columns:auto 1fr;font-size:11.5px;margin-top:10px}
 .humHabits dd{text-align:left;color:#d2cfbd}
@@ -224,6 +227,7 @@ fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
 .ctlMode .note{margin:0 0 0 6px}
 .bind{margin:4px 0 0;padding:7px 10px 5px;font-size:12px}
 .bind .lbl small{color:#aeac9b;margin-left:6px;font-size:10.5px}
+.bind .val small{color:#aeac9b;margin-right:6px;font-size:10.5px}
 .bind.wait .val{color:#9fd8ff}
 .bind.dim{opacity:.55}
 .stickRow{display:grid;grid-template-columns:104px 1fr;gap:10px;align-items:center;margin:6px 0 0;font-size:12px}
@@ -232,10 +236,10 @@ fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
 #notice{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:80;padding:8px 14px 6px;background:#1c1610;box-shadow:0 0 0 2px #14100c,0 0 0 4px #633b25;font-size:12px;color:#f4ecd2;pointer-events:none}
 #notice[hidden]{display:none}
 /* a Steam Deck's 1280x800 screen, or anything played from the sofa with a controller: bigger things to land on */
-@media (max-width:1280px){.radio{padding:4px 12px 4px 2px}.chk{padding:3px 0}.tabs button{padding:10px 16px 8px}.slot select,.stickRow select{padding:7px 8px}}
-html.pad .radio,html.pad .chk{font-size:13px}
-html.pad .item{padding:10px 12px}
-html.pad .bind,html.pad .setRow{padding-top:10px;padding-bottom:8px}
+/* (by screen size, not by which input was used last: keyboard and controller both work now, and nothing should
+   change size when the player switches between them) */
+@media (max-width:1280px){.radio{padding:4px 12px 4px 2px;font-size:13px}.chk{padding:3px 0;font-size:13px}.tabs button{padding:10px 16px 8px}.slot select,.stickRow select{padding:7px 8px}
+  .item{padding:10px 12px}.bind,.setRow{padding-top:10px;padding-bottom:8px}}
 .touch-only{display:none}
 @media (hover:none) and (pointer:coarse){.touch-only{display:block}}
 </style>
@@ -289,8 +293,8 @@ html.pad .bind,html.pad .setRow{padding-top:10px;padding-bottom:8px}
       <span class="k"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>lumber about</span>
       <span class="k"><kbd>mouse</kbd></span><span>face somewhere</span>
       <span class="k"><kbd>LMB</kbd></span><span>swipe (hold it)</span>
-      <span class="k"><kbd>RMB</kbd></span><span>stomp</span>
-      <span class="k"><kbd>Q</kbd></span><span>fire breath (leaves fire)</span>
+      <span class="k"><kbd>RMB</kbd></span><span>fire breath (leaves fire)</span>
+      <span class="k"><kbd>Q</kbd></span><span>stomp</span>
       <span class="k"><kbd>Space</kbd></span><span>roar (everyone runs)</span>
       <span class="k"><kbd>Space</kbd></span><span>shake, when he is in your fur</span>
       <span class="k"><kbd>E</kbd> <kbd>R</kbd></span><span>empty slots (buy something)</span>
@@ -299,8 +303,8 @@ html.pad .bind,html.pad .setRow{padding-top:10px;padding-bottom:8px}
     <div class="setLinks center"><button id="openHumanstiary" type="button" class="quiet">Humanstiary</button></div>
     </div>
     <div class="panelBody" data-panel="humanstiary" hidden>
-      <div class="tabs" id="humTabs" role="tablist"><button type="button" role="tab" aria-selected="true">Heroes</button><button type="button" role="tab" aria-selected="false">Everyone else</button></div>
       <div id="humBody"></div>
+      <div class="humNav"><button id="humPrev" type="button" class="quiet">&lt; Prev</button><span id="humPage"></span><button id="humNext" type="button" class="quiet">Next &gt;</button></div>
     </div>
     <div class="panelBody" data-panel="settings" hidden>
       <div class="nameRow"><label for="bossName">Boss name</label><button id="nameDie" class="die" type="button" aria-label="Pick a random name" title="Random name"></button><input id="bossName" maxlength="26" autocomplete="off" spellcheck="false"></div>
@@ -329,7 +333,7 @@ html.pad .bind,html.pad .setRow{padding-top:10px;padding-bottom:8px}
       </div>
     </div>
     <div class="panelBody" data-panel="controls" hidden>
-      <div class="ctlMode" role="group" aria-label="Input"><button type="button" class="opt" data-mode="keyboard">Use keyboard</button><button type="button" class="opt" data-mode="pad">Use controller</button><span id="padStatus" class="note"></span></div>
+      <div class="ctlMode"><span id="padStatus" class="note"></span></div>
       <div class="setCols ctlCols">
         <div>
           <h3>Keyboard</h3>
@@ -341,7 +345,7 @@ html.pad .bind,html.pad .setRow{padding-top:10px;padding-bottom:8px}
           <h3>Controller</h3>
           <div id="padRows"></div>
           <div id="stickRows"></div>
-          <p class="note">Pick one, then press the button for it. Esc or Select cancels. Turn and walk: left and right turn the boss, up and down walk it forward and back. The D-pad also walks unless it is bound. Select is fullscreen.</p>
+          <p class="note">Pick one, then press the button for it. Esc or Select cancels. Turn and walk: left and right turn the boss, up and down walk it forward and back. The D-pad also moves unless it is bound. Select is fullscreen.</p>
           <button id="padReset" type="button" class="setRow"><span class="lbl">Reset controller</span><span class="val"></span></button>
         </div>
       </div>
@@ -427,7 +431,7 @@ html.pad .bind,html.pad .setRow{padding-top:10px;padding-bottom:8px}
     <p id="overSub" style="color:#aeac9b;margin-top:4px"></p>
     <dl id="stats"></dl>
     <div class="wonBtns"><button id="again" type="button">Respawn at last save</button><button id="overTitle" type="button" class="quiet">Title screen</button></div>
-    <p class="note">Bosses respawn on reset. Reset is whenever you press R.</p>
+    <p id="overNote" class="note"></p>
   </div>
 </div>
 <div id="notice" role="status" hidden></div>

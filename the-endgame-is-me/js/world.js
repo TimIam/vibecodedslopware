@@ -43,7 +43,7 @@ export const ABILITIES = [
   { id: 'roar', name: 'Roar', start: true, space: true, desc: 'Everyone nearby runs away screaming. Always on Space, which shakes your fur instead while somebody is in it.',
     ups: ['15% farther, fear lasts longer', '15% farther, fear lasts longer', '15% farther, fear lasts longer, and everyone is stunned for a second before they run'] },
   { id: 'summon', name: 'Call Adds', cost: 12000, desc: 'Summon two Gnashers: melee adds that run down heroes and bite.',
-    ups: ['Casters instead: four Spitters, whose spit hits hard and leaves a pool of poison', 'A Necromancer instead, who raises dead heroes as skeletons'], upCost: [25000, 40000] },
+    ups: ['Casters instead: four Spitters, ten hard spits each (straight, and anyone in the way gets it), every one leaving a pool of poison', 'A Necromancer instead, who raises dead heroes as skeletons'], upCost: [25000, 40000] },
   { id: 'beam', name: 'Lightning Beam', cost: 20000, desc: 'Charge up, then fire a huge beam of lightning across the map. Steer it with the mouse.',
     ups: ['+35% damage, 20% longer', '+35% damage, 20% longer', '+35% damage, 20% longer, and a column as wide as the beam down each side of it at half damage'] },
   { id: 'ice', name: 'Ice Floor', cost: 10000, desc: 'Coat the ground around you in ice. Heroes on it slow to a shuffle.',
@@ -86,7 +86,9 @@ export const LOOKS = {
 
 export const ADDS = {
   gnasher:  { name: 'GNASHER', hp: 160, r: 2.5, spd: 36, dmg: 26, rate: 0.8, reach: 4, sense: 80 },
-  spitter:  { name: 'SPITTER', hp: 140, r: 3, spd: 0, dmg: 110, rate: 1.5, reach: 70, sense: 70, poison: { r: 12, dps: 14, t: 4 } },
+  // spits: how many it has in it; life: [shortest, longest] seconds it lasts (whichever runs out first). Its spit flies
+  // straight and unguided, aimed where the target was, and hits whatever it meets first bar the boss (fly: its reach)
+  spitter:  { name: 'SPITTER', hp: 140, r: 3, spd: 0, dmg: 110, rate: 1.5, reach: 70, sense: 70, poison: { r: 12, dps: 14, t: 4 }, spits: 10, life: [15, 25], fly: 95 },
   necro:    { name: 'NECROMANCER', hp: 220, r: 3, spd: 26, dmg: 22, rate: 2.0, reach: 70, sense: 70 },
   skeleton: { name: 'SKELETON', hp: 80, r: 2, spd: 30, dmg: 14, rate: 0.9, reach: 4, sense: 70 },   // a dead civilian
   // what a necromancer makes of a dead hero, by the hero's role
@@ -289,15 +291,15 @@ export function createGame(seed = (Math.random() * 2 ** 32) >>> 0, look) {
     },
     units: [], parties: [], corpses: [], ghosts: [], fires: [], ice: [], bolts: [], parts: [], texts: [], barks: [], rings: [], adds: [],
     balls: [], steam: [],     // the last Fire Breath's fireballs, and the steam they make of water
-    drains: [], shots: [], stuck: [], craters: [],   // warlock beams; arrows and ballista bolts off the walls; mud craters
+    drains: [], shots: [], stuck: [], craters: [], loot: [],   // loot: what a dead boss drops   // warlock beams; arrows and ballista bolts off the walls; mud craters
     props: [], critters: [], ashes: [], water: null, chaos: 0, vengeT: 0, won: false, winT: 0,
     abil: null, owned: new Set(ABILITIES.filter(a => a.start).map(a => a.id)), lvl: {},
-    slots: ['swipe', 'stomp', 'breath', null, null],   // Roar is not in here: it lives on Space
+    slots: ['swipe', 'breath', 'stomp', null, null],   // Roar is not in here: it lives on Space
     look: { head: 0, horns: 0, neck: 0, back: 0, tail: 0, limbs: 0, legs: 0, marker: 0, fur: null, ...look },
     ng: 0,                    // New Game+ round: 0 the first time through
-    score: 0, points: 0, spent: 0, mult: 1, laps: 0, lapsMap: 0, legDist: 0, kills: 0, summoned: 0, maps: 0,
+    score: 0, points: 0, spent: 0, mult: 1, laps: 0, lapsMap: 0, kills: 0, summoned: 0, maps: 0,
     wipes: { raid: 0, dungeon: 0, rider: 0, final: 0 }, escaped: 0, patrolDist: 0,
-    lastMark: 'A', onPatrol: false, offLane: 0, shortcutT: 0,
+    lastMark: 'A', onPatrol: false, offLane: 0,
     banner: null, thought: null, thoughtT: 4, clear: null, store: false,
     dir: { next: 8, n: 0, lastRaid: -999, raids: 0, final: false },
     blame: { raid: 0, dungeon: 0, rider: 0 }, // recent damage by party type, for the game over line
@@ -314,7 +316,7 @@ function placeBoss(g) {
   Object.assign(g.boss, { x: p.x, y: p.y, face: p.face || 0 });
 }
 
-const ARRAYS = ['units', 'parties', 'corpses', 'ghosts', 'fires', 'ice', 'bolts', 'parts', 'texts', 'barks', 'rings', 'adds', 'balls', 'steam', 'props', 'critters', 'ashes', 'drains', 'shots', 'stuck', 'craters'];
+const ARRAYS = ['units', 'parties', 'corpses', 'ghosts', 'fires', 'ice', 'bolts', 'parts', 'texts', 'barks', 'rings', 'adds', 'balls', 'steam', 'props', 'critters', 'ashes', 'drains', 'shots', 'stuck', 'craters', 'loot'];
 
 // Brings a run from an older save up to date (safe to call on any run, any number of times): footprints are gone,
 // fireballs and steam exist, and Roar has moved out of the five slots onto Space.
@@ -379,7 +381,7 @@ export function nextMap(g, L = null, o = {}) {
   // health carries over from the level before (the Hoard sells it back: healBoss)
   Object.assign(b, { act: null, queue: null, evade: null, taunt: null, haste: 0, flash: 0, hp: clamp(b.hp, 1, b.maxhp), calmT: 99, pinned: 0, stunT: 0, slowT: 0, carry: null, arrows: [], z: 0 });
   for (const k in b.cd) b.cd[k] = 0;
-  Object.assign(g, { lastMark: 'A', legDist: 0, lapsMap: 0, clear: null, store: false, offLane: 0, mult: 1, walkoff: null });
+  Object.assign(g, { lastMark: 'A', lapsMap: 0, clear: null, store: false, offLane: 0, mult: 1, walkoff: null });
   g.viaPortal = !L && !!o.drop;   // (up out of the secret level, through the Minotaur's vortex)
   loadLevel(g, n, L);
   if (o.label) g.map.label = o.label;
@@ -428,7 +430,13 @@ export function step(g, inp, dt) {
   g.adds = g.adds.filter(a => !a.dead);
   g.parties = g.parties.filter(p => !p.done);
   for (const k in g.blame) g.blame[k] *= Math.exp(-dt / 8);
-  if (g.boss.dead) { g.boss.deadT += dt; if (g.boss.deadT > 4 && !g.over) { g.over = true; g.events.push('over'); } }
+  updateLoot(g, dt);
+  // (with heroes on screen to rez and roll, a few seconds longer before the card)
+  if (g.boss.dead) {
+    g.boss.deadT += dt;
+    if (g.lootChat && g.lootChat.long == null) g.lootChat.long = g.units.some(u => !u.dead && !u.gone && visible(u)) ? 8 : 4;
+    if (g.boss.deadT > (g.lootChat?.long ?? 4) && !g.over) { g.over = true; g.events.push('over'); }
+  }
   if (g.won && !g.boss.dead) { g.winT += dt; if (g.winT > 6 && !g.wonSent) { g.wonSent = true; g.events.push('won'); } }
   if (g.clear && !g.boss.dead) {
     g.clear.t += dt;
@@ -485,7 +493,7 @@ const LAPI = {
   scatter: (g, p) => scatter(g, p),   // a party drops everything and runs for the edge
   scene: (g, kind, x, y) => startScene(g, kind, x, y),   // a cutscene: 'cow' or 'mino' (see SCENE)
   hurtBoss: (g, amt) => hurtBoss(g, amt, WALL_U),
-  hurtCritter: (g, c, amt) => P.hurtCritter(g, c, amt),
+  hurtCritter: (g, c, amt, fire) => P.hurtCritter(g, c, amt, fire),
   stunBoss: (g, t) => { const b = g.boss; b.stunT = Math.max(b.stunT || 0, t); b.act = null; b.queue = null; dropCarry(g); },
   slowBoss: (g, t) => { g.boss.slowT = Math.max(g.boss.slowT || 0, t); },
   bark: (g, u, s) => bark(g, u, s),
@@ -582,30 +590,23 @@ function updateBoss(g, inp, dt) {
   if (g.onPatrol) {
     addScore(g, moved * g.mult);
     g.patrolDist += moved;
-    g.legDist += moved;
     g.offLane = 0;
   } else {
     g.offLane += dt;
     if (g.offLane > 3) g.mult = Math.max(1, g.mult - 0.12 * dt);
   }
-  g.shortcutT = Math.max(0, g.shortcutT - dt);
+  // touching the rock you're headed for is a lap, however you got there: the path is already the shortest way
+  // (the ending's walk home touches them too, and that is not a lap)
   const R = destRock(g);
-  if (Math.hypot(b.x - R.x, b.y - R.y) < TOUCH) {
-    // a lap only counts if you actually walked most of the path to get here
-    if (g.legDist >= m.len * 0.6) {
-      g.laps++; g.lapsMap++;
-      const pts = Math.round(100 * g.mult);
-      addScore(g, pts);
-      g.mult = Math.min(MULT_MAX, g.mult + MULT_STEP);
-      text(g, R.x, R.y - 14, `+${pts}`, 'gold');
-      text(g, R.x, R.y - 20, `AIMLESS X${g.mult.toFixed(2)}`, 'cream', 1.6);
-      g.events.push('lap');
-      g.lastMark = R === m.A ? 'A' : 'B';
-      g.legDist = 0;
-    } else if (g.shortcutT <= 0) {
-      text(g, R.x, R.y - 14, 'SHORTCUT. DOES NOT COUNT', 'pink', 1.6);
-      g.shortcutT = 3;
-    }
+  if (Math.hypot(b.x - R.x, b.y - R.y) < TOUCH && !g.end) {
+    g.laps++; g.lapsMap++;
+    const pts = Math.round(100 * g.mult);
+    addScore(g, pts);
+    g.mult = Math.min(MULT_MAX, g.mult + MULT_STEP);
+    text(g, R.x, R.y - 14, `+${pts}`, 'gold');
+    text(g, R.x, R.y - 20, `AIMLESS X${g.mult.toFixed(2)}`, 'cream', 1.6);
+    g.events.push('lap');
+    g.lastMark = R === m.A ? 'A' : 'B';
   }
   if (sd > LEASH && !locked) startEvade(g);
   }
@@ -992,11 +993,11 @@ function advanceAct(g, dt) {
       a.tick += 0.1;
       // (the beam's side columns, when it has them, do d.side of its damage)
       const share = (x, y, pad) => a.kind === 'beam' ? [0, 1, d.side][beamLane(g, x, y, pad)] : inZone(g, a.kind, x, y, pad) ? 1 : 0;
-      for (const u of g.units) if (hittable(u)) { const k = share(u.x, u.y, 1); if (k) hurt(g, u, d.dps * 0.1 * k); }
+      for (const u of g.units) if (hittable(u)) { const k = share(u.x, u.y, 1); if (k) { if (a.kind === 'breath') u.fireT = g.t; hurt(g, u, d.dps * 0.1 * k); } }
       if (g.props.length || g.critters.length) {
         const test = (x, y) => inZone(g, a.kind, x, y, 2), reach = a.kind === 'beam' ? beamEnd(g).len + 8 : d.range + 6;
         P.igniteZone(g, test, b.x, b.y, reach, a.kind === 'beam' ? 0.7 : 0.35);
-        for (const c of g.critters) if (!c.dead) { const k = share(c.x, c.y, 2); if (k) P.hurtCritter(g, c, d.dps * 0.1 * k); }
+        for (const c of g.critters) if (!c.dead) { const k = share(c.x, c.y, 2); if (k) P.hurtCritter(g, c, d.dps * 0.1 * k, a.kind === 'breath'); }
         if (a.kind === 'beam') {
           P.damageZone(g, (x, y) => beamLane(g, x, y, 2) === 1, d.dps * 0.1, b.x, b.y, reach);
           if (d.side) P.damageZone(g, (x, y) => beamLane(g, x, y, 2) === 2, d.dps * 0.1 * d.side, b.x, b.y, reach);
@@ -1075,7 +1076,7 @@ function fire(g, k) {
     // (a tail that strikes again sweeps back the other way)
     g.rings.push({ x: b.x, y: b.y, face: zoneFace(g, k), t: 0, col: 'slash', big: k === 'tail', reach: d.range, flip: (b.act?.n || 0) % 2 === 1 });
   } else if (k === 'breath') {
-    for (const u of g.units) if (hittable(u) && inZone(g, 'breath', u.x, u.y, 1)) hurt(g, u, d.dmg);
+    for (const u of g.units) if (hittable(u) && inZone(g, 'breath', u.x, u.y, 1)) { u.fireT = g.t; hurt(g, u, d.dmg); }
   } else if (k === 'roar') {
     g.shake = 0.25;
     g.rings.push({ x: b.x, y: b.y, r: 6, max: d.range, t: 0, col: 'roar' });
@@ -1252,13 +1253,16 @@ function updateBalls(g, dt) {
       for (const u of g.units) {
         if (!hittable(u) || o.hit.includes(u.id) || Math.hypot(u.x - o.x, u.y - o.y) > o.r + 2) continue;
         o.hit.push(u.id);
+        u.fireT = g.t;
+        if (u.role !== 'tank' && !isPet(u) && u.role !== 'rider' && !u.burn) ignite(g, u);
         hurt(g, u, dmg);
         for (let i = 0; i < 5; i++) part(g, u.x, u.y - 1, (g.rng() - 0.5) * 40, (g.rng() - 0.5) * 40, 0.3, g.rng() < 0.5 ? 'flame' : 'ember');
       }
       for (const c of g.critters) {
         if (c.dead || o.hit.includes(c.id) || Math.hypot(c.x - o.x, c.y - o.y) > o.r + c.r) continue;
         o.hit.push(c.id);
-        P.hurtCritter(g, c, dmg);
+        if (c.kind === 'fen_steer') { c.selfBoom = true; P.hurtCritter(g, c, 1e6, true); continue; }   // a fireball sets a steer off on the spot
+        P.hurtCritter(g, c, dmg, true);
       }
       if (g.props.length) {
         const px = o.x, py = o.y;
@@ -1343,8 +1347,92 @@ function hurtBoss(g, amt, u) {
     b.hp = 0; b.dead = true; b.act = null; b.taunt = null;
     g.events.push('bossdie');
     g.shake = 0.6;
-    for (const p of g.parties) for (const v of alive(p)) if (g.rng() < 0.35) bark(g, v, pick(g, BARK.dance));
+    for (const p of g.parties) for (const v of alive(p)) if (g.rng() < 0.15) bark(g, v, pick(g, BARK.dance));
+    dropLoot(g);
   }
+}
+
+// ---------------------------------------------------------------------------------------------- the loot
+
+// A dead boss drops tiny gold coins and bits of gear (swords, axes, helms, shields, chestplates) that pop out of it
+// and land all around. Any raid still standing on screen then does what raids do: the healers rez everyone, and
+// they talk about the loot, and whenever a piece of gear comes up a few of them /roll for it.
+const LOOT_GEAR = ['sword', 'axe', 'helm', 'shield', 'chest', 'staff', 'boots'];
+const LOOT_TALK = {
+  sword: ['NEED ON SWORD', 'SWORD IS BIS', 'THAT SWORD THO', 'MS ROLL SWORD'], axe: ['AXE!!', 'NEED AXE', 'BIG AXE ME PLS', 'AXE IS MINE'],
+  helm: ['HELM DROPPED', 'NEED HELM', 'HELM FOR TANK', 'MY HELM'], shield: ['SHIELD = TANK', 'SHIELD PLS', 'NEED SHIELD'],
+  chest: ['PLATE CHEST!', 'CHEST IS BIS', 'NEED CHEST'], staff: ['STAFF FOR ME', 'CASTER STAFF', 'NEED STAFF'], boots: ['BOOTS!', 'NEED BOOTS', 'SPEED BOOTS?'],
+};
+const LOOT_CHAT = ['LOOT!', 'GZ', 'GOLD!!', 'WHO LOOTS?', 'MASTER LOOTER?', 'DKP?', 'LOOT COUNCIL', 'NO NINJAS', 'FUR IS MINE', 'GG', 'FIRST KILL',
+  'SCREENSHOT', 'GZ ALL', 'PASS', 'GREED', 'NEED', 'REZ ME', 'OUT OF MANA', 'SO MUCH GOLD', 'SPLIT THE GOLD'];
+function dropLoot(g) {
+  const b = g.boss;
+  g.loot ||= [];
+  const n = 26 + Math.floor(g.rng() * 10), gear = 5 + Math.floor(g.rng() * 3);
+  for (let i = 0; i < n + gear; i++) {
+    const a = g.rng() * TAU, s = 28 + g.rng() * 52;
+    const kind = i < gear ? LOOT_GEAR[Math.floor(g.rng() * LOOT_GEAR.length)] : 'coin';
+    g.loot.push({ kind, x: b.x + Math.cos(a) * 3, y: b.y + Math.sin(a) * 2, vx: Math.cos(a) * s, vy: Math.sin(a) * s * 0.6,
+      z: 6 + g.rng() * 4, vz: 40 + g.rng() * 50, rot: g.rng() * TAU, spin: (g.rng() - 0.5) * 16, t: 0, seed: g.rng() });
+  }
+  g.lootChat = { t: 1.2, rolls: [], gear: g.loot.filter(l => l.kind !== 'coin').map(l => l.kind) };
+  g.events.push('loot');
+}
+const visible = u => u.x > V.x - 4 && u.x < V.x + W + 4 && u.y > V.y - 4 && u.y < V.y + H + 4;
+function updateLoot(g, dt) {
+  for (const l of g.loot || []) {
+    l.t += dt;
+    if (l.z <= 0 && l.vz <= 0) continue;
+    l.vz -= 260 * dt; l.z += l.vz * dt;
+    l.x += l.vx * dt; l.y += l.vy * dt; l.rot += l.spin * dt;
+    if (l.z <= 0) {
+      l.z = 0;
+      if (l.vz < -40) { l.vz = -l.vz * 0.35; l.vx *= 0.5; l.vy *= 0.5; l.spin *= 0.5; if (l.kind === 'coin' && g.rng() < 0.3) g.events.push('coin'); }
+      else { l.vz = 0; l.vx = l.vy = l.spin = 0; }
+    }
+  }
+  const b = g.boss, c = g.lootChat;
+  if (!b.dead || !c) return;
+  const here = g.units.filter(u => !u.dead && !u.gone && u.role !== 'rider' && !isPet(u) && visible(u));
+  // the healers bring everyone back, one after another
+  for (const h of here) {
+    if (h.role !== 'healer') continue;
+    h.rezT = (h.rezT ?? 0.6 + g.rng() * 0.8) - dt;
+    if (h.rezT > 0) continue;
+    h.rezT = 0.9 + g.rng() * 0.7;
+    const k = g.corpses.filter(k => k.u && !k.u.gone && k.u.role !== 'rider' && !isPet(k.u) && visible(k))
+      .sort((a, z) => Math.hypot(a.x - h.x, a.y - h.y) - Math.hypot(z.x - h.x, z.y - h.y))[0];
+    if (!k) continue;
+    const u = k.u;
+    g.corpses.splice(g.corpses.indexOf(k), 1);
+    u.dead = false; u.hp = u.maxhp * 0.6; u.x = k.x; u.y = k.y; u.fear = 0; u.stun = 0; u.burn = null; u.poison = null; u.charred = false;
+    u.state = 'fight'; u.dance = g.rng() * 3;
+    if (u.party) u.party.deadList = u.party.deadList.filter(d => d.u !== u);
+    g.units.push(u);
+    if (g.rng() < 0.5) bark(g, h, pick(g, ['REZZING', 'REZ INC', 'UP YOU GET', 'ACCEPT REZ', 'REZZED']));
+    for (let i = 0; i < 12; i++) { const a = g.rng() * TAU; part(g, u.x, u.y - 2, Math.cos(a) * 18, Math.sin(a) * 18 - 10, 0.6, 'heal'); }
+    g.events.push('rez');
+  }
+  // the talk: mostly about the loot; a piece of gear named gets a few /rolls a moment later
+  for (const r of c.rolls) {
+    r.t -= dt;
+    if (r.t > 0 || r.done) continue;
+    r.done = true;
+    if (r.u.dead || r.u.gone) continue;
+    bark(g, r.u, '/ROLL');
+    text(g, r.u.x, r.u.y - 15, `ROLLS ${1 + Math.floor(g.rng() * 100)}`, 'gold', 1.6);
+  }
+  c.rolls = c.rolls.filter(r => !r.done);
+  c.t -= dt;
+  if (c.t > 0 || !here.length) return;
+  c.t = 0.55 + g.rng() * 0.6;
+  const u = pick(g, here);
+  if (c.gear.length && g.rng() < 0.5) {
+    const kind = pick(g, c.gear);
+    bark(g, u, pick(g, LOOT_TALK[kind]));
+    const others = here.filter(v => v !== u).sort(() => g.rng() - 0.5).slice(0, 1 + Math.floor(g.rng() * 3));
+    [u, ...others].forEach((v, i) => c.rolls.push({ u: v, t: 0.7 + i * (0.35 + g.rng() * 0.3) }));
+  } else bark(g, u, pick(g, LOOT_CHAT));
 }
 
 // ---------------------------------------------------------------------------------------------- director
@@ -1630,7 +1718,7 @@ function updateParty(g, p, dt) {
       p.brez--;
       p.deadList.splice(p.deadList.indexOf(c), 1);
       const u = c.u;
-      u.dead = false; u.hp = u.maxhp * 0.5; u.state = 'fight'; u.x = c.x; u.y = c.y; u.fear = 0; u.stun = 0;
+      u.dead = false; u.hp = u.maxhp * 0.5; u.state = 'fight'; u.x = c.x; u.y = c.y; u.fear = 0; u.stun = 0; u.burn = null; u.charred = false;
       g.units.push(u);
       g.corpses = g.corpses.filter(k => k.u !== u);
       bark(g, healer, 'BREZ!');
@@ -1800,7 +1888,7 @@ function updateUnit(g, u, dt) {
   u.slow = iceSlow(g, u.x, u.y) * (g.props.length ? P.slowAt(g, u.x, u.y) : 1);
   if (u.root > 0) u.root -= dt;
   if (u.role === 'rider') { updateRider(g, u, dt); return; }
-  if (b.dead) { u.moving = false; u.dance = (u.dance || g.rng() * 3) + dt; return; }
+  if (b.dead && !u.burn) { u.moving = false; u.dance = (u.dance || g.rng() * 3) + dt; return; }   // (anyone alight burns on)
 
   // fire on the ground
   const f = fireAt(g, u.x, u.y);
@@ -1810,9 +1898,11 @@ function updateUnit(g, u, dt) {
       u.fireOk = g.rng() < p.skill.fire;
       if (u.fireOk && g.rng() < 0.6) bark(g, u, pick(g, BARK.fire));
     }
+    u.fireT = g.t;
     hurt(g, u, 32 * dt);
     if (u.dead) return;
   } else u.inFire = false;
+  if (u.burn) { burnStep(g, u, dt); return; }
 
   if (u.stun > 0) { u.stun -= dt; u.moving = false; u.cast = 0; return; }
   if (u.state === 'flee') {
@@ -2099,6 +2189,33 @@ function shakeRider(g, u) {
 
 // ---------------------------------------------------------------------------------------------- damage, death
 
+// A fireball sets anyone it hits alight, bar the tanks (and pets and horse guys): they drop everything and run about
+// in a panic, flames streaming off them, blackening as they go, until it kills them (BURN.t seconds or so, whatever
+// the healers do). They are charred by the end, and their corpse stays charred.
+const BURN = { t: 3.6, spd: 1.35 };
+const BURN_BARK = ['AAAAA', 'IM ON FIRE', 'FIRE FIRE', 'HELP', 'STOP DROP', 'HOT HOT HOT', 'WATER!!', 'MOMMY'];
+function ignite(g, u) {
+  u.burn = { t: 0, dir: g.rng() * TAU, turn: 0 };
+  u.cast = 0; u.moving = true;
+  if (g.rng() < 0.7) bark(g, u, pick(g, BURN_BARK));
+}
+function burnStep(g, u, dt) {
+  const B = u.burn;
+  B.t += dt; u.fireT = g.t;
+  // a panicked zigzag: a new heading every so often, and never off the screen
+  B.turn -= dt;
+  if (B.turn <= 0) { B.turn = 0.25 + g.rng() * 0.45; B.dir += (g.rng() - 0.5) * 2.6; }
+  const v = u.spd * BURN.spd * (u.slow || 1);
+  const nx = u.x + Math.cos(B.dir) * v * dt, ny = u.y + Math.sin(B.dir) * v * dt;
+  if (nx < V.x + 6 || nx > V.x + W - 6) B.dir = Math.PI - B.dir;
+  if (ny < V.y + 14 || ny > V.y + H - 6) B.dir = -B.dir;
+  u.x = clamp(nx, AR.x0, AR.x1); u.y = clamp(ny, AR.y0, AR.y1);
+  u.moving = true; u.walk = (u.walk || 0) + v * dt; u.fx = Math.cos(B.dir) >= 0 ? 1 : -1;
+  if (g.rng() < dt * 22) part(g, u.x + (g.rng() - 0.5) * 3, u.y - 2 - g.rng() * 3, (g.rng() - 0.5) * 10, -12 - g.rng() * 12, 0.25 + g.rng() * 0.25, g.rng() < 0.65 ? 'flame' : 'ember');
+  if (g.rng() < dt * 0.8) bark(g, u, pick(g, BURN_BARK));
+  hurt(g, u, (u.maxhp / BURN.t) * dt * 1.05 + 4 * dt);
+}
+
 function hurt(g, u, amt) {
   if (!hittable(u)) return;
   if (u.role === 'rider' && u.state === 'stun') amt *= 2;
@@ -2117,8 +2234,12 @@ function kill(g, u) {
   g.kills++;
   text(g, u.x, u.y - 6, `+${pts}`, u.role === 'rider' ? 'gold' : 'cream', u.role === 'rider' ? 1.6 : 0.9);
   g.events.push(u.role === 'rider' ? 'riderdie' : 'kill');
-  for (let i = 0; i < 7; i++) { const a = g.rng() * TAU, s = 10 + g.rng() * 30; part(g, u.x, u.y - 1, Math.cos(a) * s, Math.sin(a) * s, 0.35, 'blood'); }
-  const corpse = { u, x: u.x, y: u.y, cls: u.cls, t: 0 };
+  // anyone fire finished off lies there charred, for good (and doesn't bleed)
+  const charred = !!u.burn || g.t - (u.fireT ?? -9) < 0.3;
+  if (!charred) for (let i = 0; i < 7; i++) { const a = g.rng() * TAU, s = 10 + g.rng() * 30; part(g, u.x, u.y - 1, Math.cos(a) * s, Math.sin(a) * s, 0.35, 'blood'); }
+  else for (let i = 0; i < 6; i++) part(g, u.x + (g.rng() - 0.5) * 3, u.y - 2, (g.rng() - 0.5) * 6, -8 - g.rng() * 8, 0.8 + g.rng() * 0.6, 'smoke');
+  const corpse = { u, x: u.x, y: u.y, cls: u.cls, t: 0, charred };
+  u.charred = charred;
   g.corpses.push(corpse);
   if (g.corpses.length > 90) g.corpses.shift();
   if (!isPet(u)) g.ghosts.push({ x: u.x, y: u.y - 2, t: 0, vx: (g.rng() - 0.5) * 6 });
@@ -2156,10 +2277,30 @@ function updatePoison(g, dt) {
   }
 }
 
+// a Spitter's spit in flight: straight on, until it meets a hero, another add or an animal (never the boss), or
+// runs out of reach and splats where it lands. Either way it leaves its pool of poison.
+const SPIT_SPD = 90;
+function flySpit(g, o, dt) {
+  o.x += o.vx * dt; o.y += o.vy * dt;
+  o.flown += SPIT_SPD * dt;
+  let hit = null;
+  for (const u of g.units) if (hittable(u) && Math.hypot(u.x - o.x, u.y - 3 - o.y) < 3.5) { hit = u; break; }
+  if (hit) hurt(g, hit, o.dmg);
+  if (!hit) for (const a of g.adds) if (a !== o.from && !a.dead && Math.hypot(a.x - o.x, a.y - 3 - o.y) < a.r + 1.5) { hit = a; hurtAdd(g, a, o.dmg); break; }
+  if (!hit) for (const c of g.critters) if (!c.dead && Math.hypot(c.x - o.x, c.y - 2 - o.y) < 3) { hit = c; P.hurtCritter(g, c, o.dmg); break; }
+  const out = o.flown >= o.fly;
+  if (!hit && !out) return;
+  o.done = true;
+  const at = { x: o.x, y: o.y + 3 };
+  splashPoison(g, at, o.poison);
+  for (let i = 0; i < 4; i++) part(g, o.x, o.y, (g.rng() - 0.5) * 30, (g.rng() - 0.5) * 30, 0.3, SPIT_COL);
+}
+
 function updateBolts(g, dt) {
   const b = g.boss;
   for (const o of g.bolts) {
     o.t += dt;
+    if (o.free) { flySpit(g, o, dt); continue; }
     const tgt = o.ally ? o.tgt : o.foe || b;
     if (o.ally ? !hittable(tgt) : o.foe?.dead) { o.done = true; continue; }
     const dx = tgt.x - o.x, dy = tgt.y - o.y, d = Math.hypot(dx, dy);
@@ -2317,6 +2458,7 @@ function spawnAdd(g, kind, x, y, owner) {
   const a = { id: g.nextId++, kind, x: clamp(x, AR.x0, AR.x1), y: clamp(y, AR.y0, AR.y1), hp: D.hp, maxhp: D.hp, r: D.r,
     atk: 0.5, walk: 0, moving: false, fx: 1, hit: 0, t: 0, swing: 0, slot: g.rng() * TAU,
     owner: owner == null ? null : owner, charges: 0, chargeT: 0 };
+  if (D.spits) { a.spits = D.spits; a.life = D.life[0] + g.rng() * (D.life[1] - D.life[0]); }
   g.adds.push(a);
   g.summoned++;
   text(g, a.x, a.y - 9, isSkel(a) ? 'RISE' : D.name + '!', isSkel(a) ? 'heal' : 'gold', 1.4);
@@ -2528,15 +2670,27 @@ function updateAdd(g, a, dt) {
     return;
   }
   if (a.kind === 'spitter') {
-    if (tgt) {
+    if (a.spits == null) { a.spits = D.spits; a.life = D.life[1]; }   // (from an older save)
+    a.life -= dt;
+    if (tgt && a.spits > 0) {
       a.fx = tgt.x > a.x ? 1 : -1;
       if (a.atk <= 0) {
         a.atk = D.rate; a.swing = Math.max(a.swing, 0.25);
-        g.bolts.push({ x: a.x, y: a.y - 3, dmg: D.dmg, kind: 'spit', ally: true, tgt, poison: D.poison, t: 0 });
+        // aimed once, at where the target stands now (a little lead on a walker), then on its own
+        const lx = tgt.x + (tgt.vx || 0) * 0.15, ly = tgt.y + (tgt.vy || 0) * 0.15, d = Math.hypot(lx - a.x, ly - a.y) || 1;
+        g.bolts.push({ x: a.x, y: a.y - 3, vx: (lx - a.x) / d * SPIT_SPD, vy: (ly - a.y) / d * SPIT_SPD, dmg: D.dmg, kind: 'spit', ally: true, free: true, from: a, fly: D.fly, flown: 0, poison: D.poison, t: 0 });
+        a.spits--;
         g.events.push('spit');
       }
     }
     a.moving = false;
+    // spent: ten spits, or its time is up (the last spit still has to land first, so no swing is cut short)
+    if ((a.spits <= 0 && a.atk < D.rate - 0.4) || a.life <= 0) {
+      a.dead = true;
+      text(g, a.x, a.y - 8, 'SPENT', 'cream', 1.1);
+      for (let i = 0; i < 8; i++) { const k = g.rng() * TAU, s = 10 + g.rng() * 22; part(g, a.x, a.y - 1, Math.cos(k) * s, Math.sin(k) * s, 0.45, SPIT_COL); }
+      g.events.push('adddie');
+    }
     return;
   }
   // gnashers and skeletons never stray too far from you
@@ -2866,7 +3020,6 @@ export function endingStep(e, dt) {
     if (en.t - en.at > 5.5) say('THE END. (CLOCK IN AGAIN?)');
   }
   step(e, inp, dt);
-  if (en.phase === 'home') e.legDist = 0;   // all this to and fro is not a lap
   b.hp = b.maxhp;
   e.texts.length = 0; e.thought = null; e.banner = null; e.barks.length = 0;
   return !en.done;

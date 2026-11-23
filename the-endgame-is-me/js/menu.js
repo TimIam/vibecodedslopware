@@ -5,7 +5,7 @@
 import { createHumanstiary } from './humanstiary.js';
 import { createNav } from './nav.js';
 import { ENDING_TRACK } from './music.js';
-import { controls, SLOTS, MOVES, STICK_ROLES, keyName, padName, slotLabel, spaceLabel, bindKey, bindPad, setStick, setMode, resetKeys, resetPad, onChange, hit, held, stick, fullscreen, PAD_A, PAD_B, PAD_SELECT } from './controls.js';
+import { controls, SLOTS, MOVES, STICK_ROLES, keyName, padName, slotLabel, spaceLabel, bindKey, bindPad, setStick, resetKeys, resetPad, onChange, hit, held, stick, fullscreen, PAD_A, PAD_B, PAD_SELECT } from './controls.js';
 
 const $ = id => document.getElementById(id);
 const fmt = n => Math.floor(n).toLocaleString('en-US');
@@ -121,7 +121,7 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     capture = null;
     if (name === 'controls') drawControls();
     $('panelCard').scrollTop = 0;
-    const first = { settings: $('bossName'), humanstiary: humans.tab(), controls: document.querySelector(`.ctlMode [data-mode="${controls.mode}"]`) }[name];
+    const first = { settings: $('bossName'), humanstiary: humans.tab(), controls: document.querySelector(`[data-bind="${controls.mode === 'pad' ? 'pad' : 'kb'}:slot0"]`) }[name];
     (first || $('panelBack')).focus({ preventScroll: true });
   }
   // back is where Back leads: another panel, or the 'title' or 'paused' screen underneath
@@ -247,14 +247,14 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
   function drawControls() {
     if (panel !== 'controls') return;
     const keep = nav.keyOf(document.activeElement);
-    for (const b of document.querySelectorAll('.ctlMode [data-mode]')) { b.classList.toggle('on', b.dataset.mode === controls.mode); b.setAttribute('aria-pressed', b.dataset.mode === controls.mode); }
     const gp = navigator.getGamepads?.().find(p => p && p.connected);
     $('padStatus').textContent = gp ? `Found ${gp.id.replace(/\s*\(.*$/, '').slice(0, 32) || 'a controller'}.` : 'No controller yet. Press a button on one.';
+    $('padStatus').textContent += ' Keyboard, mouse and controller all work at once.';
     const row = (kind, a, label, val) => {
       const wait = capture?.kind === kind && capture.action === a;
       return `<button type="button" class="setRow bind ${wait ? 'wait' : ''}" data-bind="${kind}:${a}"><span class="lbl">${label}</span><span class="val">${wait ? (kind === 'kb' ? 'Press a key' : 'Press a button') : val}</span></button>`;
     };
-    $('kbRows').innerHTML = [...SLOTS.map((a, i) => row('kb', a, slotTitle(i) + (i < 2 ? `<small>or ${['LMB', 'RMB'][i]}</small>` : ''), keyName(controls.kb[a]))),
+    $('kbRows').innerHTML = [...SLOTS.map((a, i) => row('kb', a, slotTitle(i), (i < 2 ? `<small>${['LMB', 'RMB'][i]} or</small>` : '') + keyName(controls.kb[a]))),
       row('kb', 'space', ACT.space, keyName(controls.kb.space)), ...MOVES.map(a => row('kb', a, ACT[a], keyName(controls.kb[a])))].join('');
     $('padRows').innerHTML = [...SLOTS.map((a, i) => row('pad', a, slotTitle(i), padName(controls.pad[a]))),
       row('pad', 'space', ACT.space, padName(controls.pad.space)), row('pad', 'pause', ACT.pause, padName(controls.pad.pause))].join('');
@@ -269,8 +269,6 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
   });
   document.documentElement.classList.toggle('pad', controls.mode === 'pad');
   $('panelCard').addEventListener('click', e => {
-    const m = e.target.closest('.ctlMode [data-mode]');
-    if (m) { setMode(m.dataset.mode); audio.play('menuMove'); return; }
     const b = e.target.closest('[data-bind]');
     if (!b) return;
     const [kind, action] = b.dataset.bind.split(':');
@@ -299,7 +297,7 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     const k = s => `<kbd>${s}</kbd>`, names = slots(), pad = controls.mode === 'pad';
     const STICK = { move: 'lumber about', tank: 'turn, and walk forward and back', aim: 'face somewhere' };
     const rows = pad ? [
-      ...['left', 'right'].filter(s => controls.sticks[s] !== 'none').map(s => [k(s === 'left' ? 'Left stick' : 'Right stick'), STICK[controls.sticks[s]]]),
+      ...['left', 'right'].map(s => [k(s === 'left' ? 'Left stick' : 'Right stick'), STICK[controls.sticks[s]]]),
       [k('D-pad'), 'lumber about'],
     ] : [[['up', 'left', 'down', 'right'].map(a => k(keyName(controls.kb[a]))).join(''), 'lumber about'], [k('mouse'), 'face somewhere']];
     names.forEach((n, i) => rows.push([k(slotLabel(i, !pad && i > 1)), n ? n.toLowerCase() + (i === 0 ? ' (hold it)' : '') : 'empty slot (buy something)']));
@@ -420,6 +418,8 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     if (!d && Math.hypot(sx, sy) > 0.5) d = Math.abs(sx) > Math.abs(sy) ? (sx > 0 ? 'right' : 'left') : (sy > 0 ? 'down' : 'up');
     if (d !== padDir) { padDir = d; padRep = 0.38; if (d) intent(d, mode); }
     else if (d && (padRep -= dt) <= 0) { padRep = 0.11; intent(d, mode); }
+    // the bumpers turn the Humanstiary's pages from anywhere on it
+    if (panel === 'humanstiary' && (hit(4) || hit(5))) { if (humans.turn(hit(4) ? -1 : 1)) audio.play('menuMove'); return true; }
     if (hit(PAD_A)) intent('select', mode);
     else if (hit(PAD_B)) intent('back', mode);
     else if (hit(controls.pad.pause)) { if (mode === 'paused' && !panel) actions.resume(); else if (mode === 'title' && !panel) intent('select', mode); }

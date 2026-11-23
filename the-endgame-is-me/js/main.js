@@ -12,7 +12,7 @@ import { createAttract } from './attract.js';
 import { createAppearance, currentLook, bossName } from './appearance.js';
 import { writeSave, readSave, saveInfo, clearSave, unlockPlus, plusData, unlockCow } from './save.js';
 import { createDebug, isSecretName } from './debug.js';
-import { controls, keyAction, poll, hit, held, stick, dpad, slotLabel, spaceLabel, onChange, SLOTS, PAD_A, PAD_B } from './controls.js';
+import { controls, keyAction, poll, hit, held, stick, dpad, slotLabel, spaceLabel, onChange, setMode, padName, SLOTS, PAD_A, PAD_B } from './controls.js';
 
 const canvas = document.getElementById('game');
 const out = canvas.getContext('2d');
@@ -150,6 +150,7 @@ const press = {};
 const WALK = new Set(['up', 'down', 'left', 'right']);
 
 addEventListener('keydown', e => {
+  if (!/^(Shift|Control|Alt|Meta)/.test(e.code)) setMode('keyboard');   // keyboard and controller both work; the labels follow the last one
   if (debug.key(e)) return;
   if (menu.key(e, mode)) return;
   if (mode === 'over' && e.code === 'KeyR') { e.preventDefault(); respawn(); return; }
@@ -180,9 +181,16 @@ function toBuffer(e) {
   mouse.x = (e.clientX - r.left) / r.width * W;
   mouse.y = (e.clientY - r.top) / r.height * H;
 }
-addEventListener('pointermove', toBuffer);
+let lastPt = null;
+addEventListener('pointermove', e => {
+  toBuffer(e);
+  // a real nudge of the mouse hands the boss's gaze back to it (not the odd stray event while a stick is in use)
+  if (lastPt && Math.hypot(e.clientX - lastPt[0], e.clientY - lastPt[1]) > 6) setMode('keyboard');
+  lastPt = [e.clientX, e.clientY];
+});
 canvas.addEventListener('pointerdown', e => {
   toBuffer(e);
+  setMode('keyboard');
   canvas.focus();
   if (debug.on) { if (e.button === 0) debug.click(mouse.x, mouse.y); return; }
   if (mode === 'ending') { endingDone(); return; }
@@ -208,7 +216,7 @@ function readInput() {
   }
   let ax = (r ? 1 : 0) - (l ? 1 : 0), ay = (d ? 1 : 0) - (u ? 1 : 0);
   let mx = mouse.x + g.cam.x, my = mouse.y + g.cam.y;   // aim in world pixels; the screen scrolls on later levels
-  if (controls.mode === 'pad') {
+  if (controls.gamepad.connected) {   // the controller works alongside the keys; it only steers the gaze when it was used last
     let turn = 0, face = null;
     for (const s of ['left', 'right']) {
       const [x, y] = stick(s), role = controls.sticks[s];
@@ -218,8 +226,10 @@ function readInput() {
     }
     const [px, py] = dpad();
     ax += px; ay += py;
-    const ang = face ?? b.face + Math.max(-1, Math.min(1, turn)) * TURN * DT;
-    mx = b.x + Math.cos(ang) * AIM_AT; my = b.y + Math.sin(ang) * AIM_AT;
+    if (controls.mode === 'pad') {
+      const ang = face ?? b.face + Math.max(-1, Math.min(1, turn)) * TURN * DT;
+      mx = b.x + Math.cos(ang) * AIM_AT; my = b.y + Math.sin(ang) * AIM_AT;
+    }
     if (held(controls.pad.slot0)) slot0 = true;
   }
   // every way of walking at once (keys, sticks, D-pad) still only adds up to walking: never faster than one of them
@@ -289,6 +299,10 @@ const LINES = {
   dungeon: ['by five people who met an hour ago.', 'One of them was AFK for most of it.'],
   rider: ['by a quiet man on a horse.', 'The horse did not help.'],
 };
+// R or Enter respawns from the keyboard; with a controller, A on the Respawn button (it has the focus)
+function overNote() {
+  $('overNote').textContent = `Bosses respawn on reset. Reset is whenever you press ${controls.mode === 'pad' ? padName(PAD_A) : 'R'}.`;
+}
 function gameOver() {
   mode = 'over';
   const killer = Object.entries(g.blame).sort((a, b) => b[1] - a[1])[0][0];
@@ -311,6 +325,7 @@ function gameOver() {
     ['Adds summoned', g.summoned],
   ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   showBest();
+  overNote();
   $('over').hidden = false;
   $('again').focus();
 }
@@ -485,14 +500,34 @@ function drawAbilities() {
     const line = cost == null ? '<span class="cost dim">maxed</span>' : `<span class="cost ${g.points < cost && !storeDebug ? 'dim' : ''}">${owned ? 'upgrade' : 'learn'} ${storeDebug ? 'free' : fmt(cost)}</span>`;
     return `<button type="button" class="item ${owned ? 'owned' : ''} ${a.id === sel ? 'sel' : ''}" data-sel="${a.id}" aria-pressed="${a.id === sel}">${icon(a.id)}<b class="nm">${a.name}</b>${pips}${line}</button>`;
   }).join('');
-  const { o, cost: price, what } = mutateOffer(sel), a = o.it;
+  sizeInfo();
+  $('abilInfo').innerHTML = infoHTML(sel);
+}
+// the right-hand panel for one ability: what it is, and the Mutate button
+function infoHTML(id) {
+  const { o, cost: price, what } = mutateOffer(id), a = o.it;
   const cost = storeDebug && price != null ? 0 : price;
   const back = storeDebug && o.lvl > 0 ? `<button type="button" class="mutate" id="abilUnmutate"><span>Unmutate <small>debug: one level back off</small></span><b>${o.lvl}</b></button>` : '';
   const tag = a.passive ? (o.lvl ? `level ${o.lvl}` : 'not grown') : a.space ? `always on ${spaceLabel(true).toUpperCase()}` : o.owned ? (g.slots.includes(a.id) ? `on ${slotLabel(g.slots.indexOf(a.id), true)}` : 'owned, not slotted') : 'not owned';
   const desc = a.id === 'summon' && o.owned && o.lvl > 0 ? a.ups[o.lvl - 1] : a.desc;
-  $('abilInfo').innerHTML = `<b class="nm">${icon(a.id)} ${a.name}</b><span class="up">${tag}</span><span class="desc">${desc}</span>` +
+  return `<b class="nm">${icon(a.id)} ${a.name}</b><span class="up">${tag}</span><span class="desc">${desc}</span>` +
     (cost == null ? `<span class="up">Fully mutated${a.ups && !a.passive && a.id !== 'summon' ? ': ' + a.ups[a.ups.length - 1][0].toLowerCase() + a.ups[a.ups.length - 1].slice(1) : ''}. Nothing left to grow.</span>`
       : `<button type="button" class="mutate" id="abilMutate" ${g.points < cost ? 'aria-disabled="true"' : ''}><span>Mutate <small>${what}</small></span><b>${storeDebug ? 'FREE' : fmt(cost)}</b></button>`) + back;
+}
+// The panel is as tall as the tallest ability's (measured once per width), so picking one ability after another
+// never shoves the Heal and Next level buttons about (on a Steam Deck the whole card would jump)
+function sizeInfo() {
+  const el = $('abilInfo');
+  if (!el.offsetParent) return;
+  // (measured again after a purchase changes the texts, but only ever grows while the width stays the same)
+  const key = `${el.clientWidth}|${g.spent}|${!!storeDebug}`;
+  if (el.dataset.sized === key) return;
+  const sameW = el.dataset.sized?.split('|')[0] === String(el.clientWidth);
+  let h = sameW ? parseFloat(el.style.minHeight) || 0 : 0;
+  el.style.minHeight = '';
+  for (const a of ABILITIES) { el.innerHTML = infoHTML(a.id); h = Math.max(h, el.offsetHeight); }
+  el.style.minHeight = h + 'px';
+  el.dataset.sized = key;
 }
 
 // the demo reel: the selected ability (at the level Mutate would give you), cast on a loop at a 5-man
@@ -542,7 +577,7 @@ $('store').addEventListener('change', e => {
   if (s && s.value) { setSlot(g, +s.dataset.slot, s.value); redraw(drawStore); }
 });
 // a controller turning up mid-shop changes every key label in it
-onChange(() => { if (mode === 'store') redraw(drawStore); });
+onChange(() => { if (mode === 'store') redraw(drawStore); if (mode === 'over') overNote(); });
 
 // ---------------------------------------------------------------------------------------------- loop
 
@@ -639,7 +674,7 @@ function paint() {
 function padFrame(dt) {
   poll();
   if (debug.on || menu.pad(mode, dt)) return;
-  if (mode === 'play' && controls.mode === 'pad') {
+  if (mode === 'play') {
     for (const a of [...SLOTS, 'space']) if (hit(controls.pad[a])) press[a] = true;
     if (hit(controls.pad.pause)) pause();
   }
