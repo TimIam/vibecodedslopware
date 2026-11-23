@@ -22,7 +22,11 @@ h1 span{color:var(--accent)}
 .bucket:hover canvas{transform:rotate(-5deg) scale(1.06)}
 .bucket b{display:block;font-size:19px;line-height:1.2;color:var(--accent)}
 .bucket small{display:block;margin-top:2px;color:var(--dim);font-size:14.5px}
-@media (max-width:520px){.bucket canvas{width:84px;height:78px}}
+.outlinks{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 26px}
+.outlinks .bucket{flex:1 1 380px;margin:0}
+.bucket img{flex:none;width:112px;height:76px;margin:14px 0;object-fit:contain;image-rendering:pixelated;transition:transform .2s}
+.bucket:hover img{transform:translateY(-3px) scale(1.06)}
+@media (max-width:520px){.bucket canvas{width:84px;height:78px}.bucket img{width:84px;height:54px}}
 .grid{display:grid;gap:14px}
 a.card{position:relative;display:grid;grid-template-columns:64px 1fr auto;gap:16px;align-items:center;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:inherit;text-decoration:none;transition:transform .15s,border-color .15s}
 a.card:hover{transform:translateY(-2px);border-color:var(--accent)}
@@ -94,10 +98,16 @@ a.card:hover~.star,.star:hover{transform:translateY(-2px)}
 <main>
   <h1>vibe coded <span>slopware</span></h1>
   <p class="lede">Small, weird, lovingly vibe-coded things. No warranty. No roadmap. Some assembly required.</p>
-  <a class="bucket" href="https://github.com/TimIam/vibecodedslopware" target="_blank" rel="noopener" aria-label="The Slop Bucket: all of the source code, on GitHub (opens in a new tab)">
-    <canvas id="slop-bucket" width="56" height="52" aria-hidden="true"></canvas>
-    <span><b>The Slop Bucket</b><small>Every line of code behind this site, still warm and a little lumpy. Reach in on GitHub. Wash your hands after.</small></span>
-  </a>
+  <div class="outlinks">
+    <a class="bucket" href="https://github.com/TimIam/vibecodedslopware" target="_blank" rel="noopener" aria-label="The Slop Bucket: all of the source code, on GitHub (opens in a new tab)">
+      <canvas id="slop-bucket" width="56" height="52" aria-hidden="true"></canvas>
+      <span><b>The Slop Bucket</b><small>Every line of code behind this site, still warm and a little lumpy. Reach in on GitHub. Wash your hands after.</small></span>
+    </a>
+    <a class="bucket" href="https://www.youtube.com/@vibecodedslopware" target="_blank" rel="noopener" aria-label="The Slop Channel: trailers and devlogs on YouTube (opens in a new tab)">
+      <img src="/slop-channel.png" width="59" height="38" alt="" aria-hidden="true">
+      <span><b>The Slop Channel</b><small>Trailers, devlogs and footage of things working when they were prompted. Over on YouTube. Bring your own popcorn.</small></span>
+    </a>
+  </div>
   <div class="sortbar" role="group" aria-label="Sort">Sort:
     <button type="button" data-sort="latest">Latest update</button>
     <button type="button" data-sort="first">First release</button>
