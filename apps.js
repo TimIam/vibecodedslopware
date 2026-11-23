@@ -1931,6 +1931,13 @@ window.SLOPWARE = {
      "note": "arcing wall shots, an endless fen, a new Minotaur",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 20,
+     "date": "2026-11-23T14:36:06-07:00",
+     "note": "loot and /rolls, burning heroes, a paged Humanstiary",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
