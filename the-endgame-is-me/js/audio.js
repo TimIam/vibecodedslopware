@@ -195,6 +195,9 @@ export function createAudio() {
     },
     drain: () => tone('sine', 420, 180, 0.35, 0.035, { vib: 40 }),
     bow: () => noise(0.08, 0.05, { f0: 900, f1: 2600, q: 3 }),
+    // an arrow skittering off cobbles; a ballista bolt going into the ground
+    clatter: () => { noise(0.03, 0.05, { f0: 3800, f1: 2600, q: 4 }); noise(0.03, 0.035, { f0: 3000, f1: 2200, q: 4, delay: 0.06 }); noise(0.025, 0.02, { f0: 3400, f1: 2400, q: 4, delay: 0.13 }); },
+    boltland: () => { tone('sine', 110, 45, 0.22, 0.28); noise(0.12, 0.16, { type: 'lowpass', f0: 900, f1: 120 }); },
     thunk: () => { tone('square', 260, 140, 0.05, 0.05); noise(0.05, 0.08, { f0: 1600, f1: 700, q: 2 }); },
     ballista: () => { tone('sawtooth', 90, 50, 0.18, 0.12); noise(0.35, 0.18, { f0: 500, f1: 1800, q: 1.2 }); },
     pinned: () => { tone('sine', 140, 35, 0.6, 0.6); noise(0.4, 0.35, { type: 'lowpass', f0: 1200, f1: 100 }); tone('square', 400, 120, 0.25, 0.08, { delay: 0.05 }); },

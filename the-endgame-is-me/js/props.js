@@ -356,7 +356,8 @@ function updateCritters(g, dt) {
     solidPush(g, c, c.r);
     const B = g.map;
     if (c.bolting && (c.x < -20 || c.y < -20 || c.x > B.w + 20 || c.y > B.h + 20)) c.gone = true;
-    if (!B.wrapW) c.x = clamp(c.x, c.bolting ? -30 : 4, c.bolting ? B.w + 30 : B.w - 4); c.y = clamp(c.y, c.bolting ? -30 : 14, c.bolting ? B.h + 30 : B.h - 18);
+    if (!B.wrapW && !B.wrapH) c.x = clamp(c.x, c.bolting ? -30 : 4, c.bolting ? B.w + 30 : B.w - 4);
+    if (!B.wrapH) c.y = clamp(c.y, c.bolting ? -30 : 14, c.bolting ? B.h + 30 : B.h - 18);
   }
   if (g.critters.some(c => c.dead || c.gone)) g.critters = g.critters.filter(c => !c.dead && !c.gone);
 }

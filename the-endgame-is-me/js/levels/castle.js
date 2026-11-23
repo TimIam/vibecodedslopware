@@ -62,8 +62,10 @@ export const kinds = {
   // the drum (and its plinth) under the keep's tower: half of what that tower was worth (the tower itself pays the other
   // half). Its hit points are only for show: it comes down by its wedges (see baseHit)
   castle_base: { ...BLOCK, w: 40, h: 40, hp: DONJON_HP, rubbleN: 4, value: { pts: 450, venge: 0.175, chaos: 2 }, onHit: baseHit },
-  // what is left once the tower is felled: in the way, and past hurting
-  castle_stump: { r: DRUM_R, solid: true, onHit: () => true, value: { pts: 0, venge: 0, chaos: 0 } },
+  // what is left once the tower is felled: the rest of the drum, which caves in to a heap on the plinth (castle_plinth),
+  // which in turn can be battered down to its footprint. Neither counts toward the castle's share.
+  castle_stump: { r: DRUM_R, solid: true, hp: 1400, rubble: 'castle_rubble', rubbleN: 6, value: { pts: 400, venge: 0.12, chaos: 0 }, onDown: stumpDown },
+  castle_plinth: { w: 40, h: 40, solid: true, hp: 1100, rubble: 'castle_rubble', rubbleN: 10, value: { pts: 300, venge: 0.1, chaos: 0 }, onDown: plinthDown },
   castle_gate: { ...BLOCK, w: 20, h: 20, hp: 1040, flammable: true, burnTime: 10, value: { pts: 600, venge: 0.3, chaos: 2 } },
   castle_rubble: { r: 3, push: true, fill: 2, value: { pts: 0, venge: 0, chaos: 0 } },
 };
@@ -72,6 +74,20 @@ const LIFT = { castle_wall: 7, castle_keep: 12, castle_gate: 7, castle_tower: 16
 function blockDown(g, p) {
   (g.ruins ||= []).push({ x: p.x, y: p.y, w: p.w, h: p.h, seed: p.seed, castle: true });
   for (let i = 0; i < 6; i++) { const a = g.rng() * TAU; g.cs?.dust.push({ x: p.x + Math.cos(a) * 4, y: p.y + Math.sin(a) * 4, vx: Math.cos(a) * 10, vy: Math.sin(a) * 6 - 4, t: 0, life: 0.8 + g.rng() * 0.6 }); }
+}
+// the drum's stump caves in: a cloud of dust, and the plinth under it, heaped with what it was
+function stumpDown(g, p) {
+  const q = P.addProp(g, 'castle_plinth', p.x, p.y, { sortY: 20 });
+  q.maxhp = q.hp;
+  g.shake = Math.max(g.shake, 0.5);
+  for (let i = 0; i < 18; i++) { const a = g.rng() * TAU; g.cs?.dust.push({ x: p.x + Math.cos(a) * 12, y: p.y - PLINTH - 6 + Math.sin(a) * 8, vx: Math.cos(a) * 16, vy: Math.sin(a) * 8 - 6, t: 0, life: 1 + g.rng() * 0.8 }); }
+}
+// the plinth goes: its footprint, and rubble all over it and round it
+function plinthDown(g, p) {
+  (g.ruins ||= []).push({ x: p.x, y: p.y, w: 40, h: 40, seed: p.seed, castle: true });
+  for (let i = 0; i < 10; i++) { const a = g.rng() * TAU, r = 14 + g.rng() * 14; P.addProp(g, 'castle_rubble', p.x + Math.cos(a) * r, p.y + Math.sin(a) * r); }
+  for (let i = 0; i < 14; i++) { const a = g.rng() * TAU; g.cs?.dust.push({ x: p.x + Math.cos(a) * 14, y: p.y + Math.sin(a) * 10, vx: Math.cos(a) * 14, vy: Math.sin(a) * 7 - 5, t: 0, life: 0.9 + g.rng() * 0.6 }); }
+  g.shake = Math.max(g.shake, 0.45);
 }
 // the keep's tower can't be touched while its drum stands under it (true: the hit is swallowed)
 function towerHit(g, p) { return !!p.donjon && g.cs?.base?.state === 'up'; }
@@ -122,7 +138,8 @@ function chopDrum(g, api) {
   // timber
   const ang = cutAngle(p.cuts), t = keepTower(cs);
   p.felled = true;
-  P.addProp(g, 'castle_stump', p.x, p.y, { cuts: p.cuts.slice(), fellA: ang, back: Math.sin(ang) < -0.5, sortY: 20 });
+  const st = P.addProp(g, 'castle_stump', p.x, p.y, { cuts: p.cuts.slice(), fellA: ang, back: Math.sin(ang) < -0.5, sortY: 20 });
+  st.maxhp = st.hp;
   P.knockDown(g, p, ang);
   if (t && t.state === 'up') P.knockDown(g, t, ang);
   g.shake = Math.max(g.shake, 0.6);
@@ -383,6 +400,8 @@ function update(g, dt, api) {
   const cs = g.cs;
   if (!cs) return;
   if (!cs.manned) manCastle(g, api);
+  // (a stump from before it could be knocked down has no hit points)
+  for (const p of g.props) if (p.kind === 'castle_stump' && p.state === 'up' && !(p.hp > 0)) p.hp = p.maxhp = P.KINDS.castle_stump.hp;
   if (!cs.kingSaid && g.t - g.levelT0 > 4.5 && !g.won) { cs.kingSaid = true; api.banner(g, 'THE KING IS AT HOME', 'GOLD ARMOUR. VERY SHINY. VERY THIN.', 3.4); }
   steerHeroes(g, dt, g.map.canals);
   steerThroughWalls(g, dt);
@@ -767,22 +786,66 @@ function drawBlock(ctx, p, g, h) {
 // left behind it, whatever is behind shows instead. stump: what is left once the tower has gone over, with a short
 // broken ring of the tower's own wall on top (back: it fell over the back, so the wall we see is untouched).
 const maskOf = cuts => cuts ? cuts.map(v => v <= 0 ? '1' : '0').join('') : '0'.repeat(SECT);
+// the plinth: a square of the keep's lead roof (its top at py) on an ashlar face with two lit slits
+function paintPlinth(c, h, py, seed, stage = 0) {
+  const W = 40, D = 40;
+  for (let y = 0; y < D; y++) for (let x = 0; x < W; x++) {
+    const e = Math.min(x, y, W - 1 - x, D - 1 - y);
+    put(c, x, py + y, e === 0 ? INK : (x + y * 3) % 7 === 0 ? '#3e4650' : y % 4 === 0 ? '#454e58' : '#525c66');
+  }
+  for (let y = 0; y < PLINTH; y++) for (let x = 0; x < W; x++) {
+    const course = Math.floor(y / 3), mortar = y % 3 === 2 || (x + course * 4) % 6 === 0;
+    const l = 2 + (x < 2 ? 1 : 0) - (y > PLINTH - 3 ? 1 : 0) + (y === 0 ? 1 : 0);
+    put(c, x, py + D + y, x === 0 || x === W - 1 || y === PLINTH - 1 ? INK : mortar ? STONEP[1] : STONEP[clamp(l + (h.hash(x + seed, course) > 0.8 ? 1 : 0), 0, 5)]);
+  }
+  for (const wx of [4, 34]) { rect(c, wx, py + D + 3, 2, 5, SLIT); put(c, wx, py + D + 4, stage ? SLIT : LITW); }
+  // battered: cracks down the face, chunks out of the edge of the roof
+  for (let i = 0; i < stage * 4; i++) {
+    let x = 2 + Math.floor(h.hash(i, seed + 11) * (W - 4));
+    for (let y = 0; y < PLINTH - 1; y++) { put(c, x, py + D + y, '#1c1814'); if (h.hash(y, i + seed) > 0.6) x = clamp(x + (h.hash(i, y + seed) > 0.5 ? 1 : -1), 1, W - 2); }
+    const ex = Math.floor(h.hash(i + 5, seed) * (W - 4)), ey = h.hash(seed, i + 5) < 0.5 ? 0 : D - 3;
+    rect(c, ex, py + ey, 3, 3, '#1c1814'); put(c, ex + 1, py + ey + 1, STONEP[1]);
+  }
+}
+// The plinth once the drum has come down on it: a heap of the drum's stone and timbers on the roof. As it takes hits it
+// cracks; when it goes, it leaves its footprint and a field of rubble (castle_plinth).
+const HEAP = 10;   // how high the heap stands over the plinth's roof
+function plinthSprite(h, stage) {
+  return h.sprite(`cplinth|${stage}`, 40, HEAP + 40 + PLINTH, c => {
+    const seed = 53;
+    paintPlinth(c, h, HEAP, seed, stage);
+    // the heap: densest in the middle where the drum stood, a ragged round mound
+    for (let y = 0; y < 40 + HEAP - 4; y++) for (let x = 2; x < 38; x++) {
+      const dx = (x - 20) / 17, dy = (y - HEAP - 18) / 17, d = Math.hypot(dx, dy * 1.1);
+      const top = HEAP * (1 - d * d);   // how far up the mound reaches over this spot
+      if (d > 1 || h.hash(x * 7, y + seed) > 1.05 - d * 0.5) continue;
+      const yy = Math.round(y - Math.max(0, top) * 0.6);
+      put(c, x, yy, h.hash(x, y * 3) < 0.25 ? '#2a2620' : STONEP[clamp(1 + Math.floor(h.hash(y + 3, x + seed) * 3) + (dx + dy < -0.3 ? 1 : 0), 0, 5)]);
+    }
+    for (let i = 0; i < 34; i++) {
+      const a = h.hash(i, 3) * TAU, r = h.hash(3, i) ** 0.8 * 16, x = Math.round(20 + Math.cos(a) * r), y = Math.round(HEAP + 18 + Math.sin(a) * r * 0.9 - (1 - r / 16) * HEAP * 0.7), z = 1 + (h.hash(i, 8) > 0.55 ? 1 : 0);
+      rect(c, x - 1, y - 1, z + 2, z + 2, INK); rect(c, x, y, z, z, STONEP[2 + (i % 3)]); put(c, x, y, STONEP[5]);
+    }
+    for (let i = 0; i < 3; i++) {
+      const x0 = 8 + Math.floor(h.hash(i, 13) * 20), y0 = HEAP + 10 + Math.floor(h.hash(13, i) * 16), up = i % 2 ? 1 : -1;
+      for (let k = 0; k < 10; k++) { put(c, x0 + k, y0 + Math.round(k * 0.35 * up) + 1, INK); put(c, x0 + k, y0 + Math.round(k * 0.35 * up), k % 3 ? '#6e4a2a' : '#5a3a22'); }
+    }
+  });
+}
+function drawPlinth(ctx, p, g, h) {
+  if (p.state !== 'up') return;
+  const st = p.hp / p.maxhp < 0.34 ? 2 : p.hp / p.maxhp < 0.67 ? 1 : 0, spr = plinthSprite(h, st);
+  const x = Math.round(p.x - 20) + (p.hitT > 0.07 ? 1 : 0), y = Math.round(p.y - 20) - PLINTH - HEAP;
+  ctx.globalAlpha = 0.3; ctx.fillStyle = '#05080a'; ctx.fillRect(x + 6, y + HEAP + PLINTH + 3, 40, 40); ctx.globalAlpha = 1;
+  ctx.drawImage(spr, x, y);
+  if (p.hitT > 0) { ctx.globalAlpha = 0.5; ctx.drawImage(h.tinted(spr, '#ffffff'), x, y); ctx.globalAlpha = 1; }
+}
 function drumSprite(h, mask, stump = false, back = false) {
   const W = 40, D = 40, OY = stump ? STUB + 2 : 0;
   return h.sprite(`cdrum|${mask}|${stump ? (back ? 2 : 1) : 0}`, W, OY + BASE_LIFT + D, c => {
     const seed = 53, cut = a => mask[sectorOf(a)] === '1';
     const R = DRUM_R, CX = 20, cyT = OY + 20, py = OY + DRUM;
-    // the plinth: a square of the keep's lead roof on an ashlar face with two lit slits
-    for (let y = 0; y < D; y++) for (let x = 0; x < W; x++) {
-      const e = Math.min(x, y, W - 1 - x, D - 1 - y);
-      put(c, x, py + y, e === 0 ? INK : (x + y * 3) % 7 === 0 ? '#3e4650' : y % 4 === 0 ? '#454e58' : '#525c66');
-    }
-    for (let y = 0; y < PLINTH; y++) for (let x = 0; x < W; x++) {
-      const course = Math.floor(y / 3), mortar = y % 3 === 2 || (x + course * 4) % 6 === 0;
-      const l = 2 + (x < 2 ? 1 : 0) - (y > PLINTH - 3 ? 1 : 0) + (y === 0 ? 1 : 0);
-      put(c, x, py + D + y, x === 0 || x === W - 1 || y === PLINTH - 1 ? INK : mortar ? STONEP[1] : STONEP[clamp(l + (h.hash(x + seed, course) > 0.8 ? 1 : 0), 0, 5)]);
-    }
-    for (const wx of [4, 34]) { rect(c, wx, py + D + 3, 2, 5, SLIT); put(c, wx, py + D + 4, LITW); }
+    paintPlinth(c, h, py, seed);
 
     // the rooms inside the drum, painted flat, then bent round it wherever the cut lays them open
     const band = newCanvas(W, DRUM), bc = band.getContext('2d');
@@ -880,10 +943,12 @@ function drawBase(ctx, p, g, h) {
   if (p.hitT > 0) { ctx.globalAlpha = 0.5; ctx.drawImage(h.tinted(spr, '#ffffff'), x, y); ctx.globalAlpha = 1; }
 }
 function drawStump(ctx, p, g, h) {
+  if (p.state !== 'up') return;
   const spr = drumSprite(h, maskOf(p.cuts), true, !!p.back);
-  const x = Math.round(p.x - 20), y = Math.round(p.y - 20) - BASE_LIFT - (STUB + 2);
+  const x = Math.round(p.x - 20) + (p.hitT > 0.07 ? 1 : 0), y = Math.round(p.y - 20) - BASE_LIFT - (STUB + 2);
   ctx.globalAlpha = 0.3; ctx.fillStyle = '#05080a'; ctx.fillRect(x + 6, y + STUB + 2 + BASE_LIFT + 3, 40, 40); ctx.globalAlpha = 1;
   ctx.drawImage(spr, x, y);
+  if (p.hitT > 0) { ctx.globalAlpha = 0.5; ctx.drawImage(h.tinted(spr, '#ffffff'), x, y); ctx.globalAlpha = 1; }
 }
 function drawTower(ctx, p, g, h) {
   if (p.state !== 'up') return;
@@ -1006,16 +1071,22 @@ function shooters(g) {
   const b = g.boss, out = [];
   for (const p of g.props) {
     if (p.state !== 'up') continue;
-    if (p.kind === 'castle_tower') out.push({ x: p.x, y: p.y - 12, kind: 'bolt' });
-    else if (p.kind === 'castle_wall' && Math.abs(p.x - b.x) < 100 && Math.abs(p.y - b.y) < 100) out.push({ x: p.x, y: p.y - 6, kind: 'arrow' });
+    if (p.kind === 'castle_tower') out.push({ x: p.x, y: p.y + p.h / 2, h: LIFT.castle_tower + p.h / 2 + 6, kind: 'both' });
+    else if (p.kind === 'castle_wall' && Math.abs(p.x - b.x) < 100 && Math.abs(p.y - b.y) < 100) out.push({ x: p.x, y: p.y + C / 2, h: LIFT.castle_wall + C, kind: 'arrow' });
   }
   return out;
+}
+
+// inside the walls it is all flagstones and cobbles; outside, grass and the moat
+function surface(g, x, y) {
+  if (g.water && P.isWater(g, x, y)) return 'water';
+  return x > X0 - 4 && x < X0 + COLS * C + 4 && y > Y0 - 4 && y < Y0 + ROWS * C + 4 ? 'hard' : 'soft';
 }
 
 export default {
   n: 7, id: 'castle', name: 'THE CASTLE', sub: 'BRING IT DOWN. ALL OF IT.', mode: 'timed',
   kinds,
   build(g, rng) { return build(g, rng); },
-  update, hud, hudWon, shooters,
-  art: { ground, under, over, props: { castle_wall: drawBlock, castle_keep: drawBlock, castle_gate: drawBlock, castle_tower: drawTower, castle_base: drawBase, castle_stump: drawStump, castle_rubble: drawRubble }, canopy: false, theme: { leash: false } },
+  update, hud, hudWon, shooters, surface,
+  art: { ground, under, over, props: { castle_wall: drawBlock, castle_keep: drawBlock, castle_gate: drawBlock, castle_tower: drawTower, castle_base: drawBase, castle_stump: drawStump, castle_plinth: drawPlinth, castle_rubble: drawRubble }, canopy: false, theme: { leash: false } },
 };

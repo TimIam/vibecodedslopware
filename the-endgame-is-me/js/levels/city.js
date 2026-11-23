@@ -6,7 +6,7 @@
 // points but no Vengeance, and only the timber roofs, tents and stalls burn at all. Rubble shoved into a canal fills
 // it, which makes a shortcut.
 
-import { addProp } from '../props.js';
+import { addProp, isWater as P_isWater } from '../props.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -184,7 +184,7 @@ function build(g, rng, P) {
     const p = P.addProp(g, kind, (x0 + x1) / 2, hh / 2, { w: x1 - x0, h: hh, hp, maxhp: hp });
     return { x0, x1, kind, prop: p, total: HITS[kind], label: LABEL[kind], bot: hh, breached: false };
   });
-  return { w: MW, h: MH, scroll: 'y', start: { x: 160, y: 866 + SOUTH, face: -Math.PI / 2 }, canals, plazas, foots, front };
+  return { w: MW, h: MH, scroll: 'y', start: { x: 160, y: 866 + SOUTH, face: -Math.PI / 2 }, canals, plazas, foots, front, southWall: !!g.viaPortal };
 }
 
 // ---------------------------------------------------------------------------------------------- heroes and canals
@@ -241,8 +241,9 @@ function update(g, dt, api) {
       api.addScore(g, pts);
       api.text(g, p.x, s.bot + 12, `+${pts}`, 'gold', 2);
       api.sound(g, 'collapse');
-      // more of it comes down than before: lumps of wall you can shove about, strewn out in front of the hole
-      for (let i = 0; i < 5; i++) addProp(g, 'city_rubble', clamp(p.x + (g.rng() - 0.5) * p.w, 8, MW - 8), s.bot + 6 + g.rng() * 20);
+      // a lot of it comes down: lumps of wall you can shove about, all over where it stood and strewn out in front
+      const n = Math.round(p.w / 3.5);
+      for (let i = 0; i < n; i++) addProp(g, 'city_rubble', clamp(p.x + (g.rng() - 0.5) * (p.w + 6), 8, MW - 8), FRONT.face + 6 + g.rng() * (s.bot - FRONT.face + 26));
       if (!g.clear) api.banner(g, s.kind === 'cf_gate' ? 'THE CASTLE GATE IS DOWN' : s.kind === 'cf_tower' ? 'THE TOWER IS DOWN' : 'THE CASTLE WALL IS DOWN', 'WALK IN.', 4);
     }
     // into the hole: the boss walks on north and out of sight
@@ -258,13 +259,16 @@ function update(g, dt, api) {
     if (s && s.prop.state === 'up' && u.y < s.bot + 2) u.y = s.bot + 3;
   }
 }
-// the castle front shoots back once you get near it, like the City Wall: arrows in close, ballista bolts further out
+// the castle front shoots back once you get near it, like the City Wall: arrows in close off the wall walk, ballista
+// bolts further out, off the two towers only
 function shooters(g) {
   const b = g.boss, out = [];
   if (b.y > 330) return out;
-  for (const s of g.map.front) if (s.prop.state === 'up') out.push({ x: s.prop.x, y: s.bot - 10, kind: 'both' });
+  for (const s of g.map.front) if (s.prop.state === 'up') out.push({ x: s.prop.x, y: s.bot + 2, h: s.bot + 2 - FRONT.face + (s.kind === 'cf_tower' ? 8 : 2), kind: s.kind === 'cf_tower' ? 'both' : 'arrow' });
   return out;
 }
+// the whole city is paved, but for its canals
+function surface(g, x, y) { return P_isWater(g, x, y) ? 'water' : 'hard'; }
 
 function hud(g) {
   const m = g.map, b = g.boss;
@@ -676,7 +680,8 @@ function ground(ctx, m, h) {
   sideWall(ctx, 0, 6, 0, m.h, h, false);
   sideWall(ctx, m.w - 6, 6, 0, m.h, h, true);
   castleFront(ctx, m, h);
-  southGate(ctx, m, h);
+  // (the south wall still stands only if the boss came the other way, up out of the secret level)
+  if (m.southWall) southGate(ctx, m, h); else southRuin(ctx, m, h);
 }
 
 // the castle's outer wall and gatehouse across the top of the city: the walk-top with its merlons, then the face
@@ -780,9 +785,14 @@ function breachSprite(h, s, openL, openR) {
       const d = (y - (s.bot - 10)) / (Hh - s.bot + 10) + Math.abs(x - W / 2) / W * 0.6 + (h.hash(x + seed, y) - 0.5) * 0.35;
       if (d < 0.75 && h.hash(x * 3, y + seed) < 0.75 - d * 0.6) put(c, x, y, h.hash(x, y * 7) < 0.3 ? '#2e2a24' : STONEP[1 + Math.floor(h.hash(y, x + seed) * 2)]);
     }
-    const nS = Math.round(W * 1.3);
+    // (and all over the floor of the passage, where the wall stood: thickest along its broken sides)
+    for (let y = 2; y < s.bot - 10; y++) for (let x = 0; x < W; x++) {
+      const side = Math.min(x, W - 1 - x) / W, k = 0.55 - side * 1.2 + (h.hash(x + seed * 3, y) - 0.5) * 0.4;
+      if (k > 0.12 && h.hash(x * 5, y + seed) < k) put(c, x, y, h.hash(x, y * 3) < 0.35 ? '#2e2a24' : STONEP[1 + Math.floor(h.hash(y + 9, x + seed) * 3)]);
+    }
+    const nS = Math.round(W * 3.4);
     for (let i = 0; i < nS; i++) {
-      const x = Math.floor(h.hash(i, seed + 1) * (W - 3)), y = s.bot - 10 + Math.floor(h.hash(seed + 1, i) ** 1.6 * (Hh - s.bot + 6)), z = 1 + (h.hash(i, 7) > 0.55 ? 1 : 0) + (h.hash(i, 9) > 0.9 ? 1 : 0);
+      const x = Math.floor(h.hash(i, seed + 1) * (W - 3)), y = i % 2 ? 2 + Math.floor(h.hash(seed + 7, i) * (s.bot - 6)) : s.bot - 10 + Math.floor(h.hash(seed + 1, i) ** 1.6 * (Hh - s.bot + 6)), z = 1 + (h.hash(i, 7) > 0.55 ? 1 : 0) + (h.hash(i, 9) > 0.9 ? 1 : 0);
       rect(c, x, y, z + 2, z + 2, INK); rect(c, x + 1, y + 1, z, z, STONEP[2 + (i % 3)]); put(c, x + 1, y + 1, STONEP[5]);
     }
     for (let i = 0; i < Math.ceil(W / 14); i++) {
@@ -806,6 +816,31 @@ function southGate(ctx, m, h) {
   }
   for (let x = 0; x < m.w; x += 6) if (x < 136 || x > 184) rect(ctx, x, y0 - 3, 4, 3, STONEP[4]), rect(ctx, x, y0 - 3, 4, 1, INK);
   rect(ctx, 136, y0 - 4, 4, 18, INK); rect(ctx, 181, y0 - 4, 4, 18, INK);
+}
+// ...or what is left of it, when the boss came in over the City Wall: it went the way of the rest. Rubble and stumps.
+function southRuin(ctx, m, h) {
+  const y0 = m.h - 14;
+  for (let x = 0; x < m.w; x++) {
+    // a ragged bank of broken stone where the wall stood, higher in places
+    const top = y0 + 3 + Math.round(h.hash(Math.floor(x / 5), 17) * 5 + Math.sin(x / 13) * 2);
+    for (let y = top; y < m.h; y++) {
+      if (h.hash(x * 3, y) < 0.18) continue;
+      put(ctx, x, y, y === top ? STONEP[4] : h.hash(x, y * 7) < 0.3 ? '#2e2a24' : STONEP[1 + Math.floor(h.hash(y, x + 5) * 3)]);
+    }
+  }
+  // stumps of the wall still standing here and there, and blocks thrown out in front of them
+  for (const [x, w, hh] of [[14, 9, 7], [70, 6, 5], [118, 11, 8], [196, 8, 6], [251, 12, 9], [300, 7, 5]]) {
+    const yt = y0 + 2 - hh;
+    rect(ctx, x - 1, yt - 1, w + 2, hh + 13, INK);
+    for (let y = yt; y < y0 + 12; y++) for (let xx = x; xx < x + w; xx++) {
+      const jag = y - yt < 2 && h.hash(xx, 3) < 0.5;
+      put(ctx, xx, y, jag ? INK : y === yt + 2 ? STONEP[4] : (xx + y) % 5 === 0 ? STONEP[1] : STONEP[3]);
+    }
+  }
+  for (let i = 0; i < 70; i++) {
+    const x = Math.floor(h.hash(i, 41) * (m.w - 3)), y = y0 - 10 + Math.floor(h.hash(41, i) ** 0.7 * 14), z = 1 + (h.hash(i, 5) > 0.6 ? 1 : 0);
+    rect(ctx, x, y, z + 2, z + 2, INK); rect(ctx, x + 1, y + 1, z, z, STONEP[2 + (i % 3)]); put(ctx, x + 1, y + 1, STONEP[5]);
+  }
 }
 
 // bridges are drawn over the canal: a cobbled deck with a parapet each side
@@ -880,6 +915,6 @@ export default {
   n: 6, id: 'city', name: 'INSIDE THE WALLS', sub: 'GO NORTH TO THE CASTLE. BREAK YOUR WAY IN.', mode: 'timed',
   kinds, critters,
   build(g, rng, P) { return build(g, rng, P); },
-  update, hud, shooters,
+  update, hud, shooters, surface,
   art: { ground, under, props, critters: { city_folk: drawFolk }, corpses: { city_folk: drawFolkBody }, canopy: false, theme: { leash: false } },
 };

@@ -60,7 +60,7 @@ export function createRenderer() {
   const buf = newCanvas(W, H), ctx = buf.getContext('2d');
   const shadow = makeShadow();
   let trail = newCanvas(W, H), tctx = trail.getContext('2d');
-  let boss = null, bg = null, fg = null, bgFor = null;
+  let boss = null, bg = null, fg = null, bgFor = null, bossDrawn = null;
 
   function render(g, view = {}) {
     if (!boss || boss.key !== bossKey(g.look)) boss = makeBossSprites(g.look);
@@ -81,11 +81,15 @@ export function createRenderer() {
     ctx.fillStyle = PAL.night; ctx.fillRect(0, 0, W, H);
     ctx.translate(Math.round(ox) - VIEW.x, Math.round(oy) - VIEW.y);
     // a map that goes all the way round (the City Wall) is drawn once per lap the screen can see
+    // (and one that goes round up and down too, the secret level, once per lap each way)
     const laps = m.wrapW ? [Math.floor(VIEW.x / m.wrapW), Math.floor((VIEW.x + W) / m.wrapW)] : [0, 0];
-    for (let k = laps[0]; k <= laps[1]; k++) ctx.drawImage(bg, k * (m.wrapW || 0), 0);
+    const lapsY = m.wrapH ? [Math.floor(VIEW.y / m.wrapH), Math.floor((VIEW.y + H) / m.wrapH)] : [0, 0];
+    const tiles = img => { for (let j = lapsY[0]; j <= lapsY[1]; j++) for (let k = laps[0]; k <= laps[1]; k++) ctx.drawImage(img, k * (m.wrapW || 0), j * (m.wrapH || 0)); };
+    tiles(bg);
     // scorch marks are painted into the persistent ground layer once
-    for (const a of g.ashes) if (!a.stamped) { a.stamped = true; stampAsh(tctx, m.wrapW ? { ...a, x: ((a.x % m.wrapW) + m.wrapW) % m.wrapW } : a); }
-    if (g.ashes.length) for (let k = laps[0]; k <= laps[1]; k++) ctx.drawImage(trail, k * (m.wrapW || 0), 0);
+    const wrapped = (v, n) => n ? ((v % n) + n) % n : v;
+    for (const a of g.ashes) if (!a.stamped) { a.stamped = true; stampAsh(tctx, m.wrapW || m.wrapH ? { ...a, x: wrapped(a.x, m.wrapW), y: wrapped(a.y, m.wrapH) } : a); }
+    if (g.ashes.length) tiles(trail);
 
     if (g.water) drawWater(ctx, g);
     art.under?.(ctx, g, H_ART);
@@ -112,10 +116,11 @@ export function createRenderer() {
       if (p.state === 'gone' || !onScreen(p.x, p.y, 40)) continue;
       const draw = PROP_ART[p.kind];
       if (!draw) continue;
-      // (rubble in the boss's mouth goes in front of it, unless the head is turned away)
-      const sy = p.state === 'carried' ? g.boss.y + (Math.sin(g.boss.face) < -0.3 ? 1 : 3) - (g.boss.z || 0) : p.state === 'down' ? p.y - 40 : p.y + (p.h ? p.h / 2 : 0) + (p.sortY || 0);
-      list.push({ y: sy, f: () => { if (p.state === 'carried') { ctx.save(); ctx.translate(0, -Math.round((g.boss.z || 0) + 3)); } draw(ctx, p, g, H_ART); if (p.state === 'carried') ctx.restore(); if (p.burning) drawFlames(ctx, p, g.t); } });
+      if (p.state === 'carried') continue;   // (rubble in the boss's mouth is drawn last of all, over everything)
+      const sy = p.state === 'down' ? p.y - 40 : p.y + (p.h ? p.h / 2 : 0) + (p.sortY || 0);
+      list.push({ y: sy, f: () => { draw(ctx, p, g, H_ART); if (p.burning) drawFlames(ctx, p, g.t); } });
     }
+    if (g.stuck?.length) for (const o of g.stuck) if (onScreen(o.x, o.y, 12)) list.push({ y: o.y, f: () => drawLanded(ctx, o) });
     for (const c of g.critters) if (onScreen(c.x, c.y)) list.push({ y: c.y, f: () => (CRITTER_ART[c.kind] || drawCritter)(ctx, c, g, H_ART) });
     if (g.balls) for (const o of g.balls) if (onScreen(o.x, o.y, 8)) list.push({ y: o.y + 1, f: () => drawBall(ctx, o, g) });
     list.push({ y: g.boss.y + 2, f: () => drawBoss(ctx, g) });
@@ -137,6 +142,7 @@ export function createRenderer() {
     drawSmoke(ctx, g);
     if (g.steam) for (const s of g.steam) if (onScreen(s.x, s.y, 20)) drawSteam(ctx, s);
     for (const o of g.ghosts) drawGhost(ctx, o);
+    if (g.boss.carry?.state === 'carried') drawCarried(ctx, g);
     for (const t of g.texts) {
       const k = t.t / t.life, a = k > 0.7 ? (1 - k) / 0.3 : 1;
       drawText(ctx, t.s, t.x, t.y - k * 10, t.col, { align: 'center', alpha: a });
@@ -191,6 +197,7 @@ export function createRenderer() {
     const spr = boss.get(dir, mouth * 4 + frame);
     if (b.evade) ctx.globalAlpha = (Math.floor(g.t * 12) % 2) ? 0.55 : 0.85;
     ctx.drawImage(spr, x, y + lift);
+    bossDrawn = { spr, x, y: y + lift, a: dir / BOSS_DIRS * TAU };
     if (b.dead) { ctx.globalAlpha = Math.min(0.6, b.deadT * 0.4); ctx.drawImage(tinted(spr, PAL.rock0), x, y); }
     else if (b.flash > 0) { ctx.globalAlpha = 0.55; ctx.drawImage(tinted(spr, '#ffffff'), x, y + lift); }
     else if (act?.kind === 'beam') { ctx.globalAlpha = act.fired ? 0.35 : Math.min(0.6, act.t / g.abil.beam.wind * 0.6) * (0.6 + 0.4 * Math.sin(g.t * 40)); ctx.drawImage(tinted(spr, PAL.beam), x, y + lift); }
@@ -227,6 +234,17 @@ export function createRenderer() {
       if (b.wardHit > 0) { ctx.globalAlpha = 0.5; ctx.drawImage(tinted(wardSprite(false), '#ffffff'), wx, wy); }
       ctx.globalAlpha = 1;
     }
+  }
+
+  // the lump of rubble in the boss's mouth: held at the very tip of the snout as drawn, on top of everything
+  function drawCarried(ctx, g) {
+    const p = g.boss.carry, d = bossDrawn, draw = PROP_ART[p.kind];
+    if (!d || !draw) return;
+    const t = snoutTip(d.spr, d.a), c = Math.cos(d.a), s = Math.sin(d.a);
+    ctx.save();
+    ctx.translate(Math.round(d.x + t.x - c * 1.5 - p.x), Math.round(d.y + t.y - s * 1.5 - p.y));
+    draw(ctx, p, g, H_ART);
+    ctx.restore();
   }
 
   function reset() { tctx.clearRect(0, 0, W, H); }
@@ -282,12 +300,14 @@ function stampAsh(c, a) {
 // open water ripples; filled cells are a heap of rubble you can walk on
 function drawWater(ctx, g) {
   const w = g.water, cs = w.cs, fr = Math.floor(g.t * 3);
-  const c0 = Math.max(0, Math.floor(VIEW.x / cs)), c1 = Math.min(w.cols - 1, Math.ceil((VIEW.x + W) / cs));
+  // (water that goes all the way round, the City Wall's moat, is drawn wherever the screen is, lap after lap)
+  const c0 = w.wrap ? Math.floor(VIEW.x / cs) : Math.max(0, Math.floor(VIEW.x / cs)), c1 = w.wrap ? Math.ceil((VIEW.x + W) / cs) : Math.min(w.cols - 1, Math.ceil((VIEW.x + W) / cs));
   const r0 = Math.max(0, Math.floor(VIEW.y / cs)), r1 = Math.min(w.rows - 1, Math.ceil((VIEW.y + H) / cs));
-  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+  for (let r = r0; r <= r1; r++) for (let cc = c0; cc <= c1; cc++) {
+    const c = w.wrap ? ((cc % w.cols) + w.cols) % w.cols : cc;
     const v = w.a[r * w.cols + c];
     if (!v) continue;
-    const x = c * cs, y = r * cs;
+    const x = cc * cs, y = r * cs;
     if (v === 1) {
       ctx.fillStyle = (c + r) & 1 ? '#2a4a5e' : '#2e5266'; ctx.fillRect(x, y, cs, cs);
       if (hash(c + fr, r) > 0.8) { ctx.fillStyle = '#5f8ea6'; ctx.fillRect(x + (hash(c, r + fr) * cs | 0), y + (hash(r, c) * cs | 0), 2, 1); }
@@ -798,6 +818,7 @@ function drawRing(ctx, r) {
   const k = r.t / 0.45;
   const rr = r.r + (r.max - r.r) * (1 - (1 - k) * (1 - k));
   if (r.col === 'dust') { ring(ctx, r.x, r.y, rr, PAL.dust, (1 - k) * 0.9); ring(ctx, r.x, r.y, rr * 0.8, PAL.dirt3, (1 - k) * 0.5); }
+  else if (r.col === 'poison') { ring(ctx, r.x, r.y, rr, '#9ae03a', (1 - k) * 0.8); ring(ctx, r.x, r.y, rr * 0.7, '#4a8a1a', (1 - k) * 0.5); }
   else if (r.col === 'ice') { ring(ctx, r.x, r.y, rr, '#ffffff', (1 - k) * 0.9); ring(ctx, r.x, r.y, rr * 0.85, PAL.ice0, (1 - k) * 0.6); }
   else { ring(ctx, r.x, r.y, rr, PAL.cream, (1 - k) * 0.8); ring(ctx, r.x, r.y, rr * 0.7, PAL.cream, (1 - k) * 0.45); }
 }
@@ -1053,7 +1074,8 @@ function drawGhost(ctx, o) {
 }
 
 function drawBolt(ctx, o) {
-  const col = PAL[o.kind];
+  const col = o.kind === 'spit' ? '#9ae03a' : PAL[o.kind];
+  if (o.kind === 'spit') { ctx.fillStyle = '#2e5a10'; ctx.fillRect(Math.round(o.x) - 1, Math.round(o.y) - 1, 3, 3); }
   const x = Math.round(o.x), y = Math.round(o.y);
   const l = Math.hypot(o.vx || 0, o.vy || 0) || 1;
   px(ctx, x, y, col);
@@ -1097,6 +1119,23 @@ function drawThought(ctx, g) {
 // ------------------------------------------------------------------------------------------------ wall shots, drains
 
 // a point in the boss's own frame (x toward the head), out into the world
+// the tip of the snout in one boss sprite (facing a): the drawn pixel furthest out that way, found once per sprite
+const TIPS = new WeakMap();
+function snoutTip(spr, a) {
+  let t = TIPS.get(spr);
+  if (t) return t;
+  const n = spr.width, d = spr.getContext('2d').getImageData(0, 0, n, n).data, c = Math.cos(a), s = Math.sin(a), m = n / 2;
+  let best = -Infinity, sx = m, sy = m, k = 0;
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    if (d[(y * n + x) * 4 + 3] < 128) continue;
+    const v = (x + 0.5 - m) * c + (y + 0.5 - m) * s;
+    if (v > best + 0.5) { best = v; sx = x; sy = y; k = 1; }
+    else if (v > best - 0.5) { sx += x; sy += y; k++; }
+  }
+  t = { x: sx / k + 0.5, y: sy / k + 0.5 };
+  TIPS.set(spr, t);
+  return t;
+}
 const bossPt = (b, lx, ly) => { const c = Math.cos(b.face), s = Math.sin(b.face); return { x: b.x + lx * c - ly * s, y: b.y + lx * s + ly * c }; };
 
 // arrows sticking out of the hide: a short shaft, pale fletching at its end, pointing back the way it came
@@ -1116,15 +1155,41 @@ function drawPin(ctx, b, over) {
   for (let i = from; i <= to; i++) { const q = at(i); ctx.fillStyle = '#14100c'; ctx.fillRect(q.x - 1, q.y - 1, 3, 3); }
   for (let i = from; i <= to; i++) { const q = at(i); px(ctx, q.x, q.y, i > 6 ? '#d8d0b8' : '#7a5232'); px(ctx, q.x, q.y - 1, i > 6 ? '#ffffff' : '#9a6a40'); }
 }
-// arrows are short lines, bolts long heavy ones with an iron head
+// arrows are short lines, bolts long heavy ones with an iron head. In flight they are drawn up off the ground by their
+// height, pointing along their arc, with a small shadow under them on the ground.
+const SHAFT = { arrow: { n: 4, head: 0, tail: 3 }, bolt: { n: 11, head: 1, tail: 8 } };
+function shaft(ctx, x, y, c, s, kind, from = 0) {
+  const S = SHAFT[kind];
+  if (kind === 'bolt') for (let i = from; i < S.n; i++) { ctx.fillStyle = '#14100c'; ctx.fillRect(Math.round(x - c * i) - 1, Math.round(y - s * i) - 1, 3, 3); }
+  for (let i = from; i < S.n; i++) px(ctx, Math.round(x - c * i), Math.round(y - s * i), i <= S.head ? (kind === 'bolt' ? '#aeb4c0' : '#c8ccd4') : i >= S.tail ? '#e8e0cc' : kind === 'bolt' ? '#7a5232' : '#8a5a36');
+}
 function drawShot(ctx, o) {
-  const l = Math.hypot(o.vx, o.vy) || 1, c = o.vx / l, s = o.vy / l;
-  ctx.globalAlpha = o.t > o.life - 0.5 ? 0.4 : 1;
-  if (o.kind === 'arrow') {
-    for (let i = 0; i < 4; i++) px(ctx, Math.round(o.x - c * i), Math.round(o.y - s * i), i === 0 ? '#c8ccd4' : i === 3 ? '#e8e0cc' : '#8a5a36');
+  // the shadow first, on the ground under it
+  ctx.globalAlpha = 0.3; ctx.fillStyle = '#05080a';
+  const sl = Math.hypot(o.vx, o.vy) || 1, n = o.kind === 'bolt' ? 6 : 3;
+  for (let i = 0; i < n; i++) ctx.fillRect(Math.round(o.x - o.vx / sl * i), Math.round(o.y - o.vy / sl * i), 1, 1);
+  ctx.globalAlpha = 1;
+  // which way it points on screen: along the ground, and up the screen by however fast it is climbing or falling
+  const sx = o.vx, sy = o.vy - o.vz, l = Math.hypot(sx, sy) || 1;
+  shaft(ctx, o.x, o.y - o.z, sx / l, sy / l, o.kind);
+}
+// one that came down: stuck in the ground pointing back up the way it came (an arrow partway in, a bolt a third of the
+// way in), or an arrow that clattered off stone lying flat where it stopped
+function drawLanded(ctx, o) {
+  const k = o.t > o.life - 1 ? Math.max(0, o.life - o.t) : 1;
+  ctx.globalAlpha = k;
+  if (o.flat) {
+    const a = o.a + o.spin;
+    shaft(ctx, o.x + Math.cos(a) * 1.5, o.y + Math.sin(a) * 0.75, Math.cos(a), Math.sin(a) * 0.5, 'arrow');
   } else {
-    for (let i = -1; i < 10; i++) { ctx.fillStyle = '#14100c'; ctx.fillRect(Math.round(o.x - c * i) - 1, Math.round(o.y - s * i) - 1, 3, 3); }
-    for (let i = -1; i < 10; i++) px(ctx, Math.round(o.x - c * i), Math.round(o.y - s * i), i < 2 ? '#aeb4c0' : i > 7 ? '#e8e0cc' : '#7a5232');
+    // the way it was going as it went in (on screen, falling is down the screen): the shaft trails back up from there
+    const cp = Math.cos(o.pitch), sx = Math.cos(o.a) * cp, sy = Math.sin(o.a) * cp + Math.sin(o.pitch), l = Math.hypot(sx, sy) || 1;
+    const buried = o.kind === 'bolt' ? 4 : 1;   // (a third of the bolt, a little of the arrow)
+    ctx.globalAlpha = k * 0.3; ctx.fillStyle = '#05080a';
+    for (let i = 1; i < SHAFT[o.kind].n - buried; i++) ctx.fillRect(Math.round(o.x - Math.cos(o.a) * i * 0.8) + 1, Math.round(o.y - Math.sin(o.a) * i * 0.4), 1, 1);
+    ctx.globalAlpha = k;
+    shaft(ctx, o.x + sx / l * buried, o.y + sy / l * buried, sx / l, sy / l, o.kind, buried);
+    if (o.kind === 'bolt') { ctx.fillStyle = '#3a2a1a'; ctx.fillRect(Math.round(o.x) - 1, Math.round(o.y), 3, 1); }
   }
   ctx.globalAlpha = 1;
 }
@@ -1189,7 +1254,7 @@ function drawScene(ctx, g, h) {
   } else if (t < S.suck) {
     // the Minotaur sinks into a puddle of purple light
     const k = clamp01(t / 2.2), m = minoSprite(h), mh = Math.max(1, Math.round(m.height * (1 - k * 0.8)));
-    const dx = Math.round(x - m.width / 2), dy = y - mh + 2;
+    const dx = Math.round(x - m.width / 2), dy = y - mh + 2 + (h.minoPad || 0);
     ctx.globalAlpha = 1 - k; ctx.drawImage(m, 0, 0, m.width, mh, dx, dy, m.width, mh);
     ctx.globalAlpha = 0.7 * k; ctx.drawImage(tinted(m, col[2]), 0, 0, m.width, mh, dx, dy, m.width, mh);
     ctx.globalAlpha = 1;

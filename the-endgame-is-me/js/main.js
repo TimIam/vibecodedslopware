@@ -1,7 +1,7 @@
 // The page: input, the fixed-step loop, scaling the 320×180 buffer to the window, the between-maps store,
 // overlays, saves and the best score.
 
-import { createGame, step, nextMap, W, H, ABILITIES, abilityOffer, buyAbility, upgradeAbility, unmutateAbility, setSlot, createDemo, demoSet, demoStep, newGamePlus, createEnding, endingStep, jumpToLevel, migrate, healOffer, healBoss } from './world.js';
+import { createGame, step, nextMap, W, H, ABILITIES, abilityOffer, buyAbility, upgradeAbility, unmutateAbility, setSlot, createDemo, demoSet, demoStep, newGamePlus, createEnding, endingStep, jumpToLevel, migrate, healOffer, healBoss, HEAL_STEP, HEAL_COST } from './world.js';
 import { createRenderer, setCalm } from './render.js';
 import { ICONS, PAL, drawText } from './art.js';
 import { createAudio } from './audio.js';
@@ -391,6 +391,7 @@ function openStore(opts = {}) {
   $('storeGo').dataset.label ??= $('storeGo').innerHTML;
   $('storeGo').innerHTML = storeDebug ? 'Back to the level' : $('storeGo').dataset.label;
   $('store').hidden = false;
+  drawHeal();   // (again, now it can be measured)
   ($('abilList').querySelector('.item.sel') || $('storeGo')).focus({ preventScroll: true });
   if (!storeDebug) writeSave(g, 'store');
   cancelAnimationFrame(demoRaf);
@@ -437,15 +438,35 @@ function drawStore() {
   $('tabAbil').hidden = tab !== 'abil'; $('tabSlots').hidden = tab !== 'slots';
   if (tab === 'abil') drawAbilities();
   if (tab === 'slots') drawSlots();
+  $('storeHeal').hidden = tab !== 'abil';   // (not on the Loadout tab)
   drawHeal();
 }
 // health carries over between levels; points buy it back here, a quarter of the bar at a time
 function drawHeal() {
   const b = g.boss, o = healOffer(g), hp = storeDebug ? o.hp : o.afford;
   $('healTxt').textContent = `Health ${Math.ceil(b.hp)} / ${b.maxhp}`;
-  $('healWhat').textContent = o.missing <= 0 ? 'already full' : hp > 0 ? `+${hp} health` : 'not enough points';
+  $('healWhat').textContent = o.missing <= 0 ? 'already full' : hp > 0 ? `+${hp} health` : "can't afford";
   $('healCost').textContent = o.missing <= 0 ? '' : storeDebug ? 'FREE' : fmt(Math.max(o.cost, 1));
   $('healBtn').setAttribute('aria-disabled', o.missing <= 0 || hp <= 0 ? 'true' : 'false');
+  sizeHeal(o);
+}
+// The button is as wide as the widest thing it can say: "Heal +N health" at the most it can ever cost, or "Heal
+// already full". It is measured once it is on screen, so it doesn't jump about as the numbers change.
+function sizeHeal(o) {
+  const btn = $('healBtn');
+  if (!btn.offsetParent) return;
+  const step = Math.round(g.boss.maxhp * HEAL_STEP), key = `${step}|${!!storeDebug}`;
+  if (btn.dataset.sized === key) return;
+  const what = $('healWhat'), cost = $('healCost'), keep = [what.textContent, cost.textContent];
+  btn.style.minWidth = '';
+  let w = 0;
+  for (const [a, b] of [[`+${step} health`, storeDebug ? 'FREE' : fmt(Math.ceil(step * HEAL_COST))], ['already full', ''], ["can't afford", fmt(Math.ceil(step * HEAL_COST))]]) {
+    what.textContent = a; cost.textContent = b;
+    w = Math.max(w, btn.getBoundingClientRect().width);
+  }
+  [what.textContent, cost.textContent] = keep;
+  btn.style.minWidth = Math.ceil(w) + 'px';
+  btn.dataset.sized = key;
 }
 
 // what the Mutate button would buy for one ability: its price, and the level the demo should show

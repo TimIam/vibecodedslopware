@@ -50,7 +50,7 @@ export const kinds = {
 };
 // the cow that turns up where the boss came in, once it has been all the way round twice (see update)
 export const critters = {
-  wl_cow: { r: 3.5, hp: 60, spd: 3, flee: 0, fear: 0, noCorpse: true, cry: 'moo', value: { pts: 666, venge: 0.1, chaos: 0 } },
+  evil_cow: { r: 3.5, hp: 60, spd: 3, flee: 0, fear: 0, noCorpse: true, cry: 'moo', value: { pts: 666, venge: 0.1, chaos: 0 } },
 };
 
 // ---------------------------------------------------------------------------------------------- the map
@@ -219,19 +219,30 @@ function update(g, dt, api) {
 }
 
 // Going round: the far end of the outskirts joins back onto the start, but only once the boss has walked all the way
-// there (until then the left edge holds). Each time it passes where it came in, that's a lap. After two, a cow is
-// standing on that spot the next time round; while she is on screen every hero runs and the wall holds its fire.
-// Kill her and the evil cow cutscene takes the boss down into the secret level (world.js SCENE).
+// there (until then the left edge holds). Every lap's worth of walking, either way round, is a lap. After two (and
+// half of the next), the Evil Cow is standing where the boss came in, somewhere up ahead; while she is on screen
+// every hero runs and the wall holds its fire. Kill her and the evil cow cutscene takes the boss down into the secret
+// level (world.js SCENE).
 function laps(g, m, b, api) {
   if (b.x > m.maxX) m.maxX = b.x;
   if (!m.looped && b.x >= WW - 2) {
     m.looped = true; m.arena.x0 = -Infinity;
     api.banner(g, 'IT GOES ALL THE WAY ROUND', 'THE CITY IS ROUND. SO IS THE MOAT.', 3.5);
   }
-  const lap = Math.floor((m.maxX - m.start.x) / WW);
+  // how far it has walked along the wall, left or right (the treadmill moves the world, never the boss)
+  if (m.lastX == null) { m.lastX = b.x; m.dist = Math.max(0, m.maxX - m.start.x); }
+  const step = b.x - m.lastX;
+  m.lastX = b.x;
+  if (Math.abs(step) < 20) { m.dist += Math.abs(step); if (Math.abs(step) > 0.01) m.dir = Math.sign(step); }
+  const lap = Math.floor(m.dist / WW);
   if (lap > m.laps) { m.laps = lap; api.text(g, b.x, b.y - 26, `LAP ${lap}`, 'gold', 1.6); }
-  if (m.laps >= 2 && !g.lvlCow && !m.cowGone && !g.clear && !g.walkoff && m.maxX - m.start.x - 2 * WW >= 0.55 * WW)
-    g.lvlCow = addCritter(g, 'wl_cow', m.start.x + 3 * WW, m.start.y - 4, { fx: -1 });
+  if (m.laps >= 2 && !g.lvlCow && !m.cowGone && !g.clear && !g.walkoff && m.dist - 2 * WW >= 0.55 * WW) {
+    // her spot: the copy of it off the screen ahead, the way the boss is going
+    const dir = m.dir || 1;
+    let x = m.start.x + WW * Math.round((b.x + dir * WW / 2 - m.start.x) / WW);
+    if ((x - b.x) * dir < 190) x += dir * WW;
+    g.lvlCow = addCritter(g, 'evil_cow', x, m.start.y - 4, { fx: -dir });
+  }
   const cow = g.lvlCow;
   if (!cow || m.cowGone) return;
   if (cow.dead) { m.cowGone = true; api.scene(g, 'cow', cow.x, cow.y); return; }
@@ -260,15 +271,26 @@ function debris(g, m, b) {
   }
 }
 
-// the wall shoots back: every section still standing, arrows at a boss in close and ballista bolts further out
+// the wall shoots back: every section still standing, arrows at a boss in close; ballista bolts further out, but only
+// off the towers (the curtain and the gatehouse only have archers). They loose from the top, about 34 px up.
 function shooters(g) {
   const out = [], b = g.boss;
   for (const s of g.map.wall) {
     const p = s.prop;
     if (!p || p.state !== 'up' || Math.abs(p.x - b.x) > 240) continue;
-    out.push({ x: p.x + (((s.i * 7) % 5) - 2) * 3, y: WALL_B - 6, kind: 'both' });
+    out.push({ x: p.x + (((s.i * 7) % 5) - 2) * 3, y: WALL_B - 2, h: s.kind === 'wl_tower' ? 38 : 32, kind: s.kind === 'wl_tower' ? 'both' : 'arrow' });
   }
   return out;
+}
+// what a shot that misses comes down on: the moat, the stone (the scarp under the wall, the paved street, the lanes up
+// to the bridges, the drawbridge landing), or soft ground
+function surface(g, x, y) {
+  if (isWater(g, x, y)) return 'water';
+  const X = ((x % WW) + WW) % WW;
+  if (y < MOAT0 || Math.abs(y - roadY(X)) <= 6) return 'hard';
+  if (y > MOAT1 && y < roadY(X) && (Math.abs(X - gateLaneX(y)) <= 7 || Math.abs(X - oldLaneX(y)) <= 5)) return 'hard';
+  if (y < MOAT1 + 12 && Math.abs(X - (GATE_X0 + GATE_X1) / 2) <= 15) return 'hard';
+  return 'soft';
 }
 
 const TUMBLE = [[0, -1], [-1, 0], [1, 0], [-1, -1], [1, -1], [0, 1], [-1, 1], [1, 1], [0, -2], [-2, 0], [2, 0], [-2, -1], [2, -1], [-1, -2], [1, -2]];
@@ -993,10 +1015,10 @@ export default {
   n: 5, id: 'wall', name: 'THE CITY WALL', sub: 'THEY PULLED UP THE BRIDGE.', mode: 'timed',
   kinds, critters,
   build(g, rng, P) { return build(g, rng, P); },
-  update, hud, shooters,
+  update, hud, shooters, surface,
   art: {
     ground, under,
-    critters: { wl_cow: (ctx, c, g, h) => drawCow(ctx, { ...c, seed: 0 }, g, h) },
+    critters: { evil_cow: (ctx, c, g, h) => drawCow(ctx, { ...c, seed: 0 }, g, h) },
     props: {
       wl_cottage: drawBuilding, wl_house: drawBuilding, wl_barn: drawBuilding, wl_watch: drawBuilding,
       wl_cart: drawCart, wl_stall: drawStall, wl_stones: drawRubble, wl_timber: drawRubble, wl_block: drawRubble,
