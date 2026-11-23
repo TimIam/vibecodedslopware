@@ -1924,6 +1924,13 @@ window.SLOPWARE = {
      "note": "the secret cow level, a looping City Wall, walls that shoot back",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 19,
+     "date": "2026-11-23T04:27:31-07:00",
+     "note": "arcing wall shots, an endless fen, a new Minotaur",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
