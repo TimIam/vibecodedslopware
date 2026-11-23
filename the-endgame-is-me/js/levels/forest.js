@@ -23,13 +23,13 @@ export function scatter(rng, n, x0, y0, x1, y1, gap, avoid = []) {
 }
 
 function build(g, rng, P) {
-  const w = 960, h = 180, start = { x: 46, y: 98, face: 0 };
+  const w = 1440, h = 180, start = { x: 46, y: 98, face: 0 };
   const glade = [{ x: start.x, y: start.y, r: 40 }];
   // a few clumps and glades so it isn't an even carpet
-  for (let i = 0; i < 5; i++) glade.push({ x: 160 + rng() * 760, y: 40 + rng() * 110, r: 18 + rng() * 14 });
-  const trees = scatter(rng, 125, 12, 22, w - 12, h - 22, 13, glade);
+  for (let i = 0; i < 8; i++) glade.push({ x: 160 + rng() * 1240, y: 40 + rng() * 110, r: 18 + rng() * 14 });
+  const trees = scatter(rng, 188, 12, 22, w - 12, h - 22, 13, glade);
   for (const t of trees) P.addProp(g, rng() < 0.6 ? 'pine' : 'oak', t.x, t.y);
-  for (const t of scatter(rng, 70, 12, 22, w - 12, h - 22, 7, glade.slice(0, 1).concat(trees.map(t => ({ ...t, r: 6 }))))) P.addProp(g, 'bush', t.x, t.y);
+  for (const t of scatter(rng, 105, 12, 22, w - 12, h - 22, 7, glade.slice(0, 1).concat(trees.map(t => ({ ...t, r: 6 }))))) P.addProp(g, 'bush', t.x, t.y);
   return { w, h, scroll: 'x', start };
 }
 

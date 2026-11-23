@@ -139,6 +139,10 @@ function material(lx, ly, frame, mouth, L) {
     if (d > 1.3 && d < 3.4) return d < 2.2 ? 'hornD' : 'horn';
   } else if (L.horns === 2) {
     for (const br of ANTLER) if (distPoly(X, ay, br)[0] < 0.8) return 'horn';
+  } else if (L.horns === 4) {
+    // short stubby cow horns poking out of the sides of the head, a little forward
+    const [d, t] = distSeg(X, ay, 8.2, 4.4, 9.8, 9.4);
+    if (d < 1.9 - t * 0.75) return t > 0.75 ? 'cowHornD' : 'cowHorn';
   }
 
   // ---- mouth, snout or beak
@@ -162,6 +166,12 @@ function material(lx, ly, frame, mouth, L) {
         return t > 0.84 ? 'beakYD' : ay - gap < 0.7 ? 'beakYHi' : 'beakY';
       }
     }
+  } else if (L.head === 5) {
+    // Booper: a big round cartoon-cow muzzle, pale pink, with two dark nostrils; open, a mouth shows past its front
+    if (mouth && X > 17.6 && X < 20.6 && ay < 2.2 - (X - 17.6) * 0.35) return 'mouth';
+    if (Math.hypot((X - 17) * 0.9, ay - 2) < 1.2) return 'booNostril';
+    const e = ((X - 15.4) / 4.2) ** 2 + (ay / 4.8) ** 2;
+    if (e < 1) return e < 0.3 && X < 15.6 ? 'muzzleHi' : 'muzzle';
   } else {
     if (mouth && X > 13.2 && X < 17 && ay < 1.6) return 'mouth';
     if (Math.hypot(X - 15.1, ay - 1.1) < 0.65) return 'nostril';
@@ -242,6 +252,12 @@ function material(lx, ly, frame, mouth, L) {
   } else if (L.tail === 4) {
     const e = ((lx + 18.5) / 6) ** 2 + ((ly - wag) / 3.8) ** 2;
     if (e < 1) return lx < -22.2 ? 'tailWhite' : 'tail';
+  } else if (L.tail === 5) {
+    // Switch: a thin cow's tail with a shaggy dark tuft at the end
+    const tx = -24.2, ty = 2.6 + wag * 1.4, a = Math.atan2(ly - ty, lx - tx);
+    if (Math.hypot((lx - tx) * 0.75, ly - ty) < 2.6 + (hash(Math.round((a + 4) * 4), 21) - 0.5) * 1.2) return 'tuft';
+    const pts = [[-13, 0], [-16.5, 0.4 + wag * 0.4], [-19.5, 1.3 + wag * 0.9], [-22, 2.2 + wag * 1.3]];
+    if (distPoly(lx, ly, pts)[0] < 1.45) return 'tail';
   }
 
   // ---- limbs along the flanks, swinging in diagonal pairs
@@ -273,7 +289,8 @@ function material(lx, ly, frame, mouth, L) {
 
 export const BOSS_DIRS = 32, BOSS_SIZE = 56;
 const BONE = { horn: PAL.hornD, hornD: PAL.hornD, claw: PAL.hornD, tooth: PAL.hornD, talon: '#a88a3a', plate: '#5f8496', plateHi: '#5f8496',
-  beakG: '#5c615d', beakGHi: '#5c615d', beakGD: '#3b3f3c', beakY: '#a8701a', beakYHi: '#a8701a', beakYD: '#8a5512' };
+  beakG: '#5c615d', beakGHi: '#5c615d', beakGD: '#3b3f3c', beakY: '#a8701a', beakYHi: '#a8701a', beakYD: '#8a5512',
+  cowHorn: '#9c8f6c', cowHornD: '#7d7052', muzzle: '#9c4f5c', muzzleHi: '#9c4f5c' };
 
 // one sprite: a heading, a walk frame, mouth open or shut, for one look
 function buildSprite(dir, frame, mouth, L) {
@@ -291,7 +308,7 @@ function buildSprite(dir, frame, mouth, L) {
     const p = mat[y * N + x];
     if (!p) continue;
     const edge = x === 0 || x === N - 1 || !mat[y * N + x - 1] || !mat[y * N + x + 1] || !mat[(y - 1) * N + x] || !mat[(y + 1) * N + x];
-    cx.fillStyle = edge ? (BONE[p.k] || PAL.ink) : shade(p, L.F);
+    cx.fillStyle = edge ? (BONE[p.k] || PAL.ink) : shade(p, L);
     cx.fillRect(x, y, 1, 1);
   }
   return cv;
@@ -300,7 +317,8 @@ function buildSprite(dir, frame, mouth, L) {
 // a lazily filled sprite sheet for one look: get(dir, idx) with idx = mouth * 4 + frame
 export function makeBossSprites(look) {
   const L = { head: 0, horns: 0, neck: 0, back: 0, tail: 0, limbs: 0, legs: 0, ...look };
-  L.F = furRamp(L.fur);
+  L.F = L.cow ? COW_WHITE : furRamp(L.fur);
+  L.S = L.fur ? furRamp(L.fur) : COW_DARK;   // the spots: the colour picked, or near black for the natural brown
   const cache = new Map();
   return {
     key: bossKey(L),
@@ -313,7 +331,26 @@ export function makeBossSprites(look) {
   };
 }
 
-export const bossKey = l => [l.head, l.horns, l.neck, l.back, l.tail, l.limbs, l.legs].map(n => n || 0).join('.') + (l.fur || '');
+export const bossKey = l => [l.head, l.horns, l.neck, l.back, l.tail, l.limbs, l.legs].map(n => n || 0).join('.') + (l.fur || '') + (l.cow ? 'cow' : '');
+
+// Cow Skin: a white coat, and blobs of the fur colour fixed to the body (boss space, so they turn with him and never
+// flicker). One blob may sit in each 7 px cell, jittered in it, with a wobbly edge.
+const COW_WHITE = ['#9d988c', '#c4bfb2', '#e2ddd0', '#f2eee4', '#fbf9f3'];
+const COW_DARK = ['#0d0a08', '#1a1310', '#271c16', '#36281f', '#46352a'];
+const COW_CELL = 7;
+function cowSpot(lx, ly) {
+  const gx = Math.floor(lx / COW_CELL), gy = Math.floor(ly / COW_CELL);
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+    const cx = gx + i, cy = gy + j;
+    if (hash(cx * 7 + 101, cy * 13 + 57) < 0.3) continue;
+    const px = (cx + 0.15 + hash(cx + 31, cy + 17) * 0.7) * COW_CELL, py = (cy + 0.15 + hash(cx + 5, cy + 77) * 0.7) * COW_CELL;
+    const r = 1.9 + hash(cx + 11, cy + 3) * 1.9, a = Math.atan2(ly - py, lx - px);
+    if (Math.hypot(lx - px, (ly - py) * 1.1) < r * (1 + 0.14 * Math.sin(a * 2 + hash(cx, cy) * 6.3) + 0.1 * Math.sin(a * 5 + hash(cy, cx) * 6.3))) return true;
+  }
+  return false;
+}
+// what wears the coat (and so the spots)
+const COAT = new Set(['fur', 'head', 'neckFur', 'tail', 'leg', 'mane', 'tailSeg', 'tailTip']);
 
 // the five fur shades, darkest first. No colour picked is the natural brown; a picked colour becomes the middle shade
 // with the others stepped darker and lighter around it, the way the brown ones are.
@@ -338,7 +375,8 @@ export function hslToHex(h, s, l) {
   return '#' + [r, g, b].map(v => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('');
 }
 
-function shade(p, F) {
+function shade(p, L) {
+  const F = L.cow && COAT.has(p.k) && cowSpot(p.lx, p.ly) ? L.S : L.F;
   const light = (-p.sx * 0.55 - p.sy * 0.8) / 14;
   const n = hash(Math.round(p.lx * 0.9 + p.ly * 0.35) + 40, Math.round(p.ly * 0.85 - p.lx * 0.12) + 90);
   const two = (hi, lo) => light > 0.15 ? hi : lo;
@@ -350,7 +388,13 @@ function shade(p, F) {
     case 'eyeWhite': return '#f2efe2';
     case 'pupil': return PAL.ink;
     case 'mouth': return PAL.mouth;
-    case 'nostril': return F[0];
+    case 'nostril': return L.cow ? L.S[0] : F[0];
+    case 'muzzle': return two('#f6c9cc', '#e9aab2');
+    case 'muzzleHi': return '#fde2e2';
+    case 'booNostril': return '#3a1a22';
+    case 'cowHorn': return two('#f6efd6', '#e4d8b4');
+    case 'cowHornD': return '#cbbd94';
+    case 'tuft': return n < 0.35 ? L.S[0] : two(L.S[2], L.S[1]);
     case 'snout': return light > 0.3 ? F[4] : PAL.snout;
     case 'snoutC': return two(F[3], F[2]);
     case 'beakG': return two('#a9aea8', '#868c86');
@@ -387,7 +431,7 @@ function shade(p, F) {
     default: {
       lvl = light > 0.5 ? 3 : light > -0.05 ? 2 : light > -0.55 ? 1 : 0;
       // a dark mane down the spine
-      if (p.lx > -12 && p.lx < 3 && Math.abs(p.ly + Math.sin(p.lx * 0.9) * 0.6) < 1.5) lvl = Math.min(lvl, 1) - (n < 0.5 ? 1 : 0);
+      if (!L.cow && p.lx > -12 && p.lx < 3 && Math.abs(p.ly + Math.sin(p.lx * 0.9) * 0.6) < 1.5) lvl = Math.min(lvl, 1) - (n < 0.5 ? 1 : 0);
     }
   }
   if (n < 0.1) lvl--; else if (n > 0.96) lvl++;

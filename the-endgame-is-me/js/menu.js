@@ -4,6 +4,7 @@
 
 import { createHumanstiary } from './humanstiary.js';
 import { createNav } from './nav.js';
+import { ENDING_TRACK } from './music.js';
 import { controls, SLOTS, MOVES, STICK_ROLES, keyName, padName, slotLabel, spaceLabel, bindKey, bindPad, setStick, setMode, resetKeys, resetPad, onChange, hit, held, stick, fullscreen, PAD_A, PAD_B, PAD_SELECT } from './controls.js';
 
 const $ = id => document.getElementById(id);
@@ -174,7 +175,9 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     { v: 'stage', name: 'Each stage its own', note: '' },
     { v: 'randomStage', name: 'Random per stage', note: '' },
     { v: 'random', name: 'Random', note: '' },
-    ...audio.tracks.map(t => ({ v: t.id, name: t.name, note: `${t.seconds | 0} s` })),
+    // the ending's lullaby only once the castle has fallen (New Game+ is open)
+    ...audio.tracks.filter(t => t.id !== ENDING_TRACK || saves.plus() || audio.selection === t.id)
+      .map(t => ({ v: t.id, name: t.name, note: `${t.seconds | 0} s` })),
   ];
   function drawPick() {
     const now = audio.selection, c = CHOICES();

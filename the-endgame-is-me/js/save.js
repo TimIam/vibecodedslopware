@@ -131,3 +131,18 @@ export function unlockPlus(g) {
 export function plusData() {
   try { return JSON.parse(localStorage.getItem(PLUS)); } catch { return null; }
 }
+
+// beating the secret Minotaur unlocks the cow looks for good (Cow Skin, Booper, Short Horns, Switch), across runs.
+// On localhost ?cow=1 unlocks them and ?cow=0 locks them again, for testing.
+const COW = 'bosshours.cow.v1';
+export function unlockCow() {
+  try { localStorage.setItem(COW, '1'); } catch {}
+}
+export function hasCow() {
+  try { return localStorage.getItem(COW) === '1'; } catch { return false; }
+}
+if (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+  const q = new URLSearchParams(location.search).get('cow');
+  if (q === '1') unlockCow();
+  else if (q === '0') try { localStorage.removeItem(COW); } catch {}
+}

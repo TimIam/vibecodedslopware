@@ -72,12 +72,12 @@ function sow(g, P, f, occ, rng) {
 }
 
 function build(g, rng, P) {
-  const w = 1140, h = 180, start = { x: 40, y: Math.round(trackY(40)), face: 0 };
+  const w = 1710, h = 180, start = { x: 40, y: Math.round(trackY(40)), face: 0 };
   const occ = Occupancy(), fields = [], yards = [], spurs = [];
   occ.take(start.x - 26, start.y - 22, start.x + 30, start.y + 22, 'start');
   // the track itself is kept clear
   for (let x = 0; x < w; x += 10) occ.take(x, trackY(x + 5) - 6, x + 10, trackY(x + 5) + 6, 'track');
-  const nFarms = 5;
+  const nFarms = 8;
   for (let i = 0; i < nFarms; i++) {
     const cx = 160 + i * 205 + (rng() - 0.5) * 30, up = i % 2 === 0;
     // the yard: barn, farmhouse, a pen with the animals, haystacks
@@ -122,7 +122,7 @@ function build(g, rng, P) {
   for (const f of fields) sow(g, P, f, occ, rng);
   // hedgerow bushes and the odd oak between the farms
   const avoid = occ.rects.filter(r => r.tag !== 'track').map(r => ({ x: (r.x0 + r.x1) / 2, y: (r.y0 + r.y1) / 2, r: Math.max(r.x1 - r.x0, r.y1 - r.y0) / 2 + 6 }));
-  for (const t of scatter(rng, 26, 10, 20, w - 10, h - 22, 22, avoid)) {
+  for (const t of scatter(rng, 39, 10, 20, w - 10, h - 22, 22, avoid)) {
     if (Math.abs(t.y - trackY(t.x)) < 10) continue;
     P.addProp(g, rng() < 0.3 ? 'oak' : 'bush', t.x, t.y);
   }
@@ -553,7 +553,7 @@ function ground(ctx, m, h) {
 }
 
 export default {
-  n: 3, id: 'farms', name: 'THE FARMS', sub: 'TRAMPLE THE CROPS. BURN THE BARNS. SCATTER THE HERDS.', mode: 'chaos',
+  n: 3, id: 'farms', name: 'THE FARMS', sub: 'TRAMPLE THE CROPS. BURN THE BARNS. SCATTER THE HERDS.', mode: 'chaos', chaosK: 0.52,
   kinds, critters, adds,
   build(g, rng, P) { return build(g, rng, P); },
   art: {
@@ -565,3 +565,6 @@ export default {
     canopy: false, theme: { leash: false },
   },
 };
+
+// borrowed by the City Wall (its cow) and the secret level (its steers)
+export { drawCow, COW, COW_PAL, COW_PAL2 };

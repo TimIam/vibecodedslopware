@@ -55,15 +55,16 @@ const GATE = { c: 11, r: 26, n: 2 };
 
 const BLOCK = { solid: true, rubble: 'castle_rubble', rubbleN: 1, w: C, h: C, onDown: blockDown };
 export const kinds = {
-  castle_wall: { ...BLOCK, hp: 170, value: { pts: 110, venge: 0.05, chaos: 1 } },
+  // (walls, towers and the gate take twice what they did: walls on 5, 6 and 7 take double)
+  castle_wall: { ...BLOCK, hp: 340, value: { pts: 110, venge: 0.05, chaos: 1 } },
   castle_keep: { ...BLOCK, hp: 210, value: { pts: 140, venge: 0.06, chaos: 1 } },
-  castle_tower: { ...BLOCK, w: 30, h: 30, hp: 1000, rubbleN: 4, value: { pts: 900, venge: 0.35, chaos: 4 }, onDown: towerDown, onHit: towerHit },
+  castle_tower: { ...BLOCK, w: 30, h: 30, hp: 2000, rubbleN: 4, value: { pts: 900, venge: 0.35, chaos: 4 }, onDown: towerDown, onHit: towerHit },
   // the drum (and its plinth) under the keep's tower: half of what that tower was worth (the tower itself pays the other
   // half). Its hit points are only for show: it comes down by its wedges (see baseHit)
   castle_base: { ...BLOCK, w: 40, h: 40, hp: DONJON_HP, rubbleN: 4, value: { pts: 450, venge: 0.175, chaos: 2 }, onHit: baseHit },
   // what is left once the tower is felled: in the way, and past hurting
   castle_stump: { r: DRUM_R, solid: true, onHit: () => true, value: { pts: 0, venge: 0, chaos: 0 } },
-  castle_gate: { ...BLOCK, w: 20, h: 20, hp: 520, flammable: true, burnTime: 10, value: { pts: 600, venge: 0.3, chaos: 2 } },
+  castle_gate: { ...BLOCK, w: 20, h: 20, hp: 1040, flammable: true, burnTime: 10, value: { pts: 600, venge: 0.3, chaos: 2 } },
   castle_rubble: { r: 3, push: true, fill: 2, value: { pts: 0, venge: 0, chaos: 0 } },
 };
 const LIFT = { castle_wall: 7, castle_keep: 12, castle_gate: 7, castle_tower: 16, castle_base: BASE_LIFT };
@@ -1000,10 +1001,21 @@ function over(ctx, g, h) {
   ctx.globalAlpha = 1;
 }
 
+// the castle shoots back: arrows off the walls at a boss in close, ballista bolts off the towers at one further out
+function shooters(g) {
+  const b = g.boss, out = [];
+  for (const p of g.props) {
+    if (p.state !== 'up') continue;
+    if (p.kind === 'castle_tower') out.push({ x: p.x, y: p.y - 12, kind: 'bolt' });
+    else if (p.kind === 'castle_wall' && Math.abs(p.x - b.x) < 100 && Math.abs(p.y - b.y) < 100) out.push({ x: p.x, y: p.y - 6, kind: 'arrow' });
+  }
+  return out;
+}
+
 export default {
   n: 7, id: 'castle', name: 'THE CASTLE', sub: 'BRING IT DOWN. ALL OF IT.', mode: 'timed',
   kinds,
   build(g, rng) { return build(g, rng); },
-  update, hud, hudWon,
+  update, hud, hudWon, shooters,
   art: { ground, under, over, props: { castle_wall: drawBlock, castle_keep: drawBlock, castle_gate: drawBlock, castle_tower: drawTower, castle_base: drawBase, castle_stump: drawStump, castle_rubble: drawRubble }, canopy: false, theme: { leash: false } },
 };

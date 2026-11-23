@@ -9,8 +9,10 @@
 //   <script src="/splash.js" data-hold></script>       stays up on its last frame until the player presses something
 //   await SlopwareSplash.ready                         resolves when it is gone
 //
-// Any key or tap skips it, and input never reaches the game underneath while
-// it is up. It stays out of the way of headless test bots (navigator.webdriver) and iframes.
+// Any key, tap or controller button skips it (a button already held when it
+// starts has to be let go first), and input never reaches the game underneath
+// while it is up. SlopwareSplash.padWatch() is the same controller check for a
+// game's own start screen. It stays out of the way of headless test bots (navigator.webdriver) and iframes.
 //   ?splash=1     force it        ?splash=0     suppress it
 //   ?splash=2.5   freeze at 2.5s, for screenshots
 //
@@ -593,10 +595,12 @@
       if (SKIPS.has(e.type)) skip();
     }
     CAPTURED.forEach(type => window.addEventListener(type, guard, { capture: true, passive: false }));
+    const pads = padWatch();
 
     function frame(now) {
       if (ended) return;
       try {
+        if (pads()) skip();
         // Clamped so a tab that was in the background resumes instead of jumping to the end.
         const dt = Math.min(0.5, (now - last) / 1000);
         last = now;
@@ -622,6 +626,34 @@
 
     session = { promise, skip, seek(t) { frozen = true; clock = t; renderAt(t); } };
     return promise;
+  }
+
+  // ---- controllers ----------------------------------------------------------
+  // Any gamepad button going down, or a stick pushed past halfway, counts as a key. Call the returned function once a
+  // frame; it says whether anything was pressed since the last call. Whatever is already held when the watch starts
+  // (the press that got past a game's own start screen, say) has to be let go first. A pad the browser only now
+  // shows (they appear on their first press) counts from all-up, so that first press is not lost.
+  function padWatch() {
+    const was = new Map();
+    const read = p => {
+      const b = [];
+      for (let i = 0; i < p.buttons.length; i++) { const x = p.buttons[i]; b.push(!!x && (x.pressed || x.value > 0.5)); }
+      for (let i = 0; i < p.axes.length; i++) b.push(Math.abs(p.axes[i] || 0) > 0.5);
+      return b;
+    };
+    const list = () => {
+      try { return navigator.getGamepads ? Array.prototype.filter.call(navigator.getGamepads(), p => p && p.connected) : []; } catch (e) { return []; }
+    };
+    list().forEach(p => was.set(p.index + ':' + p.id, read(p)));
+    return function pressed() {
+      let hit = false;
+      list().forEach(p => {
+        const k = p.index + ':' + p.id, now = read(p), before = was.get(k) || [];
+        for (let i = 0; i < now.length; i++) if (now[i] && !before[i]) hit = true;
+        was.set(k, now);
+      });
+      return hit;
+    };
   }
 
   // ---- the jingle -----------------------------------------------------------
@@ -703,5 +735,6 @@
     seek(t) { if (session) session.seek(t); },
     get playing() { return !!session; },
     mascot,
+    padWatch,
   };
 })();

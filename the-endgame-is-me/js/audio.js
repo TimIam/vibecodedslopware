@@ -183,6 +183,27 @@ export function createAudio() {
       tone('square', 190, 60, 0.09, 0.12);
     },
     bossdie: () => { tone('sawtooth', 220, 28, 2.2, 0.25, { vib: 10 }); noise(1.5, 0.3, { type: 'lowpass', f0: 800, f1: 60 }); },
+    // a necromancer arriving: wind howling up out of the nether, echoing away, over a low drone
+    nether: () => {
+      for (let i = 0; i < 4; i++) {
+        const k = 0.55 ** i;
+        noise(1.5, 0.2 * k, { f0: 260, f1: 1500, q: 7, delay: i * 0.3, attack: 0.45 });
+        noise(1.3, 0.12 * k, { f0: 1700, f1: 380, q: 9, delay: 0.15 + i * 0.3, attack: 0.5 });
+      }
+      tone('sine', 52, 40, 2.4, 0.14, { attack: 0.6, vib: 3 });
+      tone('triangle', 104, 78, 2, 0.04, { attack: 0.8, vib: 5 });
+    },
+    drain: () => tone('sine', 420, 180, 0.35, 0.035, { vib: 40 }),
+    bow: () => noise(0.08, 0.05, { f0: 900, f1: 2600, q: 3 }),
+    thunk: () => { tone('square', 260, 140, 0.05, 0.05); noise(0.05, 0.08, { f0: 1600, f1: 700, q: 2 }); },
+    ballista: () => { tone('sawtooth', 90, 50, 0.18, 0.12); noise(0.35, 0.18, { f0: 500, f1: 1800, q: 1.2 }); },
+    pinned: () => { tone('sine', 140, 35, 0.6, 0.6); noise(0.4, 0.35, { type: 'lowpass', f0: 1200, f1: 100 }); tone('square', 400, 120, 0.25, 0.08, { delay: 0.05 }); },
+    moo: () => { tone('sawtooth', 150, 118, 0.9, 0.09, { attack: 0.12, vib: 4 }); tone('sawtooth', 152, 120, 0.9, 0.05, { attack: 0.12, vib: 5 }); },
+    boom: () => { tone('sine', 90, 28, 0.7, 0.55); noise(0.7, 0.45, { type: 'lowpass', f0: 1500, f1: 60 }); noise(0.15, 0.3, { f0: 3000, f1: 900, q: 0.8 }); },
+    minoroar: () => { tone('sawtooth', 120, 70, 1.3, 0.22, { vib: 9, attack: 0.1 }); tone('square', 60, 42, 1.2, 0.12, { vib: 5, attack: 0.1 }); noise(1.1, 0.25, { type: 'lowpass', f0: 900, f1: 150, attack: 0.1 }); },
+    minohurt: () => tone('sawtooth', 160, 90, 0.25, 0.1, { vib: 12 }),
+    minodie: () => { tone('sawtooth', 140, 30, 2.4, 0.22, { vib: 8 }); noise(2, 0.2, { type: 'lowpass', f0: 700, f1: 50, attack: 0.2 }); },
+    vortex: () => { noise(2.4, 0.28, { f0: 120, f1: 2400, q: 4, attack: 0.6 }); tone('sine', 60, 600, 2.4, 0.1, { attack: 1, vib: 18 }); },
   };
 
   const applyMute = k => { if (ac) setGain(k === 'music' ? mus : sfx, k === 'music' ? musGain() : sfxGain()); };

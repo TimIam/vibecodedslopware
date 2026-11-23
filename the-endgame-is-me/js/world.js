@@ -3,7 +3,7 @@
 
 import * as P from './props.js';
 import { updateSmoke } from './smoke.js';
-import { LEVELS, levelFor, lastLevel } from './levels/index.js';
+import { LEVELS, SECRET, levelFor, lastLevel } from './levels/index.js';
 
 export const W = 320, H = 180;   // the screen; a level's world can be bigger and scrolls (g.map.w, g.map.h)
 export const LANE = 11;        // half-width of the patrol path
@@ -70,13 +70,15 @@ export const ROAR_STUN = 1;       // the last Roar stuns for this long before an
 export const ICE_ROOT = 1, ICE_SLOW = 0.4, ICE_DEEP = 0.75;   // rooted this long; speed on ice; and on the last level's ice, that again
 
 // how the boss looks, part by part, and what marks the rock you are walking to. A new run starts on option 0 of
-// everything; look.fur is a '#rrggbb' colour, null for the natural brown.
+// everything; look.fur is a '#rrggbb' colour, null for the natural brown, and look.cow paints the fur white with
+// spots of that colour. Booper, Short Horns and Switch (and Cow Skin) only show once the Minotaur is beaten (save.js
+// hasCow); appearance.js keeps them out of a locked profile's look.
 export const LOOKS = {
-  head: ['Snout', 'Cyclops', 'Croc snout', 'Turtle beak', 'Bird beak'],
-  horns: ['Bull horns', 'Ram curls', 'Antlers', 'No horns'],
+  head: ['Snout', 'Cyclops', 'Croc snout', 'Turtle beak', 'Bird beak', 'Booper'],
+  horns: ['Bull horns', 'Ram curls', 'Antlers', 'No horns', 'Short Horns'],
   neck: ['Bare', 'Lion mane', 'Spiked collar', 'Long neck', 'Frill'],
   back: ['Shag', 'Dorsal plates', 'Shell', 'Mushrooms', 'Bat wings'],
-  tail: ['Tuft', 'Club', 'Stinger', 'Whip', 'Fox brush'],
+  tail: ['Tuft', 'Club', 'Stinger', 'Whip', 'Fox brush', 'Switch'],
   limbs: ['Claws', 'Hooves', 'Talons', 'Tentacles'],
   legs: ['Four legs', 'Six legs', 'Eight legs'],
   marker: ['Sparkles', 'Black hole', 'TomTom arrow', 'Victim on a cross', 'Disco ball'],
@@ -177,8 +179,16 @@ const BARK = {
   logoff: ['BRB', 'GTG', 'LOGGING', 'NOPE', 'CYA', 'BEDTIME', 'WORK TMRW', 'DC'],
   reset: ['BACK TO POSTS', 'LEASH IT', 'RESET', 'HOLD THE TOWER', 'NOT OUR JOB', 'GUARD DUTY'],
   king: ['GUARDS!', 'NOT THE FACE', 'I AM THE KING', 'SOMEONE DO SOMETHING', 'MY ARMOUR!', 'I PAY YOU PEOPLE', 'PROTECT ME'],
-  wreckThoughts: ['SMASH.', 'VENGEANCE...', 'MINE NOW', 'NO MORE ROCKS', '*SNIFF* SMOKE', 'WHO BUILT THIS', 'TOO MANY HOUSES', 'HM. FLAMMABLE', 'THEY STARTED IT'],
-  thoughts: ['HM.', '*SNIFF*', 'NICE ROCK', 'OTHER ROCK', 'PATROL...', 'WHERE WAS I', '*YAWN*', 'THIS WAY', 'NO, THIS WAY', 'GOOD PATH', '...'],
+  wreckThoughts: ['SMASH.', 'VENGEANCE...', 'MINE NOW', 'NO MORE ROCKS', '*SNIFF* SMOKE', 'WHO BUILT THIS', 'TOO MANY HOUSES', 'HM. FLAMMABLE', 'THEY STARTED IT',
+    'CRUNCHY', 'THAT WAS LOAD BEARING', 'NEXT.', 'RENOVATING', 'I AM THE ZONING BOARD', 'YOU BUILT IT WRONG', 'MORE.', 'TIMBERRR', 'SMELLS LIKE BREAD',
+    'OOPS. NOT SORRY', 'FEELING BETTER', 'ROCKS WERE NICER', 'PROPERTY VALUES: DOWN', 'WHO NEEDS ROOFS', 'STOMP STOMP', 'THIS ONE NEXT',
+    'MY ROCKS. MY RULES', 'WHAT IS A TAX', 'HAH. SPLINTERS', 'TOO TIDY', 'REDECORATING', 'NOBODY ASKED ME', 'FIRE IS PRETTY'],
+  thoughts: ['HM.', '*SNIFF*', 'NICE ROCK', 'OTHER ROCK', 'PATROL...', 'WHERE WAS I', 'THIS WAY', 'NO, THIS WAY', 'GOOD PATH', '...',
+    'ROCK. ROCK.', 'LEFT FOOT. RIGHT FOOT.', 'IS THAT A BIRD', 'ITCHY', 'NICE DAY FOR IT', 'STILL WALKING', 'GOOD ROCK', 'BEST ROCK',
+    'DONT STEP ON IT', 'SO MANY STEPS', 'HUMANS AGAIN?', 'I KNOW THIS TREE', 'WAS THAT A HERO', 'COUNT THE STEPS', 'BACK AND FORTH',
+    'ROCKS NEVER LEAVE', 'HMM. GRASS', 'SMELLS LIKE RAIN', 'I LIKE IT HERE', 'MY PATH', 'ONE MORE LAP'],
+  fightThoughts: ['TINY STABS', 'STOP POKING', 'RUDE.', 'SHOO', 'GET OFF', 'YOU AGAIN', 'NOT THE FUR', 'HEALERS FIRST', 'SO MANY HATS',
+    'I SEE YOU, HUNTER', 'LOOT? NO.', 'TANK IS MINE', 'GO HOME', 'TICKLES', 'WHO PULLED ME', 'MY TURN', 'OW. OW.', 'ENRAGE? MAYBE'],
 };
 
 const TAU = Math.PI * 2;
@@ -273,9 +283,13 @@ export function createGame(seed = (Math.random() * 2 ** 32) >>> 0, look) {
       x: 0, y: 0, face: 0, r: BOSS_R, hp: BOSS_HP, maxhp: BOSS_HP, act: null, queue: null,
       cd: Object.fromEntries(Object.keys(ABIL).map(k => [k, 0])), walk: 0, moving: false, evade: null, taunt: null,
       flash: 0, dead: false, deadT: 0, calmT: 99, haste: 0, name: BOSS_NAMES[Math.floor(rng() * BOSS_NAMES.length)],
+      // arrows: stuck in the hide; pinned: a ballista bolt holding it down; stunT/slowT: the Minotaur's charge and roar;
+      // carry: a lump of rubble in its mouth; z: height off the ground (dropping into a level)
+      arrows: [], pinned: 0, stunT: 0, slowT: 0, carry: null, z: 0,
     },
     units: [], parties: [], corpses: [], ghosts: [], fires: [], ice: [], bolts: [], parts: [], texts: [], barks: [], rings: [], adds: [],
     balls: [], steam: [],     // the last Fire Breath's fireballs, and the steam they make of water
+    drains: [], shots: [], craters: [],   // warlock beams; arrows and ballista bolts off the walls; mud craters
     props: [], critters: [], ashes: [], water: null, chaos: 0, vengeT: 0, won: false, winT: 0,
     abil: null, owned: new Set(ABILITIES.filter(a => a.start).map(a => a.id)), lvl: {},
     slots: ['swipe', 'stomp', 'breath', null, null],   // Roar is not in here: it lives on Space
@@ -300,13 +314,14 @@ function placeBoss(g) {
   Object.assign(g.boss, { x: p.x, y: p.y, face: p.face || 0 });
 }
 
-const ARRAYS = ['units', 'parties', 'corpses', 'ghosts', 'fires', 'ice', 'bolts', 'parts', 'texts', 'barks', 'rings', 'adds', 'balls', 'steam', 'props', 'critters', 'ashes'];
+const ARRAYS = ['units', 'parties', 'corpses', 'ghosts', 'fires', 'ice', 'bolts', 'parts', 'texts', 'barks', 'rings', 'adds', 'balls', 'steam', 'props', 'critters', 'ashes', 'drains', 'shots', 'craters'];
 
 // Brings a run from an older save up to date (safe to call on any run, any number of times): footprints are gone,
 // fireballs and steam exist, and Roar has moved out of the five slots onto Space.
 export function migrate(g) {
   if (!g.balls) g.balls = [];
   if (!g.steam) g.steam = [];
+  g.drains ||= []; g.shots ||= []; g.craters ||= []; g.boss.arrows ||= [];
   if (g.steps) delete g.steps;
   g.owned.add('roar');
   for (let i = 0; i < g.slots.length; i++) if (g.slots[i] === 'roar') g.slots[i] = null;
@@ -316,8 +331,8 @@ export function migrate(g) {
 }
 
 // builds level n: its map, its scenery and animals, and an empty field
-function loadLevel(g, n) {
-  const L = levelFor(n);
+function loadLevel(g, n, Lover) {
+  const L = Lover || levelFor(n);
   for (const k of ARRAYS) g[k] = [];
   g.water = null; g.pgrid = null; g.chaos = 0; g.vengeT = 0;
   g.boss.ward = 0;
@@ -329,10 +344,15 @@ function loadLevel(g, n) {
   let total = 0;
   for (const p of g.props) total += P.KINDS[p.kind].value.chaos;
   for (const c of g.critters) total += P.CRITTERS[c.kind].value.chaos;
-  m.chaosNeed = Math.max(1, total * 0.55);
+  m.chaosNeed = Math.max(1, total * (L.chaosK ?? 0.55));   // (a level can ask for a different share: chaosK)
+  if (m.wrapW) m.arena.x1 = Infinity;   // (and x0 opens once the first lap is done: the level says when)
   g.map = m;
   g.levelT0 = g.t;
+  g.lull = false; g.scene = null; g.shotCd = null;
   placeBoss(g);
+  // a level that walks the boss on: it starts at m.enter and is walked to its start before control comes back
+  g.entering = null;
+  if (m.enter) { const b = g.boss; g.entering = { x: b.x, y: b.y }; b.x = m.enter.x; b.y = m.enter.y; b.face = Math.atan2(g.entering.y - b.y, g.entering.x - b.x); }
   updateCam(g, 0, true);
   syncView(g);
 }
@@ -341,27 +361,35 @@ function loadLevel(g, n) {
 function updateCam(g, dt, snap) {
   if (g.walkoff && !snap) return;   // the camera stays put and watches you go
   const m = g.map, b = g.boss;
-  const tx = m.scroll === 'x' || m.scroll === 'xy' ? clamp(b.x - W / 2, 0, m.w - W) : 0;
+  const tx = m.wrapW ? Math.max(m.looped ? -Infinity : 0, b.x - W / 2) : m.scroll === 'x' || m.scroll === 'xy' ? clamp(b.x - W / 2, 0, m.w - W) : 0;
   const ty = m.scroll === 'y' || m.scroll === 'xy' ? clamp(b.y - H / 2 - 8, 0, m.h - H) : 0;
   const k = snap ? 1 : 1 - Math.exp(-6 * dt);
   g.cam.x += (tx - g.cam.x) * k; g.cam.y += (ty - g.cam.y) * k;
 }
 
 // called when the store closes: the next level, a fresh boss (same upgrades)
-export function nextMap(g) {
-  const n = g.map.n + 1;
+// (L: a level to go to that isn't next in the campaign, the secret one; o: { label, banner: [s, sub] | null, drop })
+export function nextMap(g, L = null, o = {}) {
+  const n = L ? g.map.n : g.map.n + 1;
   const b = g.boss;
-  Object.assign(b, { act: null, queue: null, evade: null, taunt: null, haste: 0, flash: 0, hp: b.maxhp, calmT: 99 });
+  // health carries over from the level before (the Hoard sells it back: healBoss)
+  Object.assign(b, { act: null, queue: null, evade: null, taunt: null, haste: 0, flash: 0, hp: clamp(b.hp, 1, b.maxhp), calmT: 99, pinned: 0, stunT: 0, slowT: 0, carry: null, arrows: [], z: 0 });
   for (const k in b.cd) b.cd[k] = 0;
   Object.assign(g, { lastMark: 'A', legDist: 0, lapsMap: 0, clear: null, store: false, offLane: 0, mult: 1, walkoff: null });
-  loadLevel(g, n);
+  loadLevel(g, n, L);
+  if (o.label) g.map.label = o.label;
   g.dir = { next: g.t + 8, n: 0, lastRaid: g.t, raids: 0, final: false };
-  banner(g, `LEVEL ${n}: ${g.map.level.name}`, g.map.level.sub || '', 4);
-  g.events.push('newmap');
+  if (o.banner !== null) banner(g, ...(o.banner || [`LEVEL ${n}: ${g.map.level.name}`, g.map.level.sub || '']), 4);
+  if (o.drop) { g.entering = { drop: true }; b.z = 90; }
+  g.events.push('newmap', 'stage');
 }
 export const isLastLevel = g => g.map.n >= lastLevel();
-// tests only: drop straight into level n
-export function jumpToLevel(g, n) { g.map.n = n - 1; g.store = true; nextMap(g); }
+// tests only: drop straight into level n (past the last one: the secret level, entered from level 5)
+export function jumpToLevel(g, n) {
+  g.store = true;
+  if (n > lastLevel()) { g.map.n = 5; nextMap(g, SECRET, { label: '??', drop: true }); return; }
+  g.map.n = n - 1; nextMap(g);
+}
 
 // ---------------------------------------------------------------------------------------------- the step
 
@@ -369,11 +397,13 @@ export function jumpToLevel(g, n) { g.map.n = n - 1; g.store = true; nextMap(g);
 // press.space is the Space key: Roar, or Shake while somebody is in your fur. press.shake is always a shake.
 export function step(g, inp, dt) {
   if (g.store) return;
-  if (!g.balls || g.steps) migrate(g);
+  if (!g.balls || g.steps || !g.shots) migrate(g);
   syncView(g);
   g.t += dt;
   g.shake = Math.max(0, g.shake - dt);
-  updateBoss(g, inp, dt);
+  if (g.scene) sceneStep(g, dt);
+  else updateBoss(g, inp, dt);
+  wrapWorld(g);
   updateCam(g, dt);
   syncView(g);
   director(g, dt);
@@ -385,6 +415,7 @@ export function step(g, inp, dt) {
   separate(g);
   updateBolts(g, dt);
   updateBalls(g, dt);
+  updateShots(g, dt);
   updateFx(g, dt);
   updateSmoke(g, dt);
   g.units = g.units.filter(u => !u.dead && !u.gone);
@@ -446,6 +477,11 @@ const LAPI = {
   // a king: one unit in gold armour who never fights and keeps away from the boss near his post. Returns the unit.
   king: (g, o) => spawnKing(g, o),
   scatter: (g, p) => scatter(g, p),   // a party drops everything and runs for the edge
+  scene: (g, kind, x, y) => startScene(g, kind, x, y),   // a cutscene: 'cow' or 'mino' (see SCENE)
+  hurtBoss: (g, amt) => hurtBoss(g, amt, WALL_U),
+  hurtCritter: (g, c, amt) => P.hurtCritter(g, c, amt),
+  stunBoss: (g, t) => { const b = g.boss; b.stunT = Math.max(b.stunT || 0, t); b.act = null; b.queue = null; dropCarry(g); },
+  slowBoss: (g, t) => { g.boss.slowT = Math.max(g.boss.slowT || 0, t); },
   bark: (g, u, s) => bark(g, u, s),
   alive: p => alive(p),
 };
@@ -461,6 +497,17 @@ function updateBoss(g, inp, dt) {
   b.wardHit = Math.max(0, (b.wardHit || 0) - dt);
   b.haste = Math.max(0, b.haste - dt);
   b.calmT += dt;
+  b.stunT = Math.max(0, (b.stunT || 0) - dt);
+  b.slowT = Math.max(0, (b.slowT || 0) - dt);
+  if (b.arrows?.length) { for (const a of b.arrows) a.t += dt; b.arrows = b.arrows.filter(a => a.t < a.life); }
+  if (b.pinned > 0) {
+    // a ballista bolt holds it to the ground: it struggles (and can still Roar, which tears it free)
+    b.pinned = Math.max(0, b.pinned - dt);
+    b.struggle = (b.struggle || 0) + dt;
+    if (g.rng() < 4 * dt) part(g, b.x + (g.rng() - 0.5) * 16, b.y + 4, (g.rng() - 0.5) * 30, -10, 0.4, 'dust');
+    if (!b.pinned) { b.pin = null; text(g, b.x, b.y - 20, 'FREE', 'cream', 1); }
+  }
+  if (g.entering) { enterStep(g, dt); return; }
 
   if (b.evade) {
     const dx = b.evade.x - b.x, dy = b.evade.y - b.y, d = Math.hypot(dx, dy);
@@ -481,8 +528,9 @@ function updateBoss(g, inp, dt) {
   }
   const channel = b.act?.fired && (b.act.kind === 'breath' || b.act.kind === 'beam');
   const locked = b.act?.kind === 'charge' && b.act.fired;
-  const turn = channel ? (b.act.kind === 'beam' ? 1.2 : 1.5) : b.taunt ? 7 : 5.5;
-  if (!locked && Math.hypot(tx - b.x, ty - b.y) > 2) b.face = turnToward(b.face, Math.atan2(ty - b.y, tx - b.x), turn * dt);
+  const turn = (channel ? (b.act.kind === 'beam' ? 1.2 : 1.5) : b.taunt ? 7 : 5.5) * (b.slowT > 0 ? SLOWED : 1);
+  const held = b.pinned > 0 || b.stunT > 0;
+  if (!locked && !held && Math.hypot(tx - b.x, ty - b.y) > 2) b.face = turnToward(b.face, Math.atan2(ty - b.y, tx - b.x), turn * dt);
 
   // abilities: the five slots, plus Space, which roars unless somebody is in your fur, when it shakes instead. A press
   // during another action is queued briefly.
@@ -501,12 +549,14 @@ function updateBoss(g, inp, dt) {
   if (inp.hold?.slot0 && g.slots[0] && !b.act && !b.queue) tryCast(g, g.slots[0]);
 
   // movement
-  let mx = inp.ax || 0, my = inp.ay || 0;
+  let mx = held ? 0 : inp.ax || 0, my = held ? 0 : inp.ay || 0;
   const ml = Math.hypot(mx, my);
   if (ml > 1) { mx /= ml; my /= ml; }
-  const sp = BOSS_SPEED * (b.haste > 0 ? 1 + g.abil.haste.boost : 1) * (b.act ? g.abil[b.act.kind].move : 1);
+  const sp = BOSS_SPEED * (b.haste > 0 ? 1 + g.abil.haste.boost : 1) * (b.act ? g.abil[b.act.kind].move : 1)
+    * (b.slowT > 0 ? SLOWED : 1) * (m.level.bossSlow ? m.level.bossSlow(g, b.x, b.y) : 1);
   const ox = b.x, oy = b.y;
   moveBoss(g, b.x + mx * sp * dt, b.y + my * sp * dt);
+  if (g.props.length || g.water) mouth(g, inp);
   if (g.props.length || g.critters.length) P.bossTouch(g, ox, oy, dt);
   trample(g, ox, oy);
   if (b.haste > 0 && (mx || my) && g.rng() < 0.5) part(g, b.x - mx * 10, b.y - my * 10 + 3, -mx * 20, -my * 20, 0.3, 'dust');
@@ -563,7 +613,9 @@ function updateBoss(g, inp, dt) {
   if (g.thought) { g.thought.t += dt; if (g.thought.t > 2.4) g.thought = null; }
   if (g.thoughtT <= 0) {
     g.thoughtT = 7 + g.rng() * 7;
-    if (!fighting) g.thought = { s: pick(g, m.mode === 'patrol' ? BARK.thoughts : BARK.wreckThoughts), t: 0 };
+    // (a different line from the last one; mid-fight, now and then, a word about the people stabbing it)
+    const pool = fighting ? (g.rng() < 0.45 ? BARK.fightThoughts : null) : m.mode === 'patrol' ? BARK.thoughts : BARK.wreckThoughts;
+    if (pool) { let s = pick(g, pool); if (s === g.lastThought) s = pick(g, pool); g.lastThought = s; g.thought = { s, t: 0 }; }
   }
 }
 
@@ -654,12 +706,206 @@ function walkOffStep(g, dt) {
   if (!w.off && b.y < V.y - 26) { w.off = true; g.events.push('walkoff'); }
 }
 
+// How brightly the weak spot on the boss's back shows, 0..1: only while a horse guy is about (or one is due within a
+// few seconds), brighter the closer he is, and fully lit with him in the fur. The rest of the time it isn't there.
+export const SIGIL_SOON = 5, SIGIL_NEAR = 150;
+export function sigilGlow(g) {
+  let k = 0;
+  const b = g.boss, d = g.dir;
+  for (const u of g.units) {
+    if (u.role !== 'rider' || u.dead || u.gone) continue;
+    if (u.state === 'climb') return 1;
+    if (u.state === 'leave') continue;
+    k = Math.max(k, clamp(1.25 - Math.hypot(u.x - b.x, u.y - b.y) / SIGIL_NEAR, 0.35, 1));
+  }
+  if (d && d.nextType === 'rider' && !d.final && !g.clear && !g.map.level.noHeroes) k = Math.max(k, clamp(1 - (d.next - g.t) / SIGIL_SOON, 0, 1) * 0.8);
+  return k;
+}
+
+// ---------------------------------------------------------------------------------------------- carrying, entering,
+// ---------------------------------------------------------------------------------------------- shots, cutscenes, wrap
+
+const SLOWED = 0.45;   // the Minotaur's roar: turning and walking at this much of the usual
+const MOUTH = 11;      // the mouth, this far ahead of the boss's middle
+export const mouthAt = b => ({ x: b.x + Math.cos(b.face) * MOUTH, y: b.y + Math.sin(b.face) * MOUTH });
+
+// The mouth: run it into a lump of rubble and the boss picks it up (one at a time). It carries it until the mouth meets
+// water, where it drops it in, or until it Roars or breathes, when it lets go a little ahead and off to one side.
+function mouth(g) {
+  const b = g.boss, mo = mouthAt(b), c = b.carry;
+  if (c) {
+    if (c.state !== 'carried') { b.carry = null; return; }
+    c.x = mo.x; c.y = mo.y;
+    if (P.isWater(g, mo.x, mo.y)) {
+      c.state = 'down'; c.vx = Math.cos(b.face) * 30; c.vy = Math.sin(b.face) * 30;
+      b.carry = null; b.carryCd = g.t + 0.6; g.propsDirty = true;
+    }
+    return;
+  }
+  if (b.act || (b.carryCd || 0) > g.t || b.dead) return;
+  for (const p of P.near(g, mo.x, mo.y, 8)) {
+    if (p.state !== 'down' || !P.KINDS[p.kind].push || Math.hypot(p.x - mo.x, p.y - mo.y) > p.r + 2.5) continue;
+    p.state = 'carried'; p.vx = p.vy = 0; b.carry = p; g.propsDirty = true;
+    sound(g, 'crunch');
+    break;
+  }
+}
+export function dropCarry(g) {
+  const b = g.boss, c = b.carry;
+  if (!c) return;
+  b.carry = null; b.carryCd = g.t + 0.8;
+  if (c.state !== 'carried') return;
+  const side = g.rng() < 0.5 ? -1 : 1, a = b.face + side * 0.9;
+  c.x = b.x + Math.cos(b.face) * (MOUTH + 3) + Math.cos(a) * 6; c.y = b.y + Math.sin(b.face) * (MOUTH + 3) + Math.sin(a) * 6;
+  c.state = 'down'; c.vx = Math.cos(a) * 12; c.vy = Math.sin(a) * 12;
+  g.propsDirty = true;
+}
+
+// A level can bring the boss on by script: walking in to its start (g.entering = { x, y }) or dropping out of the sky
+// onto it (g.entering = { drop: true }). Control comes back when it gets there.
+function enterStep(g, dt) {
+  const b = g.boss, e = g.entering;
+  e.t = (e.t || 0) + dt;
+  b.act = null; b.queue = null;
+  if (e.drop) {
+    const T = 0.85;
+    b.z = e.t < T ? 90 * (1 - e.t / T) ** 2 : 0;
+    b.moving = false;
+    if (e.t >= T && !e.landed) {
+      e.landed = true; g.shake = 0.6; sound(g, 'stomp');
+      g.rings.push({ x: b.x, y: b.y, r: 4, max: 34, t: 0, col: 'dust' });
+      for (let i = 0; i < 30; i++) { const a = g.rng() * TAU, s = 30 + g.rng() * 50; part(g, b.x + Math.cos(a) * 10, b.y + Math.sin(a) * 10, Math.cos(a) * s, Math.sin(a) * s, 0.6, 'dust'); }
+    }
+    if (e.t >= T + 0.5) g.entering = null;
+    return;
+  }
+  const dx = e.x - b.x, dy = e.y - b.y, d = Math.hypot(dx, dy), s = Math.min(d, BOSS_SPEED * 0.9 * dt);
+  if (d > 0.01) { b.x += dx / d * s; b.y += dy / d * s; b.face = turnToward(b.face, Math.atan2(dy, dx), 6 * dt); b.walk += s * 0.3; }
+  b.moving = d > 0.5;
+  if (d < 0.6) g.entering = null;
+}
+
+// Walls that shoot back (levels 5, 6 and 7): a level lists who can shoot (level.shooters(g): [{ x, y, kind }], kind
+// 'arrow', 'bolt' or 'both'). Arrows go up at anyone in close, ballista bolts at anyone further out. Neither is
+// very accurate, and both fly only a little faster than the boss walks. An arrow does little but sticks in the hide for
+// a few seconds; a bolt does a lot and pins the boss to the ground for 10 s of struggling, or until it Roars.
+export const SHOT = {
+  arrow: { spd: 30, dmg: 9, every: 0.5, spread: 0.2, range: 96, stick: 4 },
+  bolt: { spd: 28, dmg: 380, every: 11, spread: 0.14, range: 230, pin: 10 },
+};
+const WALL_U = { party: { type: 'raid' } };
+function updateShots(g, dt) {
+  const b = g.boss, L = g.map.level, cd = (g.shotCd ||= { arrow: 1, bolt: 4 });
+  const live = L.shooters && !b.dead && !g.clear && !g.won && !g.walkoff && !g.scene && !g.lull && !g.entering && !b.evade;
+  cd.arrow -= dt; cd.bolt -= dt;
+  if (live) {
+    // (in close or further out is how far the boss is from the nearest of them: under the wall it is all arrows)
+    const list = L.shooters(g);
+    let near = Infinity;
+    for (const s of list) near = Math.min(near, Math.hypot(b.x - s.x, b.y - s.y));
+    for (const kind of ['arrow', 'bolt']) {
+      if (cd[kind] > 0) continue;
+      const D = SHOT[kind];
+      if (kind === 'bolt' ? near < SHOT.arrow.range : near >= D.range) continue;
+      const can = list.filter(s => s.kind !== (kind === 'arrow' ? 'bolt' : 'arrow') && Math.hypot(b.x - s.x, b.y - s.y) < D.range);
+      if (!can.length) continue;
+      const s = can[Math.floor(g.rng() * can.length)];
+      cd[kind] = D.every * (0.6 + g.rng() * 0.8);
+      const a = Math.atan2(b.y - s.y, b.x - s.x) + (g.rng() - 0.5) * 2 * D.spread;
+      g.shots.push({ kind, x: s.x, y: s.y, ox: s.x, oy: s.y, vx: Math.cos(a) * D.spd, vy: Math.sin(a) * D.spd, a, t: 0, life: D.range * 1.3 / D.spd });
+      sound(g, kind === 'bolt' ? 'ballista' : 'bow');
+    }
+  }
+  for (const o of g.shots) {
+    o.t += dt;
+    o.x += o.vx * dt; o.y += o.vy * dt;
+    if (o.t >= o.life) { o.done = true; for (let i = 0; i < 2; i++) part(g, o.x, o.y, (g.rng() - 0.5) * 10, -6, 0.3, 'dust'); continue; }
+    if (b.dead || b.evade || g.walkoff || g.scene || g.entering || Math.hypot(o.x - b.x, o.y - b.y) > b.r + (o.kind === 'bolt' ? 1 : -1)) continue;
+    o.done = true;
+    const D = SHOT[o.kind];
+    // where it went in, in the boss's own frame, so it stays stuck there as the boss turns
+    const dx = o.x - b.x, dy = o.y - b.y, c = Math.cos(-b.face), s = Math.sin(-b.face);
+    const hit = { lx: (dx * c - dy * s) * 0.8, ly: (dx * s + dy * c) * 0.8, a: o.a - b.face, t: 0 };
+    hurtBoss(g, D.dmg, WALL_U);
+    if (o.kind === 'arrow') {
+      b.arrows.push({ ...hit, life: D.stick });
+      if (b.arrows.length > 14) b.arrows.shift();
+      sound(g, 'thunk');
+    } else {
+      b.pinned = D.pin; b.pin = hit; b.act = null; b.queue = null; b.struggle = 0;
+      dropCarry(g);
+      g.shake = Math.max(g.shake, 0.45);
+      text(g, b.x, b.y - 24, 'PINNED! ROAR TO TEAR FREE', 'red', 2.4);
+      sound(g, 'pinned');
+    }
+  }
+  if (g.shots.length) g.shots = g.shots.filter(o => !o.done);
+}
+
+// Cutscenes run on the ordinary sim with the boss's controls gone: 'cow' (the evil cow on the City Wall: it floats up,
+// splits, and its dark energy burns a crater with a glowing ball in it that pulls the boss down into the secret level)
+// and 'mino' (the Minotaur rots into purple light, melts into the swamp as a vortex and sends the boss on into the city).
+// g.scene = { kind, t, x, y }: the page draws it from these (render.js drawScene).
+export const SCENE = { cow: { suck: 3.6, end: 6.2 }, mino: { suck: 3.4, end: 6 } };
+function startScene(g, kind, x, y) {
+  if (g.scene) return;
+  const b = g.boss;
+  g.scene = { kind, t: 0, x, y, seed: Math.floor(g.rng() * 1e6) };
+  Object.assign(b, { act: null, queue: null, taunt: null, haste: 0, pinned: 0, pin: null, stunT: 0 });
+  dropCarry(g);
+  g.lull = true;
+  for (const p of g.parties) if (!p.done) scatter(g, p);
+  g.events.push(kind === 'cow' ? 'moo' : 'minodie');
+}
+function sceneStep(g, dt) {
+  const s = g.scene, b = g.boss, S = SCENE[s.kind];
+  s.t += dt;
+  b.moving = false; b.act = null;
+  const col = s.kind === 'cow' ? '#3a5aff' : '#b04aff';
+  // the energy: rising motes before the pull, a whirl into the middle during it
+  if (s.t > (s.kind === 'cow' ? 2 : 0.2) && g.rng() < 0.9) {
+    const a = g.rng() * TAU, r = 6 + g.rng() * 26;
+    part(g, s.x + Math.cos(a) * r, s.y + Math.sin(a) * r * 0.6, -Math.cos(a) * r * 1.2 + Math.sin(a) * 20, -Math.sin(a) * r * 0.7 - 6, 0.7, col);
+  }
+  if (s.t > S.suck) {
+    const k = clamp((s.t - S.suck) / (S.end - S.suck - 0.4), 0, 1);
+    b.x += (s.x - b.x) * Math.min(1, dt * (1 + 6 * k)); b.y += (s.y - b.y) * Math.min(1, dt * (1 + 6 * k));
+    b.face += dt * (3 + 14 * k);
+    b.scale = Math.max(0, 1 - k);
+    if (!s.pulled) { s.pulled = true; g.events.push('vortex'); }
+  }
+  g.shake = Math.max(g.shake, s.t > S.suck ? 0.15 : 0.04);
+  if (s.t >= S.end) {
+    b.scale = 1;
+    const kind = s.kind;
+    g.scene = null; g.lull = false;
+    if (kind === 'cow') nextMap(g, SECRET, { label: '??', banner: ['THE UDDERLY SECRET LEVEL', 'SOMETHING IS MOOING IN THE DARK'], drop: true });
+    else { g.events.push('cowunlock'); nextMap(g, null, { drop: true, banner: null }); banner(g, `LEVEL ${g.map.n}: ${g.map.level.name}`, 'COW SKIN UNLOCKED IN PHENOTYPE', 5); }
+  }
+}
+
+// The City Wall goes all the way round (map.wrapW): everything is kept within half a lap of the boss, either side, by
+// moving it a whole lap at a time, so the map shows the same buildings (standing or flattened) every time round.
+function wrapWorld(g) {
+  const m = g.map, WW = m.wrapW;
+  if (!WW) return;
+  const lo = g.boss.x - WW / 2, hi = g.boss.x + WW / 2;
+  const by = o => o.x < lo ? WW : o.x >= hi ? -WW : 0;
+  const mv = (o, s) => { if (o) o.x += s; };
+  for (const p of g.props) { const s = by(p); if (s) { p.x += s; g.propsDirty = true; } }
+  for (const c of g.critters) { const s = by(c); if (s) { c.x += s; c.hx += s; c.tx += s; } }
+  for (const u of g.units) { const s = by(u); if (s) { u.x += s; for (const k of ['horse', 'stage', 'home', 'post', 'exit']) mv(u[k], s); if (u.horse?.tx != null) u.horse.tx += s; } }
+  for (const arr of [g.adds, g.corpses, g.fires, g.ice, g.ghosts]) for (const o of arr) { const s = by(o); if (s) o.x += s; }
+  for (const o of g.ruins || []) { const s = by(o); if (s) o.x += s; }
+}
+
 // what Space does right now: shake while the Weird Guy is in the fur, roar the rest of the time
 export const spaceKey = g => g.units.some(u => u.role === 'rider' && u.state === 'climb' && !u.dead) ? 'shake' : 'roar';
 
 function tryCast(g, k) {
   const b = g.boss;
-  if (b.act || b.evade || b.dead || b.cd[k] > 0 || g.clear) return false;
+  // (once a level is cleared you can keep wrecking things until the Hoard opens; only a walk-off takes control away)
+  if (b.act || b.evade || b.dead || b.cd[k] > 0 || g.walkoff || g.store || g.scene || (b.pinned > 0 && k !== 'roar') || b.stunT > 0 || g.entering) return false;
   if (k !== 'shake' && k !== 'roar' && !g.owned.has(k)) return false;
   const d = g.abil[k];
   // n counts the strikes of an ability that hits more than once; balls and ballT are the last Fire Breath's fireballs
@@ -768,6 +1014,8 @@ export function beamEnd(g) {
 function fire(g, k) {
   const b = g.boss, d = g.abil[k];
   g.events.push(k);
+  if (k === 'roar' || k === 'breath' || k === 'beam') dropCarry(g);
+  if (k === 'roar' && b.pinned > 0) { b.pinned = 0; b.pin = null; text(g, b.x, b.y - 22, 'TORN FREE', 'gold', 1.4); }
   if (k === 'stomp') slam(g, d.dmg, d.range, d.kb);
   else if (k === 'swipe' || k === 'tail') {
     for (const u of g.units) {
@@ -1035,7 +1283,7 @@ export function telegraph(g) {
 
 function hurtBoss(g, amt, u) {
   const b = g.boss;
-  if (b.evade || b.dead || g.walkoff) return;   // nothing touches you on the way out
+  if (b.evade || b.dead || g.walkoff || g.scene || g.entering) return;   // nothing touches you on the way out (or in)
   let dmg = amt * (1 + NG_HIT * g.ng);
   // the bone priests' ward takes it first
   if (b.ward > 0) { const w = Math.min(b.ward, dmg); b.ward -= w; dmg -= w; b.wardHit = 0.15; }
@@ -1072,7 +1320,7 @@ function edgeSpot(g, avoid) {
 // the same at Chaos 50% and 100%; after the 40-man nothing else comes. Timed levels get a raid every couple of minutes.
 function director(g) {
   const d = g.dir, mode = g.map.mode;
-  if (g.boss.dead || d.final || g.clear || g.won) return;
+  if (g.boss.dead || d.final || g.clear || g.won || g.lull || g.scene || g.map.level.noHeroes) return;
   const raidUp = g.parties.some(p => p.type === 'raid');
   if (mode === 'timed') {
     if (!raidUp && g.t - g.levelT0 > 55 && g.t - d.lastRaid > 110) { spawnRaid(g, d.raids % 3 === 2 ? 40 : 25); d.lastRaid = g.t; return; }
@@ -1081,11 +1329,15 @@ function director(g) {
     if (prog >= 1) { d.final = true; spawnRaid(g, 40, true); return; }
     if (prog >= RAID_LAPS / FINAL_LAPS && !raidUp && g.t - d.lastRaid > (d.raids ? 80 : 0)) { spawnRaid(g, 25); d.lastRaid = g.t; return; }
   }
+  if (g.map.level.noHeroes || g.lull) return;
+  // what comes next is settled as soon as the last one arrives, so the weak spot can start to glow ahead of a horse guy
+  const riders = g.parties.filter(p => p.type === 'rider').length;
+  d.nextType ||= ['dungeon', 'rider', 'dungeon'][d.n] || (riders < (g.map.n > 2 ? 2 : 1) && g.rng() < 0.3 ? 'rider' : 'dungeon');
   if (g.t < d.next) return;
   if (g.units.length > 60 || g.boss.evade) { d.next = g.t + 4; return; }
-  const riders = g.parties.filter(p => p.type === 'rider').length;
-  let type = ['dungeon', 'rider', 'dungeon'][d.n];
-  if (!type) type = riders < (g.map.n > 2 ? 2 : 1) && g.rng() < 0.3 ? 'rider' : 'dungeon';
+  let type = d.nextType;
+  d.nextType = null;
+  if (type === 'rider' && riders >= (g.map.n > 2 ? 2 : 1) && d.n >= 3) type = 'dungeon';
   if (type === 'rider') spawnRider(g);
   else { spawnDungeon(g); if (d.n > 6 && g.rng() < 0.3) spawnDungeon(g, true); }
   d.n++;
@@ -1622,7 +1874,8 @@ function updateUnit(g, u, dt) {
       u.cast += dt;
       if (u.cast >= c.rate) {
         u.cast = 0;
-        g.bolts.push({ x: u.x, y: u.y - 3, dmg: c.dmg * p.power, kind: c.bolt, u, t: 0 });
+        if (u.cls === 'warlock') drainLife(g, u, c.dmg * p.power * DRAIN.mult);
+        else g.bolts.push({ x: u.x, y: u.y - 3, dmg: c.dmg * p.power, kind: c.bolt, u, t: 0 });
       }
     } else u.cast = 0;
   } else if (u.role === 'healer') {
@@ -1640,6 +1893,25 @@ function updateUnit(g, u, dt) {
   }
   u.swing = Math.max(0, (u.swing || 0) - dt);
   u.glow = Math.max(0, (u.glow || 0) - dt);
+}
+
+// A warlock's life drain: a beam straight into the boss. It hurts the boss DRAIN.ratio times as much as it heals: the
+// warlock first, and whatever he can't use goes to the most hurt of his party.
+export const DRAIN = { ratio: 10, mult: 1.6, life: 0.45 };
+function drainLife(g, u, dmg) {
+  const b = g.boss;
+  if (b.dead || b.evade) return;
+  hurtBoss(g, dmg, u);
+  let heal = dmg / DRAIN.ratio;
+  const self = Math.min(heal, u.maxhp - u.hp);
+  u.hp += self; heal -= self;
+  if (heal > 0) {
+    const t = alive(u.party).filter(v => v !== u && v.hp < v.maxhp).sort((a, c) => a.hp / a.maxhp - c.hp / c.maxhp)[0];
+    if (t) t.hp = Math.min(t.maxhp, t.hp + heal);
+  }
+  (g.drains ||= []).push({ u, t: 0, life: DRAIN.life, seed: Math.floor(g.rng() * 1000) });
+  for (let i = 0; i < 3; i++) part(g, b.x + (g.rng() - 0.5) * 10, b.y - 2 + (g.rng() - 0.5) * 8, (u.x - b.x) * 1.5, (u.y - b.y) * 1.5, 0.5, 'shadow');
+  sound(g, 'drain');
 }
 
 // ---------------------------------------------------------------------------------------------- the horse guy
@@ -1856,6 +2128,7 @@ function updateFx(g, dt) {
   g.barks = g.barks.filter(k => k.t < k.life);
   for (const r of g.rings) r.t += dt;
   g.rings = g.rings.filter(r => r.t < (r.col === 'slash' ? 0.18 : 0.45));
+  if (g.drains?.length) { for (const d of g.drains) d.t += dt; g.drains = g.drains.filter(d => d.t < d.life && !d.u.dead && !d.u.gone); }
   if (g.banner) { g.banner.t += dt; if (g.banner.t > g.banner.dur) g.banner = null; }
 }
 
@@ -1962,15 +2235,10 @@ function summon(g) {
 function spawnAdd(g, kind, x, y, owner) {
   const b = g.boss, D = ADDS[kind];
   if (x == null) {
-    if (kind === 'spitter' && g.map.pts) {
-      // squats just off the path, somewhere near you (on patrol maps; elsewhere it lands beside you like the rest)
-      const p = pathNearest(g.map, b.x + (g.rng() - 0.5) * 50, b.y + (g.rng() - 0.5) * 50), side = g.rng() < 0.5 ? -1 : 1;
-      const q = pathNearest(g.map, p.x + 3, p.y), ang = Math.atan2(q.y - p.y, q.x - p.x) + Math.PI / 2;
-      x = p.x + Math.cos(ang) * side * (LANE + 5); y = p.y + Math.sin(ang) * side * (LANE + 5);
-    } else {
-      const k = b.face + Math.PI + (g.rng() - 0.5) * 1.5;
-      x = b.x + Math.cos(k) * (b.r + D.r + 3); y = b.y + Math.sin(k) * (b.r + D.r + 3);
-    }
+    // called adds come up in a 90° arc in front of the boss, a few paces out
+    const k = b.face + (g.rng() - 0.5) * Math.PI / 2, dist = b.r + D.r + 6 + g.rng() * (kind === 'spitter' ? 18 : 8);
+    x = b.x + Math.cos(k) * dist; y = b.y + Math.sin(k) * dist;
+    if (P.isWater(g, x, y)) { x = b.x + Math.cos(b.face) * (b.r + D.r + 3); y = b.y + Math.sin(b.face) * (b.r + D.r + 3); }
   }
   const a = { id: g.nextId++, kind, x: clamp(x, AR.x0, AR.x1), y: clamp(y, AR.y0, AR.y1), hp: D.hp, maxhp: D.hp, r: D.r,
     atk: 0.5, walk: 0, moving: false, fx: 1, hit: 0, t: 0, swing: 0, slot: g.rng() * TAU,
@@ -1979,7 +2247,7 @@ function spawnAdd(g, kind, x, y, owner) {
   g.summoned++;
   text(g, a.x, a.y - 9, isSkel(a) ? 'RISE' : D.name + '!', isSkel(a) ? 'heal' : 'gold', 1.4);
   for (let i = 0; i < 12; i++) { const k = g.rng() * TAU, s = 20 + g.rng() * 25; part(g, a.x, a.y, Math.cos(k) * s, Math.sin(k) * s, 0.5, isSkel(a) || kind === 'necro' ? 'heal' : 'dust'); }
-  g.events.push(isSkel(a) ? 'rise' : 'summon');
+  g.events.push(isSkel(a) ? 'rise' : kind === 'necro' ? 'nether' : 'summon');
   return a;
 }
 
@@ -2274,6 +2542,23 @@ export function abilityOffer(g, id) {
   const upCost = owned && lvl < max ? (it.upCost || UP_COST)[lvl] : null;
   const upText = it.ups ? it.ups[lvl] : it.up;
   return { it, owned, lvl, max, buyCost: owned ? null : it.cost, upCost, upText };
+}
+
+// Health between levels: it carries over, and the Hoard sells it back at HEAL_COST points a point of health (a whole
+// bar's worth costs about what a mid-price ability does). healOffer says what one press buys: a quarter of the bar, or
+// whatever is missing if that is less, cut down to what the points can pay for.
+export const HEAL_COST = 2.5, HEAL_STEP = 0.25;
+export function healOffer(g) {
+  const b = g.boss, missing = Math.max(0, Math.floor(b.maxhp - b.hp));
+  const hp = Math.min(missing, Math.round(b.maxhp * HEAL_STEP));
+  const afford = Math.min(hp, Math.floor(g.points / HEAL_COST));
+  return { missing, hp, afford, cost: Math.ceil(afford * HEAL_COST), full: Math.ceil(missing * HEAL_COST) };
+}
+export function healBoss(g, free = false) {
+  const o = healOffer(g), hp = free ? o.hp : o.afford;
+  if (hp <= 0 || !(free || spend(g, o.cost))) return false;
+  g.boss.hp = Math.min(g.boss.maxhp, g.boss.hp + hp);
+  return true;
 }
 
 export function spend(g, n) {

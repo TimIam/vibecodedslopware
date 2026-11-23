@@ -5,10 +5,20 @@ import { LOOKS, BOSS_NAMES } from './world.js';
 import { BOSS_SIZE, PAL, hslToHex } from './art.js';
 import { bossPreview, markerPreview } from './render.js';
 import { createFurPicker } from './furpick.js';
+import { hasCow } from './save.js';
 
 const LOOK_KEY = 'bosshours.look.v1', NAME_KEY = 'bosshours.name.v1';
 const PART_NAMES = { head: 'Head', horns: 'Horns', neck: 'Neck', back: 'Back', tail: 'Tail', limbs: 'Limbs', legs: 'Limb Amount', marker: 'Destination marker' };
 const MAX_NAME = 26;
+// the parts only a profile that has beaten the Minotaur may wear (with look.cow, Cow Skin)
+const COW_ONLY = { head: 'Booper', horns: 'Short Horns', tail: 'Switch' };
+const cowOnly = (k, i) => !!COW_ONLY[k] && LOOKS[k][i] === COW_ONLY[k];
+function lockCow(l) {
+  if (hasCow()) return l;
+  for (const k in COW_ONLY) if (cowOnly(k, l[k])) l[k] = 0;
+  l.cow = false;
+  return l;
+}
 const $ = id => document.getElementById(id);
 
 // only what the game's pixel font can draw
@@ -25,11 +35,14 @@ const randomName = not => {
 
 let look = Object.fromEntries(Object.keys(LOOKS).map(k => [k, 0]));
 look.fur = null;
+look.cow = false;
 try {
   const saved = JSON.parse(localStorage.getItem(LOOK_KEY) || '{}');
   for (const k in LOOKS) if (Number.isInteger(saved[k]) && saved[k] >= 0 && saved[k] < LOOKS[k].length) look[k] = saved[k];
   if (typeof saved.fur === 'string' && /^#[0-9a-f]{6}$/i.test(saved.fur)) look.fur = saved.fur;
+  look.cow = saved.cow === true;
 } catch {}
+lockCow(look);
 
 let name = '';
 try { name = clean(localStorage.getItem(NAME_KEY) || ''); } catch {}
@@ -38,7 +51,7 @@ if (!name.trim()) { name = randomName(); try { localStorage.setItem(NAME_KEY, na
 let saved = { name: name.trim(), look: { ...look } };
 const same = (a, b) => Object.keys(a).every(k => a[k] === b[k]);
 
-export const currentLook = () => ({ ...look });
+export const currentLook = () => lockCow({ ...look });
 export const bossName = () => name.trim() || 'THE BOSS';
 
 // a pixel die showing one face, as an svg
@@ -83,7 +96,7 @@ export function createAppearance({ audio, onLook, onName }) {
   lookDie.innerHTML = die(3);
   lookDie.addEventListener('click', () => {
     manual ||= { ...look };
-    for (const k in LOOKS) look[k] = Math.floor(Math.random() * LOOKS[k].length);
+    for (const k in LOOKS) do look[k] = Math.floor(Math.random() * LOOKS[k].length); while (!hasCow() && cowOnly(k, look[k]));
     look.fur = hslToHex(Math.random() * 360, 0.25 + Math.random() * 0.6, 0.22 + Math.random() * 0.4);
     focus = null;
     fur.set(look.fur); sync(); commit();
@@ -102,7 +115,7 @@ export function createAppearance({ audio, onLook, onName }) {
 
   rows.innerHTML = Object.entries(LOOKS).map(([part, names]) =>
     `<fieldset class="part"><legend>${PART_NAMES[part]}</legend><div class="opts">` +
-    names.map((nm, i) => `<label class="radio"><input type="radio" name="look-${part}" data-part="${part}" value="${i}"><span>${nm}</span></label>`).join('') +
+    names.map((nm, i) => `<label class="radio"${cowOnly(part, i) ? ' data-cow hidden' : ''}><input type="radio" name="look-${part}" data-part="${part}" value="${i}"><span>${nm}</span></label>`).join('') +
     '</div></fieldset>').join('');
   rows.addEventListener('change', e => {
     const r = e.target.closest('input[data-part]');
@@ -116,11 +129,21 @@ export function createAppearance({ audio, onLook, onName }) {
 
   const fur = createFurPicker($('furPick'), hex => { look.fur = hex; focus = 'fur'; byHand(); sync(); commit(); });
   $('furNatural').addEventListener('click', () => { look.fur = null; focus = 'fur'; byHand(); fur.set(null); sync(); commit(); audio.play('menuMove'); });
+  $('furCow').addEventListener('change', e => { look.cow = e.target.checked && hasCow(); focus = 'fur'; byHand(); sync(); commit(); audio.play('menuMove'); });
+
+  // the cow looks appear once they are unlocked, which can happen mid-session; a locked profile never wears them
+  function gate() {
+    const on = hasCow();
+    $('cowRow').hidden = !on;
+    for (const el of rows.querySelectorAll('[data-cow]')) el.hidden = !on;
+    lockCow(look); lockCow(saved.look);
+  }
 
   function sync() {
     for (const r of rows.querySelectorAll('input[data-part]')) r.checked = look[r.dataset.part] === +r.value;
     $('furSwatch').style.background = look.fur || PAL.fur2;
     $('furNatural').classList.toggle('on', !look.fur);
+    $('furCow').checked = !!look.cow;
   }
 
   function drawPreview() {
@@ -135,6 +158,7 @@ export function createAppearance({ audio, onLook, onName }) {
     show() {
       input.value = name;
       focus = null;
+      gate();
       fur.set(look.fur);
       sync();
       drawPreview();

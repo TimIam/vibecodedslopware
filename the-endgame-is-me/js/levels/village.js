@@ -31,11 +31,11 @@ export const critters = {
 // ---------------------------------------------------------------------------------------------- layout
 
 const roadY = x => 96 + Math.sin(x / 140) * 9 + Math.sin(x / 47) * 2;
-const VILLAGES = [230, 615, 1000];
+const VILLAGES = [230, 615, 1000, 1385, 1720];
 const lane = (cx, y) => cx + Math.sin(y / 23 + cx) * 3;    // the north-south road through a village
 
 function build(g, rng, P) {
-  const w = 1200, h = 180, start = { x: 36, y: Math.round(roadY(36)), face: 0 };
+  const w = 1860, h = 180, start = { x: 36, y: Math.round(roadY(36)), face: 0 };
   const occ = Occupancy(), gardens = [], squares = [], greens = [];
   g.lvlCarts = new Map();
   occ.take(start.x - 26, start.y - 20, start.x + 30, start.y + 20, 'start');
@@ -107,9 +107,11 @@ function build(g, rng, P) {
   // a loose horse or two on the road between villages
   P.addCritter(g, 'horse', 420, roadY(420) + 12);
   P.addCritter(g, 'horse', 810, roadY(810) - 12);
+  P.addCritter(g, 'horse', 1190, roadY(1190) + 12);
+  P.addCritter(g, 'horse', 1560, roadY(1560) - 12);
   // trees and hedges in the gaps
   const avoid = occ.rects.filter(r => r.tag !== 'road').map(r => ({ x: (r.x0 + r.x1) / 2, y: (r.y0 + r.y1) / 2, r: Math.max(r.x1 - r.x0, r.y1 - r.y0) / 2 + 5 }));
-  for (const t of scatter(rng, 70, 10, 22, w - 10, h - 22, 16, avoid)) {
+  for (const t of scatter(rng, 105, 10, 22, w - 10, h - 22, 16, avoid)) {
     if (occ.inside(t.x, t.y, 4)) continue;
     const inVillage = VILLAGES.some(cx => Math.abs(t.x - cx) < 70);
     P.addProp(g, inVillage ? 'bush' : rng() < 0.5 ? 'oak' : rng() < 0.5 ? 'pine' : 'bush', t.x, t.y);
@@ -407,7 +409,7 @@ function ground(ctx, m, h) {
 }
 
 export default {
-  n: 4, id: 'village', name: 'THE VILLAGES', sub: 'FLATTEN THE COTTAGES. TORCH THE INNS. THE CARTS WILL RUN.', mode: 'chaos',
+  n: 4, id: 'village', name: 'THE VILLAGES', sub: 'FLATTEN THE COTTAGES. TORCH THE INNS. THE CARTS WILL RUN.', mode: 'chaos', chaosK: 0.525,
   kinds, critters,
   build(g, rng, P) { return build(g, rng, P); },
   update,

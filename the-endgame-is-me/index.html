@@ -118,8 +118,13 @@ button[aria-disabled="true"]:active{transform:none}
 #furPick{width:180px;height:180px;image-rendering:pixelated;cursor:crosshair;touch-action:none;background:#1c1610}
 .furSide{display:grid;grid-template-columns:auto auto;gap:8px 12px;justify-items:start;align-items:start}
 #furNatural{grid-column:1;max-width:84px}
+#cowRow{grid-column:1;white-space:nowrap}
+#cowRow[hidden],.radio[hidden]{display:none}
 #furSwatch{display:block;width:48px;height:48px;box-shadow:0 0 0 2px #14100c,inset 0 0 0 2px rgba(255,255,255,.15)}
 #storeGo{display:block;margin:14px auto 0}
+#storeHeal{display:flex;gap:12px;align-items:center;justify-content:center;margin-top:12px}
+#storeHeal #healTxt{color:#9fd88a;white-space:nowrap}
+#storeHeal .mutate{min-width:220px;margin:0}
 .wonBtns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
 button.quiet{background:#2a2016;box-shadow:0 4px 0 #14100c,0 0 0 3px #14100c}
 button.quiet:hover{background:#3a2c1e}
@@ -243,7 +248,7 @@ html.pad .bind,html.pad .setRow{padding-top:10px;padding-bottom:8px}
 </nav>
 <script src="/site-nav.js"></script>
 
-<div id="soundGate" hidden><button id="soundGo" type="button">Click to start</button><p>Or press any key. Browsers keep games silent until you do.</p></div>
+<div id="soundGate" hidden><button id="soundGo" type="button">Click to start</button><p>Or press any key or controller button. Browsers keep games silent until a key or click.</p></div>
 
 <main><canvas id="game" tabindex="0" aria-label="The Endgame is Me, game view"></canvas></main>
 
@@ -315,6 +320,7 @@ html.pad .bind,html.pad .setRow{padding-top:10px;padding-bottom:8px}
             <canvas id="preview" width="280" height="280" aria-label="Your boss, turning slowly"></canvas>
             <canvas id="furPick" width="72" height="72" tabindex="0" aria-label="Fur colour: hue ring and saturation and lightness triangle"></canvas>
             <div class="furSide"><span id="furSwatch"></span><button type="button" class="opt" id="furNatural">Natural brown</button>
+            <label class="chk" id="cowRow" hidden><input id="furCow" type="checkbox"><span>Cow Skin</span></label>
             <div class="lookDice"><button id="lookDie" class="die" type="button" aria-label="Randomize the whole appearance" title="Random appearance"></button><button id="lookRevert" class="revert" type="button" hidden>revert!!</button></div></div>
           </div>
           <div id="lookRows"></div>
@@ -383,6 +389,7 @@ html.pad .bind,html.pad .setRow{padding-top:10px;padding-bottom:8px}
       <div id="abilList"></div>
     </div>
     <div id="tabSlots" class="tab" hidden></div>
+    <div id="storeHeal"><span id="healTxt"></span><button type="button" class="mutate" id="healBtn"><span>Heal <small id="healWhat"></small></span><b id="healCost"></b></button></div>
     <button id="storeGo" type="button">Next level</button>
   </div>
 </div>

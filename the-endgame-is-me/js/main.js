@@ -1,15 +1,16 @@
 // The page: input, the fixed-step loop, scaling the 320×180 buffer to the window, the between-maps store,
 // overlays, saves and the best score.
 
-import { createGame, step, nextMap, W, H, ABILITIES, abilityOffer, buyAbility, upgradeAbility, unmutateAbility, setSlot, createDemo, demoSet, demoStep, newGamePlus, createEnding, endingStep, jumpToLevel, migrate } from './world.js';
+import { createGame, step, nextMap, W, H, ABILITIES, abilityOffer, buyAbility, upgradeAbility, unmutateAbility, setSlot, createDemo, demoSet, demoStep, newGamePlus, createEnding, endingStep, jumpToLevel, migrate, healOffer, healBoss } from './world.js';
 import { createRenderer, setCalm } from './render.js';
 import { ICONS, PAL, drawText } from './art.js';
 import { createAudio } from './audio.js';
+import { setScene, ENDING_TRACK } from './music.js';
 import { createTitle } from './title.js';
 import { createMenu } from './menu.js';
 import { createAttract } from './attract.js';
 import { createAppearance, currentLook, bossName } from './appearance.js';
-import { writeSave, readSave, saveInfo, clearSave, unlockPlus, plusData } from './save.js';
+import { writeSave, readSave, saveInfo, clearSave, unlockPlus, plusData, unlockCow } from './save.js';
 import { createDebug, isSecretName } from './debug.js';
 import { controls, keyAction, poll, hit, held, stick, dpad, slotLabel, spaceLabel, onChange, SLOTS, PAD_A, PAD_B } from './controls.js';
 
@@ -56,22 +57,33 @@ function soundGate() {
     const gate = $('soundGate'), EVENTS = ['pointerdown', 'pointerup', 'click', 'touchend', 'keydown'];
     gate.hidden = false;
     $('soundGo').focus({ preventScroll: true });
-    const hear = e => {
-      e.stopImmediatePropagation();
-      if (e.type === 'keydown' && (e.repeat || e.ctrlKey || e.altKey || e.metaKey || /^(Escape|Tab|Shift|Control|Alt|Meta|F\d+)$/.test(e.key))) return;
-      if (e.cancelable) e.preventDefault();
-      if (e.type === 'pointerdown') return;   // on touch the press only counts when the finger lifts
+    let raf = 0;
+    const go = () => {
+      cancelAnimationFrame(raf);
       for (const ev of EVENTS) removeEventListener(ev, hear, true);
       audio.arm();
       gate.hidden = true;
       done();
     };
+    const hear = e => {
+      e.stopImmediatePropagation();
+      if (e.type === 'keydown' && (e.repeat || e.ctrlKey || e.altKey || e.metaKey || /^(Escape|Tab|Shift|Control|Alt|Meta|F\d+)$/.test(e.key))) return;
+      if (e.cancelable) e.preventDefault();
+      if (e.type === 'pointerdown') return;   // on touch the press only counts when the finger lifts
+      go();
+    };
     for (const ev of EVENTS) addEventListener(ev, hear, true);
+    // any controller button or stick gets past it too. A browser doesn't count that as permission to play sound, so
+    // there the game stays silent until the first key or click (audio.js listens for it); the desktop build never
+    // asks. The splash after this ignores the button until it is let go, so one press doesn't skip both.
+    const pads = window.SlopwareSplash?.padWatch?.();
+    if (pads) (function watch() { if (pads()) go(); else raf = requestAnimationFrame(watch); })();
   });
 }
 (async () => {
   if (await soundBlocked()) await soundGate();
   await window.SlopwareSplash?.start();
+  poll();   // a button still held from skipping the splash is not a fresh press on the title
   booted = true;
   last = performance.now();
   audio.unlock();
@@ -221,6 +233,7 @@ function readInput() {
 function start(next) {
   audio.unlock();
   ending = null;
+  setScene(null);   // the ending's lullaby hands back to the stage music
   g = next;
   R.reset();
   acc = 0;
@@ -256,6 +269,7 @@ function respawn() {
 function goTitle() {
   audio.setCombat(false);
   ending = null;
+  setScene(null);
   audio.setStage(1);
   acc = 0;
   mode = 'title';
@@ -306,7 +320,8 @@ function gameWon() {
   clearSave();
   unlockPlus(g);
   audio.setCombat(false);
-  audio.setStage(1);   // back in the Clearing, so back to its tune
+  setScene(ENDING_TRACK);   // the walk home and the card after it get their own lullaby, whatever the jukebox says
+  audio.setStage(1);   // back in the Clearing, so its tune is next once the lullaby hands back
   mode = 'ending';
   ending = createEnding(g.look);
   R.reset();
@@ -422,6 +437,15 @@ function drawStore() {
   $('tabAbil').hidden = tab !== 'abil'; $('tabSlots').hidden = tab !== 'slots';
   if (tab === 'abil') drawAbilities();
   if (tab === 'slots') drawSlots();
+  drawHeal();
+}
+// health carries over between levels; points buy it back here, a quarter of the bar at a time
+function drawHeal() {
+  const b = g.boss, o = healOffer(g), hp = storeDebug ? o.hp : o.afford;
+  $('healTxt').textContent = `Health ${Math.ceil(b.hp)} / ${b.maxhp}`;
+  $('healWhat').textContent = o.missing <= 0 ? 'already full' : hp > 0 ? `+${hp} health` : 'not enough points';
+  $('healCost').textContent = o.missing <= 0 ? '' : storeDebug ? 'FREE' : fmt(Math.max(o.cost, 1));
+  $('healBtn').setAttribute('aria-disabled', o.missing <= 0 || hp <= 0 ? 'true' : 'false');
 }
 
 // what the Mutate button would buy for one ability: its price, and the level the demo should show
@@ -489,6 +513,7 @@ $('store').addEventListener('click', e => {
     if (ok) showDemo();
   }
   if (t.id === 'abilUnmutate' && storeDebug) { ok = unmutateAbility(g, sel); if (ok) showDemo(); }
+  if (t.id === 'healBtn') ok = healBoss(g, !!storeDebug);
   if (ok) { audio.play('buy'); redraw(drawStore); }
 });
 $('store').addEventListener('change', e => {
@@ -524,6 +549,8 @@ function drain() {
     if (e === 'over') gameOver();
     else if (e === 'store') openStore();
     else if (e === 'won') gameWon();
+    else if (e === 'stage') { audio.setStage(g.map.n); R.reset(); writeSave(g); }   // a level changed without the Hoard (the secret level's way in and out)
+    else if (e === 'cowunlock') unlockCow();
     else audio.play(e);
   }
   g.events.length = 0;
@@ -663,6 +690,7 @@ if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
     saveNow,
     readSave,
     saveInfo,
+    unlockCow: () => import('./save.js').then(m => m.unlockCow()),
     audio,
     openStore, closeStore,
     tab(t) { tab = t; drawStore(); },

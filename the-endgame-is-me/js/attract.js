@@ -1,7 +1,7 @@
 // The title screen's attract mode: short random fights on random levels, with the boss playing by itself.
 
 import { createGame, step, jumpToLevel, W, H, ABILITIES, newParty, mkUnit, applyLevels } from './world.js';
-import { LEVELS } from './levels/index.js';
+import { CAMPAIGN as LEVELS } from './levels/index.js';
 import * as P from './props.js';
 
 const DT = 1 / 60;

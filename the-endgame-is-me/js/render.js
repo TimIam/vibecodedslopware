@@ -1,7 +1,7 @@
 // Draws a game state into a 320×180 buffer. Everything lands on whole pixels.
 
 import { PAL, drawText, textWidth, ICONS, makeBossSprites, bossKey, BOSS_DIRS, BOSS_SIZE, tinted, hash, newCanvas } from './art.js';
-import { W, H, LEASH, CLASS, ADDS, SLOT_KEYS, KEY_HINT, RAID_LAPS, FINAL_LAPS, BALL, angDiff, pathDist, pathNearest, zoneFace, beamEnd, destRock, spaceKey } from './world.js';
+import { W, H, LEASH, CLASS, ADDS, SLOT_KEYS, KEY_HINT, RAID_LAPS, FINAL_LAPS, BALL, angDiff, pathDist, pathNearest, zoneFace, beamEnd, destRock, spaceKey, sigilGlow, SCENE } from './world.js';
 import { LEVELS } from './levels/index.js';
 import { KINDS, CRITTERS } from './props.js';
 
@@ -80,10 +80,12 @@ export function createRenderer() {
     const ox = s ? ((Math.floor(g.t * 40) % 2) ? s : -s) : 0, oy = s ? ((Math.floor(g.t * 33) % 2) ? s : -s) * 0.6 : 0;
     ctx.fillStyle = PAL.night; ctx.fillRect(0, 0, W, H);
     ctx.translate(Math.round(ox) - VIEW.x, Math.round(oy) - VIEW.y);
-    ctx.drawImage(bg, 0, 0);
+    // a map that goes all the way round (the City Wall) is drawn once per lap the screen can see
+    const laps = m.wrapW ? [Math.floor(VIEW.x / m.wrapW), Math.floor((VIEW.x + W) / m.wrapW)] : [0, 0];
+    for (let k = laps[0]; k <= laps[1]; k++) ctx.drawImage(bg, k * (m.wrapW || 0), 0);
     // scorch marks are painted into the persistent ground layer once
-    for (const a of g.ashes) if (!a.stamped) { a.stamped = true; stampAsh(tctx, a); }
-    if (g.ashes.length) ctx.drawImage(trail, 0, 0);
+    for (const a of g.ashes) if (!a.stamped) { a.stamped = true; stampAsh(tctx, m.wrapW ? { ...a, x: ((a.x % m.wrapW) + m.wrapW) % m.wrapW } : a); }
+    if (g.ashes.length) for (let k = laps[0]; k <= laps[1]; k++) ctx.drawImage(trail, k * (m.wrapW || 0), 0);
 
     if (g.water) drawWater(ctx, g);
     art.under?.(ctx, g, H_ART);
@@ -110,7 +112,9 @@ export function createRenderer() {
       if (p.state === 'gone' || !onScreen(p.x, p.y, 40)) continue;
       const draw = PROP_ART[p.kind];
       if (!draw) continue;
-      list.push({ y: p.state === 'down' ? p.y - 40 : p.y + (p.h ? p.h / 2 : 0) + (p.sortY || 0), f: () => { draw(ctx, p, g, H_ART); if (p.burning) drawFlames(ctx, p, g.t); } });
+      // (rubble in the boss's mouth goes in front of it, unless the head is turned away)
+      const sy = p.state === 'carried' ? g.boss.y + (Math.sin(g.boss.face) < -0.3 ? 1 : 3) - (g.boss.z || 0) : p.state === 'down' ? p.y - 40 : p.y + (p.h ? p.h / 2 : 0) + (p.sortY || 0);
+      list.push({ y: sy, f: () => { if (p.state === 'carried') { ctx.save(); ctx.translate(0, -Math.round((g.boss.z || 0) + 3)); } draw(ctx, p, g, H_ART); if (p.state === 'carried') ctx.restore(); if (p.burning) drawFlames(ctx, p, g.t); } });
     }
     for (const c of g.critters) if (onScreen(c.x, c.y)) list.push({ y: c.y, f: () => (CRITTER_ART[c.kind] || drawCritter)(ctx, c, g, H_ART) });
     if (g.balls) for (const o of g.balls) if (onScreen(o.x, o.y, 8)) list.push({ y: o.y + 1, f: () => drawBall(ctx, o, g) });
@@ -123,7 +127,10 @@ export function createRenderer() {
     if (patrol && !g.clear) drawMarker(ctx, g, true);
 
     drawBeam(ctx, g);
+    if (g.drains?.length) for (const d of g.drains) drawDrain(ctx, d, g);
     for (const o of g.bolts) drawBolt(ctx, o);
+    if (g.shots?.length) for (const o of g.shots) drawShot(ctx, o);
+    if (g.scene) drawScene(ctx, g, H_ART);
     for (const r of g.rings) if (r.col === 'slash') drawSlash(ctx, r);
     for (const p of g.parts) if (!p.horse && onScreen(p.x, p.y, 4)) drawPart(ctx, p);
     if (fg) ctx.drawImage(fg, VIEW.x, VIEW.y);
@@ -138,6 +145,7 @@ export function createRenderer() {
     if (g.thought && !g.boss.dead) drawThought(ctx, g);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (!view.bare) drawBlood(ctx, g);
     if (!view.bare) drawHud(ctx, g, view);
     if (view.cursor) drawCursor(ctx, view.mx, view.my, g);
     return buf;
@@ -156,10 +164,24 @@ export function createRenderer() {
     if (act?.kind === 'charge' && act.z > 0) lift = -Math.round(act.z);   // the leap back; the shadow stays on the ground
     if (act?.kind === 'shake') { jx = (Math.floor(act.t * 30) % 2) ? 1 : -1; frame = Math.floor(act.t * 20) % 4; }
     if (act?.kind === 'beam' && !act.fired) jx = (Math.floor(act.t * 24) % 2) ? 1 : 0;
+    // pinned by a ballista bolt it struggles on the spot; dropping into a level it falls from the sky
+    if (b.pinned > 0) { jx = (Math.floor(g.t * 14) % 3) - 1; frame = Math.floor(g.t * 9) % 4; }
+    if (b.stunT > 0) jx = (Math.floor(g.t * 6) % 2) ? 1 : -1;
+    if (b.z > 0) lift -= Math.round(b.z);
+    const sc = b.scale ?? 1;
+    if (sc < 0.999) {
+      // sucked down into a cutscene's crater: smaller and smaller, and spinning
+      if (sc <= 0.02) return;
+      const spr = boss.get(Math.floor(g.t * 12) % BOSS_DIRS, 0), S = Math.max(1, Math.round(BOSS_SIZE * sc));
+      ctx.drawImage(spr, Math.round(b.x - S / 2), Math.round(b.y - S / 2), S, S);
+      ctx.globalAlpha = 0.5 * (1 - sc); ctx.drawImage(tinted(spr, g.scene?.kind === 'mino' ? '#b04aff' : '#2a4aff'), Math.round(b.x - S / 2), Math.round(b.y - S / 2), S, S); ctx.globalAlpha = 1;
+      return;
+    }
     const x = Math.round(b.x) - BOSS_SIZE / 2 + jx, y = Math.round(b.y) - BOSS_SIZE / 2;
-    ctx.globalAlpha = 0.4;
+    ctx.globalAlpha = b.z > 0 ? Math.max(0.1, 0.4 - b.z / 200) : 0.4;
     ctx.drawImage(shadow, Math.round(b.x) - 14, Math.round(b.y) - 9);
     ctx.globalAlpha = 1;
+    if (b.pin) drawPin(ctx, b, false);
     // zoomies leave afterimages
     if (b.haste > 0 && b.moving) {
       const back = boss.get(dir, frame);
@@ -180,14 +202,18 @@ export function createRenderer() {
       ctx.fillStyle = PAL.red;
       for (let i = 1; i < n; i++) if ((i + Math.floor(g.t * 20)) % 3) ctx.fillRect(Math.round(b.x + (u.x - b.x) * i / n), Math.round(b.y + (u.y - b.y) * i / n), 1, 1);
     }
-    // the weak spot on the back glows; it flares when someone is up there
-    if (!b.dead) {
+    // arrows stuck in the hide, and the ballista bolt holding it down
+    if (b.arrows?.length) drawStuck(ctx, b, lift);
+    if (b.pin) drawPin(ctx, b, true);
+    // the weak spot on the back: there only while the horse guy is about (or due), and it flares when he is up there
+    const glow = b.dead ? 0 : sigilGlow(g);
+    if (glow > 0) {
       const c = Math.cos(b.face), sn = Math.sin(b.face);
       const sx = Math.round(b.x - 4 * c), sy = Math.round(b.y - 4 * sn) + lift;
-      const climbed = g.units.some(u => u.role === 'rider' && u.state === 'climb');
-      const pulse = climbed ? (Math.floor(g.t * 8) % 2) : (Math.sin(g.t * 2.5) > 0.2 ? 1 : 0);
+      const climbed = glow >= 1 && g.units.some(u => u.role === 'rider' && u.state === 'climb');
+      const pulse = climbed ? (Math.floor(g.t * 8) % 2) : (Math.sin(g.t * (2 + glow * 3)) > 0.2 ? 1 : 0);
       ctx.fillStyle = PAL.sigil;
-      ctx.globalAlpha = climbed ? 0.9 : 0.55 + pulse * 0.3;
+      ctx.globalAlpha = (climbed ? 0.9 : 0.55 + pulse * 0.3) * glow;
       ctx.fillRect(sx, sy, 1, 1);
       if (pulse) { ctx.globalAlpha *= 0.5; ctx.fillRect(sx - 1, sy, 1, 1); ctx.fillRect(sx + 1, sy, 1, 1); ctx.fillRect(sx, sy - 1, 1, 1); ctx.fillRect(sx, sy + 1, 1, 1); }
       ctx.globalAlpha = 1;
@@ -1068,6 +1094,132 @@ function drawThought(ctx, g) {
   ctx.globalAlpha = 1;
 }
 
+// ------------------------------------------------------------------------------------------------ wall shots, drains
+
+// a point in the boss's own frame (x toward the head), out into the world
+const bossPt = (b, lx, ly) => { const c = Math.cos(b.face), s = Math.sin(b.face); return { x: b.x + lx * c - ly * s, y: b.y + lx * s + ly * c }; };
+
+// arrows sticking out of the hide: a short shaft, pale fletching at its end, pointing back the way it came
+function drawStuck(ctx, b, lift) {
+  for (const a of b.arrows) {
+    const p = bossPt(b, a.lx, a.ly), ang = a.a + b.face + Math.PI, c = Math.cos(ang), s = Math.sin(ang);
+    ctx.globalAlpha = a.life - a.t < 0.5 ? (a.life - a.t) / 0.5 : 1;
+    for (let i = 0; i < 4; i++) px(ctx, Math.round(p.x + c * i), Math.round(p.y + s * i) + lift, i === 3 ? '#e8e0cc' : '#6e4a2a');
+    ctx.globalAlpha = 1;
+  }
+}
+// the ballista bolt: a thick shaft through the boss into the ground (drawn in two halves, under and over the body)
+function drawPin(ctx, b, over) {
+  const p = bossPt(b, b.pin.lx, b.pin.ly), ang = b.pin.a + b.face + Math.PI, c = Math.cos(ang), s = Math.sin(ang);
+  const from = over ? 0 : -6, to = over ? 9 : 0;
+  const at = i => ({ x: Math.round(p.x + c * i), y: Math.round(p.y + s * i * 0.6 - (over ? i * 0.5 : 0)) });
+  for (let i = from; i <= to; i++) { const q = at(i); ctx.fillStyle = '#14100c'; ctx.fillRect(q.x - 1, q.y - 1, 3, 3); }
+  for (let i = from; i <= to; i++) { const q = at(i); px(ctx, q.x, q.y, i > 6 ? '#d8d0b8' : '#7a5232'); px(ctx, q.x, q.y - 1, i > 6 ? '#ffffff' : '#9a6a40'); }
+}
+// arrows are short lines, bolts long heavy ones with an iron head
+function drawShot(ctx, o) {
+  const l = Math.hypot(o.vx, o.vy) || 1, c = o.vx / l, s = o.vy / l;
+  ctx.globalAlpha = o.t > o.life - 0.5 ? 0.4 : 1;
+  if (o.kind === 'arrow') {
+    for (let i = 0; i < 4; i++) px(ctx, Math.round(o.x - c * i), Math.round(o.y - s * i), i === 0 ? '#c8ccd4' : i === 3 ? '#e8e0cc' : '#8a5a36');
+  } else {
+    for (let i = -1; i < 10; i++) { ctx.fillStyle = '#14100c'; ctx.fillRect(Math.round(o.x - c * i) - 1, Math.round(o.y - s * i) - 1, 3, 3); }
+    for (let i = -1; i < 10; i++) px(ctx, Math.round(o.x - c * i), Math.round(o.y - s * i), i < 2 ? '#aeb4c0' : i > 7 ? '#e8e0cc' : '#7a5232');
+  }
+  ctx.globalAlpha = 1;
+}
+// a warlock's drain: a wavering purple beam from him into the boss
+function drawDrain(ctx, d, g) {
+  const u = d.u, b = g.boss, x0 = u.x, y0 = u.y - 3, dx = b.x - x0, dy = b.y - 2 - y0, L = Math.hypot(dx, dy), n = Math.ceil(L);
+  if (!n) return;
+  const nx = -dy / L, ny = dx / L, k = d.t / d.life, a = k < 0.2 ? k / 0.2 : k > 0.7 ? (1 - k) / 0.3 : 1;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, w = Math.sin(t * 9 + g.t * 30 + d.seed) * 1.2 * Math.sin(t * Math.PI);
+    const x = Math.round(x0 + dx * t + nx * w), y = Math.round(y0 + dy * t + ny * w);
+    ctx.globalAlpha = a * 0.9; px(ctx, x, y, (i + Math.floor(g.t * 40)) % 4 ? '#8a3ad0' : '#e0a0ff');
+    ctx.globalAlpha = a * 0.35; px(ctx, x, y + 1, '#4a1a7a');
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ------------------------------------------------------------------------------------------------ cutscenes
+
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+// Drawn from g.scene (world.js sceneStep): the evil cow, or the Minotaur melting into the fen
+function drawScene(ctx, g, h) {
+  const s = g.scene, S = SCENE[s.kind], t = s.t, x = Math.round(s.x), y = Math.round(s.y);
+  const col = s.kind === 'cow' ? ['#0a1040', '#1a2a9a', '#3a5aff', '#a8c0ff'] : ['#200a30', '#5a1a8a', '#b04aff', '#f0c0ff'];
+  // the crater (or vortex) on the ground: a dark pit that opens with a ring of light round it
+  const open = s.kind === 'cow' ? clamp01((t - 2.2) / 1.2) : clamp01((t - 1.8) / 1.4);
+  if (open > 0) {
+    const R = Math.round(4 + 14 * open);
+    for (let yy = -R; yy <= R; yy++) for (let xx = -R; xx <= R; xx++) {
+      const d = Math.hypot(xx, yy * 1.7) / R;
+      if (d > 1) continue;
+      const sw = Math.atan2(yy * 1.7, xx) + t * (s.kind === 'mino' ? 3 : 1.5) + d * 4;
+      const k = d > 0.85 ? 3 : d > 0.6 ? (Math.sin(sw * 3) > 0 ? 2 : 1) : d > 0.3 ? (Math.sin(sw * 2) > 0.4 ? 1 : 0) : 0;
+      ctx.fillStyle = col[k]; ctx.fillRect(x + xx, y + yy, 1, 1);
+    }
+    // the glowing ball at the bottom of it
+    const br = 2 + Math.round(open * 2 + Math.sin(t * 8));
+    ring(ctx, x, y, br + 3, col[2], 0.5 + 0.3 * Math.sin(t * 10));
+    ctx.fillStyle = col[3]; ctx.fillRect(x - br + 1, y - br + 1, br * 2 - 1, br * 2 - 1);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(x - 1, y - 1, 2, 2);
+  }
+  if (s.kind === 'cow') {
+    // the cow rises, shudders, splits in two, and its halves drift apart and fade
+    const lift = Math.round(Math.min(1, t / 1.4) * 22), shiver = t > 1.4 && t < 2.1 ? (Math.floor(t * 30) % 2) : 0;
+    const split = clamp01((t - 2.1) / 1.6), gap = Math.round(split * 14);
+    const spr = cowSprite(h), hw = Math.floor(spr.width / 2);
+    const cx = x - hw + shiver, cy = y - 12 - lift;
+    if (split <= 0) ctx.drawImage(spr, cx, cy);
+    else {
+      ctx.globalAlpha = 1 - split * 0.9;
+      ctx.drawImage(spr, 0, 0, hw, spr.height, cx - gap, Math.round(cy - gap * 0.3), hw, spr.height);
+      ctx.drawImage(spr, hw, 0, spr.width - hw, spr.height, cx + hw + gap, Math.round(cy - gap * 0.3), spr.width - hw, spr.height);
+      ctx.globalAlpha = 1;
+      // dark blue energy pouring out of it onto the ground below
+      for (let i = 0; i < 6; i++) {
+        const bx = x - 3 + Math.round(Math.sin(t * 7 + i) * 3) + i;
+        ctx.globalAlpha = 0.6 * (1 - split * 0.5);
+        for (let yy = cy + 4; yy < y; yy++) if ((yy + i + Math.floor(t * 30)) % 3) px(ctx, bx, yy, i % 2 ? col[2] : col[1]);
+      }
+      ctx.globalAlpha = 0.35 * (1 - split * 0.4); ctx.fillStyle = col[2]; ctx.fillRect(x - 10, y - 3, 20, 6); ctx.globalAlpha = 1;
+    }
+  } else if (t < S.suck) {
+    // the Minotaur sinks into a puddle of purple light
+    const k = clamp01(t / 2.2), m = minoSprite(h), mh = Math.max(1, Math.round(m.height * (1 - k * 0.8)));
+    const dx = Math.round(x - m.width / 2), dy = y - mh + 2;
+    ctx.globalAlpha = 1 - k; ctx.drawImage(m, 0, 0, m.width, mh, dx, dy, m.width, mh);
+    ctx.globalAlpha = 0.7 * k; ctx.drawImage(tinted(m, col[2]), 0, 0, m.width, mh, dx, dy, m.width, mh);
+    ctx.globalAlpha = 1;
+  }
+}
+// the cow and the Minotaur, as the levels that own them draw them (they hang their sprites on H_ART)
+function cowSprite(h) { return h.cowSprite ? h.cowSprite() : sprite('scene-cow', 14, 10, c => { c.fillStyle = '#f2efe2'; c.fillRect(1, 2, 12, 6); c.fillStyle = '#2a2018'; c.fillRect(3, 3, 3, 2); c.fillRect(8, 5, 2, 2); }); }
+function minoSprite(h) { return h.minoSprite ? h.minoSprite() : sprite('scene-mino', 16, 24, c => { c.fillStyle = '#5a3a22'; c.fillRect(3, 2, 10, 20); }); }
+
+// a bloody fringe round the screen while health is under a quarter, thicker and redder the lower it goes
+function drawBlood(ctx, g) {
+  const b = g.boss;
+  if (b.dead || b.hp >= b.maxhp * 0.25) return;
+  const k = 1 - b.hp / (b.maxhp * 0.25), beat = 0.75 + 0.25 * Math.sin(g.t * (4 + k * 4));
+  const T = Math.round(10 + 14 * k);
+  const cell = (x, y) => {
+    const e = Math.min(x, y, W - 1 - x, H - 1 - y);
+    const d = e + (hash(Math.floor(x / 3), Math.floor(y / 3)) * 4 + hash(x, y) * 2) * (1 - 0.4 * k);
+    if (d >= T) return;
+    ctx.globalAlpha = Math.min(0.92, (1.15 - d / T) * (0.7 + 0.3 * k) * beat);
+    ctx.fillStyle = d < T * 0.3 ? '#5a0606' : hash(x * 3, y) < 0.1 ? '#e01c22' : '#a00c12';
+    ctx.fillRect(x, y, 1, 1);
+  };
+  for (let y = 0; y < H; y++) {
+    if (y < T || y >= H - T) { for (let x = 0; x < W; x++) cell(x, y); continue; }
+    for (let x = 0; x < T; x++) { cell(x, y); cell(W - 1 - x, y); }
+  }
+  ctx.globalAlpha = 1;
+}
+
 // ------------------------------------------------------------------------------------------------ HUD
 
 function fmt(n) { return Math.floor(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
@@ -1086,7 +1238,7 @@ function drawHud(ctx, g, view) {
   const goal = g.won ? (L.hudWon ? L.hudWon(g) : 'YOU WIN') : g.clear ? 'LEVEL CLEARED' : L.hud ? L.hud(g) : g.dir.final ? 'BEAT THE 40-MAN'
     : mp.mode === 'patrol' ? (g.lapsMap < RAID_LAPS ? `LAP ${g.lapsMap}/${RAID_LAPS} TO THE RAID` : `LAP ${g.lapsMap}/${FINAL_LAPS} TO THE BIG ONE`)
     : `CHAOS ${Math.floor(g.chaos * 100)}%  ${g.chaos < 0.5 ? 'RAID AT 50' : 'BIG ONE AT 100'}`;
-  const line = `LV ${mp.n}  ${goal}`, lw = textWidth(line) + 8;
+  const line = `LV ${mp.label || mp.n}  ${goal}`, lw = textWidth(line) + 8;
   // a long goal line (the castle's SEIZE YOUR VENGEANCE) gets its backing stretched to fit
   if (lw > 136) { ctx.fillStyle = PAL.ink; ctx.globalAlpha = 0.28; ctx.fillRect(136, 21, lw - 136, 9); ctx.globalAlpha = 1; }
   drawText(ctx, line, 4, 22, g.dir.final ? PAL.red : PAL.rock3);
@@ -1104,9 +1256,11 @@ function drawHud(ctx, g, view) {
   const bw = 100, bx = W - 4 - bw, by = 10;
   ctx.fillStyle = PAL.ink; ctx.fillRect(bx - 1, by - 1, bw + 2, 7);
   ctx.fillStyle = PAL.hpBg; ctx.fillRect(bx, by, bw, 5);
-  const fw = Math.round(bw * b.hp / b.maxhp);
-  ctx.fillStyle = PAL.hpLo; ctx.fillRect(bx, by, fw, 5);
-  ctx.fillStyle = PAL.hpHi; ctx.fillRect(bx, by, fw, 3);
+  // green while healthy, yellow in the middle, red when low; blue for as long as a bone priest's ward is soaking hits
+  const fw = Math.round(bw * b.hp / b.maxhp), fr = b.hp / b.maxhp;
+  const [lo, hi] = b.ward > 0 ? ['#2a5a9a', '#6ab0ff'] : fr > 0.6 ? ['#2a7a2e', '#5ccf4a'] : fr > 0.3 ? ['#9a7a16', '#f0d040'] : ['#8a1a14', '#e8402a'];
+  ctx.fillStyle = lo; ctx.fillRect(bx, by, fw, 5);
+  ctx.fillStyle = hi; ctx.fillRect(bx, by, fw, 3);
   if (b.flash > 0) { ctx.fillStyle = '#ffffff'; ctx.fillRect(bx + fw - 1, by, 1, 5); }
   // the ward sits over the right-hand end of the bar, in blue
   const ww = b.ward > 0 ? Math.max(1, Math.round(bw * b.ward / b.maxhp)) : 0;

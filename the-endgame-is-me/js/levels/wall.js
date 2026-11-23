@@ -10,15 +10,17 @@
 // wall line; the projection is near 1:1 at the middle of the screen, which is where the boss is.
 
 import { scatter } from './forest.js';
-import { isWater } from '../props.js';
+import { isWater, addProp, addCritter } from '../props.js';
+import { drawCow, COW, COW_PAL2, mapSprite } from './farms.js';
 
-const roadY = x => 132 + Math.sin(x / 110) * 9 + Math.sin(x / 37) * 3;
 const TAU = Math.PI * 2;
-const WW = 1280, WH = 180;
+const WW = 1284, WH = 180;            // (1284: a whole number of 6 px water cells, so the moat joins up round the back)
+// the high street along the bottom of the outskirts; it comes back to where it started after one lap
+const roadY = x => 128 + Math.sin(x * TAU / WW * 2) * 7 + Math.sin(x * TAU / WW * 6 + 1) * 2;
 const MOAT0 = 42, MOAT1 = 72;          // the moat's rows (world y): open water from the wall foot to the outer bank
 const WALL_B = 42;                     // the wall's hitboxes run from y 0 to here
 const BASH = 45;                       // one bash (props.js bossTouch default); wall pieces take this many to break
-const HITS = { wl_curtain: 20, wl_tower: 24, wl_gate: 18 };
+const HITS = { wl_curtain: 40, wl_tower: 48, wl_gate: 36 };   // (twice what it was: walls on 5, 6 and 7 take double)
 const LABEL = { wl_curtain: 'WALL', wl_tower: 'TOWER', wl_gate: 'GATE' };
 const GATE_X0 = 848, GATE_X1 = 874;    // the gate passage, flanked by its two towers
 const OLD_X = 300;                     // where the old bridge fell in (a bricked-up postern above it)
@@ -46,15 +48,20 @@ export const kinds = {
   wl_timber: { r: 3, push: true, fill: 1 },
   wl_block: { r: 3.5, push: true, fill: 2 },
 };
+// the cow that turns up where the boss came in, once it has been all the way round twice (see update)
+export const critters = {
+  wl_cow: { r: 3.5, hp: 60, spd: 3, flee: 0, fear: 0, noCorpse: true, cry: 'moo', value: { pts: 666, venge: 0.1, chaos: 0 } },
+};
 
 // ---------------------------------------------------------------------------------------------- the map
 
 // the wall, left to right: towers, curtain runs between them, and the gatehouse. x0/x1 in world px (it runs a little
 // past both ends of the world so the drum has something to show there)
 function layoutWall() {
-  const anchors = [[-16, 8, 'wl_tower'], [158, 182, 'wl_tower'], [408, 432, 'wl_tower'], [618, 642, 'wl_tower'],
+  // (no tower at the very start: the one at the end of the lap stands over the join)
+  const anchors = [[158, 182, 'wl_tower'], [408, 432, 'wl_tower'], [618, 642, 'wl_tower'],
     [826, GATE_X0, 'wl_tower', 'L'], [GATE_X0, GATE_X1, 'wl_gate'], [GATE_X1, 896, 'wl_tower', 'R'],
-    [1068, 1092, 'wl_tower'], [1258, 1282, 'wl_tower']];
+    [1068, 1092, 'wl_tower'], [1260, 1284, 'wl_tower']];
   const secs = [];
   let x = -TEXOFF;
   for (const [a0, a1, kind, side] of [...anchors, [WW + TEXOFF, WW + TEXOFF, null]]) {
@@ -70,6 +77,9 @@ function layoutWall() {
     x = a1;
   }
   secs.forEach((s, i) => { s.i = i; s.total = HITS[s.kind]; s.label = LABEL[s.kind]; s.drawn = -1; });
+  // neighbours (round the join too), so a breach next to a breach loses the broken ends between them
+  const real = secs.filter(s => s.x1 > 0 && s.x0 < WW);
+  real.forEach((s, i) => { s.prev = real[(i - 1 + real.length) % real.length].i; s.next = real[(i + 1) % real.length].i; });
   return secs;
 }
 
@@ -93,6 +103,7 @@ function build(g, rng, P) {
     if (water.a[row + c - 1] === 2 || water.a[row + c + 1] === 2 || water.a[row + c - 2] === 2 || water.a[row + c + 2] === 2) continue;
     fill(c, r);
   }
+  water.wrap = true;   // round the back of the city the moat joins up
   g.water = water; g.waterDirty = true;
 
   // the wall itself: one solid prop per piece, along the wall line in plain world coordinates
@@ -104,34 +115,52 @@ function build(g, rng, P) {
     s.prop = P.addProp(g, s.kind, (a + b) / 2, WALL_B / 2, { w: b - a, h: WALL_B, lastHp: hp, sec: s.i });
   }
 
-  // the outskirts: a road along the bottom, a lane up to the gate, houses, barns and towers either side
-  const keep = [{ x: start.x, y: start.y, r: 34 }];
-  for (let y = 70; y < 140; y += 8) keep.push({ x: gateLaneX(y), y, r: 18 });
+  // the outskirts, more town than country now: a paved high street, paved roads up to the drawbridge and to the old
+  // bridge, rows of houses with cobbled paths down to the street, and a fringe of fields and grass along the bottom
+  const keep = [];
+  for (let y = start.y - 10; y < WH; y += 8) keep.push({ x: start.x, y, r: 26 });
+  for (let y = 70; y < 140; y += 8) keep.push({ x: gateLaneX(y), y, r: 18 }, { x: oldLaneX(y), y, r: 14 });
   keep.push({ x: OLD_X, y: 88, r: 20 }, { x: 600, y: 94, r: 22 });
-  const spots = scatter(rng, 34, 24, 92, WW - 24, 152, 31, keep).filter(s => Math.abs(s.y - roadY(s.x)) > 13);
-  for (const s of spots) {
-    const k = rng(), kind = k < 0.36 ? 'wl_cottage' : k < 0.68 ? 'wl_house' : k < 0.84 ? 'wl_barn' : 'wl_watch';
-    P.addProp(g, kind, Math.round(s.x), Math.round(s.y));
+  const nearStreet = s => Math.abs(s.y - roadY(s.x)) < 15;
+  const spots = scatter(rng, 74, 20, 86, WW - 20, 120, 25, keep).filter(s => !nearStreet(s));
+  // a short row of cottages just south of the street, before the grass takes over
+  const south = scatter(rng, 16, 24, 138, WW - 24, 143, 34, keep).filter(s => !nearStreet(s));
+  const paths = [];
+  for (const s of [...spots, ...south]) {
+    const k = rng(), up = s.y < roadY(s.x);
+    const kind = !up ? (k < 0.6 ? 'wl_cottage' : 'wl_house') : k < 0.34 ? 'wl_cottage' : k < 0.72 ? 'wl_house' : k < 0.86 ? 'wl_barn' : 'wl_watch';
+    const p = P.addProp(g, kind, Math.round(s.x), Math.round(s.y));
+    // a cobbled path from the front door to the street (houses north of it), or from the back (south of it)
+    const d = kinds[kind], foot = up ? p.y + (d.h || d.r * 2) / 2 + 1 : p.y - (d.h || d.r * 2) / 2 - 7;
+    paths.push({ x: p.x + (rng() - 0.5) * 6, y0: Math.min(foot, roadY(p.x)), y1: Math.max(foot, roadY(p.x)), w: 1 + Math.floor(rng() * 2), wob: rng() * 10 });
   }
-  // carts and market stalls along the road and up the lane
-  for (let i = 0; i < 9; i++) {
-    const x = 120 + rng() * (WW - 200), y = roadY(x) + (rng() < 0.5 ? -9 : 9);
-    if (Math.hypot(x - start.x, y - start.y) < 30) continue;
+  // carts and market stalls along the street and up the lane
+  for (let i = 0; i < 14; i++) {
+    const x = 120 + rng() * (WW - 200), y = roadY(x) + (rng() < 0.5 ? -10 : 10);
+    if (Math.hypot(x - start.x, y - start.y) < 30 || keep.some(k => Math.hypot(k.x - x, k.y - y) < k.r)) continue;
     P.addProp(g, rng() < 0.5 ? 'wl_cart' : 'wl_stall', Math.round(x), Math.round(y));
   }
-  for (const y of [96, 112]) P.addProp(g, 'wl_stall', Math.round(gateLaneX(y) + (y === 96 ? -16 : 17)), y);
+  for (const y of [96, 112]) P.addProp(g, 'wl_stall', Math.round(gateLaneX(y) + (y === 96 ? -17 : 18)), y);
   // the old bridge's timbers on the bank, and a mason's yard of cut blocks
   for (const [dx, dy] of [[-22, 96], [14, 104], [30, 90]]) P.addProp(g, 'wl_timber', OLD_X + dx, dy);
   for (const [dx, dy] of [[-12, 88], [0, 86], [12, 90], [-6, 98], [8, 100]]) P.addProp(g, 'wl_block', 600 + dx, dy);
+  // every lump of rubble there is (and every one a building leaves) has a home it comes back to (see update)
+  const debris = g.props.filter(p => kinds[p.kind]?.push).map(p => { p.tracked = true; return { kind: p.kind, x: p.x, y: p.y, p }; });
+  // the cow that turns up after two laps (see update): her home is where the boss came in
+  g.lvlCow = null;
 
-  return { w: WW, h: WH, scroll: 'x', start, wall, edges: [0, 1, 3], sideBand: [86, 140], key: Math.floor(rng() * 1e9), roadY };
+  return { w: WW, h: WH, scroll: 'x', wrapW: WW, start, enter: { x: start.x, y: WH + 16 }, wall, paths, debris, laps: 0, maxX: start.x,
+    edges: [0, 1, 3], sideBand: [86, 140], key: Math.floor(rng() * 1e9), roadY };
 }
 const gateLaneX = y => (GATE_X0 + GATE_X1) / 2 + Math.sin(y / 15) * 3;
+const oldLaneX = y => OLD_X + Math.sin(y / 11) * 4;
 
 // ---------------------------------------------------------------------------------------------- the level's rules
 
 function update(g, dt, api) {
   const m = g.map, b = g.boss;
+  laps(g, m, b, api);
+  debris(g, m, b);
   // only someone standing on a crossing can hurt the wall: hits from the far bank glance off
   const across = b.y < MOAT1 + 3;
   for (const s of m.wall) {
@@ -162,8 +191,8 @@ function update(g, dt, api) {
   // into a breach: the boss walks on through, north and out of sight, and the level is over
   if (!g.clear && !g.won && !b.dead) {
     for (const s of m.wall) {
-      if (!s.breached) continue;
-      const a = Math.max(0, s.x0), c = Math.min(WW, s.x1);
+      if (!s.breached || !s.prop) continue;
+      const a = s.prop.x - s.prop.w / 2, c = s.prop.x + s.prop.w / 2;   // (where it is this time round)
       if (b.y < WALL_B + 6 && b.x > a - 2 && b.x < c + 2) {
         api.walkOff(g, { x: (a + c) / 2, title: 'INTO THE CITY', sub: 'THE HOARD OPENS IN A MOMENT.' });
         break;
@@ -187,6 +216,59 @@ function update(g, dt, api) {
     }
   }
   for (const u of g.units) if (!u.dead && u.y < MOAT0 && !(u.role === 'rider' && u.state === 'climb')) u.y = MOAT1 + 4;
+}
+
+// Going round: the far end of the outskirts joins back onto the start, but only once the boss has walked all the way
+// there (until then the left edge holds). Each time it passes where it came in, that's a lap. After two, a cow is
+// standing on that spot the next time round; while she is on screen every hero runs and the wall holds its fire.
+// Kill her and the evil cow cutscene takes the boss down into the secret level (world.js SCENE).
+function laps(g, m, b, api) {
+  if (b.x > m.maxX) m.maxX = b.x;
+  if (!m.looped && b.x >= WW - 2) {
+    m.looped = true; m.arena.x0 = -Infinity;
+    api.banner(g, 'IT GOES ALL THE WAY ROUND', 'THE CITY IS ROUND. SO IS THE MOAT.', 3.5);
+  }
+  const lap = Math.floor((m.maxX - m.start.x) / WW);
+  if (lap > m.laps) { m.laps = lap; api.text(g, b.x, b.y - 26, `LAP ${lap}`, 'gold', 1.6); }
+  if (m.laps >= 2 && !g.lvlCow && !m.cowGone && !g.clear && !g.walkoff && m.maxX - m.start.x - 2 * WW >= 0.55 * WW)
+    g.lvlCow = addCritter(g, 'wl_cow', m.start.x + 3 * WW, m.start.y - 4, { fx: -1 });
+  const cow = g.lvlCow;
+  if (!cow || m.cowGone) return;
+  if (cow.dead) { m.cowGone = true; api.scene(g, 'cow', cow.x, cow.y); return; }
+  const on = Math.abs(cow.x - (g.cam.x + 160)) < 175;
+  if (on && !g.lull) {
+    g.lull = true;
+    for (const p of g.parties) if (!p.done) api.scatter(g, p);
+    api.banner(g, '...A COW?', 'THE HEROES WANT NOTHING TO DO WITH THIS', 3);
+    api.sound(g, 'moo');
+  } else if (!on && g.lull) g.lull = false;
+}
+
+// Rubble is never used up here: once the boss is half a lap away from where a lump of it started out (it fell out of
+// a building there, or was lying there to begin with), a lump that went into the moat is back, and one that was shoved
+// somewhere else is back where it was. Buildings stay as they are, standing or flattened.
+function debris(g, m, b) {
+  for (const p of g.props) if (!p.tracked && kinds[p.kind]?.push) { p.tracked = true; m.debris.push({ kind: p.kind, x: p.x, y: p.y, p }); }
+  if (Math.floor(g.t * 4) === Math.floor((g.t - 1 / 60) * 4)) return;   // four times a second is plenty
+  const near = (x, ref) => x + WW * Math.round((ref - x) / WW);
+  for (const d of m.debris) {
+    const home = near(d.x, b.x);
+    if (Math.abs(home - b.x) < WW / 2 - 30) continue;
+    const p = d.p;
+    if (!p || p.state === 'gone') { d.p = addProp(g, d.kind, home, d.y, { tracked: true }); continue; }
+    if (p.state === 'down' && !p.vx && !p.vy && Math.hypot(p.x - near(d.x, p.x), p.y - d.y) > 4) { p.x = home; p.y = d.y; g.propsDirty = true; }
+  }
+}
+
+// the wall shoots back: every section still standing, arrows at a boss in close and ballista bolts further out
+function shooters(g) {
+  const out = [], b = g.boss;
+  for (const s of g.map.wall) {
+    const p = s.prop;
+    if (!p || p.state !== 'up' || Math.abs(p.x - b.x) > 240) continue;
+    out.push({ x: p.x + (((s.i * 7) % 5) - 2) * 3, y: WALL_B - 6, kind: 'both' });
+  }
+  return out;
 }
 
 const TUMBLE = [[0, -1], [-1, 0], [1, 0], [-1, -1], [1, -1], [0, 1], [-1, 1], [1, 1], [0, -2], [-2, 0], [2, 0], [-2, -1], [2, -1], [-1, -2], [1, -2]];
@@ -424,7 +506,7 @@ function paintBreach(c, s, h) {
   const w = s.x1 - s.x0, mid = (s.x0 + s.x1) / 2, sd = s.i * 7;
   c.clearRect(s.x0 + TEXOFF, 0, w, TH);
   for (let X = s.x0; X < s.x1; X++) {
-    const tx = X + TEXOFF, e = Math.min(X - s.x0, s.x1 - 1 - X);
+    const tx = X + TEXOFF, e = Math.min(s.openL ? 99 : X - s.x0, s.openR ? 99 : s.x1 - 1 - X);
     const stub = e < 3 ? 14 + Math.floor(h.hash(X, sd) * 9) + e * 4 : 99;   // ragged broken ends
     const mound = 44 - Math.max(0, 13 * (1 - ((X - mid) / (w / 2 + 5)) ** 2)) - h.hash(X, 3) * 2;
     for (let y = 12; y < 46; y++) {
@@ -505,7 +587,11 @@ function under(ctx, g, h) {
   const m = g.map, V = h.VIEW, W = h.W;
   const tex = h.sprite(`wl-tex-${m.key}`, TEXW, TH, c => { for (const s of m.wall) { paintSection(c, s, 0, h); s.drawn = 0; } });
   const tc = tex.getContext('2d');
-  for (const s of m.wall) { const st = stageOf(s); if (st !== s.drawn) { paintSection(tc, s, st, h); s.drawn = st; } }
+  // (a breach is painted knowing whether its neighbours are down too: no broken ends between two holes)
+  for (const s of m.wall) {
+    const st = stageOf(s), open = st >= 4 ? (stageOf(m.wall[s.prev] || {}) >= 4 ? 1 : 0) + (stageOf(m.wall[s.next] || {}) >= 4 ? 2 : 0) : 0, key = st * 4 + open;
+    if (key !== s.drawn) { s.openL = !!(open & 1); s.openR = !!(open & 2); paintSection(tc, s, st, h); s.drawn = key; }
+  }
   const roofs = h.sprite(`wl-roofs-${m.key}`, WW, RH, c => paintRoofs(c, h, m.key % 997));
   const off = h.sprite('wl-off', W, TH, () => {}), oc = off.getContext('2d');
   oc.globalCompositeOperation = 'source-over';
@@ -523,7 +609,7 @@ function under(ctx, g, h) {
   // the wall, on the big drum
   for (let sx = 0; sx < W; sx++) {
     const q = (sx + 0.5 - piv) / R;
-    const th = Math.asin(q), u = Math.max(0, Math.min(TEXW - 1, Math.floor(C + th * R) + TEXOFF));
+    const th = Math.asin(q), u = (((Math.floor(C + th * R)) % WW) + WW) % WW + TEXOFF;   // (all the way round: the texture repeats)
     oc.drawImage(tex, u, 0, 1, TH, sx, Math.round(-CURVE * (1 - Math.cos(th))), 1, TH);
   }
   // towers stand proud of the curtain, so as one turns away from the middle its inward flank comes into view
@@ -539,7 +625,8 @@ function under(ctx, g, h) {
   });
   for (const s of m.wall) {
     if (s.kind !== 'wl_tower' || stageOf(s) >= 4) continue;
-    const mid = (s.x0 + s.x1) / 2, right = mid > C, ex = right ? s.x0 : s.x1, th = (ex - C) / R;
+    const sh = WW * Math.round((C - (s.x0 + s.x1) / 2) / WW);   // the copy of it nearest the middle of the screen
+    const mid = (s.x0 + s.x1) / 2 + sh, right = mid > C, ex = (right ? s.x0 : s.x1) + sh, th = (ex - C) / R;
     if (Math.abs(th) > 1.45) continue;
     const n = Math.round(9 * Math.abs(Math.sin(th))), e = piv + R * Math.sin(th);
     for (let i = 0; i < n; i++) {
@@ -568,7 +655,7 @@ function under(ctx, g, h) {
   for (const s of m.wall) {
     const p = s.prop;
     if (!p || p.hitT <= 0 || p.state !== 'up') continue;
-    const a = toScreen(s.x0, C, W, piv), b = toScreen(s.x1, C, W, piv);
+    const a = toScreen(p.x - p.w / 2, C, W, piv), b = toScreen(p.x + p.w / 2, C, W, piv);
     if (b < 0 || a > W) continue;
     oc.fillStyle = `rgba(255,255,255,${(p.hitT / 0.12 * 0.45).toFixed(3)})`;
     oc.fillRect(Math.floor(a), 0, Math.ceil(b - a), TH);
@@ -578,7 +665,8 @@ function under(ctx, g, h) {
   // the wall's shadow on the water, old piles where the bridge stood, reeds along the bank
   ctx.fillStyle = 'rgba(6,10,14,0.28)'; ctx.fillRect(V.x, MOAT0 + 2, W, 4);
   ctx.fillStyle = 'rgba(6,10,14,0.14)'; ctx.fillRect(V.x, MOAT0 + 6, W, 3);
-  if (Math.abs(OLD_X - C) < W) for (const [x, y] of [[OLD_X - 8, 49], [OLD_X + 7, 50], [OLD_X - 9, 61], [OLD_X + 8, 62], [OLD_X + 2, 56]]) {
+  const OX = OLD_X + WW * Math.round((C - OLD_X) / WW);
+  if (Math.abs(OX - C) < W) for (const [x, y] of [[OX - 8, 49], [OX + 7, 50], [OX - 9, 61], [OX + 8, 62], [OX + 2, 56]]) {
     ctx.fillStyle = INK; ctx.fillRect(x - 1, y - 3, 4, 5);
     ctx.fillStyle = WOOD[1]; ctx.fillRect(x, y - 2, 2, 3);
     ctx.fillStyle = WOOD[3]; ctx.fillRect(x, y - 2, 2, 1);
@@ -605,40 +693,68 @@ const toScreen = (x, C, W, piv) => { const th = (x - C) / R; return Math.abs(th)
 
 const GR = ['#28381e', '#2f4224', '#374c2a', '#415833'];
 const DIRT = ['#3f3222', '#4e3f2a', '#5e4c32', '#6e5a3a'];
+const YARD = ['#3a3428', '#433c2e', '#4c4434', '#554c3a'];   // trodden town ground between the houses
+// cobbles and kerbs, the same as the streets inside the walls (city.js)
+const COB = ['#3c3933', '#48443c', '#534e45', '#5e584d', '#6a6356'], MORT = '#33302a', KERB = ['#3a3833', '#6e6a5e', '#8d8878'];
+const FRINGE = 144;                                         // below this it is grass and fields, as it always was
+function cobble(ctx, h, x, y, grime = 0) {
+  const row = Math.floor(y / 3), lx = (x + row * 2) % 5, ly = y % 3, sx = Math.floor((x + row * 2) / 5);
+  let c;
+  if (lx === 0 || ly === 0) c = h.hash(x * 3, y * 5) < 0.12 ? COB[1] : MORT;
+  else c = COB[Math.max(0, Math.min(4, 1 + Math.floor(h.hash(sx, row) * 2.6) + (lx === 1 && ly === 1 ? 1 : 0) - (lx === 4 && ly === 2 ? 1 : 0) + grime))];
+  ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1);
+}
 function ground(ctx, m, h) {
   const { hash, vnoise } = h;
+  h.cowSprite = () => mapSprite(h, 'fm-cowb', COW[0], COW_PAL2);
   for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
     let col;
     if (y < MOAT0) col = y > 30 ? (hash(x, y) < 0.3 ? '#2a2a20' : '#22231a') : '#1a1a16';   // the scarp under the wall
     else if (y < MOAT1 + 4) col = y >= MOAT1 ? (y === MOAT1 ? '#1e2218' : hash(x, y) < 0.5 ? DIRT[1] : DIRT[0]) : '#22343c';
     else {
-      const n = vnoise(x / 30, y / 30) * 0.55 + vnoise(x / 9 + 40, y / 9) * 0.3 + hash(x, y) * 0.2;
-      col = GR[Math.max(0, Math.min(3, Math.floor(n * 3.4 - 0.3 + ((x + y) & 1) * 0.3)))];
+      const n = vnoise(x / 30, y / 30) * 0.55 + vnoise(x / 9 + 40, y / 9) * 0.3 + hash(x, y) * 0.2, k = Math.max(0, Math.min(3, Math.floor(n * 3.4 - 0.3 + ((x + y) & 1) * 0.3)));
+      // town ground, worn bare, with grass hanging on in the corners; the old meadow along the bottom
+      const town = y < FRINGE - 4 + Math.floor(hash(x, 3) * 8);
+      col = town ? (vnoise(x / 14 + 7, y / 14) > 0.62 ? GR[Math.min(2, k)] : YARD[k]) : GR[k];
     }
     ctx.fillStyle = col; ctx.fillRect(x, y, 1, 1);
   }
   // muddy bank, grass growing over its edge
   for (let x = 0; x < m.w; x++) { const g = Math.floor(hash(x, 5) * 3); for (let y = MOAT1 + 4 - g; y < MOAT1 + 6; y++) if (hash(x, y) < 0.6) { ctx.fillStyle = GR[2]; ctx.fillRect(x, y, 1, 1); } }
-  // three ploughed plots
-  for (const [fx, fy, fw, fh] of [[160, 146, 90, 22], [520, 150, 70, 20], [1100, 144, 110, 26]]) {
+  // three ploughed plots out in the fringe
+  for (const [fx, fy, fw, fh] of [[160, 150, 90, 22], [520, 152, 70, 20], [1100, 148, 110, 24]]) {
     for (let y = fy; y < Math.min(m.h, fy + fh); y++) for (let x = fx; x < fx + fw; x++) {
       if (hash(x, y) < 0.08) continue;
       ctx.fillStyle = (y - fy) % 3 === 0 ? DIRT[0] : (y - fy) % 3 === 1 ? DIRT[2] : DIRT[1];
       ctx.fillRect(x, y, 1, 1);
     }
   }
-  // the road, the lane up to the gate, and the old way to the fallen bridge (grassed over)
-  const road = (x, y, w, worn) => {
-    for (let dy = -w; dy <= w; dy++) {
-      const e = Math.abs(dy) / w;
-      if (hash(x, y + dy) > worn - e * 0.5) continue;
-      ctx.fillStyle = Math.abs(dy) === Math.round(w * 0.45) && hash(x, 7) < 0.8 ? DIRT[0] : DIRT[1 + Math.floor(hash(x + dy, y) * 3)];
-      ctx.fillRect(x, y + dy, 1, 1);
+  // the paved high street, with a kerb either side
+  for (let x = 0; x < m.w; x++) {
+    const cy = Math.round(m.roadY(x));
+    for (let dy = -6; dy <= 6; dy++) {
+      const y = cy + dy;
+      if (Math.abs(dy) === 6) { ctx.fillStyle = KERB[(x + Math.floor(y / 3) * 3) % 7 === 0 ? 0 : dy < 0 ? 2 : 1]; ctx.fillRect(x, y, 1, 1); }
+      else cobble(ctx, h, x, y, vnoise(x / 22, y / 22) < 0.32 ? -1 : 0);
+    }
+  }
+  // the paved roads up to the drawbridge and to the old bridge
+  const lane = (fx, y0, y1, hw) => {
+    for (let y = y0; y < y1; y++) {
+      const x = Math.round(fx(y));
+      for (let dx = -hw; dx <= hw; dx++) {
+        if (Math.abs(dx) === hw) { ctx.fillStyle = KERB[(y + x) % 7 === 0 ? 0 : dx < 0 ? 2 : 1]; ctx.fillRect(x + dx, y, 1, 1); }
+        else cobble(ctx, h, x + dx, y, 0);
+      }
     }
   };
-  for (let x = 0; x < m.w; x++) road(x, Math.round(m.roadY(x)), 5, 1.1);
-  for (let y = MOAT1 + 2; y < m.roadY(860); y++) { const x = Math.round(gateLaneX(y)); for (let dx = -5; dx <= 5; dx++) { const e = Math.abs(dx) / 5; if (hash(x + dx, y) < 1.1 - e * 0.5) { ctx.fillStyle = DIRT[1 + Math.floor(hash(x + dx, y * 3) * 3)]; ctx.fillRect(x + dx, y, 1, 1); } } }
-  for (let y = MOAT1 + 2; y < m.roadY(OLD_X); y++) { const x = Math.round(OLD_X + Math.sin(y / 11) * 4); for (let dx = -4; dx <= 4; dx++) if (hash(x + dx, y) < 0.45 - Math.abs(dx) * 0.06) { ctx.fillStyle = DIRT[1 + Math.floor(hash(x, y + dx) * 2)]; ctx.fillRect(x + dx, y, 1, 1); } }
+  lane(gateLaneX, MOAT1 + 2, Math.round(m.roadY((GATE_X0 + GATE_X1) / 2)) - 5, 7);
+  lane(oldLaneX, MOAT1 + 2, Math.round(m.roadY(OLD_X)) - 5, 5);
+  // cobbled paths from the houses to the street: narrower, rougher, the odd stone missing
+  for (const p of m.paths || []) for (let y = Math.round(p.y0); y <= Math.round(p.y1); y++) {
+    const x0 = Math.round(p.x + Math.sin(y / 7 + p.wob) * 1.5);
+    for (let dx = -p.w; dx <= p.w; dx++) if (hash(x0 + dx, y * 3) < (Math.abs(dx) === p.w ? 0.55 : 0.92)) cobble(ctx, h, x0 + dx, y, -1);
+  }
   // the drawbridge's landing: cobbles and two chain posts
   const gx = (GATE_X0 + GATE_X1) / 2;
   for (let y = MOAT1 - 1; y < MOAT1 + 12; y++) for (let x = gx - 15; x <= gx + 15; x++) {
@@ -647,9 +763,11 @@ function ground(ctx, m, h) {
     ctx.fillRect(x, y, 1, 1);
   }
   for (const px of [gx - 14, gx + 13]) { ctx.fillStyle = INK; ctx.fillRect(px - 1, MOAT1 - 1, 4, 7); ctx.fillStyle = '#55564f'; ctx.fillRect(px, MOAT1, 2, 5); ctx.fillStyle = '#8f8f84'; ctx.fillRect(px, MOAT1, 2, 1); }
-  // stones, flowers, tufts
+  // stones, flowers, tufts in the fringe; puddles and straw in town
   for (let i = 0; i < m.w * 2; i++) {
     const x = Math.floor(hash(i, 7) * m.w), y = MOAT1 + 6 + Math.floor(hash(i, 13) * (m.h - MOAT1 - 6)), t = hash(i, 3);
+    if (Math.abs(y - m.roadY(x)) < 7) continue;
+    if (y < FRINGE) { if (t < 0.08) { ctx.fillStyle = '#2a3a44'; ctx.fillRect(x, y, 3, 2); ctx.fillStyle = '#5f7e8e'; ctx.fillRect(x + 1, y, 1, 1); } else if (t < 0.18) { ctx.fillStyle = '#a88c44'; ctx.fillRect(x, y, 1, 1); } continue; }
     ctx.fillStyle = t < 0.1 ? '#8f8f84' : t < 0.16 ? '#c8b85a' : t < 0.2 ? '#b07aa0' : t < 0.6 ? '#4a6a2e' : '#22301a';
     ctx.fillRect(x, y, 1, 1);
   }
@@ -873,11 +991,12 @@ function drawRubble(ctx, p, g, h) {
 export default {
   roadY,
   n: 5, id: 'wall', name: 'THE CITY WALL', sub: 'THEY PULLED UP THE BRIDGE.', mode: 'timed',
-  kinds,
+  kinds, critters,
   build(g, rng, P) { return build(g, rng, P); },
-  update, hud,
+  update, hud, shooters,
   art: {
     ground, under,
+    critters: { wl_cow: (ctx, c, g, h) => drawCow(ctx, { ...c, seed: 0 }, g, h) },
     props: {
       wl_cottage: drawBuilding, wl_house: drawBuilding, wl_barn: drawBuilding, wl_watch: drawBuilding,
       wl_cart: drawCart, wl_stall: drawStall, wl_stones: drawRubble, wl_timber: drawRubble, wl_block: drawRubble,

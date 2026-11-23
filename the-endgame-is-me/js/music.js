@@ -1,4 +1,4 @@
-// The score. Seven fight tracks for chip cello and chip drums, written as data, rendered once into looping AudioBuffers, no audio files.
+// The score. Seven fight tracks and a lullaby for the ending, for chip cello and chip drums, written as data, rendered once into looping AudioBuffers, no audio files.
 // Render is sample exact: loop + tail is rendered with OfflineAudioContext and the tail is folded back over the head.
 
 const SR = 32000;            // stereo at 32 kHz keeps the buffers small and the top end soft
@@ -184,6 +184,13 @@ const BUS = {
   snare: { hp: 180, lp: 5600, rev: 0.09 },
   hat: { hp: 5200, lp: 9500, rev: 0.02, pan: 0.12 },
   crash: { hp: 2600, lp: 8000, rev: 0.1, pan: -0.1 },
+  // the ending's softer band: a hummed cello, a harp, a pad, a music box and the odd bird
+  hum: { crush: 40, drive: 1.3, body: [260, 1, 3], lp: 1500, rev: 0.3, pan: -0.08 },
+  harp: { crush: 28, drive: 1.3, lp: 1900, rev: 0.28, pan: 0.22 },
+  pad: { lp: 1100, rev: 0.42 },
+  low: { lp: 520, rev: 0.1 },
+  box: { crush: 32, drive: 1.2, hp: 380, lp: 5200, rev: 0.38, pan: 0.18 },
+  bird: { hp: 1500, lp: 7000, rev: 0.34, pan: -0.32 },
 };
 
 function mulberry(a) {
@@ -315,6 +322,17 @@ function decayEnv(R, t, v, tau, dest, a = 0.002) {
   return g;
 }
 
+// smooth swell and fade for the pads, where chip steps would sound like a stair
+function softEnv(R, t, d, v, a, rel, dest) {
+  const g = R.c.createGain(), p = g.gain, top = t + Math.min(a, d);
+  p.setValueAtTime(0, t);
+  p.linearRampToValueAtTime(v, top);
+  if (t + d > top) p.setValueAtTime(v, t + d);
+  p.linearRampToValueAtTime(0, t + d + rel);
+  g.connect(dest);
+  return g;
+}
+
 function noiseSrc(R, kind, t, end) {
   const s = R.c.createBufferSource();
   s.buffer = R.noise[kind]; s.loop = true;
@@ -388,6 +406,35 @@ export const VOICES = {
   },
   crash(R, m, t, d, v) {
     noiseSrc(R, 'hat', t, t + 1.1).connect(decayEnv(R, t, v * 0.3, 0.16, getBus(R, 'crash').in));
+  },
+  // the ending's voices
+  hum(R, m, t, d, v) {
+    bowed(R, getBus(R, 'hum'), m, t, d, v * 0.5, { wave: 'triangle', scoop: -25, scoopT: 0.08, a: 0.09, dec: 0.15, sus: 0.85, rel: 0.25, vib: 12 });
+  },
+  harp(R, m, t, d, v) {
+    tone(R, 'p25', hz(m), t, t + 0.28 * 7).connect(decayEnv(R, t, v * 0.26, 0.28, getBus(R, 'harp').in));
+  },
+  pad(R, m, t, d, v) {
+    const f = hz(m), env = softEnv(R, t, d, v * 0.2, 0.45, 0.6, getBus(R, 'pad').in), end = t + d + 0.65;
+    tone(R, 'triangle', f, t, end).connect(env);
+    const edge = R.c.createGain();
+    edge.gain.value = 0.35;
+    edge.connect(env);
+    tone(R, 'p50', f * 1.0035, t, end).connect(edge);   // a few cents sharp, so the two beat slowly
+  },
+  low(R, m, t, d, v) {
+    tone(R, 'triangle', hz(m), t, t + d + 0.35).connect(softEnv(R, t, d, v * 0.55, 0.02, 0.3, getBus(R, 'low').in));
+  },
+  box(R, m, t, d, v) {
+    const f = hz(m), b = getBus(R, 'box');
+    tone(R, 'triangle', f, t, t + 0.5 * 7).connect(decayEnv(R, t, v * 0.3, 0.5, b.in));
+    tone(R, 'triangle', f * 3, t, t + 0.12 * 7).connect(decayEnv(R, t, v * 0.07, 0.12, b.in));   // the tine
+  },
+  bird(R, m, t, d, v) {
+    const f = hz(m), s = tone(R, 'triangle', f, t, t + 0.3);
+    s.frequency.setValueAtTime(f, t);
+    s.frequency.exponentialRampToValueAtTime(f * 1.35, t + Math.min(0.08, d * 0.8));
+    s.connect(decayEnv(R, t, v * 0.16, 0.035, getBus(R, 'bird').in));
   },
 };
 
@@ -485,7 +532,7 @@ export async function renderTrack(trackOrId, { isStale } = {}) {
   const baseChs = foldTail(a.buf, a.loopFrames);
   const fightChs = foldTail(f.buf, f.loopFrames);
   await TICK();
-  const gain = RMS_TARGET / rmsOf(baseChs);
+  const gain = RMS_TARGET * (track.level ?? 1) / rmsOf(baseChs);
   const base = bake(baseChs, gain);
   await TICK();
   const fight = bake(fightChs, RMS_TARGET * (0.42 + 0.025 * track.stage) / rmsOf(fightChs));
@@ -708,7 +755,42 @@ export const TRACKS = [
       b.kit({ kick: '9797979797979799', snare: '9.5.9.5.9.5.9.55', hat: '5353535353535353' }, { 3: R, 7: R, 11: R, 13: R }, FIGHT_KIT);
     },
   }),
+  // the ending, not a stage: the walk home and the patting of rocks. In the jukebox once New Game+ is open
+  T({
+    id: 'peace', name: 'Rock-a-bye, Other Rock', stage: 8, ending: true, level: 0.8, bpm: 72, pulse: 72, beats: 3, bars: 24, room: 0.9,
+    key: 'D major', meter: '3/4',
+    desc: 'The stage one subject, slowed to a lullaby in the major. Nobody left to interrupt it. G minor still gets in twice.',
+    chords: 'D | G/D | D | A7 | Bm | G | D/A,A7 | D | G | Gm | D/F# | Bm | Em7 | A7 | D | A7 | D | G/D | D | A7 | Bm | Gm | D/A,A7 | D',
+    base(b) {
+      const p = b.chords;
+      b.line('hum', `
+        D4:1 F#4:1.5 E4:.5 | D4:2 B3:1 | A3:1 D4:1 F#4:1 | E4:3 | F#4:1 B4:1.5 A4:.5 | G4:1 E4:1 D4:1 | F#4:1.5 E4:.5 C#4:1 | D4:3 |
+        B3:1 D4:1 G4:1 | Bb4:2 G4:1 | F#4:1.5 E4:.5 D4:1 | D4:1 F#4:1 B3:1 | G4:1.5 F#4:.5 E4:1 | C#4:1 E4:1 G4:1 | F#4:3 | E4:1 C#4:1 A3:1 |`, { vel: 0.8, leg: 0.96 });
+      // the last eight: the music box takes the tune up an octave and the cello hums under it
+      b.line('box', `
+        D5:1 F#5:1.5 E5:.5 | D5:2 B4:1 | A4:1 D5:1 F#5:1 | E5:3 | F#5:1 B5:1.5 A5:.5 | Bb5:1.5 A5:.5 G5:1 | F#5:1.5 E5:.5 C#5:1 | D5:3 |`, { at: 48, vel: 0.85 });
+      b.line('hum', `
+        A3:3 | B3:3 | A3:3 | G3:1.5 C#4:1.5 | D4:3 | D4:1.5 Bb3:1.5 | A3:1.5 G3:1.5 | F#3:3 |`, { at: 48, vel: 0.6, leg: 0.97 });
+      for (const [at, n, v] of [[10, 'A5', 0.5], [11, 'C#6', 0.4], [22, 'F#5', 0.5], [23, 'A5', 0.4], [43, 'D6', 0.45], [44, 'A5', 0.35]]) b.hit('box', n, at, 1, v);
+      b.fig('harp', p, '1 5 8 5 3 5', { low: 38, step: 0.5, vel: 0.5, accent: [1, 0.6, 0.8, 0.6, 0.7, 0.6] });
+      // a pad on every chord, held exactly as long as the chord, and a low note under it
+      for (const ch of p) {
+        const r = 50 + ((ch.root - 50) % 12 + 12) % 12;
+        for (const i of ch.ints) { let m = r + i; while (m > 69) m -= 12; b.hit('pad', m, ch.at, ch.dur, 0.6); }
+        b.hit('low', 38 + ((ch.bass - 38) % 12 + 12) % 12, ch.at, ch.dur * 0.95, 0.8);
+      }
+      const chirp = (at, notes) => notes.forEach((n, i) => b.hit('bird', n, at + i * 0.16, 0.1, 0.8));
+      chirp(10.2, ['A6', 'C#7', 'A6']); chirp(22.5, ['E7', 'D7']); chirp(34.1, ['A6', 'C#7', 'A6', 'C#7']);
+      chirp(43.6, ['F#6', 'A6']); chirp(59.2, ['A6', 'C#7', 'A6']); chirp(70.6, ['E7', 'D7', 'B6']);
+    },
+    // only heard if someone picks it for a fight: a heartbeat and a busier harp
+    fight(b) {
+      b.fig('harp', b.chords, '8 5 3 5 8 5', { low: 50, step: 0.5, vel: 0.45, len: 0.6 });
+      b.kit({ kick: '96....' }, {}, { amp: 0.18 });
+    },
+  }),
 ];
+export const ENDING_TRACK = 'peace';
 
 // ---- the player: renders on demand, crossfades, keeps a small LRU, follows the selection
 const XFADE = 1.0;
@@ -723,16 +805,19 @@ export function createPlayer(store) {
   let ac = null, out = null, sel = load(), stage = null, combat = false, stopped = false;
   let stagePick = null, randomPick = null, randomNext = null, rotateAt = 0, rotateTimer = 0, onSeam = false;
   let current = null, busy = null;
+  let scene = null;   // a track that overrides the selection for a scene (the ending), then hands back
+  const ending = TRACKS.find(t => t.id === ENDING_TRACK);
   const cache = new Map();   // id -> render, insertion order is recency
   const failed = new Set();
 
   const pickOther = t => {
-    const pool = TRACKS.filter(x => x !== t);
+    const pool = TRACKS.filter(x => x !== t && !x.ending);
     return pool[Math.floor(Math.random() * pool.length)];
   };
 
   function desired() {
     if (stopped) return null;
+    if (scene) return scene;
     if (sel === 'stage') return TRACKS[(stage || 1) - 1];
     if (sel === 'randomStage') return stagePick || (stagePick = pickOther(null));
     if (sel === 'random') return randomPick || (randomPick = pickOther(current && current.track));
@@ -740,6 +825,8 @@ export function createPlayer(store) {
   }
   function prewarmTrack() {
     if (stopped) return null;
+    if (scene) return null;
+    if (stage === 7) return ending;   // the castle is the last stage: have the ending ready for when it falls
     if (sel === 'stage' && stage && stage < 7) return TRACKS[stage];
     if (sel === 'random') return randomNext;
     return null;
@@ -865,8 +952,15 @@ export function createPlayer(store) {
     pump();
   }
 
-  return {
+  const api = {
     attach(ctx, output) { ac = ctx; out = output; sync(); },
+    scene(id) {
+      const t = id ? TRACKS.find(x => x.id === id) || null : null;
+      if (t === scene) return;
+      scene = t;
+      sync();
+    },
+    get sceneId() { return scene ? scene.id : null; },
     kick() { stopped = false; sync(); },
     setStage(n) {
       n = Math.max(1, Math.min(7, Math.round(n) || 1));
@@ -896,4 +990,10 @@ export function createPlayer(store) {
       if (current && ac) { fadeOut(current, ac.currentTime); current = null; }
     },
   };
+  players.add(api);
+  return api;
 }
+
+// main.js plays the ending's track over whatever the player picked, and hands back with setScene(null)
+const players = new Set();
+export function setScene(id) { for (const p of players) p.scene(id); }

@@ -17,8 +17,13 @@ import village from './village.js';
 import wall from './wall.js';
 import city from './city.js';
 import castle from './castle.js';
+import fen from './fen.js';
 
-export const LEVELS = [clearing, forest, farms, village, wall, city, castle];
+// the campaign, in order; the secret level (reached from the City Wall, see wall.js) comes after it in LEVELS so its
+// kinds are registered and a save can name it, but it is never next in line
+export const CAMPAIGN = [clearing, forest, farms, village, wall, city, castle];
+export const SECRET = fen;
+export const LEVELS = [...CAMPAIGN, fen];
 
-export const levelFor = n => LEVELS[Math.min(n, LEVELS.length) - 1];
-export const lastLevel = () => LEVELS.length;
+export const levelFor = n => CAMPAIGN[Math.min(n, CAMPAIGN.length) - 1];
+export const lastLevel = () => CAMPAIGN.length;

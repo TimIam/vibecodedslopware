@@ -257,18 +257,23 @@ export function setWater(wt, x0, y0, x1, y1, v = 1) {
     if (x >= 0 && y >= 0 && x < wt.cols && y < wt.rows) wt.a[y * wt.cols + x] = v;
 }
 export function waterCell(g, x, y) {
-  const w = g.water, cx = Math.floor(x / w.cs), cy = Math.floor(y / w.cs);
+  const w = g.water, cy = Math.floor(y / w.cs);
+  let cx = Math.floor(x / w.cs);
+  if (w.wrap) cx = ((cx % w.cols) + w.cols) % w.cols;   // a map that goes all the way round (the City Wall)
   return cx < 0 || cy < 0 || cx >= w.cols || cy >= w.rows ? 0 : w.a[cy * w.cols + cx];
 }
 export const isWater = (g, x, y) => g.water && waterCell(g, x, y) === 1;
 // a lump of rubble fills the cell it lands in and some of its neighbours
 export function fillWater(g, x, y, amount = 1) {
-  const w = g.water, cx = Math.floor(x / w.cs), cy = Math.floor(y / w.cs);
+  const w = g.water, cy = Math.floor(y / w.cs);
+  let cx = Math.floor(x / w.cs);
+  if (w.wrap) cx = ((cx % w.cols) + w.cols) % w.cols;
   const cells = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]];
   let n = 0;
   for (const [dx, dy] of cells) {
     if (n >= 2 + amount * 2) break;
-    const X = cx + dx, Y = cy + dy;
+    let X = cx + dx; const Y = cy + dy;
+    if (w.wrap) X = (X + w.cols) % w.cols;
     if (X < 0 || Y < 0 || X >= w.cols || Y >= w.rows || w.a[Y * w.cols + X] !== 1) continue;
     w.a[Y * w.cols + X] = 2; n++;
   }
@@ -313,7 +318,8 @@ export function hurtCritter(g, c, dmg) {
   if (v.chaos) API.chaos(g, v.chaos);
   API.sound(g, d.cry || 'kill');
   for (let i = 0; i < 6; i++) { const a = g.rng() * TAU, s = 10 + g.rng() * 25; API.part(g, c.x, c.y - 1, Math.cos(a) * s, Math.sin(a) * s, 0.35, d.bits || 'blood'); }
-  if (!d.leaves) g.corpses.push({ u: null, critter: c.kind, x: c.x, y: c.y, cls: null, t: 0, fx: c.fx });
+  if (!d.leaves && !d.noCorpse) g.corpses.push({ u: null, critter: c.kind, x: c.x, y: c.y, cls: null, t: 0, fx: c.fx });
+  d.onDie?.(g, c);   // (the secret level's steers go off like bombs)
 }
 
 function updateCritters(g, dt) {
@@ -323,6 +329,8 @@ function updateCritters(g, dt) {
     const d = CRITTERS[c.kind];
     c.hitT = Math.max(0, c.hitT - dt);
     c.scared = Math.max(0, c.scared - dt);
+    // a critter with a mind of its own (the secret level's steers and its Minotaur) runs its own update
+    if (d.ai) { d.ai(g, c, dt); if (!d.ghost) solidPush(g, c, c.r); continue; }
     const db = Math.hypot(c.x - b.x, c.y - b.y);
     if (db < d.fear || c.scared > 0 || c.bolting) {
       // run away from the boss (carts and the like bolt for the edge of the map and are gone)
@@ -348,7 +356,7 @@ function updateCritters(g, dt) {
     solidPush(g, c, c.r);
     const B = g.map;
     if (c.bolting && (c.x < -20 || c.y < -20 || c.x > B.w + 20 || c.y > B.h + 20)) c.gone = true;
-    c.x = clamp(c.x, c.bolting ? -30 : 4, c.bolting ? B.w + 30 : B.w - 4); c.y = clamp(c.y, c.bolting ? -30 : 14, c.bolting ? B.h + 30 : B.h - 18);
+    if (!B.wrapW) c.x = clamp(c.x, c.bolting ? -30 : 4, c.bolting ? B.w + 30 : B.w - 4); c.y = clamp(c.y, c.bolting ? -30 : 14, c.bolting ? B.h + 30 : B.h - 18);
   }
   if (g.critters.some(c => c.dead || c.gone)) g.critters = g.critters.filter(c => !c.dead && !c.gone);
 }

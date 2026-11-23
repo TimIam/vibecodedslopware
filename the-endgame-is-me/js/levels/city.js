@@ -6,22 +6,27 @@
 // points but no Vengeance, and only the timber roofs, tents and stalls burn at all. Rubble shoved into a canal fills
 // it, which makes a shortcut.
 
+import { addProp } from '../props.js';
+
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 export const INK = '#14100c';
 
 // ---------------------------------------------------------------------------------------------- the layout
 
-const MW = 320, MH = 900, CANAL_H = 18, BR_W = 36;
+const MW = 320, MH = 1350, CANAL_H = 18, BR_W = 36;   // (half as long again as it was: two more bands of town)
+const SOUTH = 450;                                     // how far south everything below the old bands moved
 // the castle front across the top: the wall walk down to FACE, the wall's face down to BOT. Pieces left to right:
 // curtain runs, the two round towers (with the bits of wall either side of the gate), and the gate itself
 export const FRONT = { face: 30, bot: 74 };
 const BASH = 45;                        // one bash (props.js bossTouch default)
-const HITS = { cf_wall: 20, cf_tower: 24, cf_gate: 18 };
+const HITS = { cf_wall: 40, cf_tower: 48, cf_gate: 36 };   // (twice what it was: walls on 5, 6 and 7 take double)
 const LABEL = { cf_wall: 'WALL', cf_tower: 'TOWER', cf_gate: 'GATE' };
 const GATE_X0 = 147, GATE_X1 = 173, TOWER_X = [114, 206];
 const FRONT_SECS = [[0, 52, 'cf_wall'], [52, 97, 'cf_wall'], [97, GATE_X0, 'cf_tower'], [GATE_X0, GATE_X1, 'cf_gate'], [GATE_X1, 223, 'cf_tower'], [223, 268, 'cf_wall'], [268, MW, 'cf_wall']];
 const CANALS = [
+  { y: 1194, br: [60, 240] },
+  { y: 996, br: [180] },
   { y: 798, br: [252] },
   { y: 600, br: [144] },
   { y: 402, br: [36, 222] },
@@ -29,6 +34,8 @@ const CANALS = [
 ];
 // the three maze bands between the canals: vertical streets through the south row (row1) and the north row (row2)
 const BANDS = [
+  { yB: 1194, row1: [[30, 60], [170, 200]], row2: [[90, 120], [240, 270]] },
+  { yB: 996, row1: [[110, 140], [260, 290]], row2: [[40, 70], [180, 210]] },
   { yB: 798, row1: [[40, 70], [200, 230]], row2: [[100, 130], [262, 292]] },
   { yB: 600, row1: [[60, 90], [250, 280]], row2: [[160, 190]] },
   { yB: 402, row1: [[130, 160]], row2: [[20, 50], [200, 230]] },
@@ -154,18 +161,19 @@ function build(g, rng, P) {
   for (const x of [66, 254]) P.addProp(g, 'city_lamp', x, 133);
 
   // inside the south gate: a market, and houses up against the walls
-  plazas.push({ x0: 60, y0: 822, x1: 260, y1: 860 });
-  market(g, rng, P, 60, 140, 822, 856, plazas);
-  market(g, rng, P, 180, 260, 822, 856, plazas);
-  placeRun(g, rng, P, 10, 50, 824, 848);
-  placeRun(g, rng, P, 270, 310, 824, 848);
-  for (const x of [60, 140, 180, 260]) P.addProp(g, 'city_lamp', x, 862);
+  const S = SOUTH;
+  plazas.push({ x0: 60, y0: 822 + S, x1: 260, y1: 860 + S });
+  market(g, rng, P, 60, 140, 822 + S, 856 + S, plazas);
+  market(g, rng, P, 180, 260, 822 + S, 856 + S, plazas);
+  placeRun(g, rng, P, 10, 50, 824 + S, 848 + S);
+  placeRun(g, rng, P, 270, 310, 824 + S, 848 + S);
+  for (const x of [60, 140, 180, 260]) P.addProp(g, 'city_lamp', x, 862 + S);
 
   // townsfolk, out on the streets
   const foots = g.props.filter(p => p.w && P.KINDS[p.kind].solid).map(p => ({ x0: p.x - p.w / 2, y0: p.y - p.h / 2, x1: p.x + p.w / 2, y1: p.y + p.h / 2 }));
   let n = 0;
-  for (let tries = 0; tries < 2000 && n < 34; tries++) {
-    const x = 14 + rng() * 292, y = 90 + rng() * 760;
+  for (let tries = 0; tries < 3000 && n < 51; tries++) {
+    const x = 14 + rng() * 292, y = 90 + rng() * (760 + SOUTH);
     if (foots.some(f => x > f.x0 - 3 && x < f.x1 + 3 && y > f.y0 - 3 && y < f.y1 + 3) || P.isWater(g, x, y) || P.isWater(g, x, y + 6) || P.isWater(g, x, y - 6)) continue;
     P.addCritter(g, 'city_folk', x, y, { col: Math.floor(rng() * 6) });
     n++;
@@ -176,7 +184,7 @@ function build(g, rng, P) {
     const p = P.addProp(g, kind, (x0 + x1) / 2, hh / 2, { w: x1 - x0, h: hh, hp, maxhp: hp });
     return { x0, x1, kind, prop: p, total: HITS[kind], label: LABEL[kind], bot: hh, breached: false };
   });
-  return { w: MW, h: MH, scroll: 'y', start: { x: 160, y: 866, face: -Math.PI / 2 }, canals, plazas, foots, front };
+  return { w: MW, h: MH, scroll: 'y', start: { x: 160, y: 866 + SOUTH, face: -Math.PI / 2 }, canals, plazas, foots, front };
 }
 
 // ---------------------------------------------------------------------------------------------- heroes and canals
@@ -233,6 +241,8 @@ function update(g, dt, api) {
       api.addScore(g, pts);
       api.text(g, p.x, s.bot + 12, `+${pts}`, 'gold', 2);
       api.sound(g, 'collapse');
+      // more of it comes down than before: lumps of wall you can shove about, strewn out in front of the hole
+      for (let i = 0; i < 5; i++) addProp(g, 'city_rubble', clamp(p.x + (g.rng() - 0.5) * p.w, 8, MW - 8), s.bot + 6 + g.rng() * 20);
       if (!g.clear) api.banner(g, s.kind === 'cf_gate' ? 'THE CASTLE GATE IS DOWN' : s.kind === 'cf_tower' ? 'THE TOWER IS DOWN' : 'THE CASTLE WALL IS DOWN', 'WALK IN.', 4);
     }
     // into the hole: the boss walks on north and out of sight
@@ -248,6 +258,14 @@ function update(g, dt, api) {
     if (s && s.prop.state === 'up' && u.y < s.bot + 2) u.y = s.bot + 3;
   }
 }
+// the castle front shoots back once you get near it, like the City Wall: arrows in close, ballista bolts further out
+function shooters(g) {
+  const b = g.boss, out = [];
+  if (b.y > 330) return out;
+  for (const s of g.map.front) if (s.prop.state === 'up') out.push({ x: s.prop.x, y: s.bot - 10, kind: 'both' });
+  return out;
+}
+
 function hud(g) {
   const m = g.map, b = g.boss;
   if (g.walkoff) return 'INTO THE CASTLE';
@@ -734,11 +752,12 @@ export function castleFront(ctx, m, h) {
 
 // a hole battered through the castle front: torn masonry either side, the wall walk's broken ends, the passage beyond
 // running north in shadow, and the wreckage spilled out on the city side (the gate's leaves its doors and portcullis)
-function breachSprite(h, s) {
-  const W = s.x1 - s.x0 + 2, Hh = s.bot + 10, kind = s.kind, seed = s.x0 * 7 + 3;
-  return h.sprite(`cfbreach|${s.x0}|${kind}`, W, Hh, c => {
-    const edgeL = y => 1 + Math.floor(h.hash(seed, Math.floor(y / 3)) * 3 + (y < FRONT.face ? 1 : 0));
-    const edgeR = y => W - 2 - Math.floor(h.hash(Math.floor(y / 3), seed) * 3 + (y < FRONT.face ? 1 : 0));
+// (openL / openR: the section on that side is down too, so there is no broken end on that side, the hole just runs on)
+function breachSprite(h, s, openL, openR) {
+  const W = s.x1 - s.x0 + 2, Hh = s.bot + 30, kind = s.kind, seed = s.x0 * 7 + 3;
+  return h.sprite(`cfbreach|${s.x0}|${kind}|${openL ? 1 : 0}${openR ? 1 : 0}`, W, Hh, c => {
+    const edgeL = y => openL ? -2 : 1 + Math.floor(h.hash(seed, Math.floor(y / 3)) * 3 + (y < FRONT.face ? 1 : 0));
+    const edgeR = y => openR ? W + 1 : W - 2 - Math.floor(h.hash(Math.floor(y / 3), seed) * 3 + (y < FRONT.face ? 1 : 0));
     for (let y = 0; y < s.bot; y++) {
       const a = edgeL(y), b = edgeR(y);
       for (let x = 0; x < W; x++) {
@@ -756,11 +775,19 @@ function breachSprite(h, s) {
         if (col) put(c, x, y, col);
       }
     }
-    // wreckage spilled out of the hole and across the foot of the wall
-    const nS = Math.round(W / 3);
+    // a dusty spill of broken stone fanning out from the hole, then wreckage heaped on it: blocks, chips, a beam or two
+    for (let y = s.bot - 10; y < Hh; y++) for (let x = 0; x < W; x++) {
+      const d = (y - (s.bot - 10)) / (Hh - s.bot + 10) + Math.abs(x - W / 2) / W * 0.6 + (h.hash(x + seed, y) - 0.5) * 0.35;
+      if (d < 0.75 && h.hash(x * 3, y + seed) < 0.75 - d * 0.6) put(c, x, y, h.hash(x, y * 7) < 0.3 ? '#2e2a24' : STONEP[1 + Math.floor(h.hash(y, x + seed) * 2)]);
+    }
+    const nS = Math.round(W * 1.3);
     for (let i = 0; i < nS; i++) {
-      const x = Math.floor(h.hash(i, seed + 1) * (W - 3)), y = s.bot - 8 + Math.floor(h.hash(seed + 1, i) * 14), z = 1 + (h.hash(i, 7) > 0.6 ? 1 : 0);
+      const x = Math.floor(h.hash(i, seed + 1) * (W - 3)), y = s.bot - 10 + Math.floor(h.hash(seed + 1, i) ** 1.6 * (Hh - s.bot + 6)), z = 1 + (h.hash(i, 7) > 0.55 ? 1 : 0) + (h.hash(i, 9) > 0.9 ? 1 : 0);
       rect(c, x, y, z + 2, z + 2, INK); rect(c, x + 1, y + 1, z, z, STONEP[2 + (i % 3)]); put(c, x + 1, y + 1, STONEP[5]);
+    }
+    for (let i = 0; i < Math.ceil(W / 14); i++) {
+      const x0 = Math.floor(h.hash(i, seed + 5) * (W - 10)), y0 = s.bot - 4 + Math.floor(h.hash(seed + 5, i) * 14), up = h.hash(i, 3) < 0.5 ? 1 : -1;
+      for (let k = 0; k < 9; k++) { put(c, x0 + k, y0 + Math.round(k * 0.4 * up) + 1, INK); put(c, x0 + k, y0 + Math.round(k * 0.4 * up), k % 3 ? '#6e4a2a' : '#5a3a22'); }
     }
     if (kind === 'cf_gate') {
       // the doors, flat on their backs and split, and the portcullis twisted across them
@@ -784,7 +811,11 @@ function southGate(ctx, m, h) {
 // bridges are drawn over the canal: a cobbled deck with a parapet each side
 function under(ctx, g, h) {
   const m = g.map;
-  if (m.front && h.VIEW.y < FRONT.bot + 12) for (const s of m.front) if (s.prop.state !== 'up') ctx.drawImage(breachSprite(h, s), s.x0 - 1, 0);
+  if (m.front && h.VIEW.y < FRONT.bot + 40) m.front.forEach((s, i) => {
+    if (s.prop.state === 'up') return;
+    const down = j => m.front[j] && m.front[j].prop.state !== 'up';
+    ctx.drawImage(breachSprite(h, s, down(i - 1), down(i + 1)), s.x0 - 1, 0);
+  });
   for (const c of m.canals) {
     if (c.y1 + 6 < h.VIEW.y || c.y0 - 6 > h.VIEW.y + h.H) continue;
     for (const b of c.bridges) {
@@ -849,6 +880,6 @@ export default {
   n: 6, id: 'city', name: 'INSIDE THE WALLS', sub: 'GO NORTH TO THE CASTLE. BREAK YOUR WAY IN.', mode: 'timed',
   kinds, critters,
   build(g, rng, P) { return build(g, rng, P); },
-  update, hud,
+  update, hud, shooters,
   art: { ground, under, props, critters: { city_folk: drawFolk }, corpses: { city_folk: drawFolkBody }, canopy: false, theme: { leash: false } },
 };
