@@ -313,6 +313,7 @@ function animateQuad(a, p, dt) {
   J.body.position.y = damp(J.body.position.y, by, 6, dt);
   J.tail.rotation.z = Math.sin(p.world.realT * (walking ? 4 : 0.8)) * 0.3;
   J.head.rotation.y = damp(J.head.rotation.y, p.headTurn || 0, 2, dt);
+  J.head.rotation.x = damp(J.head.rotation.x, p.sniff ? 0.7 : 0, 3, dt);
 }
 
 // Props: small grouped meshes that take the material of whoever holds them.
@@ -343,6 +344,14 @@ export function makeProp(kind) {
     const col = [0x15161a, 0x15161a, 0x1c2a4a, 0x8a1a1a, 0x2a4a2a, 0xd8b020, 0x5a2a6a][Math.floor(Math.random() * 7)];
     add(new THREE.ConeGeometry(0.56, 0.24, 12).translate(0, 0.42, 0), col);
     add(new THREE.CylinderGeometry(0.012, 0.012, 0.75, 5).translate(0, 0.08, 0), 0x2a2a2a);
+  } else if (kind === 'backpack') {
+    add(new THREE.BoxGeometry(0.3, 0.38, 0.16).translate(0, 0, 0), 0x2a4a7a);
+    add(new THREE.BoxGeometry(0.26, 0.14, 0.04).translate(0, -0.08, -0.09), 0x1a2a4a);
+  } else if (kind === 'cake') {
+    add(new THREE.CylinderGeometry(0.17, 0.17, 0.13, 20).translate(0, 0.065, 0), 0xf2e6d8);
+    add(new THREE.CylinderGeometry(0.175, 0.175, 0.02, 20).translate(0, 0.13, 0), 0xe85a8a);
+    add(new THREE.CylinderGeometry(0.22, 0.22, 0.01, 20), 0xe8e4da);
+    for (let i = 0; i < 6; i++) add(new THREE.CylinderGeometry(0.006, 0.006, 0.07, 5).translate(Math.cos(i) * 0.1, 0.175, Math.sin(i) * 0.1), [0x4a8aff, 0xffd040, 0xff5a8a][i % 3]);
   } else if (kind === 'vacuum') {
     add(new THREE.BoxGeometry(0.3, 0.12, 0.2).translate(0, 0.06, 0.25), 0x8a2a2a);
     add(new THREE.CylinderGeometry(0.012, 0.012, 0.85, 5).rotateX(-0.6).translate(0, 0.42, 0.02), 0x2a2a2a);

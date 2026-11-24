@@ -300,7 +300,7 @@ export class Resident extends Actor {
     const key = this.workKey();
     if (this.worksOn(key) && this.workedDay !== key && inCirc(m, this.leave - 3, this.back - 60)) {
       this.workedDay = key;
-      yield* this.outing({ mode: 'walk', until: this.nextAbs(this.back) + range(r, -15, 30), label: this.job === 'teen' ? 'at school' : this.job === 'student' ? 'at class' : this.job === 'night' ? 'on the night shift' : 'at work', coat: true });
+      yield* this.commute(this.nextAbs(this.back) + range(r, -15, 30));
       return;
     }
     if (inCirc(m, this.dinnerAt, this.dinnerAt + 150) && this.dinnerDay !== w.day) { yield* this.dinner(); return; }
@@ -310,6 +310,22 @@ export class Resident extends Actor {
     if (this.goingOut && this.goingOut.day === w.day && !this.goingOut.done && m >= this.goingOut.at && m < this.goingOut.at + 120) {
       this.goingOut.done = true;
       yield* this.outing({ mode: 'car', until: now + range(r, 160, 260), label: 'out with friends', coat: true, carHome: r() < 0.7 });
+      return;
+    }
+    const weekend = w.isWeekend();
+    if (weekend && inCirc(m, 600, 790) && this.brunchDay !== w.day && this.job !== 'night' && r() < 0.05) {
+      this.brunchDay = w.day;
+      const sat = w.weekday() === 6;
+      const label = sat && r() < 0.5 ? 'at the farmers market' : 'out for brunch';
+      for (const q of this.others()) if (q.where === 'home' && !q.asleep && !q.busy && q.job !== 'teen') { q.brunchDay = w.day; q.interrupt(function* () { yield* this.outing({ mode: 'walk', until: w.time + 95, label, coat: true }); }); }
+      this.marketBag = label === 'at the farmers market';
+      yield* this.outing({ mode: 'walk', until: now + range(r, 80, 110), label, coat: true });
+      return;
+    }
+    if (this.home.dog && !this.home.dogWalk && this.dogDay !== w.day + ':' + (m < 900 ? 'am' : 'pm') && (inCirc(m, 1050, 1260) || (this.job === 'retired' || this.job === 'wfh' || weekend) && inCirc(m, 700, 900)) && r() < 0.12) {
+      this.dogDay = w.day + ':' + (m < 900 ? 'am' : 'pm');
+      for (const q of this.home.residents) q.dogDay = this.dogDay;
+      yield* this.walkDog(range(r, 14, 30));
       return;
     }
     if ((this.job === 'retired' || this.job === 'wfh') && inCirc(m, 600, 1020) && this.walkDay !== w.day && r() < 0.03) {
@@ -461,6 +477,8 @@ export class Resident extends Actor {
       this.asleep = true;
       this.label = 'asleep';
       let wakeAt = this.nextAbs(this.wake) + range(r, 1, 20);
+      // sleeping in on the weekend
+      if (w.isWeekend(Math.floor(wakeAt / 1440)) && ['office', 'student', 'teen', 'wfh'].includes(this.job)) wakeAt += range(r, 50, 140);
       // if the alarm went off while they were still getting into bed, they get up again shortly
       if (wakeAt - w.time > 18 * 60) wakeAt = w.time + range(r, 4, 15);
       this.wakeAt = wakeAt;
@@ -497,6 +515,8 @@ export class Resident extends Actor {
   *morning() {
     const r = this.r, u = this.home;
     this.morningAt = this.world.time;
+    // the dog can't wait for breakfast
+    if (u.dog && !u.dogWalk && u.dogAM !== this.world.day) { u.dogAM = this.world.day; yield* this.walkDog(range(r, 8, 14)); }
     yield* this.doAt('bath', range(r, 8, 16), 'stand', 'showering');
     yield* this.doAt('wardrobe', range(r, 3, 6), 'reach', 'getting dressed');
     for (const win of u.windows) win.blindTarget = u.hh.blindDay;
@@ -615,7 +635,7 @@ export class Resident extends Actor {
     const dur = (lo, hi) => Math.max(2, Math.min(cap, range(r, lo, hi)));
     const tvOn = u.rooms.L.tvWatch.size > 0;
     const wx = w.weather.p;
-    const wfh = this.job === 'wfh';
+    const wfh = this.job === 'wfh' && !w.isWeekend();
     const choice = weighted(r, [
       [P({ morning: 0.3, day: this.job === 'retired' ? 1.6 : 0.3, evening: 4, late: 3, night: 1.5 }) + (tvOn ? (part === 'day' || part === 'morning' ? 0.8 : quiet ? 2 : 5) : 0), 'tv'],
       [(this.reader ? 1.6 : 0.4) * P({ morning: 0.4, day: 1, evening: 1, late: 1.3, night: 0.6 }), 'read'],
@@ -625,7 +645,7 @@ export class Resident extends Actor {
       [0.35, 'bath'],
       [P({ morning: 0.5, day: 0.6, evening: 0.9, late: 1.2, night: 0.8 }), 'phone'],
       [P({ morning: 1.1, day: 1.2, evening: 0.4, late: 0.2 }), 'tidy'],
-      [P({ morning: 0.3, day: 0.8 }), 'vacuum'],
+      [P({ morning: 0.3, day: 0.8 }) * (w.isWeekend() ? 2 : 1), 'vacuum'],
       [P({ day: 0.45, morning: 0.15 }) * (w.shopOpen('laundry') && this.laundryDay !== w.day && wx.rain < 0.5 ? 1 : 0), 'laundry'],
       [u.pets.length ? P({ morning: 1.2, day: 0.3, evening: 0.6 }) : 0, 'pet'],
       // everyone has a habit or two, but not at 2am
@@ -639,7 +659,7 @@ export class Resident extends Actor {
       [this.job === 'teen' ? P({ late: 3.5, night: 3.5 }) : 0, 'smoke'],
     ]);
     switch (choice) {
-      case 'tv': yield* this.watchTV(dur(30, 110), null, quiet ? 'watching TV in the dark' : 'watching TV', false, quiet); break;
+      case 'tv': yield* this.watchTV(dur(30, 110), null, quiet ? 'watching TV in the dark' : w.weekday() === 0 && m > 780 && m < 1140 ? 'watching the game' : 'watching TV', false, quiet); break;
       case 'read':
         if (part === 'day' || part === 'morning') yield* this.doAt(['chair1', 'chair2'], dur(20, 50), 'sitTable', 'reading by the window', { start: () => { this.lookDown = 0.5; } });
         else yield* this.doAt(['sofa2', 'sofa1'], dur(20, 60), 'sit', 'reading under the lamp', { start: () => { this.lookDown = 0.45; if (w.dayF < 0.45) { u.rooms.L.set(1, true); } } });
@@ -765,6 +785,74 @@ export class Resident extends Actor {
     yield* this.waitUntil(() => w.time >= until);
     yield* this.comeHome(mode === 'car' && carHome !== false ? 'car' : mode === 'car' ? 'walk' : 'walk', !!suitcase);
   }
+  // The commute: coat, a work bag (or a backpack), sometimes a coffee from the deli on the way.
+  *commute(until) {
+    const w = this.world, r = this.r;
+    const school = this.job === 'teen' || this.job === 'student';
+    yield* this.doAt('coat', 0.8, 'reach', 'putting on a coat');
+    this.label = school ? 'heading to school' : this.job === 'night' ? 'heading to the night shift' : 'heading to work';
+    if (school) this.hold(makeProp('backpack'), new THREE.Vector3(0, 0.0, -0.45));
+    else this.hold(makeProp('bag'));
+    yield* this.exitUnit(true);
+    this.where = 'out';
+    this.returnAt = until;
+    if (!school && w.shopOpen('deli') && r() < 0.5) {
+      yield* this.walkTo(DELI.door[0], 1.0);
+      yield* this.walkTo(DELI.inside[0], DELI.inside[1]);
+      yield* this.walkTo(DELI.counter[0] + range(r, -0.3, 0.3), DELI.counter[1]);
+      this.targetYaw = Math.PI; this.label = 'grabbing a coffee on the way to work';
+      yield* this.waitReal(range(r, 5, 9));
+      this.drop(); this.hold(makeProp('cup'));
+      yield* this.walkTo(DELI.inside[0], DELI.inside[1]);
+      yield* this.walkTo(DELI.door[0], 1.0);
+      this.label = 'heading to work';
+    }
+    const dir = r() < 0.5 ? -1 : 1, lane = range(r, 1.6, 3.1);
+    this.speed *= 1.15;
+    yield* this.walkTo(dir * 3, lane);
+    yield* this.walkTo(dir * 42, lane + range(r, -0.3, 0.3));
+    this.speed /= 1.15;
+    this.drop();
+    this.offstage();
+    this.label = school ? 'at school' : this.job === 'night' ? 'on the night shift' : 'at work';
+    yield* this.waitUntil(() => w.time >= until);
+    yield* this.comeHome('walk');
+  }
+  // Walking the dog: out the lobby on a leash, a stop at a tree, around the block and back.
+  *walkDog(mins) {
+    const u = this.home, w = this.world, r = this.r;
+    if (!u.dog || u.dogWalk) { yield* this.waitGame(2); return; }
+    u.dogWalk = { owner: this };
+    try {
+      yield* this.doAt('coat', 0.5, 'reach', 'grabbing the leash');
+      this.label = 'taking the dog out';
+      yield* this.exitUnit(true);
+      this.where = 'out';
+      this.returnAt = w.time + mins + 20;
+      const dir = r() < 0.5 ? -1 : 1, lane = range(r, 1.9, 2.6);
+      this.label = 'walking the dog';
+      this.speed *= 0.9;
+      yield* this.walkTo(dir * 4, lane);
+      yield* this.walkTo(dir * 13.3, 2.2);
+      this.targetYaw = dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+      this.label = 'waiting while the dog sniffs a tree';
+      u.dog.sniff = true;
+      yield* this.waitReal(range(r, 6, 12));
+      u.dog.sniff = false;
+      this.label = 'walking the dog around the block';
+      yield* this.walkTo(dir * 42, lane);
+      this.offstage();
+      yield* this.waitGame(mins);
+      this.pos.set(-dir * 42, SW_Y, lane); this.hidden = false;
+      this.label = 'bringing the dog home';
+      yield* this.walkTo(-dir * 2.5, lane);
+      this.speed /= 0.9;
+      yield* this.enterUnit(true);
+      this.where = 'home';
+      this.label = 'hanging up the leash';
+      yield* this.doAt('coat', 0.5, 'reach', 'hanging up the leash');
+    } finally { u.dogWalk = null; u.dog.sniff = false; if (this.speed < 1) this.speed = Math.max(this.speed, 1.1); }
+  }
   *comeHome(mode, suitcase) {
     const w = this.world, r = this.r;
     this.label = 'coming home';
@@ -781,7 +869,8 @@ export class Resident extends Actor {
       const lane = range(r, 1.6, 3.1);
       this.pos.set(dir * 42, SW_Y, lane);
       this.hidden = false;
-      if (r() < 0.25) this.hold(makeProp('bag'));
+      if (this.marketBag || r() < 0.25) this.hold(makeProp('bag'));
+      this.marketBag = false;
       yield* this.walkTo(dir * 2.5, lane);
     }
     const pkg = w.packages.get(this.home);

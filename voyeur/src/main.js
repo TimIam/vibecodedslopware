@@ -72,7 +72,18 @@ const director = {
   streetActive() {
     return world.street.flashing || world.street.vehicles.some((v) => v.state === 'stopped');
   },
+  // people from the building out on the sidewalk: commuters, dog walkers, trick-or-treat candy
+  sidewalkFolk() { return world.residents.filter((p) => !p.hidden && !p.room && p.pos.y < 1 && Math.abs(p.pos.x) < 13); },
   choose() {
+    const folk = this.sidewalkFolk();
+    if (folk.length && Math.random() < 0.55) {
+      const p = folk[Math.floor(Math.random() * folk.length)];
+      this.mode = 'street'; this.unit = null; this.follow = p;
+      this.pos.set(p.pos.x * 0.7, 3.2, 15.5); this.tgt.set(p.pos.x * 0.8, 1.4, 1.2);
+      this.t = range(Math.random, 14, 22);
+      return;
+    }
+    this.follow = null;
     if (this.streetActive() && Math.random() < 0.6) {
       const v = world.street.flashing || world.street.vehicles.find((x) => x.state === 'stopped');
       this.mode = 'street'; this.unit = null;
@@ -92,6 +103,7 @@ const director = {
     if (this.auto && this.t <= 0) { if (this.mode === 'wide') this.choose(); else this.wide(range(Math.random, 30, 55)); }
     if (this.auto && world.street.flashing && !this.sawFlash) { this.sawFlash = world.street.flashing; this.mode = 'wide'; this.t = 0.01; }
     if (!world.street.flashing) this.sawFlash = null;
+    if (this.mode === 'street' && this.follow && !this.follow.hidden && !this.follow.room) { this.pos.x = this.follow.pos.x * 0.7; this.tgt.x = this.follow.pos.x * 0.85; }
     const r = this.mode === 'wide' ? 0.35 : 0.42;
     this.cur.x = damp(this.cur.x, this.pos.x, r, dt); this.cur.y = damp(this.cur.y, this.pos.y, r, dt); this.cur.z = damp(this.cur.z, this.pos.z, r, dt);
     this.curT.x = damp(this.curT.x, this.tgt.x, r * 1.3, dt); this.curT.y = damp(this.curT.y, this.tgt.y, r * 1.3, dt); this.curT.z = damp(this.curT.z, this.tgt.z, r * 1.3, dt);
@@ -105,12 +117,16 @@ const $ = (id) => document.getElementById(id);
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 let showCaps = true;
-function clockText() {
+function clockParts() {
   const d = world.date(), m = world.mod;
   let h = Math.floor(m / 60), mm = Math.floor(m % 60);
   const ap = h >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
-  return `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()} · ${h}:${String(mm).padStart(2, '0')} ${ap} · ${world.holidays.label ? world.holidays.label + ' · ' : ''}${world.season.name} · ${world.weather.label}${world.ff > 1 ? ` · ×${world.ff} fast` : ''}`;
+  return {
+    time: `${h}:${String(mm).padStart(2, '0')}<small> ${ap}</small>`,
+    date: `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}${world.isWeekend() ? ' · weekend' : ''}`,
+    more: [world.holidays.label, world.season.name, world.weather.label, world.ff > 1 ? `×${world.ff} fast` : ''].filter(Boolean).join(' · '),
+  };
 }
 function captionText() {
   if (director.mode === 'unit' && director.unit) {
@@ -131,7 +147,8 @@ function captionText() {
 }
 let lastToast = null, toastUntil = 0;
 function updateHud() {
-  $('clock').textContent = clockText();
+  const cp = clockParts();
+  $('ctime').innerHTML = cp.time; $('cdate').textContent = cp.date; $('cmore').textContent = cp.more;
   $('cap').innerHTML = showCaps ? captionText() : '';
   const tq = world.toastQ;
   if (tq.length && tq[tq.length - 1] !== lastToast) { lastToast = tq[tq.length - 1]; toastUntil = performance.now() + 7000; $('toast').textContent = lastToast.msg; }
@@ -154,6 +171,8 @@ addEventListener('keydown', (e) => {
   if (k === '8') { const n = world.demo('party'); say(n ? `Demo: a party in ${n}` : 'Demo: no party right now (one is already going, or nobody home)'); }
   if (k === '9') { const order = ['clear', 'cloudy', 'rain', 'storm', 'snow']; const nx = order[(order.indexOf(world.weather.state) + 1) % order.length]; world.weather.set(nx); world.weather.next = world.time + 240; say(`Weather: ${world.weather.label}`); }
   if (k === '0') { hol = (hol + 1) % 7; const lbl = world.holidays.jump(hol); say(`Jumped to ${lbl}`); }
+  if (k === 'b') { const n = world.demo('birthday'); say(n ? `Demo: a birthday party for ${n}` : 'Demo: no birthday right now (a party is already on, or nobody is home)'); }
+  if (k === 'w') { const d = world.jumpToWeekend(); say(`Jumped to Saturday morning, ${MONTHS[d.getMonth()]} ${d.getDate()}`); }
   if (k === '5') { seasonIdx = (seasonIdx + 1) % seasons.length; world.seasonOverride = seasons[seasonIdx]; world.applySeason(); say(`Season: ${world.season.name}${seasons[seasonIdx] ? '' : ' (from today\'s date)'}`); }
   if (k === 't') { world.time += 60; say('Skipped ahead one hour'); }
   if (k === 'f' && !e.repeat) world.ff = 30;

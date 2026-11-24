@@ -14,7 +14,7 @@ import { makeSky } from './shaders.js';
 export const GAME_PER_REAL = 1440 / 3600;
 
 const TEMPLATES = [
-  { jobs: ['office', 'office'] },
+  { jobs: ['office', 'office'], pet: 'dog' },
   { jobs: ['wfh'], pet: 'cat' },
   { jobs: ['retired', 'retired'], old: true },
   { jobs: ['night'] },
@@ -24,8 +24,8 @@ const TEMPLATES = [
   { jobs: ['office'], pet: 'cat' },
   { jobs: ['office', 'teen'], family: true },
   { jobs: ['wfh'], host: true },
-  { jobs: ['retired'], old: true, pet: 'cat' },
-  { jobs: ['wfh', 'office'], host: true },
+  { jobs: ['retired'], old: true, pet: 'dog' },
+  { jobs: ['wfh', 'office'], host: true, pet: 'dog' },
 ];
 const QUIRKS = ['dancer', 'gym', 'waver', 'singer', 'pacer', 'none', 'none', 'dancer', 'singer'];
 const FEM = ['Maya', 'Priya', 'Dana', 'Rosa', 'Mei', 'Aisha', 'Grace', 'Lena', 'Nadia', 'June', 'Sofia', 'Imani', 'Hana', 'Clara', 'Ruth'];
@@ -177,17 +177,89 @@ export class World {
         };
         spec.dancer = spec.quirk === 'dancer';
         if (job === 'student') spec.goingOut = { day: this.day, at: range(r, 1230, 1290), done: false };
+        spec.birthday = (() => { const d = new Date(this.date().getFullYear(), Math.floor(r() * 12), 1 + Math.floor(r() * 28)); return { m: d.getMonth(), d: d.getDate() }; })();
         if (T.trip) spec.trip = { at: this.time + range(r, 30, 140), back: 0, gone: false };
         if (spec.trip) spec.trip.back = spec.trip.at + range(r, 2.2, 3.2) * 1440;
         const p = new Resident(this, u, spec, makeRng(Math.floor(r() * 1e9)));
         this.residents.push(p);
       });
-      if (T.pet) this.makeCat(u, r);
+      if (T.pet === 'cat') this.makeCat(u, r);
+      if (T.pet === 'dog') this.makeDog(u, r);
       u.host = !!T.host;
       this.augmentUnit(u);
       if (T.family) this.teenNook(u);
     });
     this.makeClerk();
+    // somebody always has a birthday coming up in the next couple of days
+    const lucky = this.residents[Math.floor(r() * this.residents.length)];
+    const soon = new Date(this.date().getFullYear(), this.date().getMonth(), this.date().getDate() + Math.floor(r() * 3));
+    lucky.birthday = { m: soon.getMonth(), d: soon.getDate() };
+  }
+  isWeekend(day = this.day) { const s = this.startDate; const wd = new Date(s.getFullYear(), s.getMonth(), s.getDate() + day).getDay(); return wd === 0 || wd === 6; }
+  weekday(day = this.day) { const s = this.startDate; return new Date(s.getFullYear(), s.getMonth(), s.getDate() + day).getDay(); }
+  jumpToWeekend() {
+    const wd = this.weekday();
+    const ahead = wd === 6 ? 7 : (6 - wd + 7) % 7 || 7;
+    this.time = (this.day + ahead) * 1440 + 9 * 60 + 15;
+    this.seasonOverride = null;
+    this.applySeason();
+    this.hourMark = Math.floor(this.time / 60) - 1;
+    return this.date();
+  }
+  // A dog: naps on the rug and the bed, waits by the door, and goes out on a leash.
+  makeDog(u, r) {
+    const w = this;
+    const look = { dog: true, len: range(r, 0.42, 0.62), h: range(r, 0.3, 0.42), r: range(r, 0.13, 0.17), color: pick(r, [0xc8a060, 0x3a2a1a, 0xe8e0d0, 0x1a1a1a, 0x8a5a3a, 0xd8b070]), ear: pick(r, [0x3a2a1a, 0x1a1a1a, null]) };
+    const leash = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0x8a2a2a }));
+    leash.frustumCulled = false; leash.visible = false;
+    this.scene.add(leash);
+    const dog = new Walker(this, look, function* () {
+      const a = u.nodes.Lc;
+      this.pos.set(a[0], u.y, a[1]); this.hidden = false; this.pose = 'loaf';
+      const spots = [[2.9, -2.3], [1.3, -2.0], [3.0, -3.7], [2.1, -7.2], [5.3, -1.7], [2.8, -1.7]];
+      const hand = new THREE.Vector3(), head = new THREE.Vector3();
+      for (;;) {
+        const walk = u.dogWalk;
+        if (walk && walk.owner) {
+          // on the leash: trot behind and to the side of whoever is walking
+          const o = walk.owner;
+          this.atSpot = null;
+          let wasHidden = this.hidden;
+          while (u.dogWalk && u.dogWalk.owner) {
+            if (o.hidden) { this.hidden = true; this.pos.copy(o.pos); leash.visible = false; wasHidden = true; yield; continue; }
+            const fx = Math.sin(o.yaw), fz = Math.cos(o.yaw);
+            const tx = o.pos.x - fx * 0.75 + fz * 0.35, tz = o.pos.z - fz * 0.75 - fx * 0.35;
+            if (wasHidden) { this.pos.set(tx, o.pos.y, tz); wasHidden = false; }
+            this.hidden = false;
+            const dx = tx - this.pos.x, dz = tz - this.pos.z, d = Math.hypot(dx, dz);
+            if (d > 0.06) { const sp = Math.min(d * 3.2, 3.4) * w.dt; this.pos.x += (dx / d) * sp; this.pos.z += (dz / d) * sp; this.targetYaw = Math.atan2(dx, dz); this.pose = 'walk'; this.phase += sp * 7; }
+            else this.pose = 'stand';
+            this.pos.y = o.pos.y;
+            o.av.J.handL.getWorldPosition(hand); this.av.J.head.getWorldPosition(head);
+            const p = leash.geometry.attributes.position; p.setXYZ(0, hand.x, hand.y, hand.z); p.setXYZ(1, head.x, head.y - 0.03, head.z); p.needsUpdate = true;
+            leash.visible = true;
+            yield;
+          }
+          leash.visible = false;
+          this.pose = 'stand';
+          continue;
+        }
+        // around the apartment
+        const anyoneHome = u.residents.some((p) => p.where === 'home' && !p.hidden);
+        const sp = !anyoneHome && Math.random() < 0.5 ? [2.1, -7.2] : pick(Math.random, spots);
+        if (this.pos.y > u.y + 0.1) this.pos.y = u.y;
+        yield* this.goPoint(u.X(sp[0]), u.Z(sp[1]));
+        this.pose = 'loaf';
+        this.label = !anyoneHome && sp[0] === 2.1 ? 'waiting by the door' : 'napping';
+        const end = w.time + range(Math.random, 15, 70);
+        yield* this.waitUntil(() => w.time >= end || (u.dogWalk && u.dogWalk.owner));
+      }
+    }, { speed: 0.9, home: u });
+    const names = ['Biscuit', 'Rufus', 'Penny', 'Murphy', 'Lola', 'Bruno', 'Maple', 'Scout'].filter((n) => !this.units.some((x) => x.dog && x.dog.name === n));
+    dog.name = pick(r, names);
+    dog.label = 'a dog';
+    u.pets.push(dog);
+    u.dog = dog;
   }
   // A narrow bed in the back hall for the teen, with a poster and a lava lamp.
   teenNook(u) {
@@ -366,6 +438,15 @@ export class World {
       p.interrupt(function* () { yield* this.outing({ mode: 'car', until: w.time + range(Math.random, 90, 200), label: 'out for the evening', coat: true, carHome: true }); });
       return p.home.name;
     }
+    if (kind === 'birthday') {
+      if (this.incidents.party) return null;
+      const p = this.awakeHome()[Math.floor(Math.random() * this.awakeHome().length)];
+      if (!p) return null;
+      const d = this.date();
+      p.birthday = { m: d.getMonth(), d: d.getDate() };
+      this.holidays.birthdayToday(p);
+      return this.incidents.startParty(p.home, 'birthday', this.time + range(Math.random, 150, 200), p) ? p.name + ' in ' + p.home.name : null;
+    }
     if (kind === 'party') {
       if (this.incidents.party) return null;
       const ok = (u) => !u.fire && !u.damage && u.residents.some((p) => p.where === 'home' && !p.busy && !p.asleep);
@@ -433,6 +514,9 @@ export class World {
     if ((wd === 5 || wd === 6) && Math.floor(h) === 21 && !this.incidents.party && Math.random() < 0.6) this.demo('party');
     for (const p of this.residents) {
       if (p.job === 'student' && h > 7 && h < 9 && (!p.goingOut || p.goingOut.day !== this.day)) p.goingOut = Math.random() < 0.4 ? { day: this.day, at: range(Math.random, 1230, 1300), done: false } : null;
+      // singles head out on Friday and Saturday nights
+      const wdn = this.weekday();
+      if ((wdn === 5 || wdn === 6) && h > 7 && h < 9 && p.home.residents.length === 1 && (p.job === 'office' || p.job === 'wfh') && (!p.goingOut || p.goingOut.day !== this.day)) p.goingOut = Math.random() < 0.4 ? { day: this.day, at: range(Math.random, 1250, 1320), done: false } : null;
     }
   }
   updateUnits(dt) {

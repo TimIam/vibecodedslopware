@@ -49,6 +49,12 @@ export class Holidays {
   }
   get label() {
     const { m, d, y } = this.today();
+    const b = this.birthdays && this.birthdays()[0];
+    const bl = b ? b.name + "'s birthday" : '';
+    const hl = this._label(m, d, y);
+    return [hl, bl].filter(Boolean).join(' · ');
+  }
+  _label(m, d, y) {
     if (m === 9 && d === 31) return 'Halloween';
     if (m === 10 && d === thanksgivingDay(y)) return 'Thanksgiving';
     if (m === 11 && d === 24) return 'Christmas Eve';
@@ -135,8 +141,37 @@ export class Holidays {
   }
 
   // ---------------------------------------------------------------- hourly
+  birthdayToday(p) {
+    const W = this.world, u = p.home;
+    if (!u.balloons) {
+      const g = new THREE.Group();
+      const cols = [0xff4a6a, 0x4a8aff, 0xffd040, 0x6ad86a, 0xc85aff];
+      for (let i = 0; i < 5; i++) {
+        const lx = 0.95 + i * 0.22, ly = 2.0 + (i % 2) * 0.22, lz = -0.45 - (i % 3) * 0.12;
+        const b = new THREE.Mesh(paint(new THREE.SphereGeometry(0.13, 12, 10).scale(1, 1.2, 1), cols[i]), u.rooms.L.mat);
+        b.position.set(u.X(lx), u.y + ly, u.Z(lz));
+        g.add(b);
+        const s = new THREE.Mesh(paint(new THREE.CylinderGeometry(0.003, 0.003, ly - 0.75, 4), 0xdddddd), u.rooms.L.mat);
+        s.position.set(u.X(lx), u.y + 0.75 + (ly - 0.75) / 2 - 0.15, u.Z(lz));
+        g.add(s);
+      }
+      W.scene.add(g);
+      u.balloons = g;
+    }
+    u.balloons.visible = true;
+    u.bdayDay = W.day;
+    W.toast('It is ' + p.name + "'s birthday today (" + u.name + ')');
+  }
+  birthdays() { const { m, d } = this.today(); return this.world.residents.filter((p) => p.birthday && p.birthday.m === m && p.birthday.d === d && p.where !== 'hospital'); }
   onHour(h) {
     const W = this.world;
+    for (const u of W.units) if (u.balloons && u.balloons.visible && u.bdayDay !== W.day && h >= 10) u.balloons.visible = false;
+    if (h >= 8) for (const p of this.birthdays()) if (p.home.bdayDay !== W.day) this.birthdayToday(p);
+    if (h >= 19 && h <= 20 && !W.incidents.party) {
+      for (const p of this.birthdays()) {
+        if (p.where === 'home' && !p.asleep && !p.busy && this.once('bday:' + p.name)) { W.incidents.startParty(p.home, 'birthday', W.time + range(R, 150, 200), p); break; }
+      }
+    }
     // trees go up one apartment at a time in the weeks after Thanksgiving
     if (this.is('decorating') && h >= 17 && h <= 21 && W.season.xmas) {
       for (const u of W.units) {
