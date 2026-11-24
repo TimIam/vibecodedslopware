@@ -480,6 +480,19 @@ window.SLOPWARE = {
     }
    ]
   },
+  "windows-across": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-24T07:55:00-07:00",
+     "note": "8-story nocturnal apartment screensaver with web app and Windows .scr"
+    }
+   ]
+  },
   "matrix": {
    "visits": 62,
    "prompts": 5,
