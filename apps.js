@@ -1615,6 +1615,13 @@ window.SLOPWARE = {
      "note": "dev-only level editor",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 45,
+     "date": "2026-11-24T04:09:02-07:00",
+     "note": "refuse near-zero road spacing in dotted edits, cap road points",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
