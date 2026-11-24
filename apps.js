@@ -439,8 +439,8 @@ window.SLOPWARE = {
   },
   "voyeur": {
    "visits": 0,
-   "prompts": 5,
-   "tokens": 631402,
+   "prompts": 6,
+   "tokens": 756240,
    "sharedWith": null,
    "versions": [
     {
@@ -455,7 +455,14 @@ window.SLOPWARE = {
      "date": "2026-11-24T07:13:21-07:00",
      "note": "polish before going live",
      "prompts": 3,
-     "tokens": 88258
+     "tokens": 86065
+    },
+    {
+     "n": 3,
+     "date": "2026-11-24T07:30:21-07:00",
+     "note": "kitchen fires and break-ins",
+     "prompts": 1,
+     "tokens": 127031
     }
    ]
   },
