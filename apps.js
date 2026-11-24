@@ -439,8 +439,8 @@ window.SLOPWARE = {
   },
   "voyeur": {
    "visits": 0,
-   "prompts": 8,
-   "tokens": 1054536,
+   "prompts": 9,
+   "tokens": 1107190,
    "sharedWith": null,
    "versions": [
     {
@@ -484,6 +484,13 @@ window.SLOPWARE = {
      "note": "holidays",
      "prompts": 1,
      "tokens": 96707
+    },
+    {
+     "n": 7,
+     "date": "2026-11-24T08:19:00-07:00",
+     "note": "day and night routines",
+     "prompts": 1,
+     "tokens": 52654
     }
    ]
   },
