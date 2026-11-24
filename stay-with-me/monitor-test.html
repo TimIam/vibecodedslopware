@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Stay With Me: monitor test</title>
+<style>
+  html, body { margin: 0; background: #0b0d10; color: #c9d1da; font: 12px/1.4 "Segoe UI", Arial, sans-serif; }
+  h2 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #8b96a3; margin: 18px 0 8px; }
+  #wrap { padding: 14px 18px 40px; }
+  .mons { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+  .bezel { padding: 14px; background: linear-gradient(#2a2e35, #17191d); border-radius: 12px; box-shadow: 0 2px 0 #3c424b inset, 0 10px 30px #000a; }
+  .bezel canvas { display: block; background: #000; border-radius: 3px; box-shadow: 0 0 0 2px #050607; cursor: pointer; }
+  #m1 { width: 520px; height: 340px; } #m2 { width: 760px; height: 480px; }
+  #ctl { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 6px 14px; margin-top: 14px; max-width: 1380px; }
+  #ctl label { display: flex; justify-content: space-between; gap: 6px; align-items: center; white-space: nowrap; }
+  #ctl select, #ctl input[type=number] { width: 88px; background: #171b20; color: #dfe6ee; border: 1px solid #343b45; border-radius: 3px; padding: 1px 3px; font: inherit; }
+  #stat { margin-top: 8px; color: #7f8b98; font-family: Consolas, monospace; white-space: pre; }
+  .gal { display: flex; flex-wrap: wrap; gap: 10px; }
+  .gal figure { margin: 0; background: #14171b; padding: 6px; border-radius: 4px; }
+  .gal figcaption { font-size: 11px; color: #9aa5b1; margin-bottom: 4px; }
+  .gal canvas { display: block; }
+  .p12 canvas { width: 690px; height: auto; } .full canvas { width: 1400px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="live">
+    <div class="mons"><div class="bezel"><canvas id="m1"></canvas></div><div class="bezel"><canvas id="m2"></canvas></div></div>
+    <div id="ctl"></div>
+    <div id="stat"></div>
+  </div>
+  <h2 id="hs">Rhythm strips (lead II)</h2><div id="strips" class="gal"></div>
+  <h2 id="hp">12-lead patterns</h2><div id="p12" class="gal p12"></div>
+</div>
+<script type="module">
+// Test page for js/monitor.js.
+//   ?view=mon | strips | p12   show only one section      ?p=<pattern>[,<pattern>]  full-size 12-leads (view=p12)
+//   ?interpret=0               hide the machine interpretation on the 12-leads
+// Scripting (for tools/shot.mjs --ready "window.__monReady"):
+//   __mon.set({ rhythm: 'vf', ... })   merge into the vitals view (defib fields under defib: {...})
+//   __mon.ff(seconds)                  run the monitors forward synchronously; returns ms of Monitor.update per frame
+import { BeatGen, Monitor, print12, strip, PATTERNS, PATTERN_INFO, RHYTHMS } from './js/monitor.js';
+
+const q = new URLSearchParams(location.search), view = q.get('view');
+const $ = id => document.getElementById(id);
+
+// ---- vitals view driven by the controls ----
+const v = {
+  ecg: true, rhythm: 'sinus', hr: 78, peaLook: 'sinus', pvc: 0, st: 0, tInv: false, peakedT: false, wideQRS: false, longQT: false, lowVoltage: false, alternans: false,
+  artefact: 0, cpr: false, cprRate: 110, pulse: true, spo2On: true, spo2: 97, perf: .8, capOn: true, etco2: 37, rr: 14, capShape: 'normal',
+  nibp: { sys: 124, dia: 78, age: 95 }, nibpCycling: false, temp: 36.8, bgl: 5.6, units: 'mmol',
+  defib: { mode: 'monitor', energy: 200, charge: 0, charged: false, sync: false, shocks: 0, paceRate: 70, paceMa: 0, capture: false, msg: '' },
+  clock: 754, cprClock: null, muted: false,
+};
+const bg = new BeatGen(q.has('seed') ? { seed: +q.get('seed') } : {});
+const mons = view && view !== 'mon' ? [] : [new Monitor($('m1'), bg), new Monitor($('m2'), bg)];
+
+const C = [
+  ['rhythm', RHYTHMS], ['hr', 5, 300, 1], ['peaLook', ['sinus', 'brady', 'wide']], ['pvc', 0, .9, .05], ['st', -5, 8, .5], ['artefact', 0, 1, .05],
+  ['ecg'], ['pulse'], ['tInv'], ['peakedT'], ['wideQRS'], ['longQT'], ['lowVoltage'], ['alternans'], ['cpr'], ['cprRate', 60, 160, 5],
+  ['spo2On'], ['spo2', 50, 100, 1], ['perf', 0, 1, .02], ['capOn'], ['etco2', 0, 90, 1], ['rr', 0, 50, 1], ['capShape', ['normal', 'sharkfin', 'low', 'flat', 'curare']],
+  ['nibpCycling'], ['muted'], ['units', ['mmol', 'mgdl']],
+  ['defib.mode', ['monitor', 'manual', 'aed', 'pacer']], ['defib.energy', 2, 360, 1], ['defib.sync'], ['defib.paceRate', 30, 180, 5], ['defib.paceMa', 0, 200, 5], ['defib.capture'],
+];
+const ref = k => k.startsWith('defib.') ? [v.defib, k.slice(6)] : [v, k];
+const inputs = {};
+for (const [k, a, b, st] of C) {
+  const [o, f] = ref(k), lab = document.createElement('label'); lab.append(k.replace('defib.', 'defib '));
+  let el;
+  if (Array.isArray(a)) { el = document.createElement('select'); for (const x of a) el.add(new Option(x, x)); el.value = o[f]; el.onchange = () => { o[f] = el.value; }; }
+  else if (a === undefined) { el = document.createElement('input'); el.type = 'checkbox'; el.checked = !!o[f]; el.onchange = () => { o[f] = el.checked; }; }
+  else { el = document.createElement('input'); el.type = 'number'; el.min = a; el.max = b; el.step = st; el.value = o[f]; el.oninput = () => { o[f] = +el.value; }; }
+  inputs[k] = el; lab.append(el); $('ctl').append(lab);
+}
+const sync = () => { for (const [k] of C) { const [o, f] = ref(k), el = inputs[k]; if (el.type === 'checkbox') el.checked = !!o[f]; else el.value = o[f]; } };
+
+// ---- a tiny stand-in for the game's defibrillator so the soft keys do something ----
+const D = v.defib, E = [2, 5, 10, 20, 30, 50, 70, 100, 120, 150, 200, 300, 360];
+let charging = false;
+function key(id, m) {
+  if (m.handle(id)) return;
+  if (id === 'energyUp' || id === 'energyDown') { const i = E.indexOf(D.energy); D.energy = E[Math.max(0, Math.min(E.length - 1, (i < 0 ? 10 : i) + (id === 'energyUp' ? 1 : -1)))]; D.charge = 0; D.charged = false; charging = false; }
+  else if (id === 'charge') { charging = true; D.charge = 0; D.charged = false; }
+  else if (id === 'disarm') { charging = false; D.charge = 0; D.charged = false; }
+  else if (id === 'sync') D.sync = !D.sync;
+  else if (id === 'analyse') { D.msg = 'ANALYSING - STAND CLEAR'; setTimeout(() => { const s = /^(vf|vt)/.test(v.rhythm); D.msg = s ? 'SHOCK ADVISED' : 'NO SHOCK ADVISED'; if (s) charging = true; }, 2500); }
+  else if (id === 'shock' && D.charged) { D.charged = false; D.charge = 0; D.shocks++; D.msg = ''; if (/^(vf|vt|tors|svt|afib|aflutter)/.test(v.rhythm)) { v.rhythm = 'sinus'; v.hr = 88; v.pulse = true; } }
+  else if (id === 'rateUp' || id === 'rateDown') D.paceRate = Math.max(30, Math.min(180, D.paceRate + (id === 'rateUp' ? 10 : -10)));
+  else if (id === 'maUp' || id === 'maDown') { D.paceMa = Math.max(0, Math.min(200, D.paceMa + (id === 'maUp' ? 10 : -10))); D.capture = D.paceMa >= 70; }
+  else if (id === 'pacePause') { D.paceMa = 0; D.capture = false; }
+  else if (id === 'nibp') { v.nibpCycling = true; setTimeout(() => { v.nibpCycling = false; v.nibp = { sys: 118 + Math.round(Math.random() * 14), dia: 72 + Math.round(Math.random() * 10), age: 0 }; }, 9000); }
+  else if (id === '12lead') { const f = document.createElement('figure'); f.append(print12('normal', { interpret: true, name: 'Test, Patient', age: 58, sex: 'M', time: new Date().toLocaleString() })); $('p12').prepend(f); }
+  sync();
+}
+for (const m of mons) m.c.addEventListener('pointerdown', e => { const r = m.c.getBoundingClientRect(), id = m.hit(e.clientX - r.left, e.clientY - r.top); if (id) key(id, m); });
+
+function tick(dt) {
+  v.clock += dt; if (v.nibp) v.nibp.age += dt; if (v.cpr) v.cprClock = (v.cprClock ?? 0) + dt; else v.cprClock = null;
+  if (charging) { D.charge = Math.min(1, D.charge + dt / (1.5 + D.energy / 120)); if (D.charge >= 1) { charging = false; D.charged = true; } }
+  bg.update(dt, v);                           // the page owns the generator, as the game will
+  for (const m of mons) m.update(dt, v);
+}
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.1, (now - last) / 1000); last = now;
+  tick(dt);
+  if (mons.length) $('stat').textContent = `alarm: ${mons[0].alarm.padEnd(9)} text: ${(mons[0].alarmText || '-').padEnd(20)} hr: ${String(mons[0].hr).padEnd(5)} update: ${mons[0].stats.ms.toFixed(3)} ms (520x340)  ${mons[1].stats.ms.toFixed(3)} ms (760x480)   beat phase ${bg.phase.toFixed(2)}`;
+  requestAnimationFrame(frame);
+}
+
+window.__mon = {
+  v, bg, mons,
+  set(o) { const { defib, ...rest } = o; Object.assign(v, rest); if (defib) Object.assign(D, defib); sync(); return true; },
+  ff(sec) { const n = Math.round(sec * 60); let t = 0; for (let i = 0; i < n; i++) { const a = performance.now(); tick(1 / 60); t += performance.now() - a; } last = performance.now(); return +(t / n).toFixed(4); },
+};
+
+// ---- galleries ----
+const fig = (host, cv, cap) => { const f = document.createElement('figure'); if (cap) { const c = document.createElement('figcaption'); c.textContent = cap; f.append(c); } f.append(cv); host.append(f); };
+if (!view || view === 'strips') {
+  const extra = [['sinus', { v: { pvc: .2 } }, 'sinus + PVCs'], ['sinus', { v: { pvc: .5 } }, 'ventricular bigeminy'], ['sinus', { v: { st: 3 } }, 'sinus, ST +3 mm'], ['sinus', { v: { st: -2, tInv: true } }, 'sinus, ST -2 mm, T inversion'],
+    ['sinus', { v: { peakedT: true, wideQRS: true }, hr: 60 }, 'peaked T + wide QRS'], ['sinus', { v: { longQT: true }, hr: 60 }, 'long QT'], ['sinus', { v: { lowVoltage: true, alternans: true }, hr: 118 }, 'low voltage + electrical alternans'],
+    ['sinus', { v: { artefact: .7 } }, 'sinus, movement artefact'], ['vf', { v: { cpr: true } }, 'VF under CPR artefact'], ['pea', { v: { peaLook: 'brady' }, hr: 38 }, 'PEA (brady look)'], ['pea', { v: { peaLook: 'wide' }, hr: 44 }, 'PEA (wide look)'],
+    ['chb', { v: { defib: { mode: 'pacer', paceRate: 70, paceMa: 40, capture: false } } }, 'CHB, pacer firing without capture'], ['sinus', { paper: false, hr: 72 }, 'monitor style']];
+  for (const r of RHYTHMS) fig($('strips'), strip(r, { seconds: 8 }), r);
+  fig($('strips'), strip('aflutter', { seconds: 8, hr: 75 }), 'aflutter 4:1');
+  for (const [r, o, cap] of extra) fig($('strips'), strip(r, { seconds: 8, ...o }), cap);
+} else { $('hs').remove(); $('strips').remove(); }
+if (!view || view === 'p12') {
+  const list = q.get('p') ? q.get('p').split(',') : PATTERNS;
+  if (q.get('p')) $('p12').className = 'gal full';
+  for (const p of list) fig($('p12'), print12(p, { interpret: q.get('interpret') !== '0', name: 'Okafor, Daniel', age: 61, sex: 'M', time: '24 Nov 2026  21:42:07' }), `${p}: ${PATTERN_INFO[p]?.label ?? "plain rhythm"}`);
+} else { $('hp').remove(); $('p12').remove(); }
+if (view && view !== 'mon') $('live').remove();
+
+requestAnimationFrame(frame);
+window.__monReady = true;
+</script>
+</body>
+</html>

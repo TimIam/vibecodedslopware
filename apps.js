@@ -1999,6 +1999,21 @@ window.SLOPWARE = {
      "tokens": 39010
     }
    ]
+  },
+  "stay-with-me": {
+   "visits": 0,
+   "prompts": 3,
+   "tokens": 14044097,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-24T06:54:54-07:00",
+     "note": "a realistic paramedic sim with a drivable town",
+     "prompts": 3,
+     "tokens": 14044097
+    }
+   ]
   }
  }
 };

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Stay With Me: dev harness</title>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}#c{width:100vw;height:100vh;display:block}#i{position:fixed;left:8px;top:8px;font:12px Consolas,monospace;color:#9fd;text-shadow:0 1px 2px #000;pointer-events:none;white-space:pre}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"}}</script>
+</head>
+<body>
+<canvas id="c"></canvas><div id="i"></div>
+<script type="module">
+// Dev harness. dev.html?m=<module>&env=<preset>&q=<quality>
+// Loads ./js/<module>.js and calls its exported `devDemo(ctx)`; ctx = { THREE, G, U, scene, rig, camera, controls, params }.
+// devDemo may return an update(dt, t) function. Without ?m it shows a lighting test stage.
+// Scripting: window.__dev.ready, .cam(px,py,pz, tx,ty,tz), .env(name), .q(name), .pause(bool), .step(dt), .info()
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { G, U, ENV, initGfx, createOutdoorRig, applyEnv, updateRig, render, resize, setQuality, patchWet } from './js/gfx.js';
+
+const params = new URLSearchParams(location.search);
+const canvas = document.getElementById('c');
+initGfx(canvas, params.get('q') || 'high');
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 4000);
+camera.position.set(8, 4, 10);
+const controls = new OrbitControls(camera, canvas); controls.target.set(0, 1, 0); controls.update();
+const rig = createOutdoorRig(scene);
+G.view(scene, camera);
+applyEnv(rig, params.get('env') || 'morning');
+
+let update = null, paused = false, err = null;
+const ctx = { THREE, G, U, scene, rig, camera, controls, params };
+const m = params.get('m');
+try {
+  if (m) { const mod = await import(`./js/${m}.js`); update = (await mod.devDemo(ctx)) || null; }
+  else update = stage();
+} catch (e) { err = e; console.error(e); }
+
+function stage() {
+  const gm = patchWet(new THREE.MeshStandardMaterial({ color: 0x4a4a4c, roughness: 0.9 }));
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), gm); g.rotation.x = -Math.PI / 2; g.receiveShadow = true; scene.add(g);
+  const mats = [new THREE.MeshStandardMaterial({ color: 0xb0b0b0, roughness: 0.5 }), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.05, metalness: 1 }), new THREE.MeshPhysicalMaterial({ color: 0x9a1010, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.05 }), new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xff3311, emissiveIntensity: 6 })];
+  mats.forEach((mt, i) => { const s = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), mt); s.position.set(i * 3 - 4.5, 1, 0); s.castShadow = s.receiveShadow = true; scene.add(s); });
+  for (let i = 0; i < 12; i++) { const b = new THREE.Mesh(new THREE.BoxGeometry(6, 8 + (i % 4) * 5, 6), new THREE.MeshStandardMaterial({ color: 0x8a7a6a, roughness: 0.85 })); b.position.set(-40 + i * 9, b.geometry.parameters.height / 2, -20 - (i % 3) * 14); b.castShadow = b.receiveShadow = true; scene.add(b); }
+  return null;
+}
+
+const clock = new THREE.Clock(); let t = 0, frames = 0, fpsT = 0, fps = 0;
+function frame(dtForce) {
+  const dt = dtForce ?? Math.min(clock.getDelta(), 0.1); t += dt;
+  resize(); controls.update();
+  try { update?.(dt, t); } catch (e) { if (!err) { err = e; console.error(e); } }
+  updateRig(rig, dt, controls.target, camera);
+  render(dt);
+  frames++; fpsT += dt; if (fpsT > 0.5) { fps = frames / fpsT; frames = 0; fpsT = 0; }
+  const inf = G.renderer.info;
+  document.getElementById('i').textContent = err ? 'ERROR: ' + (err.stack || err) : `${fps.toFixed(0)} fps  calls ${inf.render.calls}  tris ${(inf.render.triangles / 1000).toFixed(0)}k  ${rig.name}  ${G.quality}`;
+}
+G.renderer.setAnimationLoop(() => { if (!paused) frame(); });
+window.__dev = {
+  ready: true, THREE, G, U, scene, rig, camera, controls, ctx,
+  get error() { return err ? String(err.stack || err) : null; },
+  cam(px, py, pz, tx = 0, ty = 1, tz = 0, fov) { camera.position.set(px, py, pz); controls.target.set(tx, ty, tz); if (fov) { camera.fov = fov; camera.updateProjectionMatrix(); } controls.update(); },
+  env(n) { applyEnv(rig, n); }, envs: Object.keys(ENV), q(n) { setQuality(n); },
+  pause(b) { paused = b; }, step(dt = 1 / 60, n = 1) { for (let i = 0; i < n; i++) frame(dt); },
+  info() { const i = G.renderer.info; return { fps: Math.round(fps), calls: i.render.calls, tris: i.render.triangles, geoms: i.memory.geometries, tex: i.memory.textures, err: this.error }; },
+};
+</script>
+</body>
+</html>

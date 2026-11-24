@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Stay With Me: audio test bench</title>
+<style>
+  body { margin: 0; padding: 18px 22px 60px; background: #14171b; color: #cfd6dc; font: 13px/1.4 "Segoe UI", system-ui, sans-serif; }
+  h1 { font-size: 16px; font-weight: 600; margin: 0 0 4px; } h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #7f8b96; margin: 20px 0 8px; }
+  p { margin: 0 0 8px; color: #8b97a2; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  button { background: #232930; color: #dfe6ec; border: 1px solid #343c45; border-radius: 4px; padding: 6px 10px; font: inherit; cursor: pointer; }
+  button:hover { background: #2c343d; } button.on { background: #1f4d3a; border-color: #2f7d5c; } button.big { background: #7a2a22; border-color: #a4443a; }
+  label { display: inline-flex; gap: 6px; align-items: center; margin-right: 14px; } input[type=range] { width: 130px; }
+  #status { position: fixed; right: 14px; top: 12px; color: #7fd6a8; font: 12px Consolas, monospace; white-space: pre; text-align: right; }
+</style>
+</head>
+<body>
+<h1>Stay With Me: audio test bench</h1>
+<p>Everything here is synthesised by <code>js/audio.js</code>. Click <b>Start audio</b> first. Toggle buttons stay green while on; sliders drive the per-frame calls.</p>
+<div class="row"><button class="big" id="start">Start audio</button><button id="pause">suspendAll</button><button id="resume">resumeAll</button></div>
+<div id="ui"></div>
+<div id="status"></div>
+<script type="module">
+import { Snd, createSound } from './js/audio.js';
+
+const ui = document.getElementById('ui');
+const el = (tag, props = {}, parent) => { const e = Object.assign(document.createElement(tag), props); (parent || ui).appendChild(e); return e; };
+const section = name => { el('h2', { textContent: name }); return el('div', { className: 'row' }); };
+const btn = (row, label, fn) => el('button', { textContent: label, onclick: () => { Snd.init(); fn(); } }, row);
+const toggle = (row, label, fn) => { let on = false; const b = el('button', { textContent: label }, row); b.onclick = () => { Snd.init(); on = !on; b.classList.toggle('on', on); fn(on); }; return b; };
+const choice = (row, label, list, fn) => { const bs = list.map(v => { const b = el('button', { textContent: label + ': ' + v }, row); b.onclick = () => { Snd.init(); bs.forEach(x => x.classList.toggle('on', x === b)); fn(v); }; return b; }); };
+const slider = (row, label, min, max, val, step = 0.01) => { const l = el('label', { textContent: label + ' ' }, row), i = el('input', { type: 'range', min, max, step, value: val }, l), o = el('span', { textContent: val }, l); i.oninput = () => { o.textContent = i.value; }; return () => +i.value; };
+
+document.getElementById('start').onclick = () => Snd.init();
+document.getElementById('pause').onclick = () => Snd.suspendAll();
+document.getElementById('resume').onclick = () => Snd.resumeAll();
+
+let r = section('Mix');
+const vM = slider(r, 'master', 0, 1, 0.8), vS = slider(r, 'sfx', 0, 1, 1), vMu = slider(r, 'music', 0, 1, 0.6), vR = slider(r, 'radio', 0, 1, 0.9), inter = slider(r, 'interior', 0, 1, 0);
+
+r = section('Driving (continuous)');
+let engOn = false; toggle(r, 'engine', on => { engOn = on; });
+const rpm = slider(r, 'rpm', 0, 1, 0.1), load = slider(r, 'load', 0, 1, 0.1), speed = slider(r, 'speed m/s', 0, 40, 0, 0.5), skid = slider(r, 'skid', 0, 1, 0), wet = slider(r, 'wet', 0, 1, 0);
+r = el('div', { className: 'row' });
+const wind = slider(r, 'wind', 0, 1.5, 0), rain = slider(r, 'rain', 0, 1.5, 0), roof = slider(r, 'rainOnRoof', 0, 1.5, 0);
+r = el('div', { className: 'row' });
+choice(r, 'siren', ['off', 'wail', 'yelp', 'phaser', 'hilo'], v => Snd.siren(v));
+const horn = el('button', { textContent: 'airhorn (hold)' }, r); horn.onpointerdown = () => { Snd.init(); Snd.airhorn(true); }; horn.onpointerup = horn.onpointerleave = () => Snd.airhorn(false);
+toggle(r, 'indicator', on => Snd.indicator(on)); toggle(r, 'reverseBeeper', on => Snd.reverseBeeper(on));
+
+r = section('Driving (one-shots)');
+for (const d of [0, 0.4, 1]) btn(r, 'thunder ' + d, () => Snd.thunder(d));
+for (const d of [0.3, 0.6, 1]) btn(r, 'crash ' + d, () => Snd.crash(d));
+for (const d of [0.3, 1]) btn(r, 'bump ' + d, () => Snd.bump(d));
+btn(r, 'doorSlam', () => Snd.doorSlam()); btn(r, 'seatbelt', () => Snd.seatbelt()); btn(r, 'handbrake', () => Snd.handbrake());
+btn(r, 'passBy left', () => Snd.passBy(-1, 22)); btn(r, 'passBy right fast', () => Snd.passBy(1, 38)); btn(r, 'carHorn', () => Snd.carHorn(Math.random() * 2 - 1));
+
+r = section('Radio / UI / speech');
+btn(r, 'dispatchTones', () => Snd.dispatchTones()); btn(r, 'squelch open', () => Snd.radioSquelch(true)); btn(r, 'squelch close', () => Snd.radioSquelch(false));
+const stat = slider(r, 'radioStatic', 0, 1, 0);
+r = el('div', { className: 'row' });
+for (const k of ['hover', 'click', 'back', 'error', 'confirm', 'tick', 'page', 'good', 'bad']) btn(r, 'ui ' + k, () => Snd.ui(k));
+r = el('div', { className: 'row' });
+const lines = { dispatch: 'Medic fourteen, respond priority one, sixty-two year old male, chest pain, eleven forty Alder Street.', partner: 'Monitor is on. I am seeing S T elevation in the inferior leads.', patient: 'It feels like someone is sitting on my chest.', doctor: 'Go ahead with the aspirin and bring him straight to the cath lab.' };
+for (const role in lines) btn(r, 'say ' + role, () => Snd.say(lines[role], { role, onend: () => console.log('say end', role) }));
+btn(r, 'stopSpeech', () => Snd.stopSpeech());
+
+r = section('Monitor / defib');
+for (const s of [100, 95, 88, 80, 70, 60]) btn(r, 'beep ' + s + '%', () => Snd.monitorBeep(s));
+btn(r, 'beep (no SpO2)', () => Snd.monitorBeep(null));
+let hr = 0, hrT = 0; toggle(r, 'beep loop 80/min, SpO2 falling', on => { hr = on ? 100 : 0; });
+r = el('div', { className: 'row' });
+choice(r, 'alarm', ['off', 'advisory', 'critical'], v => Snd.alarm(v));
+toggle(r, 'flatline', on => Snd.flatline(on)); btn(r, 'defibCharge 4 s then ready', () => { Snd.defibCharge(4); setTimeout(() => Snd.defibReady(true), 4000); }); toggle(r, 'defibReady', on => Snd.defibReady(on)); btn(r, 'shock', () => Snd.shock());
+let metroOn = false; toggle(r, 'metronome', on => { metroOn = on; Snd.metronome(on, bpm()); }); const bpm = slider(r, 'bpm', 80, 140, 110, 1);
+
+r = section('Treatment');
+for (const d of [0.3, 0.7, 1]) btn(r, 'cprThump ' + d, () => Snd.cprThump(d));
+btn(r, 'ribCrack', () => Snd.ribCrack()); btn(r, 'bvm', () => Snd.bvm()); toggle(r, 'suction', on => Snd.suction(on)); toggle(r, 'oxygen', on => Snd.oxygen(on)); toggle(r, 'nibp', on => Snd.nibp(on));
+r = el('div', { className: 'row' });
+for (const k of ['velcro', 'shears', 'zipper', 'packaging', 'glove', 'tape', 'drawer', 'needlePop', 'scalpel', 'suctionSlurp', 'bloodDrip']) btn(r, k, () => Snd[k]());
+btn(r, 'airHiss 3 s', () => Snd.airHiss(3)); btn(r, 'drill 1.5 s', () => Snd.drill(1.5)); btn(r, 'drill 30 s', () => Snd.drill(30)); btn(r, 'drill stop (0)', () => Snd.drill(0)); btn(r, 'boneSaw 3 s', () => Snd.boneSaw(3)); btn(r, 'boneSaw stop (0)', () => Snd.boneSaw(0));
+for (const k of ['raise', 'lower', 'load', 'roll']) btn(r, 'stretcher ' + k, () => Snd.stretcher(k));
+
+r = section('Stethoscope');
+toggle(r, 'stethoscope', on => Snd.stethoscope(on));
+for (const k of ['normal', 'diminished', 'absent', 'wheeze', 'crackles', 'stridor', 'gurgle']) btn(r, 'breath ' + k, () => { Snd.breathSound(k, 'in', -0.5); setTimeout(() => Snd.breathSound(k, 'out', -0.5), 1500); });
+for (const k of ['normal', 'muffled', 'murmur', 'gallop']) btn(r, 'heart ' + k, () => { for (let i = 0; i < 4; i++) setTimeout(() => Snd.heartSound(k), i * 800); });
+
+r = section('Patient');
+btn(r, 'cough', () => Snd.cough()); btn(r, 'gasp', () => Snd.gasp()); btn(r, 'agonal', () => Snd.agonal()); btn(r, 'vomit', () => Snd.vomit());
+for (const p of [0.2, 0.6, 1]) { btn(r, 'groan ' + p, () => Snd.groan(p, false)); btn(r, 'groan ' + p + ' (f)', () => Snd.groan(p, true)); }
+toggle(r, 'snore', on => Snd.snore(on));
+
+r = section('Ambience');
+choice(r, 'ambient', ['none', 'townDay', 'townNight', 'room', 'gym', 'bar', 'hospital', 'ambulance'], v => Snd.ambient(v));
+r = section('Music');
+choice(r, 'music', ['off', 'menu', 'drive', 'tension', 'critical', 'calm', 'grief', 'triumph'], v => Snd.music(v));
+
+const status = document.getElementById('status');
+let last = performance.now();
+function frame(t) {
+  const dt = Math.min(0.1, (t - last) / 1000); last = t;
+  if (Snd.ready && window.__audio.loop) {
+    Snd.setVolume({ master: vM(), sfx: vS(), music: vMu(), radio: vR() }); Snd.setInterior(inter());
+    Snd.engine({ on: engOn, rpm: rpm(), load: load(), speed: speed() });
+    Snd.tires({ skid: skid(), speed: speed(), wet: wet() });
+    Snd.wind(wind()); Snd.rain(rain()); Snd.rainOnRoof(roof()); Snd.radioStatic(stat());
+    if (metroOn) Snd.metronome(true, bpm());
+    if (hr) { hrT -= dt; if (hrT <= 0) { hrT = 0.75; Snd.monitorBeep(hr); hr = Math.max(60, hr - 0.5); } }
+    Snd.update(dt);
+    status.textContent = `ctx ${Snd.ctx.state}  ${Snd.ctx.sampleRate} Hz\nerrors ${Snd.errors.length}`;
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+window.__audio = { Snd, createSound, loop: true };   // automated tests set loop = false to drive Snd themselves
+window.__audioReady = true;
+</script>
+</body>
+</html>
