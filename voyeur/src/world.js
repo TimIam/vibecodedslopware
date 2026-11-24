@@ -438,6 +438,16 @@ export class World {
   updateUnits(dt) {
     const dark = this.dayF < 0.42;
     const m = this.mod;
+    const lateHour = m >= 1290 || m < 330;
+    // small night lights: a phone screen, a laptop, the open fridge
+    for (const p of this.residents) {
+      if (!p.glow || p.hidden) continue;
+      const room = p.home.rooms[p.glow.room];
+      if (!room || room.dyn) continue;
+      const fx = Math.sin(p.yaw), fz = Math.cos(p.yaw);
+      if (p.glow.kind === 'fridge') room.dyn = { pos: new THREE.Vector3(p.pos.x + fx * 0.45, p.pos.y + 1.1, p.pos.z + fz * 0.45), col: new THREE.Vector3(0.75, 0.85, 1).multiplyScalar(2.2) };
+      else room.dyn = { pos: new THREE.Vector3(p.pos.x + fx * 0.35, p.pos.y + (p.pose === 'lie' ? 0.75 : 1.0), p.pos.z + fz * 0.35), col: new THREE.Vector3(0.45, 0.6, 1).multiplyScalar(p.glow.kind === 'screen' ? 0.9 : 0.6) };
+    }
     for (const u of this.units) {
       const home = u.residents.filter((p) => p.where === 'home');
       const awakeHome = home.filter((p) => !p.asleep);
@@ -446,10 +456,13 @@ export class World {
         let awake = 0;
         for (const a of room.occ) if (!a.asleep && !a.hidden) awake++;
         const needs = k === 'H' || k === 'Ba' ? true : dark;
-        if (awake > 0 && needs && !room.mainOn() && room.sleepers.size === 0) {
+        if (awake > 0 && needs && !room.mainOn() && room.sleepers.size === 0 && !room.noAuto) {
           room.onT = (room.onT ?? range(Math.random, 0.5, 1.8)) - dt;
-          if (room.onT <= 0) { room.onT = null; if (k === 'L' && u.hh.cozy) room.set(1, true); else room.set(0, true); }
+          // late at night people use a lamp, not the overhead light
+          if (room.onT <= 0) { room.onT = null; if ((k === 'L' || k === 'B') && (u.hh.cozy || lateHour) && room.lights[1]) room.set(1, true); else room.set(0, true); }
         } else room.onT = null;
+        if (lateHour && awake > 0 && room.lights[0] && room.lights[0].on && room.lights[1] && (k === 'L' || k === 'B') && !room.dimmed) { room.dimmed = true; room.set(0, false); room.set(1, true); }
+        if (!lateHour) room.dimmed = false;
         const wantOff = room.mainOn() && !room.leftOn && (awake === 0 || !needs) && !(u.timerOn && k === 'L');
         if (wantOff) {
           room.offT = (room.offT ?? (awake ? range(Math.random, 20, 60) : range(Math.random, 2, 7))) - dt;

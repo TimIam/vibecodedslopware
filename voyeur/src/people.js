@@ -273,7 +273,7 @@ export class Resident extends Actor {
       yield* this.comeHome('walk');
       return;
     }
-    if (inCirc(w.mod, this.bed, this.wake)) { this.placeAt(this.bedSide); return; }
+    if (inCirc(w.mod, this.bed, this.wake)) { this.placeAt(this.bedSide); this.quickSleep = true; return; }
     this.placeAt(pick(this.r, ['sofa1', 'sofa2', 'chair1', 'stove', 'winL', 'wardrobe']));
     if (w.mod > this.dinnerAt + 60 || w.mod < 300) this.dinnerDay = w.day;
     void u;
@@ -424,8 +424,9 @@ export class Resident extends Actor {
 
   *sleep() {
     const u = this.home, w = this.world, r = this.r;
-    yield* this.doAt('bath', range(r, 6, 11), 'stand', 'brushing teeth');
-    if (this.hh.blinds && u.spots[this.bedSide].room === 'B') for (const win of u.windows) if (win.room === 'B') win.blindTarget = 0.92;
+    const quick = this.quickSleep; this.quickSleep = false;
+    if (!quick) yield* this.doAt('bath', range(r, 6, 11), 'stand', 'brushing teeth');
+    if ((this.hh.blinds || w.dayF > 0.3) && u.spots[this.bedSide].room === 'B') for (const win of u.windows) if (win.room === 'B') win.blindTarget = 0.92;
     const k = this.bedSide;
     const BR = u.rooms[u.spots[k].room];
     try {
@@ -438,19 +439,30 @@ export class Resident extends Actor {
       this.inBed = true;
       yield* this.glide(sp.lie[0] - hx * L, u.y + 0.58, sp.lie[1] - hz * L, sp.lieYaw, 1.3);
       BR.sleepers.add(this);
-      if (this.reader && r() < 0.6 && BR.sleepers.size === 1) {
+      if (!quick && this.reader && r() < 0.6 && BR.sleepers.size === 1) {
         BR.set(1, true); BR.set(0, false);
         this.label = 'reading in bed';
         yield* this.waitGame(range(r, 10, 28));
         BR.set(1, false);
       }
       BR.set(0, false);
+      if (!quick && r() < 0.55) {
+        // one last scroll in the dark, face lit blue
+        BR.noAuto = true;
+        this.label = 'scrolling in bed';
+        this.glow = { room: BR.key, kind: 'phone' };
+        yield* this.waitGame(range(r, 6, 18));
+        this.glow = null;
+        BR.noAuto = false;
+      }
       if (!this.others().some((p) => p.where === 'home' && !p.asleep)) {
         for (const rk of ['L', 'H', 'Ba']) if (r() < this.hh.tidy || rk !== 'L') u.rooms[rk].allOff();
       }
       this.asleep = true;
       this.label = 'asleep';
-      const wakeAt = this.nextAbs(this.wake) + range(r, 1, 20);
+      let wakeAt = this.nextAbs(this.wake) + range(r, 1, 20);
+      // if the alarm went off while they were still getting into bed, they get up again shortly
+      if (wakeAt - w.time > 18 * 60) wakeAt = w.time + range(r, 4, 15);
       this.wakeAt = wakeAt;
       if (r() < 0.3) {
         const mid = w.time + (wakeAt - w.time) * range(r, 0.3, 0.7);
@@ -458,7 +470,10 @@ export class Resident extends Actor {
         this.asleep = false; BR.sleepers.delete(this);
         yield* this.glide(sp.at[0], u.y, sp.at[1], sp.yaw, 1.1);
         this.pose = 'stand'; this.atSpot = k;
-        yield* this.doAt('bath', range(r, 3, 6), 'stand', 'up in the night');
+        const why = r();
+        if (why < 0.5) yield* this.doAt('bath', range(r, 3, 6), 'stand', 'up in the night');
+        else if (why < 0.8) yield* this.fridgeRaid(true);
+        else yield* this.doAt('winL', range(r, 3, 7), 'stand', "can't sleep, staring out the window");
         yield* this.goSpot(k);
         this.pose = 'lie';
         yield* this.glide(sp.lie[0] - hx * L, u.y + 0.58, sp.lie[1] - hz * L, sp.lieYaw, 1.3);
@@ -556,7 +571,7 @@ export class Resident extends Actor {
     yield* this.sitEat(range(r, 18, 28), 'having dinner');
   }
 
-  *watchTV(mins, until, label = 'watching TV', eating = false) {
+  *watchTV(mins, until, label = 'watching TV', eating = false, dark = false) {
     const u = this.home;
     const k = this.claim(['sofa1', 'sofa2']);
     if (!k) { yield* this.waitGame(3); return; }
@@ -565,10 +580,12 @@ export class Resident extends Actor {
       yield* this.goSpot(k);
       this.pose = 'sit'; this.seat = 0.45; this.label = label; this.eating = eating;
       L.tvWatch.add(this); L.set(2, true);
+      if (dark) { L.noAuto = true; L.set(0, false); L.set(1, false); }
       if (eating && u.pizzaBox) u.pizzaBox.group.visible = true;
       const end = this.world.time + mins;
       yield* this.waitUntil(() => this.world.time >= end || (until && until()));
     } finally {
+      if (dark) L.noAuto = false;
       L.tvWatch.delete(this);
       if (!L.tvWatch.size) L.set(2, false);
       if (eating && u.pizzaBox && ![...L.tvWatch].some((p) => p.eating)) { u.pizzaBox.group.visible = false; }
@@ -577,52 +594,142 @@ export class Resident extends Actor {
     }
   }
 
+  // Where this person is in their own day. Night-shift people get the same arc, shifted.
+  dayPart() {
+    const w = this.world, m = w.mod;
+    const sinceWake = (((m - this.wake) % 1440) + 1440) % 1440;
+    const toBed = (((this.bed - m) % 1440) + 1440) % 1440;
+    if (toBed < 110) return 'late';
+    if (sinceWake < 170) return 'morning';
+    if (m >= 1290 || m < 300) return 'night';
+    if (m >= 1020 || w.dayF < 0.3) return 'evening';
+    return 'day';
+  }
   *leisure() {
     const w = this.world, u = this.home, r = this.r, m = w.mod;
-    const evening = m >= 1020 || m < 180;
+    const part = this.dayPart();
+    const P = (o) => o[part] ?? 0;
+    const evening = part === 'evening' || part === 'late' || part === 'night';
+    const quiet = (part === 'late' || part === 'night') && w.dayF < 0.4;
     const cap = this.untilNext();
-    const dur = (a, b) => Math.max(2, Math.min(cap, range(r, a, b)));
+    const dur = (lo, hi) => Math.max(2, Math.min(cap, range(r, lo, hi)));
     const tvOn = u.rooms.L.tvWatch.size > 0;
+    const wx = w.weather.p;
+    const wfh = this.job === 'wfh';
     const choice = weighted(r, [
-      [(evening ? 4 : this.job === 'retired' ? 2 : 0.5) + (tvOn ? 6 : 0), 'tv'],
-      [this.reader ? 1.8 : 0.3, 'read'],
-      [this.job === 'wfh' && !evening ? 8 : this.job === 'student' ? 2 : evening ? 0.8 : 0.4, 'laptop'],
-      [0.8 + 2.5 * w.weather.p.storm + 0.8 * w.weather.p.rain + 1.4 * w.weather.p.snow, 'window'],
-      [0.5, 'snack'],
+      [P({ morning: 0.3, day: this.job === 'retired' ? 1.6 : 0.3, evening: 4, late: 3, night: 1.5 }) + (tvOn ? (part === 'day' || part === 'morning' ? 0.8 : quiet ? 2 : 5) : 0), 'tv'],
+      [(this.reader ? 1.6 : 0.4) * P({ morning: 0.4, day: 1, evening: 1, late: 1.3, night: 0.6 }), 'read'],
+      [P({ morning: wfh ? 3 : 0.3, day: wfh ? 8 : this.job === 'student' ? 2 : 0.4, evening: 0.8, late: 0.4, night: this.job === 'student' ? 1.5 : 0.3 }), 'laptop'],
+      [0.6 + 2.5 * wx.storm + 0.8 * wx.rain + 1.4 * wx.snow + P({ night: 0.8 }), 'window'],
+      [P({ morning: 0.1, day: 0.4, evening: 0.6, late: 0.9, night: 1.6 }), 'snack'],
       [0.35, 'bath'],
-      [0.9, 'phone'],
-      [0.5, 'tidy'],
-      [u.pets.length ? 0.4 : 0, 'pet'],
-      // everyone has a habit or two
-      [this.quirk === 'dancer' ? 1.6 : 0, 'dance'],
-      [this.quirk === 'gym' ? 1.4 : 0, 'jacks'],
-      [this.quirk === 'waver' ? 0.7 : 0, 'wave'],
-      [this.quirk === 'singer' ? 1.3 : 0, 'sing'],
-      [this.quirk === 'pacer' ? 1.4 : 0, 'pace'],
-      [u.theme === 'plants' ? 0.8 : 0, 'water'],
-      [this.job === 'teen' ? (evening ? 5 : 2) : 0, 'game'],
-      [this.job === 'teen' && (m >= 1260 || m < 120) ? 3.5 : 0, 'smoke'],
+      [P({ morning: 0.5, day: 0.6, evening: 0.9, late: 1.2, night: 0.8 }), 'phone'],
+      [P({ morning: 1.1, day: 1.2, evening: 0.4, late: 0.2 }), 'tidy'],
+      [P({ morning: 0.3, day: 0.8 }), 'vacuum'],
+      [P({ day: 0.45, morning: 0.15 }) * (w.shopOpen('laundry') && this.laundryDay !== w.day && wx.rain < 0.5 ? 1 : 0), 'laundry'],
+      [u.pets.length ? P({ morning: 1.2, day: 0.3, evening: 0.6 }) : 0, 'pet'],
+      // everyone has a habit or two, but not at 2am
+      [this.quirk === 'dancer' ? 1.6 * P({ day: 1, evening: 1, morning: 0.5 }) : 0, 'dance'],
+      [this.quirk === 'gym' ? 1.6 * P({ morning: 1.8, day: 1, evening: 0.6 }) : 0, 'jacks'],
+      [this.quirk === 'waver' ? 0.7 * P({ day: 1, evening: 0.8, morning: 0.6 }) : 0, 'wave'],
+      [this.quirk === 'singer' ? 1.3 * P({ day: 1, evening: 1, morning: 0.8 }) : 0, 'sing'],
+      [this.quirk === 'pacer' ? 1.4 * P({ day: 1.2, evening: 1, morning: 0.6, late: 0.2 }) : 0, 'pace'],
+      [u.theme === 'plants' ? P({ morning: 1.2, day: 1, evening: 0.2 }) : 0, 'water'],
+      [this.job === 'teen' ? P({ day: 2, evening: 5, late: 3, night: 3 }) : 0, 'game'],
+      [this.job === 'teen' ? P({ late: 3.5, night: 3.5 }) : 0, 'smoke'],
     ]);
     switch (choice) {
-      case 'tv': yield* this.watchTV(dur(30, 110)); break;
-      case 'read': yield* this.doAt(['sofa2', 'sofa1'], dur(20, 60), 'sit', 'reading', { start: () => { this.lookDown = 0.45; if (w.dayF < 0.45) u.rooms.L.set(1, true); } }); break;
-      case 'laptop': yield* this.doAt(['chair1', 'chair2'], dur(30, 120), 'sitTable', this.job === 'wfh' && !evening ? 'working from home' : 'on the laptop', { start: (k) => { this.typing = true; u.showLaptop(k, true); }, end: (k) => u.showLaptop(k, false) }); break;
-      case 'window': yield* this.doAt(r() < 0.6 ? 'winL' : 'winB', dur(2, 5), 'stand', w.weather.p.storm > 0.5 ? 'watching the storm' : w.weather.p.snow > 0.4 ? 'watching the snow' : w.weather.p.rain > 0.4 ? 'watching the rain' : 'looking out the window', { start: () => { this.headTurn = range(r, -0.5, 0.5); } }); break;
-      case 'snack': yield* this.doAt('fridge', 1.2, 'reach', 'raiding the fridge'); yield* this.doAt(['sofa1', 'sofa2'], dur(4, 10), 'sit', 'having a snack', { start: () => { this.eating = true; } }); break;
-      case 'bath': yield* this.doAt('bath', dur(4, 12), 'stand', 'in the bathroom'); break;
-      case 'phone': yield* this.doAt(pick(r, ['sofa1', 'sofa2', 'chair1']), dur(8, 30), null, 'scrolling on the phone', { start: () => { this.lookDown = 0.55; this.pose = this.home.spots[this.atSpot].pose === 'sitTable' ? 'sitTable' : 'sit'; } }); break;
-      case 'tidy': yield* this.doAt(pick(r, ['wardrobe', 'coat', 'pkg', 'stove']), dur(2, 6), 'reach', 'tidying up'); break;
+      case 'tv': yield* this.watchTV(dur(30, 110), null, quiet ? 'watching TV in the dark' : 'watching TV', false, quiet); break;
+      case 'read':
+        if (part === 'day' || part === 'morning') yield* this.doAt(['chair1', 'chair2'], dur(20, 50), 'sitTable', 'reading by the window', { start: () => { this.lookDown = 0.5; } });
+        else yield* this.doAt(['sofa2', 'sofa1'], dur(20, 60), 'sit', 'reading under the lamp', { start: () => { this.lookDown = 0.45; if (w.dayF < 0.45) { u.rooms.L.set(1, true); } } });
+        break;
+      case 'laptop': yield* this.doAt(['chair1', 'chair2'], dur(30, 120), 'sitTable', wfh && part === 'day' ? 'working from home' : part === 'night' ? 'up late on the laptop' : 'on the laptop', { start: (k) => { this.typing = true; u.showLaptop(k, true); if (quiet) this.glow = { room: 'L', kind: 'screen' }; }, end: (k) => { u.showLaptop(k, false); this.glow = null; } }); break;
+      case 'window': yield* this.doAt(r() < 0.6 ? 'winL' : 'winB', dur(2, 5), 'stand', wx.storm > 0.5 ? 'watching the storm' : wx.snow > 0.4 ? 'watching the snow' : wx.rain > 0.4 ? 'watching the rain' : part === 'night' ? "can't sleep, staring out the window" : part === 'morning' ? 'checking the weather' : 'looking out the window', { start: () => { this.headTurn = range(r, -0.5, 0.5); } }); break;
+      case 'snack': yield* this.fridgeRaid(quiet); yield* this.doAt(['sofa1', 'sofa2'], dur(4, 10), 'sit', quiet ? 'a midnight snack' : 'having a snack', { start: () => { this.eating = true; } }); break;
+      case 'bath': yield* this.doAt('bath', dur(4, 12), 'stand', part === 'morning' ? 'doing their hair' : 'in the bathroom'); break;
+      case 'phone': yield* this.doAt(pick(r, ['sofa1', 'sofa2', 'chair1']), dur(8, 30), null, 'scrolling on the phone', { start: () => { this.lookDown = 0.55; this.pose = this.home.spots[this.atSpot].pose === 'sitTable' ? 'sitTable' : 'sit'; if (quiet) this.glow = { room: 'L', kind: 'phone' }; }, end: () => { this.glow = null; } }); break;
+      case 'tidy': yield* this.doAt(pick(r, ['wardrobe', 'coat', 'pkg', 'stove']), dur(2, 6), 'reach', part === 'morning' ? 'making the bed' : 'tidying up'); break;
+      case 'vacuum': yield* this.vacuum(dur(6, 14)); break;
+      case 'laundry': yield* this.laundryRun(); break;
       case 'pet': yield* this.doAt('bowl', 1.5, 'kneel', 'feeding the cat'); break;
       case 'dance': yield* this.doAtPoint(3.0, -2.3, dur(5, 14), 'dance', 'dancing alone in the living room'); break;
-      case 'jacks': yield* this.doAtPoint(3.0, -2.2, dur(4, 9), 'jacks', 'doing jumping jacks'); break;
+      case 'jacks': yield* this.doAtPoint(3.0, -2.2, dur(4, 9), 'jacks', part === 'morning' ? 'doing a morning workout' : 'doing jumping jacks'); break;
       case 'sing': yield* this.doAtPoint(2.9, -2.5, dur(3, 7), 'sing', 'singing into a hairbrush'); break;
       case 'wave': yield* this.doAt('winL', 1.2, 'wave', 'waving at someone across the street'); break;
       case 'water': yield* this.doAt(r() < 0.5 ? 'winL' : 'winB', dur(2, 4), 'reach', 'watering the plants'); break;
       case 'pace': yield* this.pacing(dur(4, 9)); break;
-      case 'game': yield* this.watchTV(dur(30, 90), null, 'playing video games'); break;
+      case 'game': yield* this.watchTV(dur(30, 90), null, quiet ? 'gaming way past bedtime' : 'playing video games', false, quiet); break;
       case 'smoke': yield* this.smokeBreak(); break;
       default: yield* this.waitGame(3);
     }
+  }
+  // The fridge light is the only light on in a dark kitchen at night.
+  *fridgeRaid(quiet) {
+    const L = this.home.rooms.L;
+    if (quiet) L.noAuto = true;
+    try {
+      yield* this.doAt('fridge', 1.4, 'reach', quiet ? 'raiding the fridge in the dark' : 'raiding the fridge', { start: () => { this.glow = { room: 'L', kind: 'fridge' }; }, end: () => { this.glow = null; } });
+    } finally { if (quiet) L.noAuto = false; }
+  }
+  *vacuum(mins) {
+    const u = this.home, w = this.world, end = w.time + mins;
+    const k = this.claim(['openfloor']);
+    if (!k) { yield* this.waitGame(2); return; }
+    const vac = makeProp('vacuum');
+    try {
+      this.pushing = true;
+      vac.group.position.set(0, -0.95 * this.av.s, 0.15);
+      this.av.J.prop.add(vac.group);
+      for (const m of vac.meshes) { m.material = this.mat; this.meshes.push(m); }
+      this.label = 'vacuuming';
+      let flip = false;
+      while (w.time < end) {
+        flip = !flip;
+        yield* this.goPoint(u.X(flip ? 2.2 : 3.8), u.Z(flip ? -1.9 + range(this.r, -0.3, 0.3) : -3.0 + range(this.r, -0.3, 0.3)));
+      }
+    } finally {
+      this.pushing = false;
+      this.av.J.prop.remove(vac.group);
+      this.meshes = this.meshes.filter((m) => !vac.meshes.includes(m));
+      this.pose = 'stand';
+      this.release(k);
+    }
+  }
+  *laundryRun() {
+    const w = this.world;
+    this.laundryDay = w.day;
+    this.label = 'taking the laundry down';
+    this.hold(makeProp('bag'));
+    yield* this.exitUnit(true);
+    this.where = 'out';
+    this.returnAt = w.time + 60;
+    try {
+      yield* this.walkTo(LAUNDRY.door[0], 1.0);
+      yield* this.walkTo(LAUNDRY.inside[0], LAUNDRY.inside[1]);
+      yield* this.walkTo(LAUNDRY.washer[0], LAUNDRY.washer[1] + range(this.r, -1.5, 1.5));
+      this.targetYaw = Math.PI / 2; this.pose = 'reach'; this.label = 'loading a washer';
+      this.drop();
+      yield* this.waitReal(range(this.r, 6, 10));
+      const ch = pick(this.r, LAUNDRY.chairs);
+      yield* this.walkTo(ch[0] + 0.05, ch[1]);
+      this.targetYaw = Math.PI / 2; this.pose = 'sit'; this.seat = 0.45; this.label = 'waiting on the laundry';
+      this.lookDown = 0.5;
+      yield* this.waitGame(range(this.r, 25, 40));
+      this.lookDown = 0; this.pose = 'stand';
+      yield* this.walkTo(LAUNDRY.washer[0] - 0.4, LAUNDRY.washer[1]);
+      this.targetYaw = Math.PI / 2; this.pose = 'reach'; this.label = 'folding laundry';
+      yield* this.waitReal(range(this.r, 8, 14));
+      this.pose = 'stand';
+      this.hold(makeProp('bag'));
+      yield* this.walkTo(LAUNDRY.inside[0], LAUNDRY.inside[1]);
+      yield* this.walkTo(LAUNDRY.door[0], 1.0);
+    } finally { this.pose = 'stand'; this.lookDown = 0; }
+    this.label = 'heading back up with clean laundry';
+    yield* this.enterUnit(true);
+    this.where = 'home';
+    yield* this.doAt('wardrobe', 4, 'reach', 'putting laundry away');
+    this.drop();
   }
 
   // ---- leaving the building

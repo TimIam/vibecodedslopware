@@ -343,6 +343,9 @@ export function makeProp(kind) {
     const col = [0x15161a, 0x15161a, 0x1c2a4a, 0x8a1a1a, 0x2a4a2a, 0xd8b020, 0x5a2a6a][Math.floor(Math.random() * 7)];
     add(new THREE.ConeGeometry(0.56, 0.24, 12).translate(0, 0.42, 0), col);
     add(new THREE.CylinderGeometry(0.012, 0.012, 0.75, 5).translate(0, 0.08, 0), 0x2a2a2a);
+  } else if (kind === 'vacuum') {
+    add(new THREE.BoxGeometry(0.3, 0.12, 0.2).translate(0, 0.06, 0.25), 0x8a2a2a);
+    add(new THREE.CylinderGeometry(0.012, 0.012, 0.85, 5).rotateX(-0.6).translate(0, 0.42, 0.02), 0x2a2a2a);
   } else if (kind === 'lawnchair') {
     add(new THREE.BoxGeometry(0.5, 0.04, 0.45).translate(0, 0.42, 0), 0x2a6a9a);
     add(new THREE.BoxGeometry(0.5, 0.5, 0.04).rotateX(-0.25).translate(0, 0.68, -0.25), 0x2a6a9a);
