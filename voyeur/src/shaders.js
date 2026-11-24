@@ -4,7 +4,7 @@
 // and a cheap corner/contact darkening from the room's own bounds.
 import * as THREE from 'three';
 
-export const MAXL = 4;
+export const MAXL = 5;
 
 const VS = /* glsl */`
 varying vec3 vW;
@@ -30,6 +30,7 @@ uniform vec3 uAmb;
 uniform vec3 uMin;
 uniform vec3 uMax;
 uniform float uWin;
+uniform vec4 uSoot;
 varying vec3 vW;
 varying vec3 vN;
 varying vec3 vC;
@@ -53,7 +54,9 @@ void main() {
   vec3 s = smoothstep(vec3(0.0), vec3(0.6), m);
   float ao = max(s.x * s.y, max(s.y * s.z, s.x * s.z));
   ao = 0.42 + 0.58 * ao;
-  gl_FragColor = vec4(vC * acc * ao, 1.0);
+  vec3 sd = vW - uSoot.xyz;
+  float soot = uSoot.w * 0.85 * exp(-dot(sd, sd) / 7.0);
+  gl_FragColor = vec4(vC * (1.0 - soot) * acc * ao, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
@@ -67,6 +70,7 @@ export function makeRoomMaterial(min, max, shared, hasWindows = true) {
     uMin: { value: min.clone() },
     uMax: { value: max.clone() },
     uWin: { value: hasWindows ? 1 : 0 },
+    uSoot: { value: new THREE.Vector4(0, -500, 0, 0) },
   };
   return new THREE.ShaderMaterial({ uniforms, vertexShader: VS, fragmentShader: FS, vertexColors: true });
 }

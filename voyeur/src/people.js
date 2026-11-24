@@ -250,6 +250,7 @@ export class Resident extends Actor {
     if (this.trip && this.trip.awayNow) {
       this.trip.gone = true;
       this.offstage(); this.where = 'away';
+      this.returnAt = this.trip.back;
       yield* this.waitUntil(() => w.time >= this.trip.back);
       yield* this.comeHome('car', true);
       return;
@@ -258,6 +259,7 @@ export class Resident extends Actor {
       this.workedDay = this.workKey();
       this.offstage(); this.where = 'out';
       const back = this.nextAbs(this.back) + range(this.r, -10, 40);
+      this.returnAt = back;
       yield* this.waitUntil(() => w.time >= back);
       yield* this.comeHome('walk');
       return;
@@ -523,7 +525,8 @@ export class Resident extends Actor {
     this.label = 'heading out';
     if (suitcase) this.hold(makeProp('suitcase'), new THREE.Vector3(0.32, -1.07 * this.av.s, -0.3));
     yield* this.exitUnit(true);
-    this.where = 'out';
+    this.where = suitcase ? 'away' : 'out';
+    this.returnAt = until;
     this.label = label;
     if (mode === 'car') {
       const spot = [-1.2 + range(r, -0.6, 0.6), 3.35];
@@ -587,6 +590,8 @@ export class Resident extends Actor {
       else { yield* this.goSpot('fridge'); this.drop(); }
     }
     yield* this.doAt('coat', 0.6, 'reach', 'hanging up a coat');
+    const bi = this.home.breakIn;
+    if (bi && bi.done && !bi.reported) yield* this.world.incidents.discover(this);
   }
   *goOnTrip() {
     const w = this.world, r = this.r;

@@ -89,6 +89,8 @@ export class Room {
   update(dt, realT) {
     const U = this.mat.uniforms.uLC.value;
     const day = this.shared.dayF;
+    // slot 4 is for things that move or flare: a kitchen fire, a burglar's flashlight
+    if (this.dyn) { this.mat.uniforms.uLP.value[4].copy(this.dyn.pos); U[4].copy(this.dyn.col); } else U[4].set(0, 0, 0);
     for (let i = 0; i < this.lights.length; i++) {
       const L = this.lights[i];
       if (!L) continue;

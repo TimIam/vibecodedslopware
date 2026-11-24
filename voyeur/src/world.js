@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { buildBuilding, GH, FH, SW_Y, FZ, DELI, CURB_Z } from './building.js';
 import { Street } from './street.js';
+import { Incidents } from './events.js';
 import { Resident, Walker, randomLook } from './people.js';
 import { makeRng, pick, range, inCirc, smooth, lerp, damp, canvasTex, paint } from './util.js';
 import { makeSky } from './shaders.js';
@@ -79,6 +80,7 @@ export class World {
     // Daylight shadows: the fire escape on the bricks, the cornice, people and cars on the sidewalk.
     scene.traverse((o) => { if (o.isMesh && o.material && o.material.isMeshStandardMaterial && !o.material.transparent) { o.castShadow = true; o.receiveShadow = true; } });
     this.street = new Street(this);
+    this.incidents = new Incidents(this);
     this.populate();
     this.nbT = 0; this.hourMark = Math.floor(this.time / 60);
     this.updateEnv();
@@ -323,6 +325,20 @@ export class World {
       p.interrupt(function* () { yield* this.outing({ mode: 'car', until: w.time + range(Math.random, 90, 200), label: 'out for the evening', coat: true, carHome: true }); });
       return p.home.name;
     }
+    if (kind === 'fire') {
+      if (this.incidents.busy()) return null;
+      const cooking = this.units.filter((u) => u.burnerOn);
+      const homes = this.units.filter((u) => u.residents.some((p) => p.where === 'home'));
+      const u = pickOne(cooking.length ? cooking : homes.length ? homes : this.units);
+      return this.incidents.startFire(u) ? u.name : null;
+    }
+    if (kind === 'breakin') {
+      if (this.incidents.busy()) return null;
+      let t = this.units.filter((u) => this.incidents.canBreakInto(u, 90));
+      if (!t.length) t = this.units.filter((u) => this.incidents.canBreakInto(u, 25));
+      const u = pickOne(t);
+      return u && this.incidents.startBreakIn(u) ? u.name : null;
+    }
     if (kind === 'ambulance') {
       if (this.street.flashing) return null;
       const front = this.awakeHome((x) => ['L', 'B'].includes(x.home.roomKeyAt(x.pos)));
@@ -345,6 +361,7 @@ export class World {
     this.updateEnv();
     this.street.update(dt);
     for (const a of this.actors) if (!a.dead) a.update(dt);
+    this.incidents.update(dt);
     this.actors = this.actors.filter((a) => !a.dead);
     this.updateUnits(dt);
     for (const r of this.rooms) r.update(dt, this.realT);
@@ -358,6 +375,9 @@ export class World {
       this.street.deliverPackage(homes[Math.floor(Math.random() * homes.length)]);
     }
     if (h >= 8 && h < 23 && Math.random() < 0.004) this.demo('ambulance');
+    // a fire starts in a kitchen maybe once every few weeks of game time; a break-in, rarer still
+    for (const u of this.units) if (u.burnerOn && Math.random() < 0.006) this.incidents.startFire(u);
+    if (!this.incidents.busy() && (h < 5 || h >= 23) && Math.random() < 0.03) { const t = this.units.filter((u) => this.incidents.canBreakInto(u)); if (t.length) this.incidents.startBreakIn(t[Math.floor(Math.random() * t.length)]); }
     for (const p of this.residents) {
       if (p.job === 'student' && h > 7 && h < 9 && (!p.goingOut || p.goingOut.day !== this.day)) p.goingOut = Math.random() < 0.4 ? { day: this.day, at: range(Math.random, 1230, 1300), done: false } : null;
     }

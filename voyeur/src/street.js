@@ -28,7 +28,34 @@ function makeVehicle(kind, color) {
   const amber = new THREE.MeshBasicMaterial({ color: 0x221100 });
   const L = { head, tail, amber, bar: [] };
   let len, wheelX, wr = 0.33;
-  if (kind === 'van' || kind === 'ambulance') {
+  if (kind === 'fire') {
+    len = 8.8; wheelX = [-2.9, 0.6, 2.9]; wr = 0.48;
+    const red = 0xb3161a, chrome = 0xc8ccd0;
+    k.box(-4.4, 0.55, -1.2, -2.5, 2.9, 1.2, red, 0.15);
+    k.box(-4.42, 1.6, -1.1, -3.9, 2.7, 1.1, glass);
+    k.box(-3.8, 1.6, -1.21, -2.7, 2.6, 1.21, glass);
+    k.box(-2.5, 0.55, -1.25, 4.4, 2.55, 1.25, red, 0.12);
+    for (const x of [-2.2, -0.6, 1.0, 2.6]) { k.box(x, 0.75, 1.251, x + 1.4, 2.2, 1.26, 0x8e1216); k.box(x, 0.75, -1.26, x + 1.4, 2.2, -1.251, 0x8e1216); }
+    k.box(-2.5, 0.6, 1.252, 4.4, 0.72, 1.262, chrome); k.box(-2.5, 0.6, -1.262, 4.4, 0.72, -1.252, chrome);
+    k.box(-4.5, 0.4, -1.2, -4.35, 0.8, 1.2, chrome);
+    k.box(-2.5, 2.55, -1.0, 4.4, 2.62, 1.0, 0x7a7e84);
+    const red2 = new THREE.MeshBasicMaterial({ color: 0x220000 }), wht = new THREE.MeshBasicMaterial({ color: 0x222222 });
+    L.bar.push(lightBox(g, -4.3, 2.9, -1.0, -3.6, 3.06, -0.05, red2), lightBox(g, -4.3, 2.9, 0.05, -3.6, 3.06, 1.0, wht));
+    L.bar.push(lightBox(g, 4.3, 2.3, -1.2, 4.42, 2.5, -0.9, red2), lightBox(g, 4.3, 2.3, 0.9, 4.42, 2.5, 1.2, red2));
+    L.barMats = [red2, wht];
+    lightBox(g, -4.46, 1.0, -1.0, -4.42, 1.2, -0.7, head); lightBox(g, -4.46, 1.0, 0.7, -4.42, 1.2, 1.0, head);
+    lightBox(g, 4.42, 0.9, -1.2, 4.46, 1.3, -1.0, tail); lightBox(g, 4.42, 0.9, 1.0, 4.46, 1.3, 1.2, tail);
+    lightBox(g, -4.46, 1.3, -1.2, -4.4, 1.4, -1.1, amber); lightBox(g, 4.42, 1.5, -1.2, 4.46, 1.6, -1.05, amber);
+    // aerial ladder: turntable at the back, boom pointing forward along -x at rest
+    const turn = new THREE.Group(); turn.position.set(3.2, 2.7, 0); g.add(turn);
+    const tk = new Kit(); tk.box(-0.6, 0, -0.6, 0.6, 0.35, 0.6, 0x8a8e94, 0.2); turn.add(new THREE.Mesh(tk.build(), vehMat));
+    const boom = new THREE.Group(); boom.position.set(0, 0.4, 0); turn.add(boom);
+    const bk = new Kit();
+    for (const z of [-0.38, 0.38]) bk.box(-8, -0.06, z - 0.05, 0, 0.06, z + 0.05, 0xd8dade);
+    for (let x = -7.8; x < 0; x += 0.4) bk.box(x - 0.03, -0.03, -0.38, x + 0.03, 0.03, 0.38, 0xb8bcc2);
+    boom.add(new THREE.Mesh(bk.build(), vehMat));
+    L.ladder = { turn, boom, yaw: 0, pitch: 0, ext: 0.75 };
+  } else if (kind === 'van' || kind === 'ambulance') {
     len = 5.8; wheelX = [-1.9, 1.9];
     const body = kind === 'ambulance' ? 0xf2f2f0 : color;
     k.box(-2.9, 0.42, -1.0, -1.5, 2.05, 1.0, body, 0.15);
@@ -73,6 +100,12 @@ function makeVehicle(kind, color) {
       const s = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.26, 0.24), sm); s.rotation.y = Math.PI / 2; s.position.set(0.1, 1.64, 0); g.add(s);
       L.roof = sm;
     }
+    if (kind === 'police') {
+      k.box(-2.26, 0.5, 0.91, 2.26, 0.75, 0.92, 0x1a3a8a); k.box(-2.26, 0.5, -0.92, 2.26, 0.75, -0.91, 0x1a3a8a);
+      const red = new THREE.MeshBasicMaterial({ color: 0x220000 }), blu = new THREE.MeshBasicMaterial({ color: 0x000022 });
+      lightBox(g, -0.1, 1.51, -0.6, 0.25, 1.62, -0.02, red); lightBox(g, -0.1, 1.51, 0.02, 0.25, 1.62, 0.6, blu);
+      L.barMats = [red, blu]; L.barCols = [[4, 0.05, 0.05], [0.1, 0.25, 4.5]];
+    }
     if (kind === 'ride') { const b = new THREE.MeshBasicMaterial({ color: 0x220011 }); lightBox(g, -1.02, 1.05, 0.2, -0.99, 1.15, 0.45, b); L.badge = b; }
   }
   g.add(new THREE.Mesh(k.build(), vehMat));
@@ -80,7 +113,7 @@ function makeVehicle(kind, color) {
   const wg = new THREE.CylinderGeometry(wr, wr, 0.22, 14); wg.rotateX(Math.PI / 2);
   const hub = new THREE.CylinderGeometry(wr * 0.55, wr * 0.55, 0.23, 10); hub.rotateX(Math.PI / 2);
   const wk = new Kit(); wk.geo(wg, 0x111111); wk.geo(hub, 0x8a8a8a); const wgeo = wk.build();
-  const half = kind === 'van' || kind === 'ambulance' ? 0.92 : 0.82;
+  const half = kind === 'fire' ? 1.05 : kind === 'van' || kind === 'ambulance' ? 0.92 : 0.82;
   for (const x of wheelX) for (const z of [-half, half]) { const w = new THREE.Mesh(wgeo, vehMat); w.position.set(x, wr, z); g.add(w); wheels.push(w); }
   return { group: g, lights: L, wheels, len, wr };
 }
@@ -88,7 +121,7 @@ function makeVehicle(kind, color) {
 export class Vehicle {
   constructor(street, kind, o = {}) {
     this.street = street; this.kind = kind;
-    const col = o.color ?? (kind === 'taxi' ? 0xf0c020 : kind === 'van' ? pick(Math.random, [0x5b3d24, 0xf2f2f0, 0x2a3a6a]) : pick(Math.random, CAR_COLORS));
+    const col = o.color ?? (kind === 'police' ? 0xf2f2f0 : kind === 'taxi' ? 0xf0c020 : kind === 'van' ? pick(Math.random, [0x5b3d24, 0xf2f2f0, 0x2a3a6a]) : pick(Math.random, CAR_COLORS));
     Object.assign(this, makeVehicle(kind, col));
     this.x = o.x ?? 58; this.z = o.lane ?? LANE1; this.tz = this.z;
     this.cruise = o.cruise ?? range(Math.random, 7.5, 10); this.v = o.state === 'parked' ? 0 : this.cruise * 0.9;
@@ -120,6 +153,8 @@ export class Vehicle {
       const nv = this.v + Math.sign(vt - this.v) * Math.min(Math.abs(vt - this.v), a * dt);
       this.braking = nv < this.v - 0.01 || nv < 0.3;
       this.v = nv;
+      // boxed in short of its stop by a parked car: call this the stop
+      if (this.state === 'drive' && this.stopX != null && this.x - this.stopX < 2.5 && this.v < 0.03 && vt < 0.03) { this.stopX = this.x; this.v = 0; this.state = 'stopped'; this.hazard = this.kind !== 'ride' && this.kind !== 'taxi'; }
       this.x -= this.v * dt;
       const oz = this.z;
       this.z = damp(this.z, this.tz, 0.9, dt);
@@ -142,8 +177,21 @@ export class Vehicle {
     if (this.lights.barMats) {
       const ph = Math.floor(w.realT * 6) % 4;
       const on = this.flash;
-      this.lights.barMats[0].color.setRGB(on && ph % 2 === 0 ? 4 : 0.1, 0.02, 0.02);
-      this.lights.barMats[1].color.setScalar(on && ph % 2 === 1 ? 4 : 0.12);
+      const C = this.lights.barCols || [[4, 0.02, 0.02], [4, 4, 4]];
+      this.lights.barMats[0].color.setRGB(...(on && ph % 2 === 0 ? C[0] : [0.1, 0.02, 0.02]));
+      this.lights.barMats[1].color.setRGB(...(on && ph % 2 === 1 ? C[1] : [0.12, 0.12, 0.12]));
+    }
+    const Ld = this.lights.ladder;
+    if (Ld) {
+      let yaw = 0, pitch = 0, ext = 0.75;
+      if (this.ladderTarget && this.state === 'stopped') {
+        const T = this.ladderTarget;
+        const tx = this.x + 3.2, ty = 3.1, tz = this.z;
+        const dx = T.x - tx, dz = T.z - tz, h = Math.hypot(dx, dz);
+        yaw = Math.atan2(dz, -dx); pitch = -Math.atan2(T.y - ty, h); ext = Math.min(1.9, Math.hypot(h, T.y - ty) / 8);
+      }
+      Ld.yaw = damp(Ld.yaw, yaw, 0.6, dt); Ld.pitch = damp(Ld.pitch, pitch, 0.5, dt); Ld.ext = damp(Ld.ext, ext, 0.4, dt);
+      Ld.turn.rotation.y = Ld.yaw; Ld.boom.rotation.z = Ld.pitch; Ld.boom.scale.x = Ld.ext;
     }
   }
   dispose() { this.dead = true; this.street.world.scene.remove(this.group); }
@@ -196,7 +244,7 @@ export class Street {
       const v = this.flashing;
       const ph = Math.floor(w.realT * 6) % 4;
       this.flashLight.position.set(v.x - 1, 2.6, v.z - 1.6);
-      this.flashLight.color.set(ph % 2 ? 0xffffff : 0xff1a1a);
+      this.flashLight.color.set(ph % 2 ? (v.kind === 'police' ? 0x2040ff : v.kind === 'fire' ? 0xff3a10 : 0xffffff) : 0xff1a1a);
       this.flashLight.intensity = v.flash ? (ph % 2 ? 25 : 60) : 0;
     } else this.flashLight.intensity = 0;
   }
@@ -358,6 +406,7 @@ export class Street {
       while (amb.state !== 'stopped') yield;
       const mk = () => new Walker(w, randomLook(Math.random, { shirt: 0x1e2a44, pants: 0x1e2a44, hairStyle: 'short' }), null, { speed: 1.55, home: unit, counts: true });
       const m1 = mk(), m2 = mk();
+      m1.role = m2.role = 'paramedics';
       const rear = amb.x + 3.3;
       m1.pos.set(rear, SW_Y, amb.z - 0.4); m2.pos.set(rear + 0.4, SW_Y, amb.z + 0.4);
       m1.hidden = m2.hidden = false;

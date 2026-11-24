@@ -63,6 +63,7 @@ const director = {
       s += a.pose === 'walk' ? 1.5 : (ACT_W[a.label] || 1);
     }
     for (const a of world.actors) if (a.home === u && !u.residents.includes(a) && !u.pets.includes(a) && !a.hidden) s += 8;
+    if (u.fire) s += 40 * (u.fire.level + 0.2);
     return s * (lit ? 1 : 0.25);
   },
   shotFor(u) {
@@ -117,9 +118,12 @@ function captionText() {
     const people = u.residents.filter((p) => p.where === 'home' && !p.hidden);
     const others = world.actors.filter((a) => a.home === u && !u.residents.includes(a) && !u.pets.includes(a) && !a.hidden);
     const lines = people.map((p) => `${p.name} is ${p.label || 'at home'}`);
-    if (others.length) lines.push('paramedics are here');
+    if (u.fire && !u.fire.out) lines.unshift('the kitchen is on fire');
+    for (const role of new Set(others.map((a) => a.role || 'visitors'))) lines.push(`${role} ${role.startsWith('a ') ? 'is' : 'are'} here`);
+    if (u.breakIn && u.breakIn.done && !u.breakIn.reported) lines.push('someone has been in here');
+    if (u.damage && !u.damage.bedroomOnly) lines.push('fire damage, windows boarded up');
     for (const c of u.pets) lines.push(`${c.name} the cat is ${c.pose === 'loaf' ? 'curled up' : 'wandering'}`);
-    if (!people.length) lines.push(u.residents.some((p) => p.where === 'away') ? 'nobody home: away on a trip' : u.residents.some((p) => p.where === 'hospital') ? 'nobody home: in the hospital' : 'nobody home right now');
+    if (!people.length && !others.length) lines.push(u.residents.some((p) => p.where === 'away') ? 'nobody home: away on a trip' : u.residents.some((p) => p.where === 'hospital') ? 'nobody home: in the hospital' : 'nobody home right now');
     return `<b>Apartment ${u.name}</b> · ${lines.join(' · ')}`;
   }
   if (director.mode === 'street') return '<b>Out front</b>';
@@ -144,6 +148,8 @@ addEventListener('keydown', (e) => {
   if (k === '2') { const n = world.demo('pizza'); say(n ? `Demo: ${n} orders pizza` : 'Demo: nobody is awake at home'); }
   if (k === '3') { const n = world.demo('ride'); say(n ? `Demo: someone in ${n} calls a ride` : 'Demo: nobody is awake at home'); }
   if (k === '4') { const n = world.demo('ambulance'); if (!n) say('Demo: no emergency right now (nobody awake at home, or one is already under way)'); }
+  if (k === '6') { const n = world.demo('fire'); say(n ? `Demo: fire in ${n}` : 'Demo: something big is already happening'); }
+  if (k === '7') { const n = world.demo('breakin'); say(n ? `Demo: a break-in at ${n} (nobody home)` : 'Demo: no empty apartment right now (try during work hours or a trip)'); }
   if (k === '5') { seasonIdx = (seasonIdx + 1) % seasons.length; world.seasonOverride = seasons[seasonIdx]; world.applySeason(); say(`Season: ${world.season.name}${seasons[seasonIdx] ? '' : ' (from today\'s date)'}`); }
   if (k === 't') { world.time += 60; say('Skipped ahead one hour'); }
   if (k === 'f' && !e.repeat) world.ff = 30;
