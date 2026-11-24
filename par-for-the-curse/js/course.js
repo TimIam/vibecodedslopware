@@ -893,7 +893,9 @@ export class Course {
     }) } }));
     const sideMat = this._pathSide || (this._pathSide = toon(0xa9a293));
     const curve = new THREE.CatmullRomCurve3(pts.map(p => new V3(p[0], p[1], p[2])), false, 'centripetal');
-    const line = curve.getSpacedPoints(Math.max(2, Math.ceil(curve.getLength() / (o.step || 0.6))));
+    // At most 1200 points: the longest road on the course needs a few hundred, and an edited overlay must
+    // never be able to ask for millions (levels.js bounds step too).
+    const line = curve.getSpacedPoints(Math.min(1200, Math.max(2, Math.ceil(curve.getLength() / Math.max(0.25, o.step || 0.6)))));
     // Run the ends onto the ground, level, the way they were heading.
     const lead = (a, b) => { const d = new V3(a.x - b.x, 0, a.z - b.z).normalize(); return new V3(a.x + d.x * 0.9, a.y, a.z + d.z * 0.9); };
     const [l0, l1] = o.lead || [true, true];

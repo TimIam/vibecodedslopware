@@ -32,7 +32,10 @@ test("checkLevel accepts editor overlays and refuses junk", () => {
     // bounds that keep a file from freezing every player's load
     ["front", JSON.stringify({ version: 1, items: {}, add: [{ id: "a", hole: 1, m: "block", args: [0, 1e9, 0, 4, 0] }] }), 422],
     ["front", JSON.stringify({ version: 1, items: { "h1:block:0,9,0": { set: { "1": 600 } } }, add: [] }), 422],
-    ["front", JSON.stringify({ version: 1, items: {}, add: [{ id: "r", hole: 1, m: "road", args: [[[0, 0, 0], [9, 0, 0]], { step: 0.001 }] }] }), 422],
+    ["front", JSON.stringify({ version: 1, items: {}, add: [{ id: "r", hole: 1, m: "road", args: [[[0, 0, 0], [9, 0, 0]], 3, { step: 0.001 }] }] }), 422],
+    // an item edit names the field by path, and must not get round the step rule that way
+    ["front", JSON.stringify({ version: 1, items: { "h1:road:0,0": { set: { "2.step": 1e-300 } } }, add: [] }), 422],
+    ["front", JSON.stringify({ version: 1, items: { "h1:road:0,0": { set: { "2.step": 0.1 } } }, add: [] }), 422],
     ["front", JSON.stringify({ version: 1, items: {}, add: Array.from({ length: 401 }, (_, i) => ({ id: "c" + i, hole: 1, m: "cone", args: [1, 0, 1] })) }), 422],
   ];
   for (const [name, text, status] of bad) assert.throws(() => checkLevel(name, text), (e) => e instanceof LevelError && e.status === status, `${name} ${text.slice(0, 40)}`);
