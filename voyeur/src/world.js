@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { buildBuilding, GH, FH, SW_Y, FZ, DELI, CURB_Z } from './building.js';
 import { Street } from './street.js';
 import { Incidents } from './events.js';
+import { Weather } from './weather.js';
 import { Resident, Walker, randomLook } from './people.js';
 import { makeRng, pick, range, inCirc, smooth, lerp, damp, canvasTex, paint, Kit } from './util.js';
 import { makeSky } from './shaders.js';
@@ -85,6 +86,8 @@ export class World {
     this.applySeason();
     // Daylight shadows: the fire escape on the bricks, the cornice, people and cars on the sidewalk.
     scene.traverse((o) => { if (o.isMesh && o.material && o.material.isMeshStandardMaterial && !o.material.transparent) { o.castShadow = true; o.receiveShadow = true; } });
+    scene.fog = new THREE.FogExp2(0x101418, 0.0022);
+    this.weather = new Weather(this, opts.weather);
     this.street = new Street(this);
     this.incidents = new Incidents(this);
     this.populate();
@@ -404,6 +407,7 @@ export class World {
     this.incidents.update(dt);
     this.actors = this.actors.filter((a) => !a.dead);
     this.updateUnits(dt);
+    this.weather.update(dt);
     for (const r of this.rooms) r.update(dt, this.realT);
     this.updateDoors(dt);
     if (this.snow.visible) this.updateSnow(dt);
@@ -557,7 +561,8 @@ export class World {
     this.B.skyline.emissiveIntensity = 0.55 * night;
     this.B.skyline.color.setRGB(0.035, 0.04, 0.05).lerp(new THREE.Color(0.42, 0.5, 0.62), dayF * 0.85);
     const lampsOn = dayF < 0.35 ? 1 : 0;
-    for (const L of this.B.lamps) { L.light.intensity = 16 * lampsOn; L.head.material.color.setRGB(0.1 + 3.4 * lampsOn, 0.08 + 2.5 * lampsOn, 0.05 + 1.5 * lampsOn); }
+    if (this.weather) this.weather.affectEnv();
+    for (const L of this.B.lamps) { if (this.weather && this.weather.outage && this.weather.outage.started) continue; L.light.intensity = 16 * lampsOn; L.head.material.color.setRGB(0.1 + 3.4 * lampsOn, 0.08 + 2.5 * lampsOn, 0.05 + 1.5 * lampsOn); }
     this.nbT -= this.dt;
     if (this.nbT <= 0) {
       this.nbT = 6;

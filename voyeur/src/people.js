@@ -85,6 +85,7 @@ export class Actor {
     const room = this.hidden ? null : this.world.roomAt(this.pos, this.room);
     if (room !== this.room) { const old = this.room; this.room = room; this.world.onRoomChange(this, old, room); }
     this.setMat(room ? room.mat : this.world.outMat);
+    if (this.world.weather) this.world.weather.umbrellaFor(this);
   }
   interrupt(job, force = false) {
     if (!this.co || (this.busy && !force) || (this.asleep && !force)) return false;
@@ -585,7 +586,7 @@ export class Resident extends Actor {
       [(evening ? 4 : this.job === 'retired' ? 2 : 0.5) + (tvOn ? 6 : 0), 'tv'],
       [this.reader ? 1.8 : 0.3, 'read'],
       [this.job === 'wfh' && !evening ? 8 : this.job === 'student' ? 2 : evening ? 0.8 : 0.4, 'laptop'],
-      [0.8, 'window'],
+      [0.8 + 2.5 * w.weather.p.storm + 0.8 * w.weather.p.rain + 1.4 * w.weather.p.snow, 'window'],
       [0.5, 'snack'],
       [0.35, 'bath'],
       [0.9, 'phone'],
@@ -605,7 +606,7 @@ export class Resident extends Actor {
       case 'tv': yield* this.watchTV(dur(30, 110)); break;
       case 'read': yield* this.doAt(['sofa2', 'sofa1'], dur(20, 60), 'sit', 'reading', { start: () => { this.lookDown = 0.45; if (w.dayF < 0.45) u.rooms.L.set(1, true); } }); break;
       case 'laptop': yield* this.doAt(['chair1', 'chair2'], dur(30, 120), 'sitTable', this.job === 'wfh' && !evening ? 'working from home' : 'on the laptop', { start: (k) => { this.typing = true; u.showLaptop(k, true); }, end: (k) => u.showLaptop(k, false) }); break;
-      case 'window': yield* this.doAt(r() < 0.6 ? 'winL' : 'winB', dur(2, 5), 'stand', 'looking out the window', { start: () => { this.headTurn = range(r, -0.5, 0.5); } }); break;
+      case 'window': yield* this.doAt(r() < 0.6 ? 'winL' : 'winB', dur(2, 5), 'stand', w.weather.p.storm > 0.5 ? 'watching the storm' : w.weather.p.snow > 0.4 ? 'watching the snow' : w.weather.p.rain > 0.4 ? 'watching the rain' : 'looking out the window', { start: () => { this.headTurn = range(r, -0.5, 0.5); } }); break;
       case 'snack': yield* this.doAt('fridge', 1.2, 'reach', 'raiding the fridge'); yield* this.doAt(['sofa1', 'sofa2'], dur(4, 10), 'sit', 'having a snack', { start: () => { this.eating = true; } }); break;
       case 'bath': yield* this.doAt('bath', dur(4, 12), 'stand', 'in the bathroom'); break;
       case 'phone': yield* this.doAt(pick(r, ['sofa1', 'sofa2', 'chair1']), dur(8, 30), null, 'scrolling on the phone', { start: () => { this.lookDown = 0.55; this.pose = this.home.spots[this.atSpot].pose === 'sitTable' ? 'sitTable' : 'sit'; } }); break;

@@ -217,7 +217,7 @@ export class Street {
   update(dt) {
     const w = this.world;
     const h = w.mod / 60;
-    const busy = h > 7 && h < 21 ? 1 : h > 5 && h < 24 ? 0.5 : 0.15;
+    const busy = (h > 7 && h < 21 ? 1 : h > 5 && h < 24 ? 0.5 : 0.15) * (1 - 0.6 * this.world.weather.p.rain);
     this.trafficT -= dt;
     if (this.trafficT <= 0) {
       this.trafficT = range(Math.random, 3, 16) / busy;

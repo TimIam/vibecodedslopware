@@ -316,6 +316,10 @@ export function makeProp(kind) {
   } else if (kind === 'broom') {
     add(new THREE.CylinderGeometry(0.014, 0.014, 1.35, 6).translate(0, 0.35, 0), 0x9a7a4a);
     add(new THREE.BoxGeometry(0.26, 0.12, 0.06).translate(0, 1.07, 0), 0xc8a050);
+  } else if (kind === 'umbrella') {
+    const col = [0x15161a, 0x15161a, 0x1c2a4a, 0x8a1a1a, 0x2a4a2a, 0xd8b020, 0x5a2a6a][Math.floor(Math.random() * 7)];
+    add(new THREE.ConeGeometry(0.56, 0.24, 12).translate(0, 0.42, 0), col);
+    add(new THREE.CylinderGeometry(0.012, 0.012, 0.75, 5).translate(0, 0.08, 0), 0x2a2a2a);
   } else if (kind === 'cup') {
     add(new THREE.CylinderGeometry(0.035, 0.03, 0.1, 8).translate(0, 0.0, 0.03), 0xd8301e);
   } else if (kind === 'bag') {

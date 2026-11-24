@@ -24,7 +24,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(38, 16 / 9, 0.1, 1500);
 
-const world = new World(scene, { date, startMin, seed: +(q.get('seed') || Math.floor(Math.random() * 1e9)), season: q.get('season') });
+const world = new World(scene, { date, startMin, seed: +(q.get('seed') || Math.floor(Math.random() * 1e9)), season: q.get('season'), weather: q.get('weather') });
 if (q.get('ff')) world.ff = +q.get('ff');
 
 const rt = new THREE.WebGLRenderTarget(16, 16, { type: THREE.HalfFloatType, samples: 4 });
@@ -110,7 +110,7 @@ function clockText() {
   let h = Math.floor(m / 60), mm = Math.floor(m % 60);
   const ap = h >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
-  return `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()} · ${h}:${String(mm).padStart(2, '0')} ${ap} · ${world.season.name}${world.ff > 1 ? ` · ×${world.ff} fast` : ''}`;
+  return `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()} · ${h}:${String(mm).padStart(2, '0')} ${ap} · ${world.season.name} · ${world.weather.label}${world.ff > 1 ? ` · ×${world.ff} fast` : ''}`;
 }
 function captionText() {
   if (director.mode === 'unit' && director.unit) {
@@ -151,6 +151,7 @@ addEventListener('keydown', (e) => {
   if (k === '6') { const n = world.demo('fire'); say(n ? `Demo: fire in ${n}` : 'Demo: something big is already happening'); }
   if (k === '7') { const n = world.demo('breakin'); say(n ? `Demo: a break-in at ${n} (nobody home)` : 'Demo: no empty apartment right now (try during work hours or a trip)'); }
   if (k === '8') { const n = world.demo('party'); say(n ? `Demo: a party in ${n}` : 'Demo: no party right now (one is already going, or nobody home)'); }
+  if (k === '9') { const order = ['clear', 'cloudy', 'rain', 'storm', 'snow']; const nx = order[(order.indexOf(world.weather.state) + 1) % order.length]; world.weather.set(nx); world.weather.next = world.time + 240; say(`Weather: ${world.weather.label}`); }
   if (k === '5') { seasonIdx = (seasonIdx + 1) % seasons.length; world.seasonOverride = seasons[seasonIdx]; world.applySeason(); say(`Season: ${world.season.name}${seasons[seasonIdx] ? '' : ' (from today\'s date)'}`); }
   if (k === 't') { world.time += 60; say('Skipped ahead one hour'); }
   if (k === 'f' && !e.repeat) world.ff = 30;
