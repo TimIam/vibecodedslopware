@@ -439,8 +439,8 @@ window.SLOPWARE = {
   },
   "voyeur": {
    "visits": 0,
-   "prompts": 10,
-   "tokens": 1183196,
+   "prompts": 11,
+   "tokens": 1238238,
    "sharedWith": null,
    "versions": [
     {
@@ -498,6 +498,13 @@ window.SLOPWARE = {
      "note": "dogs, commutes, birthdays, weekends, corner clock",
      "prompts": 1,
      "tokens": 76006
+    },
+    {
+     "n": 9,
+     "date": "2026-11-24T08:35:36-07:00",
+     "note": "deli delivery trucks and garbage trucks",
+     "prompts": 1,
+     "tokens": 55042
     }
    ]
   },
