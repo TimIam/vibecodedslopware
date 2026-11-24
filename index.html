@@ -56,6 +56,9 @@ footer{margin-top:48px;color:var(--dim);font-size:13px}
 .more-list span{display:block;overflow:hidden;color:var(--dim);font-size:12px;white-space:nowrap;text-overflow:ellipsis}
 .card .meta{margin-top:6px;font-size:12.5px;color:var(--dim);opacity:.85}
 .card .ver{position:absolute;right:12px;bottom:7px;font-size:11px;color:var(--dim);opacity:.8}
+a.card:has(.sig){padding-bottom:32px}
+.card .sig{position:absolute;left:98px;bottom:7px;font-family:"Segoe Script","Snell Roundhand","Brush Script MT",Georgia,serif;font-style:italic;font-size:13px;font-weight:600;letter-spacing:.02em;color:#15803d;opacity:.92}
+@media (prefers-color-scheme:dark){.card .sig{color:#4ade80;text-shadow:0 0 10px rgba(74,222,128,.28)}}
 .tip{position:fixed;z-index:10;max-width:260px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--fg);font-size:12.5px;line-height:1.45;box-shadow:0 6px 20px rgba(0,0,0,.18);pointer-events:none}
 .app{position:relative}
 .star{position:absolute;top:3px;left:3px;display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;border-radius:9px;background:none;color:var(--fg);cursor:pointer;transition:transform .15s}
@@ -85,7 +88,7 @@ a.card:hover~.star,.star:hover{transform:translateY(-2px)}
 .tip span{display:block;color:var(--dim)}
 @media (max-width:1000px){main{display:block;max-width:940px;margin:0 auto}.favs{position:static;justify-self:stretch;width:auto;max-height:none;margin:0 0 16px}.favs.is-empty{display:none}.favs-list{max-height:45vh}}
 @media (max-width:640px){.app{grid-template-columns:1fr;gap:6px}.vers{display:flex;flex-wrap:wrap}.vers:empty{display:none}.more-list{left:0;right:auto;width:min(260px,calc(100vw - 32px))}}
-@media (max-width:520px){a.card{grid-template-columns:48px 1fr}.tag{display:none}.icon{font-size:32px}.icon img{width:44px;height:44px}}
+@media (max-width:520px){a.card{grid-template-columns:48px 1fr}.tag{display:none}.icon{font-size:32px}.icon img{width:44px;height:44px}.card .sig{left:80px}}
 </style>
 <link rel="stylesheet" href="/site-nav.css">
 </head>
@@ -209,6 +212,12 @@ a.card:hover~.star,.star:hover{transform:translateY(-2px)}
       <div class="icon">🏙️</div>
       <div><h2>Across the Street (DEMO)</h2><p>A window into eight lives in a brick walk-up, seen from across the street at night. Nobody is scripted: they cook, binge TV, order pizza, take trips and, once in a long while, need an ambulance. A day passes every hour, and the seasons follow the calendar.</p></div>
       <span class="tag">screensaver</span>
+    </a>
+    <a class="card" href="/windows-across/">
+      <div class="icon">🌆</div>
+      <div><h2>Windows Across the Street</h2><p>An eight-story brick walk-up across a wet city street at night: 24 multi-room apartments and 41 residents cooking, sewing, watching TV, and lighting Christmas trees or Hanukkah menorahs—until a delivery van, fire truck, or detective squad rolls up outside. Zero video, four seasons, spaced anti-burn-in drift.</p></div>
+      <span class="tag">screensaver</span>
+      <span class="sig">Gemini 4 Neon</span>
     </a>
     <a class="card" href="/matrix/">
       <div class="icon">🟩</div>
