@@ -440,7 +440,7 @@ window.SLOPWARE = {
   "voyeur": {
    "visits": 0,
    "prompts": 6,
-   "tokens": 756240,
+   "tokens": 905597,
    "sharedWith": null,
    "versions": [
     {
@@ -462,7 +462,14 @@ window.SLOPWARE = {
      "date": "2026-11-24T07:30:21-07:00",
      "note": "kitchen fires and break-ins",
      "prompts": 1,
-     "tokens": 127031
+     "tokens": 125881
+    },
+    {
+     "n": 4,
+     "date": "2026-11-24T07:44:06-07:00",
+     "note": "six floors, parties, a smoking teen, better people",
+     "prompts": 0,
+     "tokens": 150507
     }
    ]
   },
