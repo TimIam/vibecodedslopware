@@ -232,7 +232,6 @@ export class Street {
       this.pedT = range(Math.random, 4, 14) / busy;
       this.spawnPedestrian();
     }
-    if (w.season.halloween && w.mod > 1050 && w.mod < 1230 && Math.random() < dt / 25) this.trickOrTreaters();
     for (const v of this.vehicles) v.update(dt);
     this.vehicles = this.vehicles.filter((v) => !v.dead);
     for (let i = this.jobs.length - 1; i >= 0; i--) {

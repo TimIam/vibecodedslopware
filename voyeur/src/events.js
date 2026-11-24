@@ -52,6 +52,36 @@ function hostJob(P) {
     this.busy = true;
     try {
       yield* this.doAt('pkg', 3, 'reach', 'tidying up for guests');
+      if (P.mode === 'family') {
+        const k = this.claim(['stove']);
+        if (k) {
+          try {
+            yield* this.goSpot(k);
+            this.pose = 'cook'; this.label = 'roasting the turkey'; u.burnerOn = true;
+            yield* this.waitUntil(() => w.time >= P.dinnerAt || P.done);
+          } finally { u.burnerOn = false; this.release(k); }
+        } else {
+          yield* this.goPoint(u.X(2.6), u.Z(-1.25));
+          this.pose = 'reach'; this.label = 'setting the table';
+          yield* this.waitGame(4);
+          this.pose = 'stand'; this.label = 'catching up with family';
+          yield* this.waitUntil(() => w.time >= P.dinnerAt || P.done);
+        }
+        if (!P.turkey && k) {
+          P.turkey = makeProp('turkey');
+          P.turkey.group.position.set(u.X(3.3), u.y + 0.745, u.Z(-0.36));
+          for (const m of P.turkey.meshes) m.material = u.rooms.L.mat;
+          w.scene.add(P.turkey.group);
+          yield* this.goPoint(u.X(3.3), u.Z(-1.05));
+          this.targetYaw = 0; this.pose = 'reach'; this.label = 'carving the turkey';
+          yield* this.waitGame(5);
+        }
+        this.pose = 'carry'; this.label = 'having Thanksgiving dinner';
+        yield* this.waitUntil(() => w.time >= P.dinnerAt + 75 || P.done);
+        if (P.turkey) { w.scene.remove(P.turkey.group); P.turkey = null; }
+        u.rooms.L.set(2, true);
+        yield* this.watchTV(400, () => P.done, 'watching football with the family');
+      }
       let i = 0;
       while (!P.done) {
         const sp = w.incidents.partySpot(P);
@@ -101,8 +131,8 @@ function* partyGuest(g, P, inc, delay) {
   yield* g.waitReal(delay);
   const dir = R() < 0.5 ? -1 : 1;
   g.pos.set(dir * 42, SW_Y, range(R, 1.6, 3.2)); g.hidden = false;
-  g.label = 'on the way to a party';
-  if (R() < 0.6) g.hold(makeProp(R() < 0.3 ? 'bag' : 'cup'));
+  g.label = P.mode === 'family' ? 'on the way to Thanksgiving dinner' : 'on the way to a party';
+  if (R() < 0.6) g.hold(makeProp(P.mode === 'family' ? 'bag' : R() < 0.3 ? 'bag' : 'cup'));
   yield* g.walkTo(dir * 1.6, 1.5);
   yield* g.walkTo(0.25 * dir, 0.8);
   g.targetYaw = Math.PI; g.label = 'buzzing up';
@@ -113,8 +143,17 @@ function* partyGuest(g, P, inc, delay) {
     const sp = inc.partySpot(P);
     yield* g.goPoint(u.X(sp[0]), u.Z(sp[1]));
     g.targetYaw = Math.atan2(u.X(2.8) - g.pos.x, u.Z(-2.4) - g.pos.z) + range(R, -0.8, 0.8);
-    g.pose = R() < 0.45 ? 'dance' : 'stand';
-    g.label = g.pose === 'dance' ? 'dancing' : 'chatting';
+    if (P.mode === 'family') {
+      const ph = W.time < P.dinnerAt ? 0 : W.time < P.dinnerAt + 75 ? 1 : 2;
+      if (ph === 1 && !g.carry) g.hold(makeProp('plate'));
+      if (ph !== 1 && g.carry && g.carry.kind === 'plate') g.drop();
+      g.pose = ph === 1 ? 'carry' : 'stand';
+      g.label = ['catching up with family', 'having Thanksgiving dinner', 'watching football'][ph];
+      if (ph === 2) g.targetYaw = Math.atan2(u.X(4.4) - g.pos.x, u.Z(-2.1) - g.pos.z);
+    } else {
+      g.pose = R() < 0.45 ? 'dance' : 'stand';
+      g.label = g.pose === 'dance' ? 'dancing' : 'chatting';
+    }
     g.headTurn = range(R, -0.6, 0.6);
     yield* g.waitUntil(() => P.over && W.time >= g.leaveAt, range(R, 14, 32));
     P.taken.delete(sp);
@@ -124,11 +163,12 @@ function* partyGuest(g, P, inc, delay) {
     // one guest never makes it home
     g.claim(['sofa1']); g.claim(['sofa2']);
     yield* g.goSpot('sofa1');
-    g.label = 'sleeping it off on the sofa'; g.sleeping = true;
+    g.label = P.mode === 'family' ? 'napping off the turkey on the sofa' : 'sleeping it off on the sofa'; g.sleeping = true;
     g.pose = 'lie';
     yield* g.glide(u.X(0.62), u.y + 0.5, u.Z(-2.95), Math.PI, 1.4);
     let wake = W.day * 1440 + range(R, 510, 600);
     if (wake < W.time) wake += 1440;
+    if (P.mode === 'family') wake = W.time + range(R, 35, 80);
     yield* g.waitUntil(() => W.time >= wake);
     g.pose = 'stand';
     yield* g.glide(u.X(1.25), u.y, u.Z(-2.5), 0, 1.4);
@@ -427,14 +467,15 @@ export class Incidents {
   }
 
   // ---------------------------------------------------------------- parties
-  startParty(u) {
+  startParty(u, mode = 'party', endAt) {
     const W = this.world;
     if (this.party || !u || u.fire || u.damage) return false;
     const hosts = u.residents.filter((p) => p.where === 'home' && !p.busy);
     if (!hosts.length) return false;
-    const P = { unit: u, guests: [], over: false, done: false, endAt: W.time + range(R, 170, 250), taken: new Set() };
+    const P = { unit: u, mode, guests: [], over: false, done: false, endAt: endAt ?? W.time + range(R, 170, 250), taken: new Set() };
+    P.dinnerAt = mode === 'family' ? Math.min(P.endAt - 160, W.time + range(R, 130, 160)) : 1e12;
     this.party = P; u.party = P;
-    W.toast(hosts[0].name + ' in ' + u.name + ' is having people over');
+    W.toast(mode === 'family' ? 'Thanksgiving: ' + hosts[0].name + "'s relatives are coming to " + u.name : hosts[0].name + ' in ' + u.name + ' is having people over');
     for (const h of hosts) h.interrupt(hostJob(P), true);
     this.street.run(this.partyRun(P));
     return true;
@@ -445,23 +486,24 @@ export class Incidents {
   }
   *partyRun(P) {
     const W = this.world, u = P.unit, L = u.rooms.L;
-    L.set(0, false); L.set(1, true); L.set(2, false);
-    const n = 6 + Math.floor(R() * 4);
+    const fam = P.mode === 'family';
+    if (fam) { L.set(0, true); } else { L.set(0, false); L.set(1, true); L.set(2, false); }
+    const n = fam ? 4 + Math.floor(R() * 4) : 6 + Math.floor(R() * 4);
     for (let i = 0; i < n; i++) {
-      const g = new Walker(W, randomLook(R), null, { speed: range(R, 1.2, 1.45), home: u, counts: true });
-      g.role = 'party guests';
+      const g = new Walker(W, randomLook(R, fam ? { old: R() < 0.45 } : {}), null, { speed: range(R, 1.15, 1.45), home: u, counts: true });
+      g.role = fam ? 'relatives' : 'party guests';
       g.leaveAt = P.endAt + range(R, -30, 70);
       g.crasher = i === 0 && R() < 0.5;
-      g.co = partyGuest(g, P, this, i * range(R, 6, 16));
+      g.co = partyGuest(g, P, this, i * (fam ? range(R, 14, 34) : range(R, 6, 16)));
       P.guests.push(g);
     }
     yield* this.wait(75);
-    const below = W.units.find((x) => x.floor === u.floor - 1 && x.side === u.side);
+    const below = fam ? null : W.units.find((x) => x.floor === u.floor - 1 && x.side === u.side);
     const grump = below && below.residents.find((p) => p.where === 'home' && !p.asleep && !p.busy && !p.hidden);
     if (grump && grump.interrupt(broomJob(), false)) W.toast('Downstairs in ' + below.name + ', ' + grump.name + ' is banging on the ceiling with a broom');
     while (W.time < P.endAt) yield;
     P.over = true;
-    W.toast('The party in ' + u.name + ' is winding down');
+    W.toast(fam ? 'The relatives in ' + u.name + ' are heading home' : 'The party in ' + u.name + ' is winding down');
     while (P.guests.some((g) => !g.dead && !g.sleeping)) yield;
     P.done = true;
     this.party = null; u.party = null;
@@ -513,7 +555,7 @@ export class Incidents {
     }
     // party lights: the ceiling off, a slow colored wash
     const Pt = this.party;
-    if (Pt && !Pt.done) {
+    if (Pt && !Pt.done && Pt.mode !== 'family') {
       const pu = Pt.unit, c = new THREE.Color().setHSL((t * 0.06) % 1, 0.9, 0.5);
       pu.rooms.L.dyn = { pos: new THREE.Vector3(pu.X(2.6), pu.y + 2.4, pu.Z(-2.4)), col: new THREE.Vector3(c.r, c.g, c.b).multiplyScalar(5.5) };
     }

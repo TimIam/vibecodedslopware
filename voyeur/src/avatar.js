@@ -67,6 +67,15 @@ export function makeAvatar(o) {
   for (const sd of [-1, 1]) bk.geo(new THREE.SphereGeometry(0.066 * s, 10, 8).translate(sd * 0.19 * s, 0.48 * s, 0), o.shirt);
   if (o.dress) bk.geo(new THREE.CylinderGeometry(0.16 * s, 0.27 * s, 0.52 * s, 16, 1, true).translate(0, -0.2 * s, 0), o.shirt);
   if (o.jacket) for (const sd of [-1, 1]) bk.geo(new THREE.BoxGeometry(0.13 * s, 0.42 * s, 0.03 * s).translate(sd * 0.1 * s, 0.3 * s, 0.11 * s), o.jacket);
+  // costumes (Halloween, Santa, superheroes)
+  const cos = o.costume;
+  if (cos === 'ghost') bk.geo(new THREE.CylinderGeometry(0.2 * s, 0.34 * s, 1.5 * s, 14).translate(0, -0.2 * s, 0), 0xf4f4f0);
+  if (cos === 'pumpkin') { bk.geo(new THREE.SphereGeometry(0.27 * s, 14, 10).scale(1.1, 0.9, 1).translate(0, 0.25 * s, 0), 0xe0701a); bk.geo(new THREE.CylinderGeometry(0.03 * s, 0.03 * s, 0.06 * s, 6).translate(0, 0.5 * s, 0), 0x3a5a20); }
+  if (cos === 'cape' || cos === 'vampire' || cos === 'santa') {
+    if (cos !== 'santa') bk.geo(new THREE.BoxGeometry(0.42 * s, 0.95 * s, 0.02 * s).translate(0, 0.0, -0.15 * s), cos === 'vampire' ? 0x101010 : o.capeColor || 0xb01a1a);
+    if (cos === 'vampire') bk.geo(new THREE.BoxGeometry(0.4 * s, 0.9 * s, 0.01 * s).translate(0, 0.02 * s, -0.135 * s), 0x8a0a0a);
+  }
+  if (cos === 'santa') { bk.geo(new THREE.BoxGeometry(0.33 * s, 0.05 * s, 0.24 * s).translate(0, 0.1 * s, 0), 0x111111); bk.geo(new THREE.BoxGeometry(0.06 * s, 0.4 * s, 0.02 * s).translate(0, 0.33 * s, 0.12 * s), 0xf4f4f0); }
   kitMesh(torso, bk, meshes);
   const head = new THREE.Group();
   head.position.y = 0.6 * s;
@@ -111,10 +120,24 @@ export function makeAvatar(o) {
     hk.geo(new THREE.SphereGeometry(0.112 * s, 16, 8, Math.PI / 2 - 1.25, 2.5, Math.PI * 0.55, Math.PI * 0.3).scale(0.94, 1.1, 1.02).translate(0, 0.15 * s, 0), o.hair);
     hk.geo(new THREE.BoxGeometry(0.05 * s, 0.012 * s, 0.012 * s).translate(0, 0.118 * s, 0.1 * s), o.hair);
   }
-  if (o.hat) {
+  if (o.hatKind === 'witch') {
+    hk.geo(new THREE.CylinderGeometry(0.22 * s, 0.22 * s, 0.012 * s, 18).translate(0, 0.235 * s, 0), 0x141018);
+    hk.geo(new THREE.ConeGeometry(0.1 * s, 0.32 * s, 14).rotateX(-0.25).translate(0, 0.39 * s, -0.03 * s), 0x141018);
+  } else if (o.hatKind === 'santa') {
+    hk.geo(new THREE.ConeGeometry(0.11 * s, 0.26 * s, 14).rotateX(-0.5).translate(0, 0.33 * s, -0.06 * s), 0xc01a1a);
+    hk.geo(new THREE.TorusGeometry(0.105 * s, 0.022 * s, 6, 16).rotateX(Math.PI / 2).translate(0, 0.235 * s, -0.005 * s), 0xf4f4f0);
+    hk.geo(new THREE.SphereGeometry(0.03 * s, 8, 6).translate(0, 0.42 * s, -0.17 * s), 0xf4f4f0);
+  } else if (o.hatKind === 'ears') {
+    for (const sd of [-1, 1]) hk.geo(new THREE.ConeGeometry(0.035 * s, 0.07 * s, 4).translate(sd * 0.06 * s, 0.27 * s, -0.01 * s), 0x141414);
+  } else if (o.hat) {
     hk.geo(new THREE.CylinderGeometry(0.112 * s, 0.118 * s, 0.075 * s, 16).translate(0, 0.25 * s, -0.005 * s), o.hat);
     hk.geo(new THREE.BoxGeometry(0.17 * s, 0.014 * s, 0.11 * s).translate(0, 0.222 * s, 0.1 * s), o.hat);
   }
+  if (o.costume === 'ghost') {
+    hk.geo(new THREE.SphereGeometry(0.135 * s, 14, 10).scale(1, 1.15, 1).translate(0, 0.17 * s, 0), 0xf4f4f0);
+    for (const sd of [-1, 1]) hk.geo(new THREE.SphereGeometry(0.022 * s, 8, 6).scale(0.8, 1.3, 0.4).translate(sd * 0.045 * s, 0.19 * s, 0.128 * s), 0x111111);
+  }
+  if (o.mask) hk.geo(new THREE.BoxGeometry(0.15 * s, 0.035 * s, 0.02 * s).translate(0, 0.17 * s, 0.1 * s), o.mask);
   kitMesh(head, hk, meshes);
   for (const side of [-1, 1]) {
     const sh2 = new THREE.Group();
@@ -320,6 +343,23 @@ export function makeProp(kind) {
     const col = [0x15161a, 0x15161a, 0x1c2a4a, 0x8a1a1a, 0x2a4a2a, 0xd8b020, 0x5a2a6a][Math.floor(Math.random() * 7)];
     add(new THREE.ConeGeometry(0.56, 0.24, 12).translate(0, 0.42, 0), col);
     add(new THREE.CylinderGeometry(0.012, 0.012, 0.75, 5).translate(0, 0.08, 0), 0x2a2a2a);
+  } else if (kind === 'lawnchair') {
+    add(new THREE.BoxGeometry(0.5, 0.04, 0.45).translate(0, 0.42, 0), 0x2a6a9a);
+    add(new THREE.BoxGeometry(0.5, 0.5, 0.04).rotateX(-0.25).translate(0, 0.68, -0.25), 0x2a6a9a);
+    for (const sx of [-0.23, 0.23]) { add(new THREE.CylinderGeometry(0.012, 0.012, 0.6, 5).rotateX(0.5).translate(sx, 0.22, 0), 0xb8b8b8); add(new THREE.CylinderGeometry(0.012, 0.012, 0.6, 5).rotateX(-0.5).translate(sx, 0.22, 0), 0xb8b8b8); }
+  } else if (kind === 'pail') {
+    add(new THREE.CylinderGeometry(0.1, 0.08, 0.14, 12).translate(0, -0.12, 0.05), 0xe0701a);
+    add(new THREE.TorusGeometry(0.08, 0.008, 4, 12, Math.PI).translate(0, -0.05, 0.05), 0x1a1a1a);
+  } else if (kind === 'bowl') {
+    add(new THREE.CylinderGeometry(0.17, 0.1, 0.08, 14).translate(0, -0.1, 0.05), 0xd8a030);
+    for (let i = 0; i < 6; i++) add(new THREE.BoxGeometry(0.05, 0.03, 0.03).translate(Math.cos(i) * 0.08, -0.05, 0.05 + Math.sin(i) * 0.08), [0xff3a2a, 0x7a3aff, 0xffd030][i % 3]);
+  } else if (kind === 'plate') {
+    add(new THREE.CylinderGeometry(0.12, 0.1, 0.02, 14).translate(0, -0.08, 0.04), 0xf2f0ea);
+    add(new THREE.SphereGeometry(0.05, 8, 6).scale(1.3, 0.5, 1).translate(0, -0.06, 0.04), 0x8a5a2a);
+  } else if (kind === 'turkey') {
+    add(new THREE.CylinderGeometry(0.24, 0.2, 0.025, 18), 0xe8e4da);
+    add(new THREE.SphereGeometry(0.13, 12, 8).scale(1.25, 0.75, 1).translate(0, 0.09, 0), 0x9a5a22);
+    for (const sd of [-1, 1]) add(new THREE.CylinderGeometry(0.02, 0.035, 0.12, 6).rotateZ(sd * 1.1).translate(sd * 0.14, 0.12, 0.05), 0x8a4a1a);
   } else if (kind === 'cup') {
     add(new THREE.CylinderGeometry(0.035, 0.03, 0.1, 8).translate(0, 0.0, 0.03), 0xd8301e);
   } else if (kind === 'bag') {

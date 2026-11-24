@@ -224,7 +224,8 @@ export class Resident extends Actor {
   lastAbs(m) { const w = this.world; let t = w.day * 1440 + (((m % 1440) + 1440) % 1440); if (t > w.time) t -= 1440; return t; }
   workKey() { return Math.floor((this.world.time - this.leave) / 1440); }
   worksOn(key) {
-    const wd = (this.world.startWeekday + key) % 7; // 0 = Sunday
+    const s = this.world.startDate;
+    const wd = new Date(s.getFullYear(), s.getMonth(), s.getDate() + key).getDay(); // 0 = Sunday
     if (this.job === 'office' || this.job === 'student' || this.job === 'teen') return wd >= 1 && wd <= 5;
     if (this.job === 'night') return [0, 2, 3, 5].includes(wd);
     return false;

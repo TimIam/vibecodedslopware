@@ -110,7 +110,7 @@ function clockText() {
   let h = Math.floor(m / 60), mm = Math.floor(m % 60);
   const ap = h >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
-  return `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()} · ${h}:${String(mm).padStart(2, '0')} ${ap} · ${world.season.name} · ${world.weather.label}${world.ff > 1 ? ` · ×${world.ff} fast` : ''}`;
+  return `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()} · ${h}:${String(mm).padStart(2, '0')} ${ap} · ${world.holidays.label ? world.holidays.label + ' · ' : ''}${world.season.name} · ${world.weather.label}${world.ff > 1 ? ` · ×${world.ff} fast` : ''}`;
 }
 function captionText() {
   if (director.mode === 'unit' && director.unit) {
@@ -141,6 +141,7 @@ function updateHud() {
 // ---- input
 const seasons = [null, 'winter', 'halloween', 'summer', 'spring'];
 let seasonIdx = 0;
+let hol = -1;
 const say = (m) => world.toast(m);
 addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
@@ -152,6 +153,7 @@ addEventListener('keydown', (e) => {
   if (k === '7') { const n = world.demo('breakin'); say(n ? `Demo: a break-in at ${n} (nobody home)` : 'Demo: no empty apartment right now (try during work hours or a trip)'); }
   if (k === '8') { const n = world.demo('party'); say(n ? `Demo: a party in ${n}` : 'Demo: no party right now (one is already going, or nobody home)'); }
   if (k === '9') { const order = ['clear', 'cloudy', 'rain', 'storm', 'snow']; const nx = order[(order.indexOf(world.weather.state) + 1) % order.length]; world.weather.set(nx); world.weather.next = world.time + 240; say(`Weather: ${world.weather.label}`); }
+  if (k === '0') { hol = (hol + 1) % 7; const lbl = world.holidays.jump(hol); say(`Jumped to ${lbl}`); }
   if (k === '5') { seasonIdx = (seasonIdx + 1) % seasons.length; world.seasonOverride = seasons[seasonIdx]; world.applySeason(); say(`Season: ${world.season.name}${seasons[seasonIdx] ? '' : ' (from today\'s date)'}`); }
   if (k === 't') { world.time += 60; say('Skipped ahead one hour'); }
   if (k === 'f' && !e.repeat) world.ff = 30;

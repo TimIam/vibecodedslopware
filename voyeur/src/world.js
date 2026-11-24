@@ -6,6 +6,7 @@ import { buildBuilding, GH, FH, SW_Y, FZ, DELI, CURB_Z } from './building.js';
 import { Street } from './street.js';
 import { Incidents } from './events.js';
 import { Weather } from './weather.js';
+import { Holidays } from './holidays.js';
 import { Resident, Walker, randomLook } from './people.js';
 import { makeRng, pick, range, inCirc, smooth, lerp, damp, canvasTex, paint, Kit } from './util.js';
 import { makeSky } from './shaders.js';
@@ -90,6 +91,7 @@ export class World {
     this.weather = new Weather(this, opts.weather);
     this.street = new Street(this);
     this.incidents = new Incidents(this);
+    this.holidays = new Holidays(this);
     this.populate();
     this.nbT = 0; this.hourMark = Math.floor(this.time / 60);
     this.updateEnv();
@@ -97,7 +99,7 @@ export class World {
 
   get day() { return Math.floor(this.time / 1440); }
   get mod() { return ((this.time % 1440) + 1440) % 1440; }
-  date() { return new Date(this.startDate.getTime() + this.day * 86400000); }
+  date() { const s = this.startDate; return new Date(s.getFullYear(), s.getMonth(), s.getDate() + this.day); }
 
   // ---- seasons
   seasonFor(d) {
@@ -122,11 +124,14 @@ export class World {
     const s = this.seasonOverride ? presets[this.seasonOverride] : this.seasonFor(this.date());
     this.season = s;
     const D = this.B.decor;
-    for (const g of D.xmas) g.visible = s.xmas;
+    for (const g of D.xmas) if (!g.isInstancedMesh) g.visible = s.xmas;
+    this.B.windowLights.visible = s.xmas || s.halloween;
     for (const g of D.halloween) g.visible = s.halloween;
     for (const g of D.snow) g.visible = s.snow;
     for (const f of D.foliage) { f.visible = !!s.leaves; if (s.leaves) f.material.color.set(s.leaves); }
-    for (const u of this.units) { if (u.tree) u.tree.group.visible = s.xmas; u.plant.visible = !(s.xmas && u.tree); }
+    if (s.xmas && (this.seasonOverride || (this.date().getMonth() === 11 && this.date().getDate() > 13) || this.date().getMonth() === 0)) for (const u of this.units) if (u.tree) u.treeUp = true;
+    for (const u of this.units) { if (u.tree) u.tree.group.visible = s.xmas && !!u.treeUp; u.plant.visible = !(s.xmas && u.tree && u.treeUp); }
+    if (this.holidays) this.holidays.applySeason(s);
     this.snow.visible = s.snow;
     this.B.sidewalkMat.color.set(s.snow ? 0xe6eaf0 : 0xffffff);
     this.B.roadMat.color.set(s.snow ? 0x9aa0a8 : 0xffffff);
@@ -407,6 +412,7 @@ export class World {
     this.incidents.update(dt);
     this.actors = this.actors.filter((a) => !a.dead);
     this.updateUnits(dt);
+    this.holidays.update(dt);
     this.weather.update(dt);
     for (const r of this.rooms) r.update(dt, this.realT);
     this.updateDoors(dt);
@@ -422,6 +428,7 @@ export class World {
     // a fire starts in a kitchen maybe once every few weeks of game time; a break-in, rarer still
     for (const u of this.units) if (u.burnerOn && Math.random() < 0.006) this.incidents.startFire(u);
     if (!this.incidents.busy() && (h < 5 || h >= 23) && Math.random() < 0.03) { const t = this.units.filter((u) => this.incidents.canBreakInto(u)); if (t.length) this.incidents.startBreakIn(t[Math.floor(Math.random() * t.length)]); }
+    this.holidays.onHour(Math.floor(h));
     const wd = (this.startWeekday + this.day) % 7;
     if ((wd === 5 || wd === 6) && Math.floor(h) === 21 && !this.incidents.party && Math.random() < 0.6) this.demo('party');
     for (const p of this.residents) {
@@ -474,7 +481,7 @@ export class World {
         u.strip.instanceColor.needsUpdate = true;
       }
       if (u.tree && u.tree.group.visible) {
-        const on = awakeHome.length > 0 && (dark || m > 960);
+        const on = awakeHome.length > 0 && (dark || m > 960) && !u.treeDecorating;
         u.rooms.L.set(3, on);
         u.tree.on = on;
         const c = new THREE.Color();
