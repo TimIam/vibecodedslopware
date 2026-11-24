@@ -437,6 +437,28 @@ window.SLOPWARE = {
     }
    ]
   },
+  "voyeur": {
+   "visits": 0,
+   "prompts": 5,
+   "tokens": 631402,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-24T06:31:27-07:00",
+     "note": "Voyeur-style screensaver tech demo",
+     "prompts": 2,
+     "tokens": 543144
+    },
+    {
+     "n": 2,
+     "date": "2026-11-24T07:13:21-07:00",
+     "note": "polish before going live",
+     "prompts": 3,
+     "tokens": 88258
+    }
+   ]
+  },
   "matrix": {
    "visits": 62,
    "prompts": 5,
@@ -2002,16 +2024,16 @@ window.SLOPWARE = {
   },
   "stay-with-me": {
    "visits": 0,
-   "prompts": 3,
-   "tokens": 14044097,
+   "prompts": 4,
+   "tokens": 14069873,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
      "date": "2026-11-24T06:54:54-07:00",
      "note": "a realistic paramedic sim with a drivable town",
-     "prompts": 3,
-     "tokens": 14044097
+     "prompts": 4,
+     "tokens": 14069873
     }
    ]
   }
