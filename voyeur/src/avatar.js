@@ -344,6 +344,14 @@ export function makeProp(kind) {
     const col = [0x15161a, 0x15161a, 0x1c2a4a, 0x8a1a1a, 0x2a4a2a, 0xd8b020, 0x5a2a6a][Math.floor(Math.random() * 7)];
     add(new THREE.ConeGeometry(0.56, 0.24, 12).translate(0, 0.42, 0), col);
     add(new THREE.CylinderGeometry(0.012, 0.012, 0.75, 5).translate(0, 0.08, 0), 0x2a2a2a);
+  } else if (kind === 'dolly') {
+    add(new THREE.BoxGeometry(0.42, 0.03, 0.28).translate(0, 0.03, 0.2), 0x555555);
+    for (const sx of [-0.18, 0.18]) add(new THREE.CylinderGeometry(0.015, 0.015, 1.15, 5).translate(sx, 0.6, 0.06), 0x888888);
+    add(new THREE.CylinderGeometry(0.015, 0.015, 0.4, 5).rotateZ(Math.PI / 2).translate(0, 1.15, 0.06), 0x888888);
+    for (const sx of [-0.2, 0.2]) add(new THREE.CylinderGeometry(0.07, 0.07, 0.04, 10).rotateZ(Math.PI / 2).translate(sx, 0.07, 0.04), 0x111111);
+    for (let i = 0; i < 3; i++) add(new THREE.BoxGeometry(0.4, 0.28, 0.3).translate(0, 0.2 + i * 0.29, 0.24), [0xb08a5a, 0xc8a070, 0x9a7a4a][i]);
+  } else if (kind === 'trash') {
+    add(new THREE.SphereGeometry(0.22, 10, 8).scale(1, 1.2, 0.9).translate(0, -0.35, 0.05), 0x111214);
   } else if (kind === 'backpack') {
     add(new THREE.BoxGeometry(0.3, 0.38, 0.16).translate(0, 0, 0), 0x2a4a7a);
     add(new THREE.BoxGeometry(0.26, 0.14, 0.04).translate(0, -0.08, -0.09), 0x1a2a4a);

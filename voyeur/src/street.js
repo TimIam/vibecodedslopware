@@ -122,7 +122,7 @@ export class Vehicle {
   constructor(street, kind, o = {}) {
     this.street = street; this.kind = kind;
     const col = o.color ?? (kind === 'police' ? 0xf2f2f0 : kind === 'taxi' ? 0xf0c020 : kind === 'van' ? pick(Math.random, [0x5b3d24, 0xf2f2f0, 0x2a3a6a]) : pick(Math.random, CAR_COLORS));
-    Object.assign(this, makeVehicle(kind, col));
+    Object.assign(this, (o.build || makeVehicle)(kind, col));
     this.x = o.x ?? 58; this.z = o.lane ?? LANE1; this.tz = this.z;
     this.cruise = o.cruise ?? range(Math.random, 7.5, 10); this.v = o.state === 'parked' ? 0 : this.cruise * 0.9;
     this.state = o.state || 'drive'; this.stopX = o.stopX ?? null; this.hazard = false; this.flash = !!o.flash;
@@ -166,6 +166,7 @@ export class Vehicle {
     }
     for (const wh of this.wheels) wh.rotation.z += this.v * dt / this.wr;
     this.sync();
+    if (this.onUpdate) this.onUpdate(dt);
     const night = 1 - w.dayF;
     const blink = Math.sin(w.realT * 7) > 0;
     this.lights.head.color.setRGB(0.15 + 2.6 * night * (this.state === 'parked' ? 0 : 1), 0.15 + 2.4 * night * (this.state === 'parked' ? 0 : 1), 0.13 + 1.9 * night * (this.state === 'parked' ? 0 : 1));

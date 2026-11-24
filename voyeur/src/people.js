@@ -4,6 +4,7 @@
 // are thrown into the generator, unwinding whatever the person was doing through its finally blocks.
 import * as THREE from 'three';
 import { makeAvatar, makeQuad, animateAvatar, makeProp } from './avatar.js';
+import { trashJob } from './trucks.js';
 import { pick, range, weighted, inCirc, dampAngle } from './util.js';
 import { LOBBY, DELI, LAUNDRY, SW_Y, CENTER, FZ, SILL } from './building.js';
 
@@ -310,6 +311,12 @@ export class Resident extends Actor {
     if (this.goingOut && this.goingOut.day === w.day && !this.goingOut.done && m >= this.goingOut.at && m < this.goingOut.at + 120) {
       this.goingOut.done = true;
       yield* this.outing({ mode: 'car', until: now + range(r, 160, 260), label: 'out with friends', coat: true, carHome: r() < 0.7 });
+      return;
+    }
+    // trash night: someone from each apartment takes the bags down to the curb
+    if (w.sanitation.eve() && inCirc(m, 1140, 1350) && this.home.trashDay !== w.day && r() < 0.12) {
+      this.home.trashDay = w.day;
+      yield* trashJob(w.sanitation).call(this);
       return;
     }
     const weekend = w.isWeekend();

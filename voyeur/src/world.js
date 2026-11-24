@@ -7,6 +7,7 @@ import { Street } from './street.js';
 import { Incidents } from './events.js';
 import { Weather } from './weather.js';
 import { Holidays } from './holidays.js';
+import { Sanitation } from './trucks.js';
 import { Resident, Walker, randomLook } from './people.js';
 import { makeRng, pick, range, inCirc, smooth, lerp, damp, canvasTex, paint, Kit } from './util.js';
 import { makeSky } from './shaders.js';
@@ -92,6 +93,7 @@ export class World {
     this.street = new Street(this);
     this.incidents = new Incidents(this);
     this.holidays = new Holidays(this);
+    this.sanitation = new Sanitation(this);
     this.populate();
     this.nbT = 0; this.hourMark = Math.floor(this.time / 60);
     this.updateEnv();
@@ -361,6 +363,13 @@ export class World {
         } else if (!w.shopOpen('deli') && inside) {
           yield* this.walkTo(DELI.inside[0], DELI.inside[1]); yield* this.walkTo(DELI.door[0], 1.0); yield* this.walkTo(-42, 2.4);
           this.offstage(); inside = false;
+        } else if (inside && w.deliSign) {
+          // signing for the delivery
+          yield* this.walkTo(-3.55, -1.25);
+          this.targetYaw = Math.atan2(-1.4, 0.4); this.pose = 'reach'; this.label = 'signing for the delivery';
+          yield* this.waitUntil(() => !w.deliSign, 30);
+          this.pose = 'stand';
+          yield* this.walkTo(DELI.clerk[0], DELI.clerk[1]);
         } else if (inside) {
           this.targetYaw = 0; this.pose = 'stand'; this.label = 'working the counter';
           yield* this.waitReal(range(Math.random, 15, 45));
@@ -438,6 +447,13 @@ export class World {
       p.interrupt(function* () { yield* this.outing({ mode: 'car', until: w.time + range(Math.random, 90, 200), label: 'out for the evening', coat: true, carHome: true }); });
       return p.home.name;
     }
+    if (kind === 'garbage') {
+      const S = this.sanitation;
+      if (S.bags.length < 3) for (let i = 0; i < 5; i++) { const [x, z] = S.pileSpot(); S.addBag(x, z, Math.random() < 0.3 ? 'recycle' : 'bag'); }
+      this.street.run(S.garbageRun(this.time));
+      return 'the curb';
+    }
+    if (kind === 'deli') { this.street.run(this.sanitation.deliRun(this.time)); return 'the deli'; }
     if (kind === 'birthday') {
       if (this.incidents.party) return null;
       const p = this.awakeHome()[Math.floor(Math.random() * this.awakeHome().length)];
@@ -494,6 +510,7 @@ export class World {
     this.actors = this.actors.filter((a) => !a.dead);
     this.updateUnits(dt);
     this.holidays.update(dt);
+    this.sanitation.update(dt);
     this.weather.update(dt);
     for (const r of this.rooms) r.update(dt, this.realT);
     this.updateDoors(dt);
@@ -510,6 +527,7 @@ export class World {
     for (const u of this.units) if (u.burnerOn && Math.random() < 0.006) this.incidents.startFire(u);
     if (!this.incidents.busy() && (h < 5 || h >= 23) && Math.random() < 0.03) { const t = this.units.filter((u) => this.incidents.canBreakInto(u)); if (t.length) this.incidents.startBreakIn(t[Math.floor(Math.random() * t.length)]); }
     this.holidays.onHour(Math.floor(h));
+    this.sanitation.onHour(Math.floor(h));
     const wd = (this.startWeekday + this.day) % 7;
     if ((wd === 5 || wd === 6) && Math.floor(h) === 21 && !this.incidents.party && Math.random() < 0.6) this.demo('party');
     for (const p of this.residents) {

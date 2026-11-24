@@ -49,7 +49,7 @@ resize();
 
 // ---- camera director
 const WIDE = { pos: new THREE.Vector3(0, 12.5, 45), tgt: new THREE.Vector3(0, 13.4, 0) };
-const ACT_W = { 'cooking dinner': 3, 'having dinner': 3, 'making breakfast': 2.5, 'having breakfast': 2.5, 'watching TV': 2, 'eating pizza': 4, 'looking out the window': 4, 'working from home': 1.5, 'on the laptop': 1.5, reading: 1.5, collapsed: 10, 'calling 911': 10, 'treating the patient': 10, 'getting into bed': 1, 'packing a suitcase': 3, 'smoking on the fire escape': 7, 'dancing alone in the living room': 5, 'doing jumping jacks': 5, 'singing into a hairbrush': 5, 'waving at someone across the street': 8, 'pacing on a phone call': 3, 'banging on the ceiling with a broom': 9, 'playing video games': 2 };
+const ACT_W = { 'cooking dinner': 3, 'having dinner': 3, 'making breakfast': 2.5, 'having breakfast': 2.5, 'watching TV': 2, 'eating pizza': 4, 'looking out the window': 4, 'working from home': 1.5, 'on the laptop': 1.5, reading: 1.5, collapsed: 10, 'calling 911': 10, 'treating the patient': 10, 'getting into bed': 1, 'packing a suitcase': 3, 'smoking on the fire escape': 7, 'dancing alone in the living room': 5, 'doing jumping jacks': 5, 'singing into a hairbrush': 5, 'waving at someone across the street': 8, 'pacing on a phone call': 3, 'banging on the ceiling with a broom': 9, 'taking out the trash': 3, 'playing video games': 2 };
 const director = {
   mode: 'wide', t: 14, unit: null, auto: true, pinned: 0,
   pos: WIDE.pos.clone(), tgt: WIDE.tgt.clone(), cur: WIDE.pos.clone(), curT: WIDE.tgt.clone(),
@@ -171,6 +171,8 @@ addEventListener('keydown', (e) => {
   if (k === '8') { const n = world.demo('party'); say(n ? `Demo: a party in ${n}` : 'Demo: no party right now (one is already going, or nobody home)'); }
   if (k === '9') { const order = ['clear', 'cloudy', 'rain', 'storm', 'snow']; const nx = order[(order.indexOf(world.weather.state) + 1) % order.length]; world.weather.set(nx); world.weather.next = world.time + 240; say(`Weather: ${world.weather.label}`); }
   if (k === '0') { hol = (hol + 1) % 7; const lbl = world.holidays.jump(hol); say(`Jumped to ${lbl}`); }
+  if (k === 'g') { world.demo('garbage'); say('Demo: the garbage truck is on its way'); }
+  if (k === 'd') { world.demo('deli'); say('Demo: a delivery truck is coming for the deli'); }
   if (k === 'b') { const n = world.demo('birthday'); say(n ? `Demo: a birthday party for ${n}` : 'Demo: no birthday right now (a party is already on, or nobody is home)'); }
   if (k === 'w') { const d = world.jumpToWeekend(); say(`Jumped to Saturday morning, ${MONTHS[d.getMonth()]} ${d.getDate()}`); }
   if (k === '5') { seasonIdx = (seasonIdx + 1) % seasons.length; world.seasonOverride = seasons[seasonIdx]; world.applySeason(); say(`Season: ${world.season.name}${seasons[seasonIdx] ? '' : ' (from today\'s date)'}`); }
