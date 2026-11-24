@@ -29,8 +29,8 @@ export const SPOTS = {
   sofa2: { room: 'L', via: [[1.25, -3.05], [1.25, -2.55]], at: [0.64, -2.55], face: [1, 0], pose: 'sit', seat: 0.45 },
   stove: { room: 'L', at: [1.9, -3.42], face: [0, -1], pose: 'cook' },
   fridge: { room: 'L', at: [0.55, -3.3], face: [0, -1], pose: 'reach' },
-  chair1: { room: 'L', at: [2.3, -1.05], face: [1, 0], pose: 'sitTable', seat: 0.47 },
-  chair2: { room: 'L', via: [[3.95, -1.95]], at: [3.95, -1.05], face: [-1, 0], pose: 'sitTable', seat: 0.47 },
+  chair1: { room: 'L', at: [3.0, -0.95], face: [0, 1], pose: 'sitTable', seat: 0.47 },
+  chair2: { room: 'L', at: [3.6, -0.95], face: [0, 1], pose: 'sitTable', seat: 0.47 },
   winL: { room: 'L', via: [[2.15, -1.6]], at: [1.4, -0.45], face: [0, 1], pose: 'stand' },
   pkg: { room: 'L', at: [2.9, -3.45], face: [0, -1], pose: 'stand' },
   bedF: { room: 'B', via: [[5.3, -2.0], [5.3, -0.55]], at: [5.9, -0.55], face: [1, 0], pose: 'stand', lie: [7.12, -1.32] },
@@ -42,6 +42,7 @@ export const SPOTS = {
   door: { room: 'H', at: [2.05, -7.55], face: [0, -1], pose: 'stand' },
   sill: { room: 'L', at: [1.4, -0.22], face: [0, 1], pose: 'loaf', y: 0.86 },
   bowl: { room: 'L', at: [3.0, -3.9], face: [0, -1], pose: 'stand' },
+  collapse: { room: 'L', at: [2.05, -2.3], face: [1, 0], pose: 'stand' },
 };
 
 // Lobby and shop points (world)
@@ -501,14 +502,13 @@ function buildUnit(scene, rng, shared, floor, side, index) {
   lb(kL, 1.6, 1.85, -4.0, 2.2, 2.0, -4.45, 0x9aa0a6);
   lb(kL, 0.8, 0.91, -4.42, 2.7, 1.5, -4.45, pick(rng, [0xe8e8e2, 0x9fb7c0, 0xc9b9a0]));
   lb(kL, 1.7, 0.925, -4.0, 1.85, 1.05, -4.15, 0x4a4a4a);
-  // dining table and chairs
-  lb(kL, 2.6, 0.72, -0.7, 3.6, 0.76, -1.4, pal.wood);
-  lb(kL, 3.05, 0, -1.0, 3.15, 0.72, -1.1, pal.wood);
-  lb(kL, 2.85, 0, -0.85, 3.35, 0.03, -1.25, pal.wood);
-  for (const [cx, back] of [[2.3, 2.08], [3.95, 4.17]]) {
-    lb(kL, cx - 0.21, 0.44, -0.84, cx + 0.21, 0.48, -1.26, pal.wood2);
-    lb(kL, cx - 0.03, 0, -1.02, cx + 0.03, 0.44, -1.08, pal.wood2);
-    lb(kL, back - 0.025, 0.48, -0.86, back + 0.025, 0.92, -1.24, pal.wood2);
+  // a small table under the window, two chairs facing out at the street
+  lb(kL, 2.72, 0.7, -0.06, 3.88, 0.74, -0.66, pal.wood);
+  for (const tx of [2.78, 3.82]) for (const tz of [-0.1, -0.62]) lb(kL, tx - 0.025, 0, tz - 0.025, tx + 0.025, 0.7, tz + 0.025, pal.wood);
+  for (const cx of [3.0, 3.6]) {
+    lb(kL, cx - 0.2, 0.44, -0.75, cx + 0.2, 0.48, -1.15, pal.wood2);
+    lb(kL, cx - 0.03, 0, -0.92, cx + 0.03, 0.44, -0.98, pal.wood2);
+    lb(kL, cx - 0.19, 0.48, -1.13, cx + 0.19, 0.92, -1.17, pal.wood2);
   }
   lb(kL, 0.09, 1.25, -1.55, 0.12, 1.95, -2.65, pal.art);
   lb(kL, 0.085, 1.22, -1.52, 0.11, 1.98, -2.68, 0x1a1a1a);
@@ -564,7 +564,7 @@ function buildUnit(scene, rng, shared, floor, side, index) {
   u.emitters.push(cL, cB, cH, cBa, floorShade, bedShade, burner);
 
   // Windows, curtains and blinds
-  const acIdx = rng() < 0.4 ? Math.floor(rng() * 2) : -1;
+  const acIdx = rng() < 0.4 ? (rng() < 0.5 ? 0 : 2) : -1; // never the window over the table
   for (let i = 0; i < WINS.length; i++) {
     const wdef = WINS[i];
     const room = u.rooms[wdef.room];
@@ -602,7 +602,7 @@ function buildUnit(scene, rng, shared, floor, side, index) {
     const fx = mirror ? -s.face[0] : s.face[0];
     u.spots[k] = {
       key: k, room: s.room, at: W(s.at), via: (s.via || []).map(W), yaw: Math.atan2(fx, s.face[1]), pose: s.pose, seat: s.seat || 0,
-      lie: s.lie ? W(s.lie) : null, lieYaw: Math.atan2(mirror ? 1 : -1, 0), y: s.y || 0,
+      lie: s.lie ? W(s.lie) : null, lieYaw: Math.atan2(mirror ? 1 : -1, 0), lieYaw0: Math.atan2(mirror ? 1 : -1, 0), y: s.y || 0,
     };
   }
   u.claims = {};
@@ -837,17 +837,17 @@ function buildDecor(B, scene, rng) {
     const g = new THREE.Group();
     const k = new Kit();
     const X = u.X, Z = u.Z, y = u.y;
-    const cx = X(4.2), cz = Z(-0.55);
+    const cx = X(4.32), cz = Z(-0.5);
     const tr = new THREE.CylinderGeometry(0.06, 0.08, 0.3, 6); tr.translate(cx, y + 0.15, cz); k.geo(tr, 0x5a3a22);
     k.box(cx - 0.2, y, cz - 0.2, cx + 0.2, y + 0.2, cz + 0.2, 0xb02a22, 0.2);
-    for (const [r, h, yy] of [[0.62, 0.8, 0.55], [0.5, 0.7, 0.95], [0.36, 0.6, 1.32], [0.22, 0.45, 1.62]]) { const c = new THREE.ConeGeometry(r, h, 10); c.translate(cx, y + yy, cz); k.geo(c, 0x24502e, 0.35); }
+    for (const [r, h, yy] of [[0.52, 0.8, 0.55], [0.43, 0.7, 0.95], [0.31, 0.6, 1.32], [0.19, 0.45, 1.62]]) { const c = new THREE.ConeGeometry(r, h, 10); c.translate(cx, y + yy, cz); k.geo(c, 0x24502e, 0.35); }
     const tm = new THREE.Mesh(k.build(), u.rooms.L.mat);
     g.add(tm);
     const N = 48;
     const im = new THREE.InstancedMesh(new THREE.SphereGeometry(0.022, 6, 4), new THREE.MeshBasicMaterial({ color: 0xffffff }), N);
     const mtx = new THREE.Matrix4(), c = new THREE.Color();
     for (let i = 0; i < N; i++) {
-      const t = i / N, hy = 0.25 + t * 1.55, rr = 0.6 * (1 - t) + 0.05, a = i * 2.4;
+      const t = i / N, hy = 0.25 + t * 1.55, rr = 0.5 * (1 - t) + 0.05, a = i * 2.4;
       mtx.makeTranslation(cx + Math.cos(a) * rr, y + hy, cz + Math.sin(a) * rr);
       im.setMatrixAt(i, mtx);
       c.set(treeLights[i % treeLights.length]);

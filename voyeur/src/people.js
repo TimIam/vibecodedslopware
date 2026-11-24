@@ -283,7 +283,8 @@ export class Resident extends Actor {
   *next() {
     const w = this.world, m = w.mod, now = w.time, r = this.r;
     if (this.trip && !this.trip.gone && now >= this.trip.at) { yield* this.goOnTrip(); return; }
-    if (inCirc(m, this.bed, this.wake)) { yield* this.sleep(); return; }
+    // (a fresh riser is never sent straight back to bed, whatever the clock says)
+    if (inCirc(m, this.bed, this.wake) && !(this.wakeAt && now - this.wakeAt < 90)) { yield* this.sleep(); return; }
     if (this.morningAt < this.lastAbs(this.wake)) { yield* this.morning(); return; }
     const key = this.workKey();
     if (this.worksOn(key) && this.workedDay !== key && inCirc(m, this.leave - 3, this.back - 60)) {
@@ -292,6 +293,8 @@ export class Resident extends Actor {
       return;
     }
     if (inCirc(m, this.dinnerAt, this.dinnerAt + 150) && this.dinnerDay !== w.day) { yield* this.dinner(); return; }
+    const um = this.home.meal;
+    if (um && um.cook === this && !um.ready && um.day === w.day) { yield* this.dinner(); return; }
     if (inCirc(m, 720, 820) && this.lunchDay !== w.day) { this.lunchDay = w.day; yield* this.lunch(); return; }
     if (this.goingOut && this.goingOut.day === w.day && !this.goingOut.done && m >= this.goingOut.at && m < this.goingOut.at + 120) {
       this.goingOut.done = true;
@@ -355,7 +358,8 @@ export class Resident extends Actor {
       }
       this.asleep = true;
       this.label = 'asleep';
-      const wakeAt = this.nextAbs(this.wake) + range(r, -12, 12);
+      const wakeAt = this.nextAbs(this.wake) + range(r, 1, 20);
+      this.wakeAt = wakeAt;
       if (r() < 0.3) {
         const mid = w.time + (wakeAt - w.time) * range(r, 0.3, 0.7);
         yield* this.waitUntil(() => w.time >= mid);
@@ -403,6 +407,7 @@ export class Resident extends Actor {
     const u = this.home, w = this.world, r = this.r;
     this.dinnerDay = w.day;
     const meal = u.meal && u.meal.day === w.day ? u.meal : null;
+    if (meal && meal.cook === this && !meal.ready) { yield* this.cookDinner(meal); return; }
     if (meal) {
       if (meal.kind === 'cook') {
         const k = this.claim(['chair1', 'chair2']);
@@ -433,19 +438,29 @@ export class Resident extends Actor {
       if (m.ready) yield* this.watchTV(range(r, 20, 30), null, 'eating pizza', true);
       return;
     }
-    const m = { day: w.day, kind: 'cook', ready: false, started: w.time };
+    const m = { day: w.day, kind: 'cook', ready: false, started: w.time, cook: this, left: range(r, 22, 38) };
     u.meal = m;
     yield* this.doAt('fridge', 1.5, 'reach', 'getting groceries out');
+    yield* this.cookDinner(m);
+  }
+  // Interrupted cooks (the doorbell) come back to the stove for whatever time is left.
+  *cookDinner(m) {
+    const u = this.home, w = this.world, r = this.r;
     const k = this.claim(['stove']);
     if (k) {
+      let t0 = null;
       try {
         yield* this.goSpot(k);
-        this.pose = 'cook'; this.label = 'cooking dinner';
+        this.pose = 'cook'; this.label = m.left < 15 ? 'back at the stove' : 'cooking dinner';
         u.burnerOn = true;
-        yield* this.waitGame(range(r, 22, 38));
-      } finally { u.burnerOn = false; this.release(k); m.ready = true; }
-    }
-    m.ready = true;
+        t0 = w.time;
+        yield* this.waitUntil(() => w.time >= t0 + m.left);
+      } finally {
+        u.burnerOn = false; this.release(k);
+        if (t0 !== null) m.left -= w.time - t0;
+        if (m.left <= 0.5) m.ready = true;
+      }
+    } else m.ready = true;
     yield* this.sitEat(range(r, 18, 28), 'having dinner');
   }
 
@@ -619,15 +634,17 @@ export function collapseJob(evt) {
   return function* () {
     const u = this.home, w = this.world;
     this.busy = true;
-    const room = u.roomKeyAt(this.pos) || 'L';
-    if (this.atSpot) { const sp = u.spots[this.atSpot]; const p = sp.via.length ? sp.via[sp.via.length - 1] : u.nodes[CENTER[sp.room]]; yield* this.glide(p[0], u.y, p[1], this.yaw, 0.5); }
+    // Feeling unwell, they make it as far as the open floor behind the coffee table, where the
+    // window across the street can see them.
+    this.label = 'feeling unwell';
+    const sp = u.spots.collapse;
+    const speed = this.speed;
+    this.speed = 0.6;
+    try { yield* this.goPoint(sp.at[0], sp.at[1]); } finally { this.speed = speed; }
     this.atSpot = null;
-    const c = u.nodes[CENTER[room]];
-    const hx = c[0] - this.pos.x, hz = c[1] - this.pos.z;
-    const hl = Math.hypot(hx, hz) || 1;
     this.label = 'collapsed';
     this.pose = 'collapse';
-    yield* this.glide(this.pos.x, u.y + 0.1, this.pos.z, Math.atan2(-hx / hl, -hz / hl), 0.9);
+    yield* this.glide(this.pos.x, u.y + 0.1, this.pos.z, sp.lieYaw0, 0.9);
     evt.victimReady = true;
     yield* this.waitUntil(() => this.carriedBy);
     this.pose = 'lie';
@@ -654,7 +671,9 @@ export function helperJob(evt) {
       yield* this.waitUntil(() => evt.victimReady, 10);
       const v = evt.victim;
       this.label = 'calling 911';
-      yield* this.goPoint(v.pos.x + 0.55, v.pos.z + 0.35);
+      const hx = -Math.sin(v.yaw), hz = -Math.cos(v.yaw);
+      yield* this.goPoint(v.pos.x + hx * 1.7 + hz * 0.45, v.pos.z + hz * 1.7 - hx * 0.45);
+      this.targetYaw = Math.atan2(-hz, hx);
       this.pose = 'kneel';
       yield* this.waitUntil(() => evt.medicsInside, 400);
       this.pose = 'stand';

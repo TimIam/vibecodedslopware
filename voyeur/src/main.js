@@ -19,6 +19,8 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPrefer
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(38, 16 / 9, 0.1, 1500);
 
@@ -64,7 +66,7 @@ const director = {
     return s * (lit ? 1 : 0.25);
   },
   shotFor(u) {
-    return { pos: new THREE.Vector3(u.cx * 0.85, u.y + 4.3, 9.6), tgt: new THREE.Vector3(u.cx, u.y + 1.0, -2.4) };
+    return { pos: new THREE.Vector3(u.cx * 0.85, u.y + 5.0, 7.8), tgt: new THREE.Vector3(u.cx, u.y + 0.8, -2.4) };
   },
   streetActive() {
     return world.street.flashing || world.street.vehicles.some((v) => v.state === 'stopped');

@@ -55,6 +55,11 @@ export class World {
     this.hemi = new THREE.HemisphereLight(0xbcd0f0, 0x3a3028, 1);
     scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xfff0dd, 3);
+    this.sun.target.position.set(0, 7, 0);
+    const sc = this.sun.shadow;
+    sc.mapSize.set(2048, 2048);
+    Object.assign(sc.camera, { left: -26, right: 26, top: 22, bottom: -22, near: 5, far: 160 });
+    sc.bias = -0.0004; sc.normalBias = 0.035;
     scene.add(this.sun); scene.add(this.sun.target);
     this.moon = new THREE.DirectionalLight(0x9ab0ff, 0.2);
     this.moon.position.set(30, 50, 60);
@@ -71,6 +76,8 @@ export class World {
 
     this.seasonOverride = opts.season || null;
     this.applySeason();
+    // Daylight shadows: the fire escape on the bricks, the cornice, people and cars on the sidewalk.
+    scene.traverse((o) => { if (o.isMesh && o.material && o.material.isMeshStandardMaterial && !o.material.transparent) { o.castShadow = true; o.receiveShadow = true; } });
     this.street = new Street(this);
     this.populate();
     this.nbT = 0; this.hourMark = Math.floor(this.time / 60);
@@ -138,7 +145,7 @@ export class World {
     this.units.forEach((u, i) => {
       const T = order[i];
       u.hh = {
-        tidy: range(r, 0.45, 0.98), cozy: r() < 0.5, blinds: r() < 0.65, blindDay: pick(r, [0.06, 0.06, 0.25, 0.45]),
+        tidy: range(r, 0.45, 0.98), cozy: r() < 0.5, blinds: r() < 0.65, blindDay: pick(r, [0.06, 0.06, 0.15, 0.3]),
         orderRate: T.jobs.length === 1 ? 0.35 : 0.18, dinner: T.jobs[0] === 'night' ? range(r, 990, 1020) : range(r, 1080, 1175),
       };
       for (const w of u.windows) { w.blindTarget = u.hh.blindDay; w.blind.scale.y = 0.08 + w.blindTarget * 1.6; }
@@ -178,10 +185,8 @@ export class World {
         w.scene.add(g);
         u.laptop = g;
       }
-      const lx = k === 'chair1' ? 2.78 : 3.45;
-      u.laptop.position.set(u.X(lx), u.y + 0.77, u.Z(-1.05));
-      const face = (k === 'chair1' ? -1 : 1) * (u.mirror ? -1 : 1);
-      u.laptop.rotation.y = Math.atan2(face, 0);
+      u.laptop.position.set(u.X(k === 'chair1' ? 3.0 : 3.6), u.y + 0.75, u.Z(-0.4));
+      u.laptop.rotation.y = Math.PI;
       u.laptop.visible = on;
     };
     u.placeBox = (prop) => {
@@ -320,7 +325,8 @@ export class World {
     }
     if (kind === 'ambulance') {
       if (this.street.flashing) return null;
-      const p = pickOne(this.awakeHome());
+      const front = this.awakeHome((x) => ['L', 'B'].includes(x.home.roomKeyAt(x.pos)));
+      const p = pickOne(front.length ? front : this.awakeHome());
       if (!p) return null;
       return this.street.ambulance(p) ? p.home.name : null;
     }
@@ -462,7 +468,8 @@ export class World {
     this.hemi.groundColor.setRGB(0.22, 0.18, 0.15);
     this.hemi.intensity = 0.08 + 1.05 * dayF;
     const sk = smooth(-1, 8, elDeg);
-    this.sun.position.copy(dir).multiplyScalar(80);
+    this.sun.position.copy(dir).multiplyScalar(80).add(this.sun.target.position);
+    this.sun.castShadow = sk > 0.01;
     this.sun.intensity = 3.0 * sk;
     this.sun.color.setRGB(1, 0.78 + 0.22 * smooth(0, 25, elDeg), 0.6 + 0.4 * smooth(0, 30, elDeg));
     this.moon.intensity = 0.25 * (1 - dayF);

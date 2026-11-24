@@ -18,10 +18,22 @@
   #help.show { display: block; }
   #help kbd { display: inline-block; min-width: 18px; padding: 0 5px; margin-right: 6px; border-radius: 3px; background: #2a2f3a; text-align: center; font-family: inherit; font-size: 12px; }
   body.idle #tag { opacity: 0; }
+  body { padding-top: 0 !important; }
+  .site-topbar { transition: opacity .8s; }
+  body.idle .site-topbar { opacity: 0; pointer-events: none; }
+  #tag { top: 64px; }
+  #help { top: 88px; }
+  #toast { top: 66px; }
 </style>
+<link rel="stylesheet" href="/site-nav.css">
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"}}</script>
 </head>
 <body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
 <canvas id="view"></canvas>
 <div id="tag">Across the Street · tech demo · H for keys</div>
 <div id="toast"></div>

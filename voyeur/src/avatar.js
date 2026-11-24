@@ -10,6 +10,7 @@ const PLACE = new THREE.MeshBasicMaterial({ color: 0xff00ff });
 function part(parent, geo, hex, meshes) {
   paint(geo, hex);
   const m = new THREE.Mesh(geo, PLACE);
+  m.castShadow = true;
   parent.add(m);
   meshes.push(m);
   return m;
