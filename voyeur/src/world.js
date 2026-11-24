@@ -6,7 +6,7 @@ import { buildBuilding, GH, FH, SW_Y, FZ, DELI, CURB_Z } from './building.js';
 import { Street } from './street.js';
 import { Incidents } from './events.js';
 import { Resident, Walker, randomLook } from './people.js';
-import { makeRng, pick, range, inCirc, smooth, lerp, damp, canvasTex, paint } from './util.js';
+import { makeRng, pick, range, inCirc, smooth, lerp, damp, canvasTex, paint, Kit } from './util.js';
 import { makeSky } from './shaders.js';
 
 export const GAME_PER_REAL = 1440 / 3600;
@@ -20,7 +20,12 @@ const TEMPLATES = [
   { jobs: ['office'], trip: true },
   { jobs: ['office', 'wfh'] },
   { jobs: ['office'], pet: 'cat' },
+  { jobs: ['office', 'teen'], family: true },
+  { jobs: ['wfh'], host: true },
+  { jobs: ['retired'], old: true, pet: 'cat' },
+  { jobs: ['wfh', 'office'], host: true },
 ];
+const QUIRKS = ['dancer', 'gym', 'waver', 'singer', 'pacer', 'none', 'none', 'dancer', 'singer'];
 const FEM = ['Maya', 'Priya', 'Dana', 'Rosa', 'Mei', 'Aisha', 'Grace', 'Lena', 'Nadia', 'June', 'Sofia', 'Imani', 'Hana', 'Clara', 'Ruth'];
 const MASC = ['Jordan', 'Sam', 'Marcus', 'Theo', 'Luis', 'Omar', 'Ben', 'Kenji', 'Eli', 'Victor', 'Andre', 'Felix', 'Raj', 'Walt', 'Hector'];
 const CAT_NAMES = ['Biscuit', 'Miso', 'Pepper', 'Olive', 'Tofu', 'Mango'];
@@ -31,6 +36,7 @@ function schedule(job, r) {
     case 'wfh': return { wake: range(r, 420, 500), leave: 0, back: 0, bed: range(r, 1385, 1455) };
     case 'retired': return { wake: range(r, 350, 410), leave: 0, back: 0, bed: range(r, 1290, 1345) };
     case 'night': return { wake: range(r, 870, 900), leave: range(r, 1110, 1130), back: range(r, 455, 480), bed: range(r, 510, 540) };
+    case 'teen': return { wake: range(r, 395, 425), leave: range(r, 450, 470), back: range(r, 915, 960), bed: range(r, 1470, 1540) };
     case 'student': return { wake: range(r, 560, 620), leave: range(r, 650, 700), back: range(r, 940, 1000), bed: range(r, 1470, 1520) };
   }
 }
@@ -56,10 +62,10 @@ export class World {
     this.hemi = new THREE.HemisphereLight(0xbcd0f0, 0x3a3028, 1);
     scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xfff0dd, 3);
-    this.sun.target.position.set(0, 7, 0);
+    this.sun.target.position.set(0, 10, 0);
     const sc = this.sun.shadow;
     sc.mapSize.set(2048, 2048);
-    Object.assign(sc.camera, { left: -26, right: 26, top: 22, bottom: -22, near: 5, far: 160 });
+    Object.assign(sc.camera, { left: -27, right: 27, top: 27, bottom: -27, near: 5, far: 170 });
     sc.bias = -0.0004; sc.normalBias = 0.035;
     scene.add(this.sun); scene.add(this.sun.target);
     this.moon = new THREE.DirectionalLight(0x9ab0ff, 0.2);
@@ -127,7 +133,7 @@ export class World {
     const N = 4500;
     const pos = new Float32Array(N * 3);
     this.snowV = new Float32Array(N);
-    for (let i = 0; i < N; i++) { pos[i * 3] = range(Math.random, -26, 26); pos[i * 3 + 1] = range(Math.random, 0, 24); pos[i * 3 + 2] = range(Math.random, -0.2, 18); this.snowV[i] = range(Math.random, 0.7, 1.4); }
+    for (let i = 0; i < N; i++) { pos[i * 3] = range(Math.random, -26, 26); pos[i * 3 + 1] = range(Math.random, 0, 31); pos[i * 3 + 2] = range(Math.random, -0.2, 18); this.snowV[i] = range(Math.random, 0.7, 1.4); }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     const sprite = canvasTex(32, 32, (c) => { const gr = c.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, 32, 32); });
@@ -153,14 +159,15 @@ export class World {
       for (const w of u.windows) { w.blindTarget = u.hh.blindDay; w.blind.scale.y = 0.08 + w.blindTarget * 1.6; }
       T.jobs.forEach((job, k) => {
         const fem = r() < 0.5;
-        const look = randomLook(r, { old: T.old });
-        look.fem = fem; look.hairStyle = fem ? (r() < 0.75 ? 'long' : 'short') : (r() < 0.15 ? 'bald' : 'short');
-        if (!fem) look.dress = false;
+        const teen = job === 'teen';
+        const look = randomLook(r, { old: T.old, fem, ...(teen ? { height: range(r, 1.55, 1.74), glasses: false, beard: false, jacket: null, shirt: pick(r, [0x7a2a8a, 0x1a1a1a, 0x2a6a5a, 0xc8402a, 0x3a4a8a]) } : {}) });
         const sc = schedule(job, r);
         const spec = {
           name: nameFor(fem), look, job, ...sc, dinnerAt: u.hh.dinner, reader: r() < 0.5,
-          bedSide: k === 0 ? 'bedF' : 'bedB',
+          bedSide: job === 'teen' ? 'teenBed' : k === 0 ? 'bedF' : 'bedB',
+          quirk: job === 'teen' ? 'none' : pick(r, QUIRKS),
         };
+        spec.dancer = spec.quirk === 'dancer';
         if (job === 'student') spec.goingOut = { day: this.day, at: range(r, 1230, 1290), done: false };
         if (T.trip) spec.trip = { at: this.time + range(r, 30, 140), back: 0, gone: false };
         if (spec.trip) spec.trip.back = spec.trip.at + range(r, 2.2, 3.2) * 1440;
@@ -168,13 +175,39 @@ export class World {
         this.residents.push(p);
       });
       if (T.pet) this.makeCat(u, r);
+      u.host = !!T.host;
       this.augmentUnit(u);
+      if (T.family) this.teenNook(u);
     });
     this.makeClerk();
+  }
+  // A narrow bed in the back hall for the teen, with a poster and a lava lamp.
+  teenNook(u) {
+    const k = new Kit();
+    const b = (ax, ay, az, bx, by, bz, hex, sh = 0) => k.box(u.X(ax), u.y + ay, u.Z(az), u.X(bx), u.y + by, u.Z(bz), hex, sh);
+    b(2.75, 0, -7.05, 4.52, 0.3, -7.95, 0x3a3a40, 0.4);
+    b(2.78, 0.3, -7.08, 4.5, 0.45, -7.92, 0xe8e4dc);
+    b(2.75, 0.4, -7.04, 3.95, 0.52, -7.96, 0x2a3a6a, 0.2);
+    b(4.1, 0.45, -7.2, 4.48, 0.58, -7.8, 0xf2f0ea);
+    b(3.2, 1.2, -7.93, 3.9, 2.0, -7.95, 0xd84a2a);
+    b(2.6, 1.3, -7.93, 3.05, 1.9, -7.95, 0x2a2a2a);
+    const m = new THREE.Mesh(k.build(), u.rooms.H.mat);
+    this.scene.add(m);
   }
   augmentUnit(u) {
     const w = this;
     u.boxes = [];
+    if (u.theme === 'gamer' || u.theme === 'cozy') {
+      // LED strip (gamer) or warm fairy lights (cozy) along the living-room ceiling
+      const pts = [];
+      for (let x = 0.2; x <= 4.4; x += u.theme === 'cozy' ? 0.18 : 0.06) pts.push([x, -0.12]);
+      for (let z = -0.3; z >= -3.6; z -= u.theme === 'cozy' ? 0.18 : 0.06) pts.push([0.12, z]);
+      const im = new THREE.InstancedMesh(new THREE.SphereGeometry(u.theme === 'cozy' ? 0.025 : 0.018, 6, 4), new THREE.MeshBasicMaterial({ color: 0xffffff }), pts.length);
+      const mt = new THREE.Matrix4(), c = new THREE.Color(0x000000);
+      pts.forEach(([x, z], i) => { mt.makeTranslation(u.X(x), u.y + 2.72 - (u.theme === 'cozy' ? Math.abs(Math.sin(x * 4 + z * 4)) * 0.08 : 0), u.Z(z)); im.setMatrixAt(i, mt); im.setColorAt(i, c); });
+      this.scene.add(im);
+      u.strip = im;
+    }
     u.showLaptop = (k, on) => {
       if (!u.laptop) {
         const g = new THREE.Group();
@@ -325,6 +358,13 @@ export class World {
       p.interrupt(function* () { yield* this.outing({ mode: 'car', until: w.time + range(Math.random, 90, 200), label: 'out for the evening', coat: true, carHome: true }); });
       return p.home.name;
     }
+    if (kind === 'party') {
+      if (this.incidents.party) return null;
+      const ok = (u) => !u.fire && !u.damage && u.residents.some((p) => p.where === 'home' && !p.busy && !p.asleep);
+      const hosts = this.units.filter((u) => u.host && ok(u));
+      const u = pickOne(hosts.length ? hosts : this.units.filter(ok));
+      return u && this.incidents.startParty(u) ? u.name : null;
+    }
     if (kind === 'fire') {
       if (this.incidents.busy()) return null;
       const cooking = this.units.filter((u) => u.burnerOn);
@@ -378,6 +418,8 @@ export class World {
     // a fire starts in a kitchen maybe once every few weeks of game time; a break-in, rarer still
     for (const u of this.units) if (u.burnerOn && Math.random() < 0.006) this.incidents.startFire(u);
     if (!this.incidents.busy() && (h < 5 || h >= 23) && Math.random() < 0.03) { const t = this.units.filter((u) => this.incidents.canBreakInto(u)); if (t.length) this.incidents.startBreakIn(t[Math.floor(Math.random() * t.length)]); }
+    const wd = (this.startWeekday + this.day) % 7;
+    if ((wd === 5 || wd === 6) && Math.floor(h) === 21 && !this.incidents.party && Math.random() < 0.6) this.demo('party');
     for (const p of this.residents) {
       if (p.job === 'student' && h > 7 && h < 9 && (!p.goingOut || p.goingOut.day !== this.day)) p.goingOut = Math.random() < 0.4 ? { day: this.day, at: range(Math.random, 1230, 1300), done: false } : null;
     }
@@ -416,6 +458,17 @@ export class World {
       if (u.burnerOn) bc.setRGB(1.8 + Math.sin(this.realT * 9) * 0.2, 0.35, 0.05); else bc.setRGB(0.02, 0.02, 0.02);
       for (const w of u.windows) w.blind.scale.y = damp(w.blind.scale.y, 0.08 + w.blindTarget * 1.6, 0.9, dt);
       for (let i = u.boxes.length - 1; i >= 0; i--) if (this.time > u.boxes[i].until) { this.scene.remove(u.boxes[i].prop.group); u.boxes.splice(i, 1); }
+      if (u.strip) {
+        const on = awakeHome.length > 0 && dark;
+        const c = new THREE.Color();
+        for (let i = 0; i < u.strip.count; i++) {
+          if (!on) c.setRGB(0.03, 0.03, 0.03);
+          else if (u.theme === 'gamer') c.setHSL((this.realT * 0.08 + i * 0.004) % 1, 1, 0.5).multiplyScalar(2.2);
+          else c.setRGB(2.2, 1.4, 0.55);
+          u.strip.setColorAt(i, c);
+        }
+        u.strip.instanceColor.needsUpdate = true;
+      }
       if (u.tree && u.tree.group.visible) {
         const on = awakeHome.length > 0 && (dark || m > 960);
         u.rooms.L.set(3, on);
@@ -457,7 +510,7 @@ export class World {
     for (let i = 0; i < this.snowV.length; i++) {
       a[i * 3 + 1] -= this.snowV[i] * dt;
       a[i * 3] += Math.sin(this.realT * 0.7 + i) * 0.25 * dt;
-      if (a[i * 3 + 1] < 0) { a[i * 3 + 1] += 24; a[i * 3] = range(Math.random, -26, 26); }
+      if (a[i * 3 + 1] < 0) { a[i * 3 + 1] += 31; a[i * 3] = range(Math.random, -26, 26); }
     }
     p.needsUpdate = true;
   }
@@ -488,7 +541,7 @@ export class World {
     this.hemi.groundColor.setRGB(0.22, 0.18, 0.15);
     this.hemi.intensity = 0.08 + 1.05 * dayF;
     const sk = smooth(-1, 8, elDeg);
-    this.sun.position.copy(dir).multiplyScalar(80).add(this.sun.target.position);
+    if (!this.sunDir || this.sunDir.angleTo(dir) > 0.004) { this.sunDir = dir.clone(); this.sun.position.copy(dir).multiplyScalar(80).add(this.sun.target.position); }
     this.sun.castShadow = sk > 0.01;
     this.sun.intensity = 3.0 * sk;
     this.sun.color.setRGB(1, 0.78 + 0.22 * smooth(0, 25, elDeg), 0.6 + 0.4 * smooth(0, 30, elDeg));

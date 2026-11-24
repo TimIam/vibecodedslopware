@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { Kit, paint, planarUV, canvasTex, pick, range, damp } from './util.js';
 import { makeRoomMaterial } from './shaders.js';
 
-export const FZ = -0.3, UW = 7.5, UD = 8, GH = 4.2, FH = 3.2, FLOORS = 4, BW = 7.75, CH = 2.85;
+export const FZ = -0.3, UW = 7.5, UD = 8, GH = 4.2, FH = 3.2, FLOORS = 6, BW = 7.75, CH = 2.85;
 export const TOP = GH + FLOORS * FH;
 export const SILL = 0.85, HEAD = 2.6, WW = 1.2, SW_Y = 0.15;
 export const CURB_Z = 4.0;
@@ -43,6 +43,7 @@ export const SPOTS = {
   sill: { room: 'L', at: [1.4, -0.22], face: [0, 1], pose: 'loaf', y: 0.86 },
   bowl: { room: 'L', at: [3.0, -3.9], face: [0, -1], pose: 'stand' },
   collapse: { room: 'L', at: [2.05, -2.3], face: [1, 0], pose: 'stand' },
+  teenBed: { room: 'H', at: [2.6, -6.85], face: [1, 0], pose: 'stand', lie: [4.3, -7.52] },
 };
 
 // Lobby and shop points (world)
@@ -99,12 +100,12 @@ export class Room {
       if (L.kind === 'tv') {
         this.flickT -= dt;
         if (this.flickT <= 0) {
-          this.flickT = 0.12 + Math.random() * 0.7;
-          this.flickTarget = 0.45 + Math.random() * 0.7;
+          this.flickT = 0.9 + Math.random() * 2.6;
+          this.flickTarget = 0.6 + Math.random() * 0.45;
           const r = Math.random();
           this.tvTint.set(r < 0.5 ? 0.5 : r < 0.8 ? 0.85 : 1, r < 0.5 ? 0.62 : r < 0.8 ? 0.85 : 0.75, r < 0.8 ? 1 : 0.55);
         }
-        this.flick = damp(this.flick, this.flickTarget, 18, dt);
+        this.flick = damp(this.flick, this.flickTarget, 5, dt);
         k *= this.flick;
         U[i].set(this.tvTint.x * k, this.tvTint.y * k, this.tvTint.z * k);
       } else if (L.kind === 'tree') {
@@ -313,8 +314,8 @@ export function buildBuilding(scene, rng, shared) {
       metalK.box(-2.62, yp + yr, 0.05, -2.58, yp + yr + 0.035, 1.15, IRON);
       metalK.box(2.58, yp + yr, 0.05, 2.62, yp + yr + 0.035, 1.15, IRON);
     }
-    for (let x = -2.6; x <= 2.61; x += 0.15) metalK.box(x - 0.01, yp, 1.12, x + 0.01, yp + 0.95, 1.14, IRON);
-    for (let z = 0.15; z < 1.12; z += 0.15) { metalK.box(-2.61, yp, z - 0.01, -2.59, yp + 0.95, z + 0.01, IRON); metalK.box(2.59, yp, z - 0.01, 2.61, yp + 0.95, z + 0.01, IRON); }
+    for (let x = -2.6; x <= 2.61; x += 0.2) metalK.box(x - 0.018, yp, 1.11, x + 0.018, yp + 0.95, 1.145, IRON);
+    for (let z = 0.2; z < 1.12; z += 0.2) { metalK.box(-2.618, yp, z - 0.018, -2.582, yp + 0.95, z + 0.018, IRON); metalK.box(2.582, yp, z - 0.018, 2.618, yp + 0.95, z + 0.018, IRON); }
     for (const x of [-2.4, 0, 2.4]) metalK.beam(x, yp - 0.04, 1.05, x, yp - 0.7, 0.02, 0.05, IRON);
     if (f < FLOORS - 1) {
       const y1 = yp + FH;
@@ -585,6 +586,27 @@ function buildUnit(scene, rng, shared, floor, side, index) {
     lb(room.kit, wdef.cx - 0.6, HEAD - 0.08, -0.03, wdef.cx + 0.6, HEAD, -0.08, pal.blind);
     u.windows.push(w);
   }
+  // A theme makes the place theirs: plants on the sills, a wall of books, gamer LEDs, fairy lights.
+  u.theme = pick(rng, ['none', 'plants', 'books', 'gamer', 'cozy', 'plants', 'none', 'books']);
+  if (u.theme === 'plants') {
+    for (const wi of [1, 2]) {
+      const cx = WINS[wi].cx, rk = WINS[wi].room;
+      lb(u.rooms[rk].kit, cx - 0.56, SILL - 0.03, -0.02, cx + 0.56, SILL, -0.24, pal.wood);
+      for (let i = 0; i < 4; i++) {
+        const px = cx - 0.42 + i * 0.28;
+        lb(u.rooms[rk].kit, px - 0.07, SILL, -0.06, px + 0.07, SILL + 0.13, -0.2, pick(rng, [0xa0583a, 0xe8e2d4, 0x3a5a7a, 0xc89a5a]), 0.3);
+        lgeo(u.rooms[rk].kit, new THREE.IcosahedronGeometry(range(rng, 0.09, 0.16), 0), px, SILL + 0.22, -0.13, pick(rng, [0x3f6b35, 0x4f8a3f, 0x2f5a2a, 0x6a9a4a]), 0.3);
+      }
+    }
+    lgeo(kL, new THREE.IcosahedronGeometry(0.22, 1), 0.8, 2.25, -0.5, 0x3f7a35, 0.3);
+    lb(kL, 0.79, 2.4, -0.49, 0.81, CH, -0.51, 0x2a2a2a);
+  } else if (u.theme === 'books') {
+    lb(kB, 4.85, 0, -0.35, 5.17, 1.95, -1.55, pal.wood2, 0.3);
+    for (let lv = 0; lv < 5; lv++) {
+      let z = -0.4;
+      while (z > -1.5) { const w = range(rng, 0.03, 0.06); lb(kB, 5.1, 0.08 + lv * 0.38, z, 5.18, 0.08 + lv * 0.38 + range(rng, 0.2, 0.3), z - w, pick(rng, [0x8a2a2a, 0x2a4a7a, 0xd8c8a0, 0x3a6a3a, 0x1a1a1a, 0xc89a3a, 0x6a3a6a])); z -= w + 0.005; }
+    }
+  }
   for (const key of Object.keys(u.rooms)) {
     const r = u.rooms[key];
     const m = new THREE.Mesh(r.kit.build(), r.mat);
@@ -769,8 +791,8 @@ function buildStreet(B, scene, ext, snowK, rng) {
 function buildNeighbors(B, scene, rng) {
   B.neighbors = [];
   const defs = [
-    { x0: -24, x1: -BW - 0.3, h: 13.6, base: 0xa07d5c, floors: 4, cols: 5, setback: -0.25 },
-    { x0: BW + 0.3, x1: 24, h: 20.6, base: 0x5b4036, floors: 6, cols: 5, setback: -0.15 },
+    { x0: -24, x1: -BW - 0.3, h: 17.0, base: 0xa07d5c, floors: 5, cols: 5, setback: -0.25 },
+    { x0: BW + 0.3, x1: 24, h: 29.8, base: 0x5b4036, floors: 9, cols: 5, setback: -0.15 },
   ];
   for (const d of defs) {
     const w = d.x1 - d.x0;

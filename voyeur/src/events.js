@@ -18,9 +18,9 @@ const softTex = () => (soft ||= canvasTex(64, 64, (g) => {
 const platformY = (f) => GH + f * FH + 0.35;
 
 // Crews (paramedics, firefighters, police) come in from the curb and up the stairs, and back.
-export function* crewIn(m, unit, delay, perFloor = 4.5) {
+export function* crewIn(m, unit, delay, perFloor = 4.5, fromDoor = false) {
   yield* m.waitReal(delay);
-  yield* m.walkTo(m.pos.x * 0.5 + 0.5, 3.0, SW_Y);
+  if (!fromDoor) yield* m.walkTo(m.pos.x * 0.5 + 0.5, 3.0, SW_Y);
   yield* m.walkTo(LOBBY.outside[0], LOBBY.outside[1]);
   yield* m.walkTo(LOBBY.inside[0], LOBBY.inside[1]);
   yield* m.walkTo(LOBBY.mid[0], LOBBY.mid[1]);
@@ -42,6 +42,105 @@ export function* crewOut(m, unit, delay, dest, perFloor = 4.5) {
   yield* m.walkTo(LOBBY.inside[0], LOBBY.inside[1]);
   yield* m.walkTo(LOBBY.outside[0], LOBBY.outside[1]);
   yield* m.walkTo(dest[0], dest[1]);
+}
+
+const PARTY = [[2.3, -1.8], [3.0, -1.6], [3.6, -2.2], [2.6, -2.9], [3.4, -3.05], [1.3, -2.2], [2.0, -3.35], [3.9, -3.2], [2.95, -2.35], [3.6, -1.4]];
+
+function hostJob(P) {
+  return function* () {
+    const u = this.home, w = this.world;
+    this.busy = true;
+    try {
+      yield* this.doAt('pkg', 3, 'reach', 'tidying up for guests');
+      let i = 0;
+      while (!P.done) {
+        const sp = w.incidents.partySpot(P);
+        yield* this.goPoint(u.X(sp[0]), u.Z(sp[1]));
+        this.targetYaw = Math.atan2(u.X(2.8) - this.pos.x, u.Z(-2.4) - this.pos.z) + range(R, -0.6, 0.6);
+        this.label = P.over ? 'saying goodnight to guests' : i % 3 === 2 ? 'dancing at their own party' : 'hosting a party';
+        this.pose = i % 3 === 2 && !P.over ? 'dance' : 'stand';
+        yield* this.waitUntil(() => P.done, range(R, 15, 30));
+        P.taken.delete(sp);
+        i++;
+      }
+      this.pose = 'stand';
+      yield* this.doAt('stove', range(R, 12, 20), 'reach', 'cleaning up after the party');
+    } finally { this.busy = false; this.pose = 'stand'; }
+  };
+}
+
+function broomJob() {
+  return function* () {
+    const u = this.home;
+    const broom = makeProp('broom');
+    try {
+      yield* this.goPoint(u.X(2.9), u.Z(-2.4));
+      this.label = 'banging on the ceiling with a broom';
+      broom.group.rotation.x = Math.PI;
+      for (const m of broom.meshes) { m.material = this.mat; this.meshes.push(m); }
+      this.av.J.handR.add(broom.group);
+      this.pose = 'broom';
+      yield* this.waitGame(1.6);
+      this.pose = 'stand';
+      this.label = 'grumbling about the noise';
+      yield* this.waitGame(3);
+      this.pose = 'broom';
+      this.label = 'banging on the ceiling again';
+      yield* this.waitGame(1.2);
+    } finally {
+      this.av.J.handR.remove(broom.group);
+      this.meshes = this.meshes.filter((m) => !broom.meshes.includes(m));
+      this.pose = 'stand';
+    }
+    yield* this.watchTV(30, null, 'grumbling about the noise');
+  };
+}
+
+function* partyGuest(g, P, inc, delay) {
+  const W = g.world, u = P.unit;
+  yield* g.waitReal(delay);
+  const dir = R() < 0.5 ? -1 : 1;
+  g.pos.set(dir * 42, SW_Y, range(R, 1.6, 3.2)); g.hidden = false;
+  g.label = 'on the way to a party';
+  if (R() < 0.6) g.hold(makeProp(R() < 0.3 ? 'bag' : 'cup'));
+  yield* g.walkTo(dir * 1.6, 1.5);
+  yield* g.walkTo(0.25 * dir, 0.8);
+  g.targetYaw = Math.PI; g.label = 'buzzing up';
+  yield* g.waitReal(range(R, 2, 5));
+  yield* crewIn(g, u, 0, 5.5, true);
+  g.label = 'at the party';
+  while (!(P.over && W.time >= g.leaveAt)) {
+    const sp = inc.partySpot(P);
+    yield* g.goPoint(u.X(sp[0]), u.Z(sp[1]));
+    g.targetYaw = Math.atan2(u.X(2.8) - g.pos.x, u.Z(-2.4) - g.pos.z) + range(R, -0.8, 0.8);
+    g.pose = R() < 0.45 ? 'dance' : 'stand';
+    g.label = g.pose === 'dance' ? 'dancing' : 'chatting';
+    g.headTurn = range(R, -0.6, 0.6);
+    yield* g.waitUntil(() => P.over && W.time >= g.leaveAt, range(R, 14, 32));
+    P.taken.delete(sp);
+  }
+  g.pose = 'stand';
+  if (g.crasher) {
+    // one guest never makes it home
+    g.claim(['sofa1']); g.claim(['sofa2']);
+    yield* g.goSpot('sofa1');
+    g.label = 'sleeping it off on the sofa'; g.sleeping = true;
+    g.pose = 'lie';
+    yield* g.glide(u.X(0.62), u.y + 0.5, u.Z(-2.95), Math.PI, 1.4);
+    let wake = W.day * 1440 + range(R, 510, 600);
+    if (wake < W.time) wake += 1440;
+    yield* g.waitUntil(() => W.time >= wake);
+    g.pose = 'stand';
+    yield* g.glide(u.X(1.25), u.y, u.Z(-2.5), 0, 1.4);
+    g.release('sofa1'); g.release('sofa2');
+    g.label = 'sneaking out, very hungover';
+    g.sleeping = false;
+  }
+  g.label = 'heading home';
+  yield* crewOut(g, u, range(R, 0, 3), [range(R, -1.2, 1.2), 2.4], 5.5);
+  if (g.carry) g.drop();
+  yield* g.walkTo(dir * 42, range(R, 1.6, 3.2));
+  g.remove();
 }
 
 function evacuateJob(evt) {
@@ -161,7 +260,7 @@ export class Incidents {
   // ---------------------------------------------------------------- break-in
   canBreakInto(u, minAway = 90) {
     const W = this.world;
-    if (!u.residents.length || u.breakIn || u.fire || u.damage) return false;
+    if (!u.residents.length || u.breakIn || u.fire || u.damage || u.party) return false;
     return u.residents.every((p) => p.where !== 'home' && !p.busy && (p.returnAt || 0) - W.time > minAway);
   }
   startBreakIn(u) {
@@ -327,6 +426,55 @@ export class Incidents {
     if (S.flashing === car) S.flashing = null;
   }
 
+  // ---------------------------------------------------------------- parties
+  startParty(u) {
+    const W = this.world;
+    if (this.party || !u || u.fire || u.damage) return false;
+    const hosts = u.residents.filter((p) => p.where === 'home' && !p.busy);
+    if (!hosts.length) return false;
+    const P = { unit: u, guests: [], over: false, done: false, endAt: W.time + range(R, 170, 250), taken: new Set() };
+    this.party = P; u.party = P;
+    W.toast(hosts[0].name + ' in ' + u.name + ' is having people over');
+    for (const h of hosts) h.interrupt(hostJob(P), true);
+    this.street.run(this.partyRun(P));
+    return true;
+  }
+  partySpot(P) {
+    for (let i = 0; i < 20; i++) { const sp = pick(R, PARTY); if (!P.taken.has(sp)) { P.taken.add(sp); return sp; } }
+    return pick(R, PARTY);
+  }
+  *partyRun(P) {
+    const W = this.world, u = P.unit, L = u.rooms.L;
+    L.set(0, false); L.set(1, true); L.set(2, false);
+    const n = 6 + Math.floor(R() * 4);
+    for (let i = 0; i < n; i++) {
+      const g = new Walker(W, randomLook(R), null, { speed: range(R, 1.2, 1.45), home: u, counts: true });
+      g.role = 'party guests';
+      g.leaveAt = P.endAt + range(R, -30, 70);
+      g.crasher = i === 0 && R() < 0.5;
+      g.co = partyGuest(g, P, this, i * range(R, 6, 16));
+      P.guests.push(g);
+    }
+    yield* this.wait(75);
+    const below = W.units.find((x) => x.floor === u.floor - 1 && x.side === u.side);
+    const grump = below && below.residents.find((p) => p.where === 'home' && !p.asleep && !p.busy && !p.hidden);
+    if (grump && grump.interrupt(broomJob(), false)) W.toast('Downstairs in ' + below.name + ', ' + grump.name + ' is banging on the ceiling with a broom');
+    while (W.time < P.endAt) yield;
+    P.over = true;
+    W.toast('The party in ' + u.name + ' is winding down');
+    while (P.guests.some((g) => !g.dead && !g.sleeping)) yield;
+    P.done = true;
+    this.party = null; u.party = null;
+  }
+  wisp(x, y, z) {
+    const sp = this.pool.pop() || new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex(), transparent: true, depthWrite: false }));
+    if (!sp.parent) this.world.scene.add(sp);
+    sp.position.set(x, y, z);
+    sp.userData = { age: 0, life: range(R, 3.5, 5), vx: range(R, -0.05, 0.12), vy: range(R, 0.18, 0.3), vz: range(R, 0.05, 0.15), y0: y, fire: 0, small: true };
+    sp.visible = true;
+    this.smoke.push(sp);
+  }
+
   // ---------------------------------------------------------------- per frame
   update(dt) {
     const W = this.world, t = W.realT;
@@ -363,6 +511,12 @@ export class Incidents {
         if (!show) { u.damage = null; u.rooms.L.mat.uniforms.uSoot.value.w = 0; for (const b of u.boards) b.visible = false; }
       }
     }
+    // party lights: the ceiling off, a slow colored wash
+    const Pt = this.party;
+    if (Pt && !Pt.done) {
+      const pu = Pt.unit, c = new THREE.Color().setHSL((t * 0.06) % 1, 0.9, 0.5);
+      pu.rooms.L.dyn = { pos: new THREE.Vector3(pu.X(2.6), pu.y + 2.4, pu.Z(-2.4)), col: new THREE.Vector3(c.r, c.g, c.b).multiplyScalar(5.5) };
+    }
     // the burglar's flashlight
     const b = this.burglar;
     if (b && !b.dead) {
@@ -381,10 +535,17 @@ export class Incidents {
       if (k >= 1) { s.visible = false; this.pool.push(s); this.smoke.splice(i, 1); continue; }
       s.position.x += d.vx * dt; s.position.y += d.vy * dt; s.position.z += d.vz * dt;
       d.vy *= 1 - 0.05 * dt;
+      const day = W.dayF;
+      if (d.small) {
+        const sm = 0.08 + k * 0.6;
+        s.scale.set(sm, sm, 1);
+        s.material.opacity = 0.32 * (1 - k);
+        s.material.color.setScalar(0.35 + 0.4 * day);
+        continue;
+      }
       const sc = 0.7 + k * 3.4;
       s.scale.set(sc, sc, 1);
       s.material.opacity = 0.62 * Math.sin(Math.min(1, k * 4) * Math.PI / 2) * (1 - k);
-      const day = W.dayF;
       const glow = Math.max(0, 1 - (s.position.y - d.y0) / 3) * d.fire;
       s.material.color.setRGB(0.16 + 0.34 * day + glow * 0.5, 0.15 + 0.32 * day + glow * 0.22, 0.15 + 0.32 * day + glow * 0.06);
     }

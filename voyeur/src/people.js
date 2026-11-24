@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { makeAvatar, makeQuad, animateAvatar, makeProp } from './avatar.js';
 import { pick, range, weighted, inCirc, dampAngle } from './util.js';
-import { LOBBY, DELI, LAUNDRY, SW_Y, CENTER, FZ } from './building.js';
+import { LOBBY, DELI, LAUNDRY, SW_Y, CENTER, FZ, SILL } from './building.js';
 
 export const INT = { interrupt: true };
 export function* all(...gens) {
@@ -23,13 +23,20 @@ const PANTS = [0x23293a, 0x3a3a40, 0x2a2622, 0x5a4a3a, 0x31415a, 0x1a1a1c, 0x7a6
 const NAMES_F = ['Maya', 'Priya', 'Dana', 'Rosa', 'Mei', 'Aisha', 'Grace', 'Lena', 'Nadia', 'June', 'Sofia', 'Imani', 'Hana', 'Clara'];
 const NAMES_M = ['Jordan', 'Sam', 'Marcus', 'Theo', 'Luis', 'Omar', 'Ben', 'Kenji', 'Eli', 'Victor', 'Andre', 'Felix', 'Raj', 'Walt'];
 
+export function hairFor(r, fem, old) {
+  return fem ? pick(r, old ? ['bob', 'short', 'bun', 'curly'] : ['long', 'long', 'bob', 'bun', 'pony', 'curly', 'short'])
+    : pick(r, old ? ['bald', 'short', 'buzz', 'bald'] : ['short', 'short', 'buzz', 'curly', 'bald', 'long']);
+}
 export function randomLook(r, extra = {}) {
-  const fem = r() < 0.5;
+  const fem = extra.fem ?? r() < 0.5;
   const old = extra.old;
+  const hair = old ? pick(r, [0xb8b8b8, 0xd8d8d8, 0x808080, 0x9a9a9a]) : pick(r, HAIR);
   return {
     height: extra.height || (fem ? range(r, 1.58, 1.74) : range(r, 1.68, 1.88)),
-    skin: pick(r, SKIN), hair: old ? pick(r, [0xb8b8b8, 0xd8d8d8, 0x808080]) : pick(r, HAIR), shirt: pick(r, SHIRT), pants: pick(r, PANTS),
-    shoes: pick(r, [0x1a1a1a, 0x3a2a1a, 0xe8e8e8, 0x5a5a5a]), hairStyle: fem ? (r() < 0.7 ? 'long' : 'short') : (r() < 0.12 ? 'bald' : 'short'),
+    skin: pick(r, SKIN), hair, shirt: pick(r, SHIRT), pants: pick(r, PANTS),
+    shoes: pick(r, [0x1a1a1a, 0x3a2a1a, 0xe8e8e8, 0x5a5a5a, 0x7a3a2a]), hairStyle: hairFor(r, fem, old),
+    beard: !fem && r() < (old ? 0.4 : 0.3), glasses: r() < (old ? 0.55 : 0.18), jacket: r() < 0.15 ? pick(r, [0x2a2a30, 0x5a4a3a, 0x3a4a5a]) : null,
+    shortSleeves: r() < 0.3, lips: fem && r() < 0.5 ? pick(r, [0xa8403a, 0x8a3a4a, 0xb85a5a]) : null,
     dress: fem && r() < 0.15, fem, ...extra,
   };
 }
@@ -217,7 +224,7 @@ export class Resident extends Actor {
   workKey() { return Math.floor((this.world.time - this.leave) / 1440); }
   worksOn(key) {
     const wd = (this.world.startWeekday + key) % 7; // 0 = Sunday
-    if (this.job === 'office' || this.job === 'student') return wd >= 1 && wd <= 5;
+    if (this.job === 'office' || this.job === 'student' || this.job === 'teen') return wd >= 1 && wd <= 5;
     if (this.job === 'night') return [0, 2, 3, 5].includes(wd);
     return false;
   }
@@ -291,7 +298,7 @@ export class Resident extends Actor {
     const key = this.workKey();
     if (this.worksOn(key) && this.workedDay !== key && inCirc(m, this.leave - 3, this.back - 60)) {
       this.workedDay = key;
-      yield* this.outing({ mode: 'walk', until: this.nextAbs(this.back) + range(r, -15, 30), label: this.job === 'student' ? 'at class' : this.job === 'night' ? 'on the night shift' : 'at work', coat: true });
+      yield* this.outing({ mode: 'walk', until: this.nextAbs(this.back) + range(r, -15, 30), label: this.job === 'teen' ? 'at school' : this.job === 'student' ? 'at class' : this.job === 'night' ? 'on the night shift' : 'at work', coat: true });
       return;
     }
     if (inCirc(m, this.dinnerAt, this.dinnerAt + 150) && this.dinnerDay !== w.day) { yield* this.dinner(); return; }
@@ -329,6 +336,86 @@ export class Resident extends Actor {
       this.eating = false; this.typing = false; this.lookDown = 0; this.headTurn = 0;
     }
   }
+  // Activities on open floor rather than a named spot (local unit coordinates; faces the window).
+  *doAtPoint(lx, lz, mins, pose, label) {
+    const u = this.home;
+    const k = this.claim(['openfloor']);
+    if (!k) { yield* this.waitGame(2); return; }
+    try {
+      yield* this.goPoint(u.X(lx), u.Z(lz));
+      this.targetYaw = 0;
+      yield* this.waitReal(0.4);
+      this.pose = pose; this.label = label;
+      yield* this.waitGame(mins);
+    } finally { this.release(k); this.pose = 'stand'; }
+  }
+  *pacing(mins) {
+    const u = this.home, w = this.world, end = w.time + mins;
+    const k = this.claim(['openfloor']);
+    if (!k) { yield* this.waitGame(2); return; }
+    try {
+      this.phoneWalk = true;
+      this.label = 'pacing on a phone call';
+      let flip = false;
+      while (w.time < end) {
+        flip = !flip;
+        yield* this.goPoint(u.X(flip ? 2.2 : 3.75), u.Z(flip ? -1.7 : -3.05));
+        this.pose = 'phone';
+        yield* this.waitReal(range(this.r, 1.5, 4));
+      }
+    } finally { this.phoneWalk = false; this.release(k); this.pose = 'stand'; }
+  }
+  // The teen sneaks a cigarette sitting out on the fire escape, when nobody's in the bedroom.
+  *smokeBreak() {
+    const u = this.home, w = this.world, r = this.r;
+    if (u.residents.some((p) => p !== this && !p.asleep && !p.hidden && p.where === 'home' && u.roomKeyAt(p.pos) === 'B')) { yield* this.waitGame(3); return; }
+    const win = u.windows[2];
+    const k = this.claim(['winB']);
+    if (!k) { yield* this.waitGame(2); return; }
+    const cig = new THREE.Group();
+    try {
+      yield* this.goSpot('winB');
+      this.label = 'sneaking out onto the fire escape';
+      win.blindTarget = 0;
+      yield* this.waitReal(1.2);
+      this.pose = 'reach';
+      yield* this.glide(win.x, u.y + SILL + 0.02, FZ + 0.12, 0, 1.3);
+      this.pose = 'smoke'; this.seat = SILL - 0.35;
+      yield* this.glide(win.x, u.y + 0.35, 0.14, 0, 0.8);
+      const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.08, 5).rotateX(Math.PI / 2).translate(0, -0.02, 0.05), new THREE.MeshBasicMaterial({ color: 0x8a8a8a }));
+      const ember = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 4).translate(0, -0.02, 0.095), new THREE.MeshBasicMaterial({ color: 0xff5010 }));
+      cig.add(stick, ember);
+      this.av.J.handR.add(cig);
+      this.label = 'smoking on the fire escape';
+      const end = w.time + range(r, 7, 12);
+      let lastPuff = 0;
+      while (w.time < end) {
+        const c = ((w.realT + this.phaseOff) % 7) / 7;
+        ember.material.color.setRGB(c < 0.22 ? 5 : 1.6, c < 0.22 ? 1.2 : 0.35, 0.05);
+        if (c > 0.3 && c < 0.36 && w.realT - lastPuff > 3) { lastPuff = w.realT; w.incidents.wisp(this.pos.x, this.pos.y + 0.5 + 0.62 * this.av.s, this.pos.z + 0.15); }
+        yield;
+      }
+      this.av.J.handR.remove(cig);
+      this.label = 'climbing back in';
+      this.pose = 'reach';
+      yield* this.glide(win.x, u.y + SILL + 0.02, FZ + 0.12, Math.PI, 1.0);
+      const sp = u.spots.winB;
+      yield* this.glide(sp.at[0], u.y, sp.at[1], Math.PI, 1.0);
+      this.atSpot = 'winB';
+    } finally {
+      this.av.J.handR.remove(cig);
+      if (this.pos.z > FZ - 0.05) {
+        this.pose = 'reach';
+        this.pos.set(win.x, u.y + SILL + 0.02, FZ + 0.12);
+        const sp = u.spots.winB;
+        this.pos.set(sp.at[0], u.y, sp.at[1]); this.atSpot = 'winB';
+      }
+      this.pose = 'stand';
+      win.blindTarget = w.dayF < 0.4 && this.hh.blinds ? 0.6 : this.hh.blindDay;
+      this.release(k);
+    }
+    yield* this.waitReal(0.5);
+  }
   *sitEat(mins, label, keys = ['chair1', 'chair2']) {
     yield* this.doAt(keys, mins, null, label, { start: () => { this.eating = true; } });
   }
@@ -336,8 +423,9 @@ export class Resident extends Actor {
   *sleep() {
     const u = this.home, w = this.world, r = this.r;
     yield* this.doAt('bath', range(r, 6, 11), 'stand', 'brushing teeth');
-    if (this.hh.blinds) for (const win of u.windows) if (win.room === 'B') win.blindTarget = 0.92;
+    if (this.hh.blinds && u.spots[this.bedSide].room === 'B') for (const win of u.windows) if (win.room === 'B') win.blindTarget = 0.92;
     const k = this.bedSide;
+    const BR = u.rooms[u.spots[k].room];
     try {
       yield* this.goSpot(k);
       const sp = u.spots[k];
@@ -347,14 +435,14 @@ export class Resident extends Actor {
       this.pose = 'lie';
       this.inBed = true;
       yield* this.glide(sp.lie[0] - hx * L, u.y + 0.58, sp.lie[1] - hz * L, sp.lieYaw, 1.3);
-      u.rooms.B.sleepers.add(this);
-      if (this.reader && r() < 0.6 && u.rooms.B.sleepers.size === 1) {
-        u.rooms.B.set(1, true); u.rooms.B.set(0, false);
+      BR.sleepers.add(this);
+      if (this.reader && r() < 0.6 && BR.sleepers.size === 1) {
+        BR.set(1, true); BR.set(0, false);
         this.label = 'reading in bed';
         yield* this.waitGame(range(r, 10, 28));
-        u.rooms.B.set(1, false);
+        BR.set(1, false);
       }
-      u.rooms.B.set(0, false);
+      BR.set(0, false);
       if (!this.others().some((p) => p.where === 'home' && !p.asleep)) {
         for (const rk of ['L', 'H', 'Ba']) if (r() < this.hh.tidy || rk !== 'L') u.rooms[rk].allOff();
       }
@@ -365,18 +453,18 @@ export class Resident extends Actor {
       if (r() < 0.3) {
         const mid = w.time + (wakeAt - w.time) * range(r, 0.3, 0.7);
         yield* this.waitUntil(() => w.time >= mid);
-        this.asleep = false; u.rooms.B.sleepers.delete(this);
+        this.asleep = false; BR.sleepers.delete(this);
         yield* this.glide(sp.at[0], u.y, sp.at[1], sp.yaw, 1.1);
         this.pose = 'stand'; this.atSpot = k;
         yield* this.doAt('bath', range(r, 3, 6), 'stand', 'up in the night');
         yield* this.goSpot(k);
         this.pose = 'lie';
         yield* this.glide(sp.lie[0] - hx * L, u.y + 0.58, sp.lie[1] - hz * L, sp.lieYaw, 1.3);
-        u.rooms.B.sleepers.add(this); this.asleep = true; this.label = 'asleep';
+        BR.sleepers.add(this); this.asleep = true; this.label = 'asleep';
       }
       yield* this.waitUntil(() => w.time >= wakeAt);
       this.asleep = false;
-      u.rooms.B.sleepers.delete(this);
+      BR.sleepers.delete(this);
       this.label = 'waking up';
       yield* this.waitReal(range(r, 2, 6));
       yield* this.glide(sp.at[0], u.y, sp.at[1], sp.yaw, 1.4);
@@ -384,7 +472,7 @@ export class Resident extends Actor {
       this.atSpot = k;
     } finally {
       this.asleep = false; this.inBed = false;
-      u.rooms.B.sleepers.delete(this);
+      BR.sleepers.delete(this);
       if (this.pose === 'lie') { const sp = u.spots[k]; this.pos.set(sp.at[0], u.y, sp.at[1]); this.pose = 'stand'; this.atSpot = k; }
     }
   }
@@ -503,6 +591,15 @@ export class Resident extends Actor {
       [0.9, 'phone'],
       [0.5, 'tidy'],
       [u.pets.length ? 0.4 : 0, 'pet'],
+      // everyone has a habit or two
+      [this.quirk === 'dancer' ? 1.6 : 0, 'dance'],
+      [this.quirk === 'gym' ? 1.4 : 0, 'jacks'],
+      [this.quirk === 'waver' ? 0.7 : 0, 'wave'],
+      [this.quirk === 'singer' ? 1.3 : 0, 'sing'],
+      [this.quirk === 'pacer' ? 1.4 : 0, 'pace'],
+      [u.theme === 'plants' ? 0.8 : 0, 'water'],
+      [this.job === 'teen' ? (evening ? 5 : 2) : 0, 'game'],
+      [this.job === 'teen' && (m >= 1260 || m < 120) ? 3.5 : 0, 'smoke'],
     ]);
     switch (choice) {
       case 'tv': yield* this.watchTV(dur(30, 110)); break;
@@ -514,6 +611,14 @@ export class Resident extends Actor {
       case 'phone': yield* this.doAt(pick(r, ['sofa1', 'sofa2', 'chair1']), dur(8, 30), null, 'scrolling on the phone', { start: () => { this.lookDown = 0.55; this.pose = this.home.spots[this.atSpot].pose === 'sitTable' ? 'sitTable' : 'sit'; } }); break;
       case 'tidy': yield* this.doAt(pick(r, ['wardrobe', 'coat', 'pkg', 'stove']), dur(2, 6), 'reach', 'tidying up'); break;
       case 'pet': yield* this.doAt('bowl', 1.5, 'kneel', 'feeding the cat'); break;
+      case 'dance': yield* this.doAtPoint(3.0, -2.3, dur(5, 14), 'dance', 'dancing alone in the living room'); break;
+      case 'jacks': yield* this.doAtPoint(3.0, -2.2, dur(4, 9), 'jacks', 'doing jumping jacks'); break;
+      case 'sing': yield* this.doAtPoint(2.9, -2.5, dur(3, 7), 'sing', 'singing into a hairbrush'); break;
+      case 'wave': yield* this.doAt('winL', 1.2, 'wave', 'waving at someone across the street'); break;
+      case 'water': yield* this.doAt(r() < 0.5 ? 'winL' : 'winB', dur(2, 4), 'reach', 'watering the plants'); break;
+      case 'pace': yield* this.pacing(dur(4, 9)); break;
+      case 'game': yield* this.watchTV(dur(30, 90), null, 'playing video games'); break;
+      case 'smoke': yield* this.smokeBreak(); break;
       default: yield* this.waitGame(3);
     }
   }
