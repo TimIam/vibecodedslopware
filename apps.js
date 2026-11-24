@@ -521,6 +521,19 @@ window.SLOPWARE = {
     }
    ]
   },
+  "across-the-courtyard": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-24T08:44:25-07:00",
+     "note": "publish the browser player and Windows screensaver"
+    }
+   ]
+  },
   "matrix": {
    "visits": 62,
    "prompts": 5,
