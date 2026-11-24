@@ -439,8 +439,8 @@ window.SLOPWARE = {
   },
   "voyeur": {
    "visits": 0,
-   "prompts": 7,
-   "tokens": 957829,
+   "prompts": 8,
+   "tokens": 1054536,
    "sharedWith": null,
    "versions": [
     {
@@ -477,6 +477,13 @@ window.SLOPWARE = {
      "note": "weather, rain and thunderstorms",
      "prompts": 1,
      "tokens": 53700
+    },
+    {
+     "n": 6,
+     "date": "2026-11-24T08:06:07-07:00",
+     "note": "holidays",
+     "prompts": 1,
+     "tokens": 96707
     }
    ]
   },
@@ -488,8 +495,8 @@ window.SLOPWARE = {
    "versions": [
     {
      "n": 1,
-     "date": "2026-11-24T07:55:00-07:00",
-     "note": "8-story nocturnal apartment screensaver with web app and Windows .scr"
+     "date": "2026-11-24T07:56:06-07:00",
+     "note": "Add Windows Across the Street screensaver, card, and .scr build"
     }
    ]
   },
