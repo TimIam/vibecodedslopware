@@ -94,7 +94,7 @@ function buildBlockGround(T, b) {
     };
     if (sw < 0.05) continue;
     const f = m => Math.min(1, m / sw);
-    if (kind === 'paved') { strip(0, 1, GL.walk, tint, tint, tint - 3, 0, sw); }
+    if (kind === 'paved') { strip(0, f(0.17), GL.concrete, tint - 24, tint - 25, tint - 31, 0, 0.17); strip(f(0.17), 1, GL.walk, tint, tint, tint - 3, 0.17, sw); }
     else if (kind === 'brick') { strip(0, f(0.5), GL.concrete, tint - 10, tint - 11, tint - 16, 0, 0.5); strip(f(0.5), 1, GL.pavers, 245, 240, 235, 0.5, sw); }
     else if (kind === 'verge') { strip(0, f(0.18), GL.concrete, tint - 20, tint - 21, tint - 26, 0, 0.18); strip(f(0.18), f(1.5), GL.grass, 235, 245, 225, 0.18, 1.5); strip(f(1.5), f(3.0), GL.walk, tint, tint, tint - 4, 0.02, 1.48); strip(f(3.0), 1, GL.grass, 240, 245, 230, 3, sw); }
     else if (kind === 'vergeN') { strip(0, f(0.18), GL.concrete, tint - 20, tint - 21, tint - 26, 0, 0.18); strip(f(0.18), f(0.8), GL.gravel, 225, 222, 215, 0.18, 0.8); strip(f(0.8), 1, GL.walk, tint - 8, tint - 8, tint - 12, 0.02, 1.48); }

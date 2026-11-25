@@ -12,8 +12,11 @@
 //   POSES         joint angles per pose
 //   buildBody()   every primitive of the body (reference coordinates, metres)
 //   REGIONS / buildHuman()  mesh resolutions and the seams between them
-//   skinMaterial()  the skin shader (colour model, SSS approximation, clinical state, wounds)
-//   GARMENTS / clothMaterial()  clothing shapes and fabrics
+//   skinMaterial()  the skin shader (even albedo, perfusion, pores and wrinkles in the normal, clinical state, wounds)
+//   patchLights()   wrap lighting, back-scatter, baked occlusion; hair strand highlights; retroreflective tape
+//   hairMaterial()  shell hair, brows and beards;  insigniaTex()  uniform patches and lettering
+//   GARMENT_TOP / GARMENT_BOTTOM / clothMaterial()  clothing shapes, fabrics, folds, collars, pockets, belts
+//   buildHuman()    detail tiers: 'high' patient, 'low' crew and bystanders, 'crowd' instanced pedestrians
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -199,13 +202,13 @@ function hairField(x, y, z, style) {
 }
 
 const GARMENT_BOTTOM = {
-  jeans: { t: 0.004, cuff: 0.105, fabric: 2, bulk: 0.35 }, trousers: { t: 0.0035, cuff: 0.1, fabric: 1, bulk: 0.8 }, shorts: { t: 0.0035, cuff: 0.6, fabric: 1, bulk: 0.9 },
-  skirt: { t: 0.003, cuff: 0.56, fabric: 1, skirt: true, bulk: 0 }, uniform: { t: 0.004, cuff: 0.1, fabric: 6, bulk: 0.8, piping: true },
+  jeans: { t: 0.004, cuff: 0.105, fabric: 2, bulk: 0.35, belt: 1 }, trousers: { t: 0.0035, cuff: 0.1, fabric: 1, bulk: 0.8, belt: 1 }, shorts: { t: 0.0035, cuff: 0.6, fabric: 1, bulk: 0.9, belt: 1 },
+  skirt: { t: 0.003, cuff: 0.56, fabric: 1, skirt: true, bulk: 0 }, uniform: { t: 0.0055, cuff: 0.1, fabric: 6, bulk: 0.8, piping: true, belt: 1 },
 };
 const GARMENT_TOP = {
-  tshirt: { t: 0.0035, sleeve: 1.2, hem: 0.925, neckR: 0.079, fabric: 0, bulk: 0.25 }, shirt: { t: 0.0035, sleeve: 0, hem: 0.905, neckR: 0.068, fabric: 1, bulk: 0.45, placket: 1, collar: 1 },
-  hoodie: { t: 0.008, sleeve: 0, hem: 0.915, neckR: 0.076, fabric: 3, bulk: 1, hood: true, cuffs: true }, blouse: { t: 0.003, sleeve: 0, hem: 0.925, neckR: 0.082, fabric: 5, bulk: 0.3, vneck: true },
-  gown: { t: 0.003, sleeve: 1.18, hem: 0.57, neckR: 0.08, fabric: 4, bulk: 0.7, gown: true }, uniform: { t: 0.004, sleeve: 0, hem: 0.905, neckR: 0.068, fabric: 6, bulk: 0.5, placket: 1, collar: 1, piping: true },
+  tshirt: { t: 0.0035, sleeve: 1.2, hem: 0.925, neckR: 0.07, fabric: 0, bulk: 0.25 }, shirt: { t: 0.0035, sleeve: 0, hem: 0.905, neckR: 0.068, fabric: 1, bulk: 0.45, placket: 1, collar: 1, pockets: 1 },
+  hoodie: { t: 0.008, sleeve: 0, hem: 0.915, neckR: 0.072, fabric: 3, bulk: 1, hood: true, cuffs: true }, blouse: { t: 0.003, sleeve: 0, hem: 0.925, neckR: 0.082, fabric: 5, bulk: 0.3, vneck: true },
+  gown: { t: 0.003, sleeve: 1.18, hem: 0.57, neckR: 0.076, fabric: 4, bulk: 0.7, gown: true }, uniform: { t: 0.003, sleeve: 0, hem: 0.955, neckR: 0.068, fabric: 6, bulk: 0.35, placket: 1, collar: 1, piping: true, pockets: 2, tuck: true },
   jacket: { t: 0.011, sleeve: 0, hem: 0.9, neckR: 0.07, fabric: 7, bulk: 1, placket: 2, collar: 1 },
 };
 
@@ -282,30 +285,35 @@ function buildBody(rig, spec, feat) {
   const neck = grp('neck', 'neck', 'neck', 0, { parent: chest, k: 0.035, pk: 0.02, fat: F.neck });
   neck.cone(0, 1.452, -0.018, 0.058 * nk, 0, 1.585, -0.012, 0.053 * nk, { k: 0, fat: F.neck });
   neck.cone(0, 1.47, -0.035, 0.05 * nk, 0, 1.59, -0.03, 0.05 * nk, { fat: F.nape });
-  for (const s of [1, -1]) neck.bezier([s * 0.064, 1.6, -0.03], [s * 0.056, 1.525, 0.012], [s * 0.019, 1.447, 0.058], 0.0125 * mu, 0.008, 6, { k: 0.016 });   // sternocleidomastoid
+  for (const s of [1, -1]) neck.bezier([s * 0.052, 1.6, -0.03], [s * 0.0592, 1.525, 0.012], [s * 0.019, 1.447, 0.058], 0.0105 * mu, 0.008, 6, { k: 0.016 });   // sternocleidomastoid
   if (!fem && !kid) neck.ellipsoid(0, REF.larynx.promY - 0.004, 0.0385, 0.012, 0.016, 0.011, [0.3, 0, 0], { k: 0.018, fat: F.neck });   // laryngeal prominence
   else neck.ellipsoid(0, REF.larynx.promY - 0.006, 0.034, 0.012, 0.016, 0.01, null, { k: 0.02, fat: F.neck });
   if (bf > 1.3) neck.ellipsoid(0, 1.535, 0.03, 0.045, 0.022, 0.035, null, { flags: F_FAT_ONLY, fat: F.neck * 1.5, k: 0.03 });   // submental fat
 
-  // ---- head. Big soft masses first (cranium, forehead, the tapering face, jaw), then the small crisp features.
+  // ---- head. Big soft masses first (cranium, forehead, midface, jaw), then the small crisp features.
+  // Landmarks (reference, metres): vertex y 1.752, eyes 1.640, subnasale 1.594, mouth 1.571, chin 1.528; 139 mm across
+  // the cheekbones, 106 across the jaw angles, eye corners at x = 16.5 and 46, lips 20 mm behind the tip of the nose.
   const head = grp('head', 'head', 'head', 0, { parent: neck, k: 0.012, pk: 0.02, fat: F.scalp });
   // face shapes are authored at their BMI-24 skin surface: cf is only the departure from that
   const jw = (fem ? 0.9 : 1) * vr(0.05) * lerp(1, 0.92, kid), nw = (fem ? 0.9 : 1) * vr(0.1), lf = (fem ? 1.2 : 1) * vr(0.15), cf = (F.face - 0.0056) * 0.6, bz = fem ? 0.55 : 1;
   const E = REF.eye, eyeX = E[0];
-  head.ellipsoid(0, 1.665, -0.012, 0.0725, 0.086, 0.098, null, { k: 0 });
-  head.ellipsoid(0, 1.686, 0.03, 0.062, 0.055, 0.057, null, { fat: F.scalp * 0.8, k: 0.03 });
-  head.cone(0, 1.63, 0.02, 0.0575, 0, 1.566, 0.05, 0.0305 * (0.7 + 0.3 * jw), { fat: cf, k: 0.035 });           // the face, tapering to the mouth
-  head.ellipsoid(0, 1.5525 + 0.004 * kid, 0.0705 - 0.004 * fem, 0.02 * jw, 0.019, 0.019, null, { fat: cf * 0.7, k: 0.018 });   // chin
-  head.ellipsoid(0, 1.56, 0.03, 0.03, 0.018, 0.04, null, { fat: cf, k: 0.02 });                                           // floor of mouth
+  head.ellipsoid(0, 1.667, -0.012, 0.0745, 0.0855, 0.098, null, { k: 0 });
+  head.ellipsoid(0, 1.686, 0.03, 0.063, 0.055, 0.058, null, { fat: F.scalp * 0.8, k: 0.03 });
+  head.ellipsoid(0, 1.614, 0.024, 0.0565, 0.05, 0.056, null, { fat: cf, k: 0.03 });                                        // midface
+  head.cone(0, 1.6, 0.03, 0.042, 0, 1.563, 0.052, 0.0305 * (0.7 + 0.3 * jw), { fat: cf, k: 0.035 });                       // lower face, tapering to the mouth
+  head.ellipsoid(0, 1.5485 + 0.004 * kid, 0.0745 - 0.003 * fem, 0.021 * jw, 0.021 - 0.002 * fem, 0.02, null, { fat: cf * 0.7, k: 0.018 });   // chin
+  head.ellipsoid(0, 1.557, 0.03, 0.031, 0.019, 0.042, null, { fat: cf, k: 0.02 });                                        // floor of mouth
   for (const s of [1, -1]) {
-    head.bezier([s * 0.011, 1.549, 0.067], [s * 0.033 * jw, 1.551, 0.046], [s * 0.04 * jw, 1.577, 0.002], 0.012, 0.0108, 5, { fat: cf * 0.8, k: 0.014 });   // mandible
-    head.cone(s * 0.04 * jw, 1.577, 0.002, 0.0108, s * 0.053, 1.626, -0.008, 0.0105, { fat: cf, k: 0.018 });
-    head.ellipsoid(s * 0.0455, 1.622, 0.05, 0.016, 0.011, 0.022, null, { fat: cf * 0.7, k: 0.026 });                      // zygoma
-    head.ellipsoid(s * 0.033, 1.6, 0.047, 0.0155, 0.024, 0.022, null, { fat: cf * 1.1, k: 0.03 });                        // cheek
-    head.ellipsoid(s * 0.028, 1.6615, 0.0785, 0.028, 0.0095, 0.013 * (0.75 + 0.25 * bz), [0, 0, s * 0.1], { fat: 0, k: 0.018 });   // brow ridge
-    if (old > 0.3 || bf > 1.4) head.ellipsoid(s * 0.034, 1.558, 0.046, 0.013, 0.012, 0.02, null, { flags: F_FAT_ONLY, fat: Math.max(0.0005, cf * (0.5 + 0.6 * old) + 0.0028 * old), k: 0.02 });   // jowl
+    head.bezier([s * 0.012, 1.5455, 0.071], [s * 0.036 * jw, 1.5475, 0.047], [s * 0.042 * jw, 1.5705, 0.002], 0.0125, 0.0112, 5, { fat: cf * 0.8, k: 0.014 });   // mandible
+    head.cone(s * 0.042 * jw, 1.5705, 0.002, 0.0112, s * 0.0545, 1.624, -0.008, 0.0098, { fat: cf, k: 0.018 });           // ramus
+    head.ellipsoid(s * 0.044 * jw, 1.594, 0.014, 0.0105, 0.026, 0.02, null, { fat: cf, k: 0.022 });                       // masseter
+    head.ellipsoid(s * 0.049, 1.6225, 0.05, 0.0165, 0.0115, 0.022, [0, -s * 0.5, 0], { fat: cf * 0.7, k: 0.024 });        // cheekbone
+    head.cone(s * 0.055, 1.6235, 0.036, 0.0098, s * 0.062, 1.627, 0.0, 0.0075, { fat: cf * 0.5, k: 0.02 });              // zygomatic arch
+    head.ellipsoid(s * 0.032, 1.602, 0.054, 0.0165, 0.022, 0.02, null, { fat: cf * 1.1, k: 0.03 });                      // cheek
+    head.ellipsoid(s * 0.029, 1.6605, 0.0795, 0.028, 0.0095, 0.013 * (0.75 + 0.25 * bz), [0, 0, s * 0.1], { fat: 0, k: 0.018 });   // brow ridge
+    if (old > 0.3 || bf > 1.4) head.ellipsoid(s * 0.034, 1.556, 0.046, 0.013, 0.012, 0.02, null, { flags: F_FAT_ONLY, fat: Math.max(0.0005, cf * (0.5 + 0.6 * old) + 0.0017 * old), k: 0.02 });   // jowl
   }
-  head.sphere(0, 1.659, 0.0785, 0.0115, { fat: 0, k: 0.02 });
+  head.sphere(0, 1.659, 0.0795, 0.0115, { fat: 0, k: 0.02 });
   // eyes: carve the orbit, lay the lids over the globe; the palpebral fissure is cut by head.post (see eyeFis)
   // Palpebral fissure: metres inside the eye opening (> 0) for a root-frame point, in angular coordinates on the lid sphere.
   const AiH = rig.Ainv.head, hs = D.headS;
@@ -313,46 +321,49 @@ function buildBody(rig, spec, feat) {
     const e = AiH.elements, rx = e[0] * x + e[4] * y + e[8] * z + e[12], ly = e[1] * x + e[5] * y + e[9] * z + e[13] - E[1], lz = e[2] * x + e[6] * y + e[10] * z + e[14] - E[2];
     const s = rx > 0 ? 1 : -1, lx = (rx - s * eyeX) * s, r = Math.sqrt(lx * lx + ly * ly + lz * lz);
     if (r > 0.024 || lz < 0.002) return -0.01;
-    const az = Math.atan2(lx, lz), t = az / (az > 0 ? 1.24 : 1.15); if (t <= -1 || t >= 1) return -0.004;
-    const sh = Math.pow(1 - t * t, 0.6), el = Math.asin(clamp(ly / r, -1, 1)) - 0.07 * az;
-    const fu = (0.38 * sh - el) * r, fl = (el + 0.24 * sh) * r; eyeFis.up = fu < fl;
+    const az = Math.atan2(lx, lz), t = az / (az > 0 ? 1.23 : 1.2); if (t <= -1 || t >= 1) return -0.01;
+    const sh = Math.pow(1 - t * t, 0.52), el = Math.asin(clamp(ly / r, -1, 1)) - 0.085 * az;
+    const fu = (0.33 * sh - el) * r, fl = (el + 0.42 * sh) * r; eyeFis.up = fu < fl;
     return Math.min(fu, fl, r - 0.0105, 0.0153 - r);
   };
   head.post = (x, y, z, d) => {
+    if (spec.detail === 'crowd') return d;
     if (d > 0.01 || d < -0.03) return d;
     const f = eyeFis(x, y, z); if (f < -0.0045) return d;
     // upper lid crease just above the opening, then the opening itself
-    if (f < 0) d += eyeFis.up ? 0.0011 * Math.exp(-(((f + 0.003) / 0.0009) ** 2)) : 0.0005 * (1 + old) * Math.exp(-(((f + 0.0042) / 0.0013) ** 2));
+    if (f < 0) d += eyeFis.up ? 0.0006 * Math.exp(-(((f + 0.003) / 0.0011) ** 2)) : 0.00022 * (1 + old) * Math.exp(-(((f + 0.0034) / 0.0012) ** 2));
     return -smin(-d, -f * hs, 0.0008);
   };
   for (const s of [1, -1]) {
-    head.ellipsoid(s * (eyeX + 0.001), E[1] + 0.001, 0.0865, 0.019, 0.0112, 0.014, null, { op: OP_SUB, k: 0.014 });
-    head.sphere(s * eyeX, E[1], E[2], 0.0143, { k: 0.0042, fat: 0 });
-    if (old > 0.25) head.ellipsoid(s * eyeX, E[1] - 0.0135, 0.0775, 0.011, 0.0035, 0.0035, null, { k: 0.006, fat: 0.0006 + 0.0016 * old });   // lower lid bag
+    head.ellipsoid(s * (eyeX + 0.0015), E[1] + 0.0015, 0.0875, 0.0205, 0.013, 0.015, null, { op: OP_SUB, k: 0.014 });   // orbit
+    head.sphere(s * eyeX, E[1], E[2], 0.0143, { k: 0.0045, fat: 0 });                                                     // lids over the globe
+    head.ellipsoid(s * (eyeX + 0.005), E[1] + 0.0118, 0.079, 0.015, 0.003, 0.0045, [0, 0, -s * 0.1], { k: 0.01, fat: 0.0002 + 0.0012 * old });   // fold of the upper lid
+    if (old > 0.25) head.ellipsoid(s * (eyeX - 0.002), E[1] - 0.0152, 0.0765, 0.012, 0.0038, 0.004, null, { k: 0.01, fat: 0.0003 + 0.0012 * old });   // lower lid bag
   }
-  // nose
-  head.cone(0, 1.65, 0.0805, 0.0062 * nw, 0, 1.613, 0.1035, 0.0068 * nw, { fat: 0.0008, k: 0.01 });
-  head.sphere(0, 1.6035, 0.1105, 0.0092 * nw, { fat: 0.0008, k: 0.007 });
-  head.cone(0, 1.5985, 0.108, 0.0046, 0, 1.5935, 0.095, 0.005, { fat: 0.0008, k: 0.005 });
-  for (const s of [1, -1]) head.ellipsoid(s * 0.0108 * nw, 1.5988, 0.0975, 0.0058, 0.0066, 0.009, [0, s * 0.35, 0], { fat: 0.0008, k: 0.005 });
-  // lips on the muzzle
+  // nose: a pyramid from the root, the ball of the tip, the wings and the columella
+  head.cone(0, 1.652, 0.079, 0.0068 * nw, 0, 1.614, 0.1025, 0.0074 * nw, { fat: 0.0008, k: 0.013 });
+  head.sphere(0, 1.6058, 0.1112, 0.0083 * nw, { fat: 0.0008, k: 0.008 });
+  head.cone(0, 1.6005, 0.108, 0.0046, 0, 1.5952, 0.098, 0.005, { fat: 0.0008, k: 0.005 });
+  for (const s of [1, -1]) head.ellipsoid(s * 0.0112 * nw, 1.5998, 0.0985, 0.0058, 0.0066, 0.009, [0, s * 0.35, 0], { fat: 0.0008, k: 0.005 });
+  // the mouth mound and the lips: each lip is thick at the middle and thins round the dental arch to the corner
   const fl = fgrp(fields.lip, 'head');
-  head.ellipsoid(0, 1.582, 0.0785, 0.027, 0.017, 0.0155, null, { fat: cf * 0.5, k: 0.02 });
-  const lipU = [0, 1.5752, 0.0885, 0.0232, 0.0046 * lf, 0.0068], lipL = [0, 1.5666, 0.0878, 0.02, 0.006 * lf, 0.0084];
+  head.ellipsoid(0, 1.58, 0.082, 0.029, 0.017, 0.0165, null, { fat: cf * 0.5, k: 0.024 });
   rig.lipH = [0.0074 * lf, 0.0098 * lf]; rig.nw = nw; rig.mouthY = 1.5709 + 0.0007 * (lf - 1) + 0.0004;
-  head.ellipsoid(...lipU, null, { fat: 0.001, k: 0.004 }); fl.ellipsoid(...lipU, null, { fat: 0.001 });
-  head.ellipsoid(...lipL, null, { fat: 0.001, k: 0.002 }); fl.ellipsoid(...lipL, null, { fat: 0.001 });
-  for (const s of [1, -1]) {
-    head.ellipsoid(s * 0.0066 * nw, 1.5926, 0.0995, 0.0038, 0.0033, 0.0064, [0.6, s * 0.3, 0], { op: OP_SUB, k: 0.0024 });   // nostril
-    head.bezier([s * 0.0165, 1.598, 0.09], [s * 0.0265, 1.585, 0.084], [s * 0.0295, 1.566, 0.0765], 0.0009 + 0.002 * old + 0.0005 * clamp(bf - 1), 0.0008, 5, { op: OP_SUB, k: 0.006 });   // nasolabial fold
+  for (const s of [1, -1]) for (const g of [head, fl]) {
+    g.bezier([0, 1.5756, 0.0958], [s * 0.015, 1.5756, 0.0952], [s * 0.0236, 1.5722, 0.0852], 0.0048 * lf, 0.0016, 5, { fat: 0.001, k: 0.004 });
+    g.bezier([0, 1.5661, 0.0936], [s * 0.014, 1.5661, 0.093], [s * 0.0228, 1.5702, 0.0852], 0.0058 * lf, 0.0018, 5, { fat: 0.001, k: 0.003 });
   }
-  head.cone(0, 1.5915, 0.0975, 0.0022, 0, 1.581, 0.0975, 0.003, { op: OP_SUB, k: 0.0045 });                               // philtrum
-  head.cone(-0.01, 1.558, 0.0915, 0.005, 0.01, 1.558, 0.0915, 0.005, { op: OP_SUB, k: 0.009 });                           // mentolabial sulcus
+  for (const s of [1, -1]) {
+    head.ellipsoid(s * 0.0066 * nw, 1.5916, 0.0985, 0.0036, 0.0034, 0.0062, [0.45, s * 0.3, 0], { op: OP_SUB, k: 0.0024 });   // nostril
+    if (old > 0.12 || bf > 1.25) head.bezier([s * 0.0178, 1.5985, 0.0925], [s * 0.0285, 1.586, 0.088], [s * 0.0312, 1.568, 0.0815], 0.0003 + 0.0012 * old + 0.0004 * clamp(bf - 1), 0.0003, 5, { op: OP_SUB, k: 0.003 + 0.006 * old });   // nasolabial fold
+  }
+  head.cone(0, 1.5925, 0.1, 0.0022, 0, 1.5815, 0.1015, 0.003, { op: OP_SUB, k: 0.0045 });                                 // philtrum
+  head.cone(-0.01, 1.5575, 0.0935, 0.005, 0.01, 1.5575, 0.0935, 0.005, { op: OP_SUB, k: 0.009 });                         // mentolabial sulcus
   const fb = fgrp(fields.brow, 'head');
-  for (const s of [1, -1]) fb.ellipsoid(s * 0.031, 1.6625, 0.087, 0.0245, 0.0043, 0.03, [0, 0, s * 0.14]);
+  for (const s of [1, -1]) { fb.ellipsoid(s * 0.0285, 1.6588, 0.087, 0.0155, 0.0042 * (fem ? 0.7 : 1), 0.03, [0, 0, s * 0.2], { k: 0 }); fb.ellipsoid(s * 0.0445, 1.6602, 0.08, 0.0105, 0.0028 * (fem ? 0.7 : 1), 0.03, [0, 0, -s * 0.28], { k: 0.003 }); }
   // ears
   for (const s of [1, -1]) {
-    const M = new THREE.Matrix4().makeTranslation(0.0775, 1.632, -0.014).multiply(_mB.makeRotationY(-27 * DEG));
+    const M = new THREE.Matrix4().makeTranslation(0.0792, 1.632, -0.014).multiply(_mB.makeRotationY(-27 * DEG));
     if (s < 0) M.premultiply(_mB.makeScale(-1, 1, 1));
     M.premultiply(A.head);
     const ear = m.group({ name: 'ear', tag: BI.head, matrix: M, rScale: D.headS, parent: head, k: 0.005, pk: 0.003, fat: 0.0012 }); ear.part = 'ear'; ear.side = s; ear.bone = 'head';
@@ -399,6 +410,7 @@ function buildBody(rig, spec, feat) {
       const sp = f[5] * DEG, L = [f[3] * 0.45, f[3] * 0.3, f[3] * 0.25], R = [f[4], f[4] * 0.89, f[4] * 0.8, f[4] * 0.66];
       let p = [f[0], f[1], f[2]], ph = 0; const fl = [-22 * curl * (1 + fi * 0.12), -34 * curl * (1 + fi * 0.1), -18 * curl];
       palm.sphere(X(f[0]), f[1] + 0.003, f[2] - 0.0045, 0.0088, { k: 0.008 });                                                // knuckle
+      palm.cone(X(f[0]), f[1] + 0.006, f[2] - 0.0098, 0.003, X(0.19 + (f[0] - 0.19) * 0.3), 0.826, -0.0118, 0.0034, { k: 0.0035, fat: F.hand * (0.35 - 0.3 * old) / Math.max(1, bf) });   // extensor tendon
       for (let j = 0; j < 3; j++) {
         ph += fl[j] * DEG;
         const dir = [Math.sin(sp), -Math.cos(sp) * Math.cos(ph), -Math.cos(sp) * Math.sin(ph)], dor = [0, Math.sin(ph), -Math.cos(ph)], lat = [Math.cos(sp), Math.sin(sp) * Math.cos(ph), Math.sin(sp) * Math.sin(ph)];
@@ -487,6 +499,9 @@ float sF(vec3 p){ return sN(p)*0.5+sN(p*2.03+7.1)*0.3+sN(p*4.1+3.3)*0.2; }
 float sC(vec3 p){ vec3 i=floor(p-0.5), f=p-i; float d=8.0;
   for(int a=0;a<2;a++) for(int b=0;b<2;b++) for(int c=0;c<2;c++){ vec3 o=vec3(float(a),float(b),float(c)); vec3 q=i+o; vec3 h=vec3(sH(q),sH(q+17.3),sH(q+41.7)); vec3 r=o+0.25+0.5*h-f; d=min(d,dot(r,r)); }
   return sqrt(d); }
+vec2 sCi(vec3 p){ vec3 i=floor(p-0.5), f=p-i; float d=8.0, id=0.0;
+  for(int a=0;a<2;a++) for(int b=0;b<2;b++) for(int c=0;c<2;c++){ vec3 o=vec3(float(a),float(b),float(c)); vec3 q=i+o; vec3 h=vec3(sH(q),sH(q+17.3),sH(q+41.7)); vec3 r=o+0.25+0.5*h-f; float dd=dot(r,r); if(dd<d){ d=dd; id=fract(h.x*7.31+h.y*3.17+h.z); } }
+  return vec2(sqrt(d),id); }
 vec3 bumpN(vec3 N, vec3 pv, float h){ vec3 dpx=dFdx(pv), dpy=dFdy(pv); float hx=dFdx(h), hy=dFdy(h);
   vec3 r1=cross(dpy,N), r2=cross(N,dpx); float det=dot(dpx,r1); vec3 g=sign(det)*(hx*r1+hy*r2);
   vec3 n=abs(det)*N-g; float l=length(n); return l>1e-12 ? n/l : N; }
@@ -524,13 +539,16 @@ const VS_PARS = `
 attribute vec4 aDef; attribute vec4 aDef2; attribute vec4 aLid;
 uniform vec4 uBreath, uCpr, uParadox; uniform vec3 uCprDir, uJawPivot, uHeadX; uniform float uLid, uJaw, uJVD, uTrachea, uParadoxAmt;
 varying vec3 vRest; varying vec3 vRestN;
+#ifdef SKIN_DEF
+varying vec3 vM4;
+#endif
 vec3 hRot(vec3 v, vec3 ax, float a){ float c=cos(a), s=sin(a); return v*c+cross(ax,v)*s+ax*dot(ax,v)*(1.0-c); }
 `;
 // Shared body deformation: breathing, CPR compression, flail segment; skin adds lids, jaw, neck veins, trachea, swelling.
 const VS_BEGIN = `
 vec3 transformed = position; vRest = position; vRestN = normal;
 #ifdef SKIN_DEF
-  vM0=aM0; vM1=aM1; vM2=aM2; vM3=aM3;
+  vM0=aM0; vM1=aM1; vM2=aM2; vM3=aM3; vM4 = aLid.w!=0.0 ? vec3(0.0,1.0,1.0) : aLid.xyz;
   if(aLid.w!=0.0){ float la = aLid.w>0.0 ? -0.53*uLid : 0.34*uLid; transformed = aLid.xyz + hRot(position-aLid.xyz, uHeadX, la); }
   if(aDef2.x>0.001){ vec3 jp = uJawPivot + hRot(transformed-uJawPivot, uHeadX, uJaw*0.4); transformed = mix(transformed, jp, aDef2.x); }
   transformed += normal*(uJVD*aDef2.y*0.003) + uHeadX*(uTrachea*aDef2.z*0.007);
@@ -552,19 +570,23 @@ vec3 objectNormal = vec3( normal );
 `;
 
 // Wrap-lit diffuse with a red-shifted terminator and back-lit translucency in thin parts, swapped into three's
-// physical direct-light function. gLightRaw is the light colour before the shadow test (see patchLights).
-function patchLights(sh) {
+// physical direct-light function. gLightRaw is the light colour before the shadow test. extra is more GLSL run per
+// light (hair strand highlights, retroreflective tape). Baked occlusion (gAO) dims the ambient light in creases; in
+// skin the occluded light comes back red because it has scattered through tissue.
+function patchLights(sh, extra = '') {
   const src = THREE.ShaderChunk.lights_physical_pars_fragment, line = 'reflectedLight.directDiffuse += irradiance * BRDF_Lambert( material.diffuseContribution );';
   if (!src.includes(line)) return;
   sh.fragmentShader = sh.fragmentShader.replace('#include <lights_physical_pars_fragment>', src.replace(line, `
     { float rawNL = dot( geometryNormal, directLight.direction );
-      vec3 wrapW = vec3(0.36, 0.13, 0.06) * gSSS;
+      vec3 wrapW = vec3(0.3, 0.15, 0.08) * gSSS;
       vec3 wrapNL = clamp((vec3(rawNL) + wrapW) / (1.0 + wrapW), 0.0, 1.0);
-      vec3 lit = wrapNL * mix(vec3(1.0), vec3(1.0, 0.8, 0.7), gSSS * (1.0 - clamp(rawNL * 3.0, 0.0, 1.0)) * 0.5);
+      vec3 lit = wrapNL * mix(vec3(1.0), vec3(1.0, 0.76, 0.66), gSSS * (1.0 - clamp(rawNL * 2.6, 0.0, 1.0)) * 0.3);
       reflectedLight.directDiffuse += directLight.color * lit * BRDF_Lambert( material.diffuseContribution );
       float back = pow(clamp(dot(geometryViewDir, -directLight.direction), 0.0, 1.0), 3.0) * gThin;
-      reflectedLight.directDiffuse += gLightRaw * back * vec3(0.95, 0.17, 0.07) * 0.4 * BRDF_Lambert( material.diffuseContribution + 0.12 ); }`))
-    .replace('#include <lights_fragment_begin>', THREE.ShaderChunk.lights_fragment_begin.replace(/(get\w+LightInfo\([^;]*\);)/g, '$1 gLightRaw = directLight.color;'));
+      reflectedLight.directDiffuse += (directLight.color + 0.12 * gLightRaw) * back * vec3(0.95, 0.17, 0.07) * 0.4 * BRDF_Lambert( material.diffuseContribution + 0.12 );
+      ${extra} }`))
+    .replace('#include <lights_fragment_begin>', THREE.ShaderChunk.lights_fragment_begin.replace(/(get\w+LightInfo\([^;]*\);)/g, '$1 gLightRaw = directLight.color;'))
+    .replace('#include <aomap_fragment>', '{ float ao_=clamp(gAO,0.0,1.0); reflectedLight.indirectDiffuse*=mix(mix(vec3(0.4),vec3(0.5,0.41,0.37),gSSS),vec3(1.0),ao_); reflectedLight.indirectSpecular*=ao_*ao_; }');
 }
 
 const FS_WOUNDS = `
@@ -621,33 +643,43 @@ const FS_WOUNDS = `
     gWoundRough = min(gWoundRough, mix(1.0, 0.12, clamp(wet,0.0,1.0))); gWoundBump += bump; gSSS *= 1.0-hole;
   }`;
 
+// Skin. Albedo is an even tone: perfusion (cheeks, nose, ears, knuckles), a few sparse age spots or freckles and faint
+// veins are the only colour variation. Pores, fine lines and wrinkles live in the normal and roughness instead.
+// Per-vertex masks: vM0 (lip, nail, underwear, hair), vM1 (redness, thinness, palm, vein), vM2 (beard, brow, cyanosis
+// site, lash), vM3 (areola, wrinkle zone, oil, mouth), vM4 (sun exposure, head 1 / neck 0.5, baked occlusion).
 function skinMaterial(hu) {
-  const mat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.55, metalness: 0, ior: 1.4, sheen: 0.14, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.9, 0.75, 0.68) });
+  const mat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.55, metalness: 0, ior: 1.4, specularIntensity: 0.8, sheen: 0.1, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.9, 0.78, 0.7) });
   mat.defines = { SKIN_DEF: 1 };
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, hu);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec4 aM0; attribute vec4 aM1; attribute vec4 aM2; attribute vec4 aM3; varying vec4 vM0; varying vec4 vM1; varying vec4 vM2; varying vec4 vM3;' + VS_PARS + GL_WOUND_PARS)
       .replace('#include <beginnormal_vertex>', VS_NORMAL).replace('#include <begin_vertex>', VS_BEGIN);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-      varying vec3 vRest; varying vec3 vRestN; varying vec4 vM0; varying vec4 vM1; varying vec4 vM2; varying vec4 vM3;
-      uniform vec3 uSkin, uLip, uPalm, uHairCol, uUnderCol, uHeadX, uHeadY, uHeadPos; uniform vec4 uClin, uClin2; uniform float uTone, uBeard, uScalp, uFreckle, uJaw;
-      float gSSS=1.0, gThin=0.0, gWoundRough=1.0, gWoundBump=0.0, gLipM=0.0, gNailM=0.0, gHairM=0.0, gUnderM=0.0, gNMid=0.5; vec3 gLightRaw=vec3(0.0);
-      ${GL_NOISE}${GL_OPEN}${GL_WOUND_PARS}`)
+      varying vec3 vRest; varying vec3 vRestN; varying vec4 vM0; varying vec4 vM1; varying vec4 vM2; varying vec4 vM3; varying vec3 vM4;
+      uniform vec3 uSkin, uLip, uPalm, uHairCol, uBrowCol, uUnderCol, uHeadX, uHeadY, uHeadPos; uniform vec4 uClin, uClin2; uniform float uTone, uBeard, uScalp, uFreckle, uJaw, uHeadS, uLipMix;
+      float gSSS=1.0, gThin=0.0, gAO=1.0, gWoundRough=1.0, gWoundBump=0.0, gLipM=0.0, gNailM=0.0, gHairM=0.0, gUnderM=0.0, gNMid=0.5, gWetM=0.0; vec3 gLightRaw=vec3(0.0);
+      ${GL_NOISE}${GL_OPEN}${GL_WOUND_PARS}
+      // one groove per unit of v: 1 on the line, 0 between lines
+      float groove(float v, float w){ return 1.0-smoothstep(0.0,w,abs(fract(v)-0.5)); }`)
       .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n if(openField(vRest)>0.0) discard;\n if(vM3.w>0.3&&vM3.w<1.5&&uJaw>0.07) discard;')
       .replace('#include <color_fragment>', `#include <color_fragment>
       { vec3 P=vRest; float fw=length(fwidth(P))+1e-6;
         float dFine=1.0-smoothstep(0.0004,0.0016,fw), dMid=1.0-smoothstep(0.002,0.01,fw);
-        float nLow=sF(P*26.0), nMid=sF(P*170.0+11.0); gNMid=nMid;
+        float nLow=sF(P*8.0+2.0), nMid=sF(P*48.0+11.0), nHi=sN(P*330.0+5.0); gNMid=nMid;
         float lipM=smoothstep(-0.0005,0.0004,vM0.x), nailM=smoothstep(-0.0011,-0.0002,vM0.y);
         float underM=smoothstep(-0.0008,0.0008,vM0.z);
-        float pallor=uClin.x, cyan=uClin.y, flush_=uClin.z;
-        vec3 skin=uSkin*(0.88+0.24*nLow)*(0.95+0.1*nMid); skin=pow(max(skin,vec3(0.0)),vec3(1.12));
-        skin=mix(skin,uPalm*(0.95+0.1*nMid),vM1.z);
+        float pallor=uClin.x, cyan=uClin.y, flush_=uClin.z, old=uClin2.w;
+        float expo=clamp(vM4.x,0.0,1.0), ao=clamp(vM4.z,0.0,1.0); gAO=ao;
+        vec3 hz=cross(uHeadX,uHeadY); vec3 hl=vec3(dot(P-uHeadPos,uHeadX),dot(P-uHeadPos,uHeadY),dot(P-uHeadPos,hz));
+        vec3 skin=uSkin*(1.0+(nLow-0.5)*0.07+(nMid-0.5)*0.05+(nHi-0.5)*0.03*dMid);
+        skin*=mix(vec3(1.03,0.995,0.965),vec3(0.985,1.0,1.02),sN(P*5.0+9.0));
+        skin=pow(max(skin,vec3(0.0)),vec3(1.08)); skin=mix(vec3(dot(skin,vec3(0.3,0.5,0.2))),skin,0.84);
+        skin=mix(skin,uPalm*(0.97+0.06*nMid),vM1.z);
         float bloodVis=mix(1.0,0.4,uTone);
-        float perf=clamp(0.45+0.9*vM1.x+(nLow-0.5)*0.5+0.35*vM1.z,0.0,1.8);
+        float perf=clamp(0.26+0.5*vM1.x+(nLow-0.5)*0.1+(nMid-0.5)*0.08+0.3*vM1.z+0.1*(1.0-ao),0.0,1.8);
         perf=perf*(1.0-0.9*pallor)+flush_*(0.7+0.6*vM1.x);
         float cyanLocal=clamp(max(vM2.z,nailM)*smoothstep(0.0,0.45,cyan)+smoothstep(0.4,1.0,cyan)*0.75,0.0,1.0);
-        vec3 bloodT=mix(vec3(1.0,0.60,0.56),vec3(0.62,0.60,0.86),cyanLocal);
+        vec3 bloodT=mix(vec3(1.0,0.62,0.57),vec3(0.62,0.60,0.86),cyanLocal);
         skin*=mix(vec3(1.0),bloodT,clamp(0.5*perf*bloodVis+0.5*cyanLocal*bloodVis,0.0,0.9));
         float lum=dot(skin,vec3(0.3,0.5,0.2));
         skin=mix(skin,vec3(lum)*vec3(1.03,1.0,0.9)*1.12,0.5*pallor*bloodVis);
@@ -655,33 +687,41 @@ function skinMaterial(hu) {
         skin=mix(skin,skin*vec3(0.66,0.52,0.78),uClin2.x*net*0.7*bloodVis);
         skin=mix(skin,skin*vec3(1.12,1.0,0.42)+vec3(0.05,0.04,0.0),0.6*uClin2.y);
         float vein=smoothstep(-0.0036,-0.0009,vM1.w)*(0.7+0.6*nMid);
-        skin=mix(skin,skin*vec3(0.68,0.86,0.93),0.5*vein*bloodVis);
+        skin=mix(skin,skin*vec3(0.72,0.86,0.93),(0.35+0.35*old)*vein*bloodVis);
         skin=mix(skin,skin*vec3(0.78,0.5,0.46),smoothstep(0.25,0.7,vM3.x)*0.8);
-        float spots=smoothstep(0.62,0.7,sN(P*260.0)*sN(P*70.0+3.0)*2.2);
-        skin=mix(skin,skin*vec3(0.62,0.45,0.32),spots*clamp(uClin2.w*1.2+uFreckle,0.0,1.0)*0.6*dMid);
-        vec3 lip=uLip*(0.9+0.2*nMid);
+        // sparse age spots on sun-exposed skin of the old; freckles over the nose and cheeks of some of the fair
+        { vec2 sp=sCi(P*62.0); float rad=0.05+0.14*fract(sp.y*7.3);
+          float on=step(fract(sp.y*3.7+0.31),0.3*smoothstep(0.2,0.9,old)*expo);
+          float m=on*(1.0-smoothstep(rad*0.55,rad,sp.x+(nHi-0.5)*0.05));
+          skin=mix(skin,skin*vec3(0.74,0.6,0.46),m*0.5*dMid);
+          vec2 fk=sCi(P*300.0); float fr=0.1+0.14*fract(fk.y*5.1);
+          float fm=step(fract(fk.y*9.7+0.5),0.55*clamp(vM1.x*2.2+expo*0.25,0.0,1.0))*(1.0-smoothstep(fr*0.5,fr,fk.x));
+          skin=mix(skin,skin*vec3(0.78,0.62,0.46),fm*uFreckle*0.75*dMid*clamp(vM4.y*2.0-1.0+expo*0.4,0.0,1.0)); }
+        vec3 lip=mix(skin*vec3(1.0,0.76,0.76),uLip,uLipMix)*(0.94+0.12*nMid);
         lip=mix(lip,skin*vec3(1.02,0.95,0.95),0.75*pallor);
         lip=mix(lip,vec3(0.30,0.24,0.42)*(0.6+lum),smoothstep(0.0,0.5,cyan)*0.85);
         skin=mix(skin,lip,lipM);
-        vec3 nailC=mix(skin*vec3(1.08,0.9,0.88)+0.05,vec3(0.36,0.33,0.5)*(0.6+lum),smoothstep(0.0,0.5,cyan)*0.8);
+        vec3 nailC=mix(skin*vec3(1.1,0.92,0.9)+0.05,vec3(0.36,0.33,0.5)*(0.6+lum),smoothstep(0.0,0.5,cyan)*0.8);
         nailC=mix(nailC,vec3(lum)*1.2+0.04,0.5*pallor);
         skin=mix(skin,nailC,nailM);
-        vec3 hz=cross(uHeadX,uHeadY); vec3 hl=vec3(dot(P-uHeadPos,uHeadX),dot(P-uHeadPos,uHeadY),dot(P-uHeadPos,hz));
         if(vM2.w>1.5){ float lt=vM2.w-2.0; float lc=hl.x*3100.0; float lu=fract(lc+(sH(vec3(floor(lc),3.0,7.0))-0.5)*0.7*lt); if(abs(lu-0.5)>mix(0.5,0.44-0.36*lt,dFine)||lt>mix(0.5,0.6+0.4*sH(vec3(floor(lc),9.0,1.0)),dFine)) discard; }
         float st1=sN(vec3(hl.x*330.0,hl.y*3400.0+abs(hl.x)*1500.0,hl.z*420.0));
         float st2=sN(vec3(hl.x*900.0+3.0,hl.y*3000.0-abs(hl.x)*900.0,hl.z*700.0));
         float browE=smoothstep(-0.0016,0.0012,vM2.y+(st1-0.5)*0.003);
-        float brow=browE*mix(0.62,max(smoothstep(0.4,0.62,st1),smoothstep(0.5,0.7,st2)*0.8),dFine);
-        // stubble: short dashes lying down the face, over a faint blue-grey shadow
+        float brow=browE*mix(0.6,max(smoothstep(0.38,0.6,st1),smoothstep(0.48,0.68,st2)*0.8),dFine);
+        // stubble: follicle dots over a faint shadow (the shadow only shows when the hair is darker than the skin)
+        float dark=clamp((lum-dot(uHairCol,vec3(0.3,0.5,0.2)))*4.0,0.0,1.0);
         float dash=smoothstep(0.56,0.7,sN(vec3(hl.x*4400.0,hl.y*1250.0+hl.x*500.0,hl.z*4400.0)));
         float stub=dash;
         float beardM=vM2.x*uBeard;
-        skin=mix(skin,skin*vec3(0.8,0.83,0.88),clamp(beardM*1.6,0.0,1.0)*0.45);
-        float beard=clamp(beardM*3.2,0.0,1.0)*mix(0.28,dash,dFine)*0.72+smoothstep(0.3,0.75,beardM)*(0.5+0.5*sN(vec3(hl.x*2400.0,hl.y*300.0,hl.z*2400.0)))*0.9;
+        skin=mix(skin,skin*vec3(0.8,0.83,0.88),clamp(beardM*1.6,0.0,1.0)*0.42*dark);
+        float beard=clamp(beardM*3.2,0.0,1.0)*mix(0.26,dash,dFine)*mix(0.3,0.72,dark)+smoothstep(0.3,0.75,beardM)*(0.5+0.5*sN(vec3(hl.x*2400.0,hl.y*300.0,hl.z*2400.0)))*0.9;
         float scalp=smoothstep(-0.003,0.004,vM0.w+(nMid-0.5)*0.003)*uScalp; scalp*=mix(1.0,0.7+0.3*stub,dFine);
+        float lashM=smoothstep(0.35,0.9,vM2.w);
         float hairOn=clamp(max(max(brow,beard),scalp),0.0,1.0);
-        hairOn=max(hairOn,smoothstep(0.35,0.9,vM2.w));
-        skin=mix(skin,uHairCol*(0.7+0.6*st1),hairOn*0.92);
+        vec3 hc=mix(uHairCol,uBrowCol,max(browE,lashM))*(0.7+0.6*st1);
+        skin=mix(skin,hc,max(hairOn,lashM)*0.92);
+        hairOn=max(hairOn,lashM);
         skin=mix(skin,vec3(0.05,0.008,0.008),smoothstep(0.75,0.98,vM3.w)*0.6);
         float toothM=step(0.012,vM0.y);
         skin=mix(skin,vec3(0.72,0.68,0.55)*(0.86+0.14*nMid)*(1.0-0.45*smoothstep(0.4,0.5,abs(fract(hl.x*128.0)-0.5))),toothM);
@@ -690,36 +730,68 @@ function skinMaterial(hu) {
         vec3 und=uUnderCol*(0.88+0.24*sN(P*1500.0))*(1.0-0.3*band);
         skin=mix(skin,und,underM);
         gLipM=lipM; gNailM=nailM; gHairM=hairOn; gUnderM=underM; gThin=vM1.y*(1.0-underM); gSSS=(1.0-underM)*(1.0-0.7*hairOn)*(1.0-toothM)*(vM3.w>1.5?0.0:1.0);
+        gWetM=1.0-smoothstep(-0.7,-0.2,vM2.w);
         ${FS_WOUNDS}
         diffuseColor.rgb=skin;
         float ndv=abs(dot(normalize(vNormal),normalize(vViewPosition)));
         diffuseColor.a=mix(1.0,clamp(0.05+0.7*pow(1.0-ndv,2.2),0.0,1.0),uClin2.z);
       }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-      { float r=0.56-0.16*vM3.z+(gNMid-0.5)*0.14;
-        r=mix(r,0.26,gLipM); r=mix(r,0.2,gNailM); r=mix(r,0.7,gHairM*0.7); r=mix(r,0.92,gUnderM);
+      { float r=0.6-0.14*vM3.z+(gNMid-0.5)*0.12+(sN(vRest*800.0)-0.5)*0.07+0.05*uClin2.w+0.06*vM1.z;
+        r=mix(r,0.4,gLipM); r=mix(r,0.22,gNailM); r=mix(r,0.7,gHairM*0.7); r=mix(r,0.92,gUnderM); r=mix(r,0.12,gWetM);
         float bead=(1.0-smoothstep(0.1,0.3,sC(vRest*420.0+3.0)))*smoothstep(0.15,0.8,uClin.w);
         r=mix(r,0.2,clamp(uClin.w*0.5+bead,0.0,1.0)*(1.0-gUnderM)*(1.0-gHairM));
         roughnessFactor=clamp(min(r,gWoundRough),0.06,1.0); }`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-      { vec3 P=vRest; float fw=length(fwidth(P))+1e-6;
-        float dFine=1.0-smoothstep(0.00025,0.0009,fw), dMid=1.0-smoothstep(0.0012,0.005,fw);
-        float h=sC(P*1000.0)*0.00007*dFine*(1.0-gNailM)*(1.0-gUnderM);
-        h+=(sN(P*380.0)-0.5)*0.00016*dMid;
-        vec3 hz=cross(uHeadX,uHeadY); vec3 hl=vec3(dot(P-uHeadPos,uHeadX),dot(P-uHeadPos,uHeadY),dot(P-uHeadPos,hz));
-        h-=abs(sN(vec3(hl.x*45.0,hl.y*650.0,hl.z*45.0))-0.5)*0.0017*min(vM3.y,1.0)*max(uClin2.w,step(1.5,vM3.y))*dMid;
-        h-=abs(sN(P*150.0)-0.5)*0.0003*uClin2.w*dMid;
-        h-=max(vM3.y-1.0,0.0)*abs(sN(P*vec3(1300.0,1300.0,1300.0))-0.5)*0.0009*dMid;
+      { vec3 P=vRest; float fw=length(fwidth(P))+1e-6, old=uClin2.w;
+        float dFine=1.0-smoothstep(0.0001,0.0003,fw), dMid=1.0-smoothstep(0.0009,0.004,fw);
+        float bare=(1.0-gNailM)*(1.0-gUnderM)*(1.0-gLipM);
+        vec3 hz=cross(uHeadX,uHeadY); vec3 hr=vec3(dot(P-uHeadPos,uHeadX),dot(P-uHeadPos,uHeadY),dot(P-uHeadPos,hz))/max(uHeadS,0.3);
+        float headF=smoothstep(0.75,0.95,vM4.y), neckF=1.0-clamp(abs(vM4.y-0.5)*4.0,0.0,1.0);
+        // pores (deeper over the nose and cheeks), the fine criss-cross of the skin surface, old crepe
+        float h=-(1.0-smoothstep(0.12,0.4,sC(P*1500.0)))*0.00005*(0.5+headF*(0.6+1.2*vM3.z))*dFine*bare;
+        h+=(sN(P*2600.0)-0.5)*0.00003*dFine*bare;
+        h-=(groove(dot(P,vec3(410.0,300.0,140.0))+sN(P*90.0)*2.0,0.2)+groove(dot(P,vec3(-240.0,330.0,380.0))+sN(P*90.0+4.0)*2.0,0.2))*0.00002*(1.0+2.2*old)*dFine*bare;
+        h+=(sN(P*340.0)-0.5)*0.00009*dMid*bare;
+        h-=abs(sN(P*170.0)-0.5)*0.00022*old*dMid*bare;
+        if(headF>0.01){
+          float oldF=smoothstep(0.04,0.8,old);
+          // forehead lines: a few arched grooves, broken along their length
+          float fh=smoothstep(0.026,0.034,hr.y)*(1.0-smoothstep(0.052,0.064,hr.y))*smoothstep(0.045,0.065,hr.z)*(1.0-smoothstep(0.03,0.05,abs(hr.x)));
+          float ly=(hr.y-hr.x*hr.x*2.2+(sN(vec3(hr.x*30.0,hr.y*25.0,2.0))-0.5)*0.011)/0.0082;
+          float brk=smoothstep(0.3,0.62,sN(vec3(hr.x*55.0,floor(ly)*5.3,3.0)));
+          h-=groove(ly,0.09)*brk*fh*0.00032*oldF*headF*dMid;
+          // frown lines between the brows
+          float gb=smoothstep(0.008,0.014,hr.y)*(1.0-smoothstep(0.026,0.034,hr.y))*smoothstep(0.06,0.07,hr.z);
+          h-=(1.0-smoothstep(0.0,0.0011,abs(abs(hr.x+(hr.y-0.02)*0.12)-0.0048)))*gb*0.00035*oldF*headF*dMid;
+          // crow's feet fanning from the outer corner of each eye
+          vec2 cd=vec2(abs(hr.x)-0.0425+(0.064-hr.z)*0.9,hr.y+0.001); float cr=length(cd), ca=atan(cd.y,max(cd.x,1e-5));
+          float cm=smoothstep(0.003,0.007,cr)*(1.0-smoothstep(0.014,0.024,cr))*step(0.0,cd.x)*(1.0-smoothstep(0.55,0.95,abs(ca)));
+          h-=groove(ca/0.27+0.5+sN(vec3(cr*300.0,hr.x*50.0,1.0))*0.3,0.17)*cm*0.0002*oldF*headF*dMid;
+          // fine lines under the eye and the lines of the upper lip
+          float ue=smoothstep(0.012,0.02,-hr.y-abs(abs(hr.x)-0.031)*0.3+0.004)*(1.0-smoothstep(0.022,0.03,-hr.y))*(1.0-smoothstep(0.012,0.02,abs(abs(hr.x)-0.031)))*smoothstep(0.05,0.065,hr.z);
+          h-=groove((hr.y+abs(abs(hr.x)-0.031)*0.5)/0.0021,0.22)*ue*0.00012*(0.25+oldF)*headF*dFine;
+          float ul=smoothstep(-0.066,-0.062,hr.y)*(1.0-smoothstep(-0.052,-0.047,hr.y))*(1.0-smoothstep(0.014,0.022,abs(hr.x)))*smoothstep(0.07,0.08,hr.z)*(1.0-gLipM);
+          h-=groove(hr.x/0.0026+sN(vec3(hr.y*200.0,3.0,1.0)),0.2)*ul*0.00018*smoothstep(0.35,0.9,old)*headF*dMid;
+        }
+        // neck rings
+        h-=groove(hr.y/0.019+sN(vec3(hr.x*30.0,hr.z*30.0,5.0))*0.5,0.05)*neckF*smoothstep(-0.17,-0.155,hr.y)*(1.0-smoothstep(-0.118,-0.105,hr.y))*0.00012*(0.25+old)*dMid*bare;
+        // knuckle creases, lip creases, sweat beads, body hair stubble
+        h+=smoothstep(-0.0036,-0.0009,vM1.w)*(0.00012+0.0005*old)*dMid;
+        float kn=clamp(vM3.y-1.0,0.0,1.0);
+        h-=kn*(1.0-smoothstep(0.0,0.22,abs(sN(P*vec3(700.0,1500.0,900.0))-0.5)))*0.00034*dMid;
+        h-=kn*abs(sN(P*1300.0)-0.5)*0.0005*dMid;
         h+=(1.0-smoothstep(0.1,0.3,sC(P*420.0+3.0)))*smoothstep(0.15,0.8,uClin.w)*0.00035*dMid*(1.0-gUnderM);
         h+=gHairM*sN(P*1900.0)*0.0003*dFine;
-        h-=gLipM*abs(sN(vec3(hl.x*1500.0,hl.y*90.0,hl.z*200.0))-0.5)*0.0007*dMid;
+        h-=gLipM*(abs(sN(vec3(hr.x*1500.0,hr.y*90.0,hr.z*200.0))-0.5)*0.00012+groove(hr.x/0.0017+sN(vec3(hr.y*300.0,1.0,2.0))*0.6,0.16)*0.00005)*dMid;
+        h+=gNailM*(sN(vec3(dot(P,uHeadX)*2400.0,3.0,7.0))-0.5)*0.00003*dFine;
         h+=gUnderM*(sin(dot(P,vec3(5200.0,5200.0,0.0)))*sin(dot(P,vec3(-5200.0,5200.0,5200.0))))*0.00005*dFine;
         h+=gWoundBump;
         normal=bumpN(normal,-vViewPosition,h); }`)
       .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n gl_FragColor.rgb=mix(gl_FragColor.rgb,vec3(0.5,0.7,0.95)*(0.25+gl_FragColor.rgb),uClin2.z*0.75);');
     patchLights(sh);
   };
-  mat.customProgramCacheKey = () => 'swm-skin';
+  mat.customProgramCacheKey = () => 'swm-skin2';
   return mat;
 }
 
@@ -748,47 +820,114 @@ function eyeMaterial(hu, irisCol) {
   return mat;
 }
 
-function hairMaterial(hu, col, curly) {
-  const mat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.6, sheen: 0.35, sheenRoughness: 0.5, sheenColor: new THREE.Color(col).multiplyScalar(1.5).addScalar(0.05) });
+// Hair is drawn as shells: the base surface (o.shell = 0) plus a few copies pushed out along the normal, each showing
+// fewer strands than the one below, so the edge of the hair is made of separate hairs and the roots look deep.
+// Strands are noise stretched along the flow direction (aHair.xyz); aHair.w is the cover (0 at the hairline).
+// Highlights are two Kajiya-Kay lobes along the strand. Brows and beards are the same material on patches of the face.
+// o: { shell 0..1, len metres, comb (how far the tips lean along the flow), dens (strands per metre), kind 0 scalp / 1 face }
+function hairMaterial(hu, col, curly, o = {}) {
+  const c = new THREE.Color(col), shell = o.shell || 0;
+  const mat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.8, specularIntensity: 0.35, side: shell ? THREE.DoubleSide : THREE.FrontSide, alphaToCoverage: true });
   mat.onBeforeCompile = sh => {
-    sh.uniforms.uHairCol = { value: new THREE.Color(col) }; sh.uniforms.uCurl = { value: curly ? 1 : 0 }; sh.uniforms.uClin2 = hu.uClin2; sh.uniforms.uWet = U.uWet;
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec4 aHair; varying vec4 vHair; varying vec3 vRest;').replace('#include <begin_vertex>', '#include <begin_vertex>\n vHair=aHair; vRest=position;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>\nvarying vec4 vHair; varying vec3 vRest; uniform vec3 uHairCol; uniform float uCurl, uWet; uniform vec4 uClin2; float gS1=0.5, gFade=1.0; vec3 gFlow=vec3(0.0,1.0,0.0);${GL_NOISE}`)
+    Object.assign(sh.uniforms, { uHairCol: { value: c }, uCurl: { value: curly ? 1 : 0 }, uShell: { value: shell }, uLen: { value: o.len ?? 0.006 }, uComb: { value: o.comb ?? 0.5 }, uDens: { value: o.dens ?? 2400 }, uFace: { value: o.kind ? 1 : 0 },
+      uClin2: hu.uClin2, uWet: U.uWet, uJaw: hu.uJaw, uJawPivot: hu.uJawPivot, uHeadX: hu.uHeadX });
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', `#include <common>
+      attribute vec4 aHair; attribute float aJaw; varying vec4 vHair; varying vec3 vRest; varying vec3 vFlowV; uniform float uShell, uLen, uComb, uJaw; uniform vec3 uJawPivot, uHeadX;
+      vec3 hRot(vec3 v, vec3 ax, float a){ float c=cos(a), s=sin(a); return v*c+cross(ax,v)*s+ax*dot(ax,v)*(1.0-c); }`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+      vHair=aHair; vRest=position;
+      { vec3 fl_=aHair.xyz;
+      #ifdef USE_INSTANCING
+        fl_=mat3(instanceMatrix)*fl_;
+      #endif
+        vFlowV=mat3(modelViewMatrix)*fl_; }
+      if(aJaw>0.001){ vec3 jp=uJawPivot+hRot(transformed-uJawPivot,uHeadX,uJaw*0.4); transformed=mix(transformed,jp,aJaw); }
+      { float hl_=uLen*clamp(aHair.w,0.0,1.0); transformed+=normal*(uShell*hl_)+aHair.xyz*(uShell*uShell*hl_*uComb); }`);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+      varying vec4 vHair; varying vec3 vRest; varying vec3 vFlowV; uniform vec3 uHairCol; uniform float uCurl, uWet, uShell, uDens, uFace; uniform vec4 uClin2;
+      float gS1=0.5, gS2=0.5, gFade=1.0, gSSS=0.35, gThin=0.0, gAO=1.0, gHairJ=0.0; vec3 gFlow=vec3(0.0,1.0,0.0), gHairT=vec3(0.0,1.0,0.0), gHairC=vec3(0.1), gLightRaw=vec3(0.0);${GL_NOISE}`)
       .replace('#include <color_fragment>', `#include <color_fragment>
       { vec3 fl=vHair.xyz; float l=length(fl); fl = l>1e-4 ? fl/l : vec3(0.0,1.0,0.0); gFlow=fl;
-        vec3 q=mix(vRest-fl*dot(vRest,fl)*0.965, vRest+0.004*vec3(sN(vRest*70.0),sN(vRest*70.0+5.0),sN(vRest*70.0+9.0)), uCurl*0.85);
-        float hfw=length(fwidth(vRest))+1e-6, hfade=1.0-smoothstep(0.00025,0.0011,hfw); gFade=hfade;
-        float s1=mix(0.5,sN(q*2300.0),hfade), s2=mix(0.5,sN(q*600.0+3.0),1.0-smoothstep(0.001,0.004,hfw)), s3=sN(q*120.0);
-        gS1=s1;
-        if(vHair.w*1.5 + (s2-0.5)*0.5 + (s1-0.5)*0.22 < 0.32) discard;
-        vec3 c=uHairCol*(0.35+0.9*s1)*(0.7+0.6*s2)*(0.8+0.4*s3);
-        c=mix(c,vec3(0.62,0.62,0.6)*(0.6+0.6*s1),step(1.0-uClin2.w*0.55,s2*0.6+sN(q*900.0+17.0)*0.4+0.2)*0.85);
+        vec3 q=mix(vRest-fl*dot(vRest,fl)*0.97, vRest+0.004*vec3(sN(vRest*70.0),sN(vRest*70.0+5.0),sN(vRest*70.0+9.0)), uCurl*0.85);
+        float hfw=length(fwidth(vRest))+1e-6, hfade=1.0-smoothstep(0.00012,0.0005,hfw); gFade=hfade;
+        float s1=mix(0.5,sN(q*uDens),hfade), s2=mix(0.5,sN(q*uDens*0.26+3.0),1.0-smoothstep(0.001,0.004,hfw)), s3=sN(q*120.0);
+        gS1=s1; gS2=s3; gHairJ=(s2-0.5)*0.12;
+        float cover=clamp(vHair.w+(sN(vRest*85.0)-0.5)*0.45*step(vHair.w,0.99),0.0,1.4);
+        float a;
+        if(uShell<0.001) a=smoothstep(0.26,0.38,cover*1.5+(s2-0.5)*0.5+(s1-0.5)*0.22);
+        else { float thr=mix(0.22,0.74,uShell)+(1.0-min(cover,1.0))*0.4+uFace*0.2; a=smoothstep(thr-0.07,thr+0.07,s1*0.72+s2*0.28)*step(0.02,cover); }
+        if(a<0.3) discard;
+        float root=mix(0.5,1.0,uShell);
+        vec3 c=uHairCol*(0.5+0.75*s1)*(0.72+0.56*s2)*(0.85+0.3*s3)*root;
+        float grey=step(1.0-uClin2.w*0.55,s2*0.6+sN(q*900.0+17.0)*0.4+0.2)*(1.0-uFace*0.6);
+        c=mix(c,vec3(0.62,0.62,0.6)*(0.55+0.6*s1)*root,grey*0.85);
         c*=mix(1.0,0.6,uWet*0.6);
-        diffuseColor.rgb=c; diffuseColor.a=1.0; }`)
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor=mix(0.55+0.2*gS1,0.32,uWet*0.6);')
+        gHairC=mix(vec3(dot(c,vec3(0.3,0.5,0.2))),c,0.55)*2.0+0.025; gAO=mix(0.5,1.0,uShell);
+        diffuseColor.rgb=c; diffuseColor.a=a; }`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor=mix(0.78,0.4,uWet*0.6);')
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-      { vec3 fv=normalize((viewMatrix*vec4(gFlow,0.0)).xyz+vec3(1e-5)); vec3 sd=cross(normal,fv); float sl=length(sd); sd = sl>1e-4 ? sd/sl : vec3(1.0,0.0,0.0);
-        vec3 q=vRest-gFlow*dot(vRest,gFlow)*0.965;
-        normal=normalize(normal+(sd*(sN(q*2300.0+31.0)-0.5)*0.7+fv*(sN(q*500.0+11.0)-0.5)*0.3)*gFade); }`);
+      { vec3 fv=vFlowV; float fvl=length(fv); fv = fvl>1e-4 ? fv/fvl : vec3(0.0,1.0,0.0); gHairT=fv;
+        vec3 sd=cross(normal,fv); float sl=length(sd); sd = sl>1e-4 ? sd/sl : vec3(1.0,0.0,0.0);
+        vec3 nn=normal+sd*(gS1-0.5)*0.3*gFade; float nl=length(nn); normal = nl>1e-4 ? nn/nl : normal; }`);
+    patchLights(sh, `{ vec3 Hh=directLight.direction+geometryViewDir; float hhl=length(Hh); Hh = hhl>1e-4 ? Hh/hhl : geometryNormal;
+        vec3 t1=normalize(gHairT+geometryNormal*(0.1+gHairJ)), t2=normalize(gHairT+geometryNormal*(-0.18+gHairJ));
+        float d1=dot(t1,Hh), d2=dot(t2,Hh);
+        float k1=pow(max(1.0-d1*d1,0.0),50.0), k2=pow(max(1.0-d2*d2,0.0),10.0);
+        float vis=clamp(rawNL*0.65+0.35,0.0,1.0)*mix(0.45,1.0,uShell);
+        reflectedLight.directSpecular+=directLight.color*vis*(vec3(k1)*0.05*(0.3+1.4*gS2)+gHairC*k2*0.2)*mix(1.0,1.6,uWet); }`);
   };
-  mat.customProgramCacheKey = () => 'swm-hair';
+  mat.customProgramCacheKey = () => 'swm-hair2' + (shell ? 's' : 'b');
   return mat;
 }
 
+// Embroidered and printed insignia for uniforms, drawn once per service into a shared atlas (rgb colour, a cover).
+// Layout in a 512 x 512 canvas: back lettering (0..512, 0..176), shoulder patch (0..160, 192..384), chest badge
+// (176..336, 192..352), name tape (176..512, 368..432).
+const _insignia = {};
+function insigniaTex(police) {
+  const key = police ? 'p' : 'e'; if (_insignia[key]) return _insignia[key];
+  const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d'), F = 'Arial, Helvetica, sans-serif', thread = '#d8d2bc';
+  g.clearRect(0, 0, 512, 512); g.textAlign = 'center'; g.textBaseline = 'middle';
+  const star = (x, y, r, col) => { g.save(); g.translate(x, y); g.fillStyle = col; for (let i = 0; i < 3; i++) { g.rotate(Math.PI / 3); g.fillRect(-r * 0.27, -r, r * 0.54, r * 2); } g.restore(); };
+  const shield = (x, y, s, col) => { g.save(); g.translate(x, y); g.scale(s, s); g.beginPath(); g.moveTo(-66, -84); g.lineTo(66, -84); g.lineTo(66, 10); g.quadraticCurveTo(60, 70, 0, 92); g.quadraticCurveTo(-60, 70, -66, 10); g.closePath(); g.fillStyle = col; g.fill(); g.restore(); };
+  g.fillStyle = '#c9ccd0';
+  if (police) { g.font = '900 96px ' + F; g.fillText('POLICE', 256, 70); g.font = '700 34px ' + F; g.fillText('HALLORAN FALLS', 256, 146); }
+  else { g.font = '900 104px ' + F; g.fillText('EMS', 256, 62); g.font = '700 40px ' + F; g.fillText('KETTER COUNTY', 256, 144); }
+  shield(80, 288, 1, police ? '#b89a4a' : thread); shield(80, 288, 0.9, police ? '#141c30' : '#16233f');
+  g.fillStyle = police ? '#c9ae62' : thread; g.font = '700 17px ' + F; g.fillText(police ? 'HALLORAN' : 'KETTER CO.', 80, 228); g.font = '900 20px ' + F; g.fillText(police ? 'POLICE' : 'E M S', 80, 346);
+  if (police) { g.beginPath(); for (let i = 0; i < 14; i++) { const a = i * Math.PI / 7, r = i % 2 ? 15 : 36; g.lineTo(80 + Math.sin(a) * r, 288 - Math.cos(a) * r); } g.closePath(); g.fill(); }
+  else { star(80, 290, 38, thread); star(80, 290, 33, '#2a5fb0'); }
+  if (police) { shield(256, 268, 0.82, '#8a7434'); shield(256, 268, 0.72, '#c9ae62'); g.fillStyle = '#6e5c28'; g.beginPath(); g.arc(256, 262, 26, 0, 7); g.fill(); g.fillStyle = '#c9ae62'; g.beginPath(); g.arc(256, 262, 19, 0, 7); g.fill(); }
+  else { g.beginPath(); g.arc(256, 272, 76, 0, 7); g.fillStyle = thread; g.fill(); g.beginPath(); g.arc(256, 272, 69, 0, 7); g.fillStyle = '#1b2a4a'; g.fill(); star(256, 272, 52, thread); star(256, 272, 46, '#2a5fb0'); }
+  g.fillStyle = '#10151f'; g.fillRect(176, 368, 336, 64); g.strokeStyle = '#8f8a78'; g.lineWidth = 3; g.strokeRect(180, 372, 328, 56);
+  g.fillStyle = thread; g.font = '700 34px ' + F; g.fillText(police ? 'H.F.P.D.' : 'KETTER CO. EMS', 344, 402);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.generateMipmaps = true; t.needsUpdate = true;
+  return (_insignia[key] = t);
+}
+
 // Clothing and shoes. fabric: 0 jersey, 1 plain weave, 2 denim, 3 fleece, 4 printed gown cotton, 5 satin, 6 ripstop,
-// 7 nylon shell, 8 shoe.
+// 7 nylon shell, 8 shoe. Per-vertex: vC0 scissor-cut fields, vC1 (edge distance, seam, placket x, reference y),
+// vC2 (reference x, tape distance, baked occlusion, part * 10 + reference z; part 0 trunk, 1 arm, 2 leg),
+// vC3 (collar depth, fold weight, -, -). o.insignia: 0 none, 1 EMS (with reflective tape), 2 police.
 function clothMaterial(hu, o) {
   const mat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.85, sheen: o.fabric === 3 ? 0.9 : 0.4, sheenRoughness: 0.7, sheenColor: new THREE.Color(o.color).multiplyScalar(0.6).addScalar(0.08), side: THREE.DoubleSide });
-  const own = { uCol: { value: new THREE.Color(o.color) }, uCol2: { value: new THREE.Color(o.color2 ?? 0xdddddd) }, uFabric: { value: o.fabric }, uPlacket: { value: o.placket || 0 }, uPiping: { value: o.piping ? 1 : 0 }, uExMask: { value: o.exMask || new THREE.Vector4(1, 1, 1, 1) } };
+  const own = { uCol: { value: new THREE.Color(o.color) }, uCol2: { value: new THREE.Color(o.color2 ?? 0xdddddd) }, uFabric: { value: o.fabric }, uPlacket: { value: o.placket || 0 }, uPiping: { value: o.piping ? 1 : 0 }, uExMask: { value: o.exMask || new THREE.Vector4(1, 1, 1, 1) },
+    uKind: { value: new THREE.Vector4(o.top ? 1 : 0, o.collar ? 1 : 0, o.belt ? 1 : 0, o.pockets ?? 0) } };
+  if (o.insignia) { mat.defines = { INSIGNIA: 1 }; own.uInsignia = { value: insigniaTex(o.insignia === 2) }; }
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, hu, own); sh.uniforms.uWet = U.uWet; sh.uniforms.uNight = U.uNight;
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec4 aC0; attribute vec4 aC1; attribute vec4 aC2; varying vec4 vC0; varying vec4 vC1; varying vec4 vC2;' + VS_PARS)
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec4 aC0; attribute vec4 aC1; attribute vec4 aC2; attribute vec4 aC3; varying vec4 vC0; varying vec4 vC1; varying vec4 vC2; varying vec4 vC3;' + VS_PARS)
       .replace('#include <beginnormal_vertex>', VS_NORMAL).replace('#include <begin_vertex>', VS_BEGIN);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-      varying vec3 vRest; varying vec3 vRestN; varying vec4 vC0; varying vec4 vC1; varying vec4 vC2;
-      uniform vec3 uCol, uCol2; uniform vec4 uExpose, uExMask, uClin2; uniform float uFabric, uPlacket, uPiping, uWet, uNight;
-      float gRough=0.85, gH=0.0, gPipe=0.0, gMetal=0.0; vec3 gLightRaw=vec3(0.0); float gSSS=0.0, gThin=0.0;
-      ${GL_NOISE}${GL_WOUND_PARS}`)
+      varying vec3 vRest; varying vec3 vRestN; varying vec4 vC0; varying vec4 vC1; varying vec4 vC2; varying vec4 vC3;
+      uniform vec3 uCol, uCol2; uniform vec4 uExpose, uExMask, uClin2, uKind; uniform float uFabric, uPlacket, uPiping, uWet, uNight;
+      #ifdef INSIGNIA
+      uniform sampler2D uInsignia;
+      #endif
+      float gRough=0.85, gH=0.0, gPipe=0.0, gMetal=0.0, gAO=1.0; vec3 gLightRaw=vec3(0.0); float gSSS=0.0, gThin=0.0;
+      ${GL_NOISE}${GL_WOUND_PARS}
+      float box2(vec2 p, vec2 c, vec2 h){ vec2 d=abs(p-c)-h; return max(d.x,d.y); }
+      float lineM(float d, float w){ return 1.0-smoothstep(w*0.5,w,abs(d)); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
       { vec3 P=vRest; vec3 an=abs(normalize(vRestN)); vec2 uv = (an.y>an.x&&an.y>an.z) ? P.xz : (an.x>an.z ? P.zy : P.xy);
         float fw=length(fwidth(P))+1e-6;
@@ -799,46 +938,95 @@ function clothMaterial(hu, o) {
         if(ex.z>0.002) cut=max(cut,vC0.z-(1.0-ex.z)*0.2); if(ex.w>0.002) cut=max(cut,vC0.w-(1.0-ex.w)*0.2);
         if(cut+cutN>0.0) discard;
         float fray=smoothstep(-0.006,0.0,cut+cutN);
-        float fadeA=1.0-smoothstep(0.00025,0.0008,fw);
+        float fadeA=1.0-smoothstep(0.00025,0.0008,fw), fadeM=1.0-smoothstep(0.002,0.008,fw), fadeS=1.0-smoothstep(0.0006,0.0014,fw);
+        float part=floor((vC2.w+5.0)/10.0), rz=vC2.w-part*10.0, rx=vC2.x, ry=vC1.w; gAO=vC2.z;
+        float okR=1.0-smoothstep(0.3,0.45,abs(rz)); rz=clamp(rz,-0.3,0.3);
+        float trunk=(1.0-step(0.5,part))*okR, front=smoothstep(0.0,0.02,rz);
         vec3 col=uCol; float h=0.0, rough=0.86, fab=uFabric;
         if(fab<0.5){ h=abs(fract(uv.x*1500.0)-0.5)*0.00014; col*=0.92+0.16*sN(P*600.0); }
         else if(fab<1.5){ h=sin(uv.x*10050.0)*sin(uv.y*10050.0)*0.00006; col*=0.94+0.12*sN(P*500.0); rough=0.8; }
         else if(fab<2.5){ float tw=sin((uv.x+uv.y)*5650.0); h=tw*0.0001; float weft=smoothstep(0.1,0.9,tw*0.5+0.5)*sN(P*1500.0);
           col=mix(col,col*1.9+0.07,weft*0.5*fadeA+0.17*(1.0-fadeA)); col*=0.8+0.4*sF(P*13.0); rough=0.9; }
         else if(fab<3.5){ h=(sN(P*900.0)-0.5)*0.0003; col*=0.88+0.24*sN(P*300.0); rough=0.97; }
-        else if(fab<4.5){ h=sin(uv.x*8800.0)*sin(uv.y*8800.0)*0.00005; vec2 g=fract(uv*34.0)-0.5; col=mix(col,uCol2,smoothstep(0.17,0.13,length(g))*0.8); }
+        else if(fab<4.5){ h=sin(uv.x*8800.0)*sin(uv.y*8800.0)*0.00005; vec2 g=fract(uv*34.0)-0.5; col=mix(col,uCol2,(1.0-smoothstep(0.13,0.17,length(g)))*0.8); }
         else if(fab<5.5){ h=(sN(P*vec3(300.0,1500.0,300.0))-0.5)*0.00005; rough=0.46; }
         else if(fab<6.5){ vec2 g=abs(fract(uv*170.0)-0.5); float rip=smoothstep(0.43,0.48,max(g.x,g.y)); h=rip*0.00012+sin(uv.x*11300.0)*sin(uv.y*11300.0)*0.00004; col*=0.9+0.12*rip; rough=0.78; }
         else if(fab<7.5){ h=(sN(P*800.0)-0.5)*0.00005; rough=0.5; col*=0.93+0.14*sN(P*38.0); }
-        else { // shoe: vC1.x sole, vC1.y laces, vC1.z toe cap / trim
+        else { // shoe: vC1.x sole, vC1.y laces, vC1.z toe cap / trim, vC2.x along the foot, vC2.y across it
           float sole=smoothstep(-0.001,0.001,vC1.x); float lace=smoothstep(0.0,0.002,vC1.y);
-          h=(sN(P*700.0)-0.5)*0.00008; col*=0.9+0.2*sN(P*90.0); rough=0.7;
-          float lc=fract(vC2.x*62.0); float lx=smoothstep(0.32,0.28,abs(lc-0.5))*lace; col=mix(col,uCol2*0.9,lx); h+=lx*0.0012;
-          col=mix(col,col*0.6,smoothstep(0.3,0.7,vC1.z)*0.5);
-          vec3 sc=uCol2*(0.75+0.25*sN(P*300.0)); float tread=step(0.5,fract(vC2.x*45.0)); col=mix(col,sc*(0.8+0.2*tread),sole); rough=mix(rough,0.6,sole); h+=sole*tread*0.0006;
+          h=(sN(P*700.0)-0.5)*0.00008; col*=0.9+0.2*sN(P*90.0); rough=0.66;
+          float lv=vC2.x*84.0, lc=fract(lv), sg=mod(floor(lv),2.0)*2.0-1.0;
+          float zig=abs(fract(lv+vC2.y*44.0*sg)-0.5);
+          float lx=(1.0-smoothstep(0.07,0.14,zig))*lace; col=mix(col,col*0.55,lace*0.5); col=mix(col,uCol2*0.92,lx); h+=lx*0.0014;
+          col=mix(col,col*0.62,smoothstep(0.3,0.7,vC1.z)*0.5); float cap=lineM(vC1.z-0.5,0.1); h-=cap*0.0004; col*=1.0-0.3*cap;
+          float mid=smoothstep(-0.009,-0.007,vC1.x)*(1.0-sole);
+          vec3 sc=uCol2*(0.75+0.25*sN(P*300.0)); float tread=step(0.5,fract(vC2.x*45.0)); col=mix(col,sc*(0.8+0.2*tread),sole); col=mix(col,uCol2*0.8,mid); rough=mix(rough,0.6,max(sole,mid)); h+=sole*tread*0.0006-lineM(vC1.x+0.008,0.0012)*0.0005;
         }
         h*=fadeA;
         if(fab<7.5){
+          // creases: a broad crumple everywhere, tighter folds where vC3.y says the cloth bunches (elbows, armpits, waist, knees)
+          vec3 R=vec3(rx,ry,rz); vec3 fq=part<0.5?R*vec3(40.0,11.0,40.0):R*vec3(14.0,50.0,14.0);
+          float cr=abs(sN(fq+sN(R*8.0)*2.4)-0.5), cr2=abs(sN(fq*2.7+sN(R*21.0)*1.5+3.0)-0.5);
+          float fold=clamp(vC3.y,0.0,1.0), stiff=(fab>2.5&&fab<3.5?1.4:1.0)*(fab>1.5&&fab<2.5?0.6:1.0);
+          h+=(-cr*0.011*(0.3+0.9*fold)-cr2*0.0036*(0.3+fold))*fadeM*stiff*okR;
+          col*=1.0-0.1*(1.0-smoothstep(0.0,0.1,cr))*fold;
           // hems and stitching
           float hem=vC1.x; float dash=step(0.35,fract(dot(P,vec3(1.0,1.0,1.0))*240.0));
-          float st=(smoothstep(0.0011,0.0004,abs(hem-0.008))+smoothstep(0.0011,0.0004,abs(hem-0.012))*step(1.5,fab))*dash*(1.0-smoothstep(0.0006,0.0014,fw));
-          col=mix(col,col*1.5+0.06,st*0.55); h+=st*0.00025; h+=smoothstep(0.016,0.013,hem)*0.0005;
-          float seam=smoothstep(0.0016,0.0005,abs(vC1.y)); col*=1.0-0.22*seam; h-=seam*0.0005;
+          float st=((1.0-smoothstep(0.0004,0.0011,abs(hem-0.008)))+(1.0-smoothstep(0.0004,0.0011,abs(hem-0.012)))*step(1.5,fab))*dash*fadeS;
+          col=mix(col,col*1.5+0.06,st*0.55); h+=st*0.00025; h+=(1.0-smoothstep(0.013,0.016,hem))*0.0005;
+          float seam=1.0-smoothstep(0.0005,0.0016,abs(vC1.y)); col*=1.0-0.22*seam; h-=seam*0.0005;
           if(uPlacket>0.5){ float px=vC1.z;
-            if(uPlacket<1.5){ float band=smoothstep(0.0165,0.015,px); h+=band*0.0005; col*=1.0-0.12*smoothstep(0.0025,0.0005,abs(px-0.0155));
-              float by=(fract((vC1.w-0.945)/0.085)-0.5)*0.085; float bd=length(vec2(px,by)); float btn=smoothstep(0.0062,0.0052,bd)*step(vC1.w,1.44);
-              col=mix(col,uCol2*(1.0-0.5*smoothstep(0.0022,0.0012,abs(bd-0.0025))),btn); h+=btn*0.0014; rough=mix(rough,0.35,btn); }
-            else { float zt=smoothstep(0.0042,0.0034,px); float teeth=step(0.5,fract(vC1.w*420.0)); col=mix(col,vec3(0.55,0.55,0.56)*(0.6+0.4*teeth),zt); h+=zt*teeth*0.0006; gMetal=zt; rough=mix(rough,0.35,zt);
-              col*=1.0-0.2*smoothstep(0.003,0.0005,abs(px-0.012)); }
+            if(uPlacket<1.5){ float band=1.0-smoothstep(0.015,0.0165,px); h+=band*0.0005; col*=1.0-0.12*(1.0-smoothstep(0.0005,0.0025,abs(px-0.0155)));
+              float by=(fract((vC1.w-0.945)/0.085)-0.5)*0.085; float bd=length(vec2(px,by)); float btn=(1.0-smoothstep(0.0052,0.0062,bd))*step(vC1.w,1.44);
+              col=mix(col,uCol2*(1.0-0.5*(1.0-smoothstep(0.0012,0.0022,abs(bd-0.0025)))),btn); h+=btn*0.0014; rough=mix(rough,0.35,btn); }
+            else { float zt=1.0-smoothstep(0.0034,0.0042,px); float teeth=step(0.5,fract(vC1.w*420.0)); col=mix(col,vec3(0.55,0.55,0.56)*(0.6+0.4*teeth),zt); h+=zt*teeth*0.0006; gMetal=zt; rough=mix(rough,0.35,zt);
+              col*=1.0-0.2*(1.0-smoothstep(0.0005,0.003,abs(px-0.012))); }
           }
-          if(uPiping>0.5){ float pd=abs(vC2.y); float silver=smoothstep(0.013,0.011,pd), hv=smoothstep(0.026,0.024,pd)*(1.0-silver);
-            col=mix(col,vec3(0.86,0.9,0.12),hv); col=mix(col,vec3(0.72,0.74,0.76)*(0.85+0.15*sin(uv.x*3000.0)*sin(uv.y*3000.0)),silver); gPipe=silver; rough=mix(rough,0.4,silver); }
+          if(uKind.x>0.5){
+            // collar: the leaf folds down from the top edge and ends in two points at the front; a yoke seam across the back
+            if(uKind.y>0.5){ float leaf=0.03+0.02*smoothstep(0.02,0.06,rz)*(1.0-smoothstep(0.02,0.075,abs(rx))); float cd=vC3.x;
+              float edge=lineM(cd-leaf,0.0016)*step(cd,0.08); col*=1.0-0.38*edge; h+=(1.0-smoothstep(leaf-0.001,leaf+0.0012,cd))*0.0016-edge*0.0006;
+              col=mix(col,col*1.5+0.05,lineM(cd-leaf+0.004,0.0007)*dash*0.5*fadeS);
+              float yoke=trunk*lineM(ry-1.43,0.0014)*(1.0-front)*step(abs(rx),0.19); col*=1.0-0.2*yoke; h-=yoke*0.0004; }
+            // chest pockets (1 = one on the wearer's left, 2 = a flapped pair)
+            if(uKind.w>0.5){ float sx=uKind.w>1.5?abs(rx):rx; vec2 pp=vec2(sx,ry); float on=front*trunk; float pk=box2(pp,vec2(0.082,1.305),vec2(0.044,0.05));
+              float ol=lineM(pk,0.0014)*step(pk,0.002)*on; col*=1.0-0.3*ol; h+=(1.0-smoothstep(-0.001,0.001,pk))*on*0.0009-ol*0.0005;
+              col=mix(col,col*1.5+0.05,lineM(pk+0.004,0.0007)*dash*0.5*on*fadeS);
+              if(uKind.w>1.5){ float fl=box2(pp,vec2(0.082,1.346),vec2(0.046,0.015)); float fo=lineM(fl,0.0014)*step(fl,0.002)*on; col*=1.0-0.32*fo; h+=(1.0-smoothstep(-0.001,0.001,fl))*on*0.0012;
+                float bb=length(pp-vec2(0.082,1.338)); float btn=(1.0-smoothstep(0.0048,0.0058,bb))*on; col=mix(col,uCol2*0.9+0.03,btn); h+=btn*0.0012; rough=mix(rough,0.35,btn); } }
+          } else if(uKind.z>0.5){
+            // belt and buckle, loops, fly, slanted front pockets, back pockets
+            float wd=0.998-ry; float top=trunk*step(0.9,ry);
+            float belt=top*(1.0-smoothstep(0.034,0.036,wd))*smoothstep(0.004,0.006,wd);
+            float loop=top*(1.0-smoothstep(0.006,0.008,abs(abs(abs(rx)-0.085)-0.045)))*(1.0-smoothstep(0.04,0.042,wd));
+            col=mix(col,vec3(0.02,0.018,0.016)*(0.8+0.4*sN(P*400.0)),belt*(1.0-loop)); rough=mix(rough,0.5,belt*(1.0-loop)); h+=belt*0.0014+loop*0.0022;
+            float bk=box2(vec2(rx,wd),vec2(0.0,0.02),vec2(0.021,0.016)); float bkl=lineM(bk,0.0035)*step(bk,0.004)*front*top;
+            col=mix(col,vec3(0.62,0.62,0.6),bkl); gMetal=max(gMetal,bkl); rough=mix(rough,0.28,bkl); h+=bkl*0.002;
+            float fly=trunk*front*lineM(rx-0.012,0.0012)*step(0.036,wd)*step(wd,0.15); col*=1.0-0.25*fly; h-=fly*0.0005;
+            float pkd=(abs(rx)-0.075)-(wd-0.036)*0.42; float pko=trunk*front*lineM(pkd,0.0014)*step(0.036,wd)*step(wd,0.16); col*=1.0-0.3*pko; h-=pko*0.0006;
+            float bm=(1.0-front)*trunk*step(rz,-0.03); float bp=box2(vec2(abs(rx),ry),vec2(0.075,0.885),vec2(0.05,0.055)); float bpo=lineM(bp,0.0014)*step(bp,0.002)*bm; col*=1.0-0.28*bpo; h+=(1.0-smoothstep(-0.001,0.001,bp))*bm*0.0008;
+          }
+          if(uPiping>0.5){ float pd=abs(vC2.y); float silver=1.0-smoothstep(0.02,0.022,pd), hv=(1.0-smoothstep(0.036,0.038,pd))*(1.0-silver);
+            col=mix(col,vec3(0.78,0.86,0.06),hv);
+            vec2 hc=uv*vec2(520.0,300.0); hc.x+=0.5*step(0.5,fract(hc.y*0.5)); float cell=length(fract(hc)-0.5);
+            col=mix(col,vec3(0.6,0.62,0.64)*(0.82+0.3*(1.0-smoothstep(0.2,0.5,cell))*fadeA),silver); gPipe=silver; rough=mix(rough,0.42,silver); h+=(silver+hv)*0.0004+silver*cell*0.0002*fadeA; }
+          #ifdef INSIGNIA
+          { vec4 dc=vec4(0.0); float retro=0.0;
+            if(uKind.x>0.5&&okR>0.5){
+              if(part<0.5&&rz<-0.03){ vec2 q=vec2((0.105-rx)/0.21,(1.425-ry)/0.0722); if(q.x>0.0&&q.x<1.0&&q.y>0.0&&q.y<1.0){ dc=texture2D(uInsignia,vec2(q.x,1.0-q.y*0.34375)); retro=dc.a; } }
+              else if(part<0.5&&rz>0.03){
+                vec2 q=vec2((rx-0.045)/0.074,(1.44-ry)/0.074); if(q.x>0.0&&q.x<1.0&&q.y>0.0&&q.y<1.0) dc=texture2D(uInsignia,vec2((176.0+q.x*160.0)/512.0,1.0-(192.0+q.y*160.0)/512.0));
+                q=vec2((rx+0.124)/0.084,(1.386-ry)/0.016); if(q.x>0.0&&q.x<1.0&&q.y>0.0&&q.y<1.0) dc=texture2D(uInsignia,vec2((176.0+q.x*336.0)/512.0,1.0-(368.0+q.y*64.0)/512.0)); }
+              else if(part>0.5&&part<1.5&&abs(rx)>0.2){ vec2 q=vec2(0.5-sign(rx)*rz/0.07,(1.345-ry)/0.084); if(q.x>0.0&&q.x<1.0&&q.y>0.0&&q.y<1.0) dc=texture2D(uInsignia,vec2(q.x*160.0/512.0,1.0-(192.0+q.y*192.0)/512.0)); }
+            }
+            col=mix(col,dc.rgb*(0.85+0.3*sN(P*2200.0)),dc.a); h+=dc.a*0.0005; rough=mix(rough,0.7,dc.a*(1.0-retro)); gPipe=max(gPipe,retro*0.8); }
+          #endif
           col=mix(col,col*1.25+0.04,fray*0.6);
         }
         // blood soaking through from wounds underneath
         for(int i=0;i<${MAX_WOUNDS};i++){ if(i>=uWCount) break; vec3 wd=P-uWA[i].xyz; float kd=uWB[i].w; if((kd>3.5&&kd<8.5&&!(kd>7.5))||kd>8.5) continue;
           float sz=uWA[i].w; if(kd>7.5){ float s=dot(wd,uWB[i].xyz); float lat=length(wd-uWB[i].xyz*s); if(s>0.0&&lat<sz+s*0.9&&s<0.9) discard; continue; }
-          float r=length(wd)/max(sz*(0.8+3.5*uWC[i].w)+0.012,1e-4); float m=smoothstep(1.0,0.5,r+(sF(P*120.0)-0.5)*0.6);
+          float r=length(wd)/max(sz*(0.8+3.5*uWC[i].w)+0.012,1e-4); float m=1.0-smoothstep(0.5,1.0,r+(sF(P*120.0)-0.5)*0.6);
           col=mix(col,vec3(0.2,0.012,0.012),m*0.92); rough=mix(rough,0.3,m*uWC[i].w); }
         col*=mix(1.0,0.62,uWet*0.75); rough=mix(rough,min(rough,0.45),uWet*0.7);
         gRough=rough; gH=h;
@@ -849,10 +1037,12 @@ function clothMaterial(hu, o) {
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor=clamp(gRough,0.05,1.0);')
       .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n metalnessFactor=gMetal;')
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n normal=bumpN(normal,-vViewPosition,gH);')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance+=vec3(0.8,0.85,0.9)*gPipe*uNight*0.22*pow(abs(dot(normal,normalize(vViewPosition))),2.0);')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance+=vec3(0.8,0.85,0.9)*gPipe*uNight*0.12*pow(abs(dot(normal,normalize(vViewPosition))),2.0);')
       .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n gl_FragColor.rgb=mix(gl_FragColor.rgb,vec3(0.5,0.7,0.95)*(0.25+gl_FragColor.rgb),uClin2.z*0.75);');
+    // glass-bead tape sends light back the way it came: bright when the lamp is near the eye, whatever the surface angle
+    patchLights(sh, '{ float rr=pow(clamp(dot(geometryViewDir,directLight.direction),0.0,1.0),14.0); reflectedLight.directSpecular+=min(directLight.color,vec3(1.3))*(gPipe*rr*step(0.0,rawNL)*0.55); }');
   };
-  mat.customProgramCacheKey = () => 'swm-cloth';
+  mat.customProgramCacheKey = () => 'swm-cloth2' + (o.insignia ? 'i' : '');
   return mat;
 }
 
@@ -944,10 +1134,12 @@ function underwearField(part, D, rx, ry, rz) {
 }
 
 export async function buildHuman(specIn = {}, onProgress) {
-  const spec = normalizeSpec(specIn), low = spec.detail === 'low', t0 = performance.now();
+  // detail: 'high' (the patient), 'low' (crew and bystanders at 2 to 3 m), 'crowd' (pedestrians at 4 m and beyond: five
+  // meshes, about 12k triangles, no shells, lids or eyeballs, safe to draw through InstancedMesh). Anything else is 'high'.
+  const spec = normalizeSpec(specIn), crowd = spec.detail === 'crowd', low = spec.detail === 'low' || crowd, t0 = performance.now();
   const prog = (f) => onProgress?.(clamp(f));
   // crew and bystanders (low detail, standing) look down at the patient unless told otherwise
-  const D = makeDims(spec), rig = makeRig(D, spec.pose, spec.gaze ?? (low && spec.pose === 'standing' ? 'down' : null)), rng = makeRng(spec.seed * 2654435 + 77);
+  const D = makeDims(spec), rig = makeRig(D, spec.pose, spec.gaze ?? (low && !crowd && spec.pose === 'standing' ? 'down' : null)), rng = makeRng(spec.seed * 2654435 + 77);
   const group = new THREE.Group(); group.name = 'human'; group.add(rig.root);
 
   // pass 1: plain body, to find where it meets the ground and where surface details sit
@@ -978,15 +1170,17 @@ export async function buildHuman(specIn = {}, onProgress) {
   const cHead = (x, y, z) => { apply(Ai.neck, x, y, z, tmp); const a = capsule(tmp, [0, 1.458, -0.012], [0, 1.6, -0.01], 0.1) * D.sx; apply(Ai.head, x, y, z, tmp); return Math.min(a, (Math.hypot(tmp[0], tmp[1] - 1.652, tmp[2] + 0.004) - 0.132) * D.headS); };
   const cFace = (x, y, z) => { apply(Ai.head, x, y, z, tmp); return (Math.hypot(tmp[0], tmp[1] - 1.61, tmp[2] - 0.078) - 0.088) * D.headS; };
   const cEar = (x, y, z) => { apply(Ai.head, x, y, z, tmp); return (Math.hypot(Math.abs(tmp[0]) - 0.083, tmp[1] - 1.632, tmp[2] + 0.016) - 0.04) * D.headS; };
+  const cEye = (x, y, z) => { apply(Ai.head, x, y, z, tmp); return (Math.hypot(Math.abs(tmp[0]) - REF.eye[0], tmp[1] - 1.64, tmp[2] - 0.07) - 0.027) * D.headS; };
+  const eyeBox = (() => { const b = { min: [1e9, 1e9, 1e9], max: [-1e9, -1e9, -1e9] }, p = [0, 0, 0], r = 0.034 * D.headS; for (const sd of [1, -1]) { apply(A.head, sd * REF.eye[0], 1.64, 0.07, p); for (let i = 0; i < 3; i++) { b.min[i] = Math.min(b.min[i], p[i] - r); b.max[i] = Math.max(b.max[i], p[i] + r); } } return b; })();
   const cHand = (x, y, z) => { let m = 1e9; for (const s of [1, -1]) { apply(s > 0 ? Ai.wristL : Ai.wristR, x, y, z, tmp); m = Math.min(m, Math.max(capsule(tmp, [s * 0.192, 0.86, 0.002], [s * 0.205, 0.68, 0.014], 0.1), tmp[1] - 0.862) * D.handS); } return m; };
   const cFoot = (x, y, z) => { let m = 1e9; for (const s of [1, -1]) { apply(s > 0 ? Ai.ankleL : Ai.ankleR, x, y, z, tmp); m = Math.min(m, (shod ? capsule(tmp, [s * 0.07, 0.03, -0.06], [s * 0.07, 0.02, 0.135], 0.064) : capsule(tmp, [s * 0.07, 0.06, -0.06], [s * 0.07, 0.03, 0.14], 0.092)) * D.footS); } return m; };
-  const R = low ? { body: 0.014, head: 0.0062, hand: 0.0062, foot: 0.008, cloth: 0.017, hair: 0.009, shoe: 0.009 } : { body: 0.0093, head: 0.0039, face: 0.0022,  ear: 0.0017, hand: 0.0029, foot: 0.0045, cloth: 0.0094, hair: 0.005, shoe: 0.0075 };
+  const R = crowd ? { body: 0.021, head: 0.0115, hand: 0.013, foot: 0.013, cloth: 0.032, hair: 0.014, shoe: 0.02 } : low ? { body: 0.014, head: 0.0062, face: 0.0038, hand: 0.0062, foot: 0.008, cloth: 0.017, hair: 0.0085, shoe: 0.009 } : { body: 0.0093, head: 0.0039, face: 0.0022, ear: 0.0017, eye: 0.0011, hand: 0.0029, foot: 0.0045, cloth: 0.0094, hair: 0.005, shoe: 0.0075 };
   const boxOf = (pred, pad) => { const b = [1e9, 1e9, 1e9, -1e9, -1e9, -1e9]; for (const g of groups) { if (!g.n || !pred(g)) continue; for (let i = 0; i < 3; i++) { b[i] = Math.min(b[i], g.box[i] - g.fatMax - pad); b[i + 3] = Math.max(b[i + 3], g.box[i + 3] + g.fatMax + pad); } } return { min: [b[0], b[1], b[2]], max: [b[3], b[4], b[5]] }; };
 
   // ---- per-vertex paint masks (see the attribute list in skinMaterial)
   const style = spec.hair.style, bw = [0, 0, 0, 0], nrm = [0, 0, 0];
   const veins = REF.veins;
-  function skinVertex(x, y, z, nx, ny, nz, Ar, i) {
+  function skinVertex(x, y, z, nx, ny, nz, Ar, i, gm = 1) {
     model.eval(x, y, z, 1, 0); const g = groups[model.hit] || groups[0], part = g.part, side = g.side || 1, bone = g.bone;
     apply(Ai[bone], x, y, z, tmp); const rx = tmp[0], ry = tmp[1], rz = tmp[2], ax = Math.abs(rx);
     applyDir(Ai[bone], nx, ny, nz, nrm);
@@ -995,12 +1189,12 @@ export async function buildHuman(specIn = {}, onProgress) {
       if (part === 'ear') { red = 0.55; thinF = 1; if (ry < 1.613) cyanP = 1; }
       else {
         if (ry > 1.553 && ry < 1.59 && rz > 0.066 && ax < 0.03) { const tx = Math.min(1, ax / 0.0238), ym = rig.mouthY + 0.0006 * tx * tx, yu = ym + rig.lipH[0] * Math.pow(1 - tx * tx, 0.75) - 0.0011 * Math.exp(-((ax / 0.0042) ** 2)), yl = ym - rig.lipH[1] * Math.pow(Math.max(0, 1 - (ax / 0.0215) ** 2), 0.6); lip = clamp(Math.min(yu - ry, ry - yl, (0.0238 - ax) * 0.6), -0.01, 0.004); }
-        if (ry > 1.615 && ry < 1.665 && rz > 0.055) { const d = -rig.eyeFis(x, y, z); if (d < 0) lip = 0.002; else lash = (1 - smooth(0.0001, 0.0011, d)) * (rig.eyeFis.up ? 1 : 0.3); brow = clamp(-fields.brow.eval(x, y, z, 1, 0), -0.01, 0.004); }
+        if (ry > 1.615 && ry < 1.665 && rz > 0.055) { const d = -rig.eyeFis(x, y, z); if (d < 0) { lip = crowd ? -0.01 : 0.002; lash = crowd ? 0.95 : -1; } else lash = (1 - smooth(0.0001, 0.0011, d)) * (rig.eyeFis.up ? 1 : 0.3); brow = clamp(-fields.brow.eval(x, y, z, 1, 0), -0.01, 0.004); }
         else if (ry >= 1.655 && ry < 1.69 && rz > 0.05) brow = clamp(-fields.brow.eval(x, y, z, 1, 0), -0.01, 0.004);
         hairF = clamp(hairField(rx, ry, rz, style), -0.02, 0.02);
         red = 0.8 * gauss((ax - 0.043) ** 2 + (ry - 1.602) ** 2, 0.017) * smooth(0.03, 0.06, rz) + 0.7 * gauss(rx * rx + (ry - 1.602) ** 2 + (rz - 0.113) ** 2, 0.012) + 0.2 * gauss(rx * rx + (ry - 1.552) ** 2, 0.02) * smooth(0.04, 0.07, rz);
         thinF = 0.45 * gauss((ax - 0.014) ** 2 + (ry - 1.597) ** 2 + (rz - 0.102) ** 2, 0.008) + 0.25 * smooth(-0.002, 0, lip);
-        if (ry < 1.6 && ry > 1.586 && rz > 0.09 && sdEllipsoid(ax - 0.0066 * rig.nw, ry - 1.5926, rz - 0.0995, 0.0038, 0.0033, 0.0064) < 0.0002) lash = 0.95;
+        if (ry < 1.6 && ry > 1.584 && rz > 0.088 && sdEllipsoid(ax - 0.0066 * rig.nw, ry - 1.5916, rz - 0.0985, 0.0036, 0.0034, 0.0062) < -0.0006) lash = 0.95;
         cyanP = 0.6 * gauss(rx * rx + (ry - 1.602) ** 2 + (rz - 0.113) ** 2, 0.012);
         const lineY = 1.632 - 0.05 * smooth(0.0, 0.07, rz);
         beard = (1 - smooth(lineY - 0.008, lineY + 0.01, ry)) * smooth(-0.022, 0.008, rz) * (1 - smooth(-0.0018, -0.0002, lip));
@@ -1028,7 +1222,8 @@ export async function buildHuman(specIn = {}, onProgress) {
       { let kd = 1; for (const kp of rig.knuckles) { const d = Math.hypot(x - kp[0], y - kp[1], z - kp[2]); if (d < kd) kd = d; } const kw = Math.exp(-((kd / (0.0062 * D.handS)) ** 2)); wr = 1 + kw; red += 0.35 * kw * (1 - pal); }
       if (part === 'finger') { cyanP = 0.5; nailF = clamp(-fields.nail.eval(x, y, z, 1, 0), -0.01, 0.003); }
     }
-    if (part === 'shin') red = 0.5 * gauss((ry - 0.505) ** 2 + (rz - 0.05) ** 2, 0.03);
+    if (part === 'shin') { red = 0.5 * gauss((ry - 0.505) ** 2 + (rz - 0.05) ** 2, 0.03); if (shod) under = clamp(0.215 - ry, -0.02, 0.03); }
+    if (part === 'foot' && shod) under = 0.03;
     if (part === 'foot') {
       const sole = smooth(0.3, 0.7, -nrm[1]); palm = sole; red = 0.25 * gauss((rz + 0.07) ** 2, 0.03);
       if (rz > 0.105) { cyanP = 0.5; thinF = 0.3; nailF = clamp(-fields.nail.eval(x, y, z, 1, 0), -0.01, 0.003); }
@@ -1039,7 +1234,11 @@ export async function buildHuman(specIn = {}, onProgress) {
       vein = Math.max(vein, -0.02) * (0.6 + 0.4 * clamp(D.mus)) / Math.max(0.7, Math.sqrt(D.g));
     }
     breathW(part, rx, ry, rz, bw);
+    // sun exposure (where age spots and freckles gather), head / neck flag, and occlusion baked from the body's own field
+    const expo = part === 'head' || part === 'ear' ? 1 : part === 'neck' ? 0.7 : part === 'palm' || part === 'finger' ? 1 - palm : part === 'forearm' ? 0.7 : part === 'chest' && ry > 1.38 && rz > 0 ? 0.5 : part === 'upperArm' || part === 'shin' ? 0.3 : 0.12;
+    const oh = part === 'head' || part === 'ear' || part === 'finger' ? 0.007 : 0.016, occ = crowd ? 1 : clamp(0.22 + 0.78 * skinFn(x + nx * oh, y + ny * oh, z + nz * oh) / (oh * clamp(gm, 0.3, 1)));
     const o = i * 4;
+    Ar.aLid[o] = expo; Ar.aLid[o + 1] = part === 'head' || part === 'ear' ? 1 : part === 'neck' ? 0.5 : 0; Ar.aLid[o + 2] = occ; Ar.aLid[o + 3] = 0;
     Ar.aM0[o] = lip; Ar.aM0[o + 1] = nailF; Ar.aM0[o + 2] = spec.clothing.underwear === false ? -0.02 : under; Ar.aM0[o + 3] = hairF;
     Ar.aM1[o] = red; Ar.aM1[o + 1] = thinF; Ar.aM1[o + 2] = palm; Ar.aM1[o + 3] = vein;
     Ar.aM2[o] = beard; Ar.aM2[o + 1] = brow; Ar.aM2[o + 2] = cyanP; Ar.aM2[o + 3] = lash;
@@ -1049,23 +1248,36 @@ export async function buildHuman(specIn = {}, onProgress) {
   }
   const SKIN_ATTR = { aM0: 4, aM1: 4, aM2: 4, aM3: 4, aDef: 4, aDef2: 4, aLid: 4 };
 
+  const top = GARMENT_TOP[spec.clothing.top], bottom = GARMENT_BOTTOM[spec.clothing.bottom];
+  const neckC = top?.vneck ? [0, 1.468, 0.045] : [0, 1.487, 0.012];
+  const collarTop = rz => 1.545 - 0.05 * smooth(-0.03, 0.05, rz);   // the collar stands higher at the nape than at the throat
+  const covered = (x, y, z) => {
+    model.eval(x, y, z, 1, 0); const g = groups[model.hit]; if (!g) return false; apply(Ai[g.bone], x, y, z, tmp2);
+    return (top && topRegion(g.part, tmp2[0], tmp2[1], tmp2[2]) < -0.04) || (bottom && bottomRegion(g.part, tmp2[0], tmp2[1], tmp2[2]) < -0.04);
+  };
+
   // ---- skin meshes
   const jobs = [];
   const dl = (a, b) => 1.6 * Math.max(a, b);
-  if (low) {
+  if (crowd) {
+    jobs.push({ w: 3, box: model.bounds(0.02), res: R.body, keep: (x, y, z) => cHead(x, y, z) > -0.4 * R.body && cHand(x, y, z) > -0.4 * R.body && cFoot(x, y, z) > (shod ? 0 : -dl(R.body, R.foot)) && !covered(x, y, z), skip: (x, y, z, r) => cHead(x, y, z) < -r - 0.03 || cHand(x, y, z) < -r - 0.03 || cFoot(x, y, z) < -r - 0.03 });
+    jobs.push({ w: 2, box: boxOf(g => g.mask & (GM_HEAD | GM_NECK), 0.01), res: R.head, keep: (x, y, z) => cHead(x, y, z) < dl(R.body, R.head) && !covered(x, y, z), skip: (x, y, z, r) => cHead(x, y, z) > r + 0.03 });
+    jobs.push({ w: 1, box: boxOf(g => g.mask & (GM_HAND | GM_ARM), 0.01), res: R.hand, keep: (x, y, z) => cHand(x, y, z) < dl(R.body, R.hand) && !covered(x, y, z), skip: (x, y, z, r) => cHand(x, y, z) > r + 0.02 });
+  } else if (low) {
     jobs.push({ w: 3, box: model.bounds(0.02), res: R.body, keep: (x, y, z) => cHead(x, y, z) > -0.4 * R.body && cHand(x, y, z) > -0.4 * R.body && cFoot(x, y, z) > (shod ? 0 : -dl(R.body, R.foot)), skip: (x, y, z, r) => cHead(x, y, z) < -r - 0.03 || cHand(x, y, z) < -r - 0.03 || cFoot(x, y, z) < -r - 0.03 });
-    jobs.push({ w: 2, box: boxOf(g => g.mask & (GM_HEAD | GM_NECK), 0.01), res: R.head, keep: (x, y, z) => cHead(x, y, z) < dl(R.body, R.head), skip: (x, y, z, r) => cHead(x, y, z) > r + 0.03 });
+    jobs.push({ w: 2, box: boxOf(g => g.mask & (GM_HEAD | GM_NECK), 0.01), res: R.head, keep: (x, y, z) => cHead(x, y, z) < dl(R.body, R.head) && cFace(x, y, z) > -0.4 * R.head, skip: (x, y, z, r) => cHead(x, y, z) > r + 0.03 || cFace(x, y, z) < -r - 0.02 });
     jobs.push({ w: 2, box: boxOf(g => g.mask & (GM_HAND | GM_ARM), 0.01), res: R.hand, keep: (x, y, z) => cHand(x, y, z) < dl(R.body, R.hand), skip: (x, y, z, r) => cHand(x, y, z) > r + 0.02 });
+    jobs.push({ w: 2, box: boxOf(g => g.part === 'head', 0.004), res: R.face, keep: (x, y, z) => cFace(x, y, z) < dl(R.head, R.face), skip: (x, y, z, r) => cFace(x, y, z) > r + 0.014 });
   } else {
     jobs.push({ w: 4, box: model.bounds(0.02), res: R.body, keep: (x, y, z) => cHead(x, y, z) > -0.4 * R.body && cHand(x, y, z) > -0.4 * R.body && cFoot(x, y, z) > (shod ? 0 : -dl(R.body, R.foot)), skip: (x, y, z, r) => cHead(x, y, z) < -r - 0.03 || cHand(x, y, z) < -r - 0.03 || cFoot(x, y, z) < -r - 0.03 });
     jobs.push({ w: 3, box: boxOf(g => g.mask & (GM_HEAD | GM_NECK), 0.012), res: R.head, keep: (x, y, z) => cHead(x, y, z) < dl(R.body, R.head) && cFace(x, y, z) > -0.4 * R.head && cEar(x, y, z) > -0.4 * R.head, skip: (x, y, z, r) => cHead(x, y, z) > r + 0.03 || cFace(x, y, z) < -r - 0.02 });
-    jobs.push({ w: 3, box: boxOf(g => g.part === 'head', 0.004), res: R.face, eps: 0.0005, keep: (x, y, z) => cFace(x, y, z) < dl(R.head, R.face) && cEar(x, y, z) > -0.4 * R.face, skip: (x, y, z, r) => cFace(x, y, z) > r + 0.012 });
+    jobs.push({ w: 3, box: boxOf(g => g.part === 'head', 0.004), res: R.face, eps: 0.0005, keep: (x, y, z) => cFace(x, y, z) < dl(R.head, R.face) && cEar(x, y, z) > -0.4 * R.face && cEye(x, y, z) > -0.4 * R.face, skip: (x, y, z, r) => cFace(x, y, z) > r + 0.012 || cEye(x, y, z) < -r - 0.004 });
     jobs.push({ w: 1, box: boxOf(g => g.part === 'ear', 0.03), res: R.ear, eps: 0.0004, keep: (x, y, z) => cEar(x, y, z) < dl(R.head, R.ear), skip: (x, y, z, r) => cEar(x, y, z) > r + 0.01 });
+    jobs.push({ w: 1, box: eyeBox, res: R.eye, eps: 0.0003, keep: (x, y, z) => cEye(x, y, z) < dl(R.face, R.eye), skip: (x, y, z, r) => cEye(x, y, z) > r + 0.004 });
     jobs.push({ w: 2, box: boxOf(g => g.mask & GM_HAND, 0.05), res: R.hand, eps: 0.0005, keep: (x, y, z) => cHand(x, y, z) < dl(R.body, R.hand), skip: (x, y, z, r) => cHand(x, y, z) > r + 0.02 });
   }
   if (!shod) jobs.push({ w: 1, box: boxOf(g => g.mask & GM_FOOT, 0.07), res: R.foot, keep: (x, y, z) => cFoot(x, y, z) < dl(R.body, R.foot), skip: (x, y, z, r) => cFoot(x, y, z) > r + 0.02 });
   const garmentJobs = [];   // filled below; counted in the progress total
-  const top = GARMENT_TOP[spec.clothing.top], bottom = GARMENT_BOTTOM[spec.clothing.bottom];
   const totalW = jobs.reduce((a, j) => a + j.w, 0) + (top ? 2 : 0) + (bottom ? 2 : 0) + (shod ? 1 : 0) + 1;
   let doneW = 0;
   const run = async (fn, j, extra) => { const g = await meshSDFAsync(fn, j.box, j.res, { keep: j.keep, skip: j.skip, eps: j.eps, slack: 1.35, ...extra, onProgress: f => prog((doneW + j.w * f) / totalW) }); doneW += j.w; prog(doneW / totalW); return g; };
@@ -1074,8 +1286,8 @@ export async function buildHuman(specIn = {}, onProgress) {
   // always wins the depth test and the ragged edge of the coarse mesh never shows.
   const sinkOf = [
     (x, y, z) => Math.min(cHead(x, y, z), cHand(x, y, z), shod ? 1 : cFoot(x, y, z)),                // body under head, hands, feet
-    low ? null : (x, y, z) => Math.min(cFace(x, y, z), cEar(x, y, z)),                                 // head under face and ears
-    low ? null : (x, y, z) => cEar(x, y, z),                                                           // face under ears
+    crowd ? null : low ? cFace : (x, y, z) => Math.min(cFace(x, y, z), cEar(x, y, z)),                                // head under face and ears
+    low ? null : (x, y, z) => Math.min(cEar(x, y, z), cEye(x, y, z)),                                                           // face under ears
   ];
   for (let ji = 0; ji < jobs.length; ji++) {
     const j = jobs[ji], g = await run(skinFn, j, { attributes: SKIN_ATTR, vertex: skinVertex }); if (!g) continue;
@@ -1093,7 +1305,7 @@ export async function buildHuman(specIn = {}, onProgress) {
     const pv = (x, y, z, nx, ny, nz, o) => {
       apply(A.head, x, y, z, tmp); applyDir(A.head, nx, ny, nz, tmp2); P.push(tmp[0], tmp[1], tmp[2]); N.push(tmp2[0], tmp2[1], tmp2[2]);
       M0.push(o.lip ?? -0.01, o.tooth ? 0.02 : -0.01, -0.02, -0.02); M2.push(0, -0.01, 0, o.lash ?? 0); M3.push(0, 0, 0, o.cavity ? 2 : 0); D2.push(o.jaw ?? 0, 0, 0, 0);
-      if (o.lid) LID.push(o.lid[0], o.lid[1], o.lid[2], o.lid[3]); else LID.push(0, 0, 0, 0); return P.length / 3 - 1;
+      if (o.lid) LID.push(o.lid[0], o.lid[1], o.lid[2], o.lid[3]); else LID.push(0, 1, 1, 0); return P.length / 3 - 1;
     };
     const grid = (nu, nv, base, flip) => { for (let a = 0; a < nu; a++) for (let e = 0; e < nv; e++) { const i0 = base + a * (nv + 1) + e, i1 = i0 + nv + 1; if (flip) I.push(i0, i1 + 1, i1, i0, i0 + 1, i1 + 1); else I.push(i0, i1, i1 + 1, i0, i1 + 1, i0 + 1); } };
     for (const s of [1, -1]) {
@@ -1149,7 +1361,7 @@ export async function buildHuman(specIn = {}, onProgress) {
     const m1 = new Float32Array(nv * 4); for (let i = 0; i < nv; i++) m1[i * 4 + 3] = -0.02;
     lg.setAttribute('aM0', new THREE.Float32BufferAttribute(M0, 4)); lg.setAttribute('aM1', new THREE.BufferAttribute(m1, 4)); lg.setAttribute('aM2', new THREE.Float32BufferAttribute(M2, 4)); lg.setAttribute('aM3', new THREE.Float32BufferAttribute(M3, 4));
     lg.setAttribute('aDef', z4()); lg.setAttribute('aDef2', new THREE.Float32BufferAttribute(D2, 4)); lg.setAttribute('aLid', new THREE.Float32BufferAttribute(LID, 4));
-    skinGeos.push(lg);
+    if (!crowd) skinGeos.push(lg);
   }
   for (const g of skinGeos) if (g.index.array.constructor !== Uint32Array) g.setIndex(new THREE.BufferAttribute(new Uint32Array(g.index.array), 1));
   const skinGeo = mergeGeometries(skinGeos, false); for (const g of skinGeos) g.dispose();
@@ -1158,13 +1370,14 @@ export async function buildHuman(specIn = {}, onProgress) {
   // ---- uniforms shared by this person's materials
   const tone = clamp(spec.skin), V4 = () => new THREE.Vector4(0, 0, 0, 0), V3 = () => new THREE.Vector3();
   const skinCol = ramp(SKIN_STOPS, tone), lipCol = ramp(LIP_STOPS, tone).lerp(skinCol, D.fem ? 0.05 : 0.18);
-  const cprA = { pos: new THREE.Vector3(), normal: new THREE.Vector3(0, 1, 0) };
+  // brows and lashes keep more pigment than a greying head of hair
+  const hairC = new THREE.Color(spec.hair.color), hairL = hairC.r * 0.3 + hairC.g * 0.5 + hairC.b * 0.2, browCol = hairC.clone().lerp(new THREE.Color(0.05, 0.04, 0.035), clamp((hairL - 0.08) * 2.2, 0, 0.75));
   const jp = apply(A.head, 0, 1.622, -0.006, [0, 0, 0]), hp = apply(A.head, 0, 1.64, 0, [0, 0, 0]);
   const hu = {
     uBreath: { value: new THREE.Vector4(0, 1, 1, 1) }, uCpr: { value: V4() }, uCprDir: { value: V3() }, uParadox: { value: new THREE.Vector4(0, 0, 0, 0.05) }, uParadoxAmt: { value: 0 },
-    uLid: { value: 1 }, uJaw: { value: 0 }, uJawPivot: { value: new THREE.Vector3(jp[0], jp[1], jp[2]) }, uHeadX: { value: hX }, uHeadY: { value: hY }, uHeadPos: { value: new THREE.Vector3(hp[0], hp[1], hp[2]) },
+    uLid: { value: 1 }, uJaw: { value: 0 }, uJawPivot: { value: new THREE.Vector3(jp[0], jp[1], jp[2]) }, uHeadX: { value: hX }, uHeadY: { value: hY }, uHeadPos: { value: new THREE.Vector3(hp[0], hp[1], hp[2]) }, uHeadS: { value: D.headS }, uLipMix: { value: D.fem ? 0.75 : 0.45 }, uBrowCol: { value: browCol },
     uJVD: { value: 0 }, uTrachea: { value: 0 }, uClin: { value: V4() }, uClin2: { value: new THREE.Vector4(0, 0, 0, D.old) },
-    uSkin: { value: skinCol }, uLip: { value: lipCol }, uPalm: { value: skinCol.clone().lerp(srgb(236, 190, 172), 0.3 + 0.35 * tone) }, uHairCol: { value: new THREE.Color(spec.hair.color) },
+    uSkin: { value: skinCol }, uLip: { value: lipCol }, uPalm: { value: skinCol.clone().lerp(srgb(222, 172, 150), 0.25 + 0.25 * tone) }, uHairCol: { value: new THREE.Color(spec.hair.color) },
     uUnderCol: { value: new THREE.Color(rng.pick([0xc9c9cc, 0x25282e, 0x18233a, 0x6f7278])) }, uTone: { value: tone }, uBeard: { value: D.fem || D.kid > 0.5 ? 0 : clamp(spec.beard) },
     uScalp: { value: style === 'bald' ? 0.12 : style === 'buzz' ? 0.85 : 0.97 }, uFreckle: { value: tone < 0.3 && rng() < 0.3 ? 0.5 : 0 }, uPupil: { value: new THREE.Vector2(3.5, 3.5) },
     uWCount: { value: 0 }, uWA: { value: Array.from({ length: MAX_WOUNDS }, V4) }, uWB: { value: Array.from({ length: MAX_WOUNDS }, V4) }, uWC: { value: Array.from({ length: MAX_WOUNDS }, V4) },
@@ -1188,15 +1401,47 @@ export async function buildHuman(specIn = {}, onProgress) {
   const noPick = m => { m.raycast = () => { }; return m; };
 
   const irisCol = tone > 0.45 ? new THREE.Color(0.11, 0.045, 0.018) : rng.pick([new THREE.Color(0.1, 0.19, 0.3), new THREE.Color(0.17, 0.2, 0.08), new THREE.Color(0.19, 0.09, 0.03), new THREE.Color(0.14, 0.2, 0.24)]);
-  const eyeMesh = noPick(new THREE.Mesh(mergeGeometries(eyeGeos, false), eyeMaterial(hu, irisCol))); eyeMesh.name = 'eyes'; group.add(eyeMesh);
+  const eyeMesh = crowd ? null : noPick(new THREE.Mesh(mergeGeometries(eyeGeos, false), eyeMaterial(hu, irisCol))); if (eyeMesh) { eyeMesh.name = 'eyes'; group.add(eyeMesh); }
+
+  // ---- brows (and a grown beard): the skin triangles under them redrawn as shells of short hair
+  const furMeshes = [];
+  const fur = (name, pick, flow, o) => {
+    const P = skinGeo.attributes.position, Nn = skinGeo.attributes.normal, jw = skinGeo.attributes.aDef2, ix = skinGeo.index.array, map = new Map(), pos = [], nor = [], ah = [], aj = [], idx = [], w = [0, 0, 0], fv = [0, 0, 0];
+    for (let t = 0; t < ix.length; t += 3) {
+      w[0] = pick(ix[t]); w[1] = pick(ix[t + 1]); w[2] = pick(ix[t + 2]); if (w[0] <= 0 && w[1] <= 0 && w[2] <= 0) continue;
+      for (let e = 0; e < 3; e++) {
+        const v = ix[t + e]; let j = map.get(v);
+        if (j === undefined) {
+          j = pos.length / 3; map.set(v, j); const nx = Nn.getX(v), ny = Nn.getY(v), nz = Nn.getZ(v);
+          pos.push(P.getX(v), P.getY(v), P.getZ(v)); nor.push(nx, ny, nz); flow(P.getX(v), P.getY(v), P.getZ(v), fv);
+          const dn = fv[0] * nx + fv[1] * ny + fv[2] * nz; fv[0] -= nx * dn; fv[1] -= ny * dn; fv[2] -= nz * dn; const l = Math.hypot(fv[0], fv[1], fv[2]) || 1;
+          ah.push(fv[0] / l, fv[1] / l, fv[2] / l, w[e]); aj.push(o.jaw ? jw.getX(v) : 0);
+        }
+        idx.push(j);
+      }
+    }
+    if (!idx.length) return;
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    g.setAttribute('aHair', new THREE.Float32BufferAttribute(ah, 4)); g.setAttribute('aJaw', new THREE.Float32BufferAttribute(aj, 1)); g.setIndex(idx);
+    for (let k = 1; k <= o.n; k++) { const m = noPick(new THREE.Mesh(g, hairMaterial(hu, o.color, false, { shell: k / o.n, len: o.len, comb: o.comb, dens: o.dens, kind: 1 }))); m.name = name; m.receiveShadow = true; group.add(m); furMeshes.push(m); }
+  };
+  {
+    const sa = skinGeo.attributes, lidW = sa.aLid, browA = sa.aM2, fd = [0, 0, 0];
+    if (!crowd) fur('brows', v => lidW.getW(v) !== 0 ? 0 : smooth(-0.0028, 0.0008, browA.getY(v)), (x, y, z, out) => {
+      apply(Ai.head, x, y, z, tmp); const sd = tmp[0] < 0 ? -1 : 1, a = lerp(1.0, -0.3, clamp((Math.abs(tmp[0]) - 0.014) / 0.034)); applyDir(A.head, sd * Math.cos(a), Math.sin(a), 0, fd); out[0] = fd[0]; out[1] = fd[1]; out[2] = fd[2];
+    }, { color: browCol, len: 0.0026, comb: 1.8, dens: 2600, n: low ? 2 : 3 });
+    const bd = hu.uBeard.value;
+    if (bd > 0.35 && !crowd) fur('beard', v => lidW.getW(v) !== 0 ? 0 : smooth(0.28, 0.7, browA.getX(v) * bd), (x, y, z, out) => { applyDir(A.head, 0, -1, 0.3, fd); out[0] = fd[0]; out[1] = fd[1]; out[2] = fd[2]; },
+      { color: spec.hair.color, len: 0.003 + 0.012 * (bd - 0.35), comb: 0.9, dens: 2200, n: low ? 3 : 5, jaw: true });
+  }
 
   // ---- hair
   let hairMesh = null;
   if (style !== 'bald' && style !== 'buzz' || style === 'buzz') {
     const hm = new SdfModel(), hg = hm.group({ matrix: A.head, rScale: D.headS, pk: 0.02 });
-    hg.ellipsoid(0, 1.665, -0.012, 0.076, 0.086, 0.098, null, { k: 0, fat: D.fat.scalp }); hg.ellipsoid(0, 1.686, 0.03, 0.066, 0.055, 0.057, null, { fat: D.fat.scalp * 0.8 });
+    hg.ellipsoid(0, 1.667, -0.012, 0.078, 0.0855, 0.098, null, { k: 0, fat: D.fat.scalp }); hg.ellipsoid(0, 1.686, 0.03, 0.067, 0.055, 0.058, null, { fat: D.fat.scalp * 0.8 });
     const ex = new SdfModel(), eg = ex.group({ matrix: A.head, rScale: D.headS, pk: 0.03 });
-    if (style === 'long') { eg.ellipsoid(0, 1.6, -0.062, 0.088, 0.115, 0.05, null, { k: 0 }); eg.ellipsoid(0, 1.66, -0.02, 0.088, 0.08, 0.1, null, {}); }
+    if (style === 'long') { eg.ellipsoid(0, 1.6, -0.062, 0.088, 0.115, 0.05, null, { k: 0 }); eg.ellipsoid(0, 1.662, -0.03, 0.0875, 0.082, 0.095, null, {}); }
     if (style === 'bun') eg.sphere(0, 1.725, -0.092, 0.037, { k: 0 });
     hm.finalize(); ex.finalize();
     const T = style === 'buzz' ? [0.0022, 0.0028] : style === 'short' ? [0.005, 0.012] : style === 'balding' ? [0.004, 0.006] : style === 'curly' ? [0.016, 0.026] : style === 'bun' ? [0.006, 0.009] : [0.009, 0.016];
@@ -1206,27 +1451,31 @@ export async function buildHuman(specIn = {}, onProgress) {
       let th = lerp(T[0], T[1], smooth(1.655, 1.735, ry)) * smooth(0.0, 0.028, hf) + 0.0012;
       if (curly) th += (fbm3(rx * 55, ry * 55, rz * 55, 2, 7) - 0.5) * 0.014 * smooth(0, 0.02, hf);
       else th += (noise3(rx * 40, ry * 12, rz * 40, 5) - 0.5) * 0.0035 * smooth(0, 0.02, hf);
-      let d = hm.eval(x, y, z, 1, 0) - th * D.headS;
-      if (ex.groups[0].n) d = smin(d, ex.eval(x, y, z, 1, 0), 0.02);
-      return Math.max(d, -hf * D.headS);
+      let d = Math.max(hm.eval(x, y, z, 1, 0) - th * D.headS, -hf * D.headS);
+      if (ex.groups[0].n) { let e = ex.eval(x, y, z, 1, 0) + (noise3(rx * 50, ry * 9, rz * 50, 11) - 0.5) * 0.006; if (style !== 'long') e = Math.max(e, -hf * D.headS); d = smin(d, e, 0.02); }
+      return d;
     };
     const hb = boxOf(g => g.part === 'head', style === 'long' ? 0.06 : 0.04);
     const crown = apply(A.head, 0, 1.748, -0.045, [0, 0, 0]);
     const hgeo = style === 'bald' ? null : await run(hairFn, { w: 1, box: hb, res: R.hair, keep: (x, y, z) => skinFn(x, y, z) > -0.0025 }, {
       slack: 1.6, attributes: { aHair: 4 }, vertex: (x, y, z, nx, ny, nz, Ar, i) => {
-        let fx = x - crown[0], fy = y - crown[1], fz = z - crown[2]; const dn = fx * nx + fy * ny + fz * nz; fx -= nx * dn; fy -= ny * dn; fz -= nz * dn; const l = Math.hypot(fx, fy, fz) || 1;
+        let fx = x - crown[0], fy = y - crown[1], fz = z - crown[2]; if (style === 'long' && skinFn(x, y, z) > 0.006) { fx = -hY.x; fy = -hY.y; fz = -hY.z; } const dn = fx * nx + fy * ny + fz * nz; fx -= nx * dn; fy -= ny * dn; fz -= nz * dn; const l = Math.hypot(fx, fy, fz) || 1;
         apply(Ai.head, x, y, z, tmp); const hf = hairField(tmp[0], tmp[1], tmp[2], style);
-        Ar.aHair[i * 4] = fx / l; Ar.aHair[i * 4 + 1] = fy / l; Ar.aHair[i * 4 + 2] = fz / l; Ar.aHair[i * 4 + 3] = smooth(0.0, 0.016, hf) + (style === 'long' || style === 'bun' ? 0.4 : 0);
+        Ar.aHair[i * 4] = fx / l; Ar.aHair[i * 4 + 1] = fy / l; Ar.aHair[i * 4 + 2] = fz / l; Ar.aHair[i * 4 + 3] = style === 'long' ? Math.max(smooth(0.0, 0.03, hf), smooth(0.004, 0.02, skinFn(x, y, z))) + 0.4 : smooth(0.0, 0.03, hf) + (style === 'bun' ? 0.4 : 0);
       },
     });
-    if (hgeo) { hairMesh = noPick(new THREE.Mesh(hgeo, hairMaterial(hu, spec.hair.color, curly))); hairMesh.name = 'hair'; hairMesh.castShadow = true; hairMesh.receiveShadow = true; group.add(hairMesh); }
+    if (hgeo) {
+      hairMesh = noPick(new THREE.Mesh(hgeo, hairMaterial(hu, spec.hair.color, curly))); hairMesh.name = 'hair'; hairMesh.castShadow = true; hairMesh.receiveShadow = true; group.add(hairMesh);
+      const len = ({ buzz: 0.0024, short: 0.007, balding: 0.006, curly: 0.014, bun: 0.004, long: 0.009 })[style] ?? 0.007, n = crowd ? 0 : low ? 3 : 5;
+      for (let k = 1; k <= n; k++) { const sm = noPick(new THREE.Mesh(hgeo, hairMaterial(hu, spec.hair.color, curly, { shell: k / n, len, comb: curly ? 0.1 : 0.6, dens: style === 'buzz' ? 3200 : 2400 }))); sm.name = 'hairShell'; sm.receiveShadow = true; hairMesh.add(sm); }
+    }
   } else doneW += 1;
 
   // ---- clothing: an offset of the body, cut to the garment's outline
   const clothes = { top: null, bottom: null, shoes: null, underwear: null };
   const smax = (a, b, k) => -smin(-a, -b, k);
-  const neckC = top?.vneck ? [0, 1.468, 0.045] : [0, 1.487, 0.012];
   function topRegion(part, rx, ry, rz) {
+    if ((part === 'chest' || part === 'spine' || part === 'pelvis' || part === 'neck') && top.collar) return Math.max(top.hem - ry, ry - collarTop(rz), rz > 0 ? ((ry - 1.452) * 0.4 - Math.abs(rx)) * 0.9 : -1);
     if (part === 'chest' || part === 'spine' || part === 'pelvis' || part === 'neck') { const sph = top.neckR - Math.hypot(rx, ry - neckC[1], rz - neckC[2]), cap = ry - (neckC[1] + (top.collar ? 0.02 : 0.013)); return Math.max(top.hem - ry, sph, cap); }
     if (part === 'upperArm') return top.sleeve ? top.sleeve - ry : -0.05;
     if (part === 'forearm') return top.sleeve ? top.sleeve - ry : 0.855 - ry;
@@ -1248,19 +1497,22 @@ export async function buildHuman(specIn = {}, onProgress) {
       let w = (noise3(rx * 16 + 3, ry * 16, rz * 16, 3) - 0.5) * 0.007 * G.bulk + (noise3(rx * 45, ry * 45, rz * 45, 9) - 0.5) * 0.0022 * (0.4 + G.bulk);
       if (part === (isTop ? 'forearm' : 'shin') || part === (isTop ? 'upperArm' : 'thigh')) w += Math.sin(ry * 210 + noise3(rx * 30, 0, rz * 30, 1) * 5) * 0.0024 * (0.5 + G.bulk) * Math.exp(-(((ry - jointY) / 0.055) ** 2));
       if (!isTop && (part === 'pelvis' || part === 'thigh')) w += Math.sin((ry + Math.abs(rx) * 0.8) * 150) * 0.0011 * (0.4 + G.bulk) * Math.exp(-(((ry - 0.9) / 0.06) ** 2));
-      if (isTop && (part === 'spine' || part === 'pelvis' || part === 'thigh')) w += Math.sin(ry * 120 + noise3(rx * 14, 0, rz * 14, 4) * 6) * 0.0022 * (0.3 + G.bulk) * (1 - smooth(1.05, 1.2, ry)) + 0.0065 * (1 - smooth(1.0, 1.03, ry));
+      if (isTop && (part === 'spine' || part === 'pelvis' || part === 'thigh')) w += Math.sin(ry * 120 + noise3(rx * 14, 0, rz * 14, 4) * 6) * 0.0022 * (0.3 + G.bulk) * (1 - smooth(1.05, 1.2, ry)) * (G.tuck ? 0.3 : 1) + (G.tuck ? 0 : 0.0065 * (1 - smooth(1.0, 1.03, ry)));
+      if (isTop && G.tuck) w -= 0.003 * (1 - smooth(0.99, 1.04, ry));
+      if (isTop && G.collar && (part === 'neck' || part === 'chest') && ry > 1.43) { const ct = collarTop(rz); w += 0.003 * smooth(ct - 0.05, ct - 0.034, ry); }
       const rg = region(part, rx, ry, rz);
       return smax(d - G.t - Math.max(w, -G.t * 0.6) - 0.0035 * smooth(-0.014, -0.004, rg), rg * D.sy, 0.003);
     };
-    const vertex = (x, y, z, nx, ny, nz, Ar, i) => {
+    const vertex = (x, y, z, nx, ny, nz, Ar, i, gl = 1) => {
+      const occ = crowd ? 1 : clamp(0.3 + 0.7 * fn(x + nx * 0.02, y + ny * 0.02, z + nz * 0.02) / (0.02 * clamp(gl, 0.3, 1)));
       model.eval(x, y, z, 1, mode, gm); const g = groups[model.hit] || groups[0], part = g.part, side = g.side || 1;
       apply(Ai[g.bone], x, y, z, tmp); const rx = tmp[0], ry = tmp[1], rz = tmp[2], ax = Math.abs(rx), o = i * 4, trunk = part === 'chest' || part === 'spine' || part === 'pelvis' || part === 'neck';
       breathW(part, rx, ry, rz, bw); Ar.aDef[o] = bw[0]; Ar.aDef[o + 1] = bw[1]; Ar.aDef[o + 2] = bw[2]; Ar.aDef[o + 3] = bw[3];
       let eC = -0.05, eA = -0.05, eL = -0.05, eR = -0.05, seam = 1, px = 1, pipe = 1;
       const front = Math.min(0.2, (rz + 0.04) * 2.2);
       if (isTop) {
-        if (trunk) { eC = Math.min(front, (ry - 1.1) * 1.5); eA = Math.min(front, (1.27 - ry) * 1.5); if (ax > 0.1) seam = rz + 0.004; if (rz > 0.02) px = ax; pipe = ry - 1.3; }
-        else if (part === 'upperArm' || part === 'forearm') { eR = Math.min(0.2, (rz + 0.045) * 1.6); if (part === 'upperArm') { pipe = ry - 1.225; eC = Math.min(eR, 0.02 + (rz) * 1.5) - 0.02; } }
+        if (trunk) { eC = Math.min(front, (ry - 1.1) * 1.5); eA = Math.min(front, (1.27 - ry) * 1.5); if (ax > 0.1) seam = rz + 0.004; if (rz > 0.02) px = ax; pipe = ry - 1.205; }
+        else if (part === 'upperArm' || part === 'forearm') { eR = Math.min(0.2, (rz + 0.045) * 1.6); pipe = ry - 1.225; if (part === 'upperArm') { eC = Math.min(eR, 0.02 + (rz) * 1.5) - 0.02; } }
         else if (part === 'thigh') { eL = Math.min(0.2, (rz + 0.03) * 1.6); eA = eL; }
         if (G.gown && trunk && ry < 1.05) eL = front;
       } else {
@@ -1268,11 +1520,16 @@ export async function buildHuman(specIn = {}, onProgress) {
       }
       Ar.aC0[o] = eC; Ar.aC0[o + 1] = eA; Ar.aC0[o + 2] = eL; Ar.aC0[o + 3] = eR;
       Ar.aC1[o] = -region(part, rx, ry, rz); Ar.aC1[o + 1] = seam; Ar.aC1[o + 2] = px; Ar.aC1[o + 3] = ry;
-      Ar.aC2[o] = 0; Ar.aC2[o + 1] = G.piping ? pipe : 1; Ar.aC2[o + 2] = 0; Ar.aC2[o + 3] = 0;
+      const limb = part === 'upperArm' || part === 'forearm' ? 1 : part === 'thigh' || part === 'shin' ? 2 : 0;
+      let fold = 0;
+      if (isTop) fold = limb === 1 ? Math.exp(-(((ry - 1.085) / 0.075) ** 2)) + 0.8 * smooth(1.27, 1.36, ry) * (1 - smooth(0.2, 0.225, ax)) : 0.75 * smooth(0.115, 0.15, ax) * smooth(1.2, 1.32, ry) + 0.6 * (1 - smooth(1.0, 1.1, ry));
+      else fold = limb === 2 ? Math.exp(-(((ry - 0.5) / 0.1) ** 2)) + 0.7 * smooth(0.78, 0.88, ry) + 0.8 * (1 - smooth(0.13, 0.22, ry)) : 0.6;
+      Ar.aC2[o] = rx; Ar.aC2[o + 1] = G.piping ? pipe : 1; Ar.aC2[o + 2] = occ; Ar.aC2[o + 3] = limb * 10 + clamp(rz, -4, 4);
+      Ar.aC3[o] = isTop && G.collar && trunk ? collarTop(rz) - ry : 1; Ar.aC3[o + 1] = clamp(fold); Ar.aC3[o + 2] = 0; Ar.aC3[o + 3] = 0;
     };
     return { fn, vertex, gm };
   }
-  const CL_ATTR = { aC0: 4, aC1: 4, aC2: 4, aDef: 4 };
+  const CL_ATTR = { aC0: 4, aC1: 4, aC2: 4, aC3: 4, aDef: 4 };
   // Hems: surface nets leave a staircase along a garment's edge. Relax the vertices near the hem along the mesh, then
   // put them back on the garment surface, so the edge runs as a clean line.
   const relaxHem = (geo, fn, res) => {
@@ -1287,21 +1544,23 @@ export async function buildHuman(specIn = {}, onProgress) {
     }
   };
   const clothKeep = (x, y, z) => skinFn(x, y, z) > -0.007;
+  // a uniform in police blue is a police uniform: no ambulance tape, its own insignia
+  const ems = (() => { const c = new THREE.Color(spec.clothing.topColor ?? 0); return !!top?.piping && c.g >= c.b; })();
   if (top) {
     const g = garment(top, true), geo = await run(g.fn, { w: 2, box: boxOf(q => q.mask & g.gm, 0.03), res: R.cloth, keep: clothKeep }, { slack: 1.6, attributes: CL_ATTR, vertex: g.vertex });
     if (geo && !low) relaxHem(geo, g.fn, R.cloth);
-    if (geo) { const m = noPick(new THREE.Mesh(geo, clothMaterial(hu, { color: spec.clothing.topColor ?? 0x5a6a78, color2: top.fabric === 4 ? 0x7fa3c9 : top.piping ? 0x1a1a1a : 0xe8e4da, fabric: top.fabric, placket: top.placket, piping: top.piping, exMask: new THREE.Vector4(1, 1, top.gown ? 1 : 0, 1) }))); m.name = 'top'; m.castShadow = m.receiveShadow = true; group.add(m); clothes.top = m; }
+    if (geo) { const m = noPick(new THREE.Mesh(geo, clothMaterial(hu, { color: spec.clothing.topColor ?? 0x5a6a78, color2: top.fabric === 4 ? 0x7fa3c9 : top.piping ? 0x1a1a1a : top.fabric === 7 ? 0x2a2a2c : 0xe8e4da, fabric: top.fabric, placket: top.placket, piping: ems, top: true, collar: top.collar, pockets: top.pockets, insignia: ems ? 1 : top.piping ? 2 : 0, exMask: new THREE.Vector4(1, 1, top.gown ? 1 : 0, 1) }))); m.name = 'top'; m.castShadow = m.receiveShadow = true; group.add(m); clothes.top = m; }
   }
   if (bottom) {
     const g = garment(bottom, false), geo = await run(g.fn, { w: 2, box: boxOf(q => q.mask & g.gm, 0.03), res: R.cloth, keep: clothKeep }, { slack: 1.6, attributes: CL_ATTR, vertex: g.vertex });
     if (geo && !low) relaxHem(geo, g.fn, R.cloth);
-    if (geo) { const m = noPick(new THREE.Mesh(geo, clothMaterial(hu, { color: spec.clothing.bottomColor ?? 0x27344a, fabric: bottom.fabric, piping: bottom.piping, exMask: new THREE.Vector4(0, 0, 1, 0) }))); m.name = 'bottom'; m.castShadow = m.receiveShadow = true; group.add(m); clothes.bottom = m; }
+    if (geo) { const m = noPick(new THREE.Mesh(geo, clothMaterial(hu, { color: spec.clothing.bottomColor ?? 0x27344a, fabric: bottom.fabric, piping: bottom.piping && ems, belt: bottom.belt, exMask: new THREE.Vector4(0, 0, 1, 0) }))); m.name = 'bottom'; m.castShadow = m.receiveShadow = true; group.add(m); clothes.bottom = m; }
   }
   if (shod) {
     const boots = spec.clothing.shoes === 'boots', sm = new SdfModel();
     for (const s of [1, -1]) {
       const g = sm.group({ matrix: A[s > 0 ? 'ankleL' : 'ankleR'], rScale: D.footS, pk: 0.012 }), X = x => s * x, st = boots ? 0.006 : 0;
-      g.box(X(0.069), 0.014 + st * 0.5, 0.036, 0.05, 0.016 + st * 0.5, 0.144, 0.014, null, { k: 0 });
+      g.box(X(0.069), 0.011 + st * 0.5, 0.036, 0.048, 0.012 + st * 0.5, 0.143, 0.011, null, { k: 0 });
       g.ellipsoid(X(0.069), 0.05 + st, 0.03, 0.047, 0.042, 0.125, null, {});
       g.ellipsoid(X(0.068), 0.04 + st, 0.125, 0.046, 0.032, 0.052, null, {});
       g.ellipsoid(X(0.07), 0.06 + st, -0.062, 0.041, 0.055, 0.045, null, {});
@@ -1314,14 +1573,14 @@ export async function buildHuman(specIn = {}, onProgress) {
       attributes: CL_ATTR, vertex: (x, y, z, nx, ny, nz, Ar, i) => {
         apply(Ai.ankleL, x, y, z, tmp); apply(Ai.ankleR, x, y, z, tmp2); const r = Math.abs(tmp[0] - 0.069) < Math.abs(tmp2[0] + 0.069) ? tmp : tmp2, o = i * 4, ax = Math.abs(Math.abs(r[0]) - 0.069);
         applyDir(Ai.ankleL, nx, ny, nz, nrm);
-        Ar.aC1[o] = (boots ? 0.034 : 0.027) - r[1]; Ar.aC1[o + 1] = Math.min(0.019 - ax, r[2] + 0.002, 0.088 - r[2], (nrm[1] - 0.25) * 0.02); Ar.aC1[o + 2] = smooth(0.1, 0.118, r[2]) + smooth(-0.07, -0.085, r[2]); Ar.aC1[o + 3] = r[1];
-        Ar.aC2[o] = r[2]; Ar.aC2[o + 1] = 1; Ar.aC0[o] = Ar.aC0[o + 1] = Ar.aC0[o + 2] = Ar.aC0[o + 3] = -0.05;
+        Ar.aC1[o] = (boots ? 0.03 : 0.021) - r[1]; Ar.aC1[o + 1] = Math.min(0.019 - ax, r[2] + 0.002, 0.088 - r[2], (nrm[1] - 0.25) * 0.02); Ar.aC1[o + 2] = smooth(0.1, 0.118, r[2]) + smooth(-0.07, -0.085, r[2]); Ar.aC1[o + 3] = r[1];
+        Ar.aC2[o] = r[2]; Ar.aC2[o + 1] = Math.abs(r[0]) - 0.069; Ar.aC2[o + 2] = clamp(0.35 + r[1] * 22); Ar.aC0[o] = Ar.aC0[o + 1] = Ar.aC0[o + 2] = Ar.aC0[o + 3] = -0.05;
       },
     });
     if (geo) { const m = noPick(new THREE.Mesh(geo, clothMaterial(hu, { color: boots ? 0x1b1a19 : (spec.clothing.shoeColor ?? 0x5c6066), color2: boots ? 0x101010 : 0xd9d6cf, fabric: 8, exMask: new THREE.Vector4(0, 0, 0, 0) }))); m.name = 'shoes'; m.castShadow = m.receiveShadow = true; group.add(m); clothes.shoes = m; }
   }
   prog(1);
-  return finishHuman({ spec, D, rig, group, model, fields, skinFn, skinMesh, eyeMesh, hairMesh, clothes, hu, seat, feat, eyeCentres, hZ, buildMs: performance.now() - t0 });
+  return finishHuman({ spec, D, rig, group, model, fields, skinFn, skinMesh, eyeMesh, hairMesh, furMeshes, clothes, hu, seat, feat, eyeCentres, hZ, buildMs: performance.now() - t0 });
 }
 
 // ---------------------------------------------------------------- anchors, runtime state, wounds, bleeding
@@ -1403,7 +1662,7 @@ function finishHuman(h) {
   const allMats = () => [skinMesh, clothes.top, clothes.bottom, clothes.shoes].filter(Boolean).map(m => m.material);
   const _g = new THREE.Vector3(), _q = new THREE.Quaternion();
   const human = {
-    group, spec, dims: D, rig, bones: rig.bones, anchors, seat: h.seat, uniforms: hu, skinMesh, clothes, hairMesh, eyeMeshes: [eyeMesh], openings: null, buildMs: h.buildMs,
+    group, spec, dims: D, rig, bones: rig.bones, anchors, seat: h.seat, uniforms: hu, skinMesh, clothes, hairMesh, eyeMeshes: eyeMesh ? [eyeMesh] : [], openings: null, buildMs: h.buildMs,
     sdf(p) { return model.eval(p.x, p.y, p.z, 1, 0); },
     // signed distance to the lean body (the surface under the subcutaneous fat)
     lean(p, gm = 0) { return model.eval(p.x, p.y, p.z, 0, 0, gm); },
@@ -1441,6 +1700,7 @@ function finishHuman(h) {
       for (const m of allMats()) { if (m.transparent !== on) { m.transparent = on; m.depthWrite = !on; m.needsUpdate = true; } }
       for (const m of [skinMesh, clothes.top, clothes.bottom, clothes.shoes]) if (m) { m.renderOrder = on ? 20 : 0; m.castShadow = !on; if (on) GFX.noAO.add(m); else GFX.noAO.delete(m); }
       if (hairMesh) hairMesh.visible = ghost < 0.4;
+      for (const m of h.furMeshes) m.visible = ghost < 0.4;
     },
     addWound(def) {
       if (wounds.length >= MAX_WOUNDS) return -1;

@@ -9,6 +9,8 @@
 
 import * as THREE from 'three';
 import { makeCanvas, canvasTex, heightToNormal, fbm2, hash2, makeRng, clamp, TAU } from './util.js';
+import { U } from './gfx.js';
+const U_TIME = U.uTime;
 
 // ------------------------------------------------------------------ noise base
 const N = 512; let NZ = null, WN = null;
@@ -169,8 +171,8 @@ export const TEX = {
       x.fillStyle = '#a8804e'; for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) { x.beginPath(); x.arc(i * 64 + (j & 1 ? 32 : 0), j * 64, 5, 0, TAU); x.fill(); }
     }
     return gen(n, (px, py, o) => {
-      const f = nzf(px * 1, py * 20), w = wn(px, py), lo = nz(px, py), k = 0.95 + (f - 0.5) * 0.08 + (w - 0.5) * 0.05 + (lo - 0.5) * 0.06;
-      o.h = f * 0.3 + w * 0.12 + (o.r + o.g + o.b) * 0.12; o.r *= k; o.g *= k; o.b *= k; o.ro = 0.8 + (f - 0.5) * 0.1;
+      const f = nzf(px * 1, py * 20), w = wn(px, py), lo = nz(px, py), sx = px & 255, seam = sx < 2 ? 1 : sx < 5 ? 0.35 : 0, k = (0.95 + (f - 0.5) * 0.08 + (w - 0.5) * 0.05 + (lo - 0.5) * 0.06) * (1 - seam * 0.1);
+      o.h = f * 0.3 + w * 0.12 + (o.r + o.g + o.b) * 0.12 - seam * 0.5 + (sx > 4 && sx < 12 ? 0.12 : 0); o.r *= k; o.g *= k; o.b *= k; o.ro = 0.8 + (f - 0.5) * 0.1;
     }, { src: c, nstr: 1.3 });
   }),
   concrete: () => cached('concrete', () => gen(1024, (x, y, o) => {
@@ -240,6 +242,11 @@ export const TEX = {
     if (w > 0.9) { r = g = b = v - 0.16; } else if (w2 > 0.92) { r = v + 0.1; g = v + 0.08; b = v; } else if (w2 < 0.06) { r = v - 0.08; g = v - 0.02; b = v + 0.04; }
     o.r = r; o.g = g; o.b = b; o.h = lo * 0.3 + w * 0.05; o.ro = 0.38 + (mid - 0.5) * 0.25 + (lo - 0.5) * 0.2;
   }, { nstr: 0.8 })),
+  // wiped, handled paintwork and plastic: roughness that wanders, wipe streaks, the odd glossy touch; very fine orange peel
+  smear: () => cached('smear', () => gen(512, (x, y, o) => {
+    const lo = nz(x, y), mid = nz(x * 3 + 60, y * 3 + 11), wipe = nzf(x * 0.7 + 200, y * 9), wipe2 = nzf(x * 7 + 31, y * 0.9 + 90), w = wn(x, y), touch = sstep(0.7, 0.82, nz(x * 2 + 300, y * 2 + 140));
+    o.r = o.g = o.b = 1; o.h = w * 0.5 + nz(x * 24, y * 24) * 0.5; o.ro = clamp(0.84 + (lo - 0.5) * 0.22 + (mid - 0.5) * 0.12 + (wipe - 0.5) * 0.1 + (wipe2 - 0.5) * 0.07 - touch * 0.2, 0.45, 1);
+  }, { nstr: 0.6 })),
   cork: () => cached('cork', () => gen(256, (x, y, o) => {
     const a = nz(x * 8, y * 8), b = nz(x * 16 + 11, y * 16), w = wn(x, y), v = 0.5 + (a - 0.5) * 0.35 + (b - 0.5) * 0.25 + (w - 0.5) * 0.12;
     o.r = v * 1.12; o.g = v * 0.8; o.b = v * 0.5; o.h = a + b * 0.6; o.ro = 0.95;
@@ -277,7 +284,7 @@ function greek(x, r, x0, y0, w, h, lh, col = '#444', gap = 0.35) {
 }
 
 function buildPics() {
-  const P = packer(1024, 1024, '#888'), r = makeRng(2026);
+  const P = packer(1024, 1280, '#888'), r = makeRng(2026);   // 17 tiles of 252: five rows
   const skins = ['#e8c4a4', '#c99872', '#8e5e3e', '#f0d2b8', '#a8744c', '#6b4530'], hairs = ['#2a1d14', '#5a3b22', '#c8c2ba', '#8a8580', '#a57a3e', '#1a1614'], cloth = ['#3e5a7a', '#7a2f35', '#e4e0d6', '#46604a', '#2b2b30', '#b08a4a', '#8a6a8a'];
   const person = (x, cx, cy, s) => {
     x.fillStyle = r.pick(cloth); x.beginPath(); x.ellipse(cx, cy + s * 1.55, s * 1.15, s * 0.95, 0, 0, TAU); x.fill();
@@ -448,6 +455,27 @@ function buildStains() {
 }
 export const STAIN = { oil: [0.01, 0.51, 0.49, 0.99], coffee: [0.51, 0.51, 0.99, 0.99], scuff: [0.01, 0.01, 0.49, 0.49], water: [0.51, 0.01, 0.99, 0.49] };
 
+// Dry grime decals (2x2 atlas with alpha): smudge (hand marks, soot), scuff (shoe and furniture rubs, runs along U),
+// wear (pale trodden / dusty patch), drip (streaks running down from V=1).
+function buildGrime() {
+  base(); const n = 512, c = makeCanvas(n), x = c.getContext('2d'), im = x.createImageData(n, n), d = im.data;
+  for (let y = 0; y < n; y++) for (let px = 0; px < n; px++) {
+    const q = (px >> 8) + (y >> 8) * 2, fu = (px & 255) / 255, fv = (y & 255) / 255, u = fu * 2 - 1, v = fv * 2 - 1, rr = Math.hypot(u, v);
+    const edge = Math.max(0, 1 - Math.max(Math.abs(u), Math.abs(v))), ef = sstep(0, 0.22, edge);
+    let a = 0, r = 0.1, g = 0.085, b = 0.07;
+    if (q === 0) { const cl = nz(px * 2 + 17, y * 2 + 90), fine = nz(px * 9, y * 9); a = (1 - sstep(0.1, 0.95, rr)) * sstep(0.25, 0.8, cl * 0.75 + fine * 0.25 + (1 - rr) * 0.25) * 0.3; }
+    else if (q === 1) { const row = Math.floor(fv * 9), ro = hash2(row, 3, 77), s0 = hash2(row, 5, 77) * 0.5, s1 = s0 + 0.2 + hash2(row, 7, 77) * 0.3, fy = fv * 9 - row, th = 0.12 + 0.3 * hash2(row, 9, 77);
+      const band = (1 - sstep(th * 0.4, th, Math.abs(fy - 0.5 + (nz(px * 2, row * 40) - 0.5) * 0.3))) * sstep(s0, s0 + 0.06, fu) * (1 - sstep(s1 - 0.1, s1, fu));
+      r = g = b = 0.035; a = ro > 0.35 ? band * (0.35 + 0.5 * nz(px * 6, y * 30)) * 0.8 : 0; }
+    else if (q === 2) { const cl = nz(px + 300, y + 40), fine = nz(px * 8, y * 8), w2 = wn(px, y); r = 0.74; g = 0.71; b = 0.66; a = (1 - sstep(0.25, 1.0, rr)) * (0.3 + 0.7 * cl) * (0.6 + 0.4 * fine) * (0.8 + 0.2 * w2) * 0.34; }
+    else { const col = nzf(px * 5.0, 3.3), col2 = nzf(px * 17.0, 9.1), len = 0.25 + 0.75 * nzf(px * 3.0, 20.5), st = sstep(0.52, 0.78, col * 0.7 + col2 * 0.3);
+      r = 0.16; g = 0.13; b = 0.09; a = st * (1 - sstep(len * 0.5, len, fv)) * (0.55 + 0.45 * nz(px * 4, y * 2)) * 0.5; }
+    a *= ef; const j = (y * n + px) * 4; d[j] = r * 255; d[j + 1] = g * 255; d[j + 2] = b * 255; d[j + 3] = clamp(a) * 255;
+  }
+  x.putImageData(im, 0, 0); return share(canvasTex(c, { wrap: false }));
+}
+export const GRIME = { smudge: [0.01, 0.51, 0.49, 0.99], scuff: [0.51, 0.51, 0.99, 0.99], wear: [0.01, 0.01, 0.49, 0.49], drip: [0.51, 0.01, 0.99, 0.49] };
+
 function buildLace() {
   const n = 256, c = makeCanvas(n), x = c.getContext('2d'); x.translate(128, 128); x.strokeStyle = '#fff'; x.fillStyle = '#fff';
   x.beginPath(); x.arc(0, 0, 58, 0, TAU); x.fill(); x.lineWidth = 3;
@@ -510,20 +538,22 @@ export function backdropTex(kind) {
 const MC = {};
 function mat(key, fn) { if (!MC[key]) { const m = fn(); m.userData.shared = true; m.name = key; MC[key] = m; } return MC[key]; }
 function std(o) {
-  const { tile, grain, noShadow, noAO, order, physical, ...p } = o;
+  const { tile, grain, noShadow, noAO, order, physical, decal, ...p } = o;
   const m = physical ? new THREE.MeshPhysicalMaterial({ vertexColors: true, ...p }) : new THREE.MeshStandardMaterial({ vertexColors: true, ...p });
   if (tile) m.userData.tile = Array.isArray(tile) ? tile : [tile, tile];
-  if (grain) m.userData.grain = true; if (noShadow) m.userData.noShadow = true; if (noAO) m.userData.noAO = true; if (order) m.userData.order = order;
+  if (grain) m.userData.grain = true; if (noShadow) m.userData.noShadow = true; if (noAO) m.userData.noAO = true; if (order) m.userData.order = order; if (decal) m.userData.decal = true;
   return m;
 }
 const ns = v => new THREE.Vector2(v, v);
+// plain finish with the smear maps; jit2: its UV offsets come from the kit's second RNG so layouts stay as they were
+function handled(rough, bump) { const t = TEX.smear(), m = std({ roughness: rough, roughnessMap: t.roughnessMap, normalMap: t.normalMap, normalScale: ns(bump), tile: 0.8 }); m.userData.jit2 = true; return m; }
 
 export const M = {
   // flat finishes, vertex coloured
   get matte() { return mat('matte', () => std({ roughness: 0.88 })); },
-  get satin() { return mat('satin', () => std({ roughness: 0.5 })); },
-  get gloss() { return mat('gloss', () => std({ roughness: 0.16 })); },
-  get plastic() { return mat('plastic', () => std({ roughness: 0.34 })); },
+  get satin() { return mat('satin', () => handled(0.58, 0.07)); },
+  get gloss() { return mat('gloss', () => handled(0.2, 0.04)); },
+  get plastic() { return mat('plastic', () => handled(0.4, 0.05)); },
   get ceramic() { return mat('ceramic', () => std({ roughness: 0.08, physical: true, clearcoat: 0.6, clearcoatRoughness: 0.05 })); },
   get carPaint() { return mat('carPaint', () => std({ roughness: 0.4, metalness: 0.3, physical: true, clearcoat: 1, clearcoatRoughness: 0.06 })); },
   get rubberBlack() { return mat('rubberBlack', () => std({ roughness: 0.9 })); },
@@ -571,7 +601,37 @@ export const M = {
   get pics() { return mat('pics', () => std({ map: ATLAS.pics.tex, roughness: 0.22 })); },
   get signs() { return mat('signs', () => std({ map: ATLAS.signs.tex, roughness: 0.5 })); },
   get neon() { return mat('neon', () => { const m = new THREE.MeshBasicMaterial({ map: ATLAS.neon.tex, color: new THREE.Color(5, 5, 5), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }); m.userData.noShadow = true; m.userData.noAO = true; m.userData.order = 8; return m; }); },
-  get stain() { return mat('stain', () => std({ map: buildStains(), roughness: 0.18, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, noShadow: true, noAO: true, order: 2 })); },
+  get stain() { return mat('stain', () => std({ decal: true, map: buildStains(), roughness: 0.18, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, noShadow: true, noAO: true, order: 2 })); },
+  get grime() { return mat('grime', () => std({ decal: true, map: buildGrime(), roughness: 0.9, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, noShadow: true, noAO: true, order: 2, side: THREE.DoubleSide })); },
+  // Multiply decal standing in for baked ambient occlusion and contact shadow. Vertex colour carries the shape:
+  // r = strength, then either (g, b) = soft edge as a fraction of the half size in U and V (a blob), or b = 2 for a
+  // strip that is darkest along V = 0 and gone by V = 1.
+  get ao() { return mat('ao', () => { const m = new THREE.ShaderMaterial({
+    vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1, fog: false,
+    blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.ZeroFactor, blendDst: THREE.SrcColorFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
+    vertexShader: 'varying vec2 vUv; varying vec3 vC; void main(){ vUv=uv; vC=color; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+    fragmentShader: `varying vec2 vUv; varying vec3 vC;
+      void main(){ float a;
+        if(vC.b>1.5){ float t=clamp(1.0-vUv.y,0.0,1.0); a=t*t*(3.0-2.0*t); a*=a; }
+        else { vec2 p=abs(vUv*2.0-1.0); vec2 s=clamp(vC.gb,0.02,1.0); vec2 q=clamp((1.0-p)/s,0.0,1.0); q=q*q*(3.0-2.0*q); a=q.x*q.y; }
+        float k=clamp(a*vC.r,0.0,0.92); gl_FragColor=vec4(vec3(1.0-k),1.0); }` });
+    m.userData.noShadow = true; m.userData.noAO = true; m.userData.order = 1; m.userData.decal = true; return m; }); },
+  // Additive light-shaft card: U runs from the window (0) to the far end (1), V across the beam. Vertex colour is the
+  // light colour times strength. Cards fade when seen edge-on so a crossed stack of them reads as a volume.
+  get shaft() { return mat('shaft', () => { const m = new THREE.ShaderMaterial({
+    uniforms: { uTime: U_TIME }, vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false,
+    vertexShader: `varying vec2 vUv; varying vec3 vC; varying vec3 vW; varying float vF;
+      void main(){ vUv=uv; vC=color; vec4 wp=modelMatrix*vec4(position,1.0); vW=wp.xyz; vec3 n=mat3(modelMatrix)*normal; float nl=length(n); vec3 v=cameraPosition-wp.xyz; float l=length(v);
+        vF=(nl>1e-5&&l>1e-5)?abs(dot(n/nl,v/l)):1.0; vF*=smoothstep(0.25,1.5,l); gl_Position=projectionMatrix*viewMatrix*wp; }`,
+    fragmentShader: `varying vec2 vUv; varying vec3 vC; varying vec3 vW; varying float vF; uniform float uTime;
+      float h31(vec3 p){ p=fract(p*vec3(0.1031,0.1030,0.0973)); p+=dot(p,p.yzx+33.33); return fract((p.x+p.y)*p.z); }
+      void main(){ float al=clamp(1.0-vUv.x,0.0,1.0); float e=clamp(vUv.y*(1.0-vUv.y)*4.0,0.0,1.0);
+        float face=smoothstep(0.04,0.55,vF);
+        float a=(0.3+0.7*al*al)*(0.3+0.7*e)*face;
+        vec3 q=vW*2.2+vec3(uTime*0.02,-uTime*0.015,uTime*0.017); float cl=0.78+0.22*sin(q.x*1.7+q.y*2.3+q.z*1.3);
+        float n=h31(floor(vW*260.0+vec3(0.0,-uTime*0.9,0.0))); float mote=step(0.9988,n)*(0.5+0.5*sin(uTime*1.7+n*900.0));
+        gl_FragColor=vec4(vC*(a*cl+mote*al*face*4.0),1.0); }` });
+    m.userData.noShadow = true; m.userData.noAO = true; m.userData.order = 7; m.userData.decal = true; return m; }); },
   get lace() { return mat('lace', () => std({ map: buildLace(), roughness: 0.9, alphaTest: 0.5, side: THREE.DoubleSide, noShadow: true })); },
 };
 

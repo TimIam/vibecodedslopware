@@ -33,7 +33,7 @@ export const QUALITY = {
 
 export const G = {
   renderer: null, composer: null, canvas: null, scene: null, camera: null, quality: 'high', q: QUALITY.high,
-  passes: {}, w: 1, h: 1, pmrem: null, noAO: new Set(), grade: null, time: 0,
+  passes: {}, w: 1, h: 1, pmrem: null, noAO: new Set(), grade: null, time: 0, dof: { focus: 2, amount: 0, t: -1, cur: 0 },
   view(scene, camera) {
     G.scene = scene; G.camera = camera;
     const p = G.passes;
@@ -55,21 +55,26 @@ const cleanShader = {
 const gradeShader = {
   uniforms: {
     tDiffuse: { value: null }, uT: { value: 0 }, uAspect: { value: 1.6 }, uVig: { value: 0.32 }, uGrain: { value: 0.035 },
-    uSat: { value: 1.06 }, uContrast: { value: 1.06 }, uAberr: { value: 0.0012 }, uShadowTint: { value: new THREE.Color(0.96, 1.0, 1.06) },
+    uSat: { value: 1.14 }, uContrast: { value: 0.42 }, uAberr: { value: 0.0010 }, uTexel: { value: new THREE.Vector2(1 / 1600, 1 / 900) }, uSharp: { value: 0.55 }, uShadowTint: { value: new THREE.Color(0.96, 1.0, 1.06) },
     uHighTint: { value: new THREE.Color(1.04, 1.0, 0.95) }, uFade: { value: 0 }, uStress: { value: 0 }, uFlash: { value: 0 },
   },
   vertexShader: VS,
-  fragmentShader: `varying vec2 vUv; uniform sampler2D tDiffuse; uniform float uT,uAspect,uVig,uGrain,uSat,uContrast,uAberr,uFade,uStress,uFlash; uniform vec3 uShadowTint,uHighTint;
+  fragmentShader: `varying vec2 vUv; uniform sampler2D tDiffuse; uniform float uT,uAspect,uVig,uGrain,uSat,uContrast,uAberr,uFade,uStress,uFlash,uSharp; uniform vec2 uTexel; uniform vec3 uShadowTint,uHighTint;
     float hash(vec2 p){ p=fract(p*vec2(443.897,441.423)); p+=dot(p,p.yx+19.19); return fract((p.x+p.y)*p.x); }
     void main(){
       vec2 p=vUv-0.5; vec2 q=vec2(p.x*uAspect,p.y); float d=length(q);
       vec2 dir=p*(d*d);
       float ab=uAberr*(1.0+uStress*3.0);
       vec3 c=vec3(texture2D(tDiffuse,vUv+dir*ab*2.0).r, texture2D(tDiffuse,vUv).g, texture2D(tDiffuse,vUv-dir*ab*2.0).b);
+      // contrast-adaptive sharpen: restores the texture detail that MSAA resolve and tone mapping soften, without ringing on hard edges
+      vec3 n1=texture2D(tDiffuse,vUv+vec2(uTexel.x,0.0)).rgb, n2=texture2D(tDiffuse,vUv-vec2(uTexel.x,0.0)).rgb, n3=texture2D(tDiffuse,vUv+vec2(0.0,uTexel.y)).rgb, n4=texture2D(tDiffuse,vUv-vec2(0.0,uTexel.y)).rgb;
+      vec3 mn=min(min(n1,n2),min(n3,n4)), mx=max(max(n1,n2),max(n3,n4)); float span=max(mx.g-mn.g,0.0);
+      vec3 hp=c-(n1+n2+n3+n4)*0.25; c=clamp(c+hp*uSharp*(1.0-smoothstep(0.12,0.45,span)), min(mn,c)-0.02, max(mx,c)+0.02);
+      c=max(c,vec3(0.0));
       float l=dot(c,vec3(0.2126,0.7152,0.0722));
       c=mix(c*uShadowTint, c*uHighTint, smoothstep(0.1,0.85,l));
       c=mix(vec3(l),c,uSat*(1.0-uStress*0.45));
-      c=(c-0.5)*uContrast+0.5;
+      { vec3 cc=clamp(c,0.0,1.0); c=mix(c, cc*cc*(3.0-2.0*cc), uContrast); }
       float v=smoothstep(0.35,1.05,d);
       c*=1.0-v*(uVig+uStress*0.55);
       c+=uFlash;
@@ -78,6 +83,28 @@ const gradeShader = {
       gl_FragColor=vec4(clamp(c,0.0,1.0),1.0);
     }`,
 };
+
+// Depth of field for the on-scene camera: reads the depth the AO pass already rendered, so it costs one blur pass and
+// only exists when AO does. Whoever owns the camera calls focusAt(distance) every frame; it switches itself off otherwise.
+const dofShader = {
+  uniforms: { tDiffuse: { value: null }, tDepth: { value: null }, uNear: { value: 0.1 }, uFar: { value: 1000 }, uFocus: { value: 2 }, uAmt: { value: 0 }, uMax: { value: 9 }, uTexel: { value: new THREE.Vector2(1 / 1600, 1 / 900) } },
+  vertexShader: VS,
+  fragmentShader: `varying vec2 vUv; uniform sampler2D tDiffuse,tDepth; uniform float uNear,uFar,uFocus,uAmt,uMax; uniform vec2 uTexel;
+    float dist(vec2 uv){ float d=texture2D(tDepth,uv).x; return (uNear*uFar)/max(uFar-d*(uFar-uNear),1e-4); }
+    float coc(float z){ float range=0.3+0.28*uFocus; float back=max(z-uFocus-range,0.0)/(1.2+uFocus*1.1); float front=max(uFocus-range*0.7-z,0.0)/max(uFocus*0.55,0.2); return clamp(max(back,front*0.8),0.0,1.0)*uMax*uAmt; }
+    void main(){
+      vec3 c0=texture2D(tDiffuse,vUv).rgb; float z0=dist(vUv), s0=coc(z0);
+      if(uAmt<0.01){ gl_FragColor=vec4(c0,1.0); return; }
+      vec3 acc=c0; float tot=1.0, r=1.0;
+      for(float a=0.0; r<uMax; a+=2.39996323){
+        vec2 uv=vUv+vec2(cos(a),sin(a))*uTexel*r; vec3 cs=texture2D(tDiffuse,uv).rgb; float zs=dist(uv), ss=coc(zs);
+        if(zs>z0) ss=clamp(ss,0.0,s0*2.0);
+        float m=smoothstep(r-0.5,r+0.5,ss); acc+=mix(acc/tot,cs,m); tot+=1.0; r+=0.9/r;
+      }
+      gl_FragColor=vec4(acc/tot,1.0);
+    }`,
+};
+export function focusAt(distance, amount = 1) { G.dof.focus = distance; G.dof.amount = amount; G.dof.t = G.time; }
 
 export function initGfx(canvas, quality = 'high') {
   G.canvas = canvas; G.quality = quality; G.q = QUALITY[quality] || QUALITY.high;
@@ -114,11 +141,12 @@ function buildChain() {
     c.addPass(ao);
   }
   c.addPass(P.clean = new ShaderPass(cleanShader));
+  if (P.ao && P.ao.depthTexture && q.dof !== false) { c.addPass(P.dof = new ShaderPass(dofShader)); P.dof.uniforms.tDepth.value = P.ao.depthTexture; P.dof.uniforms.uTexel.value.set(1 / Math.floor(w * dpr), 1 / Math.floor(h * dpr)); P.dof.uniforms.uMax.value = Math.max(4, Math.round(h * dpr / 100)); P.dof.enabled = false; }
   if (q.bloom) { c.addPass(P.bloom = new UnrealBloomPass(new THREE.Vector2(w, h), 0.22, 0.6, 1.0)); }
   c.addPass(P.out = new OutputPass());
   c.addPass(P.grade = new ShaderPass(gradeShader)); G.grade = P.grade.uniforms;
   if (q.smaa) c.addPass(P.smaa = new SMAAPass(w * dpr, h * dpr));
-  G.grade.uAspect.value = w / h;
+  G.grade.uAspect.value = w / h; G.grade.uTexel.value.set(1 / Math.floor(w * dpr), 1 / Math.floor(h * dpr));
   if (G.scene) G.view(G.scene, G.camera);
 }
 
@@ -131,7 +159,7 @@ export function resize() {
   const w = G.canvas.clientWidth, h = G.canvas.clientHeight;
   if (!w || !h || (w === G.w && h === G.h)) return;
   G.w = w; G.h = h; G.renderer.setSize(w, h, false); G.composer.setSize(w, h);
-  G.grade.uAspect.value = w / h;
+  G.grade.uAspect.value = w / h; { const pr = G.renderer.getPixelRatio(); G.grade.uTexel.value.set(1 / Math.floor(w * pr), 1 / Math.floor(h * pr)); }
   if (G.camera && G.camera.isPerspectiveCamera) { G.camera.aspect = w / h; G.camera.updateProjectionMatrix(); }
 }
 
@@ -139,6 +167,7 @@ export function render(dt) {
   G.time += dt; U.uTime.value = G.time; G.grade.uT.value = G.time;
   if (G.grade.uFlash.value > 0) G.grade.uFlash.value = Math.max(0, G.grade.uFlash.value - Math.max(dt, 0.008) * 1.8);    // impact / shock flashes always fade
   if (G.camera && G.camera.isPerspectiveCamera && Math.abs(G.camera.aspect - G.w / G.h) > 1e-4) { G.camera.aspect = G.w / G.h; G.camera.updateProjectionMatrix(); }
+  const dp = G.passes.dof; if (dp) { const d = G.dof, want = G.time - d.t < 0.2 ? d.amount : 0; d.cur += (want - d.cur) * Math.min(1, Math.max(dt, 0.008) * 5); dp.enabled = d.cur > 0.02 && !!G.camera?.isPerspectiveCamera; if (dp.enabled) { const u = dp.uniforms; u.uAmt.value = d.cur; u.uFocus.value += (d.focus - u.uFocus.value) * Math.min(1, Math.max(dt, 0.008) * 8); u.uNear.value = G.camera.near; u.uFar.value = G.camera.far; } }
   G.composer.render(dt);
 }
 
@@ -250,8 +279,8 @@ function makeRain(maxCount) {
 const c3 = (r, g, b) => new THREE.Color(r, g, b);
 // sunEl/sunAz in degrees (az 0 = +Z, 90 = +X). At night "sun" is the moon.
 export const ENV = {
-  morning: { sunEl: 24, sunAz: 115, sunCol: c3(1.0, 0.86, 0.70), sunInt: 3.6, hemiSky: c3(0.55, 0.68, 0.95), hemiGnd: c3(0.30, 0.27, 0.22), hemiInt: 0.75, fog: c3(0.66, 0.74, 0.86), fogD: 0.00085, zen: c3(0.13, 0.30, 0.68), hor: c3(0.62, 0.74, 0.90), glow: c3(1.0, 0.8, 0.55), cover: 0.46, cLit: c3(1.0, 0.97, 0.92), cDark: c3(0.55, 0.60, 0.70), haze: 16, exposure: 0.92, envInt: 0.85, bloom: 0.14 },
-  noon: { sunEl: 56, sunAz: 160, sunCol: c3(1.0, 0.96, 0.9), sunInt: 4.2, hemiSky: c3(0.50, 0.66, 1.0), hemiGnd: c3(0.33, 0.30, 0.25), hemiInt: 0.8, fog: c3(0.62, 0.74, 0.92), fogD: 0.0006, zen: c3(0.09, 0.25, 0.66), hor: c3(0.55, 0.72, 0.95), glow: c3(1.0, 0.92, 0.75), cover: 0.42, cLit: c3(1, 1, 1), cDark: c3(0.6, 0.65, 0.75), haze: 20, exposure: 0.85, envInt: 0.9, bloom: 0.12 },
+  morning: { sunEl: 24, sunAz: 115, sunCol: c3(1.0, 0.84, 0.66), sunInt: 4.4, hemiSky: c3(0.50, 0.64, 0.95), hemiGnd: c3(0.30, 0.26, 0.20), hemiInt: 0.55, fog: c3(0.66, 0.74, 0.86), fogD: 0.00085, zen: c3(0.13, 0.30, 0.68), hor: c3(0.62, 0.74, 0.90), glow: c3(1.0, 0.8, 0.55), cover: 0.46, cLit: c3(1.0, 0.97, 0.92), cDark: c3(0.55, 0.60, 0.70), haze: 16, exposure: 0.9, envInt: 0.7, bloom: 0.14 },
+  noon: { sunEl: 52, sunAz: 152, sunCol: c3(1.0, 0.95, 0.87), sunInt: 5.2, hemiSky: c3(0.46, 0.62, 1.0), hemiGnd: c3(0.34, 0.30, 0.24), hemiInt: 0.55, fog: c3(0.62, 0.74, 0.92), fogD: 0.0006, zen: c3(0.09, 0.25, 0.66), hor: c3(0.55, 0.72, 0.95), glow: c3(1.0, 0.92, 0.75), cover: 0.42, cLit: c3(1, 1, 1), cDark: c3(0.6, 0.65, 0.75), haze: 20, exposure: 0.82, envInt: 0.7, bloom: 0.12 },
   overcast: { sunEl: 48, sunAz: 140, sunCol: c3(0.9, 0.92, 1.0), sunInt: 0.9, hemiSky: c3(0.72, 0.76, 0.82), hemiGnd: c3(0.28, 0.27, 0.26), hemiInt: 1.25, fog: c3(0.60, 0.63, 0.67), fogD: 0.0016, zen: c3(0.42, 0.45, 0.50), hor: c3(0.62, 0.65, 0.69), glow: c3(0.25, 0.25, 0.25), cover: 1.0, cLit: c3(0.70, 0.72, 0.76), cDark: c3(0.36, 0.38, 0.43), haze: 7, exposure: 0.95, envInt: 1.0, bloom: 0.12, wet: 0.25 },
   rainDay: { sunEl: 40, sunAz: 150, sunCol: c3(0.85, 0.9, 1.0), sunInt: 0.5, hemiSky: c3(0.60, 0.65, 0.72), hemiGnd: c3(0.22, 0.22, 0.23), hemiInt: 1.1, fog: c3(0.47, 0.51, 0.56), fogD: 0.0034, zen: c3(0.30, 0.33, 0.38), hor: c3(0.48, 0.52, 0.57), glow: c3(0.12, 0.12, 0.12), cover: 1.0, cLit: c3(0.52, 0.55, 0.60), cDark: c3(0.24, 0.26, 0.31), haze: 5, exposure: 1.0, envInt: 1.0, bloom: 0.16, wet: 1, rain: 0.85, night: 0.25, rainCol: c3(0.30, 0.32, 0.35) },
   dusk: { sunEl: 3.5, sunAz: 262, sunCol: c3(1.0, 0.48, 0.20), sunInt: 2.3, hemiSky: c3(0.36, 0.38, 0.62), hemiGnd: c3(0.22, 0.16, 0.14), hemiInt: 0.6, fog: c3(0.50, 0.38, 0.40), fogD: 0.0012, zen: c3(0.07, 0.10, 0.28), hor: c3(0.95, 0.46, 0.22), glow: c3(1.3, 0.55, 0.2), cover: 0.45, cLit: c3(1.0, 0.55, 0.35), cDark: c3(0.22, 0.18, 0.30), haze: 9, exposure: 1.05, envInt: 0.9, bloom: 0.17, night: 0.7 },

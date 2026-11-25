@@ -90,7 +90,7 @@ export function buildOutskirts(T, M, group) {
   const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();
   for (const b of buckets.values()) {
     const im = new THREE.InstancedMesh(geos[b.v], M.cutBB, b.list.length); im.name = 'forest';
-    b.list.forEach((t, i) => { pos.set(t[0], ter.height(t[0], t[1]) - 0.8, t[1]); sc.set(t[2], t[2] * rng.r(0.9, 1.15), t[2]); mtx.compose(pos, q, sc); im.setMatrixAt(i, mtx); const k = rng.r(0.55, 0.95); col.setRGB(k * rng.r(0.82, 1.0), k, k * rng.r(0.8, 1.02)); im.setColorAt(i, col); });
+    b.list.forEach((t, i) => { pos.set(t[0], ter.height(t[0], t[1]) - 0.8, t[1]); { const wx = t[3] > 950 ? 1.9 : t[3] > 420 ? 1.4 : 1.05; sc.set(t[2] * wx, t[2] * rng.r(0.9, 1.15) * (t[3] > 950 ? 0.8 : 1), t[2] * wx); } mtx.compose(pos, q, sc); im.setMatrixAt(i, mtx); const k = rng.r(0.55, 0.95); col.setRGB(k * rng.r(0.82, 1.0), k, k * rng.r(0.8, 1.02)); im.setColorAt(i, col); });
     im.castShadow = false; im.receiveShadow = false; im.computeBoundingSphere(); im.matrixAutoUpdate = false; group.add(im); tris += 4 * b.list.length;
   }
   group.add(mountains());

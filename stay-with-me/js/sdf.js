@@ -341,7 +341,8 @@ const yieldNow = (() => {
 //   keep      (x,y,z) -> bool vertex filter; triangles touching a dropped vertex are removed (ragged clip)
 //   skip      (cx,cy,cz,R) -> bool: skip the whole block centred there (R = its bounding radius), e.g. outside a region
 //   attributes { name: itemSize, ... } extra per-vertex Float32 attributes, filled by
-//   vertex     (x,y,z,nx,ny,nz, arrays, i) called once per final vertex (write arrays[name][i*itemSize + c])
+//   vertex     (x,y,z,nx,ny,nz, arrays, i, g) called once per final vertex (write arrays[name][i*itemSize + c]);
+//              g is the field's gradient length there (1 for a true distance field, less inside smooth blends)
 // Returns a BufferGeometry (position, normal, index) or null when the field has no surface in the box.
 export function meshSDF(fn, bbox, res, opts = {}) {
   const it = meshGen(fn, bbox, res, opts); let r;
@@ -423,11 +424,11 @@ function* meshGen(fn, bbox, h, o) {
     }
   }
   // pass 4: gradient normals, projection onto the surface, attributes
-  const nv = pos.length / 3, P = new Float32Array(pos), N = new Float32Array(nv * 3), keepV = o.keep ? new Uint8Array(nv) : null;
+  const nv = pos.length / 3, P = new Float32Array(pos), N = new Float32Array(nv * 3), GM = new Float32Array(nv), keepV = o.keep ? new Uint8Array(nv) : null;
   const eps = o.eps || h * 0.2, out = [0, 0, 0, 0], project = o.project !== false, nfn = o.normalFn || null;
   for (let v = 0; v < nv; v++) {
     let x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2];
-    const d = sdfNormal(fn, x, y, z, eps, out);
+    const d = sdfNormal(fn, x, y, z, eps, out); GM[v] = out[3];
     if (project && d > -h && d < h) { const g = Math.max(out[3], 0.5); x -= out[0] * d / g; y -= out[1] * d / g; z -= out[2] * d / g; P[v * 3] = x; P[v * 3 + 1] = y; P[v * 3 + 2] = z; }
     if (nfn) sdfNormal(nfn, x, y, z, eps, out);
     N[v * 3] = out[0]; N[v * 3 + 1] = out[1]; N[v * 3 + 2] = out[2];
@@ -435,13 +436,13 @@ function* meshGen(fn, bbox, h, o) {
     if ((v & 1023) === 0) yield 0.55 + 0.35 * (v / nv);
   }
   // drop filtered triangles and compact
-  let index = idx, Pp = P, Nn = N, count = nv;
+  let index = idx, Pp = P, Nn = N, Gg = GM, count = nv;
   if (keepV) {
     const kept = []; for (let t = 0; t < idx.length; t += 3) if (keepV[idx[t]] && keepV[idx[t + 1]] && keepV[idx[t + 2]]) kept.push(idx[t], idx[t + 1], idx[t + 2]);
     const remap = new Int32Array(nv).fill(-1); count = 0;
     for (let t = 0; t < kept.length; t++) { const v = kept[t]; if (remap[v] < 0) remap[v] = count++; kept[t] = remap[v]; }
-    Pp = new Float32Array(count * 3); Nn = new Float32Array(count * 3);
-    for (let v = 0; v < nv; v++) { const r = remap[v]; if (r < 0) continue; Pp[r * 3] = P[v * 3]; Pp[r * 3 + 1] = P[v * 3 + 1]; Pp[r * 3 + 2] = P[v * 3 + 2]; Nn[r * 3] = N[v * 3]; Nn[r * 3 + 1] = N[v * 3 + 1]; Nn[r * 3 + 2] = N[v * 3 + 2]; }
+    Pp = new Float32Array(count * 3); Nn = new Float32Array(count * 3); Gg = new Float32Array(count);
+    for (let v = 0; v < nv; v++) { const r = remap[v]; if (r < 0) continue; Pp[r * 3] = P[v * 3]; Pp[r * 3 + 1] = P[v * 3 + 1]; Pp[r * 3 + 2] = P[v * 3 + 2]; Nn[r * 3] = N[v * 3]; Nn[r * 3 + 1] = N[v * 3 + 1]; Nn[r * 3 + 2] = N[v * 3 + 2]; Gg[r] = GM[v]; }
     index = kept;
   }
   if (!count || !index.length) return null;
@@ -452,7 +453,7 @@ function* meshGen(fn, bbox, h, o) {
   if (o.attributes) {
     const arrays = {};
     for (const name in o.attributes) arrays[name] = new Float32Array(count * o.attributes[name]);
-    if (o.vertex) for (let v = 0; v < count; v++) { o.vertex(Pp[v * 3], Pp[v * 3 + 1], Pp[v * 3 + 2], Nn[v * 3], Nn[v * 3 + 1], Nn[v * 3 + 2], arrays, v); if ((v & 1023) === 0) yield 0.9 + 0.1 * (v / count); }
+    if (o.vertex) for (let v = 0; v < count; v++) { o.vertex(Pp[v * 3], Pp[v * 3 + 1], Pp[v * 3 + 2], Nn[v * 3], Nn[v * 3 + 1], Nn[v * 3 + 2], arrays, v, Gg[v]); if ((v & 1023) === 0) yield 0.9 + 0.1 * (v / count); }
     for (const name in arrays) geo.setAttribute(name, new THREE.BufferAttribute(arrays[name], o.attributes[name]));
   }
   geo.computeBoundingBox(); geo.computeBoundingSphere();

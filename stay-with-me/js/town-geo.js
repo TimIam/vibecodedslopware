@@ -41,7 +41,7 @@ export class MB {
     return this.frame(this.ox + x * c + z * s, this.oy + y, this.oz - x * s + z * c, this.h + h);
   }
   pop() { const h = this.st.pop(), z = this.st.pop(), y = this.st.pop(), x = this.st.pop(); return this.frame(x, y, z, h); }
-  col(r, g = r, b = r) { this.r = r; this.g = g; this.b = b; return this; }
+  col(r, g = r, b = r) { this.r = r > 255 ? 255 : r; this.g = g > 255 ? 255 : g; this.b = b > 255 ? 255 : b; return this; }   // (clamped: an overflowing tint used to wrap round to teal)
   hex(c) { this.r = c >> 16 & 255; this.g = c >> 8 & 255; this.b = c & 255; return this; }
   lay(l) { this.l = l; return this; }
   // window grid for the following facade quads: cell size and window size (m), seed, style, recess depth (m, < 1),
@@ -160,7 +160,7 @@ export class MB {
 export class Chunks {
   constructor(size = CHUNK) { this.size = size; this.map = new Map(); }
   get(kind, x, z) {
-    const k = kind + '|' + Math.floor(x / this.size) + '|' + Math.floor(z / this.size);
+    const sz = kind === 'trim' ? 125 : this.size, k = kind + '|' + Math.floor(x / sz) + '|' + Math.floor(z / sz);   // trim = near-only facade relief, in finer chunks
     let b = this.map.get(k); if (!b) { b = new MB(kind === 'facade' || kind === 'road'); b.kind = kind; this.map.set(k, b); }
     return b;
   }

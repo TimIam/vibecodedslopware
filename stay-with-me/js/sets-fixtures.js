@@ -22,10 +22,11 @@ F.baseUnits = (K, { len, col = 0xe6e2d6, plinth = 0x2a2a2c, units, topCol = 0x56
       K.box(M.satin, u.w, 0.12, d - 0.07, cx, 0, (d - 0.07) / 2, { r: 0, col: plinth });
       K.box(M.satin, u.w, h - 0.12, d - 0.02, cx, 0.12, (d - 0.02) / 2, { r: 0.002, col: shade(col, 0.82) });
       if (u.type === 'drawers') { let y = h - 0.004; for (const dh of [0.14, 0.29, 0.31]) { y -= dh; K.box(M.satin, u.w - 0.005, dh - 0.005, 0.019, cx, y, d - 0.001, { r: 0.003, col }); K.cyl(metal, 0.006, 0.006, Math.min(0.18, u.w * 0.5), cx, y + dh - 0.05, d + 0.032, { rz: H, c: true, seg: 8 }); for (const s of [-1, 1]) K.cyl(metal, 0.004, 0.004, 0.025, cx + s * Math.min(0.07, u.w * 0.2), y + dh - 0.05, d + 0.02, { rx: H, c: true, seg: 6 }); } }
-      else { const nd = u.w > 0.65 ? 2 : 1, dw = u.w / nd; for (let j = 0; j < nd; j++) { const dx = x + (j + 0.5) * dw; K.box(M.satin, dw - 0.005, h - 0.13, 0.019, dx, 0.125, d - 0.001, { r: 0.003, col }); const hx = dx + (nd === 1 ? (u.hinge ?? 1) : (j ? -1 : 1)) * (dw / 2 - 0.04); K.cyl(metal, 0.006, 0.006, 0.14, hx, h - 0.2, d + 0.032, { seg: 8, c: true }); for (const s of [-1, 1]) K.cyl(metal, 0.004, 0.004, 0.025, hx, h - 0.2 + s * 0.055, d + 0.02, { rx: H, c: true, seg: 6 }); } }
+      else { const nd = u.w > 0.65 ? 2 : 1, dw = u.w / nd; for (let j = 0; j < nd; j++) { const dx = x + (j + 0.5) * dw; K.box(M.satin, dw - 0.005, h - 0.13, 0.019, dx, 0.125, d - 0.001, { r: 0.003, col }); const hx = dx + (nd === 1 ? (u.hinge ?? 1) : (j ? -1 : 1)) * (dw / 2 - 0.04); K.cyl(metal, 0.006, 0.006, 0.14, hx, h - 0.2, d + 0.032, { seg: 8, c: true }); K.grime('smudge', 0.2, 0.3, hx, h - 0.24, d + 0.0092, { rz: K.rngB() * 3, col: 0x8a8272 }); for (const s of [-1, 1]) K.cyl(metal, 0.004, 0.004, 0.025, hx, h - 0.2 + s * 0.055, d + 0.02, { rx: H, c: true, seg: 6 }); } }
     }
     x += u.w;
   }
+  K.grime('smudge', len, 0.5, 0, 0.0063, d + 0.16, { up: true, col: 0x4a4438 }); K.grime('scuff', Math.min(len, 1.2), 0.1, (K.rngB() - 0.5) * len * 0.5, 0.06, d - 0.0685, {});   // what gathers along the plinth
   if (top) F.worktop(K, { len, col: topCol, mat: topMat, hole, y: h });
 };
 F.worktop = (K, { len, col = 0x56565a, mat = M.lino, hole = null, y = 0.87, d = 0.62, t = 0.038, x = 0 } = {}) => {
@@ -51,6 +52,8 @@ F.wallUnits = (K, { len, col = 0xe6e2d6, y = 1.42, h = 0.72, d = 0.32, glow = 0,
   K.box(M.satin, len, h, d - 0.02, 0, y, (d - 0.02) / 2, { r: 0.002, col: shade(col, 0.82) });
   for (let i = 0; i < n; i++) { const cx = -len / 2 + (i + 0.5) * uw; K.box(M.satin, uw - 0.005, h - 0.005, 0.019, cx, y + 0.0025, d - 0.001, { r: 0.003, col }); K.cyl(metal, 0.006, 0.006, 0.12, cx + (i & 1 ? -1 : 1) * (uw / 2 - 0.04), y + 0.11, d + 0.032, { seg: 8, c: true }); }
   if (glow) K.box(K.emit(0xfff0d8, glow, { key: 'undercab' }), len - 0.1, 0.008, 0.03, 0, y - 0.009, d - 0.1, { r: 0 });
+  else K.ao(len, 0.34, 0, y - 0.17, 0.0125, { wall: true, rz: PI, k: 0.42, strip: true });       // the shadow the cupboards throw on the splashback
+  K.ao(len + 0.2, 0.5, 0, y + h + 0.1, 0.0046, { wall: true, k: 0.25, sx: 0.2, sy: 0.9 });
 };
 F.cooker = (K, { col = 0xf0f0ee, clock = true } = {}) => {
   const w = 0.6, d = 0.6, h = 0.9;
@@ -136,17 +139,18 @@ F.bed = (K, { w = 1.5, l = 2.0, col = 0x7f8fa6, sheet = 0xeeeae2, head = 0x5a4a3
   K.rbox(headMat, w + 0.08, hh - 0.2, 0.07, 0, 0.2, 0.035, { r: 0.03, col: head, seg: 2 });
   K.box(M.fabric, w, 0.26, l - 0.1, 0, 0.07, 0.07 + (l - 0.1) / 2, { r: 0.015, col: base });
   for (const sx of [-1, 1]) for (const z of [0.15, l - 0.1]) K.cyl(M.wood, 0.025, 0.02, 0.07, sx * (w / 2 - 0.08), 0, z, { col: C.darkWood, seg: 8 });
-  K.rbox(M.fabric, w - 0.02, 0.23, l - 0.12, 0, 0.33, 0.07 + (l - 0.12) / 2, { r: 0.07, col: sheet, seg: 4 });
+  const ml = l - 0.12, mz = 0.07 + ml / 2;
+  K.rbox(M.fabric, w - 0.02, 0.23, ml, 0, 0.33, mz, { r: 0.07, col: sheet, soft: true, wrinkle: 0.004, wfreq: 6, cell: 0.07 });
+  K.box(M.fabric, w - 0.012, 0.006, ml - 0.02, 0, 0.44, mz, { r: 0.003, col: shade(sheet, 0.8) });                           // mattress piping
   const pw = pillows === 1 ? 0.7 : Math.min(0.7, w / 2 - 0.05);
-  for (let i = 0; i < pillows; i++) { const px = pillows === 1 ? 0 : (i ? 1 : -1) * (w / 4); K.rbox(M.fabric, pw, 0.15, 0.42, px, top - 0.01, 0.34, { r: 0.065, puff: 0.04, seg: 5, col: shade(sheet, 0.98 + r() * 0.04), ry: (r() - 0.5) * 0.25, rx: -0.12 }); }
-  const dl = l * 0.66, dz = l - dl / 2 + 0.03 - mess * 0.1;
-  K.rbox(spread, w + 0.16, 0.07, dl, mess * 0.22, top - 0.005, dz, { r: 0.034, col: spreadCol ?? col, wrinkle: 0.035 + mess * 0.02, wfreq: 3.2, seg: 12, ry: mess * 0.12 });
+  for (let i = 0; i < pillows; i++) { const px = pillows === 1 ? 0 : (i ? 1 : -1) * (w / 4);
+    K.pillow(M.fabric, pw, 0.42, 0.17, px + (r() - 0.5) * 0.03, top + 0.062, 0.33 + (r() - 0.5) * 0.03, { rx: -H + 0.16, ry: (r() - 0.5) * 0.3, col: shade(sheet, 0.97 + r() * 0.05), dent: 0.35 + mess * 0.2, wrinkle: 0.012, pinch: 0.05, n: 14 }); }
+  // the cover: one cloth lying over the mattress from below the pillows, hanging at the sides and the foot
+  const dl = l * 0.66, hang = Math.min(0.42, top - (mess ? 0.02 : 0.2)), cl = dl + hang, cz0 = l - dl - mess * 0.12, sc = spreadCol ?? col, quilt = spread === M.fabric ? [0.24, 0.016] : null;
+  K.cloth(spread, w + 2 * hang, cl, w + 0.02, ml + 0.03, 0, top + 0.012, mz, { col: sc, oz: cz0 + cl / 2 - mz, ox: mess * 0.2, skew: mess * 0.13, thick: quilt ? 0.04 : 0.03, wrinkle: 0.013 + mess * 0.014, wfreq: 3, fold: 0.035 + mess * 0.02, pleat: 9, quilt, rr: 0.05, floor: 0, cell: 0.042 });
   // turned-back top edge
-  K.rbox(spread, w + 0.1, 0.05, 0.3, mess * 0.3, top + 0.04, dz - dl / 2 + 0.1, { r: 0.024, col: spreadCol ? 0xe8e4dc : shade(col, 1.12), wrinkle: 0.02, seg: 6, ry: mess * 0.22, rx: 0.06 });
-  // sides hanging down
-  for (const s of [-1, 1]) K.at(s * (w / 2 + 0.06) + mess * 0.22, 0, dz, s * H, () => K.drape(M.curtain, [[top + 0.02, -0.12], [top + 0.03, -0.01], [top - 0.08, 0.035], [0.28 - (s > 0 ? mess * 0.26 : 0), 0.05 + (s > 0 ? mess * 0.12 : 0)]], dl - 0.06, 0, 0, 0, { col: shade(col, 0.96), wrinkle: 0.02, seg: 12, segW: 10 }));
-  K.at(mess * 0.22, 0, l + 0.085, 0, () => K.drape(M.curtain, [[top + 0.02, -0.14], [top + 0.03, -0.01], [top - 0.08, 0.03], [0.3, 0.045]], w + 0.1, 0, 0, 0, { col: shade(col, 0.96), wrinkle: 0.02, seg: 12, segW: 10 }));
-  if (throwCol != null) K.at(0, 0, l - 0.36, H, () => K.drape(M.curtain, [[0.42, -w / 2 - 0.13], [top + 0.0, -w / 2 - 0.1], [top + 0.075, -w / 2 - 0.02], [top + 0.085, 0], [top + 0.075, w / 2 + 0.02 + mess * 0.2], [top - 0.02, w / 2 + 0.1 + mess * 0.24], [0.38, w / 2 + 0.14 + mess * 0.26]], 0.5, 0, 0, 0, { col: throwCol, wrinkle: 0.025, seg: 30, segW: 6 }));
+  K.rbox(spread, w + 0.08, 0.05, 0.3, mess * 0.24, top + 0.035, cz0 + 0.14, { r: 0.024, col: spreadCol ? 0xe8e4dc : shade(col, 1.12), wrinkle: 0.012, crease: 0.008, ry: mess * 0.2, rx: 0.05, cell: 0.05 });
+  if (throwCol != null) K.cloth(M.curtain, w + 0.75, 0.52, w + 0.08, ml + 0.08, 0, top + 0.082, mz, { col: throwCol, oz: l - 0.4 - mz, ox: mess * 0.16, skew: 0.04 + mess * 0.1, thick: 0.012, wrinkle: 0.012, fold: 0.03, rr: 0.06, floor: 0, cell: 0.04 });
   return top + 0.03;
 };
 F.bedside = (K, { col = C.oak, w = 0.45, h = 0.52, d = 0.4 } = {}) => {
@@ -181,8 +185,9 @@ F.recliner = (K, { col = 0x6e4f3a, mat = M.leather, footrest = 0 } = {}) => {
   K.rbox(mat, w, 0.3, d - 0.06, 0, 0.06, d / 2, { r: 0.05, col, seg: 3 });
   for (const sx of [-1, 1]) for (const z of [0.1, d - 0.1]) K.cyl(M.plastic, 0.03, 0.03, 0.06, sx * (w / 2 - 0.1), 0, z, { col: 0x1a1a1a, seg: 8 });
   for (const s of [-1, 1]) K.rbox(mat, 0.2, 0.34, d - 0.04, s * (w / 2 - 0.1), 0.32, d / 2, { r: 0.09, col, seg: 4, puff: 0.01 });
-  K.rbox(mat, w - 0.42, 0.18, 0.6, 0, 0.3, 0.55, { r: 0.06, puff: 0.025, col: shade(col, 1.04), seg: 4 });
-  K.rbox(mat, w - 0.36, 0.5, 0.2, 0, 0.44, 0.2, { r: 0.08, puff: 0.03, col: shade(col, 1.03), rx: -0.26, seg: 4 }); K.rbox(mat, w - 0.4, 0.28, 0.2, 0, 0.9, 0.075, { r: 0.09, puff: 0.04, col: shade(col, 1.05), rx: -0.3, seg: 4 });
+  K.rbox(mat, w - 0.42, 0.18, 0.6, 0, 0.3, 0.55, { r: 0.06, puff: 0.02, dent: [0, -0.05, 0.2, 0.022], crease: 0.006, wrinkle: 0.004, wfreq: 7, col: shade(col, 1.04), cell: 0.036 });
+  K.rbox(mat, w - 0.36, 0.5, 0.2, 0, 0.44, 0.2, { r: 0.08, puff: 0.03, crease: 0.006, wrinkle: 0.004, col: shade(col, 1.03), rx: -0.26, cell: 0.04 }); K.rbox(mat, w - 0.4, 0.28, 0.2, 0, 0.9, 0.075, { r: 0.09, puff: 0.035, crease: 0.004, col: shade(col, 1.05), rx: -0.3, cell: 0.04 });
+  for (const s of [-1, 1]) K.cyl(mat, 0.004, 0.004, d - 0.2, s * (w / 2 - 0.2 + 0.012), 0.64, d / 2, { rx: H, c: true, col: shade(col, 0.7), seg: 5 });
   K.rbox(mat, w - 0.44, 0.36, 0.1, 0, 0.1 + footrest * 0.22, d + 0.0 + footrest * 0.32, { r: 0.045, col, rx: -footrest * 1.3, seg: 3 });
   K.box(M.plastic, 0.03, 0.12, 0.04, w / 2 + 0.01, 0.34, d * 0.45, { r: 0.01, col: 0x2a2a2a, rx: 0.5 });
   return { seat: [0, 0.48, 0.56] };

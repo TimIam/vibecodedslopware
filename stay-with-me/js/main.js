@@ -66,12 +66,12 @@ function frame() {
   const d = game.drive, s = game.scene;
   if (game.mode === 'title') {
     titleT += dt; const a = titleT * 0.06 + 0.8, r = 15 + Math.sin(titleT * 0.11) * 4; cineCam.position.set(d.s.x + Math.sin(a) * r, 2.2 + Math.sin(titleT * 0.07) * 1.1, d.s.z + Math.cos(a) * r); cineCam.lookAt(d.s.x, 1.7, d.s.z); cineCam.aspect = G.w / G.h; cineCam.updateProjectionMatrix();
-    d.lights = true; d.update(dt); game.town.update?.(dt, G.time, cineCam.position); updateRig(game.rig, dt, _f.set(d.s.x, 0, d.s.z), cineCam);
+    d.lights = true; d.update(dt); game.town.update?.(dt, G.time, cineCam.position); game.drive?.peds?.update(cineCam.position); updateRig(game.rig, dt, _f.set(d.s.x, 0, d.s.z), cineCam);
   } else if (game.mode === 'drive') {
-    d.update(dt); game.town.update?.(dt, G.time + game.clockOffset, d.cam.position); updateRig(game.rig, dt, _f.set(d.s.x, 0, d.s.z), d.cam);
+    d.update(dt); game.town.update?.(dt, G.time + game.clockOffset, d.cam.position); game.drive?.peds?.update(d.cam.position); updateRig(game.rig, dt, _f.set(d.s.x, 0, d.s.z), d.cam);
   } else if (game.mode === 'scene') {
     s.update(dt);
-    if (s.world && !s.world.isSet) { const cam = G.camera || d.cam; d.update(dt); game.town.update?.(dt, G.time + game.clockOffset, cam.position); updateRig(game.rig, dt, s.orbit.target, cam); }
+    if (s.world && !s.world.isSet) { const cam = G.camera || d.cam; d.update(dt); game.town.update?.(dt, G.time + game.clockOffset, cam.position); game.drive?.peds?.update(cam.position); updateRig(game.rig, dt, s.orbit.target, cam); }
   }
   Snd.update?.(dt);
   if (G.scene && G.camera) render(dt);
@@ -211,7 +211,7 @@ async function rigWorld() {
     const rt = G.pmrem.fromScene(scene, 0.04); scene.environment = rt.texture; scene.environmentIntensity = 0.3; G.renderer.toneMappingExposure = 0.72; if (G.passes.bloom) G.passes.bloom.strength = 0.1;
     // the patient lies on the cot (its head end is +Z; a supine body's head points along -Z of its own frame)
     const ps = spot(it.stretcher?.mattressTop || it.patientSpot), b = it.bounds?.isBox3 ? it.bounds : null; if (it.stretcher?.mattressTop) ps.yaw += Math.PI;
-    return { scene, isSet: true, patientSpot: ps, partnerSpot: spot(it.seatAttendant), kitSpot: { pos: new THREE.Vector3(ps.pos.x + 0.75, 0, ps.pos.z + 0.3), yaw: 0 }, cameraBounds: b, cameraHome: it.cameraHome ? { pos: spot(it.cameraHome).pos, target: ps.pos } : null, update() { }, ambient: 'ambulance', dispose: () => { rt.dispose(); scene.traverse(o => o.geometry?.dispose()); } };
+    return { scene, isSet: true, patientSpot: ps, partnerSpot: (() => { const a = spot(it.seatAttendant), p = a.pos.clone().lerp(ps.pos, 0.35); p.y = 0; return { pos: p, yaw: Math.atan2(ps.pos.x - p.x, ps.pos.z - p.z) }; })(), kitSpot: { pos: new THREE.Vector3(ps.pos.x + 0.75, 0, ps.pos.z + 0.3), yaw: 0 }, cameraBounds: b, cameraHome: it.cameraHome ? { pos: spot(it.cameraHome).pos, target: ps.pos } : null, update() { }, ambient: 'ambulance', dispose: () => { rt.dispose(); scene.traverse(o => o.geometry?.dispose()); } };
   } catch (e) {
     console.warn('ambulance interior stand-in:', e.message); const set = await FB.sets.buildSet('ambulance', { patient: 'floor' }); G.renderer.toneMappingExposure = 1;
     return { scene: set.scene, isSet: true, patientSpot: spot(set.patientSpot), partnerSpot: spot(set.partnerSpot), kitSpot: spot(set.kitSpot), cameraBounds: set.cameraBounds, cameraHome: set.cameraHome, update() { }, ambient: 'ambulance', dispose: () => set.dispose() };

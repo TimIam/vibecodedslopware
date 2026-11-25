@@ -1,18 +1,21 @@
 // Building generators. Everything is authored in a lot frame: origin on the property line at the middle of the lot's
 // frontage, +Z towards the street, +X to the right as seen from the street, y = 0 at lot level (kerb height).
 // A build context `B` (see ctx()) bundles the chunk builders for that spot: f = facade walls with shader windows,
-// p = plain surfaces (roofs, trim, props), d = ground decals (drives, walks), s = signs, c = alpha cut-outs.
+// p = plain surfaces (roofs, trim, props), t = near-only relief (sills, heads, brackets, pipes, fire escapes, window
+// units: same material as p, in finer chunks that town.js stops drawing past ~190 m), d = ground decals (drives,
+// walks), s = signs, c = alpha cut-outs. The relief and roofscape builders are at the bottom of the file.
 // Window styles and lit profiles are documented with the facade shader in town-mat.js.
 
 import { WL, GL, METAL } from './town-mat.js';
 import { KERB } from './town-layout.js';
 import { SIGN, CUT, cutUV } from './town-atlas.js';
 import { obb } from './town-geo.js';
+import { makeRng } from './util.js';
 
 export function ctx(T, x, z, h) {
   const ch = T.chunks, B = { T, x, z, h, c0: Math.cos(h), s0: Math.sin(h) };
   // builders are shared per chunk, so each context re-applies its own frame whenever it takes one over
-  for (const [k, kind] of [['f', 'facade'], ['p', 'plain'], ['d', 'decal'], ['s', 'sign'], ['c', 'cut']]) { const mb = ch.get(kind, x, z); Object.defineProperty(B, k, { get() { if (mb._owner !== B) { mb._owner = B; mb.st.length = 0; mb.frame(x, KERB, z, h); } return mb; } }); }
+  for (const [k, kind] of [['f', 'facade'], ['p', 'plain'], ['t', 'trim'], ['d', 'decal'], ['s', 'sign'], ['c', 'cut']]) { const mb = ch.get(kind, x, z); Object.defineProperty(B, k, { get() { if (mb._owner !== B) { mb._owner = B; mb.st.length = 0; mb.frame(x, KERB, z, h); } return mb; } }); }
   B.w = (lx, lz) => [x + lx * B.c0 + lz * B.s0, z - lx * B.s0 + lz * B.c0];
   B.collide = (x0, z0, x1, z1, hgt, kind = 'building', soft = false) => { const c = B.w((x0 + x1) / 2, (z0 + z1) / 2); T.colliders.add(c[0], c[1], Math.abs(x1 - x0) / 2, Math.abs(z1 - z0) / 2, h, hgt, kind, soft); return c; };
   B.foot = (x0, z0, x1, z1, hl) => { const c = B.w((x0 + x1) / 2, (z0 + z1) / 2), o = obb(c[0], c[1], Math.abs(x1 - x0) / 2, Math.abs(z1 - z0) / 2, h); o.hl = hl; T.footprints.push(o); T.surf.fillObb(o, 6); return o; };
@@ -56,7 +59,9 @@ export function wallGrid(B, x0, z0, x1, z1, y0, y1, o) {
   if (left > 0.01) { f.wn(0); f.wall(x0, z0, x0 + dx * left, z0 + dz * left, y0, y1, 0, y0); f.wall(x0 + dx * (left + gw), z0 + dz * (left + gw), x1, z1, y0, y1, left + gw, y0); }
   f.wn(cw, ch, Math.min(o.ww, cw - 0.08), Math.min(o.wh, ch - 0.1), o.seed ?? 1, o.st ?? 0, o.rec ?? 0.14, o.lit ?? 0, left, y0);
   f.wall(x0 + dx * left, z0 + dz * left, x0 + dx * (left + gw), z0 + dz * (left + gw), y0, y1, left, y0);
-  f.wn(0); return n;
+  f.wn(0); wallGrid.last = { n, cw, left, ny, ch };
+  if (o.trim) windowTrim(B, x0, z0, x1, z1, left, cw, n, y0, ch, ny, Math.min(o.ww, cw - 0.08), Math.min(o.wh, ch - 0.1), o.st ?? 0, o.trim, o.seed ?? 1);
+  return n;
 }
 // The four walls of a rectangle in order front (+Z), right (+X), back (-Z), left (-X).
 export const SIDES = (x0, z0, x1, z1) => [[x0, z1, x1, z1], [x1, z1, x1, z0], [x1, z0, x0, z0], [x0, z0, x0, z1]];
@@ -256,10 +261,10 @@ export function storefront(B, o) {
   f.wn(0); f.wall(S[0][0], S[0][1], S[0][2], S[0][3], gfH - 0.9, gfH, 0, gfH - 0.9);
   // upper front
   const nb = Math.max(1, Math.round(w / r.r(2.3, 3.0)));
-  if (floors > 1) wallGrid(B, S[0][0], S[0][1], S[0][2], S[0][3], gfH, top - par, { cw: (w - 0.8) / nb, fh, ww: r.r(1.0, 1.35), wh: r.r(1.7, 2.1), st: 0, lit: 1, seed, margin: 0.4 });
+  if (floors > 1) wallGrid(B, S[0][0], S[0][1], S[0][2], S[0][3], gfH, top - par, { cw: (w - 0.8) / nb, fh, ww: r.r(1.0, 1.35), wh: r.r(1.7, 2.1), st: 0, lit: 1, seed, margin: 0.4, rec: 0.24, trim: { head: true, ac: 0.08 } });
   f.wn(0); f.wall(S[0][0], S[0][1], S[0][2], S[0][3], top - par, top, 0, top - par);
   // sides and back
-  for (const k of [1, 3]) { const s = S[k], exp = k === 1 ? o.exposeR : o.exposeL; if (exp) { wallGrid(B, s[0], s[1], s[2], s[3], 0, gfH, { cw: 4.5, fh: gfH, ww: 2.6, wh: 2.2, st: 2, lit: 2, seed: seed + k, margin: 1.5, rec: 0.2 }); if (floors > 1) wallGrid(B, s[0], s[1], s[2], s[3], gfH, top - par, { cw: 3.0, fh, ww: 1.15, wh: 1.9, st: 0, lit: 1, seed: seed + k * 3, margin: 0.8 }); f.wall(s[0], s[1], s[2], s[3], top - par, top, 0, top - par); } else { f.wn(0); f.wall(s[0], s[1], s[2], s[3], 0, top); } }
+  for (const k of [1, 3]) { const s = S[k], exp = k === 1 ? o.exposeR : o.exposeL; if (exp) { wallGrid(B, s[0], s[1], s[2], s[3], 0, gfH, { cw: 4.5, fh: gfH, ww: 2.6, wh: 2.2, st: 2, lit: 2, seed: seed + k, margin: 1.5, rec: 0.2 }); if (floors > 1) wallGrid(B, s[0], s[1], s[2], s[3], gfH, top - par, { cw: 3.0, fh, ww: 1.15, wh: 1.9, st: 0, lit: 1, seed: seed + k * 3, margin: 0.8, rec: 0.22, trim: { head: true, ac: 0.05 } }); f.wall(s[0], s[1], s[2], s[3], top - par, top, 0, top - par); } else { f.wn(0); f.wall(s[0], s[1], s[2], s[3], 0, top); } }
   { const s = S[2]; wallCells(B, s[0], s[1], s[2], s[3], 0, gfH, [{ w: 1 }, { w: 1.5, st: 8, ww: 0.95, wh: 2.1, lit: 4, rec: 0.1 }, { w: Math.max(0.5, w - 4.5) }, { w: 2, st: 3, ww: 1.2, wh: 1.2, lit: 4 }], seed + 9); if (floors > 1) wallGrid(B, s[0], s[1], s[2], s[3], gfH, top - par, { cw: 3.2, fh, ww: 1.0, wh: 1.6, st: 0, lit: 1, seed: seed + 5, margin: 0.6 }); f.wn(0); f.wall(s[0], s[1], s[2], s[3], top - par, top, 0, top - par); }
   flatRoof(B, x0, z0, x1, z1, top, par, lay, col, r, 0.8);
   // cornice, pilasters, sign band, awning
@@ -279,6 +284,9 @@ export function storefront(B, o) {
   }
   // rear fire escape on taller ones
   if (floors > 2 && r.chance(0.7)) fireEscape(B, r.r(x0 + 2, x1 - 2), z0, gfH, fh, floors - 1, Math.PI);
+  const rx = makeRng(seed * 13 + 5);       // own stream, so the relief does not disturb the lot sequence
+  frontRelief(B, { x0, x1, z1, gfH, fh, floors, top, par, lay, col, trim, r: rx, brackets: true, pipe: rx.chance(0.6), escape: floors > 2 && w > 7.5 && rx.chance(0.45), blade: rx.chance(0.55) ? o.name : null, seed });
+  roofExtras(B, x0, z0, x1, z1, top, par, rx, floors > 2 ? 'old' : 'low', lay, col);
   B.collide(x0, z0, x1, z1, top); B.foot(x0, z0, x1, z1, o.hl);
   return { top, gfH };
 }
@@ -302,11 +310,11 @@ export function tower(B, o) {
   const r = o.rng, f = B.f, p = B.p, w = o.w, d = o.d, x0 = -w / 2, x1 = w / 2, z1 = 0, z0 = -d, kind = o.kind, seed = r.i(1, 3000);
   const gfH = kind === 'apartment' ? 3.6 : r.r(4.6, 5.6), fh = kind === 'glass' ? 3.9 : kind === 'apartment' || kind === 'hotel' ? 3.05 : 3.6, floors = o.floors, par = 1.1;
   const top = gfH + (floors - 1) * fh + par, S = SIDES(x0, z0, x1, z1);
-  let lay, col, win, baseLay, baseCol;
+  let lay, col, win, baseLay, baseCol, grid0 = null;
   if (kind === 'glass') { lay = WL.plain; col = r.pick(PAL.dark); win = { cw: r.r(1.4, 1.8), fh, ww: 9, wh: fh - r.r(0.9, 1.3), st: 1, lit: 0, rec: 0.05, margin: 0.3, fit: true }; baseLay = WL.panel; baseCol = [150, 150, 148]; }
   else if (kind === 'precast') { lay = WL.panel; col = r.pick(PAL.panel); win = { cw: r.r(2.8, 3.6), fh, ww: r.r(1.9, 2.5), wh: r.r(1.7, 2.1), st: 1, lit: 0, rec: 0.22, margin: 0.8, fit: true }; baseLay = WL.panel; baseCol = col; }
-  else if (kind === 'brick') { lay = r.chance(0.6) ? WL.brick : WL.brick2; col = r.pick(PAL.brick); win = { cw: r.r(2.5, 3.1), fh, ww: r.r(1.2, 1.5), wh: r.r(1.9, 2.3), st: 0, lit: o.lit ?? 0, rec: 0.18, margin: 0.8, fit: true }; baseLay = WL.panel; baseCol = [214, 208, 196]; }
-  else { lay = r.chance(0.5) ? WL.stucco : r.chance(0.5) ? WL.brick2 : WL.panel; col = lay === WL.stucco ? r.pick(PAL.stucco) : lay === WL.panel ? r.pick(PAL.panel) : r.pick(PAL.brick); win = { cw: r.r(3.3, 3.9), fh, ww: r.r(1.7, 2.3), wh: 1.55, st: 0, lit: kind === 'hotel' ? 1 : 1, rec: 0.16, margin: 0.8, fit: true }; baseLay = lay; baseCol = col; }
+  else if (kind === 'brick') { lay = r.chance(0.6) ? WL.brick : WL.brick2; col = r.pick(PAL.brick); win = { cw: r.r(2.5, 3.1), fh, ww: r.r(1.2, 1.5), wh: r.r(1.9, 2.3), st: 0, lit: o.lit ?? 0, rec: 0.27, margin: 0.8, fit: true, trim: { head: true, ac: floors < 7 ? 0.05 : 0 } }; baseLay = WL.panel; baseCol = [214, 208, 196]; }
+  else { lay = r.chance(0.5) ? WL.stucco : r.chance(0.5) ? WL.brick2 : WL.panel; col = lay === WL.stucco ? r.pick(PAL.stucco) : lay === WL.panel ? r.pick(PAL.panel) : r.pick(PAL.brick); win = { cw: r.r(3.3, 3.9), fh, ww: r.r(1.7, 2.3), wh: 1.55, st: 0, lit: kind === 'hotel' ? 1 : 1, rec: 0.22, margin: 0.8, fit: true, trim: { head: lay !== WL.stucco, ac: kind === 'hotel' ? 0 : 0.12 } }; baseLay = lay; baseCol = col; }
   if (o.lit !== undefined) win.lit = o.lit;
   col = jit(col, r, 0.12); if (baseLay === lay) baseCol = col;
   // ground floor
@@ -318,8 +326,17 @@ export function tower(B, o) {
   for (const k of [1, 2, 3]) { const s = S[k], exp = k === 2 || (k === 1 ? o.exposeR : o.exposeL); if (exp && kind !== 'apartment' && k !== 2) wallGrid(B, s[0], s[1], s[2], s[3], 0, gfH, { cw: bw, fh: gfH, ww: bw - 0.8, wh: gfH - 1.6, st: 2, lit: 2, seed: seed + k, margin: 0.6, rec: 0.25, fit: true }); else if (k === 2) wallCells(B, s[0], s[1], s[2], s[3], 0, gfH, [{ w: 2 }, { w: 1.6, st: 8, ww: 1.0, wh: 2.15, lit: 4, rec: 0.1 }, { w: Math.max(1, w - 9) }, { w: 4, st: 5, ww: 3.4, wh: 3.4, rec: 0.15 }, { w: 1.4 }], seed + 4); else { f.wn(0); f.wall(s[0], s[1], s[2], s[3], 0, gfH); } }
   // shaft
   f.lay(lay); C(f, col);
-  for (let k = 0; k < 4; k++) { const s = S[k], exp = k === 0 || k === 2 || (k === 1 ? o.exposeR : o.exposeL) || floors > 5; if (exp) wallGrid(B, s[0], s[1], s[2], s[3], gfH, top - par, { ...win, seed: seed + k * 17 }); else { f.wn(0); f.wall(s[0], s[1], s[2], s[3], gfH, top - par, 0, gfH); } f.wn(0); f.wall(s[0], s[1], s[2], s[3], top - par, top, 0, top - par); }
+  for (let k = 0; k < 4; k++) { const s = S[k], exp = k === 0 || k === 2 || (k === 1 ? o.exposeR : o.exposeL) || floors > 5; if (exp) { wallGrid(B, s[0], s[1], s[2], s[3], gfH, top - par, { ...win, seed: seed + k * 17, trim: k === 2 || (k && !(k === 1 ? o.exposeR : o.exposeL)) ? null : win.trim }); if (k === 0) grid0 = wallGrid.last; } else { f.wn(0); f.wall(s[0], s[1], s[2], s[3], gfH, top - par, 0, gfH); } f.wn(0); f.wall(s[0], s[1], s[2], s[3], top - par, top, 0, top - par); }
   flatRoof(B, x0, z0, x1, z1, top, par, lay, col, r, 1.2);
+  const rx = makeRng(seed * 13 + 5);
+  if (floors >= 8 && w > 16 && d > 14 && rx.chance(0.62)) {
+    const ix = w * rx.r(0.12, 0.22), iz = d * rx.r(0.12, 0.2), nt = rx.i(1, floors > 10 ? 5 : 3), ty0 = top - par, ty1 = ty0 + nt * fh + 1, a0 = x0 + ix, a1 = x1 - ix, b0 = z0 + iz, b1 = z1 - iz * 0.5, TS = SIDES(a0, b0, a1, b1);
+    f.lay(lay); C(f, col); for (let k = 0; k < 4; k++) { const s = TS[k]; wallGrid(B, s[0], s[1], s[2], s[3], ty0, ty1 - 1, { ...win, trim: null, seed: seed + 40 + k }); f.wn(0); f.wall(s[0], s[1], s[2], s[3], ty1 - 1, ty1, 0, ty1 - 1); }
+    flatRoof(B, a0, b0, a1, b1, ty1, 1, lay, col, rx, 0.5); roofExtras(B, a0, b0, a1, b1, ty1, 1, rx, 'office', lay, col, floors + nt);
+    if (kind !== 'glass') { p.lay(WL.panel); C(p, [200, 196, 186]); p.box(a0 - 0.08, ty1 - 0.12, b0 - 0.08, a1 + 0.08, ty1 + 0.1, b1 + 0.08, 15); }
+  } else roofExtras(B, x0, z0, x1, z1, top, par, rx, kind === 'glass' || kind === 'precast' ? 'office' : floors > 3 ? 'old' : 'low', lay, col, floors);
+  if (kind === 'precast') { const t = B.t; t.lay(WL.panel); C(t, [col[0] * 0.9, col[1] * 0.9, col[2] * 0.9]); for (let k = 1; k < floors - 1; k++) { const y = gfH + k * fh; t.box(x0, y - 0.12, z1, x1, y + 0.1, z1 + 0.09, 61); } }
+  if (kind !== 'glass' && kind !== 'precast') frontRelief(B, { x0, x1, z1, gfH, fh, floors, top, par, lay, col, trim: [200, 196, 186], r: rx, brackets: kind === 'brick', pipe: floors < 8 && rx.chance(0.5), escape: kind === 'brick' && floors < 8 && rx.chance(0.4), courses: kind === 'brick' ? 0 : 1, grid: kind === 'brick' ? grid0 : null, seed });
   // relief: belt course, piers / fins, cornice, entrance canopy
   p.lay(WL.panel); C(p, kind === 'glass' ? [60, 64, 68] : [200, 196, 186]);
   p.box(x0 - 0.04, gfH - 0.18, z1, x1 + 0.04, gfH + 0.12, z1 + 0.22, 1 + 4 + 8 + 16 + 32);
@@ -437,7 +454,86 @@ export function carPark(B, x0, z0, x1, z1, o = {}) {
     const n = Math.floor((x1 - x0 - 1) / sw), xs = (x0 + x1) / 2 - n * sw / 2, up = k % 2 === 0;
     for (let i = 0; i <= n; i++) line(xs + i * sw, z, xs + i * sw, z + sd);
     for (let i = 0; i < n; i++) if (!rng || rng.chance(occ)) { const w = B.w(xs + (i + 0.5) * sw, z + sd / 2); T.parking.push({ x: w[0], z: w[1], heading: B.h + (up ? 0 : Math.PI) + (rng && rng.chance(0.5) ? Math.PI : 0), kind: 'lot' }); }
+    if (!up && z1 - z0 > 16) for (const lx of x1 - x0 > 34 ? [x0 + 0.3, (x0 + x1) / 2, x1 - 0.3] : [x0 + 0.3, x1 - 0.3]) { const c = B.w(lx, z + sd + 0.02); (T.lotLamps = T.lotLamps || []).push({ x: c[0], z: c[1], h: B.h + (lx > (x0 + x1) / 2 ? Math.PI / 2 : -Math.PI / 2), mid: lx > x0 + 1 && lx < x1 - 1 }); }
     z += up ? sd + aisle : sd + 0.05; k++;
   }
   void c; void mod; void rows; void p;
+}
+
+// ---------------------------------------------------------------- facade relief (near-only 'trim' chunks) and roofscape
+
+// Projecting sills and heads for a window grid laid out by wallGrid, plus the odd window air conditioner.
+// tr: { head, ac (share of windows with a unit), col }. Local frame: x along the wall from its left end, z outwards.
+export function windowTrim(B, x0, z0, x1, z1, left, cw, n, y0, ch, ny, ww, wh, st, tr, seed) {
+  const t = B.t, r = makeRng(seed * 31 + 7), sill = Math.min(st === 0 || st === 9 ? 0.95 : st === 1 ? 0.85 : 0.5, ch - wh - 0.02), col = tr.col || [250, 246, 236], hw = ww / 2;
+  t.push(x0, 0, z0, Math.atan2(-(z1 - z0), x1 - x0));
+  for (let j = 0; j < ny; j++) for (let i = 0; i < n; i++) {
+    const cx = left + (i + 0.5) * cw, yb = y0 + j * ch + sill, yt = yb + wh;
+    t.lay(WL.panel); C(t, col); t.box(cx - hw - 0.08, yb - 0.1, 0, cx + hw + 0.08, yb, 0.11, 61);
+    if (tr.head) t.box(cx - hw - 0.1, yt, 0, cx + hw + 0.1, yt + 0.16, 0.06, 61);
+    if (tr.ac && r.chance(tr.ac)) { const ax = cx + r.r(-0.2, 0.2) * Math.max(0, hw - 0.36); t.lay(WL.plain + METAL).col(206, 204, 196); t.box(ax - 0.33, yb, 0, ax + 0.33, yb + 0.4, 0.4, 61); t.lay(WL.plain).col(58, 60, 62); t.box(ax - 0.27, yb + 0.06, 0.4, ax + 0.27, yb + 0.34, 0.405, 1); }
+  }
+  t.pop();
+}
+
+// Street-front relief for a masonry building whose front wall runs x0..x1 at z1: string courses, cornice brackets,
+// pilasters on the window grid, a downpipe, a hanging blade sign, a front fire escape.
+export function frontRelief(B, o) {
+  const t = B.t, { x0, x1, z1, gfH, fh, floors, top, par, r } = o, w = x1 - x0, yc = top - par;
+  t.lay(WL.panel); C(t, o.trim);
+  if (floors > 2 && o.courses !== 0) for (let k = 1; k < floors - 1; k++) { const y = gfH + k * fh; t.box(x0, y - 0.09, z1, x1, y + 0.05, z1 + 0.06, 61); }
+  if (o.brackets) { const nb = Math.max(2, Math.round(w / 0.85)); for (let i = 0; i < nb; i++) { const x = x0 + 0.25 + (w - 0.5) * i / (nb - 1); t.box(x - 0.07, yc - 0.3, z1 + 0.14, x + 0.07, yc - 0.05, z1 + 0.3, 61); } }
+  if (o.grid && o.grid.n > 1) { t.lay(o.lay); C(t, o.col); const g = o.grid; for (let i = 0; i <= g.n; i++) { const x = x0 + g.left + i * g.cw; t.box(x - 0.24, gfH + 0.12, z1, x + 0.24, yc - 0.5, z1 + 0.1, 13); } }
+  if (o.pipe) { const px = r.chance(0.5) ? x0 + 0.2 : x1 - 0.2; t.lay(WL.plain).col(52, 50, 48); t.tube(px, 0.1, z1 + 0.09, px, yc - 0.4, z1 + 0.09, 0.05, 0.05, 5); t.box(px - 0.1, yc - 0.4, z1, px + 0.1, yc - 0.18, z1 + 0.18, 61); for (let y = 1.5; y < yc - 1; y += 2.4) t.box(px - 0.075, y, z1, px + 0.075, y + 0.04, z1 + 0.15, 61); }
+  if (o.escape) frontEscape(B, x0 + w * (r.chance(0.5) ? 0.3 : 0.7), z1, gfH, fh, floors - 1);
+  if (o.blade) {
+    const A = B.T.atlas, words = o.blade.split(' '), mid = Math.ceil(words.length / 2), txt = words.length > 1 ? words.slice(0, mid).join(' ') + '\n' + words.slice(mid).join(' ') : o.blade;
+    const pal = [['#1d2a3a', '#f0e6c8'], ['#7a1d1d', '#f6efe0'], ['#15402e', '#f3ead0'], ['#1a1a1a', '#e9b33a'], ['#2b4f77', '#ffffff'], ['#3a2a1e', '#f0d9a8']], pc = pal[o.seed % pal.length];
+    const rect = SIGN.text(A, 'blade2:' + o.blade, txt, { w: 110, h: 80, bg: pc[0], fg: pc[1], font: o.seed % 8, border: pc[1] });
+    const bx = r.chance(0.5) ? x0 + 0.5 : x1 - 0.5, by = Math.min(gfH + 0.9, yc - 1), bw = 0.96, bh = 0.7;
+    t.lay(WL.plain).col(36, 36, 38); t.tube(bx, by + bh / 2 + 0.07, z1, bx, by + bh / 2 + 0.07, z1 + bw + 0.18, 0.022, 0.022, 4); t.push(bx, by, z1 + 0.14 + bw / 2, Math.PI / 2); t.box(-bw / 2 - 0.03, -bh / 2 - 0.03, -0.03, bw / 2 + 0.03, bh / 2 + 0.03, 0.03, 63); t.pop();
+    signQuad(B, rect, bx + 0.034, by, z1 + 0.14 + bw / 2, bw, bh, Math.PI / 2, 0.8); signQuad(B, rect, bx - 0.034, by, z1 + 0.14 + bw / 2, bw, bh, -Math.PI / 2, 0.8);
+  }
+}
+
+// Iron fire escape on a street front: slatted landings with rails, stairs between them, a drop ladder to the walk.
+function frontEscape(B, cx, cz, y0, fh, n) {
+  const t = B.t, c = B.c, uv = cutUV(CUT.rail); t.push(cx, 0, cz, 0); c.push(cx, 0, cz, 0); c.col(40, 40, 42).lay(0);
+  const q = (ax, az, bx, bz, ya, yb) => c.quad(ax, ya, az, bx, ya, bz, bx, yb, bz, ax, yb, az, uv.u0, uv.v0, uv.u1, uv.v1);
+  for (let i = 0; i < n; i++) {
+    const y = y0 + i * fh - 0.25; t.lay(WL.plain).col(38, 38, 40);
+    for (let k = 0; k < 6; k++) t.box(-1.45, y, 0.04 + k * 0.165, 1.45, y + 0.035, 0.14 + k * 0.165, 63);
+    t.box(-1.45, y - 0.05, 0.98, 1.45, y, 1.03, 63); for (const bx of [-1.4, 1.4]) t.tube(bx, y - 0.02, 0.95, bx, y - 0.75, 0.02, 0.022, 0.022, 4);
+    q(-1.45, 1.0, 1.45, 1.0, y + 0.03, y + 1.0); q(-1.45, 0, -1.45, 1.0, y + 0.03, y + 1.0); q(1.45, 1.0, 1.45, 0, y + 0.03, y + 1.0);
+    if (i > 0) { const dir = i % 2 ? 1 : -1; for (const sz of [0.3, 0.8]) t.tube(-0.95 * dir, y - fh + 0.04, sz, 0.85 * dir, y + 0.02, sz, 0.03, 0.03, 4); const ns = 9; for (let k = 1; k < ns; k++) { const f = k / ns, sx = (-0.95 + 1.8 * f) * dir; t.box(sx - 0.09, y - fh + 0.04 + (fh - 0.02) * f, 0.3, sx + 0.09, y - fh + 0.065 + (fh - 0.02) * f, 0.8, 63); } }
+  }
+  const yl = y0 - 0.25; t.lay(WL.plain).col(38, 38, 40); for (const lx of [0.95, 1.3]) t.tube(lx, yl, 0.9, lx, yl - 1.9, 0.9, 0.02, 0.02, 4); for (let k = 1; k < 6; k++) t.box(0.95, yl - k * 0.3, 0.885, 1.3, yl - k * 0.3 + 0.025, 0.915, 63);
+  t.pop(); c.pop();
+}
+
+// What stands on a flat roof and breaks the skyline: 'old' = timber water tank, stair bulkhead, vent stacks and an aerial;
+// 'office' = a louvred mechanical penthouse, cooling plant, mast; 'low' = a couple of vents. Always drawn (it is skyline).
+export function roofExtras(B, x0, z0, x1, z1, top, par, r, kind, lay, col, floors = 3) {
+  const p = B.p, ry = top - par, w = x1 - x0, d = z1 - z0; if (w < 6 || d < 6) return;
+  const spot = (m, mz = m) => [r.r(x0 + m, x1 - m), r.r(z0 + mz, z1 - mz)];
+  if (kind === 'old') {
+    if (w > 8 && d > 8 && r.chance(0.5)) {     // water tank on a steel frame
+      const [cx, cz] = spot(2.6), rad = r.r(1.25, 1.65), leg = r.r(1.8, 3.2), th = r.r(2.4, 3.2), y = ry + leg;
+      p.lay(WL.plain).col(44, 42, 40); for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { p.box(cx + sx * rad * 0.72 - 0.07, ry, cz + sz * rad * 0.72 - 0.07, cx + sx * rad * 0.72 + 0.07, y, cz + sz * rad * 0.72 + 0.07, 15); } p.box(cx - rad, y - 0.12, cz - rad, cx + rad, y, cz + rad, 63);
+      p.tube(cx - rad * 0.72, ry + 0.2, cz + rad * 0.72, cx + rad * 0.72, y - 0.2, cz + rad * 0.72, 0.03, 0.03, 4); p.tube(cx + rad * 0.72, ry + 0.2, cz - rad * 0.72, cx + rad * 0.72, y - 0.2, cz + rad * 0.72, 0.03, 0.03, 4);
+      p.lay(WL.wood).col(150, 120, 96); p.cyl(cx, cz, y, y + th, rad, rad * 0.94, 14, 0); p.lay(WL.plain).col(50, 48, 46); for (const hy of [0.3, th * 0.5, th - 0.3]) p.cyl(cx, cz, y + hy - 0.03, y + hy + 0.03, rad + 0.015, rad + 0.015, 14, 0);
+      p.lay(WL.shingle).col(150, 146, 140); p.cyl(cx, cz, y + th, y + th + rad * 0.55, rad + 0.12, 0.05, 14, 0);
+    }
+    if (w > 7 && d > 9 && r.chance(0.7)) { const [cx, cz] = spot(2.2, 2.6), sx = r.r(2.4, 3.0), sz = r.r(3.0, 4.2), h = 2.7; p.lay(lay); C(p, col); p.box(cx - sx / 2, ry, cz - sz / 2, cx + sx / 2, ry + h, cz + sz / 2, 15); p.lay(WL.roof).col(220, 220, 220); p.quad(cx - sx / 2 - 0.1, ry + h, cz + sz / 2 + 0.1, cx + sx / 2 + 0.1, ry + h, cz + sz / 2 + 0.1, cx + sx / 2 + 0.1, ry + h + 0.5, cz - sz / 2 - 0.1, cx - sx / 2 - 0.1, ry + h + 0.5, cz - sz / 2 - 0.1, 0, 0); p.lay(lay); C(p, col); p.box(cx - sx / 2, ry + h, cz - sz / 2 - 0.02, cx + sx / 2, ry + h + 0.5, cz - sz / 2, 2); p.lay(WL.plain).col(64, 66, 70); p.box(cx - 0.45, ry, cz + sz / 2, cx + 0.45, ry + 2.05, cz + sz / 2 + 0.04, 29); }
+    const nv = r.i(2, 4); for (let i = 0; i < nv; i++) { const [cx, cz] = spot(1.2); if (r.chance(0.5)) { p.lay(WL.brick).col(232, 224, 218); const ch = r.r(1.2, 2.2); p.box(cx - 0.35, ry, cz - 0.3, cx + 0.35, ry + ch, cz + 0.3, 31); p.lay(WL.plain).col(60, 52, 46); p.cyl(cx, cz, ry + ch, ry + ch + 0.4, 0.13, 0.11, 7); } else { p.lay(WL.plain + METAL).col(150, 152, 150); p.cyl(cx, cz, ry, ry + r.r(0.8, 1.5), 0.09, 0.09, 6); } }
+  } else if (kind === 'office') {
+    if (w > 12 && d > 12) {
+      const m = r.r(2.5, 4.5), h = r.r(3, 4.6) * (floors > 9 && r.chance(0.5) ? 1.8 : 1), ax = x0 + m + r.r(0, 2), bx = x1 - m - r.r(0, 2), az = z0 + m, bz = z1 - m - r.r(0, 3);
+      p.lay(WL.metal).col(176, 180, 182); p.box(ax, ry, az, bx, ry + h, bz, 15); p.lay(WL.roof).col(210, 210, 210); p.box(ax - 0.1, ry + h, az - 0.1, bx + 0.1, ry + h + 0.14, bz + 0.1, 31);
+      p.lay(WL.plain).col(40, 44, 48); for (let x = ax + 1; x < bx - 2.4; x += 3.6) p.box(x, ry + 0.7, bz, x + 2.2, ry + h - 0.6, bz + 0.03, 1);
+      if (floors > 7 && r.chance(0.6)) { const cx = (ax + bx) / 2 + r.r(-2, 2), cz = (az + bz) / 2, mh = r.r(6, 13); p.lay(WL.plain + METAL).col(170, 172, 174); p.cyl(cx, cz, ry + h, ry + h + mh, 0.11, 0.03, 6); p.lay(WL.plain).col(180, 40, 34); p.box(cx - 0.07, ry + h + mh, cz - 0.07, cx + 0.07, ry + h + mh + 0.14, cz + 0.07, 31); for (const f of [0.45, 0.7]) p.tube(cx - 0.7, ry + h + mh * f, cz, cx + 0.7, ry + h + mh * f, cz, 0.02, 0.02, 4); }
+    }
+    const nc = r.i(1, 3); for (let i = 0; i < nc; i++) { const [cx, cz] = spot(1.8), s = r.r(1.5, 2.3); if (cz > z1 - 3.2 || w < 12) { p.lay(WL.plain + METAL).col(190, 192, 192); p.box(cx - s / 2, ry + 0.3, cz - s / 2, cx + s / 2, ry + 1.9, cz + s / 2, 31); p.lay(WL.plain).col(38, 40, 42); p.cyl(cx, cz, ry + 1.9, ry + 2.0, s * 0.4, s * 0.4, 12); } }
+  } else { const nv = r.i(1, 3); for (let i = 0; i < nv; i++) { const [cx, cz] = spot(1.2); p.lay(WL.plain + METAL).col(160, 162, 160); p.cyl(cx, cz, ry, ry + r.r(0.5, 1.0), 0.1, 0.1, 6); p.cyl(cx, cz, ry + 0.9, ry + 1.02, 0.2, 0.14, 7); } }
+  if (kind !== 'office' && r.chance(0.45)) { const [cx, cz] = spot(1), h = r.r(2.5, 4.5); p.lay(WL.plain + METAL).col(150, 152, 154); p.cyl(cx, cz, ry, ry + h, 0.025, 0.02, 4, 0); for (let k = 0; k < 4; k++) p.tube(cx - 0.45 + k * 0.05, ry + h - 0.2 - k * 0.22, cz, cx + 0.45 - k * 0.05, ry + h - 0.2 - k * 0.22, cz, 0.012, 0.012, 3); p.tube(cx, ry + h - 0.95, cz - 0.5, cx, ry + h - 0.1, cz + 0.4, 0.012, 0.012, 3); }
 }

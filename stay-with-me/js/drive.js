@@ -12,6 +12,7 @@ import { Snd } from './audio.js';
 import { $, keys, onKey, toast, layers, fmtClock, say } from './ui.js';
 import { clamp, lerp, damp, makeRng, TAU } from './util.js';
 import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
+import { buildPeds } from './peds.js';
 
 const CAR = { mass: 5500, wheelbase: 4.0, a: 1.85, b: 2.15, iz: 5500 * 3.6, cgH: 1.25, track: 1.9, maxSteer: 0.56, power: 235000, maxForce: 17500, brake: 0.72 * 9.81, cdA: 4.6, roll: 0.016, muDry: 0.86, muWet: 0.56, cf: 9.5, cr: 11.5, top: 38 };
 const GEARS = [0, 9, 16, 24, 33, 45];   // m/s at which the automatic changes up
@@ -61,6 +62,16 @@ export class Drive {
       }
       this.parkCars(town, V);
     }
+    // townspeople on the sidewalks (skipped with the stand-in art, and never allowed to stop the game loading)
+    const Hm = this.game?.mods?.human;
+    if (Hm?.buildHuman && town.lamps && town.surface && !this.game?.noPeds) {
+      try {
+        progress?.(0.86, 'Townspeople');
+        this.peds = await buildPeds(town, Hm, scene, f => progress?.(0.86 + 0.12 * f, 'Townspeople'));
+        if (!this.extraGrid) this.extraGrid = new Map();
+        for (const c of this.peds.colliders) { const k = (Math.floor(c.x / 40) * 73856093) ^ (Math.floor(c.z / 40) * 19349663); (this.extraGrid.get(k) || this.extraGrid.set(k, []).get(k)).push(c); }
+      } catch (e) { console.warn('townspeople unavailable', e); this.peds = null; }
+    }
     this.mapImg = town.map?.canvas || null;
     const sp = town.spawn || { x: 0, z: 0, heading: 0 }; this.place(sp.x, sp.z, sp.heading);
     progress?.(1, 'Ready');
@@ -71,13 +82,19 @@ export class Drive {
     const spots = town.parking || []; if (!spots.length) return;
     const types = ['sedan', 'suv', 'hatch', 'pickup', 'van', 'wagon'].filter(t => (V.CAR_TYPES || []).includes(t) || true); const cols = V.CAR_COLORS || [0xdadada, 0x1c1c1e, 0x8a8f96, 0x2c3e66, 0x7a1c1c, 0xf4f4f2];
     const byType = {}; const rng = makeRng(4242);
-    for (const s of spots) { if (rng() > 0.56) continue; const t = types[Math.floor(rng() * types.length)]; (byType[t] = byType[t] || []).push(s); }
+    const cells = {};
+    for (const s of spots) { if (rng() > 0.56) continue; const t = types[Math.floor(rng() * types.length)], k = t + '|' + Math.floor(s.x / 240) + '|' + Math.floor(s.z / 240); (cells[k] = cells[k] || []).push(s); byType[t] = true; }
+    const protoOf = {};
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
     for (const t in byType) {
       let proto; try { proto = V.buildCar(t, { lod: 2, color: 0xffffff, seed: 3 }); } catch { continue; }
       let geo = proto.geometry || findMesh(proto.group)?.geometry; const mat = proto.material || findMesh(proto.group)?.material; if (!geo || !mat) continue;
       try { geo = toCreasedNormals(geo.clone(), 0.75); } catch { }               // smooth the facets of the cheap parked-car mesh, keep its real creases
-      const list = byType[t], im = new THREE.InstancedMesh(geo, mat, list.length); im.castShadow = true; im.receiveShadow = true;
+      protoOf[t] = { geo, mat };
+    }
+    for (const key in cells) {
+      const t = key.split('|')[0], pr = protoOf[t]; if (!pr) continue; const { geo, mat } = pr;
+      const list = cells[key], im = new THREE.InstancedMesh(geo, mat, list.length); im.castShadow = true; im.receiveShadow = true;
       list.forEach((s, i) => { q.setFromAxisAngle(up, s.heading || 0); m4.compose(new THREE.Vector3(s.x, 0, s.z), q, new THREE.Vector3(1, 1, 1)); im.setMatrixAt(i, m4); const c = cols[Math.floor(rng() * cols.length)]; im.setColorAt(i, col.set(c)); this.extra.push({ x: s.x, z: s.z, hw: 0.95, hd: 2.3, rot: s.heading || 0, kind: 'car' }); });
       im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; im.computeBoundingSphere(); this.scene.add(im);
     }
@@ -408,7 +425,7 @@ export class Drive {
     }
     this.cam.lookAt(this.camTgt); this.cam.updateProjectionMatrix();
     if (a?.cab) a.cab.visible = true;
-    if (this.cabGlow) this.cabGlow.intensity = this.camMode === 1 ? 0.5 + 1.1 * U.uNight.value : 0;
+    if (this.cabGlow) this.cabGlow.intensity = this.camMode === 1 ? 0.3 + 0.65 * U.uNight.value : 0;
   }
   audio(dt) {
     const s = this.s, sp = Math.abs(s.vx), thr = keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0;

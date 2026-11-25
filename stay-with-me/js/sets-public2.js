@@ -41,7 +41,7 @@ function pupilChair(K, col) {
 export const PUBLIC2 = {
   bar(K) {
     const w = 8.4, d = 6.6, h = 2.9, r = K.rng, wood = C.walnut;
-    const Fr = K.room({ w, d, h, wallCol: 0x2c3d33, dado: { h: 1.1, mat: M.wood, col: wood, rail: true, railCol: 0x4a2f1e }, walls: { N: { mat: M.brick, col: 0xd8ccc0, dado: null } }, floorMat: M.planks, floorCol: 0x9a7a62, ceilCol: 0x2a2520, skirt: 0.14, skirtCol: 0x3a2619, openings: [{ id: 'w0', wall: 'S', at: -2.4, w: 1.3, y0: 1.35, y1: 2.25 }, { id: 'w1', wall: 'S', at: 0.4, w: 1.3, y0: 1.35, y1: 2.25 }, { id: 'door', wall: 'W', at: -0.2, w: 0.95, y1: 2.08 }] });
+    const Fr = K.room({ w, d, h, wallCol: 0x2c3d33, dado: { h: 1.1, mat: M.wood, col: wood, rail: true, railCol: 0x4a2f1e }, walls: { N: { mat: M.brick, col: 0xd8ccc0, dado: null } }, floorMat: M.planks, floorCol: 0x9a7a62, ceilCol: 0x2a2520, skirt: 0.14, skirtCol: 0x3a2619, wear: 0.9, wearCol: 0xb8a890, openings: [{ id: 'w0', wall: 'S', at: -2.4, w: 1.3, y0: 1.35, y1: 2.25 }, { id: 'w1', wall: 'S', at: 0.4, w: 1.3, y0: 1.35, y1: 2.25 }, { id: 'door', wall: 'W', at: -0.2, w: 0.95, y1: 2.08 }] });
     ['w0', 'w1'].forEach((id, i) => { K.window(Fr[id], { cols: 2, frameCol: 0x3a2619, frameMat: M.wood, sillCol: 0x3a2619, blind: { kind: 'venetian', drop: 1, col: 0x6a5a48, tilt: 0.9 } }); K.at(Fr[id].x, 0, Fr[id].z, Fr[id].ry, () => K.plane(M.neon, 0.95, i ? 0.54 : 0.62, 0, 1.8, 0.05, { uv: ATLAS.neon.rect[i ? 'beer1' : 'beer0'] })); });
     K.door(Fr.door, { open: 0, style: 'glazed', col: 0x3a2619, mat: M.wood, handle: 'bar', metal: M.brass, frameCol: 0x3a2619, kick: true });
     K.onWall('W', -0.2, () => { K.box(M.plastic, 0.34, 0.16, 0.04, 0, 2.2, 0.02, { r: 0.006, col: 0x1a1a1c }); K.plane(K.screen(2.2, 'exit'), 0.3, 0.13, 0, 2.28, 0.041, { uv: ATLAS.screens.rect.exit }); });
@@ -90,7 +90,11 @@ export const PUBLIC2 = {
     // the story: a stool over, a glass smashed
     K.stain('coffee', 0.7, 0.5, -0.4, -0.75, { col: 0xc8b070 }); for (let i = 0; i < 9; i++) K.box(M.glassTint, 0.02 + r() * 0.04, 0.004, 0.015 + r() * 0.03, -0.55 + r() * 0.5, 0.002, -0.95 + r() * 0.4, { r: 0, ry: r() * 3, col: 0xdfe8ea }); K.stain('scuff', 2.0, 1.2, 1.0, -0.6);
     // lighting: dim and warm
-    K.hemi(0x5a5048, 0x2a1c14, K.day ? 0.14 : 0.07);
+    // closing-time floor: spill haze along the bar, crisp packets and beer mats, coats on the pegs
+    K.grime('smudge', 4.5, 0.7, -1.3, 0.0064, -1.0, { up: true, col: 0x2a1c12 }); K.grime('wear', 2.0, 1.4, -1.0, 0.0066, 1.8, { up: true, col: 0xb8a890 }); K.grime('wear', 1.8, 1.2, 1.5, 0.0067, 0.4, { up: true, ry: 1, col: 0xb8a890 });
+    K.scatter(7, [-3.8, -0.8, 3.8, 2.9], 0.04, i => i % 3 === 0 ? K.heap(M.gloss, 0.14, 0.03, 0.1, 0, 0, 0, { col: [0xb02a2a, 0x2a5ab0, 0xe0b020][i % 3 + (i > 3 ? 1 : 0)] ?? 0xb02a2a, detail: 2, amp: 0.4, freq: 3 }) : K.box(M.matte, 0.09, 0.003, 0.09, 0, 0.001, 0, { r: 0.001, col: i & 1 ? 0xe8e0c8 : 0x8a2a2a }), { under: true });
+    K.onWall('E', 2.3, () => { K.box(M.wood, 1.1, 0.09, 0.022, 0, 1.72, 0.011, { r: 0.005, col: 0x3a2619 }); [[-0.4, 0x2a2e36, 0.95], [-0.12, 0x5a4a3a, 0.8], [0.18, 0x3a4a3a, 0.9], [0.44, 0x1a1a1e, 0.7]].forEach(([x, c, l]) => P.coat(K, x, 1.74, { col: c, len: l, w: 0.44 })); });
+    K.hemi(0x5a5048, 0x2a1c14, K.day ? 0.12 : 0.055);
     K.spot(-1.3, h - 0.15, 0.3, -1.3, 0, 0.25, { col: 0xffd2a0, int: K.day ? 9 : 8, angle: 1.15, pen: 0.8, shadow: true, near: 0.2 });
     K.spot(2.3, lampY + 0.1, 1.15, 2.3, 0, 1.15, { col: 0xffe2b0, int: 9, angle: 1.2, pen: 0.5, shadow: true, near: 0.1, map: 1024 });
     K.point(-1.3, 1.7, -d / 2 + 0.6, { col: 0xffb060, int: 2.4, dist: 5 }); K.point(-1.3, 1.9, -1.7, { col: 0xffcf9a, int: 3.0, dist: 6 });
@@ -102,7 +106,7 @@ export const PUBLIC2 = {
 
   classroom(K) {
     const w = 8, d = 7, h = 3.0, r = K.rng, cols4 = [0xc0392b, 0x2c6ab0, 0x3a8a4a, 0xe0b020];
-    const Fr = K.room({ w, d, h, wallCol: 0xefe7cf, dado: { h: 1.0, col: 0xc6d6de, rail: true, railCol: 0xf4f0e4 }, floorMat: M.lino, floorCol: 0xcfd2cc, ceilMat: M.ceilTile, ceilCol: 0xf4f4f2, skirt: 0.1, skirtCol: 0x5a6a74, openings: [{ id: 'w0', wall: 'W', at: -2.2, w: 1.7, y0: 0.95, y1: 2.4 }, { id: 'w1', wall: 'W', at: 0, w: 1.7, y0: 0.95, y1: 2.4 }, { id: 'w2', wall: 'W', at: 2.2, w: 1.7, y0: 0.95, y1: 2.4 }, { id: 'door', wall: 'E', at: 2.7, w: 0.9, y1: 2.05 }] });
+    const Fr = K.room({ w, d, h, wallCol: 0xefe7cf, dado: { h: 1.0, col: 0xc6d6de, rail: true, railCol: 0xf4f0e4 }, floorMat: M.lino, floorCol: 0xcfd2cc, ceilMat: M.ceilTile, ceilCol: 0xf4f4f2, skirt: 0.1, skirtCol: 0x5a6a74, wear: 0.7, wearCol: 0x6a6c68, openings: [{ id: 'w0', wall: 'W', at: -2.2, w: 1.7, y0: 0.95, y1: 2.4 }, { id: 'w1', wall: 'W', at: 0, w: 1.7, y0: 0.95, y1: 2.4 }, { id: 'w2', wall: 'W', at: 2.2, w: 1.7, y0: 0.95, y1: 2.4 }, { id: 'door', wall: 'E', at: 2.7, w: 0.9, y1: 2.05 }] });
     ['w0', 'w1', 'w2'].forEach((id, i) => { K.window(Fr[id], { cols: 2, rows: 2, frameCol: 0xf0f0ec, blind: { kind: 'roller', drop: [0.15, 0.3, 0.15][i], col: 0xe8e0c8 } }); K.at(Fr[id].x, 0, Fr[id].z, Fr[id].ry, () => { for (let k = 0; k < 3; k++) K.plane(M.matte, 0.16, 0.16, -0.5 + k * 0.5, 1.4 + (k & 1) * 0.3, -0.085, { col: cols4[(k + i) % 4], rz: k }); }); });
     K.onWall('W', -1.1, () => P.radiator(K, { w: 1.2, h: 0.6 })); K.onWall('W', 1.1, () => P.radiator(K, { w: 1.2, h: 0.6 }));
     K.door(Fr.door, { open: 0, hinge: 1, style: 'glazed', col: 0x2c6ab0, handle: 'lever', frameCol: 0xf0f0ec, kick: true });
@@ -148,10 +152,16 @@ export const PUBLIC2 = {
     K.at(-1.6, 0, -1.55, 0.4, () => { K.lathe(M.plastic, [[0.001, 0], [0.04, 0], [0.045, 0.09], [0.04, 0.09], [0.035, 0.008]], 0, 0.045, 0, { col: 0x3a3a3e, seg: 12, rz: H }); for (let i = 0; i < 8; i++) K.cyl(M.matte, 0.004, 0.004, 0.17, 0.1 + r() * 0.25, 0.005, (r() - 0.5) * 0.3, { rz: H, ry: r() * 3, c: true, col: r.pick([0xc0392b, 0x2c6ab0, 0x3a8a4a, 0xe0b020, 0xe67e22, 0x8e44ad]), seg: 5 }); });
     K.plane(M.pics, 0.21, 0.297, 0.9, 0.003, -2.9, { up: true, ry: 0.5, uv: ATLAS.pics.rect.kid1 });
     for (const x of [-2.7, -0.9, 0.9, 2.7]) for (const z of [-2.1, 0.3, 2.1]) K.at(x, h, z, 0, () => P.ledPanel(K, { w: 0.57, d: 0.57, on: true, col: 0xfff8ee, k: 2.6 }));
-    K.hemi(0xe8eef2, 0x9a9a8e, K.day ? 0.5 : 0.36);
+    // end of a school day: coats and bags on the pegs, paper and pencils on the floor, chair-leg scuffs on the lino
+    K.onWall('E', 1.9, () => { K.box(M.wood, 2.4, 0.07, 0.02, 0, 1.15, 0.01, { r: 0.005, col: C.beech }); for (let i = 0; i < 8; i++) { const x = -1.05 + i * 0.3; if (i % 4 !== 2) P.coat(K, x, 1.17, { col: [0xc0392b, 0x2c6ab0, 0x3a8a4a, 0xe0b020, 0x7a3a9a, 0xe86a92, 0x2a2e36, 0x2c6ab0][i], len: 0.5 + (i % 3) * 0.04, w: 0.3 }); else { K.cyl(M.metal, 0.005, 0.005, 0.05, x, 1.18, 0.025, { rx: H, c: true, seg: 6, col: 0x8a8d90 }); K.rbox(M.fabric, 0.26, 0.3, 0.12, x, 0.84, 0.075, { r: 0.05, soft: true, puff: 0.01, wrinkle: 0.006, col: 0x7a3a9a, cell: 0.04 }); } } });
+    K.along('E', 4, 0.2, i => K.rbox(M.fabric, 0.28, 0.34, 0.16, 0, 0, 0, { r: 0.06, soft: true, puff: 0.012, wrinkle: 0.008, crease: 0.006, col: [0xc0392b, 0x2c6ab0, 0x3a8a4a, 0xe86a92][i], cell: 0.04, rx: -0.12 }), { lo: 0.1, hi: 0.95 });
+    K.scatter(8, [-3.4, -3.0, 3.4, 3.0], 0.05, i => i % 4 === 0 ? K.cyl(M.satin, 0.004, 0.004, 0.17, 0, 0.004, 0, { rz: H, c: true, col: [0xe0b020, 0xc0392b][i & 1], seg: 6 }) : K.plane(i & 1 ? M.matte : M.pics, 0.21, 0.297, 0, 0.003, 0, { up: true, col: 0xf4f2ea, uv: i & 1 ? undefined : ATLAS.pics.rect['kid' + (i % 4)] }), { under: true });
+    for (let i = 0; i < 12; i++) K.grime('scuff', 0.3 + r() * 0.4, 0.12 + r() * 0.14, -3 + r() * 6, 0.0076 + i * 0.0002, -2.6 + r() * 5.4, { up: true, ry: r() * 6 });
+    for (const [x, z] of [[-1.8, 0], [1.8, 0]]) K.at(x, h, z, 0, () => P.smokeAlarm(K));
+    K.hemi(0xe8eef2, 0x9a9a8e, K.day ? 0.28 : 0.18);
     K.spot(-0.9, h - 0.03, -2.1, -0.7, 0, -2.4, { col: 0xfff6ea, int: 26, angle: 1.3, pen: 0.6, shadow: true, near: 0.1 });
     K.point(-2.4, h - 0.3, 1.0, { col: 0xfff6ea, int: 9 }); K.point(1.8, h - 0.3, 1.0, { col: 0xfff6ea, int: 9 }); K.point(2.2, h - 0.3, -2.0, { col: 0xfff6ea, int: 7 });
-    if (K.day && !K.rain) K.sun(266, 38, SUN, 5.0); else if (K.dusk) K.sun(268, 10, DUSKSUN, 2.2, { soft: 3 }); if (K.day) K.spot(-w / 2 - 1.2, 2.2, 0, 0, 0.4, -0.5, { col: SKYFILL, int: K.rain ? 34 : 24, angle: 0.9, pen: 1 });
+    if (K.day && !K.rain) K.sun(266, 38, SUN, 6.2); else if (K.dusk) K.sun(268, 10, DUSKSUN, 2.2, { soft: 3 }); if (K.day) K.spot(-w / 2 - 1.2, 2.2, 0, 0, 0.4, -0.5, { col: SKYFILL, int: K.rain ? 88 : 20, angle: 0.9, pen: 1, shadow: K.rain, soft: 8, near: 0.3, far: 12 });
     K.spots({ floor: [-0.6, -2.45, H], seat: [1.7, 0.45, -3.0, 0.2], side: -1, by: [[0.9, -2.2], [-2.0, -1.6]], cam: [0.5, 1.4, -1.3], target: [-0.75, 0.25, -2.5], seatView: { cam: [0.8, 1.3, -1.5], target: [1.7, 0.8, -3.0], partner: [2.3, 0, -2.75], kit: [1.05, 0, -2.5] } });
     return { exposure: 0.86, bloom: 0.06, envInt: 0.85, envPos: [-0.4, 1.5, -1.6] };
   },

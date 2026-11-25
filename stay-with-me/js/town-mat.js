@@ -1,7 +1,9 @@
 // Town materials. Two families of tileable PBR surfaces are generated on the GPU into texture arrays (albedo+roughness,
 // normal), one array pair for ground surfaces and one for building surfaces, then a handful of MeshStandardMaterials
 // sample them by a per-vertex layer id (aCol.a) with a per-vertex tint (aCol.rgb). On top of that:
-//   road    : lane markings, crosswalks, stop bars, wheel wear, tar snakes, patches, manholes, gutters (from road UVs in m)
+//   road    : lane markings, crosswalks, stop bars, wheel wear, tar snakes, patches, manholes, gutters (from road UVs in m),
+//             plus world-space cracking, oil spotting and lane-by-lane resurfacing tone
+//   ground  : lawns (mowing, dry and worn patches) and sidewalks (slab tone, replaced slabs, damp and spill stains)
 //   facade  : window grids with parallax reveals, frames, interior-mapped rooms and night lighting (aWinA / aWinB)
 //   plain   : everything else built (roofs, trim, props)
 // All of them go through patchWet, take the baked street-lamp light map at night, and break up tiling with a second
@@ -113,9 +115,9 @@ const GROUND_GLSL = [
 const BRICK = (lo, hi, dark, light) => `void mat(vec2 uv, out vec3 alb, out float rgh, out float hgt){
     vec4 b=brick(uv,vec2(12.0,32.0)); vec2 e=min(b.xy,1.0-b.xy)*vec2(0.2,0.075); float jd=min(e.x,e.y);
     float mort=(1.0-smoothstep(0.0036,0.0078,jd)); vec4 r=rnd(b.zw+11.0,vec2(12.0,32.0));
-    vec3 c=mix(${lo},${hi},r.x); c=mix(c,${dark},step(0.86,r.y)); c=mix(c,${light},step(0.9,r.z)*0.6);
+    vec3 c=mix(${lo},${hi},r.x*r.x*0.8+0.1); c=mix(c,${dark},step(0.9,r.y)*0.5); c=mix(c,${light},step(0.93,r.z)*0.3);
     c*=0.8+0.4*vn(uv*512.0+r.w*40.0,512.0); c*=0.88+0.24*fbm(uv,3.0,4);
-    vec3 mc=vec3(0.40,0.385,0.35)*(0.8+0.4*vn(uv*256.0,256.0));
+    vec3 mc=vec3(0.33,0.315,0.285)*(0.8+0.4*vn(uv*256.0,256.0));
     alb=mix(c,mc,mort); hgt=mix(0.72+0.2*r.w+0.1*vn(uv*256.0+3.0,256.0),0.22,mort); rgh=mix(0.88,0.95,mort); }`;
 const WALL_GLSL = [
   // 0 plain paint
@@ -220,7 +222,7 @@ const FRAG_PARS = n => `
 uniform mediump sampler2DArray uAlb; uniform mediump sampler2DArray uNrm; uniform sampler2D uTNoise; uniform sampler2D uLampMap;
 uniform vec4 uLampRect; uniform float uNight; uniform vec4 uLP[${n}]; uniform float uLN[${n}]; uniform float uLS[${n}];
 varying vec4 vCol; varying vec2 vUvM; varying vec4 vWinA; varying vec4 vWinB;
-vec2 gNxy=vec2(0.0); float gRgh=0.8; float gMetal=0.0; vec3 gEmis=vec3(0.0); vec3 gMacro=vec3(0.5); float gGlass=0.0; float gSpec=1.0;
+vec2 gNxy=vec2(0.0); float gRgh=0.8; float gMetal=0.0; vec3 gEmis=vec3(0.0); vec3 gMacro=vec3(0.5); float gGlass=0.0; float gSpec=1.0; float gShade=0.0;
 mat3 gTBN(vec3 eye, vec3 N, vec2 uvv){ vec3 q0=dFdx(eye), q1=dFdy(eye); vec2 s0=dFdx(uvv), s1=dFdy(uvv);
   vec3 q1p=cross(q1,N), q0p=cross(N,q0); vec3 T=q1p*s0.x+q0p*s1.x, B=q1p*s0.y+q0p*s1.y; float det=max(dot(T,T),dot(B,B)); float sc=det<=0.0?0.0:inversesqrt(det); return mat3(T*sc,B*sc,N); }
 float gLine(float d, float hw, float fw){ return clamp((hw-d)/fw+0.5,0.0,1.0)*min(1.0,2.0*hw/fw+0.3); }
@@ -244,20 +246,27 @@ const LAWN_FS = `
 { float layg=mod(floor(vCol.a*255.0+0.5),32.0);
   if(layg>2.5&&layg<3.5){ vec2 wp=vWetPos.xz;
     float n1=texture2D(uTNoise,wp*0.047).r, n2=texture2D(uTNoise,wp*0.19+0.3).a, n3=texture2D(uTNoise,wp*0.011+0.7).b, n4=texture2D(uTNoise,wp*0.9).a;
-    vec3 c=diffuseColor.rgb; c*=(0.7+0.55*n2)*(0.84+0.32*n4);
-    c=mix(c,c*vec3(1.3,1.12,0.55),smoothstep(0.55,0.8,n1)*0.55*smoothstep(0.55,0.8,vCol.g));
+    vec3 c=diffuseColor.rgb*vec3(0.80,0.84,0.78); c*=(0.62+0.6*n2)*(0.8+0.36*n4); c*=0.93+0.14*smoothstep(0.4,0.6,texture2D(uTNoise,wp*2.7+0.2).a);
+    c=mix(c,c*vec3(0.78,1.02,0.7),smoothstep(0.55,0.72,texture2D(uTNoise,wp*0.31+0.5).r)*0.5);
+    c=mix(c,c*vec3(1.3,1.12,0.55),smoothstep(0.52,0.78,n1)*0.7*smoothstep(0.55,0.8,vCol.g)); c*=0.78+0.44*texture2D(uTNoise,wp*0.0043+0.31).g; c=mix(vec3(dot(c,vec3(0.3,0.6,0.1))),c,0.86);
     c=mix(c,c*vec3(0.6,0.8,0.7),smoothstep(0.5,0.75,n3)*0.5);
     float lawnK=smoothstep(0.55,0.8,vCol.g);            // forest floor and verges under trees stay dark
     float worn=smoothstep(0.7,0.84,texture2D(uTNoise,wp*0.083+1.9).g)*smoothstep(0.42,0.6,n2)*lawnK;
     c=mix(c,vec3(0.105,0.085,0.06)*(0.7+0.6*n4),worn*0.8);
-    diffuseColor.rgb=c; gNxy*=1.0+0.9*n2; gRgh=mix(gRgh,0.97,worn); } }
+    diffuseColor.rgb=c; gNxy*=1.0+0.9*n2; gRgh=mix(gRgh,0.97,worn); }
+  else if(layg>0.5&&layg<2.5){ vec2 wp=vWetPos.xz;
+    float n1=texture2D(uTNoise,wp*0.057).g, n2=texture2D(uTNoise,wp*0.23+0.4).a, n3=texture2D(uTNoise,wp*0.013+0.2).r;
+    vec3 c=diffuseColor.rgb; c*=0.84+0.3*n1; c*=1.0-0.22*smoothstep(0.52,0.8,n3);
+    if(layg<1.5){ float sh=gH1(floor(vUvM/1.5+0.001)+7.3); c*=0.93+0.14*sh; c=mix(c,c*vec3(1.17,1.16,1.13),step(0.95,sh)); }
+    float drip=smoothstep(0.6,0.85,n2)*smoothstep(0.45,0.7,n1); c*=1.0-0.28*drip; gRgh-=0.12*drip;
+    diffuseColor.rgb=c; } }
 `;
 
 // Road markings. vUvM = (u across, + to the right of a->b; v along from node a), vWinA = (length, half width, lanes,
 // lane width), vWinB = (median, flags, trimA, trimB). Junction fans have length 0 and vWinA.y = distance to the kerb.
 const ROAD_FS = `
 { float len=vWinA.x; vec2 wp=vWetPos.xz; float wearN=texture2D(uTNoise,wp*0.09).a, wearL=texture2D(uTNoise,wp*0.021+0.5).r;
-  vec3 base=diffuseColor.rgb; float white=0.0, yellow=0.0, tar=0.0, conc=0.0, iron=0.0, dark=0.0;
+  vec3 base=diffuseColor.rgb; float white=0.0, yellow=0.0, tar=0.0, conc=0.0, iron=0.0, dark=0.0, oilW=0.1, pave=1.0;
   if(len>0.5){
     float u=vUvM.x, v=vUvM.y, hw=vWinA.y, lanes=vWinA.z, lw=vWinA.w, med=vWinB.x, tA=vWinB.z, tB=vWinB.w, au=abs(u);
     float fu=max(fwidth(u),1e-4), fv=max(fwidth(v),1e-4);
@@ -283,13 +292,14 @@ const ROAD_FS = `
     float uMin=cls>2.5?med*0.5:-med*0.5;
     float barA=gLine(abs(v-(sA-0.45)),0.26,fv)*step(uMin,-u)*step(-u,travel+0.05)*stA;
     float barB=gLine(abs(v-(sB+0.45)),0.26,fv)*step(uMin,u)*step(u,travel+0.05)*stB;
-    white=max(white,max(barA,barB));
+    float lu0=(au-med*0.5)/max(lw,0.1), dl0=(fract(lu0)-0.5)*lw, wheel0=exp(-pow((abs(dl0)-0.85)/0.33,2.0))*step(med*0.5,au)*step(au,travel);
+    white=max(white,max(barA,barB)*(1.0-0.55*wheel0*wearN));
     // crosswalks: ladder bars on the big streets, two transverse lines elsewhere
     float cA=v-(tA+0.9), cB=(len-tB-0.9)-v; float cw=0.0;
     float lad=clamp((0.3-abs(fract(u/1.2)-0.5)*1.2)/fu+0.5,0.0,1.0);
     if(cwA>0.5) cw=max(cw, ladder>0.5 ? step(0.0,cA)*step(cA,3.0)*lad : max(gLine(abs(cA-0.15),0.15,fv),gLine(abs(cA-2.85),0.15,fv)));
     if(cwB>0.5) cw=max(cw, ladder>0.5 ? step(0.0,cB)*step(cB,3.0)*lad : max(gLine(abs(cB-0.15),0.15,fv),gLine(abs(cB-2.85),0.15,fv)));
-    white=max(white,cw*step(au,hw-0.35));
+    white=max(white,cw*step(au,hw-0.35)*(1.0-0.6*wheel0*(0.3+wearN)));
     // left-turn arrows in the centre lane ahead of signals
     if(med>2.0&&cls<2.5){
       vec2 pa=vec2(-u*1.0,(sA+13.0)-v), pb=vec2(u,v-(sB-13.0));
@@ -299,17 +309,20 @@ const ROAD_FS = `
         white=max(white,max(shaft,max(bend,head))*on); }
     }
     // wheel paths, oil line
+    float hsh=gH1(vec2(floor(len*7.0+0.37),floor(hw*13.0+0.37)));
     float lu=(au-med*0.5)/max(lw,0.1); float inT=step(med*0.5,au)*step(au,travel);
     float dl=(fract(lu)-0.5)*lw; float wheel=exp(-pow((abs(dl)-0.85)/0.33,2.0))*inT, oil=exp(-pow(dl/0.28,2.0))*inT;
     float nearStop=max(exp(-max(v-sA,0.0)/14.0)*step(u,0.0), exp(-max(sB-v,0.0)/14.0)*step(0.0,u));
-    dark+=wheel*(0.12+0.1*wearL)+oil*(0.06+0.3*nearStop*wearL);
+    dark+=wheel*(0.10+0.1*wearL)+oil*(0.10+0.34*nearStop*(0.4+wearL));
+    float parkZ=fPark*step(travel,au)*inLane; oilW=0.08+0.5*oil*(0.35+nearStop)+0.55*parkZ;
+    pave=inT>0.5?0.9+0.2*gH1(vec2(floor(lu)+step(0.0,u)*9.0+hsh*13.0,floor(v/53.0+hsh*5.0))):(parkZ>0.5?0.93:1.0);
     gRgh-=wheel*0.1;
     // gutter pan and kerb-side dirt
     if(cls>0.5&&cls<2.5){ float gd=hw-au; conc=clamp((0.42-gd)/fu+0.5,0.0,1.0); dark+=exp(-gd/0.5)*0.12*(1.0-conc)+conc*exp(-gd/0.12)*0.3;
       tar=max(tar,gLine(abs(gd-0.42),0.012,fu));
       float dv=mod(v+hw*3.0,31.0)-15.5; iron=max(iron,step(abs(dv),0.45)*step(gd,0.38)*step(0.04,gd)*step(0.3,fract(abs(dv)*9.0))*step(0.0,u)); }
     // tar-sealed cracks wandering along the lane, patches, manholes
-    float hsh=gH1(vec2(floor(len*7.0),floor(hw*13.0)));
+    
     float cx=(hsh-0.5)*hw*1.3+sin(v*0.23+hsh*40.0)*0.5+sin(v*0.71+hsh*9.0)*0.16+(wearN-0.5)*0.25;
     tar=max(tar,gLine(abs(u-cx),0.022,fu)*smoothstep(0.42,0.6,texture2D(uTNoise,vec2(v*0.004,hsh)).r));
     float cx2=(gH1(vec2(hsh,3.0))-0.5)*hw*1.5+sin(v*0.31+hsh*11.0)*0.4;
@@ -328,16 +341,23 @@ const ROAD_FS = `
     tar=max(tar,gLine(abs(gd-0.42),0.012,fg)*step(gd,50.0));
     dark+=0.08*wearL;
   }
+  { vec4 cn=texture2D(uTNoise,wp*0.043+0.11); float f1=max(fwidth(cn.r),1e-5), f2=max(fwidth(cn.b),1e-5);
+    float zone=smoothstep(0.5,0.64,texture2D(uTNoise,wp*0.0087+0.4).g), sealed=smoothstep(0.46,0.56,texture2D(uTNoise,wp*0.0041+0.9).b);
+    float cS=max(gLine(abs(cn.r-0.5),0.011,f1),gLine(abs(cn.b-0.47),0.009,f2)*0.9), cO=max(gLine(abs(cn.r-0.5),0.0035,f1),gLine(abs(cn.b-0.47),0.003,f2));
+    float cx3=gLine(abs(texture2D(uTNoise,wp*0.11+0.53).g-0.5),0.006,max(fwidth(texture2D(uTNoise,wp*0.11+0.53).g),1e-5))*smoothstep(0.58,0.7,texture2D(uTNoise,wp*0.019+0.77).r);
+    float brk=smoothstep(0.38,0.52,texture2D(uTNoise,wp*0.27+0.61).a); tar=max(tar,cS*zone*sealed*brk*step(0.62,cn.g)*0.9); dark+=(cO*zone*brk+cx3)*0.45;
+    float o1=texture2D(uTNoise,wp*0.57).a, o2=texture2D(uTNoise,wp*0.131+0.27).r; float spot=smoothstep(0.56,0.74,o1)*smoothstep(0.42,0.66,o2);
+    dark+=spot*oilW*0.8; gRgh-=spot*oilW*0.35; }
   // large-scale wear: bleached, patchy asphalt
-  base*=mix(0.82,1.25,wearL); base=mix(base,vec3(dot(base,vec3(0.333)))*1.15,0.25*wearN);
+  base*=pave*mix(0.80,1.24,wearL); base=mix(base,vec3(dot(base,vec3(0.333)))*1.15,0.25*wearN);
   base*=1.0-clamp(dark,0.0,0.6);
   vec3 concC=vec3(0.30,0.295,0.28)*(0.75+0.5*wearN);
   base=mix(base,concC,conc);
-  float wearP=0.45+0.55*smoothstep(0.25,0.62,wearN*0.6+wearL*0.5);
+  float wearP=(0.4+0.6*smoothstep(0.25,0.62,wearN*0.6+wearL*0.5))*(0.72+0.28*smoothstep(0.3,0.5,texture2D(uTNoise,wp*1.9).a));
   base=mix(base,vec3(0.66,0.66,0.63),white*wearP);
   base=mix(base,vec3(0.70,0.47,0.035),yellow*wearP);
   base=mix(base,vec3(0.018),tar*0.92);
-  base=mix(base,vec3(0.035,0.033,0.03),iron);
+  base=mix(base,vec3(0.05,0.047,0.043)*(0.7+0.6*wearN),iron);
   diffuseColor.rgb=base;
   gRgh=mix(gRgh,0.62,max(white,yellow)*wearP); gRgh=mix(gRgh,0.35,tar); gRgh=mix(gRgh,0.5,iron); gMetal=iron*0.8;
   gNxy*=1.0-0.6*max(white,max(yellow,tar));
@@ -355,7 +375,9 @@ const FACADE_FS = `
     float streak=texture2D(uTNoise,vec2(vUvM.x*0.31+vWetPos.x*0.01,vUvM.y*0.017)).r;
     float run=smoothstep(0.5,0.85,texture2D(uTNoise,vec2(vUvM.x*1.7+vWetPos.z*0.03,vUvM.y*0.045)).g);
     float blotch=smoothstep(0.45,0.8,texture2D(uTNoise,vUvM*0.045+vWetPos.xz*0.003).b);
-    diffuseColor.rgb*=mix(0.72,1.0,smoothstep(0.0,1.1,vWetPos.y-0.1+gMacro.b*0.5))*(0.86+0.26*streak)*(1.0-0.3*soft*run)*(1.0-0.16*soft*blotch);
+    if(lay0>0.5&&lay0<2.5){ float eff=smoothstep(0.6,0.92,texture2D(uTNoise,vec2(vUvM.x*0.37,vUvM.y*0.085)+0.19).a)*smoothstep(0.35,0.7,texture2D(uTNoise,vUvM*0.021+0.6).r); diffuseColor.rgb=mix(diffuseColor.rgb,vec3(0.62,0.6,0.56),eff*0.3);
+      vec2 pq=vUvM/vec2(3.1,2.3); vec3 ph=gH3(floor(pq)+3.7); vec2 pf=fract(pq); float pat=step(0.86,ph.x)*step(0.12,pf.x)*step(pf.x,0.3+0.55*ph.y)*step(0.15,pf.y)*step(pf.y,0.3+0.5*ph.z); diffuseColor.rgb*=mix(1.0,ph.y>0.5?1.22:0.78,pat); }
+    diffuseColor.rgb*=mix(0.62,1.0,smoothstep(0.0,1.5,vWetPos.y-0.1+gMacro.b*0.7))*(0.86+0.26*streak)*(1.0-0.3*soft*run)*(1.0-0.16*soft*blotch);
     diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(0.93,0.9,0.8),soft*run*0.6); }
 }
 #ifdef TOWN_FACADE
@@ -421,32 +443,34 @@ if(vWinA.x>0.01){
     vec3 ic;
     if(tt>=D-1e-3){ ic=roomC; float furn=step(hp.y,-hr.y+0.9+ch2.x*0.9)*step(abs(hp.x-(ch2.y-0.5)*hr.x),hr.x*(0.3+0.4*ch2.z)); ic=mix(ic,roomC*0.35,furn);
       float pic=step(abs(hp.x+(ch2.z-0.5)*hr.x),0.4)*step(abs(hp.y-0.25),0.28)*step(0.5,ch2.x); ic=mix(ic,vec3(0.25,0.3,0.4)*(0.5+ch2.y),pic);
-      if(style>1.5&&style<2.5){ float yy=hp.y+hr.y, sf=fract(yy/0.42); vec2 ic2=vec2(floor((hp.x+hr.x)/0.11),floor(yy/0.42)); float it=gH1(ic2+seed), ih=0.35+0.6*gH1(ic2*1.7+seed+2.0);
-        vec3 itemC=mix(vec3(0.15,0.13,0.11),vec3(0.42,0.36,0.3),it); itemC=mix(itemC,gH3(ic2+seed+7.0)*0.5+0.1,step(0.84,it)*0.6);
-        vec3 shelfC=mix(roomC*0.4,itemC,step(0.14,sf)*step(sf,0.14+0.8*ih)); shelfC=mix(shelfC,roomC*0.8,step(sf,0.09));
-        ic=mix(roomC*0.62,shelfC,step(1.05,yy)*step(yy,hr.y*2.0-0.8)*step(0.25,gH1(vec2(floor((hp.x+hr.x)/2.2),seed+4.0))));
+      if(style>1.5&&style<2.5){ float yy=hp.y+hr.y, bx=(hp.x+hr.x)/1.7, bay=floor(bx), bf=fract(bx), sf=fract(yy/0.46);
+        float unit=step(0.3,gH1(vec2(bay,seed+4.0)))*step(yy,1.5+0.9*gH1(vec2(bay,seed+9.0)))*step(0.06,bf)*step(bf,0.94);
+        vec3 uc=roomC*mix(0.5,0.8,gH1(vec2(bay,seed+2.0)))*(0.78+0.22*step(0.1,sf));
+        vec2 ic2=vec2(floor((hp.x+hr.x)/0.19),floor(yy/0.46)); { float sg=gH1(ic2+seed+7.0); uc=mix(uc,mix(vec3(0.12+0.3*sg),gH3(ic2+seed+7.0)*0.5+0.08,0.2),0.3*step(0.1,sf)*step(sf,0.5+0.4*gH1(ic2+seed))); }
+        ic=mix(roomC*0.82,uc,unit); float pst=step(abs(fract(bx*0.5+0.25)-0.5),0.16)*step(1.9,yy)*step(yy,2.7)*(1.0-unit); ic=mix(ic,gH3(vec2(bay,seed))*0.45+0.2,pst*0.7);
         float cn=step(yy,1.0)*step(abs(hp.x-(ch2.y-0.5)*hr.x),hr.x*0.55); ic=mix(ic,vec3(0.13,0.10,0.08),cn); ic=mix(ic,vec3(0.5,0.47,0.42),cn*step(0.93,yy)); }
       if(style>5.5&&style<6.5){ ic=vec3(0.16,0.16,0.17); float colm=step(abs(fract(hp.x/8.0+0.5)-0.5)*8.0,0.3); ic=mix(ic,vec3(0.3),colm); } }
     else if(ty<tx){ ic=dd.y>0.0?vec3(0.72,0.72,0.70):mix(vec3(0.20,0.16,0.12),vec3(0.24,0.24,0.25),ch.x);
       if(dd.y>0.0){ float fx=step(abs(fract(tt/2.4)-0.5),0.12)*step(abs(hp.x),hr.x*0.5); ic=mix(ic,vec3(3.2),fx*step(0.5,style)); }
-      else if(style>1.5&&style<2.5){ vec2 tq=vec2(hp.x,tt)/0.6; ic=mix(vec3(0.3,0.28,0.25),vec3(0.2,0.19,0.17),mod(floor(tq.x)+floor(tq.y),2.0)); } }
-    else { ic=roomC*0.78; if(style>1.5&&style<2.5){ float yy=hp.y+hr.y, sf=fract(yy/0.42); vec2 ic2=vec2(floor(tt/0.11),floor(yy/0.42)+13.0); float it=gH1(ic2+seed), ih=0.35+0.6*gH1(ic2*1.7+seed+2.0);
-        vec3 itemC=mix(vec3(0.15,0.13,0.11),vec3(0.42,0.36,0.3),it); ic=mix(ic,mix(roomC*0.4,itemC,step(0.14,sf)*step(sf,0.14+0.8*ih)),step(0.5,yy)*step(yy,hr.y*2.0-0.8)*step(0.7,tt)); } }
-    ic*=mix(1.0,0.5,dep);
-    float litR=mix(ch.x,gH1(vec2(cell.y,seed)),prof<0.5?0.45:0.1);
-    float pLit = prof<0.5 ? mix(0.62,0.13,smoothstep(0.75,1.0,uNight)) : prof<1.5 ? 0.42 : prof<2.5 ? 0.8 : prof<3.5 ? 0.5 : prof<4.5 ? 0.22 : prof<5.5 ? 1.0 : 0.0;
-    float lit=step(1.0-pLit,litR)*night;
+      else if(style>1.5&&style<2.5){ vec2 tq=vec2(hp.x,tt)/0.6; ic=mix(vec3(0.27,0.25,0.23),vec3(0.22,0.21,0.19),mod(floor(tq.x)+floor(tq.y),2.0)); } }
+    else { ic=roomC*0.78; if(style>1.5&&style<2.5){ float yy=hp.y+hr.y, sf=fract(yy/0.46); vec2 ic2=vec2(floor(tt/0.42),floor(yy/0.46)+13.0);
+        vec3 uc=roomC*0.6*(0.78+0.22*step(0.1,sf)); { float sg=gH1(ic2+seed+3.0); uc=mix(uc,mix(vec3(0.1+0.4*sg),gH3(ic2+seed+3.0)*0.5+0.08,0.22),0.5*step(0.1,sf)*step(sf,0.5+0.4*gH1(ic2+seed))); }
+        ic=mix(ic,uc,step(yy,2.1)*step(0.7,tt)); } }
+    ic*=mix(1.0,0.38,dep);
+    float litR=prof<0.5?ch.x:mix(ch.x,gH1(vec2(cell.y,seed)),0.1); float floorLit=step(prof,0.5)*step(0.84,gH1(vec2(cell.y,seed+1.0)))*step(0.2,ch2.z);
+    float pLit = prof<0.5 ? mix(0.62,0.17,smoothstep(0.75,1.0,uNight)) : prof<1.5 ? 0.42 : prof<2.5 ? 0.8 : prof<3.5 ? 0.5 : prof<4.5 ? 0.22 : prof<5.5 ? 1.0 : 0.0;
+    float lit=max(step(1.0-pLit,litR),floorLit)*night;
     vec3 lightC = prof<0.5||prof>3.5 ? mix(vec3(0.82,0.92,1.0),vec3(1.0,0.93,0.8),ch2.x) : mix(vec3(1.0,0.72,0.42),vec3(1.0,0.86,0.66),ch2.x); if(prof>1.5&&prof<2.5) lightC=mix(vec3(1.0,0.8,0.56),vec3(1.0,0.93,0.82),ch2.y);
     float lightI=(0.7+1.1*ch2.y)*(prof>1.5&&prof<2.5?0.9:1.0);
-    float dayIn=(1.0-uNight)*(style>1.5&&style<2.5?0.55:0.2);
-    vec3 inner=ic*(dayIn+lit*lightI*lightC*0.34);
+    float dayIn=(1.0-uNight)*(style>1.5&&style<2.5?0.24:0.09), dayBl=(1.0-uNight)*0.36;
+    vec3 inner=ic*(dayIn+lit*lightI*lightC*(style>3.5&&style<4.5?0.1:0.19)*(0.75+0.25*smoothstep(-hs.y,hs.y,q.y)));
     // blinds and curtains sit just behind the glass
     float blind=0.0; vec3 blindC=vec3(0.62,0.6,0.55);
     if(style<1.5||style>8.5){ float bf=ch2.z>0.35?ch2.x*ch2.x:0.0; if(style>0.5&&style<1.5) bf*=0.6; blind=step(hs.y-bf*2.0*hs.y,q.y); blindC*=0.85+0.15*sin(q.y*110.0)*lod;
       if(style<0.5||style>8.5){ float cur=step(hs.x*(1.0-0.55*ch.z*step(0.4,ch2.y)),abs(q.x)); vec3 curC=mix(vec3(0.55,0.5,0.42),vec3(0.35,0.2,0.2),ch.y)*(0.8+0.2*sin(q.x*45.0)); if(cur>blind){ blind=cur; blindC=curC; } } }
     if(prof>5.5) { blind=1.0; blindC=vec3(0.3); }
-    inner=mix(inner,blindC*(dayIn*2.5+lit*lightI*lightC*0.2),blind);
-    float F0=style>0.5&&style<1.5?0.2:0.085;
+    inner=mix(inner,blindC*(dayBl+lit*lightI*lightC*0.13),blind);
+    float F0=style>0.5&&style<1.5?0.24:0.13;
     oc=vec3(F0)*mix(vec3(0.9,1.0,1.05),vec3(1.0),0.5); oMet=1.0; oRgh=0.045+0.05*ch.y; oE=inner; oN=(ch.xy-0.5)*0.05+vec2(0.0,0.015*sin(q.y*2.0));
     if(style>5.5&&style<6.5){ oc=ic*0.4; oMet=0.0; oRgh=0.9; oE=ic*night*1.5*vec3(0.8,0.92,1.0); oN=vec2(0.0); }
     if(style>2.5&&style<3.5){ oRgh=0.35; oE=mix(vec3(0.1,0.12,0.12)*dayIn*4.0,vec3(0.9,1.0,0.95)*0.9,lit)*(0.6+0.4*ch.z); oc=vec3(0.06); }
@@ -455,9 +479,10 @@ if(vWinA.x>0.01){
       vec2 hq=q-vec2(hs.x-0.3,-hs.y+0.5); float card=step(abs(hq.x),0.11)*step(abs(hq.y),0.15)*step(ch.x,0.6); float cl=step(0.5,fract(hq.y/0.04))*step(abs(hq.x),0.08)*step(abs(hq.y),0.12);
       vec3 dcol=mix(vec3(0.85,0.84,0.8),vec3(0.72,0.18,0.14),step(0.7,ch2.z));
       oc=mix(oc,dcol,dec); oc=mix(oc,mix(vec3(0.88),vec3(0.14),cl),card); float op=max(dec,card); oMet*=1.0-op; oRgh=mix(oRgh,0.5,op); oE*=1.0-op*0.85; }
+    { float lsh=smoothstep(hs.y-rec*1.7-0.035,hs.y-rec*1.7+0.035,q.y)*(1.0-uNight); oE*=1.0-0.6*lsh; frameC*=1.0-0.45*lsh; gShade=lsh; }
     oc=mix(oc,frameC,frame); oMet*=1.0-frame; oRgh=mix(oRgh,0.45,frame); oE*=1.0-frame; oN*=1.0-frame;
     // far away the pane collapses to an average
-    oE=mix(vec3(lit)*lightC*lightI*0.18*roomC,oE,lod);
+    oE=mix(vec3(lit)*lightC*lightI*0.13*roomC,oE,lod);
   }
   // the reveal between wall face and glass
   vec3 rev=wallC*(q.y>hs.y?0.42:q.y<-hs.y?1.05:0.66); if(style<0.5&&q.y<-hs.y) rev=vec3(0.46,0.44,0.40);
@@ -492,7 +517,7 @@ function patchSurface(mat, kind, tex, nLayers, sh) {
         reflectedLight.indirectDiffuse+=lm*(uNight*hf*9.0)*diffuseColor.rgb*(1.0-metalnessFactor);
         // street canyons: reflections that leave near the horizontal would hit other buildings, not bright sky
         vec3 rw=inverseTransformDirection(reflect(-normalize(vViewPosition),normal),viewMatrix); float skyV=smoothstep(-0.12,0.5,rw.y);
-        float occ=mix(mix(TOWN_OCC,0.85,smoothstep(6.0,34.0,vWetPos.y)),1.0,skyV); float sk=mix(gSpec,1.0,max(gGlass,max(metalnessFactor,uWet*0.8*smoothstep(0.3,0.7,gSpec)))); float az=atan(rw.z,rw.x+1e-5); float sl=0.05+0.5*gH1(vec2(floor(az*9.0+(vWetPos.x+vWetPos.z)*0.03),3.0))*mix(1.0,0.3,smoothstep(4.0,30.0,vWetPos.y)); float gref=mix(0.1,1.0,smoothstep(sl,sl+0.03,rw.y)); reflectedLight.indirectSpecular*=mix(occ,gref,gGlass)*sk; reflectedLight.directSpecular*=sk; }`);
+        float occ=mix(mix(TOWN_OCC,0.85,smoothstep(6.0,34.0,vWetPos.y)),1.0,skyV); float sk=mix(gSpec,1.0,max(gGlass,max(metalnessFactor,uWet*0.8*smoothstep(0.3,0.7,gSpec)))); float az=atan(rw.z,rw.x+1e-5); float sl=0.05+0.5*gH1(vec2(floor(az*9.0+(vWetPos.x+vWetPos.z)*0.03),3.0))*mix(1.0,0.3,smoothstep(4.0,30.0,vWetPos.y)); float gref=mix(0.1,1.0,smoothstep(sl,sl+0.03,rw.y)); reflectedLight.indirectSpecular*=mix(occ,gref,gGlass)*sk*(1.0-0.5*gShade*gGlass); reflectedLight.directSpecular*=sk; }`);
     s.fragmentShader = f;
   };
   mat.customProgramCacheKey = () => 'town-' + kind;

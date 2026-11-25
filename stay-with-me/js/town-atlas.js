@@ -118,7 +118,21 @@ export function buildCutAtlas(aniso = 8) {
       for (const [px, py, pa] of pts) for (const sd of [-1, 1]) { if (rng.chance(0.12)) continue; const la = pa + sd * rng.r(0.6, 1.25), s = sz * rng.r(0.7, 1.2); leaf(px + Math.cos(la) * s * 1.1, py + Math.sin(la) * s * 1.1, la, s, lerpN(l0, l1, pass * 0.6 + rng() * 0.4)); }
     }
   };
-  tile(CUT.leafA, spray(98, 44, 22, 42, 17)); tile(CUT.leafB, spray(80, 48, 26, 48, 18)); tile(CUT.leafC, spray(116, 36, 19, 37, 16));
+  // Broadleaf card: a clump of several leafy lobes with a ragged outline and a few holes, drawn dark-to-light so the
+  // lit outer leaves sit on shaded inner ones. Many such cards on a crown read as dense foliage.
+  const clump = (hue, sat, l0, l1, n, sz, pointy) => () => {
+    const lobes = []; for (let i = 0; i < 9; i++) { const a = i / 9 * 6.283 + rng.r(-0.3, 0.3), d = i < 2 ? rng.r(0, 50) : rng.r(95, 150); lobes.push([256 + Math.cos(a) * d, 256 + Math.sin(a) * d, rng.r(70, 105)]); }
+    for (let k = 0; k < 9; k++) { g.strokeStyle = 'rgba(46,36,26,0.9)'; g.lineWidth = rng.r(2, 4.5); g.beginPath(); g.moveTo(256 + rng.r(-20, 20), 300 + rng.r(-20, 20)); const lb = lobes[k]; g.quadraticCurveTo(256 + (lb[0] - 256) * 0.5 + rng.r(-25, 25), 256 + (lb[1] - 256) * 0.5 + rng.r(-25, 25), lb[0], lb[1]); g.stroke(); }
+    for (let k = 0; k < n; k++) {
+      const lb = lobes[Math.floor(rng() * lobes.length)], a = rng() * 6.283, rad = Math.pow(rng(), 0.62) * lb[2], x = lb[0] + Math.cos(a) * rad, y = lb[1] + Math.sin(a) * rad, depth = k / n;
+      if (x < 14 || y < 14 || x > 498 || y > 498) continue;
+      const L = lerpN(l0, l1, Math.pow(depth, 1.4)) + rng.r(-4, 4) + (1 - y / 512) * 5 - 2.5, s = sz * rng.r(0.7, 1.25), h = hue + rng.r(-9, 9) + (rng.chance(0.06) ? -22 : 0);
+      g.save(); g.translate(x, y); g.rotate(rng() * 6.283); g.fillStyle = `hsl(${h},${sat + rng.r(-8, 8)}%,${L}%)`; g.beginPath();
+      if (pointy) { g.moveTo(-s, 0); g.quadraticCurveTo(-s * 0.1, -s * 0.72, s * 1.1, 0); g.quadraticCurveTo(-s * 0.1, s * 0.72, -s, 0); } else g.ellipse(0, 0, s, s * 0.62, 0, 0, 7);
+      g.fill(); g.strokeStyle = `hsla(${h},${sat}%,${L * 0.62}%,0.75)`; g.lineWidth = 1.1; g.beginPath(); g.moveTo(-s * 0.9, 0); g.lineTo(s * 0.9, 0); g.stroke(); g.restore();
+    }
+  };
+  tile(CUT.leafA, clump(100, 42, 13, 38, 950, 13, true)); tile(CUT.leafB, clump(84, 46, 16, 44, 820, 12, false)); tile(CUT.leafC, clump(118, 36, 11, 33, 1000, 12, true));
   tile(CUT.bush, leafy(105, 40, 15, 34, 1100, 11));
   const bough = (hue, flat) => () => {
     const twig = (x0, y0, ang, len, wdt, L) => {
@@ -200,7 +214,8 @@ export function makeCutMaterial(tex, sh, billboard = false) {
     // (map_fragment below: far foliage samples tiny mip levels that blend neighbouring atlas tiles, so it settles on a plain leaf colour)
     s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nattribute vec4 aCol; varying vec4 vCol;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvCol=aCol;' + (billboard ? '\n#ifdef USE_INSTANCING\n{ vec2 tc=cameraPosition.xz-instanceMatrix[3].xz; float tl=max(length(tc),1e-3); vec2 rt=vec2(tc.y,-tc.x)/tl; transformed=vec3(rt.x*position.x,position.y,rt.y*position.x); }\n#endif' : ''));
     s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec4 vCol; uniform sampler2D uLampMap; uniform vec4 uLampRect; uniform float uNight;')
-      .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb*=pow(vCol.rgb,vec3(2.2)); { vec2 tx=vMapUv*2048.0; float lod=0.5*log2(max(min(dot(dFdx(tx),dFdx(tx)),dot(dFdy(tx),dFdy(tx))),1.0)); diffuseColor.a*=1.0+0.1*clamp(lod,0.0,6.0); if(vCol.a>0.5){ float k=vCol.a>0.9?smoothstep(4.3,6.2,lod):smoothstep(1.2,3.0,lod); diffuseColor.rgb=mix(diffuseColor.rgb,pow(vCol.rgb,vec3(2.2))*vec3(0.05,0.085,0.035),k); if(vCol.a>0.9) diffuseColor.a=mix(diffuseColor.a,max(diffuseColor.a,0.6),k); } }')
+      .replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb*=pow(vCol.rgb,vec3(2.2)); if(vCol.a>0.5){ vec3 fN=cross(dFdx(vViewPosition),dFdy(vViewPosition)); float fl=length(fN); float fc=fl>1e-12?abs(dot(fN/fl,normalize(vViewPosition))):1.0; if(fc<0.14) discard; }   /* leaf cards seen edge-on fade out instead of smearing */ { vec2 tx=vMapUv*2048.0; float lod=0.5*log2(max(min(dot(dFdx(tx),dFdx(tx)),dot(dFdy(tx),dFdy(tx))),1.0)); diffuseColor.a*=1.0+0.1*clamp(lod,0.0,6.0); if(vCol.a>0.5){ float k=vCol.a>0.9?smoothstep(4.3,6.2,lod):smoothstep(1.2,3.0,lod); diffuseColor.rgb=mix(diffuseColor.rgb,pow(vCol.rgb,vec3(2.2))*vec3(0.05,0.085,0.035),k); if(vCol.a>0.9) diffuseColor.a=mix(diffuseColor.a,max(diffuseColor.a,0.6),k); } }')
+      .replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\n' + (billboard ? 'diffuseColor.a*=1.0-smoothstep(1650.0,2250.0,length(vViewPosition));   /* far-forest billboards dissolve into the hazed hillside */' : ''))
       .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\nif(vCol.a>0.5){ normal=normalize(vNormal); nonPerturbedNormal=normal; } else { float lum=dot(texture2D(map,vMapUv).rgb,vec3(0.333)); vec3 sx=dFdx(-vViewPosition), sy=dFdy(-vViewPosition); vec3 r1=cross(sy,normal), r2=cross(normal,sx); float det=dot(sx,r1); vec3 gr=sign(det)*(dFdx(lum)*r1+dFdy(lum)*r2)*2.2; normal=normalize(abs(det)*normal-gr+normal*1e-6); }')
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
         { vec3 lm=texture2D(uLampMap,(vWetPos.xz-uLampRect.xy)*uLampRect.zw).rgb; lm*=lm;

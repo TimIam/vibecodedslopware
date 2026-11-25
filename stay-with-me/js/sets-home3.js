@@ -23,7 +23,7 @@ function flicker(K, mats, light, k, li) {
 export const HOME3 = {
   motelRoom(K) {
     const w = 4.2, d = 6.0, h = 2.4, r = K.rng;
-    const Fr = K.room({ w, d, h, wallMat: M.wallpaper('motel'), wallCol: 0xe6d9c0, floorMat: M.carpetPattern, floorCol: 0x8fa0a6, ceilMat: M.popcorn, ceilCol: 0xe8e2d4, skirtCol: 0x5a4636, openings: [{ id: 'win', wall: 'N', at: -0.6, w: 1.9, y0: 0.78, y1: 2.05 }, { id: 'door', wall: 'N', at: 1.45, w: 0.86, y1: 2.03 }] });
+    const Fr = K.room({ w, d, h, wallMat: M.wallpaper('motel'), wallCol: 0xe6d9c0, floorMat: M.carpetPattern, floorCol: 0x8fa0a6, ceilMat: M.popcorn, ceilCol: 0xe8e2d4, skirtCol: 0x5a4636, wear: 1, wearCol: 0xb8b0a0, openings: [{ id: 'win', wall: 'N', at: -0.6, w: 1.9, y0: 0.78, y1: 2.05 }, { id: 'door', wall: 'N', at: 1.45, w: 0.86, y1: 2.03 }] });
     K.window(Fr.win, { cols: 2, frameCol: 0x8a8d90, frameMat: M.metal, backdrop: K.night ? 'carpark' : K.dusk ? 'dusk' : K.rain ? 'rain' : 'yardDay', curtain: { col: 0x47605c, open: 0.075, glow: K.day ? 0.2 : K.dusk ? 0.06 : 0.012 } });
     K.door(Fr.door, { open: 0, hinge: -1, col: 0x6a4a36, mat: M.wood, style: 'flush', handle: 'knob', metal: M.brass, frameCol: 0x5a4636, sign: { id: 'evac', w: 0.2, h: 0.25, y: 1.45 } });
     K.onWall('N', 1.45, () => { K.cyl(M.brass, 0.012, 0.012, 0.01, 0, 1.5, -0.035, { rx: H, c: true, seg: 8 }); K.box(M.brass, 0.05, 0.09, 0.012, 0.36, 1.25, 0.014, { r: 0.003 }); K.box(M.brass, 0.04, 0.03, 0.02, -0.4, 1.38, 0.02, { r: 0.004 }); K.tube(M.brass, [[-0.4, 1.38, 0.03], [-0.3, 1.3, 0.035], [-0.2, 1.33, 0.03]], 0.003, { seg: 8, rs: 4 }); });
@@ -74,25 +74,35 @@ export const HOME3 = {
     K.rbox(M.fabric, 0.6, 0.28, 0.3, 1.55, 0, 2.25, { r: 0.1, puff: 0.02, col: 0x2a2e36, seg: 3, ry: 0.3 });
     for (const s of [-1, 1]) K.rbox(M.leather, 0.1, 0.08, 0.28, -0.05 + s * 0.08, 0, 2.25 + s * 0.07, { r: 0.035, ry: 0.3 + s * 0.25, col: 0x3a2a1e, seg: 2 });
     K.at(0.25, 0, -1.55, 0.6, () => P.bottle(K, 0, 0.031, 0, { kind: 'beer', col: 0x4a2a0c }), 0, H);
-    K.stain('scuff', 0.9, 0.7, 1.2, 0.9); K.stain('coffee', 0.5, 0.4, -0.6, -2.0, { col: 0x8a8a8a }); K.stain('scuff', 1.2, 0.8, 1.2, -2.3);
+    K.grime('smudge', 1.2, 0.9, 1.2, 0.0062, 0.9, { up: true, col: 0x4a4038 }); K.stain('coffee', 0.5, 0.4, -0.6, -2.0, { col: 0x8a8a8a }); K.grime('smudge', 1.5, 1.0, 1.2, 0.0064, -2.3, { up: true, ry: 1, col: 0x4a4038 });
     K.plane(M.stain, 0.9, 0.7, 0.6, h - 0.002, -1.0, { rx: H, uv: STAIN.coffee, col: 0xa89878 });
     K.at(0.9, h, 0.2, 0, () => { K.cyl(M.plastic, 0.06, 0.065, 0.035, 0, -0.035, 0, { col: 0xe8e4da, seg: 16 }); K.box(K.emit(0xff2a1a, 3, { key: 'smk' }), 0.006, 0.004, 0.006, 0.03, -0.037, 0, { r: 0 }); });
     K.switchPlate('N', 0.9, 1.2); K.socket('W', -0.235, 0.75); K.socket('E', -1.6, 0.3, true);
+    // a few days in this room: takeaway, cans, clothes where they fell, damp under the air conditioner, nicotine on the ceiling
+    K.drop([[1.55, -2.45], [1.6, 0.35], [0.55, 1.45]], 0.34, () => { P.takeaway(K, { cans: 3 }); K.ao(0.6, 0.6, 0, 0.017, 0, { k: 0.4 }); }, 0.5);
+    K.drop([[0.55, 1.5], [1.5, 0.45], [1.2, -2.5]], 0.28, () => { P.laundry(K, { cols: [0x3a3a3e, 0x6a7a5a, 0xc8c2b4] }); K.ao(0.8, 0.7, 0, 0.017, 0, { k: 0.4 }); }, 1.1);
+    K.scatter(4, [-0.2, -2.7, 1.9, 1.7], 0.06, i => P.can(K, 0, 0, 0, { tipped: true, crushed: i & 1, col: [0x1a4a8a, 0xb02a2a][i & 1] }));
+    K.scatter(3, [0.2, -2.4, 1.9, 1.5], 0.05, () => F.pillBottle(K, 0, 0, 0, { tipped: true }));
+    K.drop([[1.75, -1.65], [1.8, 0.5]], 0.1, () => P.extension(K, { plugs: 2, col: 0xd8d0b8 }), -H, { under: true });
+    K.onWall('N', -0.6, () => { K.grime('drip', 1.1, 0.3, 0, 0.3, 0.021, { col: 0x5a4a38 }); K.grime('smudge', 1.3, 0.7, 0, 0.4, 0.0046, { col: 0x8a7a5a }); });
+    K.onWall('W', -1.25, () => K.grime('smudge', 0.9, 0.5, 0, 1.0, 0.0046, { col: 0x9a8a68 })); K.onWall('W', 0.78, () => K.grime('smudge', 0.9, 0.5, 0, 1.0, 0.0046, { col: 0x9a8a68 }));   // heads against the wall
+    K.at(-0.9, h - 0.003, -1.6, 0, () => K.grime('smudge', 1.6, 1.2, 0, 0, 0, { rx: H, col: 0x9a8458 })); K.at(1.2, h - 0.003, 0.9, 0, () => K.grime('smudge', 1.2, 1.4, 0, 0, 0, { rx: H, col: 0x9a8458 }));
+    K.onWall('E', 0.2, () => P.vent(K, 0, 2.2, { w: 0.3, h: 0.14, col: 0xcfc8b4 })); K.onWall('N', 2.02, () => P.coat(K, 0, 1.7, { col: 0x2a2e36, len: 0.8 }));
     // lighting
     const tvP = K.world(w / 2 - 0.75, 1.05, -0.25), tvK = K.night ? 1.6 : 2.2;
     const tvL = K.point(tvP.x, tvP.y, tvP.z, { col: 0x9ab8ff, int: K.night ? 1.5 : 0.7, dist: 5 }); tvFlicker(K, sm, tvL, tvK, K.night ? 1.5 : 0.7);
     const nl = K.point(nookL.x, nookL.y, nookL.z, { col: 0xdfffe8, int: 2.6, dist: 5 }); flicker(K, [tube], nl, 7, 2.6);
-    K.point(lampA.x, lampA.y, lampA.z, { col: WARM, int: K.day ? 2.2 : 3.4 }); K.point(lampB.x, lampB.y, lampB.z, { col: WARM, int: K.day ? 1.4 : 2.2 });
-    if (K.day) { K.hemi(0xb8c0c8, 0x6a6258, 0.2); K.sun(186, 24, K.rain ? 0xdfe6f0 : SUN, K.rain ? 1.5 : 6.5, { soft: 2 }); }
-    else if (K.dusk) { K.hemi(0x6a6a80, 0x4a4038, 0.1); K.sun(196, 9, DUSKSUN, 3.5, { soft: 2 }); }
-    else { K.hemi(0x30364a, 0x2a241e, 0.05); K.spot(-0.9, 3.4, -d / 2 - 4.2, -0.4, 0.2, 0.6, { col: 0xff9a4a, int: 150, angle: 0.42, pen: 0.5, shadow: true, near: 1, far: 16 }); }
+    K.point(lampA.x, lampA.y, lampA.z, { col: 0xffcf9a, int: K.day ? 2.4 : 4.6 }); K.point(lampB.x, lampB.y, lampB.z, { col: 0xffcf9a, int: K.day ? 1.6 : 3.2 });
+    if (K.day) { K.hemi(0xb8c0c8, 0x6a6258, 0.13); K.sun(186, 24, K.rain ? 0xdfe6f0 : SUN, K.rain ? 1.5 : 7.5, { soft: 2, shaft: 1.6 }); }
+    else if (K.dusk) { K.hemi(0x6a6a80, 0x4a4038, 0.08); K.sun(196, 9, DUSKSUN, 3.5, { soft: 2, shaft: 1.6 }); }
+    else { K.hemi(0x30364a, 0x2a241e, 0.035); K.spot(-0.9, 3.4, -d / 2 - 4.2, -0.4, 0.2, 0.6, { col: 0xff9a4a, int: 150, angle: 0.42, pen: 0.5, shadow: true, near: 1, far: 16 }); }
     K.spots({ floor: [0.8, -0.35, 0], bed: [-0.3, top, 0.78, H], side: 1, by: [[1.2, 1.5], [0.6, -2.2]], cam: [1.3, 1.4, 1.3], target: [0.7, 0.25, -0.5], partner: [0.22, 0, -0.75], kit: [1.25, 0, -1.3], bedView: { cam: [1.35, 1.35, 1.45], target: [-0.3, 0.85, 0.78], partner: [0.45, 0, 0.2], kit: [0.5, 0, 1.45] } });
     return { exposure: K.day ? 1.15 : 1.3, bloom: 0.14, envInt: K.day ? 0.9 : 0.7, envPos: [0.7, 1.3, -0.3], cameraBounds: new THREE.Box3(new THREE.Vector3(-w / 2 + 0.22, 0.25, -d / 2 + 0.22), new THREE.Vector3(w / 2 - 0.22, h - 0.18, 1.72)) };
   },
 
   elderFlat(K) {
     const w = 4.2, d = 4.4, h = 2.45, r = K.rng, on = true, wp = M.wallpaper('floral'), wpc = 0xf2ecdc, dadoC = 0xd6c8a6;
-    const Fr = K.room({ w, d, h, wallMat: wp, wallCol: wpc, dado: { h: 0.95, mat: M.plaster, col: dadoC, rail: true, railCol: 0xefe9da }, floorMat: M.carpetPattern, ceilCol: 0xf0ece0, skirt: 0.14, skirtCol: 0xefe9da, openings: [{ id: 'win', wall: 'W', at: 0.35, w: 1.6, y0: 0.8, y1: 2.05 }, { id: 'door', wall: 'E', at: -0.35, w: 0.84 }] });
+    const Fr = K.room({ w, d, h, wallMat: wp, wallCol: wpc, dado: { h: 0.95, mat: M.plaster, col: dadoC, rail: true, railCol: 0xefe9da }, floorMat: M.carpetPattern, ceilCol: 0xf0ece0, skirt: 0.14, skirtCol: 0xefe9da, cove: 0.09, wear: 0.5, wearCol: 0xc8b8a0, openings: [{ id: 'win', wall: 'W', at: 0.35, w: 1.6, y0: 0.8, y1: 2.05 }, { id: 'door', wall: 'E', at: -0.35, w: 0.84 }] });
     K.window(Fr.win, { cols: 2, net: true, curtain: { col: 0x7a3040, open: 0.72, pelmet: 0x7a3040 } });
     K.onWall('W', 0.35, () => P.radiator(K, { w: 1.2, h: 0.5 }));
     K.door(Fr.door, { open: 1.6, hinge: 1, swing: -1, col: 0xefe9da, beyond: { depth: 1.4, w: 1.8, off: -0.3, glow: 2.5, floorCol: 0x7a5a4a } });
@@ -158,13 +168,21 @@ export const HOME3 = {
     for (const s of [-1, 1]) K.rbox(M.fabric, 0.1, 0.07, 0.26, 0.55 + s * 0.2, 0, 0.12 + s * 0.1, { r: 0.03, ry: -2.3 + s * 0.5, col: 0x6a3a4a, seg: 2 });
     K.plane(M.signs, 0.36, 0.27, -0.2, 0.004, 0.75, { up: true, uv: ATLAS.signs.rect.news, ry: 0.7 }); K.at(-0.75, 0, 0.62, 2.0, () => P.mug(K, 0, 0, 0, { tipped: true, col: 0xf0e8e0 })); K.stain('coffee', 0.45, 0.35, -0.85, 0.72, { col: 0x9a9a9a });
     K.switchPlate('E', 0.25, 1.2); K.socket('S', 1.2, 0.3, true); K.socket('N', -1.9, 0.3, true);
+    // a long tenancy: the sill, the day's paper and post, a stick within reach, soot above the fire, the worn track to the chair
+    K.onWall('W', 0.35, () => { K.at(-0.55, 0.8, 0.03, 0, () => P.plant(K, { h: 0.24, n: 10, pot: 0.055, potCol: 0xe8e0d0 })); K.at(0.5, 0.8, 0.03, 0, () => P.plant(K, { h: 0.18, n: 8, pot: 0.05, potCol: 0x9a3a2a })); K.lathe(M.ceramic, [[0.001, 0], [0.03, 0], [0.02, 0.03], [0.04, 0.07], [0.025, 0.11], [0.03, 0.12]], 0, 0.8, 0.03, { col: 0xdfe6f0, seg: 12 }); });
+    K.onWall('N', 0, () => K.grime('smudge', 1.1, 0.7, 0, 2.0, 0.2846, { col: 0x8a7a68 })); K.grime('wear', 1.6, 1.0, 0.6, 0.0066, 0.3, { up: true, ry: 0.9, col: 0xc8b8a0 });
+    K.at(-1.2, h, 1.1, 0, () => P.smokeAlarm(K)); K.onWall('S', 1.75, () => P.vent(K, 0, 2.25, {}));
+    K.drop([[1.95, 0.55], [0.35, 1.95], [2.0, 0.2]], 0.08, () => P.stick(K, { lean: 0.16 }), -H, { under: true });
+    K.drop([[0.3, 1.75], [-0.1, 1.2], [1.9, 0.3]], 0.2, () => { P.pile(K, { n: 6, w: 0.3, d: 0.38, cover: null }); P.paperFolded(K, 0.02, 0.035, 0, 0.3); }, 0.6);
+    K.drop([[-1.85, -0.9], [-1.9, -1.4]], 0.12, () => P.extension(K, { plugs: 3 }), H, { under: true });
+    K.at(-0.85, 0.842, d / 2 - 0.02, PI, () => K.at(0.55, 0, 0.3, 0.2, () => P.mail(K, { n: 5, spread: 0.1 })));
     const pend = K.at(-0.2, h, 0.2, 0, () => { K.cyl(M.plaster, 0.22, 0.24, 0.02, 0, -0.02, 0, { col: 0xf0ece0, seg: 24 }); return P.pendant(K, { kind: 'cone', drop: 0.3, on: K.lampsOn, r: 0.22, col: 0xe8d8b0 }); });
     const fl = K.point(0, 0.45, -d / 2 + 0.75, { col: 0xff7a2a, int: K.night ? 1.6 : 1.0, dist: 4 });
     K.on((dt, t) => { const f = 0.92 + 0.05 * Math.sin(t * 9.1) + 0.03 * Math.sin(t * 23.7); fire.emissiveIntensity = 3.2 * f; fl.intensity = (K.night ? 1.6 : 1.0) * f; });
     const tvP = K.world(-1.3, 0.95, -d / 2 + 0.75), tvL = K.point(tvP.x, tvP.y, tvP.z, { col: 0x9ab8ff, int: K.night ? 1.3 : 0.5, dist: 5 }); tvFlicker(K, sm, tvL, K.night ? 1.6 : 2.4, K.night ? 1.3 : 0.5);
-    K.point(lampA.x, lampA.y, lampA.z, { col: WARM, int: K.day ? 2.0 : 3.6 });
-    if (K.day) { K.hemi(0xd6dce6, 0x8a6a5a, 0.34); if (!K.rain) K.sun(266, 27, SUN, 4.6, { soft: 3.5 }); else K.sun(266, 45, 0xdfe6f0, 0.9, { soft: 6 }); K.spot(-w / 2 - 1.1, 1.7, 0.35, 0.4, 0.4, 0.2, { col: SKYFILL, int: K.rain ? 22 : 16, angle: 0.85, pen: 1 }); }
-    else { K.hemi(0x40465a, 0x3a2a24, K.dusk ? 0.1 : 0.05); if (K.dusk) K.sun(268, 8, DUSKSUN, 2.0, { soft: 3 }); K.spot(pend.x, pend.y, pend.z, pend.x, 0, pend.z, { col: WARM, int: 11, angle: 1.3, pen: 0.6, shadow: !K.dusk }); K.point(pend.x, pend.y + 0.1, pend.z, { col: WARM, int: 0.5 }); }
+    K.point(lampA.x, lampA.y, lampA.z, { col: 0xffcf9a, int: K.day ? 2.2 : 5.2 });
+    if (K.day) { K.hemi(0xd6dce6, 0x8a6a5a, 0.2); if (!K.rain) K.sun(266, 27, SUN, 5.8, { soft: 3.5 }); else K.sun(266, 45, 0xdfe6f0, 0.6, { shadow: false }); K.spot(-w / 2 - 1.1, 1.7, 0.35, 0.4, 0.4, 0.2, { col: SKYFILL, int: K.rain ? 57 : 13, angle: 0.85, pen: 1, shadow: K.rain, soft: 8, near: 0.3, far: 12 }); }
+    else { K.hemi(0x40465a, 0x3a2a24, K.dusk ? 0.08 : 0.03); if (K.dusk) K.sun(268, 8, DUSKSUN, 2.0, { soft: 3 }); K.spot(pend.x, pend.y, pend.z, pend.x, 0, pend.z, { col: WARM, int: 7, angle: 1.15, pen: 0.9, shadow: !K.dusk, soft: 5 }); K.point(pend.x, pend.y + 0.1, pend.z, { col: WARM, int: 0.7, dist: 5 }); }
     const seat = at(0, 0.56);
     K.spots({ floor: [-0.72, -0.38, H], seat: [seat[0], 0.48, seat[1], RY], side: -1, by: [[1.3, 0.0], [-1.0, 0.8]], cam: [0.3, 1.35, 0.95], target: [-0.75, 0.25, -0.4], seatView: { cam: [-0.45, 1.25, 0.35], target: [seat[0], 0.8, seat[1]], partner: [0.6, 0, 0.0], kit: [-0.05, 0, 1.0] } });
     return { exposure: K.day ? 1.05 : 1.15, bloom: 0.14, envInt: K.day ? 1.0 : 0.65 };

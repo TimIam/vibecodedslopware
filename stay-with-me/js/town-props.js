@@ -1,9 +1,11 @@
 // Street furniture, traffic control, trees and the night-lighting layer.
 //   buildStreetscape(T)  kerb-side furniture per block side (lamps, trees, meters, hydrants, poles and wires, bus stops),
 //                        signals / stop signs / name blades at junctions, kerbside parking bays, mailboxes
-//   buildTrees(T, M)     instanced trees from T.trees (five broadleaf and conifer models built from leaf cards)
+//   buildTrees(T, M)     instanced trees from T.trees: clustered-crown broadleafs and whorled conifers, each kind with a
+//                        full near model and a light far one (town.update swaps them per 250 m region)
 //   buildNightFx(T, M)   lamp halos, wet-road reflection streaks, live signal lamps, and the baked lamp light map
-// Tuning: lamp spacing in LAMP, tree models in treeGeometry(), halo / streak look in the shaders at the bottom.
+// Tuning: lamp spacing in LAMP, tree models in treeGeometry(), kerbside clutter mix in the core loop of
+// buildStreetscape (everything there is kept clear of doors and crew spots), halo / streak look at the bottom.
 
 import * as THREE from 'three';
 import { U, glowTexture } from './gfx.js';
@@ -42,10 +44,20 @@ function bin(B, r) { const p = B.p, c = r.chance(0.5) ? [34, 60, 44] : [50, 52, 
 function bench(B) { const p = B.p; p.lay(WL.wood).col(170, 140, 110); p.box(-0.85, 0.42, -0.22, 0.85, 0.47, 0.22, 63); p.box(-0.85, 0.55, -0.26, 0.85, 0.9, -0.21, 63); p.lay(WL.plain).col(30, 32, 34); for (const x of [-0.7, 0.7]) { p.box(x - 0.03, 0, -0.24, x + 0.03, 0.42, 0.2, 15); p.box(x - 0.03, 0.42, -0.27, x + 0.03, 0.9, -0.22, 15); } const b = B.w(0, 0); B.T.colliders.add(b[0], b[1], 0.9, 0.3, B.h, 0.9, 'prop', true); }
 function newsbox(B, r) { const p = B.p, c = r.pick([[30, 70, 140], [170, 40, 34], [210, 170, 40], [40, 110, 70]]); p.lay(WL.plain).col(c[0], c[1], c[2]); p.box(-0.22, 0.35, -0.19, 0.22, 1.15, 0.19, 63); p.col(30, 30, 32).box(-0.05, 0, -0.05, 0.05, 0.35, 0.05, 15); p.col(20, 24, 28).lay(WL.plain + METAL).box(-0.17, 0.72, 0.19, 0.17, 1.08, 0.2, 1); const b = B.w(0, 0); B.T.colliders.add(b[0], b[1], 0.24, 0.2, B.h, 1.15, 'prop', true); }
 function planter(B, r) { const p = B.p; p.lay(WL.panel).col(196, 192, 184); p.box(-0.6, 0, -0.6, 0.6, 0.55, 0.6, 31); p.lay(WL.wood).col(70, 56, 44).box(-0.5, 0.5, -0.5, 0.5, 0.52, 0.5, 16); B.tree(0, 0, 'bush', r.r(0.7, 1.0)); const b = B.w(0, 0); B.T.colliders.add(b[0], b[1], 0.6, 0.6, B.h, 0.6, 'prop'); }
+function bikeRack(B) { const p = B.p; p.lay(WL.plain + METAL).col(150, 154, 156); for (const x of [-0.75, 0, 0.75]) { p.tube(x, 0, -0.3, x, 0.78, -0.3, 0.024, 0.024, 5); p.tube(x, 0, 0.3, x, 0.78, 0.3, 0.024, 0.024, 5); p.tube(x, 0.78, -0.3, x, 0.86, -0.15, 0.024, 0.024, 5); p.tube(x, 0.86, -0.15, x, 0.86, 0.15, 0.024, 0.024, 5); p.tube(x, 0.86, 0.15, x, 0.78, 0.3, 0.024, 0.024, 5); } const b = B.w(0, 0); B.T.colliders.add(b[0], b[1], 0.9, 0.4, B.h, 0.9, 'prop', true); }
+function postbox(B) { const p = B.p; p.lay(WL.plain).col(28, 52, 110); p.box(-0.26, 0.14, -0.26, 0.26, 1.02, 0.26, 31); p.quad(-0.26, 1.02, 0.26, 0.26, 1.02, 0.26, 0.26, 1.2, 0, -0.26, 1.2, 0, 0, 0); p.quad(0.26, 1.02, -0.26, -0.26, 1.02, -0.26, -0.26, 1.2, 0, 0.26, 1.2, 0, 0, 0); p.tri3(0.26, 1.02, 0.26, 0.26, 1.02, -0.26, 0.26, 1.2, 0); p.tri3(-0.26, 1.02, -0.26, -0.26, 1.02, 0.26, -0.26, 1.2, 0); p.col(20, 22, 26); for (const [x, z] of [[-0.21, -0.21], [0.21, -0.21], [0.21, 0.21], [-0.21, 0.21]]) p.box(x - 0.03, 0, z - 0.03, x + 0.03, 0.14, z + 0.03, 15); p.col(210, 212, 214).box(-0.2, 0.84, 0.26, 0.2, 0.93, 0.268, 1); const b = B.w(0, 0); B.T.colliders.add(b[0], b[1], 0.28, 0.28, B.h, 1.2, 'prop', true); }
+function cabinet(B, r) { const p = B.p, w = r.r(0.6, 0.9), h = r.r(1.1, 1.5); p.lay(WL.panel).col(170, 168, 162); p.box(-w / 2 - 0.06, 0, -0.3, w / 2 + 0.06, 0.1, 0.3, 31); p.lay(WL.plain + METAL).col(150, 156, 152); p.box(-w / 2, 0.1, -0.24, w / 2, h, 0.24, 31); p.lay(WL.plain).col(70, 74, 72); p.box(-0.012, 0.16, 0.24, 0.012, h - 0.06, 0.245, 1); p.box(w * 0.2, h * 0.5, 0.24, w * 0.2 + 0.03, h * 0.5 + 0.12, 0.26, 61); const b = B.w(0, 0); B.T.colliders.add(b[0], b[1], w / 2 + 0.05, 0.3, B.h, h, 'prop'); }
+function aFrame(T, B, r) { const p = B.p, words = r.pick(['OPEN', 'COFFEE\nTO GO', 'LUNCH\nSPECIAL', 'SALE\nTODAY', 'COME\nIN', 'FRESH\nDAILY', 'HAPPY\nHOUR', 'WALK-INS\nWELCOME']), cs = r.pick([['#1c1c1c', '#f2efe6'], ['#f1ead8', '#2b2b2b'], ['#15402e', '#f3ead0'], ['#7a1d1d', '#f6efe0']]);
+  const rect = SIGN.text(T.atlas, 'af:' + words + cs[0], words, { w: 80, h: 110, bg: cs[0], fg: cs[1], font: 6, border: cs[1] }); p.lay(WL.wood).col(120, 100, 80);
+  for (const sd of [1, -1]) { p.quad(-0.3 * sd, 0, 0.26 * sd, 0.3 * sd, 0, 0.26 * sd, 0.3 * sd, 0.98, 0.03 * sd, -0.3 * sd, 0.98, 0.03 * sd, 0, 0); }
+  B.s.col(0, 0, 0).lay(0); const q = (sd) => { const s = B.s; if (sd > 0) s.quad(-0.26, 0.12, 0.245, 0.26, 0.12, 0.245, 0.26, 0.92, 0.055, -0.26, 0.92, 0.055, rect.u0, rect.v0, rect.u1, rect.v1); else s.quad(0.26, 0.12, -0.245, -0.26, 0.12, -0.245, -0.26, 0.92, -0.055, 0.26, 0.92, -0.055, rect.u0, rect.v0, rect.u1, rect.v1); }; q(1); q(-1);
+  const b = B.w(0, 0); T.colliders.add(b[0], b[1], 0.32, 0.28, B.h, 1, 'prop', true); }
+function pots(B, r) { const p = B.p, n = r.i(1, 2); for (let i = 0; i < n; i++) { const x = (i - (n - 1) / 2) * 0.7, rad = r.r(0.2, 0.28), h = r.r(0.35, 0.55); p.lay(WL.plain).col(...r.pick([[150, 84, 56], [70, 72, 76], [196, 192, 184], [40, 60, 80]])); p.cyl(x, 0, 0, h, rad * 0.75, rad, 9, 0); p.lay(WL.wood).col(60, 48, 38); p.cyl(x, 0, h - 0.05, h - 0.04, rad * 0.95, rad * 0.95, 9); B.tree(x, 0, 'bush', r.r(0.3, 0.5)); } const b = B.w(0, 0); B.T.colliders.add(b[0], b[1], 0.2 + n * 0.25, 0.3, B.h, 0.6, 'prop', true); }
+function bags(B, r) { const p = B.p, n = r.i(2, 4); p.lay(WL.plain); for (let i = 0; i < n; i++) { const x = r.r(-0.5, 0.5), z = r.r(-0.3, 0.3), g = r.chance(0.75) ? 22 : 150; p.col(g, g, g + 2); p.cyl(x, z, 0, r.r(0.32, 0.5), r.r(0.24, 0.32), 0.07, 7); } const b = B.w(0, 0); B.T.colliders.add(b[0], b[1], 0.7, 0.5, B.h, 0.5, 'prop', true); }
 function bollard(B) { const p = B.p; p.lay(WL.plain).col(200, 170, 40); p.cyl(0, 0, 0, 0.95, 0.08, 0.08, 7); const b = B.w(0, 0); B.T.colliders.add(b[0], b[1], 0.09, 0.09, 0, 0.95, 'pole'); }
 export function dumpster(B, r) { const p = B.p, c = r.chance(0.6) ? [34, 70, 52] : [40, 60, 110]; p.lay(WL.metal).col(c[0], c[1], c[2]); p.box(-0.95, 0.1, -0.6, 0.95, 1.2, 0.6, 31); p.lay(WL.plain).col(30, 32, 34); p.quad(-0.98, 1.2, 0.63, 0.98, 1.2, 0.63, 0.98, 1.42, -0.63, -0.98, 1.42, -0.63, 0, 0); p.tri3(0.98, 1.2, 0.63, 0.98, 1.2, -0.63, 0.98, 1.42, -0.63); p.tri3(-0.98, 1.2, -0.63, -0.98, 1.2, 0.63, -0.98, 1.42, -0.63); const b = B.w(0, 0); B.T.colliders.add(b[0], b[1], 0.98, 0.63, B.h, 1.4, 'prop'); }
 function mailbox(B, r) { const p = B.p; p.lay(WL.wood).col(150, 130, 110); p.box(-0.045, 0, -0.045, 0.045, 1.05, 0.045, 15); p.lay(WL.plain + (r.chance(0.5) ? METAL : 0)); const c = r.pick([[40, 40, 42], [200, 200, 196], [150, 40, 34], [30, 50, 90]]); p.col(c[0], c[1], c[2]); p.box(-0.1, 1.05, -0.1, 0.1, 1.28, 0.38, 63); p.lay(WL.plain).col(180, 40, 30).box(0.1, 1.14, 0.2, 0.115, 1.34, 0.24, 63); const b = B.w(0, 0); B.T.colliders.add(b[0], b[1], 0.12, 0.2, B.h, 1.3, 'prop', true); }
-function signPost(B, rect, w, h, y, glow = 0.12, hgt) { const p = B.p; p.lay(WL.plain + METAL).col(128, 132, 132); p.box(-0.028, 0, -0.028, 0.028, hgt || y + h / 2 + 0.05, 0.028, 15); signQuad(B, rect, 0, y, 0.035, w, h, 0, glow); p.lay(WL.plain + METAL).col(150, 152, 150); p.quad(w * 0.46, y - h * 0.46, 0.03, -w * 0.46, y - h * 0.46, 0.03, -w * 0.46, y + h * 0.46, 0.03, w * 0.46, y + h * 0.46, 0.03, 0, 0); const b = B.w(0, 0); B.T.colliders.add(b[0], b[1], 0.06, 0.06, 0, y + h, 'pole', true); }
+function signPost(B, rect, w, h, y, glow = 0.12, hgt) { const p = B.p; p.lay(WL.plain + METAL).col(128, 132, 132); p.box(-0.028, 0, -0.028, 0.028, hgt || y + h / 2 + 0.05, 0.028, 15); signQuad(B, rect, 0, y, 0.035, w, h, 0, glow); p.lay(WL.plain).col(112, 116, 116); p.quad(w * 0.46, y - h * 0.46, 0.03, -w * 0.46, y - h * 0.46, 0.03, -w * 0.46, y + h * 0.46, 0.03, w * 0.46, y + h * 0.46, 0.03, 0, 0); const b = B.w(0, 0); B.T.colliders.add(b[0], b[1], 0.06, 0.06, 0, y + h, 'pole', true); }
 // Two-sided street-name blade, long axis along local X.
 function blade(B, name, y, len = 0.95) { const rect = SIGN.blade(B.T.atlas, name), h = len * 96 / 512; signQuad(B, rect, 0, y, 0.012, len, h, 0, 0.3); signQuad(B, rect, 0, y, -0.012, len, h, Math.PI, 0.3); }
 
@@ -86,6 +98,8 @@ const CORE = d => d === 'downtown' || d === 'oldtown' || d === 'midtown' || d ==
 export function buildStreetscape(T) {
   const L = T.L, rng = makeRng(T.seed * 17 + 3);
   T.lampInfo = T.lampInfo || []; T.sigLamps = []; T.sigIndex = new Map();
+  // where people go in and out and where the crew pulls up: [x, z, clear radius]
+  const doors = []; for (const a of T.addresses) { doors.push([a.x, a.z, 1.6]); if (a.spot) doors.push([a.spot.x, a.spot.z, 1.4]); } for (const p of Object.values(T.places)) { doors.push([p.x, p.z, 3]); if (p.spot) doors.push([p.spot.x, p.spot.z, 2.2]); if (p.door) doors.push([p.door.x, p.door.z, 2.5]); }
   for (const b of L.blocks) for (const side of b.sides) { side.he.side = side; side.block = b; }
   // --- along every block side
   for (const b of L.blocks) for (const side of b.sides) {
@@ -123,8 +137,26 @@ export function buildStreetscape(T) {
     // core clutter: meters, bins, benches, news boxes, planters
     if (core) {
       if (e.parking) { const a = L.nodes[e.a]; for (let s = 6; s < len - 6; s += 1) { const P = [side.o0[0] + side.dx * s, side.o0[1] + side.dz * s], v = (P[0] - a.x) * e.dir.x + (P[1] - a.z) * e.dir.z, k = Math.round((v - 3.2) / 6.4), sv = s + (3.2 + 6.4 * k - v) * (he.fwd ? 1 : -1); if (Math.abs(sv - s) < 0.5 && strip.take(sv, 0.35)) { meter(at(sv, 0.42)); s += 5; } } }
-      for (let s = r.r(10, 26); s < len - 8; s += r.r(22, 44)) { const k = r(); if (!strip.take(s, 1.3)) continue; if (k < 0.3) bin(at(s, 0.7), r); else if (k < 0.55) bench(at(s, sw - 0.7)); else if (k < 0.75) newsbox(at(s, 0.75, Math.PI), r); else if (sw > 3.5) planter(at(s, 0.95), r); else bin(at(s, 0.7), r); }
-    } else if (d !== 'residential' && d !== 'bungalow' && r.chance(0.4)) { const s = r.r(8, len - 8); if (strip.take(s, 1)) bin(at(s, 0.7), r); }
+      const r2 = makeRng(T.seed * 5 + e.id * 211 + (he.fwd ? 3 : 0)), wallM = d === 'campus' ? 0 : sw;
+      const ok = (s, m, rad) => { const x = side.o0[0] + side.dx * s + side.nx * m, z = side.o0[1] + side.dz * s + side.nz * m; if (T.surf.at(x, z) !== 3) return false; for (const q of doors) { const dx = q[0] - x, dz = q[1] - z; if (dx * dx + dz * dz < (rad + q[2]) * (rad + q[2])) return false; } return true; };
+      for (let s = r2.r(7, 16); s < len - 7; s += r2.r(8, 17)) {
+        const k = r2(), kerbSide = k < 0.62;
+        if (kerbSide) {
+          if (!strip.free(s, 1.3) || !ok(s, 0.75, 1.0)) continue; strip.force(s, 1.3);
+          if (k < 0.16) { bin(at(s, 0.7), r2); if (r2.chance(0.3) && ok(s + 0.9, 0.8, 0.8)) bags(at(s + 0.9, 0.8), r2); }
+          else if (k < 0.28) { const n = r2.i(1, 3); for (let i = 0; i < n; i++) newsbox(at(s + (i - (n - 1) / 2) * 0.52, 0.75, Math.PI), r2); }
+          else if (k < 0.42) bikeRack(at(s, 0.9));
+          else if (k < 0.5 && sw > 3.2) planter(at(s, 0.95), r2);
+          else if (k < 0.55) postbox(at(s, 0.75, Math.PI));
+          else if (sw > 3 && d !== 'downtown') bench(at(s, 0.85, Math.PI)); else bin(at(s, 0.7), r2);
+        } else if (wallM > 2.6) {
+          if (k < 0.74) { if (ok(s, wallM - 0.55, 1.5)) bench(at(s, wallM - 0.55)); }
+          else if (k < 0.88) { if (d !== 'downtown' && ok(s, wallM - 1.0, 1.4)) aFrame(T, at(s, wallM - 1.0, Math.PI / 2 + r2.r(-0.3, 0.3)), r2); }
+          else if (ok(s, wallM - 0.4, 1.3)) pots(at(s, wallM - 0.4), r2);
+        }
+      }
+      if (e.parking) for (let s = 18; s < len - 12; s += 38) if (strip.take(s, 0.5) && ok(s, 0.45, 0.6)) signPost(at(s, 0.45), SIGN.text(T.atlas, 'park2h', '2 HOUR\nPARKING\n8AM - 6PM', { w: 112, h: 144, bg: '#f3f3ee', fg: '#14633a', font: 0, border: '#14633a' }), 0.42, 0.54, 2.3, 0.15);
+    } else if (d !== 'residential' && d !== 'bungalow') { if (r.chance(0.4)) { const s = r.r(8, len - 8); if (strip.take(s, 1)) bin(at(s, 0.7), r); } const r2 = makeRng(T.seed * 5 + e.id * 211 + (he.fwd ? 3 : 0)); if (sw > 1.8 && r2.chance(0.5)) { const s = r2.r(8, len - 8); if (strip.take(s, 1)) cabinet(at(s, Math.min(sw - 0.4, 1.3), Math.PI), r2); } }
     // utility poles and wires down the far side of ordinary streets
     if (!core && !he.fwd && e.cls === 'street' && len > 30 && d !== 'retail') {
       const n = Math.max(2, Math.round(len / 40) + 1), pts = [];
@@ -170,6 +202,7 @@ export function buildStreetscape(T) {
         const rect = SIGN.blade(T.atlas, other); signQuad(B, rect, -reach * 0.42, ph + 0.42, 0.11, 1.9, 0.36, 0, 0.5);
         p.lay(WL.plain + METAL).col(150, 152, 150); p.quad(-reach * 0.42 + 0.95, ph + 0.24, 0.1, -reach * 0.42 - 0.95, ph + 0.24, 0.1, -reach * 0.42 - 0.95, ph + 0.6, 0.1, -reach * 0.42 + 0.95, ph + 0.6, 0.1, 0, 0);
         T.colliders.add(px, pz, 0.22, 0.22, 0, ph, 'pole');
+        if (e === es[0]) { const cb = B.w(1.5, -0.4); if (T.surf.at(cb[0], cb[1]) === 3 && T.surf.at(cb[0] + rx * 0.4, cb[1] + rz * 0.4) === 3) cabinet(ctx(T, cb[0], cb[1], face + Math.PI / 2), rng); }
         // hospital guide signs on the big roads
         if (e.rank >= 2 && T.places.general && T.places.regional) {
           const hp = [T.places.general, T.places.regional].reduce((a, c) => Math.hypot(c.x - n.x, c.z - n.z) < Math.hypot(a.x - n.x, a.z - n.z) ? c : a), vx = hp.x - n.x, vz = hp.z - n.z, vl = Math.hypot(vx, vz);
@@ -209,6 +242,7 @@ export function buildStreetscape(T) {
   // --- mailboxes, alley dumpsters, billboards
   for (const m of T.mailboxes) mailbox(ctx(T, m.x, m.z, m.h), rng);
   for (const l of T.parkLamps || []) lampPost(T, ctx(T, l.x, l.z, l.h), WARM);
+  for (const l of T.lotLamps || []) if (!l.mid && T.surf.at(l.x, l.z) === 4) lampCobra(T, ctx(T, l.x, l.z, l.h + Math.PI), 8.4, 1.5, LED, 1.15);
   for (const l of T.parkBenches || []) bench(ctx(T, l.x, l.z, l.h));
   for (const l of T.reeds || []) T.trees.push({ x: l.x, z: l.z, kind: 'reeds', s: l.s, noCollide: true });
   for (const e of L.edges) {
@@ -225,7 +259,7 @@ export function buildStreetscape(T) {
 
 // ---------------------------------------------------------------- trees
 
-function treeGeometry(kind, seed) {
+function treeGeometry(kind, seed, lod = 0) {
   const r = makeRng(seed), m = new MB(false), leafUV = cutUV(kind === 'maple' ? CUT.leafA : kind === 'oak' ? CUT.leafB : kind === 'birch' ? CUT.leafB : CUT.leafC);
   const bark = cutUV(kind === 'birch' ? CUT.birch : CUT.bark);
   const limb = (x0, y0, z0, x1, y1, z1, r0, r1, seg = 6) => {
@@ -241,7 +275,7 @@ function treeGeometry(kind, seed) {
     // quad facing a random direction; normals pushed outward from the crown centre for soft, rounded shading
     let nx = cx - ox, ny = cy - oy + size * 0.5, nz = cz - oz; const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
     // card plane roughly perpendicular to the outward direction, with some scatter
-    let fx = nx + r.r(-0.7, 0.7), fy = ny * 0.6 + r.r(-0.5, 0.5), fz = nz + r.r(-0.7, 0.7); const fl = Math.hypot(fx, fy, fz) || 1; fx /= fl; fy /= fl; fz /= fl;
+    const sk = 0.85; let fx = nx + r.r(-sk, sk), fy = ny * 0.6 + r.r(-sk, sk) * 0.7, fz = nz + r.r(-sk, sk);       // half face outwards, half lie any way const fl = Math.hypot(fx, fy, fz) || 1; fx /= fl; fy /= fl; fz /= fl;
     let rx = fz, rz = -fx; const rl = Math.hypot(rx, rz) || 1; rx /= rl; rz /= rl; const ux2 = fy * rz, uy2 = fz * rx - fx * rz, uz2 = -fy * rx;
     m.col(tint[0] * shade, tint[1] * shade, tint[2] * shade).lay(255);
     const h = size / 2, v = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => m.v(cx + rx * a * h + ux2 * b * h, cy + uy2 * b * h, cz + rz * a * h + uz2 * b * h, nx, ny * 0.7 + 0.3, nz, a < 0 ? uv.u0 : uv.u1, b < 0 ? uv.v0 : uv.v1));
@@ -251,18 +285,18 @@ function treeGeometry(kind, seed) {
   if (kind === 'fir' || kind === 'cedar' || kind === 'pine') {
     // Conifer: whorls of drooping bough cards round the trunk, over a pair of crossed silhouette cards that fill the
     // core. 'pine' is the cheap forest-edge version with fewer whorls.
-    const lo = kind === 'pine', ced = kind === 'cedar', H = ced ? r.r(13, 16) : lo ? r.r(17, 21) : r.r(15, 19), R = ced ? r.r(3.6, 4.3) : r.r(3.0, 3.7);
-    const uv = cutUV(ced ? CUT.cedar : CUT.fir), core = cutUV(ced ? CUT.impB : CUT.impA), whorls = lo ? 7 : 15, per = lo ? 4 : 6;
+    const lo = lod > 0, ced = kind === 'cedar', H = ced ? r.r(13, 16) : kind === 'pine' ? r.r(17, 21) : r.r(15, 19), R = ced ? r.r(3.6, 4.3) : r.r(3.0, 3.7);
+    const uv = cutUV(ced ? CUT.cedar : CUT.fir), core = cutUV(ced ? CUT.impB : CUT.impA), whorls = lo ? 8 : 21, per = lo ? 4 : 7;
     m.col(205, 195, 185).lay(0); limb(0, 0, 0, 0, H * 0.5, 0, 0.3, 0.17, lo ? 5 : 7); limb(0, H * 0.5, 0, 0, H - 0.6, 0, 0.17, 0.04, 4);
     // crossed full-height silhouette cards fill the core; the whorls of bough cards give it volume
-    m.col(200, 212, 200).lay(255); for (const a of [0.4, 0.4 + Math.PI / 2]) { const c = Math.cos(a) * R * 0.8, s = Math.sin(a) * R * 0.8, q = [m.v(-c, 1.1, -s, -c * 0.15, 0.95, -s * 0.15, core.u0, core.v0 + 0.02), m.v(c, 1.1, s, c * 0.15, 0.95, s * 0.15, core.u1, core.v0 + 0.02), m.v(c, H + 0.5, s, 0, 1, 0, core.u1, core.v1), m.v(-c, H + 0.5, -s, 0, 1, 0, core.u0, core.v1)]; m.tri(q[0], q[1], q[2]); m.tri(q[0], q[2], q[3]); }
+    m.col(150, 162, 152).lay(200); for (const a of [0.4, 0.4 + Math.PI / 2]) { const c = Math.cos(a) * R * 0.8, s = Math.sin(a) * R * 0.8, P = (fx, fy) => m.v(c * fx, 1.1 + (H - 0.6) * fy, s * fx, c * fx * 0.15, 0.95, s * fx * 0.15, lerp(core.u0, core.u1, 0.5 + fx * 0.5), lerp(core.v0 + 0.02, core.v1, fy)), q = [P(-1, 0), P(1, 0), P(0.84, 0.22), P(0.07, 1), P(-0.07, 1), P(-0.84, 0.22)]; m.tri(q[0], q[1], q[2]); m.tri(q[0], q[2], q[5]); m.tri(q[5], q[2], q[3]); m.tri(q[5], q[3], q[4]); }
     for (let w = 0; w < whorls; w++) {
       const f = w / (whorls - 1), y = lerp(ced ? 1.8 : 2.4, H - 1.0, f), len = (R * Math.pow(1 - f, 0.75) * (0.72 + 0.28 * Math.min(1, f * 6)) + 0.5) * r.r(0.88, 1.1), droop = lerp(ced ? 0.7 : 0.5, -0.12, f) + r.r(-0.08, 0.08), a0 = r() * 6.283;
       for (let k = 0; k < per; k++) {
-        const a = a0 + k / per * 6.283 + r.r(-0.25, 0.25), L = len * r.r(0.82, 1.1), wd = L * (ced ? 0.52 : 0.46), ca = Math.cos(a), sa = Math.sin(a), cd = Math.cos(droop), sd = Math.sin(droop), tw = r.r(-0.3, 0.3);
+        const a = a0 + k / per * 6.283 + r.r(-0.25, 0.25), L = len * r.r(0.82, 1.1), wd = L * (ced ? 0.5 : lo ? 0.46 : 0.38), ca = Math.cos(a), sa = Math.sin(a), cd = Math.cos(droop), sd = Math.sin(droop), tw = r.r(-0.3, 0.3);
         // base at the trunk, tip out and down; the card's width axis is horizontal with a little twist
         const tx = ca * cd * L, ty = -sd * L, tz = sa * cd * L, wx = -sa * wd, wz = ca * wd, wy = tw * wd;
-        const sh0 = lerp(0.62, 0.9, f), sh1 = lerp(0.95, 1.12, f), n = [ca * 0.45, 0.85, sa * 0.45];
+        const sh0 = lerp(0.5, 0.82, f) * r.r(0.85, 1.05), sh1 = lerp(0.82, 1.05, f), n = [ca * 0.45, 0.85, sa * 0.45];
         m.col(255 * sh0, 255 * sh0, 255 * sh0); const v0 = m.v(-wx, y - wy, -wz, n[0], n[1], n[2], uv.u0, uv.v0), v1 = m.v(wx, y + wy, wz, n[0], n[1], n[2], uv.u0, uv.v1);
         m.col(255 * sh1, 255 * sh1, 255 * sh1); const v2 = m.v(tx + wx, y + ty + wy, tz + wz, n[0], n[1], n[2], uv.u1, uv.v1), v3 = m.v(tx - wx, y + ty - wy, tz - wz, n[0], n[1], n[2], uv.u1, uv.v0);
         m.tri(v0, v1, v2); m.tri(v0, v2, v3);
@@ -277,26 +311,27 @@ function treeGeometry(kind, seed) {
     return m.geometry();
   }
   // broadleaf: trunk, a few rising limbs, crown of leaf cards on an ellipsoid shell plus fill
-  const tall = kind === 'alder' || kind === 'birch', th = tall ? r.r(3.2, 4.2) : r.r(2.2, 3.0), crownY = th + (tall ? 3.2 : 2.6), cr = tall ? [2.3, 3.4] : kind === 'oak' ? [3.9, 2.9] : [3.2, 3.0];
+  const tall = kind === 'alder' || kind === 'birch', th = tall ? r.r(3.6, 4.2) : r.r(3.1, 3.6), cr = tall ? [2.4, 3.7] : kind === 'oak' ? [4.1, 3.0] : [3.4, 3.2], crownY = th + cr[1] * 0.82;
   m.col(kind === 'birch' ? 255 : 215, kind === 'birch' ? 255 : 205, kind === 'birch' ? 255 : 195).lay(0);
   const lean = [r.r(-0.25, 0.25), r.r(-0.25, 0.25)]; limb(0, 0, 0, lean[0], th, lean[1], tall ? 0.17 : 0.24, tall ? 0.12 : 0.17, 7);
-  const nl = r.i(3, 5);
-  for (let i = 0; i < nl; i++) { const a = i / nl * 6.283 + r.r(-0.4, 0.4), rr = cr[0] * r.r(0.45, 0.7), y1 = crownY + r.r(-0.6, 0.8); limb(lean[0], th - 0.1, lean[1], lean[0] + Math.cos(a) * rr, y1, lean[1] + Math.sin(a) * rr, 0.11, 0.035, 5); }
-  limb(lean[0], th - 0.1, lean[1], lean[0] * 1.5, crownY + cr[1] * 0.5, lean[1] * 1.5, 0.13, 0.03, 5);
-  const tint = kind === 'maple' ? [235, 240, 220] : kind === 'oak' ? [225, 235, 205] : kind === 'birch' ? [240, 248, 200] : [215, 230, 215], n = tall ? 62 : 82;
-  for (let i = 0; i < n; i++) {
-    const u = r() * 2 - 1, a = r() * 6.283, shell = i < n * 0.62 ? r.r(0.74, 1.0) : r.r(0.2, 0.7), sq = Math.sqrt(1 - u * u);
-    const x = Math.cos(a) * sq * cr[0] * shell, y = u * cr[1] * shell, z = Math.sin(a) * sq * cr[0] * shell;
-    if (y < -cr[1] * 0.72) continue;
-    const shade = lerp(0.52, 1.0, Math.min(1, (y / cr[1] + 1) * 0.5 * 0.55 + shell * shell * 0.5)) * r.r(0.9, 1.06);
-    card(lean[0] + x, crownY + y, lean[1] + z, r.r(1.6, 2.35) * (tall ? 0.9 : 1), lean[0], crownY - 0.6, lean[1], shade, leafUV, tint);
+  // crown = leafy clusters on an ellipsoid (denser towards the top and the outside), each fed by its own limb
+  const tint = kind === 'maple' ? [235, 240, 220] : kind === 'oak' ? [225, 235, 205] : kind === 'birch' ? [240, 248, 200] : [215, 230, 215];
+  const nc = tall ? 10 : 13, per = lod ? 3 : kind === 'birch' ? 9 : 11, cl = [[0, cr[1] * 0.72, 0, 1.25], [0, 0, 0, 1.5]];
+  for (let i = 0; i < nc; i++) { const u = lerp(-0.5, 0.9, (i + r()) / nc), a = i * 2.4 + r.r(-0.5, 0.5), sq = Math.sqrt(1 - u * u), sh = r.r(0.62, 0.9); cl.push([Math.cos(a) * sq * cr[0] * sh, u * cr[1] * sh, Math.sin(a) * sq * cr[0] * sh, r.r(0.95, 1.4) * (tall ? 0.85 : 1)]); }
+  const cxm = lean[0] * 1.3, czm = lean[1] * 1.3;
+  cl.forEach((c, i) => { if (lod && i % 3) return; const y1 = crownY + c[1] - c[3] * 0.3; if (i === 1) limb(lean[0], th - 0.1, lean[1], cxm, crownY + cr[1] * 0.45, czm, tall ? 0.11 : 0.15, 0.04, 5); else limb(lean[0] + (cxm - lean[0]) * 0.2, th - 0.15 + (i % 4) * 0.25, lean[1] + (czm - lean[1]) * 0.2, cxm + c[0] * 0.92, y1, czm + c[2] * 0.92, 0.085, 0.022, 4); });
+  for (const c of cl) for (let k = 0; k < per; k++) {
+    const a = r() * 6.283, u = r() * 2 - 1, sq = Math.sqrt(1 - u * u), rad = c[3] * r.r(0.25, 0.8) * (lod ? 0.6 : 1), x = c[0] + Math.cos(a) * sq * rad, y = c[1] + u * rad * 0.8, z = c[2] + Math.sin(a) * sq * rad;
+    const out = Math.min(1, Math.hypot(x / cr[0], z / cr[0], y / cr[1])), shade = lerp(0.42, 1.0, Math.min(1, (y / cr[1] + 1) * 0.3 + out * out * 0.55)) * r.r(0.9, 1.06);
+    card(cxm + x, crownY + y, czm + z, c[3] * r.r(1.0, 1.45) * (lod ? 1.7 : 1), cxm + c[0] * 0.45, crownY - 0.9 + c[1] * 0.45, czm + c[2] * 0.45, shade, leafUV, tint);
   }
   return m.geometry();
 }
 
 export function buildTrees(T, M, group) {
-  const KINDS = ['maple', 'oak', 'alder', 'birch', 'fir', 'cedar', 'pine', 'bush', 'reeds'], REG = 640, geos = {}, buckets = new Map();
-  KINDS.forEach((k, i) => { geos[k] = [treeGeometry(k, 100 + i * 7)]; });
+  const KINDS = ['maple', 'oak', 'alder', 'birch', 'fir', 'cedar', 'pine', 'bush', 'reeds'], REG = 250, geos = {}, far = {}, buckets = new Map();
+  KINDS.forEach((k, i) => { geos[k] = [treeGeometry(k, 100 + i * 7)]; far[k] = i < 7 ? treeGeometry(k, 100 + i * 7, 1) : null; });
+  T.treeLods = [];
   const r = makeRng(T.seed * 3 + 11);
   for (const t of T.trees) {
     const kind = KINDS.includes(t.kind) ? t.kind : 'maple', v = 0, key = kind + v + '|' + Math.floor(t.x / REG) + '|' + Math.floor(t.z / REG);
@@ -310,9 +345,10 @@ export function buildTrees(T, M, group) {
     b.list.forEach((t, i) => {
       const s = t.s * r.r(0.9, 1.1); q.setFromAxisAngle(up, r() * 6.283); pos.set(t.x, t.y ?? KERB, t.z); sc.set(s * r.r(0.92, 1.08), s * r.r(0.9, 1.12), s * r.r(0.92, 1.08));
       mtx.compose(pos, q, sc); im.setMatrixAt(i, mtx);
-      const conifer = b.kind === 'fir' || b.kind === 'cedar' || b.kind === 'pine'; col.setRGB(r.r(0.78, 1.0) * (conifer ? 0.9 : 1), r.r(0.86, 1.0), r.r(0.7, 0.95) * (conifer ? 0.95 : 1)); im.setColorAt(i, col);
+      const conifer = b.kind === 'fir' || b.kind === 'cedar' || b.kind === 'pine'; if (conifer) { const k = r.r(0.62, 0.85); col.setRGB(k * r.r(0.8, 0.95), k, k * r.r(0.88, 1.0)); } else col.setRGB(r.r(0.72, 0.98), r.r(0.84, 0.98), r.r(0.62, 0.9)); im.setColorAt(i, col);
     });
     im.castShadow = true; im.receiveShadow = true; im.computeBoundingSphere(); im.computeBoundingBox(); im.matrixAutoUpdate = false; group.add(im);
+    { const s = im.boundingSphere; T.treeLods.push({ im, x: s.center.x, z: s.center.z, r: s.radius, hi: g, lo: far[b.kind], small: b.kind === 'bush' || b.kind === 'reeds' }); }
     count += b.list.length; tris += g.index.count / 3 * b.list.length;
   }
   T.treeStats = { count, tris, meshes: buckets.size };

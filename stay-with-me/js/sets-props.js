@@ -5,7 +5,7 @@
 
 import * as THREE from 'three';
 import { TAU } from './util.js';
-import { M, C, ATLAS } from './sets-tex.js';
+import { M, C, ATLAS, STAIN } from './sets-tex.js';
 import { shade, mixc } from './sets-kit.js';
 
 const PI = Math.PI, H = PI / 2;
@@ -19,15 +19,19 @@ P.bulb = (K, on, x, y, z, r = 0.028, col = 0xffd9a8) => K.sph(on ? K.emit(col, 1
 P.sofa = (K, { w = 2.0, col = 0x6c7683, seats = 3, leather = false, throws = [0xb8873a, 0xd8d2c4], d = 0.92 } = {}) => {
   const mat = leather ? M.leather : M.fabric, aw = 0.2, sw = w - 2 * aw, r = K.rng;
   for (const sx of [-1, 1]) for (const z of [0.08, d - 0.08]) K.cyl(M.wood, 0.024, 0.018, 0.07, sx * (w / 2 - 0.09), 0, z, { col: C.darkWood, seg: 8 });
+  const dark = shade(col, 0.72), cw = sw / seats, used = r.i(0, seats - 1);
   K.rbox(mat, w, 0.25, d - 0.04, 0, 0.07, d / 2, { r: 0.035, col });
-  K.rbox(mat, w - 0.04, 0.6, 0.2, 0, 0.28, 0.115, { r: 0.07, col, rx: -0.1 });
-  for (const s of [-1, 1]) K.rbox(mat, aw, 0.36, d - 0.02, s * (w / 2 - aw / 2), 0.28, d / 2, { r: 0.085, col, seg: 4 });
+  K.rbox(mat, w - 0.04, 0.6, 0.2, 0, 0.28, 0.115, { r: 0.07, col, rx: -0.1, soft: true, wrinkle: 0.004, cell: 0.07 });
+  K.box(mat, w - 0.02, 0.006, 0.012, 0, 0.318, d - 0.022, { r: 0.003, col: dark });                                         // front rail welt
+  for (const s of [-1, 1]) { K.rbox(mat, aw, 0.36, d - 0.02, s * (w / 2 - aw / 2), 0.28, d / 2, { r: 0.085, col: shade(col, 0.98), soft: true, puff: 0.012, wrinkle: 0.005, crease: 0.004, cell: 0.05 });
+    K.cyl(mat, 0.004, 0.004, d - 0.2, s * (w / 2 - aw + 0.012), 0.6, d / 2, { rx: H, c: true, col: dark, seg: 5 }); }
   for (let i = 0; i < seats; i++) {
-    const x = -sw / 2 + (i + 0.5) * sw / seats, c = shade(col, 0.97 + r() * 0.06);
-    K.rbox(mat, sw / seats - 0.012, 0.16, 0.62, x, 0.31, 0.55, { r: 0.055, puff: 0.018, col: c, seg: 4, ry: (r() - 0.5) * 0.02 });
-    K.rbox(mat, sw / seats - 0.03, 0.42, 0.17, x, 0.46, 0.29, { r: 0.075, puff: 0.03, col: c, rx: -0.22 + (r() - 0.5) * 0.06, seg: 4 });
+    const x = -sw / 2 + (i + 0.5) * cw, c = shade(col, 0.96 + r() * 0.07), sat = i === used ? 1 : 0.45 + r() * 0.3, sk = (r() - 0.5) * 0.03;
+    K.rbox(mat, cw - 0.012, 0.16, 0.62, x, 0.31, 0.55, { r: 0.05, puff: 0.02, wrinkle: 0.0035 + sat * 0.003, wfreq: 7, crease: 0.004 + sat * 0.004, dent: [(r() - 0.5) * 0.06, -0.04, 0.2, 0.012 + sat * 0.012], col: c, ry: sk, cell: 0.036 });
+    for (const yy of [0.325, 0.452]) K.box(mat, cw - 0.03, 0.005, 0.01, x, yy, 0.861, { r: 0.0025, col: dark, ry: sk });       // boxing welts on the front edge
+    K.pillow(mat, cw - 0.03, 0.44, 0.17, x + (r() - 0.5) * 0.02, 0.675 - sat * 0.012, 0.287, { rx: -0.2 + (r() - 0.5) * 0.07, rz: (r() - 0.5) * 0.05, col: c, dent: 0.18 + sat * 0.25, wrinkle: 0.008 + sat * 0.006, pinch: 0.035, n: 12 });
   }
-  throws.forEach((tc, i) => { const s = i ? 1 : -1; K.rbox(M.fabric, 0.42, 0.42, 0.13, s * (sw / 2 - 0.2), 0.48, 0.44, { r: 0.06, puff: 0.05, col: tc, rx: -0.42, ry: s * 0.25, rz: (r() - 0.5) * 0.3, seg: 4 }); });
+  throws.forEach((tc, i) => { const s = i ? 1 : -1; K.pillow(M.fabric, 0.43, 0.43, 0.16, s * (sw / 2 - 0.2), 0.665, 0.44, { rx: -0.42 - r() * 0.1, ry: s * 0.25, rz: (r() - 0.5) * 0.35, col: tc, dent: 0.2, wrinkle: 0.009, pipe: shade(tc, 0.7) }); });
   return { seat: [0, 0.47, 0.56], seatW: sw };
 };
 
@@ -103,6 +107,7 @@ P.standFrame = (K, { w = 0.13, h = 0.17, pic = 'portrait0', col = 0x2a2420, meta
 // framed picture on a wall: call inside K.onWall(...); centre at (x, y), z = 0 is the wall
 P.picture = (K, x, y, { w = 0.5, h = 0.4, pic = 'land0', col = 0x2a2420, mount = 0.045, f = 0.022, mat = M.satin, atlas = 'pics', tilt = 0 } = {}) => {
   K.push(x, y, 0, 0, 0, tilt);
+  K.ao(w + 2 * f + 0.1, h + 2 * f + 0.1, 0, -0.022, 0.0047, { wall: true, k: 0.34, sx: Math.min(1, 0.16 / (w / 2 + f + 0.05)), sy: Math.min(1, 0.16 / (h / 2 + f + 0.05)) });
   K.box(mat, w + 2 * f, f, 0.022, 0, h / 2, 0.011, { r: 0.004, col }); K.box(mat, w + 2 * f, f, 0.022, 0, -h / 2 - f, 0.011, { r: 0.004, col });
   for (const s of [-1, 1]) K.box(mat, f, h, 0.022, s * (w / 2 + f / 2), -h / 2, 0.011, { r: 0.004, col });
   K.plane(M.matte, w, h, 0, 0, 0.008, { col: 0xf0ece0 });
@@ -141,10 +146,12 @@ P.tableLamp = (K, { on = true, baseCol = 0x3d6f7a, shadeCol = 0xeadfc8, s = 1 } 
   const p = K.world(0, 0.4, 0); K.pop(); return p;
 };
 
-P.rug = (K, { w = 2.2, d = 1.5, col = 0x8a4a3a, border = 0xd8c8a8, inner } = {}) => {
+P.rug = (K, { w = 2.2, d = 1.5, col = 0x8a4a3a, border = 0xd8c8a8, inner, fringe } = {}) => {
   K.box(M.carpet, w, 0.011, d, 0, 0, 0, { r: 0.005, col: border });
   K.box(M.carpet, w - 0.24, 0.004, d - 0.24, 0, 0.0095, 0, { r: 0.002, col });
   if (inner) K.box(M.carpet, w - 0.7, 0.003, d - 0.7, 0, 0.012, 0, { r: 0.001, col: inner });
+  if (fringe != null) for (const s of [-1, 1]) { const n = Math.round(d / 0.014); for (let i = 0; i < n; i++) K.box(M.matte, 0.045 + K.rng() * 0.012, 0.002, 0.004, s * (w / 2 + 0.024), 0.002, -d / 2 + (i + 0.5) * d / n, { r: 0, ry: (K.rng() - 0.5) * 0.5, col: fringe }); }
+  K.ao(w + 0.1, d + 0.1, 0, 0.004, 0, { k: 0.35, sx: 0.12, sy: 0.16 });
 };
 
 // pot plant. kind: 'blade' (snake plant), 'arch' (spider/dracaena)
@@ -161,6 +168,7 @@ P.plant = (K, { h = 0.8, kind = 'arch', potCol = C.terracotta, n = 16, pot = 0.1
 
 // wall clock: call inside K.onWall; second hand animates
 P.clock = (K, x, y, { r = 0.15, col = 0x1a1a1c, hour = 2.3 } = {}) => {
+  K.ao(r * 2 + 0.14, r * 2 + 0.14, x, y - 0.025, 0.0047, { wall: true, k: 0.36, sx: 0.6, sy: 0.6 });
   K.cyl(M.plastic, r, r, 0.035, x, y, 0.0175, { rx: H, c: true, col, seg: 32 });
   K.geo(M.signs, new THREE.CircleGeometry(r * 0.92, 32), { x, y, z: 0.036, uv: ATLAS.signs.rect.clock });
   const ha = -hour / 12 * TAU, ma = -(hour % 1) * TAU;
@@ -177,6 +185,9 @@ P.radiator = (K, { w = 1.0, h = 0.6, col = 0xf0eee8 } = {}) => {
   K.box(M.satin, w + 0.006, 0.02, 0.07, 0, 0.14 + h, 0.045, { r: 0.004, col });
   for (const s of [-1, 1]) { K.cyl(M.chrome, 0.008, 0.008, 0.14, s * (w / 2 - 0.03), 0, 0.055, { seg: 8 }); }
   K.cyl(M.plastic, 0.022, 0.022, 0.07, w / 2 + 0.03, 0.16, 0.055, { rz: H, c: true, col: 0xf4f4f0, seg: 12 });
+  K.tube(M.chrome, [[w / 2 + 0.065, 0.16, 0.055], [w / 2 + 0.085, 0.15, 0.055], [w / 2 + 0.09, 0.1, 0.05], [w / 2 + 0.09, 0, 0.05]], 0.007, { rs: 6, seg: 10, tension: 0.4 }); K.cyl(M.plastic, 0.016, 0.016, 0.006, w / 2 + 0.09, 0, 0.05, { col: 0xf0f0ec, seg: 10 });
+  for (const s of [-1, 1]) K.box(M.satin, 0.03, 0.05, 0.05, s * w * 0.32, 0.14 + h - 0.09, 0.025, { r: 0.004, col });
+  K.ao(w + 0.3, (h + 0.5) * 2, 0, 0, 0.006, { wall: true, k: 0.3, sx: 0.3, sy: 0.3 }); K.grime('drip', w * 0.9, 0.2, 0, 0.14 + h + 0.12, 0.0046, { rz: PI, col: 0x8a8274 });
 };
 
 // ---- ceiling fittings: call with the origin on the ceiling (K.at(x, H, z, 0, ...)). Return the lamp's world position.
@@ -212,6 +223,7 @@ P.ledPanel = (K, { w = 0.6, d = 0.6, on = true, col = 0xf4f8ff, k = 4.5 } = {}) 
 // simple dining / kitchen chair (centre origin, faces +Z)
 P.chair = (K, { col = C.oak, seatCol, h = 0.45, back = 0.92, w = 0.42, metal = false } = {}) => {
   const m = metal ? M.metal : M.wood, d = 0.42, lc = metal ? 0x2a2a2c : col;
+  for (const sx of [-1, 1]) K.grime('scuff', 0.34, 0.09, sx * (w / 2 - 0.03), 0.0079, 0.02, { up: true, ry: H + (K.rng() - 0.5) * 0.3 });   // where the legs drag
   for (const sx of [-1, 1]) { K.box(m, 0.034, h, 0.034, sx * (w / 2 - 0.025), 0, d / 2 - 0.03, { r: 0.006, col: lc }); K.box(m, 0.034, back, 0.034, sx * (w / 2 - 0.025), 0, -d / 2 + 0.03, { r: 0.006, col: lc, rx: -0.04 }); }
   K.box(seatCol != null ? M.fabric : M.wood, w, 0.03, d, 0, h - 0.015, 0, { r: 0.01, col: seatCol ?? col });
   for (const sz of [-1, 1]) K.box(m, w - 0.07, 0.022, 0.018, 0, h * 0.4, sz * (d / 2 - 0.03), { r: 0.004, col: lc });
@@ -259,4 +271,105 @@ P.carton = (K, w, h, d, x, y, z, { ry = 0, col = C.cardboard, tape = true, label
   if (label) K.plane(M.signs, Math.min(w * 0.7, 0.3), Math.min(h * 0.6, 0.15), 0, h * 0.55, d / 2 + 0.002, { uv: ATLAS.signs.rect.carton });
   K.pop();
 };
+// ---------------------------------------------------------------- lived-in clutter (all small, none collide)
+// a pair of shoes at the origin, toes toward +Z. kind: trainer | shoe | boot | slipper
+P.shoes = (K, { col = 0x2a2a2e, kind = 'trainer', sole = 0xe8e6e0, apart = 0.07, messy = 0.5 } = {}) => {
+  const r = K.rng;
+  for (const s of [-1, 1]) K.at(s * apart + (r() - 0.5) * 0.04 * messy, 0, (r() - 0.5) * 0.12 * messy, (r() - 0.5) * 0.7 * messy + s * 0.06, () => {
+    if (kind === 'slipper') { K.rbox(M.fabric, 0.095, 0.02, 0.27, 0, 0, 0, { r: 0.009, col: shade(col, 0.6), seg: 2 }); K.rbox(M.fabric, 0.1, 0.06, 0.15, 0, 0.012, 0.06, { r: 0.028, col, soft: true, puff: 0.006, wrinkle: 0.004, cell: 0.03 }); return; }
+    const hb = kind === 'boot' ? 0.16 : kind === 'shoe' ? 0.06 : 0.075;
+    K.rbox(M.rubberBlack, 0.098, 0.024, 0.285, 0, 0, 0, { r: 0.011, col: kind === 'trainer' ? sole : 0x1a1a1a, seg: 2 });
+    K.rbox(kind === 'shoe' ? M.leather : M.fabric, 0.092, 0.052, 0.17, 0, 0.02, 0.055, { r: 0.024, col, soft: true, puff: 0.004, wrinkle: 0.003, cell: 0.03 });      // vamp and toe
+    K.rbox(kind === 'shoe' ? M.leather : M.fabric, 0.09, hb, 0.125, 0, 0.02, -0.075, { r: 0.022, col, soft: true, wrinkle: kind === 'boot' ? 0.006 : 0.002, cell: 0.03 });   // quarter and heel
+    K.cyl(M.matte, 0.03, 0.03, 0.004, 0, 0.018 + hb, -0.068, { col: 0x0a0a0a, seg: 12, sz: 1.5 });
+    if (kind !== 'shoe') for (let i = 0; i < 4; i++) K.box(M.matte, 0.05, 0.004, 0.006, 0, 0.071 - i * 0.003, -0.005 + i * 0.022, { r: 0.002, col: kind === 'boot' ? 0x6a5a3a : 0xf0f0ec });
+  });
+};
+// post on the mat / the table: envelopes, a flyer, a folded paper
+P.mail = (K, { n = 5, spread = 0.22 } = {}) => {
+  const r = K.rng;
+  for (let i = 0; i < n; i++) K.at((r() - 0.5) * spread, i * 0.0022, (r() - 0.5) * spread, r() * TAU, () => { const k = r();
+    if (k < 0.55) { const br = r.chance(0.35); K.box(M.matte, 0.22, 0.0018, 0.11, 0, 0, 0, { r: 0, col: br ? 0xb89a68 : 0xf0eee6 }); if (!br) K.box(M.gloss, 0.085, 0.0006, 0.035, -0.035, 0.0018, 0.012, { r: 0, col: 0x9aa4a8 }); K.box(M.matte, 0.022, 0.0006, 0.026, 0.085, 0.0018, -0.035, { r: 0, col: r.pick([0xb02a2a, 0x2a4a8a, 0x2a7a4a]) }); }
+    else if (k < 0.8) K.plane(M.signs, 0.105, 0.16, 0, 0.002, 0, { up: true, uv: ATLAS.signs.rect.takeaway });
+    else K.plane(M.signs, 0.21, 0.28, 0, 0.002, 0, { up: true, uv: ATLAS.signs.rect.paper }); });
+};
+// stack of magazines / books lying flat; top one can show a cover
+P.pile = (K, { n = 4, w = 0.21, d = 0.28, books = false, cover = 'land1' } = {}) => {
+  const r = K.rng; let y = 0;
+  for (let i = 0; i < n; i++) { const t = books ? 0.018 + r() * 0.025 : 0.004 + r() * 0.005, ry = (r() - 0.5) * 0.5, sc = 0.85 + r() * 0.2; K.box(M.satin, w * sc, t, d * sc, (r() - 0.5) * 0.02, y, (r() - 0.5) * 0.02, { r: 0.0015, ry, col: shade(r.pick(BOOKS), 0.7 + r() * 0.6) }); if (books) K.box(M.matte, w * sc - 0.006, t - 0.005, d * sc + 0.001, 0.003, y + 0.0025, 0, { r: 0, ry, col: 0xe8e2d0 }); y += t;
+    if (i === n - 1 && cover && !books) K.plane(M.pics, w * sc - 0.01, d * sc - 0.01, 0, y + 0.0008, 0, { up: true, ry, uv: ATLAS.pics.rect[cover] }); }
+  return y;
+};
+// loose cable along the floor between two local points, with slack
+P.cable = (K, a, b, { col = 0x161616, rad = 0.0035, slack = 0.12, y = 0.004 } = {}) => {
+  const r = K.rng, pts = [], n = 6, dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1, nx = -dz / L, nz = dx / L;
+  for (let i = 0; i <= n; i++) { const t = i / n, o = Math.sin(t * Math.PI) * slack * (0.5 + r()) * (i & 1 ? 1 : -0.6); pts.push([a[0] + dx * t + nx * o, y + (i === 0 || i === n ? 0 : 0), a[1] + dz * t + nz * o]); }
+  K.tube(M.rubberBlack, pts, rad, { col, rs: 5, seg: 28, tension: 0.5 });
+};
+// four-gang extension lead with things plugged in
+P.extension = (K, { col = 0xf0f0ec, plugs = 3 } = {}) => {
+  K.box(M.plastic, 0.3, 0.035, 0.062, 0, 0, 0, { r: 0.008, col }); K.box(K.emit(0xff4a1a, 2.5, { key: 'extled' }), 0.012, 0.002, 0.008, 0.132, 0.035, 0, { r: 0 });
+  for (let i = 0; i < 4; i++) { const x = -0.105 + i * 0.066; if (i < plugs) { K.box(M.plastic, 0.045, 0.03, 0.045, x, 0.035, 0, { r: 0.006, col: i === 1 ? 0xf0f0ec : 0x161616 }); K.tube(M.rubberBlack, [[x, 0.05, -0.02], [x + 0.01, 0.03, -0.06], [x + (i - 1.5) * 0.08, 0.005, -0.16], [x + (i - 1.5) * 0.2, 0.004, -0.3 - i * 0.05]], 0.0032, { col: i === 1 ? 0xe8e8e4 : 0x161616, rs: 5, seg: 14 }); } else for (const sz of [-1, 1]) K.box(M.matte, 0.006, 0.001, 0.012, x, 0.035, sz * 0.012, { r: 0, col: 0x222222 }); }
+};
+// medication boxes and blister strips. y is the surface.
+P.meds = (K, x, y, z, { n = 3, spread = 0.12 } = {}) => {
+  const r = K.rng;
+  for (let i = 0; i < n; i++) K.at(x + (r() - 0.5) * spread, y, z + (r() - 0.5) * spread, r() * TAU, () => { const k = r(), w = 0.07 + r() * 0.05, band = r.pick([0x2a6ab0, 0xc0392b, 0x2a8a5a, 0x7a3a9a, 0xd8791a]);
+    if (k < 0.65) { const h = 0.022 + r() * 0.02, d = 0.045 + r() * 0.02; K.box(M.satin, w, h, d, 0, 0, 0, { r: 0.0015, col: 0xf4f4f0 }); K.box(M.satin, w + 0.0006, h * 0.32, d + 0.0006, 0, h * 0.12, 0, { r: 0, col: band }); K.box(M.matte, w * 0.5, 0.0005, d * 0.18, -w * 0.15, h, d * 0.2, { r: 0, col: 0x333333 }); }
+    else { K.box(M.steel, 0.095, 0.0025, 0.04, 0, 0, 0, { r: 0.001, col: 0xd8dce0 }); for (let j = 0; j < 10; j++) if (r() > 0.3) K.sph(M.plastic, 0.006, -0.036 + (j % 5) * 0.018, 0.003, (j < 5 ? -0.009 : 0.009), { seg: 6, seg2: 4, sy: 0.6, col: 0xf0ece0 }); } });
+};
+// drinks can
+P.can = (K, x, y, z, { col = 0xb02a2a, tipped = false, crushed = false } = {}) => { const hh = crushed ? 0.07 : 0.118; K.push(x, y + (tipped ? 0.033 : 0), z, K.rng() * TAU, 0, tipped ? H : 0); K.lathe(M.metal, [[0.001, 0], [0.027, 0], [0.033, 0.008], [0.033, hh - 0.012], [0.027, hh], [0.001, hh - 0.003]], 0, 0, 0, { col, seg: 14, sx: crushed ? 0.8 : 1 }); K.cyl(M.metal, 0.027, 0.027, 0.002, 0, hh - 0.003, 0, { col: 0xc8ccd0, seg: 12 }); K.pop(); };
+// last night's takeaway: pizza box ajar, foil trays, a carrier bag, cans
+P.takeaway = (K, { pizza = true, bag = true, cans = 2 } = {}) => {
+  const r = K.rng;
+  if (pizza) { K.box(M.matte, 0.33, 0.035, 0.33, 0, 0, 0, { r: 0.003, col: 0xb89868 }); K.box(M.matte, 0.33, 0.006, 0.33, 0, 0.1, -0.21, { r: 0.002, rx: -1.0, col: 0xc0a070 }); K.cyl(M.matte, 0.13, 0.13, 0.004, 0.01, 0.036, 0.0, { col: 0xd8b060, seg: 5, tl: 2.2 }); K.grime('smudge', 0.26, 0.26, 0, 0.0362, 0, { up: true, col: 0x8a5a2a }); }
+  for (let i = 0; i < 2; i++) K.at(0.3 + i * 0.16, 0, 0.1 - i * 0.17, r() * 3, () => { K.box(M.steel, 0.16, 0.04, 0.11, 0, 0, 0, { r: 0.006, col: 0xd0d4d8 }); K.box(M.matte, 0.145, 0.004, 0.095, 0, 0.034, 0, { r: 0, col: i ? 0x8a3a1a : 0xc8a050 }); if (i) K.box(M.matte, 0.165, 0.002, 0.115, 0.03, 0.041, 0.02, { r: 0, ry: 0.4, col: 0xf0f0ec }); });
+  if (bag) K.heap(M.satin, 0.3, 0.2, 0.24, -0.34, 0, 0.06, { col: 0xe8ecf0, amp: 0.34, freq: 2.4 });
+  for (let i = 0; i < cans; i++) P.can(K, 0.1 + i * 0.22 + r() * 0.05, 0, 0.3 + r() * 0.1, { tipped: i > 0, col: [0xb02a2a, 0x1a4a8a, 0x2a2a2a][i % 3], crushed: i === 2 });
+};
+// heap of washing in a few colours
+P.laundry = (K, { w = 0.5, h = 0.16, cols = [0x4a5a7a, 0xd8d4cc, 0x8a3a3a] } = {}) => {
+  const r = K.rng; cols.forEach((c, i) => K.heap(i ? M.fabric : M.curtain, w * (0.75 - i * 0.12), h * (1 - i * 0.2), w * (0.6 - i * 0.08), (r() - 0.5) * w * 0.5, 0, (r() - 0.5) * w * 0.4, { col: c, ry: r() * TAU, amp: 0.3, freq: 2.0 }));
+};
+// sports holdall with the zip open, a towel and a bottle beside it
+P.gymBag = (K, { col = 0x1e2a3a, towel = 0xd8dce0 } = {}) => {
+  K.rbox(M.fabric, 0.56, 0.26, 0.28, 0, 0, 0, { r: 0.1, soft: true, puff: 0.02, wrinkle: 0.012, crease: 0.01, col, cell: 0.04 }); K.box(M.matte, 0.4, 0.004, 0.02, 0, 0.27, 0, { r: 0, col: 0x08080a });
+  for (const s of [-1, 1]) K.tube(M.fabric, [[-0.16, 0.2, s * 0.13], [-0.12, 0.34 - s * 0.05, s * 0.12], [0.12, 0.33 + s * 0.03, s * 0.16], [0.16, 0.2, s * 0.13]], 0.011, { col: 0x101014, rs: 5, seg: 14, tension: 0.5 });
+  if (towel != null) K.cloth(M.curtain, 0.5, 0.36, 0.22, 0.2, 0.16, 0.262, 0.02, { col: towel, wrinkle: 0.012, fold: 0.02, skew: 0.3, floor: 0, cell: 0.03 });
+  P.sportBottle(K, 0.4, 0, 0.12, {});
+};
+P.sportBottle = (K, x, y, z, { col = 0x2a7ab0, tipped = false } = {}) => { K.push(x, y + (tipped ? 0.036 : 0), z, K.rng() * TAU, 0, tipped ? H : 0); K.lathe(M.plastic, [[0.001, 0], [0.034, 0], [0.036, 0.01], [0.036, 0.15], [0.03, 0.18], [0.02, 0.19], [0.02, 0.2], [0.001, 0.2]], 0, 0, 0, { col, seg: 14 }); K.cyl(M.plastic, 0.021, 0.021, 0.025, 0, 0.19, 0, { col: 0x161616, seg: 12 }); K.cyl(M.plastic, 0.008, 0.01, 0.02, 0, 0.215, 0, { col: 0xe8e8e8, seg: 8 }); K.pop(); };
+// ream of loose paper, fanned
+P.papers = (K, x, y, z, { n = 6, ry = 0, spread = 0.03 } = {}) => { const r = K.rng; for (let i = 0; i < n; i++) K.plane(i === n - 1 || r() < 0.4 ? M.signs : M.matte, 0.21, 0.297, x + (r() - 0.5) * spread, y + 0.0012 + i * 0.0011, z + (r() - 0.5) * spread, { up: true, ry: ry + (r() - 0.5) * 0.35, uv: ATLAS.signs.rect.paper, col: 0xf4f2ea }); };
+// waste-paper bin with screwed-up paper in and around it
+P.wasteBin = (K, { col = 0x2a2a2e, balls = 3, h = 0.3 } = {}) => {
+  const r = K.rng; K.lathe(M.metal, [[0.001, 0], [0.1, 0], [0.105, 0.005], [0.13, h], [0.134, h], [0.108, 0.012], [0.001, 0.01]], 0, 0, 0, { col, seg: 18 });
+  for (let i = 0; i < 4; i++) K.sph(M.matte, 0.035 + r() * 0.012, (r() - 0.5) * 0.1, h - 0.06 + r() * 0.05, (r() - 0.5) * 0.1, { seg: 5, seg2: 4, col: 0xf0eee6 });
+  for (let i = 0; i < balls; i++) { const a = r() * TAU, d = 0.2 + r() * 0.2; K.sph(M.matte, 0.032 + r() * 0.01, Math.cos(a) * d, 0.03, Math.sin(a) * d, { seg: 5, seg2: 4, col: 0xf0eee6, sy: 0.85 }); }
+};
+// coat or jacket hanging from a hook: call inside K.onWall with the hook at (x, y)
+P.coat = (K, x, y, { col = 0x3a4a3a, len = 0.85, w = 0.46, hook = true } = {}) => {
+  const g = new THREE.PlaneGeometry(1, 1, 14, 16), p = g.attributes.position.array, sd = K.rng() * 50;
+  for (let i = 0; i < p.length; i += 3) { const u = p[i] * 2, v = 0.5 - p[i + 1], sh = Math.min(1, v / 0.12), wd = w * (0.16 + 0.84 * sh * (2 - sh)) * (1 - 0.1 * v), fold = Math.sin(u * 7 + sd) * 0.012 + Math.sin(u * 13 + sd * 2) * 0.006;
+    p[i] = u * wd / 2 + Math.sin(v * 5 + sd) * 0.008 * v; p[i + 1] = -v * len - Math.abs(u) * 0.05 * (1 - sh) - (Math.abs(u) > 0.7 ? 0.015 * Math.sin(v * 9) : 0); p[i + 2] = 0.03 + 0.05 * Math.sqrt(Math.max(0, 1 - u * u)) * (0.4 + 0.6 * sh) + fold * (0.3 + v * 1.3) * sh; }
+  g.computeVertexNormals(); K.geo(M.curtain, g, { x, y, z: 0, col, uvScale: [w, len] });
+  for (const sg of [-1, 1]) K.rbox(M.fabric, 0.085, len * 0.62, 0.07, x + sg * (w * 0.5 - 0.02), y - 0.1 - len * 0.62, 0.06, { r: 0.03, soft: true, wrinkle: 0.006, crease: 0.006, col: shade(col, 0.92), rz: sg * 0.07, cell: 0.035 });
+  K.box(M.fabric, 0.012, len * 0.86, 0.006, x + 0.012, y - len * 0.97, 0.094, { r: 0.002, col: shade(col, 0.55) });
+  K.torus(M.fabric, 0.06, 0.022, x, y - 0.075, 0.07, { rx: 1.15, sy: 0.7, col: shade(col, 1.12), seg: 14, rs: 6 });
+  if (hook) { K.cyl(M.metal, 0.005, 0.005, 0.05, x, y + 0.012, 0.025, { rx: H, c: true, seg: 6, col: 0x8a8d90 }); K.sph(M.metal, 0.009, x, y + 0.016, 0.052, { seg: 8, seg2: 6, col: 0x8a8d90 }); }
+  K.ao(w + 0.25, len + 0.3, x, y - len * 0.5, 0.0048, { wall: true, k: 0.28, sx: 0.5, sy: 0.4 });
+};
+// walking stick leaning (base at origin, leaning toward -Z by lean rad)
+P.stick = (K, { col = 0x5a3a22, len = 0.9, lean = 0.2 } = {}) => { K.push(0, 0, 0, 0, -lean); K.cyl(M.woodGloss, 0.011, 0.009, len, 0, 0.012, 0, { col, seg: 8 }); K.cyl(M.rubberBlack, 0.012, 0.014, 0.03, 0, 0, 0, { seg: 8, col: 0x1a1a1a }); K.torus(M.woodGloss, 0.045, 0.011, 0.045, len + 0.012, 0, { arc: PI, col, seg: 12, rs: 6 }); K.pop(); };
+// ceiling smoke alarm with its standby light: call with the origin on the ceiling
+P.smokeAlarm = (K) => { K.cyl(M.plastic, 0.055, 0.06, 0.012, 0, -0.012, 0, { col: 0xf0f0ec, seg: 20 }); K.cyl(M.plastic, 0.05, 0.042, 0.026, 0, -0.038, 0, { col: 0xf4f4f0, seg: 20 }); for (let i = 0; i < 8; i++) K.box(M.matte, 0.02, 0.012, 0.003, Math.cos(i * TAU / 8) * 0.046, -0.03, Math.sin(i * TAU / 8) * 0.046, { r: 0, c: true, ry: -i * TAU / 8 + H, col: 0x55595c }); K.box(K.emit(0x30ff60, 3, { key: 'smk' }), 0.005, 0.003, 0.005, 0.022, -0.0385, 0.01, { r: 0 }); };
+// wall vent / air brick cover: call inside K.onWall
+P.vent = (K, x, y, { w = 0.24, h = 0.16, col = 0xf0f0ec } = {}) => { K.box(M.plastic, w, h, 0.012, x, y - h / 2, 0.006, { r: 0.003, col }); const n = Math.floor(h / 0.02) - 1; for (let i = 0; i < n; i++) K.box(M.matte, w - 0.03, 0.006, 0.004, x, y - h / 2 + 0.017 + i * 0.02, 0.013, { r: 0, rx: 0.5, col: 0x3a3c3e }); K.grime('drip', w * 1.2, 0.3, x, y - h / 2 - 0.15, 0.0046, { col: 0x8a8274 }); };
+// thermostat / heating controller: call inside K.onWall
+P.thermostat = (K, x, y) => { K.box(M.plastic, 0.085, 0.12, 0.022, x, y - 0.06, 0.011, { r: 0.006, col: 0xeeeeea }); K.plane(M.signs, 0.07, 0.105, x, y, 0.0225, { uv: ATLAS.signs.rect.thermo }); };
+// mug rings, crumbs and dust on a surface (decals), y is the surface
+P.rings = (K, x, y, z, { n = 3, spread = 0.2 } = {}) => { const r = K.rng; for (let i = 0; i < n; i++) K.plane(M.stain, 0.085, 0.085, x + (r() - 0.5) * spread, y + 0.0008 + i * 0.0002, z + (r() - 0.5) * spread, { up: true, uv: STAIN.water, ry: r() * 6, col: 0x9a8a78 }); };
+// folded newspaper / open book lying on a seat or floor
+P.paperFolded = (K, x, y, z, ry = 0) => { K.box(M.matte, 0.3, 0.008, 0.2, x, y, z, { r: 0.002, ry, col: 0xdedad0 }); K.plane(M.signs, 0.29, 0.19, x, y + 0.0085, z, { up: true, ry, uv: ATLAS.signs.rect.news }); };
 export { H as HALF_PI, mixc, shade };

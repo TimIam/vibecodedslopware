@@ -153,6 +153,15 @@ export const WORKS = {
     K.stain('scuff', 1.6, 1.0, 0.2, 0.2); K.stain('water', 0.7, 0.5, -0.8, -0.6); K.stain('scuff', 1.0, 0.8, -0.7, 2.0, { y: 0.72 }); K.stain('oil', 0.3, 0.25, 0.9, -0.2, { col: 0x9a9a9a });
     for (const [x, y, z, ry, s] of [[-hw + 0.002, 0.7, -0.4, H, 0.9], [hw - 0.002, 0.5, 0.4, -H, 1.1], [0.1, 0.6, zN + 0.002, 0, 0.8]]) K.plane(M.stain, s, s * 0.7, x, y, z, { ry, uv: STAIN.scuff });
     K.plane(M.stain, 1.2, 0.9, 0.4, 2.586, -0.2, { rx: H, uv: STAIN.coffee, col: 0xb0a080 });
+    // what a bake would add where the landing meets the walls, and what a shared stair collects
+    { const L = zE - zN, mz = (zN + zE) / 2;
+      K.at(0, 0, zN, 0, () => { K.ao(2 * hw, 0.5, 0, 0.016, 0.25, { ry: PI, k: 0.5, strip: true }); K.ao(2 * hw, 0.45, 0, 2.582, 0.225, { rx: H, k: 0.45, strip: true }); for (const sg of [-1, 1]) K.ao(2.6, 0.36, sg * (hw - 0.18), 1.3, 0.0045, { wall: true, rz: sg * H, k: 0.4, strip: true }); });
+      for (const sg of [-1, 1]) K.at(sg * hw, 0, mz, -sg * H, () => { K.ao(L, 0.5, 0, 0.016, 0.25, { ry: PI, k: 0.5, strip: true }); K.ao(L, 0.42, 0, 0.21, 0.018, { wall: true, k: 0.36, strip: true }); K.ao(L, 0.45, 0, 2.582, 0.225, { rx: H, k: 0.45, strip: true }); K.grime('drip', 1.4, 0.7, (r() - 0.5) * 0.4, 2.2, 0.0046, { col: 0x6a6a5a }); for (let i = 0; i < 3; i++) K.grime('scuff', 0.3 + r() * 0.4, 0.1 + r() * 0.12, (r() - 0.5) * (L - 0.6), 0.12 + r() * 0.9, 0.019 + i * 0.0003, {}); });
+      K.grime('wear', 1.8, 1.3, 0, 0.0066, 0.1, { up: true, col: 0xd8d4c8 }); K.grime('smudge', 1.2, 0.5, -0.62, 0.0068, zN + 0.5, { up: true, col: 0x4a4a44 }); K.grime('smudge', 1.2, 0.5, 0.66, 0.0069, zN + 0.5, { up: true, col: 0x4a4a44 });
+      K.scatter(2, [-1.15, -0.95, 1.15, 0.8], 0.05, i => P.can(K, 0, 0, 0, { tipped: true, crushed: !i, col: [0x1a4a8a, 0x2a2a2a][i] }));
+      K.scatter(16, [-1.2, -1.0, 1.2, 0.85], 0.012, () => K.cyl(M.matte, 0.009 + K.rng() * 0.008, 0.01, 0.0012, 0, 0, 0, { col: 0x26262a, seg: 7 }), { under: true });
+      K.scatter(5, [-1.2, -1.0, 1.2, 0.85], 0.02, () => K.cyl(M.matte, 0.004, 0.004, 0.028, 0, 0.004, 0, { rz: H, c: true, col: 0xd8a868, seg: 5 }), { under: true });
+      K.drop([[1.08, 0.6], [-1.05, -0.5]], 0.14, () => P.mail(K, { n: 6, spread: 0.2 })); }
     // windows on the half-landings
     const bd = K.night ? 'night' : K.dusk ? 'dusk' : K.rain ? 'rain' : 'cityDay';
     for (const y0 of [2.3, -0.5]) K.window({ x: 0, z: zS, ry: PI, w: 1.1, y0, y1: y0 + 1.2, t: 0.18 }, { cols: 2, rows: 2, frameCol: 0x5a6a64, frameMat: M.metal, backdrop: y0 > 0 ? bd : null, sillCol: 0xb8b4aa });
@@ -174,13 +183,21 @@ export const WORKS = {
 
   warehouse(K) {
     const w = 16, d = 18, h = 8, r = K.rng, doorX = 3.2, dw = 4.2, dh = 4.6, open = 2.35;
-    K.room({ w, d, h, wallMat: M.corrugated, wallCol: 0xc4c9cc, dado: { h: 2.4, mat: M.block, col: 0xd8d6d0 }, floorMat: M.concrete, floorCol: 0xd0d0cc, ceilMat: M.corrugated, ceilCol: 0x9aa0a4, skirt: 0, openings: [{ id: 'roller', wall: 'S', at: doorX, w: dw, y0: 0, y1: dh }, { id: 'door', wall: 'W', at: 6.6, w: 0.95, y1: 2.08 }] });
+    K.room({ w, d, h, wallMat: M.corrugated, wallCol: 0xc4c9cc, dado: { h: 2.4, mat: M.block, col: 0xd8d6d0 }, floorMat: M.concrete, floorCol: 0xd0d0cc, ceilMat: M.corrugated, ceilCol: 0x9aa0a4, skirt: 0, wear: 0.5, wearCol: 0x4a4a48, openings: [{ id: 'roller', wall: 'S', at: doorX, w: dw, y0: 0, y1: dh }, { id: 'door', wall: 'W', at: 6.6, w: 0.95, y1: 2.08 }] });
     K.door(K.frames.door, { open: 0, style: 'glazed', col: 0x3a4a5a, mat: M.metal, handle: 'bar', frameCol: 0x3a4a5a, kick: true });
     K.onWall('W', 6.6, () => { K.box(M.plastic, 0.34, 0.16, 0.04, 0, 2.2, 0.02, { r: 0.006, col: 0xe8e8e4 }); K.plane(K.screen(2.2, 'exit'), 0.3, 0.13, 0, 2.28, 0.041, { uv: ATLAS.screens.rect.exit }); });
     // roller door, half up, with the yard beyond
     K.at(doorX, 0, d / 2, PI, () => {
       const bd = K.backdropMat(K.night ? 'carpark' : K.dusk ? 'dusk' : K.rain ? 'rain' : 'yardDay'); K.plane(bd, 40, 20, 0, 1.5 - 0.42 * 20 + 10, -12, {});
       K.box(M.concrete, 14, 0.1, 12, 0, -0.1, -6.1, { r: 0, col: 0xc4c4be }); for (const s of [-1, 1]) K.box(M.block, 0.3, 5, 6, s * (dw / 2 + 3.2), 0, -3.3, { r: 0, col: 0xb8b6b0 });
+      // the yard: hatched loading bay, a drain, standing water, bins, spare pallets, the kerb and fence at the far side
+      for (let i = 0; i < 8; i++) K.box(M.matte, 0.12, 0.004, 3.4, -2.1 + i * 0.6, 0.001, -2.4, { r: 0, ry: 0.6, col: 0xc8a41c }); for (const z of [-0.7, -4.1]) K.box(M.matte, dw + 0.8, 0.004, 0.12, 0, 0.001, z, { r: 0, col: 0xc8a41c });
+      K.box(M.metal, 0.5, 0.012, 0.5, 1.4, 0, -5.2, { r: 0.004, col: 0x3a3a3c }); for (let i = 0; i < 5; i++) K.box(M.matte, 0.4, 0.002, 0.04, 1.4, 0.012, -5.36 + i * 0.08, { r: 0, col: 0x0a0a0a });
+      for (let i = 0; i < (K.rain ? 6 : 3); i++) K.plane(M.stain, 1.6 + r() * 1.8, 1.0 + r() * 1.2, -4 + r() * 8, 0.003 + i * 0.0006, -1.5 - r() * 7, { up: true, uv: STAIN.water, ry: r() * 6, col: 0x8a8a88 });
+      for (let i = 0; i < 2; i++) K.at(-3.6 - i * 0.75, 0, -1.0 - i * 0.1, 0.1 - i * 0.25, () => { K.box(M.plastic, 0.58, 0.95, 0.7, 0, 0.05, 0, { r: 0.04, col: i ? 0x2a4a34 : 0x24508c }); K.box(M.plastic, 0.62, 0.05, 0.76, 0, 1.0, 0.01, { r: 0.02, col: i ? 0x2a4a34 : 0x24508c, rx: i ? 0 : -0.12 }); for (const sx of [-1, 1]) K.cyl(M.rubberBlack, 0.09, 0.09, 0.04, sx * 0.24, 0.09, -0.3, { rz: H, c: true, col: 0x151515, seg: 12 }); });
+      for (let i = 0; i < 4; i++) pallet(K, 3.9 + (r() - 0.5) * 0.06, i * 0.146, -1.5 + (r() - 0.5) * 0.06, 0.2 + (r() - 0.5) * 0.1);
+      K.box(M.concrete, 14, 0.16, 0.24, 0, 0, -9.2, { r: 0.02, col: 0xb0b0aa }); for (let i = 0; i < 8; i++) K.cyl(M.metal, 0.03, 0.03, 2.2, -6.3 + i * 1.8, 0.16, -9.3, { col: 0x8a8d90, seg: 8 }); K.plane(M.glassTint, 12.8, 2.0, 0, 1.25, -9.3, { col: 0x8a9096 });
+      K.ao(14, 0.8, 0, 0.004, -0.42, { k: 0.5, strip: true }); for (const s of [-1, 1]) K.ao(6, 0.8, s * (dw / 2 + 3.05 - 0.4), 0.004, -3.3, { ry: s * H, k: 0.45, strip: true });
       K.box(M.corrugated, dw - 0.04, dh - open, 0.03, 0, open, -0.1, { r: 0, col: 0x8f979c, uvo: [0, 0, 0] }); K.box(M.metal, dw - 0.04, 0.09, 0.06, 0, open - 0.02, -0.1, { r: 0.008, col: 0x3a3a3c }); K.box(M.rubberBlack, dw - 0.06, 0.03, 0.04, 0, open - 0.05, -0.1, { r: 0.01, col: 0x151515 });
       for (const s of [-1, 1]) { K.box(M.metal, 0.1, dh + 0.3, 0.12, s * (dw / 2 + 0.03), 0, 0.03, { r: 0.006, col: 0x6a7076 }); K.cyl(M.gloss, 0.09, 0.09, 1.1, s * (dw / 2 + 0.45), 0, 0.55, { col: 0xe0b020, seg: 14 }); for (const y of [0.35, 0.75]) K.cyl(M.matte, 0.092, 0.092, 0.12, s * (dw / 2 + 0.45), y, 0.55, { col: 0x151515, seg: 14 }); K.sph(M.gloss, 0.09, s * (dw / 2 + 0.45), 1.1, 0.55, { col: 0xe0b020, seg: 12, seg2: 6, pl: H }); }
       K.box(M.metal, dw + 0.4, 0.45, 0.4, 0, dh + 0.05, 0.2, { r: 0.02, col: 0x6a7076 }); K.box(M.plastic, 0.16, 0.24, 0.09, dw / 2 + 0.5, 1.3, 0.045, { r: 0.01, col: 0xe0b020 }); for (let i = 0; i < 3; i++) K.cyl(M.plastic, 0.02, 0.02, 0.02, dw / 2 + 0.5, 1.48 - i * 0.06, 0.1, { rx: H, c: true, col: [0x2a8a3a, 0xa8231f, 0x1a1a1c][i], seg: 10 });
@@ -214,7 +231,12 @@ export const WORKS = {
     // high-bay lights
     const warm = K.night ? 0xffc27a : 0xf2f6ff, bays = [];
     for (const x of [-4.5, 1.5, 6.0]) for (const z of [-4.5, 2.5]) { bays.push([x, z]); K.at(x, h - 0.9, z, 0, () => { K.cyl(M.metal, 0.004, 0.004, 0.55, 0, 0.3, 0, { seg: 4, col: 0x8a8d90 }); K.lathe(M.metal, [[0.28, 0], [0.26, 0.04], [0.1, 0.22], [0.08, 0.3], [0.001, 0.3]], 0, 0, 0, { seg: 20, col: 0xb8bcc0 }); K.cyl(K.emit(warm, 9, { key: 'bay' }), 0.24, 0.24, 0.01, 0, 0.004, 0, { seg: 20 }); }); }
-    K.hemi(0xdfe6ee, 0x6a6a66, K.day ? 0.42 : 0.12);
+    // a working shed: tyre marks down the aisles, shrink wrap and cardboard, dust banked against the walls
+    for (let i = 0; i < 14; i++) K.grime('scuff', 1.6 + r() * 2.2, 0.35 + r() * 0.3, -1 + r() * 8, 0.0064 + i * 0.0002, -1.5 + r() * 9.5, { up: true, ry: (r() < 0.5 ? 0 : H) + (r() - 0.5) * 0.5 });
+    for (let i = 0; i < 6; i++) K.grime('smudge', 1.5 + r() * 1.5, 1.2 + r(), -1 + r() * 8, 0.0096 + i * 0.0002, -1 + r() * 9, { up: true, ry: r() * 6, col: 0x3a3832 });
+    K.scatter(3, [-0.5, -1.5, 7.0, 8.2], 0.4, () => { K.heap(M.glassTint, 0.8, 0.17, 0.6, 0, 0, 0, { col: 0xaab6ba, amp: 0.5, freq: 3.2, detail: 4 }); K.collide(0.6, 0.2, 0.5); K.ao(0.95, 0.8, 0, 0.017, 0, { k: 0.4 }); });
+    K.scatter(9, [-0.8, -1.8, 7.2, 8.4], 0.12, i => K.box(M.matte, 0.2 + K.rng() * 0.3, 0.004, 0.14 + K.rng() * 0.2, 0, 0.002, 0, { r: 0, col: i % 3 ? 0xb08a5a : 0x9a7a4e, rx: (K.rng() - 0.5) * 0.06 }), { under: true });
+    K.hemi(0xdfe6ee, 0x6a6a66, K.day ? 0.26 : 0.09);
     K.spot(1.5, h - 0.95, 2.5, 1.2, 0, 3.4, { col: warm, int: K.day ? 90 : 190, angle: 1.05, pen: 0.6, shadow: true, near: 0.5, far: 16 });
     K.point(-4.5, h - 1.2, -4.5, { col: warm, int: K.day ? 50 : 110 }); K.point(6.0, h - 1.2, -4.5, { col: warm, int: K.day ? 50 : 110 }); K.point(-4.5, h - 1.2, 2.5, { col: warm, int: K.day ? 50 : 110 }); K.point(6.0, h - 1.2, 2.5, { col: warm, int: K.day ? 40 : 90 });
     if (K.day && !K.rain) K.sun(12, 36, SUN, 6, { map: 4096 }); else if (K.dusk) K.sun(22, 10, DUSKSUN, 3, { soft: 3 }); else if (K.night) K.point(doorX, 3.5, d / 2 + 2.5, { col: 0xff9a4a, int: 26, dist: 12 }); else K.point(doorX, 3.0, d / 2 + 1.5, { col: 0xdfe6f0, int: 30, dist: 12 });
@@ -224,7 +246,7 @@ export const WORKS = {
 
   garage(K) {
     const w = 5.8, d = 6.4, h = 2.7, r = K.rng, on = true;
-    const Fr = K.room({ w, d, h, wallMat: M.block, wallCol: 0xdcd8cc, floorMat: M.concrete, floorCol: 0xc4c2bc, ceilCol: 0xd8d4c8, skirt: 0, openings: [{ id: 'win', wall: 'E', at: -1.5, w: 1.1, y0: 1.28, y1: 1.98 }, { id: 'door', wall: 'N', at: 2.0, w: 0.82, y0: 0.14, y1: 2.14 }] });
+    const Fr = K.room({ w, d, h, wallMat: M.block, wallCol: 0xdcd8cc, floorMat: M.concrete, floorCol: 0xc4c2bc, ceilCol: 0xd8d4c8, skirt: 0, wear: 0.8, wearCol: 0x4a4844, openings: [{ id: 'win', wall: 'E', at: -1.5, w: 1.1, y0: 1.28, y1: 1.98 }, { id: 'door', wall: 'N', at: 2.0, w: 0.82, y0: 0.14, y1: 2.14 }] });
     K.window(Fr.win, { cols: 2, frameCol: 0xd8d4c8, sillCol: 0xb8b4aa });
     K.door(Fr.door, { open: 0, hinge: -1, col: 0xe8e4d8, handle: 'knob', metal: M.brass });
     K.onWall('N', 2.0, () => K.box(M.concrete, 1.1, 0.14, 0.34, 0, 0, 0.17, { r: 0.006, col: 0xb8b4aa }));
@@ -284,10 +306,15 @@ export const WORKS = {
     const insp = K.emit(0xfff2dc, 6, { key: 'insp' });
     K.at(-0.75, 0, 1.55, 0, () => { K.cyl(M.plastic, 0.03, 0.03, 0.12, 0, 0.06, 0, { rz: H, c: true, col: 0xe0b020, seg: 10 }); K.cyl(insp, 0.028, 0.028, 0.2, 0.16, 0.06, 0, { rz: H, c: true, seg: 10 }); K.tube(M.plastic, [[-0.06, 0.05, 0], [-0.3, 0.012, 0.3], [0.4, 0.012, 0.9], [1.6, 0.012, 0.6], [2.8, 0.012, -0.9], [3.4, 0.3, -1.6], [3.6, 1.15, -1.82]], 0.006, { col: 0xd9661e, tension: 0.5, seg: 60, rs: 5 }); });
     const bulb = K.at(0.9, h - 0.2, 0.5, 0, () => P.pendant(K, { kind: 'bare', drop: 0.35, on }));
-    K.hemi(0xcad4de, 0x6a6862, K.day ? 0.5 : 0.06);
+    // years of weekend jobs: oily rags, boots by the door, a trailing lead, damp creeping up the blockwork
+    K.scatter(3, [-0.4, -2.6, 2.6, 2.8], 0.14, i => K.rumple(M.curtain, 0.4, 0.3, 0.06, 0, 0, 0, { col: [0x8a2a22, 0x9a9488, 0x3a4a5a][i], n: 14 }));
+    K.along('N', 1, 0.2, () => P.shoes(K, { kind: 'boot', col: 0x4a3a2a, sole: 0x1a1a1a, messy: 0.6 }), { lo: 0.2, hi: 0.95 }); K.along('E', 1, 0.16, () => P.extension(K, { plugs: 2, col: 0xe07a1a }));
+    for (const k of 'NEW') K.onWall(k, (r() - 0.5) * 2, () => { K.grime('smudge', 2.2, 0.8, 0, 0.42, 0.0046, { col: 0x5a5a50 }); K.grime('drip', 1.6, 0.6, 0.8, h - 0.32, 0.0046, { col: 0x6a665a }); });
+    for (let i = 0; i < 5; i++) K.grime('scuff', 0.8 + r() * 1.2, 0.3 + r() * 0.2, -1.5 + r() * 3.5, 0.0064 + i * 0.0002, -2.5 + r() * 5, { up: true, ry: (r() - 0.5) * 0.4 + H });
+    K.hemi(0xcad4de, 0x6a6862, K.day ? 0.27 : 0.045);
     K.spot(bulb.x, bulb.y - 0.03, bulb.z, bulb.x, 0, bulb.z, { col: 0xffe2bc, int: K.day ? 7 : 15, angle: 1.38, pen: 0.4, shadow: !(K.day && !K.rain), near: 0.1 }); K.point(bulb.x, bulb.y, bulb.z, { col: 0xffe2bc, int: K.day ? 1.0 : 2.2 });
     K.point(-0.6, 0.25, 1.6, { col: 0xfff2dc, int: 1.2, dist: 3.5 });
-    if (K.day) { if (!K.rain) K.sun(92, 31, SUN, 5.5); else K.sun(92, 45, 0xdfe6f0, 0.9, { soft: 6 }); K.spot(w / 2 + 1.0, 1.9, -1.5, 0.3, 0.3, -0.6, { col: SKYFILL, int: K.rain ? 30 : 24, angle: 0.8, pen: 1 }); K.point(0, 1.6, d / 2 - 0.6, { col: SKYFILL, int: 3.5, dist: 7 }); }
+    if (K.day) { if (!K.rain) K.sun(92, 31, SUN, 6.8, { shaft: 1.5 }); else K.sun(92, 45, 0xdfe6f0, 0.6, { shadow: false }); K.spot(w / 2 + 1.0, 1.9, -1.5, 0.3, 0.3, -0.6, { col: SKYFILL, int: K.rain ? 78 : 18, angle: 0.8, pen: 1, shadow: K.rain, soft: 8, near: 0.3, far: 12 }); K.point(0, 1.6, d / 2 - 0.6, { col: SKYFILL, int: 3.5, dist: 7 }); }
     else { if (K.dusk) K.sun(100, 9, DUSKSUN, 2.2, { soft: 3 }); K.point(w / 2 - 0.5, 2.1, -1.5, { col: 0xf2f6ff, int: 4, dist: 6 }); }
     K.spots({ floor: [1.0, 0.75, 0], side: 1, by: [[1.9, 2.3], [0.5, -1.4]], cam: [1.95, 1.4, 2.0], target: [0.8, 0.25, 0.3], partner: [0.38, 0, 0.4], kit: [1.72, 0, -0.1] });
     return { exposure: K.day ? 1.2 : 1.2, bloom: 0.14, envInt: K.day ? 1.0 : 0.65, envPos: [0.9, 1.3, 0.6] };

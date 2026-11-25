@@ -12,6 +12,8 @@
 // and the rooms themselves, where layout, clutter and all lighting numbers are tuned:
 //   sets-home.js (livingRoom), sets-home2.js (kitchen, bathroom, bedroom), sets-home3.js (motelRoom, elderFlat),
 //   sets-public.js (office, diner, gym), sets-public2.js (bar, classroom), sets-works.js (stairwell, warehouse, garage).
+// The look every room shares (occlusion decals, sun shafts and bounce, wear, soft furnishings, clutter that keeps clear of
+// the people) is built into the kit: see the notes at the top of sets-kit.js. opts.ao = 0 turns the occlusion decals off.
 // Patient modes: 'floor' (supine, head along the spot's -Z), 'seat' (chair/sofa, faces +Z, set.seatHeight) and
 // 'bed' (sitting on the edge of the bed, faces +Z, set.seatHeight); a set without that furniture falls back to 'floor'
 // and reports what it used in set.mode.

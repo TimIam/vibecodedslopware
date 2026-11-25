@@ -161,6 +161,13 @@ export function buildLot(T, b, l) {
     if (r.chance(0.75)) { chainFence(B, -hw, -0.6, gap - 4, -0.6); chainFence(B, gap + 4, -0.6, hw, -0.6); chainFence(B, -hw, -l.d + 0.5, -hw, -0.6); chainFence(B, hw, -0.6, hw, -l.d + 0.5); }
     kerbRamp(B, gap - 3.5, gap + 3.5, sw, side);
     const sx = off + (r.chance(0.5) ? 1 : -1) * (w / 2 + 3.2); if (Math.abs(sx) < hw - 2.5) yardStuff(B, sx, -set - d * r.r(0.3, 0.7), r);
+    { const r2 = makeRng(T.seed * 3 + T.addresses.length * 17 + 1), p = B.p, x0w = off - w / 2, cols = [[214, 214, 208], [170, 60, 44], [52, 84, 128], [200, 170, 60], [90, 110, 96]];
+      const nd = Math.max(1, Math.floor(w / 12)), rem = w - 8.1, dw = Math.max(4.6, rem / nd);
+      for (let i = 0; i < nd && (i + 1) * dw <= rem + 0.1; i++) { const cx = x0w + 8.1 + dw * (i + 0.5); if (set < 9.6 || !r2.chance(0.4)) continue; const c = r2.pick(cols), z1b = -set + 0.35, z0b = z1b + 7.2;
+        p.lay(WL.metal); p.col(c[0], c[1], c[2]); p.box(cx - 1.25, 1.15, z1b, cx + 1.25, 3.75, z0b, 63); p.lay(WL.plain).col(30, 30, 32); p.box(cx - 1.1, 0.75, z1b + 0.4, cx + 1.1, 1.15, z0b - 0.3, 47);
+        for (const wz of [z1b + 1.3, z1b + 2.4]) for (const wx of [-1.05, 1.05]) { p.push(cx + wx, 0.5, wz, 0); p.col(22, 22, 24); p.tube(-0.14, 0, 0, 0.14, 0, 0, 0.5, 0.5, 10); p.pop(); } p.col(60, 62, 64); for (const wx of [-0.9, 0.9]) p.box(cx + wx - 0.05, 0, z0b - 1.2, cx + wx + 0.05, 0.75, z0b - 1.1, 15);
+        B.collide(cx - 1.25, z1b, cx + 1.25, z0b, 3.8, 'building'); }
+      for (let i = 0; i < 3; i++) { if (!r2.chance(0.5)) continue; const sx = (r2.chance(0.5) ? 1 : -1), px = off + sx * (w / 2 + 1.1), pz = -set - 3 - r2.r(0, Math.max(1, d - 8)); if (Math.abs(px) > hw - 1.4) continue; p.lay(WL.wood).col(186, 164, 130); const n = r2.i(3, 9); for (let k = 0; k < n; k++) p.box(px - 0.6, k * 0.15, pz - 0.5, px + 0.6, k * 0.15 + 0.11, pz + 0.5, 31); B.collide(px - 0.6, pz - 0.5, px + 0.6, pz + 0.5, n * 0.15, 'prop'); } }
     for (let i = 0; i < 3; i++) if (r.chance(0.5)) { const c = B.w(-hw + 3 + i * 3, -set + 3.2); T.parking.push({ x: c[0], z: c[1], heading: l.fr.h + Math.PI, kind: 'lot' }); }
     addAddress(T, side, B, [off - w / 2 + 3, -set + 0.8], 'industrial', D, null, { name: nm }); void wh; return;
   }

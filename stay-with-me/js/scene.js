@@ -4,7 +4,7 @@
 // CPR / bagging skill inputs, and hands invasive procedures to procedures.js.
 
 import * as THREE from 'three';
-import { G, U, setStress } from './gfx.js';
+import { G, U, setStress, focusAt } from './gfx.js';
 import { Patient, SIM_SPEED, SHOCKABLE, clamp } from './physio.js';
 import { addConditions } from './conditions.js';
 import { ACTIONS, act, describeBreathSound, breathSoundKind } from './actions.js';
@@ -620,6 +620,7 @@ export class Scene {
     const b = this.world?.cameraBounds; if (b) pos.clamp(b.min, b.max);
     pos.y = Math.max(pos.y, (this.world?.patientSpot?.pos.y || 0) + 0.12);
     this.cam.position.copy(pos); this.cam.lookAt(o.target);
+    focusAt(pos.distanceTo(o.target), this.proc ? 0.45 : 1);
   }
 }
 

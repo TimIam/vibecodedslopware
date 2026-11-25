@@ -1,8 +1,10 @@
 // Halloran Falls: the drivable town. buildTown() generates everything procedurally from a seed and returns the Town
 // object described in the module brief (group, road graph, signals, surface lookup, colliders, places, addresses,
 // lamps, parking, spawn, map). Sub-modules: town-layout (street plan + graph), town-mat (materials), town-roads
-// (carriageways, sidewalks, river, bridges), town-lots/-buildings (what stands on the blocks), town-props (street
-// furniture, trees, signals, night lighting), town-outskirts (terrain, forest, mountains), town-map (GPS sheet).
+// (carriageways, sidewalks, river, bridges), town-lots/-buildings (what stands on the blocks; facade relief such as
+// sills, cornice brackets, fire escapes and window units goes into near-only 'trim' chunks), town-props (street
+// furniture, trees with a near and a far model per region, signals, night lighting), town-outskirts (terrain, forest,
+// mountains), town-map (GPS sheet). Draw distances of the fine-detail chunks are in FAR below; tree LOD in update().
 //
 // Conventions: +X east, +Z south, Y up, roads at y = 0, sidewalks at 0.15. Every `heading` is a yaw in radians with
 // forward = (sin h, 0, cos h). Lane i (0 nearest the centre line) for travel along d is the centreline offset to the
@@ -52,12 +54,13 @@ export async function buildTown(opts = {}) {
   let cullT = 0;
   const aniso = G.q?.aniso || 8;
   M.sign = makeSignMaterial(T.atlas.texture(aniso)); M.cut = makeCutMaterial(buildCutAtlas(aniso), M.sh); M.cutBB = makeCutMaterial(M.cut.map, M.sh, true);
-  const MAT = { road: M.road, ground: M.ground, decal: M.decal, facade: M.facade, plain: M.plain, sign: M.sign, cut: M.cut };
+  const MAT = { road: M.road, ground: M.ground, decal: M.decal, facade: M.facade, plain: M.plain, trim: M.plain, sign: M.sign, cut: M.cut };
+  const FAR = { cut: 520, sign: 520, decal: 520, trim: 190 };       // draw distance of the fine-detail chunk kinds
   for (const c of T.chunks.finish()) {
     const m = new THREE.Mesh(c.geometry, MAT[c.kind]); m.name = c.kind;
-    m.receiveShadow = c.kind !== 'sign'; m.castShadow = c.kind === 'facade' || c.kind === 'plain' || c.kind === 'cut';
+    m.receiveShadow = c.kind !== 'sign'; m.castShadow = c.kind === 'facade' || c.kind === 'plain' || c.kind === 'cut' || c.kind === 'trim';
     m.matrixAutoUpdate = false; group.add(m); stats.tris += c.tris; stats.meshes++;
-    if (c.kind === 'cut' || c.kind === 'sign' || c.kind === 'decal') { const s = c.geometry.boundingSphere; small.push({ m, x: s.center.x, z: s.center.z, r: s.radius }); }
+    if (FAR[c.kind]) { const s = c.geometry.boundingSphere; small.push({ m, x: s.center.x, z: s.center.z, r: s.radius, far: FAR[c.kind] }); }
   }
   if (T.waterGeo) {
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(T.waterGeo.pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(T.waterGeo.uv, 2)); g.setIndex(T.waterGeo.idx); g.computeVertexNormals();
@@ -97,7 +100,9 @@ export async function buildTown(opts = {}) {
     // signals every frame; a few times a second hide the fine-detail chunks (fences, signs, paint) that are far away
     update(dt, t, camPos) {
       T.updateSignals(t);
-      if (camPos && (cullT -= dt) <= 0) { cullT = 0.3; for (const s of small) s.m.visible = Math.hypot(s.x - camPos.x, s.z - camPos.z) - s.r < 520; }
+      if (camPos && (cullT -= dt) <= 0) { cullT = 0.3; for (const s of small) s.m.visible = Math.hypot(s.x - camPos.x, s.z - camPos.z) - s.r < s.far;
+        // trees: full crowns near the camera, the light model beyond; shrubs and reeds are not drawn far away
+        for (const t of T.treeLods) { const d = Math.hypot(t.x - camPos.x, t.z - camPos.z) - t.r; if (t.small) t.im.visible = d < 330; else if (t.lo) { const g = d < 55 ? t.hi : t.lo; if (t.im.geometry !== g) t.im.geometry = g; } } }
     },
     dispose() { group.traverse(o => { o.geometry?.dispose(); if (o.material && o.material.isShaderMaterial) o.material.dispose(); }); for (const k of ['sign', 'cut']) { M[k].map?.dispose(); M[k].dispose(); } M.cutBB.dispose(); M.dispose(); group.clear(); },
     stats, buildMs: performance.now() - t0, _T: T,

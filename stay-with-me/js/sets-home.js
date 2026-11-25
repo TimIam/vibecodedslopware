@@ -21,12 +21,12 @@ export function tvFlicker(K, sm, light, k, li) {
 export const HOME = {
   livingRoom(K) {
     const w = 4.6, d = 4.2, h = 2.4, r = K.rng, on = K.lampsOn;
-    const F = K.room({ w, d, h, wallCol: 0xd9d2bf, floorMat: M.planks, floorCol: 0xd8c8b4, openings: [{ id: 'win', wall: 'N', at: -0.5, w: 1.9, y0: 0.82, y1: 2.08 }, { id: 'door', wall: 'E', at: 1.38, w: 0.84, y1: 2.03 }] });
+    const F = K.room({ w, d, h, wallCol: 0xd9d2bf, floorMat: M.planks, floorCol: 0xd8c8b4, cove: 0.07, wear: 0.7, openings: [{ id: 'win', wall: 'N', at: -0.5, w: 1.9, y0: 0.82, y1: 2.08 }, { id: 'door', wall: 'E', at: 1.38, w: 0.84, y1: 2.03 }] });
     K.window(F.win, { cols: 3, curtain: { col: 0x6f5a4c, open: 0.86 } });
     K.door(F.door, { open: 1.75, hinge: 1, swing: -1, beyond: { depth: 1.7, w: 1.9, off: -0.3, glow: on ? 3 : 0, floorCol: 0x7a6a58, pic: () => P.picture(K, 0.3, 1.5, { w: 0.4, h: 0.5, pic: 'art1' }) } });
     K.onWall('N', -0.5, () => P.radiator(K, { w: 1.3, h: 0.5 }));
     // seating
-    K.prop(0, 0, 0.15, 0, () => P.rug(K, { w: 2.5, d: 1.75, col: 0x7c3f36, border: 0xd6c6a6, inner: 0x8a4a3c }), { collide: false });
+    K.prop(0, 0, 0.15, 0, () => P.rug(K, { w: 2.5, d: 1.75, col: 0x7c3f36, border: 0xd6c6a6, inner: 0x8a4a3c, fringe: 0xcfc0a2 }), { collide: false });
     K.prop(-w / 2 + 0.03, 0, 0.1, H, () => P.sofa(K, { w: 2.05, col: 0x66707c, throws: [0xb5832f, 0xd8d0c0] }));
     K.prop(1.62, 0, -1.72, -0.62, () => P.sofa(K, { w: 0.98, seats: 1, col: 0x8a6f52, throws: [0x40584a] }));
     K.prop(-0.25, 0, -1.38, 0.22, () => P.coffeeTable(K, {}));
@@ -51,28 +51,41 @@ export const HOME = {
     K.box(M.plastic, 0.045, 0.018, 0.17, -0.55, 0.012, 1.0, { r: 0.007, ry: 1.1, col: 0x18181a });
     for (const s of [-1, 1]) K.rbox(M.fabric, 0.1, 0.07, 0.27, -1.18 + s * 0.07, 0, -1.02 + s * 0.05, { r: 0.03, ry: 0.5 + s * 0.2, col: 0x5a4636, seg: 2 });
     K.at(-w / 2 + 0.03, 0, 0.1, H, () => K.drape(M.curtain, [[0.5, 0.4], [0.74, 0.33], [0.9, 0.22], [0.93, 0.1], [0.8, 0.015], [0.45, 0.005]], 0.62, 0.52, 0, 0, { col: 0xa8934a, wrinkle: 0.02 })); // throw over the sofa back
+    // lived in: the sill, the corner by the door, what collects around the chairs
+    K.onWall('N', -0.5, () => { K.at(-0.62, 0.82, 0.03, 0, () => P.plant(K, { h: 0.26, n: 9, pot: 0.055, potCol: 0x3d6f7a })); K.at(0.1, 0.82, 0.035, 0.3, () => P.standFrame(K, { pic: 'kid3', w: 0.1, h: 0.13, col: 0xe8e4da })); K.lathe(M.ceramic, [[0.001, 0], [0.03, 0], [0.045, 0.05], [0.025, 0.11], [0.03, 0.13]], 0.42, 0.82, 0.03, { col: 0xb5603c, seg: 12 }); for (let i = 0; i < 2; i++) K.box(M.matte, 0.1, 0.14, 0.002, 0.68 + i * 0.05, 0.82, 0.02 + i * 0.02, { r: 0, rx: -0.2, ry: -0.3 + i * 0.5, col: [0xf0e0d8, 0xdfe8f0][i] }); });
+    K.onWall('N', 1.9, () => P.vent(K, 0, 2.2, {})); K.onWall('E', 0.2, () => P.thermostat(K, 0, 1.45));
+    K.at(-1.6, h, 1.2, 0, () => P.smokeAlarm(K));
+    K.at(-2.12, 0, -1.08, H, () => P.stick(K, { lean: 0.19 }));
+    K.onWall('E', 0.72, () => { P.coat(K, -0.22, 1.72, { col: 0x5d6f58, len: 0.9 }); P.coat(K, 0.1, 1.7, { col: 0x8a7256, len: 0.72, w: 0.4 }); K.box(M.wood, 0.5, 0.07, 0.016, -0.08, 1.67, 0.008, { r: 0.004, col: C.oak }); });
+    K.drop([[2.02, 0.42], [1.95, 0.15]], 0.16, () => P.shoes(K, { kind: 'shoe', col: 0x3a2a1e }), -H + 0.2); K.drop([[2.0, 0.72], [1.9, 1.0]], 0.14, () => P.shoes(K, { kind: 'trainer', col: 0x8a8d90, messy: 1 }), -H - 0.3);
+    K.drop([[1.2, -1.05], [1.05, -1.3]], 0.16, () => P.pile(K, { n: 5, cover: 'land2' }), 0.4);
+    K.drop([[2.05, 0.3], [2.05, -1.5]], 0.1, () => P.extension(K, {}), H, { under: true });
+    K.at(0.72, 0.5, -1.72, 0, () => { P.meds(K, 0.1, 0, -0.1, { n: 3, spread: 0.1 }); P.rings(K, 0, 0, 0.06, { n: 2, spread: 0.12 }); });
+    K.at(-0.25, 0.42, -1.38, 0.22, () => P.rings(K, 0.2, 0, 0.1, { n: 4, spread: 0.3 }));
+    K.at(1.62, 0, -1.72, -0.62, () => K.cloth(M.curtain, 0.62, 0.9, 0.2, 0.8, 0.39, 0.645, 0.46, { col: 0x9a4a3a, wrinkle: 0.012, fold: 0.03, skew: 0.12, cell: 0.035, rr: 0.07, floor: 0 }));   // blanket over the armchair's arm
+    K.at(-1.3, 1.95, d / 2 - 0.16, PI, () => { P.carton(K, 0.3, 0.16, 0.22, 0.1, 0, 0, { ry: 0.2, tape: false }); K.at(-0.28, 0, 0.02, 0, () => P.plant(K, { h: 0.3, n: 8, pot: 0.06, potCol: 0xe8e2d0 })); });
     // ceiling
     const pend = K.at(0, h, 0.15, 0, () => P.pendant(K, { kind: 'drum', drop: 0.34, on, r: 0.2 }));
     // lighting
     const tvPos = K.world(w / 2 - 0.5, 0.95, -0.6);
     if (K.day) {
-      K.hemi(0xcad8ea, 0x7a6850, 0.3);
-      if (!K.rain) K.sun(196, 31, SUN, 5.2); else K.sun(190, 50, 0xdfe6f0, 0.9, { soft: 6 });
-      K.spot(-0.5, 1.7, -d / 2 - 1.2, -0.2, 0.3, 0.6, { col: SKYFILL, int: K.rain ? 22 : 16, angle: 0.85, pen: 1 });
+      K.hemi(0xcad8ea, 0x7a6850, 0.2);
+      if (!K.rain) K.sun(196, 31, SUN, 6.2); else K.sun(190, 50, 0xdfe6f0, 0.6, { shadow: false });
+      K.spot(-0.5, 1.7, -d / 2 - 1.2, -0.2, 0.3, 0.6, { col: SKYFILL, int: K.rain ? 62 : 14, angle: 0.85, pen: 1, shadow: K.rain, soft: 8, near: 0.3, far: 12 });
     } else if (K.dusk) {
       K.hemi(0x8088a8, 0x5a4a3a, 0.12);
       K.sun(204, 9, DUSKSUN, 2.2, { soft: 3 });
       K.spot(pend.x, pend.y - 0.02, pend.z, pend.x, 0, pend.z, { col: WARM, int: 9, angle: 1.3, pen: 0.6 });
       K.point(lampA.x, lampA.y, lampA.z, { col: WARM, int: 3.5 }); K.point(lampB.x, lampB.y, lampB.z, { col: WARM, int: 1.8 });
     } else {
-      K.hemi(0x40465a, 0x3a3026, 0.05);
-      K.spot(pend.x, pend.y - 0.04, pend.z, pend.x, 0, pend.z, { col: WARM, int: 14, angle: 1.3, pen: 0.55, shadow: true });
-      K.point(pend.x, pend.y + 0.12, pend.z, { col: WARM, int: 0.9 });
-      K.point(lampA.x, lampA.y, lampA.z, { col: WARM, int: 4 }); K.point(lampB.x, lampB.y, lampB.z, { col: WARM, int: 2.2 });
+      K.hemi(0x40465a, 0x3a3026, 0.03);
+      K.spot(pend.x, pend.y - 0.04, pend.z, pend.x, 0, pend.z, { col: WARM, int: 10, angle: 1.12, pen: 0.9, shadow: true, soft: 5 });
+      K.point(pend.x, pend.y + 0.14, pend.z, { col: WARM, int: 1.3, dist: 5 });
+      K.point(lampA.x, lampA.y, lampA.z, { col: 0xffcf9a, int: 6.5 }); K.point(lampB.x, lampB.y, lampB.z, { col: 0xffcf9a, int: 3.4 });
     }
     const tvL = K.point(tvPos.x, tvPos.y, tvPos.z, { col: 0x9ab8ff, int: K.night ? 1.6 : 0.6, dist: 6 });
     tvFlicker(K, K.tv, tvL, K.night ? 1.6 : 2.6, K.night ? 1.6 : 0.6);
     K.spots({ floor: [0.25, 0.3, H], seat: [-w / 2 + 0.03 + 0.56, 0.47, 0.1, H], side: -1, by: [[1.55, 1.0], [-0.6, -0.9]], cam: K.patient === 'seat' ? null : [1.3, 1.3, 1.4], target: K.patient === 'seat' ? null : [-0.15, 0.25, 0.1] });
-    return { exposure: K.day ? 1.0 : K.dusk ? 1.1 : 1.2, bloom: K.day ? 0.14 : 0.16, envInt: K.day ? 1.0 : 0.6 };
+    return { exposure: K.day ? 1.0 : K.dusk ? 1.1 : 1.15, bloom: K.day ? 0.14 : 0.18, envInt: K.day ? 1.0 : 0.6 };
   },
 };
