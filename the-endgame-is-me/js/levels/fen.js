@@ -12,7 +12,7 @@
 // (MARSH, a grid of 4 px cells) decides shallow water against land, about 40/60, and the sim and the art read the same
 // grid, so the edges of the tile join up seamlessly.
 
-import { drawCow, INK } from './farms.js';
+import { drawCow, INK, COW_PAL2, mapSprite } from './farms.js';
 import * as P_ from '../props.js';
 
 const TAU = Math.PI * 2;
@@ -55,7 +55,7 @@ function steerDance(g, c, dt) {
   c.moving = false;
   if (!c.dance) {
     c.dance = { t: g.rng() * 2 };
-    let best = null, bd = 11;
+    let best = null, bd = 16;
     for (const o of g.critters) {
       if (o === c || o.dead || o.kind !== 'fen_steer' || o.dance?.partner != null) continue;
       const d = Math.hypot(o.x - c.x, o.y - c.y);
@@ -66,7 +66,7 @@ function steerDance(g, c, dt) {
       c.dance.partner = best.id; best.dance.partner = c.id; best.dance.t = c.dance.t;
       // shuffle into step: side by side, a few pixels apart
       const mx = (c.x + best.x) / 2, my = (c.y + best.y) / 2, left = c.x <= best.x ? c : best, right = left === c ? best : c;
-      left.x = mx - 3.5; right.x = mx + 3.5; left.y = right.y = my;
+      left.x = mx - 6; right.x = mx + 6; left.y = right.y = my;   // (far enough apart that their held-out hooves meet)
       left.fx = 1; right.fx = -1;
     }
   }
@@ -338,38 +338,58 @@ function over(ctx, g, h) {
 
 // the steers: the farm's cows, black and white
 function drawSteer(ctx, c, g, h) {
-  if (c.dance) { drawDancer(ctx, c, g); return; }
+  if (c.dance) { drawDancer(ctx, c, g, h); return; }
   drawCow(ctx, { ...c, seed: 0 }, g, h);
 }
-// A steer up on its hind legs, facing you: horns, face, a pale belly, arms out, two legs. It sways from foot to foot
-// and waves its arms; holding hooves with a partner, the arm on that side reaches across to theirs and stays there.
-const DANCE_PAL = { h: '#e6d9b8', H: '#835233', e: INK, n: '#d89a84', B: '#a06a43', W: '#e8e0cc', D: '#5a3622', l: '#3a2418', a: '#2a2420' };
+// A steer up dancing, Far Side style: the steer's own sprite stood on end (back to the left, belly to the front), the
+// head kept level in profile on top, standing on its hind legs with a hint of udder between them and the tail hanging
+// behind; the near foreleg is flung up over its horns, the far one held straight out in front (to take its partner's
+// hoof; two partners face each other and their hooves meet). Same colours as a Suicide Steer. Facing right; the
+// anchor (the steer's x) is column 4, its feet on the bottom row.
 const DANCE = [
-  ['h.....h', '.HHHHH.', '.HeHeH.', '..nnn..', '..BBB..', '.BWWWB.', '.BWWWB.', '..DDD..', '..l.l..', '.al..l.'],
-  ['h.....h', '.HHHHH.', '.HeHeH.', '..nnn..', '..BBB..', '.BWWWB.', '.BWWWB.', '..DDD..', '..l.l..', '..l..la'],
+  ['....ll.....',
+   '...B.......',
+   '..B.h.h....',
+   '..BHHHH....',
+   '..BHeHnn...',
+   '..BDHHnn...',
+   '..LWBBD....',
+   '..LWBBDDDDl',
+   '..LBBBBD...',
+   '..LBBWWBD..',
+   '..LBBWWBD..',
+   '..LBBBBD...',
+   '.tLWWBBD...',
+   '.tLWBBD....',
+   't..lnnl....',
+   '...ll.ll...'],
+  ['.....ll....',
+   '....B......',
+   '..BBh.h....',
+   '..BHHHH....',
+   '..BHeHnn...',
+   '..BDHHnn...',
+   '..LWBBD....',
+   '..LWBBDDDDl',
+   '..LBBBBD...',
+   '..LBBWWBD..',
+   '..LBBWWBD..',
+   '..LBBBBD...',
+   '.tLWWBBD...',
+   't.LWBBD....',
+   't..lnn.l...',
+   '...ll...ll.'],
 ];
-function drawDancer(ctx, c, g) {
+function drawDancer(ctx, c, g, h) {
   const t = c.dance.t, fr = Math.floor(t * 4) % 2, x = Math.round(c.x), y = Math.round(c.y);
-  const sway = fr ? 1 : -1, bob = Math.floor(t * 8) % 2;
-  const rows = DANCE[fr], X = x - 3 + (c.dance.partner != null ? 0 : sway), Y = y - rows.length + 1 - bob;
-  ctx.fillStyle = 'rgba(8,10,6,.35)'; ctx.fillRect(x - 2, y + 1, 5, 1);
-  for (let j = 0; j < rows.length; j++) for (let i = 0; i < rows[j].length; i++) {
-    const k = rows[j][i];
-    if (k === '.' || k === 'a') continue;
-    ctx.fillStyle = DANCE_PAL[k]; ctx.fillRect(X + i, Y + j, 1, 1);
-  }
-  // the feet (the hooves on whichever leg is down this beat)
-  ctx.fillStyle = DANCE_PAL.a;
-  ctx.fillRect(X + (fr ? 2 : 1), Y + 9, 1, 1); ctx.fillRect(X + (fr ? 5 : 4), Y + 9, 1, 1);
-  // the arms: out and up and down by turns; the one towards a partner held out level to meet theirs
   const partner = c.dance.partner != null && g.critters.find(o => o.id === c.dance.partner && !o.dead);
-  const toward = partner ? (partner.x > c.x ? 1 : -1) : 0;
-  for (const side of [-1, 1]) {
-    const ax = side < 0 ? X : X + 6, held = side === toward;
-    const up = held ? 0 : (fr ? side > 0 : side < 0) ? -2 : 0;
-    ctx.fillStyle = DANCE_PAL.B; ctx.fillRect(ax, Y + 5 + up, 1, 1); ctx.fillRect(ax, Y + 4 + up, 1, held ? 1 : 1);
-    ctx.fillStyle = DANCE_PAL.a; ctx.fillRect(ax + (held ? side : 0), Y + (held ? 5 : 3 + up), 1, 1);
-  }
+  const flip = c.fx < 0, rows = DANCE[fr];
+  const spr = mapSprite(h, 'fen-dance' + fr, rows, COW_PAL2, flip);
+  const sway = partner ? 0 : fr ? 1 : -1, bob = Math.floor(t * 8) % 2;
+  const X = x - (flip ? spr.width - 6 : 5) + sway, Y = y - spr.height + 2 - bob;   // (the sprite has a 1px ink ring)
+  ctx.fillStyle = 'rgba(8,10,6,.35)'; ctx.fillRect(x - 2, y + 1, 5, 1);
+  ctx.drawImage(spr, X, Y);
+  if (c.hitT > 0) { ctx.globalAlpha = 0.7; ctx.drawImage(h.tinted(spr, '#ffffff'), X, Y); ctx.globalAlpha = 1; }
 }
 
 // ---------------------------------------------------------------------------------------------- art: the Minotaur

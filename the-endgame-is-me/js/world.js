@@ -2370,8 +2370,17 @@ function charCorpses(g, test) {
 
 function updateFx(g, dt) {
   if (g.fires.length && g.corpses.length) for (const f of g.fires) if (f.t < f.life - 0.4) charCorpses(g, (x, y) => Math.hypot(x - f.x, y - f.y) < f.r);
-  // feathers drift down, rocking from side to side
-  for (const p of g.parts) if (p.float) { p.vy = Math.min(9, p.vy + 30 * dt); p.vx = Math.sin(p.t * 5 + p.seed) * 7; }
+  // feathers: a quick puff out to their places in the cloud, then a slow sink to the ground, rocking a little
+  for (const p of g.parts) if (p.float) {
+    p.vx = p.vy = 0;
+    const f = 1 - Math.exp(-20 * dt), mx = p.rx * f, my = p.ry * f;
+    p.x += mx; p.y += my; p.rx -= mx; p.ry -= my;
+    if (p.t > 0.2 && p.drop > 0) {
+      const dy = Math.min(p.drop, p.fall * dt), was = Math.sin(p.t * 3 + p.seed);
+      p.y += dy; p.drop -= dy;
+      p.x += (Math.sin((p.t + dt) * 3 + p.seed) - was) * 0.8;
+    }
+  }
   for (const p of g.parts) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; if (!p.horse) { p.vx *= Math.exp(-4 * dt); p.vy *= Math.exp(-4 * dt); } else p.walk += Math.abs(p.vx) * dt; }
   g.parts = g.parts.filter(p => p.t < p.life);
   for (const f of g.fires) f.t += dt;

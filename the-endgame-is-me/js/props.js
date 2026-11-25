@@ -323,11 +323,15 @@ export function hurtCritter(g, c, dmg, cause = null) {
   for (let i = 0; i < 6; i++) { const a = g.rng() * TAU, s = 10 + g.rng() * 25; API.part(g, c.x, c.y - 1, Math.cos(a) * s, Math.sin(a) * s, 0.35, d.bits || 'blood'); }
   const charred = cause === 'fire' || cause === 'beam', squish = !charred && cause === 'melee';
   if (!d.leaves && !d.noCorpse) g.corpses.push({ u: null, critter: c.kind, x: c.x, y: c.y, cls: null, t: 0, fx: c.fx, charred, squish });
-  // a chicken goes up in a puff of feathers (or of embers, if it was fire) that drift down around it
+  // A chicken goes up in a puff of feathers (or of embers, if it was fire): they pop out into a little cloud round where
+  // it stood, a few pixels bigger than the hen (an ellipse 5 across each way, 4 up and down, about its middle), then
+  // settle slowly down onto the ground it died on, none more than 2 pixels below it. All relative (rx/ry: the way
+  // still to go to its spot in the cloud; drop: how far it still has to sink), so the world can shift parts about.
   if (d.feathers) for (let i = 0; i < 16; i++) {
-    const a = g.rng() * TAU, s = 8 + g.rng() * 26, burnt = charred;
-    if (g.parts.length < 400) g.parts.push({ x: c.x + (g.rng() - 0.5) * 2, y: c.y - 2, vx: Math.cos(a) * s, vy: -10 - g.rng() * 22, t: 0, life: 1.6 + g.rng() * 1.6, float: true, seed: g.rng() * 9,
-      kind: burnt ? (g.rng() < 0.5 ? 'ember' : 'flame') : g.rng() < 0.7 ? '#f2efe2' : '#c8c0ac' });
+    const a = g.rng() * TAU, r = Math.sqrt(g.rng()), ox = Math.cos(a) * r * 5, oy = Math.sin(a) * r * 4;
+    if (g.parts.length < 400) g.parts.push({ x: c.x, y: c.y - 2, vx: 0, vy: 0, t: 0, life: 3.4 + g.rng() * 1.2, float: true, seed: g.rng() * 9,
+      rx: ox, ry: oy - 1, drop: 3 - oy + g.rng() * 2, fall: 2.5 + g.rng() * 2,
+      kind: charred ? (g.rng() < 0.5 ? 'ember' : 'flame') : g.rng() < 0.7 ? '#f2efe2' : '#c8c0ac' });
   }
   d.onDie?.(g, c);   // (the secret level's steers go off like bombs)
 }
