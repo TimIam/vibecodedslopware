@@ -1,0 +1,3140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Windows Across the Street · Vibe Coded Slopware</title>
+  <meta name="description" content="Eight-story nocturnal apartment screensaver with 24 multi-room units, 41 autonomous residents, four seasons, street services, and spaced anti-burn-in drift." />
+  <meta name="color-scheme" content="dark" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230a1020'/><rect x='18' y='16' width='64' height='68' rx='4' fill='%23291e23'/><rect x='26' y='26' width='18' height='14' fill='%23ffcf87'/><rect x='56' y='26' width='18' height='14' fill='%23182338'/><rect x='26' y='50' width='18' height='14' fill='%237cd8ff'/><rect x='56' y='50' width='18' height='14' fill='%23ffcf87'/></svg>" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #04060c;
+      --hud-bg: rgba(10, 14, 24, 0.84);
+      --hud-border: rgba(148, 163, 184, 0.22);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg); color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+    }
+    body { padding-top: 0 !important; }
+    body.idle { cursor: none; }
+    .site-topbar { transition: opacity 0.7s ease; }
+    body.idle .site-topbar, body.embed .site-topbar { opacity: 0; pointer-events: none; display: none; }
+    .stage {
+      position: relative; width: 100vw; height: 100vh;
+      display: flex; align-items: center; justify-content: center; background: #03050a;
+    }
+    canvas { width: 100%; height: 100%; object-fit: cover; display: block; cursor: default; }
+    body.idle canvas { cursor: none; }
+    .hud {
+      position: fixed; left: 16px; right: 16px; bottom: 14px;
+      display: flex; flex-direction: column; gap: 8px; padding: 10px 14px;
+      background: var(--hud-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--hud-border); border-radius: 12px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+      transition: opacity 0.6s ease, transform 0.45s ease; z-index: 20;
+    }
+    .hud.hidden { opacity: 0; transform: translateY(18px); pointer-events: none; }
+    .hud-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+    .group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .clock { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 600; font-size: 13px; color: #f8fafc; letter-spacing: 0.04em; padding-right: 4px; }
+    button, select {
+      background: rgba(25, 33, 52, 0.88); color: var(--text);
+      border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 6px;
+      padding: 4px 9px; font-size: 12px; font-family: inherit; cursor: pointer;
+    }
+    button:hover, select:hover { background: rgba(40, 52, 78, 0.95); border-color: rgba(203, 213, 225, 0.4); }
+    button.active { border-color: rgba(245, 158, 11, 0.65); color: #fde68a; }
+    button.primary { background: var(--accent); color: #0f172a; border-color: var(--accent); font-weight: 600; }
+    button.primary:hover { background: #fbbf24; }
+    .status-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      padding-top: 4px; border-top: 1px solid rgba(148, 163, 184, 0.14);
+    }
+    #inspectorText { color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #eventTicker { color: var(--muted); flex-shrink: 0; max-width: 44%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+  </style>
+  <link rel="stylesheet" href="/site-nav.css" />
+</head>
+<body>
+  <nav class="site-topbar" aria-label="Site">
+    <a class="site-home" href="/windows-across/" aria-label="Windows Across the Street info">← <span class="site-long">windows across the </span>street</a>
+    <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+  </nav>
+  <script src="/site-nav.js"></script>
+  <div class="stage"><canvas id="scene" width="1600" height="900"></canvas></div>
+  <div id="hud" class="hud">
+    <div class="hud-row">
+      <div class="group">
+        <span id="clockReadout" class="clock">22:35</span>
+        <button id="speedBtn" title="Simulation speed">1x</button>
+        <select id="seasonSelect" title="Season & Holidays">
+          <option value="winter" selected>Winter · Holidays</option>
+          <option value="halloween">Autumn · Halloween</option>
+          <option value="spring">Spring · Mild</option>
+          <option value="summer">Summer · Warm</option>
+          <option value="calendar">Auto (Calendar)</option>
+        </select>
+        <select id="weatherSelect" title="Weather">
+          <option value="auto" selected>Weather: Auto</option>
+          <option value="snow">Snow</option>
+          <option value="rain">Rain</option>
+          <option value="storm">Storm</option>
+          <option value="leaves">Autumn Leaves</option>
+          <option value="clear">Clear</option>
+        </select>
+        <button id="burnInBtn" class="active" title="Spaced, almost imperceptible anti-burn-in camera shifts">Anti-Burn: Spaced</button>
+        <button id="xrayBtn" title="Reveal 3-window apartment floorplans & doorways">Layouts</button>
+        <button id="audioBtn" title="Toggle procedural ambient city & rain audio">Sound: Off</button>
+        <button id="fullBtn" title="Toggle fullscreen (F)">Fullscreen</button>
+      </div>
+      <div class="group">
+        <select id="eventSelect" title="Preview a street or apartment event">
+          <option value="delivery">Package Delivery Van</option>
+          <option value="fire">Kitchen Fire + Fire Truck</option>
+          <option value="murder">Murder + Police Inspectors</option>
+          <option value="medical">Medical + Ambulance</option>
+          <option value="pizza">Late-Night Pizza Delivery</option>
+          <option value="argument">Couple Argument</option>
+          <option value="burglary">Dark Burglary</option>
+          <option value="ufo">UFO Abduction</option>
+          <option value="telescope">Telescope Spying Back</option>
+          <option value="blackout">Floor Power Flicker</option>
+          <option value="fuse">Blown Fuse</option>
+          <option value="disco">Late-Night Party</option>
+          <option value="random">Random Event</option>
+        </select>
+        <button id="triggerBtn" class="primary">Trigger</button>
+      </div>
+    </div>
+    <div class="status-row">
+      <div id="inspectorText">8 floors · 24 multi-room apartments · 41 residents — hover or click any apartment to inspect</div>
+      <div id="eventTicker">Quiet winter night · 24 units · 41 residents</div>
+    </div>
+  </div>
+  <script>
+(() => {
+// === catalog.js ===
+// 8-floor, 24-apartment (72-window) urban residential roster & 100+ procedural behaviors catalog.
+// Zero external assets — designed for calm, believable distant observation with rare dramatic peaks.
+
+const ROOM_TYPES = {
+  kitchen:  { wall: '#3e352c', floor: '#261f1a', spots: { stove: 0.22, counter: 0.50, fridge: 0.80, center: 0.50, door: 0.12 } },
+  living:   { wall: '#36323b', floor: '#221e26', spots: { couch: 0.34, tv: 0.82, window: 0.56, center: 0.48, table: 0.50, door: 0.14 } },
+  bedroom:  { wall: '#2c303d', floor: '#1c1e28', spots: { bed: 0.66, dresser: 0.22, window: 0.44, center: 0.46, door: 0.14 } },
+  office:   { wall: '#28333a', floor: '#192127', spots: { desk: 0.72, shelf: 0.22, window: 0.46, center: 0.48, door: 0.14 } },
+  sewing:   { wall: '#3e3239', floor: '#261e23', spots: { sewing: 0.36, plant: 0.78, chair: 0.62, window: 0.54, center: 0.50, door: 0.14 } },
+  studio:   { wall: '#38362e', floor: '#23211b', spots: { easel: 0.32, shelf: 0.76, window: 0.54, center: 0.50, door: 0.14 } },
+  dining:   { wall: '#3b322a', floor: '#241d18', spots: { table: 0.50, plant: 0.20, window: 0.78, center: 0.50, door: 0.14 } },
+  kids:     { wall: '#313647', floor: '#1f2230', spots: { bed: 0.70, desk: 0.26, center: 0.48, window: 0.46, door: 0.14 } }
+};
+
+// 100+ distinct named behaviors categorized across 4 tiers (used by the procedural utility planner & inspector)
+const BEHAVIOR_CATALOG = {
+  solo: [
+    // Kitchen & food (12)
+    { id: 'cook_stove', room: 'kitchen', spot: 'stove', pose: 'cook', label: 'Simmering dinner at stove', dur: [420, 760], carryAfter: 'plate' },
+    { id: 'chop_prep', room: 'kitchen', spot: 'counter', pose: 'cook', label: 'Chopping vegetables at counter', dur: [260, 480] },
+    { id: 'raid_fridge', room: 'kitchen', spot: 'fridge', pose: 'reach', label: 'Raiding the refrigerator', dur: [140, 240], fridge: true },
+    { id: 'wash_dishes', room: 'kitchen', spot: 'counter', pose: 'cook', label: 'Washing late-night dishes', dur: [280, 520] },
+    { id: 'brew_tea', room: 'kitchen', spot: 'counter', pose: 'cook', label: 'Brewing hot tea', dur: [180, 320], carryAfter: 'mug' },
+    { id: 'make_coffee', room: 'kitchen', spot: 'counter', pose: 'cook', label: 'Making late-night coffee', dur: [160, 280], carryAfter: 'mug' },
+    { id: 'midnight_snack', room: 'kitchen', spot: 'fridge', pose: 'reach', label: 'Grabbing a midnight snack', dur: [150, 260], fridge: true, carryAfter: 'plate' },
+    { id: 'pour_water', room: 'kitchen', spot: 'counter', pose: 'reach', label: 'Pouring a glass of water', dur: [110, 200], carryAfter: 'mug' },
+    { id: 'wipe_counters', room: 'kitchen', spot: 'counter', pose: 'clean', label: 'Wiping down kitchen counters', dur: [220, 380] },
+    { id: 'bake_treat', room: 'kitchen', spot: 'stove', pose: 'cook', label: 'Checking something in the oven', dur: [260, 420] },
+    { id: 'unpack_groceries', room: 'kitchen', spot: 'counter', pose: 'reach', label: 'Putting away groceries', dur: [240, 420] },
+    { id: 'sort_trash', room: 'kitchen', spot: 'door', pose: 'reach', label: 'Tying up the kitchen trash', dur: [140, 240] },
+    // Living & leisure (16)
+    { id: 'watch_tv', room: 'living', spot: 'couch', pose: 'sit', label: 'Watching late-night TV', dur: [820, 1500], tv: true },
+    { id: 'game_console', room: 'living', spot: 'couch', pose: 'sit', label: 'Playing console games', dur: [760, 1400], tv: true },
+    { id: 'read_couch', room: 'living', spot: 'couch', pose: 'read', label: 'Reading a novel on the sofa', dur: [700, 1300] },
+    { id: 'doze_couch', room: 'living', spot: 'couch', pose: 'slump', label: 'Falling asleep on the couch', dur: [860, 1500], tv: true },
+    { id: 'pace_phone', room: 'living', spot: 'center', pose: 'phone', label: 'Pacing on a quiet phone call', dur: [320, 580] },
+    { id: 'stare_window', room: 'living', spot: 'window', pose: 'window', label: 'Staring quietly down at the street', dur: [360, 720] },
+    { id: 'home_yoga', room: 'living', spot: 'center', pose: 'yoga', label: 'Stretching on a yoga mat', dur: [420, 740] },
+    { id: 'light_workout', room: 'living', spot: 'center', pose: 'workout', label: 'Doing evening calisthenics', dur: [320, 560] },
+    { id: 'vacuum_rug', room: 'living', spot: 'center', pose: 'clean', label: 'Vacuuming the living room', dur: [260, 460] },
+    { id: 'sweep_floor', room: 'living', spot: 'center', pose: 'clean', label: 'Sweeping across the floorboards', dur: [240, 400] },
+    { id: 'fold_laundry', room: 'living', spot: 'couch', pose: 'sew', label: 'Folding laundry in front of TV', dur: [460, 820], tv: true },
+    { id: 'play_guitar', room: 'living', spot: 'couch', pose: 'instrument', label: 'Strumming an acoustic guitar', dur: [480, 860] },
+    { id: 'listen_records', room: 'living', spot: 'window', pose: 'sway', label: 'Listening to vinyl records', dur: [420, 760] },
+    { id: 'adjust_blinds', room: 'living', spot: 'window', pose: 'reach', label: 'Adjusting the window blinds', dur: [120, 200], toggleBlinds: true },
+    { id: 'tend_pet', room: 'living', spot: 'center', pose: 'crouch', label: 'Petting the apartment cat', dur: [220, 380] },
+    { id: 'search_keys', room: 'living', spot: 'table', pose: 'reach', label: 'Looking around for misplaced keys', dur: [180, 300] },
+    // Work, study & hobbies (12)
+    { id: 'work_monitor', room: 'office', spot: 'desk', pose: 'type', label: 'Working late at dual monitors', dur: [900, 1600], monitor: true },
+    { id: 'code_night', room: 'office', spot: 'desk', pose: 'type', label: 'Debugging code by monitor glow', dur: [850, 1500], monitor: true },
+    { id: 'browse_shelf', room: 'office', spot: 'shelf', pose: 'reach', label: 'Browsing bookshelf for a book', dur: [200, 340] },
+    { id: 'sort_mail', room: 'office', spot: 'desk', pose: 'read', label: 'Sorting bills and mail at desk', dur: [340, 620] },
+    { id: 'video_call', room: 'office', spot: 'desk', pose: 'phone', label: 'Quiet late-night video call', dur: [420, 760], monitor: true },
+    { id: 'sew_table', room: 'sewing', spot: 'sewing', pose: 'sew', label: 'Sewing fabric under task lamp', dur: [820, 1450] },
+    { id: 'knit_chair', room: 'sewing', spot: 'chair', pose: 'sew', label: 'Knitting a wool scarf', dur: [760, 1320] },
+    { id: 'water_plants', room: 'sewing', spot: 'plant', pose: 'reach', label: 'Watering windowsill houseplants', dur: [220, 380] },
+    { id: 'iron_clothes', room: 'sewing', spot: 'sewing', pose: 'clean', label: 'Ironing a shirt for tomorrow', dur: [280, 480] },
+    { id: 'paint_easel', room: 'studio', spot: 'easel', pose: 'paint', label: 'Painting quietly on canvas', dur: [820, 1450] },
+    { id: 'mix_paints', room: 'studio', spot: 'shelf', pose: 'reach', label: 'Mixing pigments at supply shelf', dur: [220, 360] },
+    { id: 'admire_canvas', room: 'studio', spot: 'window', pose: 'window', label: 'Stepping back to study canvas', dur: [240, 420] },
+    // Dining, bedroom & kids (12)
+    { id: 'eat_dining', room: 'dining', spot: 'table', pose: 'sit', label: 'Eating dinner at dining table', dur: [540, 920] },
+    { id: 'journal_dining', room: 'dining', spot: 'table', pose: 'read', label: 'Writing in a notebook at table', dur: [480, 840] },
+    { id: 'sleep_bed', room: 'bedroom', spot: 'bed', pose: 'sleep', label: 'Sleeping quietly', dur: [1200, 2200], dimRoom: true },
+    { id: 'read_bed', room: 'bedroom', spot: 'bed', pose: 'sleep', label: 'Reading by bedside lamp', dur: [540, 900] },
+    { id: 'get_dressed', room: 'bedroom', spot: 'dresser', pose: 'reach', label: 'Picking out clothes at dresser', dur: [200, 340] },
+    { id: 'insomniac_win', room: 'bedroom', spot: 'window', pose: 'window', label: 'Awake late gazing at the night', dur: [360, 680], dimRoom: true },
+    { id: 'pack_bag', room: 'bedroom', spot: 'dresser', pose: 'reach', label: 'Packing an overnight bag', dur: [280, 480] },
+    { id: 'kid_homework', room: 'kids', spot: 'desk', pose: 'type', label: 'Finishing homework at desk', dur: [520, 920] },
+    { id: 'kid_sleep', room: 'kids', spot: 'bed', pose: 'sleep', label: 'Asleep in bunk bed', dur: [1400, 2400], dimRoom: true },
+    { id: 'kid_window', room: 'kids', spot: 'window', pose: 'window', label: 'Watching cars pass below', dur: [260, 460] },
+    { id: 'light_menorah', room: 'living', spot: 'window', pose: 'reach', label: 'Lighting the Hanukkah menorah', dur: [320, 560], winterMenorahOnly: true },
+    { id: 'admire_tree', room: 'living', spot: 'window', pose: 'window', label: 'Admiring the lit holiday tree', dur: [300, 540], winterTreeOnly: true }
+  ],
+  social: [
+    'Cooking dinner together', 'Sharing a meal at the table', 'Cuddling on the sofa',
+    'Slow-dancing in the living room', 'Watching a movie together', 'Playing a board game',
+    'Quiet late-night talk over tea', 'Reading side by side', 'Looking out at the weather together',
+    'Folding laundry together', 'Helping tuck child into bed', 'Helping child with homework',
+    'Unpacking boxes together', 'Mild bickering over TV remote', 'Comforting partner after long shift',
+    'Toasting drinks in living room', 'Checking in on sleeping child', 'Sharing leftovers at the fridge',
+    'Admiring painting together', 'Planning trip at dining table', 'Showing off a new delivery',
+    'Practicing dance steps', 'Listening to music together', 'Working quietly in separate rooms',
+    'Warm embrace by the window', 'Waving down to the street', 'Reviewing finances at desk',
+    'Cleaning up kitchen together', 'Reconciling after a disagreement', 'Hosting a quiet dinner guest'
+  ],
+  quirky: [
+    'Solo midnight dance session', 'Checking street with binoculars', 'Practicing dramatic speech',
+    'Talking to a houseplant', 'Shadowboxing in living room', 'Chasing a stray moth',
+    'Candlelit meditation circle', 'Fixing a flickering desk lamp', 'Rearranging wall art',
+    'Hiding a wrapped holiday gift', 'Late-night espresso pacing', 'Studying a conspiracy corkboard',
+    'Peeking nervously through blinds', 'Assembling flat-pack furniture', 'Juggling in living room',
+    'Stretching awkwardly on floor', 'Checking hallway peephole', 'Midnight photography flash',
+    'Trying on vintage coats', 'Staring right back across the street'
+  ],
+  dramaticEvents: [
+    'delivery', 'fire', 'murder', 'medical', 'argument', 'burglary', 'ufo',
+    'fuse', 'disco', 'blackout', 'pizza', 'balcony_lock', 'moving_boxes', 'telescope', 'standoff'
+  ]
+};
+
+// 8 Floors (floor 0 = top 8th floor, floor 7 = 1st floor above lobby) × 3 Multi-Window Apartments/Floor = 24 Units (72 Windows)!
+const APARTMENT_SPECS = [
+  // --- FLOOR 8 (Top Floor, floorIdx = 0) ---
+  {
+    id: '8A', floor: 0, col: 0, label: 'The Chen Family', rooms: ['kitchen', 'living', 'kids'], startLit: 1,
+    decor: { xmasTree: 1, xmasLights: true, menorah: -1, pumpkin: 1, spookyGlow: false, flowers: 0, ac: 2 },
+    residents: [
+      { name: 'Mei', shirt: '#c86a6a', pants: '#344154', hair: '#1a181c', skin: '#e8c4a4', scale: 0.96, startRoom: 0, startPose: 'cook', startActivity: 'Washing evening dishes' },
+      { name: 'Kenji', shirt: '#4f7a9e', pants: '#2a323d', hair: '#18181c', skin: '#e5be9e', scale: 1.03, startRoom: 1, startPose: 'sit', startActivity: 'Reading on the sofa' },
+      { name: 'Leo', shirt: '#68a678', pants: '#363d4c', hair: '#1b191e', skin: '#ecc6a6', scale: 0.72, startRoom: 2, startPose: 'sleep', startActivity: 'Asleep in bunk bed' }
+    ]
+  },
+  {
+    id: '8B', floor: 0, col: 1, label: 'Night-Owl Bachelor (Marcus)', rooms: ['bedroom', 'living', 'kitchen'], startLit: 1,
+    decor: { xmasTree: -1, xmasLights: false, menorah: -1, pumpkin: 1, spookyGlow: true, flowers: -1, ac: 0 },
+    residents: [
+      { name: 'Marcus', shirt: '#5e996c', pants: '#2d3340', hair: '#211b17', skin: '#cfa07b', scale: 1.04, startRoom: 1, startPose: 'sit', startActivity: 'Watching late-night TV' }
+    ]
+  },
+  {
+    id: '8C', floor: 0, col: 2, label: 'The Goldberg Family (Jewish)', rooms: ['office', 'living', 'kitchen'], startLit: 1,
+    decor: { xmasTree: -1, xmasLights: false, menorah: 1, pumpkin: -1, spookyGlow: false, flowers: 2, ac: 0 },
+    residents: [
+      { name: 'Rachel', shirt: '#9c78b8', pants: '#323042', hair: '#3b2820', skin: '#edd0b6', scale: 0.96, startRoom: 1, startPose: 'window', startActivity: 'Lighting the Hanukkah menorah' },
+      { name: 'Daniel', shirt: '#537396', pants: '#28303b', hair: '#241e1a', skin: '#e6c0a1', scale: 1.02, startRoom: 0, startPose: 'type', startActivity: 'Finishing work at desk' }
+    ]
+  },
+
+  // --- FLOOR 7 (floorIdx = 1) ---
+  {
+    id: '7A', floor: 1, col: 0, label: 'Remote Engineer (Sam)', rooms: ['office', 'living', 'bedroom'], startLit: 0,
+    decor: { xmasTree: 1, xmasLights: false, menorah: -1, pumpkin: -1, spookyGlow: false, flowers: -1, ac: 2 },
+    residents: [
+      { name: 'Sam', shirt: '#d69d49', pants: '#2b323d', hair: '#453022', skin: '#e6bc9c', scale: 1.0, startRoom: 0, startPose: 'type', startActivity: 'Coding by dual monitors' }
+    ]
+  },
+  {
+    id: '7B', floor: 1, col: 1, label: 'The Alvarez Family', rooms: ['kitchen', 'living', 'bedroom'], startLit: -1,
+    decor: { xmasTree: 1, xmasLights: true, menorah: -1, pumpkin: 1, spookyGlow: false, flowers: 1, ac: 2 },
+    residents: [
+      { name: 'Sofia', shirt: '#cf677c', pants: '#323545', hair: '#211818', skin: '#d6a481', scale: 0.95, startRoom: 2, startPose: 'sleep', startActivity: 'Sleeping quietly' },
+      { name: 'Mateo', shirt: '#6a8299', pants: '#262b33', hair: '#1d1917', skin: '#c48f6b', scale: 1.03, startRoom: 2, startPose: 'sleep', startActivity: 'Sleeping quietly' }
+    ]
+  },
+  {
+    id: '7C', floor: 1, col: 2, label: 'Painter (Nora)', rooms: ['studio', 'living', 'kitchen'], startLit: 0,
+    decor: { xmasTree: -1, xmasLights: false, menorah: -1, pumpkin: 0, spookyGlow: true, flowers: 0, ac: -1 },
+    residents: [
+      { name: 'Nora', shirt: '#49a398', pants: '#323742', hair: '#7d3828', skin: '#f0cbb0', scale: 0.96, startRoom: 0, startPose: 'paint', startActivity: 'Painting quietly at easel' }
+    ]
+  },
+
+  // --- FLOOR 6 (floorIdx = 2) ---
+  {
+    id: '6A', floor: 2, col: 0, label: 'Couple (Maya & Devon)', rooms: ['kitchen', 'living', 'office'], startLit: 1,
+    decor: { xmasTree: 1, xmasLights: true, menorah: -1, pumpkin: 1, spookyGlow: false, flowers: 0, ac: 2 },
+    residents: [
+      { name: 'Maya', shirt: '#d46a6a', pants: '#344457', hair: '#2a1d17', skin: '#e8be9e', scale: 0.95, startRoom: 1, startPose: 'read', startActivity: 'Reading on couch' },
+      { name: 'Devon', shirt: '#5b8fb9', pants: '#2b3438', hair: '#1c1917', skin: '#b07b55', scale: 1.04, startRoom: 2, startPose: 'type', startActivity: 'Working late at monitor' }
+    ]
+  },
+  {
+    id: '6B', floor: 2, col: 1, label: 'Quiet Loner (Arthur)', rooms: ['living', 'office', 'bedroom'], startLit: -1,
+    decor: { xmasTree: -1, xmasLights: false, menorah: -1, pumpkin: -1, spookyGlow: false, flowers: -1, ac: -1 },
+    residents: [
+      { name: 'Arthur', shirt: '#8a6c53', pants: '#2c2927', hair: '#736c64', skin: '#e6c0a1', scale: 1.0, startRoom: 2, startPose: 'sleep', startActivity: 'Asleep in dark bedroom' }
+    ]
+  },
+  {
+    id: '6C', floor: 2, col: 2, label: 'The Patel Family', rooms: ['kitchen', 'dining', 'living'], startLit: 1,
+    decor: { xmasTree: -1, xmasLights: true, menorah: -1, pumpkin: 2, spookyGlow: false, flowers: 1, ac: 2 },
+    residents: [
+      { name: 'Priya', shirt: '#c97859', pants: '#2f3240', hair: '#17151a', skin: '#b8825c', scale: 0.95, startRoom: 0, startPose: 'cook', startActivity: 'Brewing evening chai' },
+      { name: 'Rohan', shirt: '#58789c', pants: '#262b36', hair: '#17151a', skin: '#ad7853', scale: 1.03, startRoom: 1, startPose: 'sit', startActivity: 'Reading at dining table' },
+      { name: 'Ananya', shirt: '#e0a952', pants: '#343b4a', hair: '#17151a', skin: '#bc8660', scale: 0.72, startRoom: 2, startPose: 'sit', startActivity: 'Drawing on living rug' }
+    ]
+  },
+
+  // --- FLOOR 5 (floorIdx = 3) ---
+  {
+    id: '5A', floor: 3, col: 0, label: 'Seamstress (Eleanor)', rooms: ['sewing', 'living', 'kitchen'], startLit: 0,
+    decor: { xmasTree: 1, xmasLights: true, menorah: -1, pumpkin: 0, spookyGlow: false, flowers: 0, ac: -1 },
+    residents: [
+      { name: 'Eleanor', shirt: '#b689c0', pants: '#3c3244', hair: '#cfd3da', skin: '#efd0b6', scale: 0.93, startRoom: 0, startPose: 'sew', startActivity: 'Sewing under warm task lamp' }
+    ]
+  },
+  {
+    id: '5B', floor: 3, col: 1, label: 'Roommates (Chloe & Ben)', rooms: ['studio', 'living', 'kitchen'], startLit: 1,
+    decor: { xmasTree: 1, xmasLights: false, menorah: -1, pumpkin: 1, spookyGlow: true, flowers: 1, ac: 0 },
+    residents: [
+      { name: 'Chloe', shirt: '#54a8a0', pants: '#353a46', hair: '#873d2c', skin: '#f1ccb0', scale: 0.96, startRoom: 1, startPose: 'sit', startActivity: 'Watching muted TV' },
+      { name: 'Ben', shirt: '#c77c48', pants: '#2d3436', hair: '#241e1a', skin: '#c48f68', scale: 1.03, startRoom: 2, startPose: 'cook', startActivity: 'Heating midnight noodles' }
+    ]
+  },
+  {
+    id: '5C', floor: 3, col: 2, label: 'Night Nurse (Tessa)', rooms: ['bedroom', 'living', 'kitchen'], startLit: -1,
+    decor: { xmasTree: -1, xmasLights: false, menorah: -1, pumpkin: -1, spookyGlow: false, flowers: 1, ac: 0 },
+    residents: [
+      { name: 'Tessa', shirt: '#6a94b8', pants: '#2c3542', hair: '#3b2b20', skin: '#e8c1a2', scale: 0.96, startRoom: 0, startPose: 'sleep', startActivity: 'Resting before shift' }
+    ]
+  },
+
+  // --- FLOOR 4 (floorIdx = 4) ---
+  {
+    id: '4A', floor: 4, col: 0, label: 'Jewish Family (Miriam & Avi)', rooms: ['sewing', 'living', 'kids'], startLit: 1,
+    decor: { xmasTree: -1, xmasLights: false, menorah: 1, pumpkin: -1, spookyGlow: false, flowers: 0, ac: -1 },
+    residents: [
+      { name: 'Miriam', shirt: '#7b99c4', pants: '#313747', hair: '#4a3228', skin: '#edd0b6', scale: 0.96, startRoom: 1, startPose: 'sit', startActivity: 'Relaxing by menorah glow' },
+      { name: 'Avi', shirt: '#5c728a', pants: '#29303b', hair: '#241e1b', skin: '#e4bd9d', scale: 1.02, startRoom: 1, startPose: 'window', startActivity: 'Admiring the lit menorah' },
+      { name: 'Noa', shirt: '#d4879a', pants: '#363b4c', hair: '#3b2720', skin: '#efd0b6', scale: 0.72, startRoom: 2, startPose: 'sleep', startActivity: 'Asleep in bedroom' }
+    ]
+  },
+  {
+    id: '4B', floor: 4, col: 1, label: 'Volatile Couple (Elena & Victor)', rooms: ['kitchen', 'living', 'bedroom'], startLit: 1,
+    decor: { xmasTree: 1, xmasLights: true, menorah: -1, pumpkin: 1, spookyGlow: false, flowers: -1, ac: 2 },
+    residents: [
+      { name: 'Elena', shirt: '#cf5c78', pants: '#2b2d3c', hair: '#1c1718', skin: '#f0c8ac', scale: 0.96, startRoom: 0, startPose: 'cook', startActivity: 'Making late dinner' },
+      { name: 'Victor', shirt: '#7d8a97', pants: '#23282e', hair: '#382a20', skin: '#d9ad8b', scale: 1.04, startRoom: 1, startPose: 'window', startActivity: 'Staring out at the rain' }
+    ]
+  },
+  {
+    id: '4C', floor: 4, col: 2, label: 'Writer (Julian)', rooms: ['office', 'living', 'bedroom'], startLit: 0,
+    decor: { xmasTree: -1, xmasLights: false, menorah: -1, pumpkin: 1, spookyGlow: true, flowers: -1, ac: -1 },
+    residents: [
+      { name: 'Julian', shirt: '#94775c', pants: '#2e2b29', hair: '#30251e', skin: '#e3bb9c', scale: 1.01, startRoom: 0, startPose: 'type', startActivity: 'Typing late-night manuscript' }
+    ]
+  },
+
+  // --- FLOOR 3 (floorIdx = 5) ---
+  {
+    id: '3A', floor: 5, col: 0, label: 'The Brooks Family', rooms: ['kitchen', 'living', 'kids'], startLit: -1,
+    decor: { xmasTree: 1, xmasLights: true, menorah: -1, pumpkin: 1, spookyGlow: false, flowers: 0, ac: 2 },
+    residents: [
+      { name: 'Hannah', shirt: '#7d9e77', pants: '#313a3d', hair: '#593e2b', skin: '#ebd0b7', scale: 0.96, startRoom: 1, startPose: 'sit', startActivity: 'Folding laundry quietly' },
+      { name: 'Greg', shirt: '#62738c', pants: '#282f3a', hair: '#332820', skin: '#e3bc9d', scale: 1.04, startRoom: 1, startPose: 'sit', startActivity: 'Watching muted news' },
+      { name: 'Eli', shirt: '#d98f4a', pants: '#303645', hair: '#4a3324', skin: '#ebd0b7', scale: 0.72, startRoom: 2, startPose: 'sleep', startActivity: 'Asleep in bedroom' }
+    ]
+  },
+  {
+    id: '3B', floor: 5, col: 1, label: 'Musician (Dante)', rooms: ['studio', 'living', 'bedroom'], startLit: 1,
+    decor: { xmasTree: -1, xmasLights: false, menorah: -1, pumpkin: 0, spookyGlow: true, flowers: -1, ac: 2 },
+    residents: [
+      { name: 'Dante', shirt: '#a85a68', pants: '#242730', hair: '#1a1716', skin: '#996645', scale: 1.03, startRoom: 1, startPose: 'instrument', startActivity: 'Strumming acoustic guitar' }
+    ]
+  },
+  {
+    id: '3C', floor: 5, col: 2, label: 'Elderly Couple (Ruth & Walter)', rooms: ['dining', 'living', 'bedroom'], startLit: -1,
+    decor: { xmasTree: 1, xmasLights: true, menorah: -1, pumpkin: 0, spookyGlow: false, flowers: 0, ac: -1 },
+    residents: [
+      { name: 'Ruth', shirt: '#a8849e', pants: '#36323d', hair: '#d8dce3', skin: '#efd2ba', scale: 0.92, startRoom: 2, startPose: 'sleep', startActivity: 'Sleeping peacefully' },
+      { name: 'Walter', shirt: '#6c7c8c', pants: '#2c3038', hair: '#c9ced6', skin: '#e8c4a6', scale: 0.98, startRoom: 2, startPose: 'sleep', startActivity: 'Sleeping peacefully' }
+    ]
+  },
+
+  // --- FLOOR 2 (floorIdx = 6) ---
+  {
+    id: '2A', floor: 6, col: 0, label: 'Grad Students (Aisha & Zara)', rooms: ['office', 'living', 'kitchen'], startLit: 0,
+    decor: { xmasTree: -1, xmasLights: false, menorah: -1, pumpkin: 1, spookyGlow: false, flowers: 1, ac: 0 },
+    residents: [
+      { name: 'Aisha', shirt: '#5e9691', pants: '#2d3440', hair: '#19161a', skin: '#8c5a3c', scale: 0.96, startRoom: 0, startPose: 'type', startActivity: 'Studying at desk monitor' },
+      { name: 'Zara', shirt: '#c98855', pants: '#2c313d', hair: '#1f191a', skin: '#a6714d', scale: 0.96, startRoom: 2, startPose: 'cook', startActivity: 'Making late-night tea' }
+    ]
+  },
+  {
+    id: '2B', floor: 6, col: 1, label: 'Jewish Solo Resident (Hannah K.)', rooms: ['kitchen', 'living', 'bedroom'], startLit: 1,
+    decor: { xmasTree: -1, xmasLights: false, menorah: 1, pumpkin: -1, spookyGlow: false, flowers: 1, ac: -1 },
+    residents: [
+      { name: 'Hannah K.', shirt: '#5c82b0', pants: '#2d3340', hair: '#38251d', skin: '#edd0b6', scale: 0.96, startRoom: 1, startPose: 'read', startActivity: 'Reading near window menorah' }
+    ]
+  },
+  {
+    id: '2C', floor: 6, col: 2, label: 'Late-Shift Worker (Ray)', rooms: ['kitchen', 'dining', 'bedroom'], startLit: -1,
+    decor: { xmasTree: -1, xmasLights: true, menorah: -1, pumpkin: 1, spookyGlow: false, flowers: -1, ac: 2 },
+    residents: [
+      { name: 'Ray', shirt: '#6c7bc4', pants: '#262b38', hair: '#1d1b1a', skin: '#9e6b49', scale: 1.03, startRoom: 2, startPose: 'sleep', startActivity: 'Resting after shift' }
+    ]
+  },
+
+  // --- FLOOR 1 (Above Lobby, floorIdx = 7) ---
+  {
+    id: '1A', floor: 7, col: 0, label: 'The Kowalski Family', rooms: ['kitchen', 'living', 'bedroom'], startLit: 1,
+    decor: { xmasTree: 1, xmasLights: true, menorah: -1, pumpkin: 1, spookyGlow: false, flowers: 0, ac: 2 },
+    residents: [
+      { name: 'Marek', shirt: '#6a7d8f', pants: '#2a3038', hair: '#4a3d31', skin: '#ebc7ab', scale: 1.03, startRoom: 1, startPose: 'sit', startActivity: 'Watching late news' },
+      { name: 'Anya', shirt: '#b86878', pants: '#343642', hair: '#6b4e38', skin: '#f0ceb4', scale: 0.95, startRoom: 0, startPose: 'cook', startActivity: 'Tidying the kitchen' }
+    ]
+  },
+  {
+    id: '1B', floor: 7, col: 1, label: 'Super / Handyman (Frank)', rooms: ['office', 'living', 'kitchen'], startLit: -1,
+    decor: { xmasTree: -1, xmasLights: false, menorah: -1, pumpkin: -1, spookyGlow: false, flowers: -1, ac: -1 },
+    residents: [
+      { name: 'Frank', shirt: '#7d6b56', pants: '#2b2d33', hair: '#595550', skin: '#deb696', scale: 1.02, startRoom: 1, startPose: 'sit', startActivity: 'Dozing in armchair' }
+    ]
+  },
+  {
+    id: '1C', floor: 7, col: 2, label: 'Newlyweds (Clara & Owen)', rooms: ['dining', 'living', 'bedroom'], startLit: 1,
+    decor: { xmasTree: 1, xmasLights: true, menorah: -1, pumpkin: 1, spookyGlow: false, flowers: 1, ac: 2 },
+    residents: [
+      { name: 'Clara', shirt: '#c97b8a', pants: '#333645', hair: '#6e4730', skin: '#f2ceb5', scale: 0.95, startRoom: 1, startPose: 'sway', startActivity: 'Listening to vinyl together' },
+      { name: 'Owen', shirt: '#598276', pants: '#283033', hair: '#3b2b1e', skin: '#e6c0a2', scale: 1.03, startRoom: 1, startPose: 'sway', startActivity: 'Slow-dancing in living room' }
+    ]
+  }
+];
+
+
+// === audio.js ===
+// Zero-asset procedural Web Audio ambient soundscape (soft rain/wind + distant city hum + muffled emergency sirens)
+// Muted by default until toggled by the user.
+
+class AmbientAudio {
+  constructor() {
+    this.enabled = false;
+    this.ctx = null;
+    this.master = null;
+    this.rainGain = null;
+    this.cityGain = null;
+    this.sirenOsc = null;
+    this.sirenGain = null;
+  }
+
+  toggle() {
+    if (!this.enabled) {
+      this.start();
+    } else {
+      this.stop();
+    }
+    return this.enabled;
+  }
+
+  start() {
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.ctx = new AC();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.001;
+      this.master.connect(this.ctx.destination);
+
+      // Filtered noise buffer for soft rain / breeze / city air
+      const len = this.ctx.sampleRate * 3;
+      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      let lastOut = 0;
+      for (let i = 0; i < len; i++) {
+        const white = Math.random() * 2 - 1;
+        data[i] = (lastOut + 0.04 * white) / 1.04;
+        lastOut = data[i];
+      }
+
+      // Rain / wind layer
+      const rainSrc = this.ctx.createBufferSource();
+      rainSrc.buffer = buf;
+      rainSrc.loop = true;
+      const rainFilter = this.ctx.createBiquadFilter();
+      rainFilter.type = 'bandpass';
+      rainFilter.frequency.value = 900;
+      rainFilter.Q.value = 0.6;
+      this.rainGain = this.ctx.createGain();
+      this.rainGain.gain.value = 0.09;
+      rainSrc.connect(rainFilter).connect(this.rainGain).connect(this.master);
+      rainSrc.start();
+
+      // Low urban hum
+      const citySrc = this.ctx.createBufferSource();
+      citySrc.buffer = buf;
+      citySrc.loop = true;
+      const cityFilter = this.ctx.createBiquadFilter();
+      cityFilter.type = 'lowpass';
+      cityFilter.frequency.value = 140;
+      this.cityGain = this.ctx.createGain();
+      this.cityGain.gain.value = 0.16;
+      citySrc.connect(cityFilter).connect(this.cityGain).connect(this.master);
+      citySrc.start();
+
+      // Faint distant muffled siren oscillator (only raised when emergency vehicle approaches)
+      this.sirenOsc = this.ctx.createOscillator();
+      this.sirenOsc.type = 'sine';
+      this.sirenOsc.frequency.value = 540;
+      const sirenFilter = this.ctx.createBiquadFilter();
+      sirenFilter.type = 'lowpass';
+      sirenFilter.frequency.value = 650;
+      this.sirenGain = this.ctx.createGain();
+      this.sirenGain.gain.value = 0.0;
+      this.sirenOsc.connect(sirenFilter).connect(this.sirenGain).connect(this.master);
+      this.sirenOsc.start();
+    }
+
+    if (this.ctx.state === 'suspended') this.ctx.resume();
+    this.master.gain.setTargetAtTime(0.35, this.ctx.currentTime, 0.35);
+    this.enabled = true;
+  }
+
+  stop() {
+    if (this.ctx && this.master) {
+      this.master.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.25);
+    }
+    this.enabled = false;
+  }
+
+  update(weather, hasEmergencyArriving, timeSec) {
+    if (!this.enabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const rainTarget = weather === 'storm' ? 0.16 : weather === 'rain' ? 0.095 : weather === 'snow' ? 0.025 : 0.018;
+    this.rainGain.gain.setTargetAtTime(rainTarget, now, 0.4);
+
+    if (hasEmergencyArriving) {
+      const wail = 520 + Math.sin(timeSec * 3.8) * 140;
+      this.sirenOsc.frequency.setTargetAtTime(wail, now, 0.06);
+      this.sirenGain.gain.setTargetAtTime(0.018, now, 0.3);
+    } else {
+      this.sirenGain.gain.setTargetAtTime(0.0, now, 0.5);
+    }
+  }
+}
+
+
+// === simulation.js ===
+
+const VIEW_W = 1600;
+const VIEW_H = 900;
+
+const BLDG = {
+  x: 307,
+  y: 110,
+  w: 986,
+  h: 674, // 20 topPad + 8 * 74 floors + 62 lobby base = 674 -> bottom y = 784
+  floors: 8,
+  floorH: 74,
+  winW: 86,
+  winH: 50,
+  innerPillar: 14,
+  aptGap: 32,
+  sideMargin: 32,
+  topPad: 20,
+  lobbyY: 722,
+  streetY: 784
+};
+
+function detectCalendarSeason() {
+  const m = new Date().getMonth(); // 0=Jan..11=Dec
+  if (m === 11 || m === 0 || m === 1) return 'winter';
+  if (m === 9 || m === 10) return 'halloween';
+  if (m >= 2 && m <= 4) return 'spring';
+  return 'summer';
+}
+
+class VoyeurSimulation {
+  constructor() {
+    this.frame = 0;
+    this.simSpeed = 1;
+    this.season = 'winter'; // default showcases both Christmas trees & Hanukkah menorahs right away
+    this.weatherMode = 'auto';
+    this.xrayMode = false;
+    this.simTime = 22 * 60 + 35; // 22:35
+
+    // Anti-burn-in camera: SPACED-OUT, ALMOST IMPERCEPTIBLE shifts (NOT constant!)
+    this.burnInProtection = true;
+    this.camX = 0;
+    this.camY = 0;
+    this.camFromX = 0;
+    this.camFromY = 0;
+    this.camTargetX = 0;
+    this.camTargetY = 0;
+    this.camState = 'hold'; // 'hold' | 'shifting'
+    this.camTimer = 2700;   // ~45s steady hold before first whisper-slow shift
+    this.camDuration = 1200; // ~20s ultra-slow glide (almost imperceptible!)
+
+    this.lightningFlash = 0;
+    this.lastTicker = 'Quiet winter night · 24 units · 41 residents';
+    this.autoEventCooldown = 2900; // ~48s calm night before first natural street/building event
+
+    this.apartments = this._buildApartments();
+    this.stars = this._buildStars();
+    this.skyline = this._buildSkyline();
+    this.sideBuildings = this._buildSideBuildings();
+    this.clouds = this._buildClouds();
+    this.raindrops = this._buildRain();
+    this.snowflakes = this._buildSnow();
+    this.leaves = this._buildLeaves();
+    this.fireflies = this._buildFireflies();
+
+    // Street entities
+    this.cars = [];
+    this.pedestrians = [];
+    this.fireTruck = null;
+    this.policeUnit = null;
+    this.ambulance = null;
+    this.deliveryVan = null;
+    this.ufo = null;
+  }
+
+  activeWeather() {
+    if (this.weatherMode !== 'auto') return this.weatherMode;
+    if (this.season === 'winter') return 'snow';
+    if (this.season === 'halloween') return 'leaves';
+    if (this.season === 'spring') return 'rain';
+    return 'clear';
+  }
+
+  _buildApartments() {
+    const unitW = 3 * BLDG.winW + 2 * BLDG.innerPillar; // 286px
+    return APARTMENT_SPECS.map((spec) => {
+      const baseX = BLDG.x + BLDG.sideMargin + spec.col * (unitW + BLDG.aptGap);
+      const baseY = BLDG.y + BLDG.topPad + spec.floor * BLDG.floorH;
+
+      const rooms = spec.rooms.map((type, idx) => {
+        const isLit = spec.startLit === idx;
+        const isTv = isLit && type === 'living' && (spec.id === '8B' || spec.id === '5B' || spec.id === '1A');
+        const isMon = (spec.id === '7A' || spec.id === '6A' || spec.id === '4C' || spec.id === '2A') && type === 'office';
+        return {
+          idx, type,
+          x: baseX + idx * (BLDG.winW + BLDG.innerPillar),
+          y: baseY,
+          w: BLDG.winW,
+          h: BLDG.winH,
+          light: isMon ? 'monitor' : (isTv ? 'tv' : (isLit ? 'warm' : 'off')),
+          lightTimer: 0,
+          tvOn: isTv,
+          monitorOn: isMon,
+          fridgeOpen: 0,
+          blinds: 0.08 + (Math.random() < 0.28 ? Math.random() * 0.22 : 0),
+          curtains: type === 'living' || type === 'bedroom' || type === 'dining',
+          smoke: 0,
+          sparks: 0,
+          cameraFlash: 0,
+          crimeTape: false,
+          packageProp: null,
+          telescope: false
+        };
+      });
+
+      // Jewish households & cozy multi-lit defaults
+      if (spec.decor.menorah >= 0) {
+        rooms[spec.decor.menorah].light = 'dim';
+      }
+
+      const apt = {
+        ...spec,
+        x: baseX, y: baseY, w: unitW, h: BLDG.winH,
+        rooms,
+        event: null,
+        powerOut: 0,
+        residents: [],
+        visitors: []
+      };
+
+      apt.residents = spec.residents.map((r, rIdx) => {
+        const rm = rooms[r.startRoom];
+        const spots = ROOM_TYPES[rm.type].spots;
+        const spotKey = r.startPose === 'sleep' ? 'bed'
+          : r.startPose === 'type' ? 'desk'
+          : r.startPose === 'sew' ? 'sewing'
+          : r.startPose === 'paint' ? 'easel'
+          : r.startPose === 'cook' ? 'stove'
+          : r.startPose === 'window' ? 'window'
+          : (r.startPose === 'sit' || r.startPose === 'read' || r.startPose === 'instrument') ? (rm.type === 'dining' ? 'table' : 'couch')
+          : 'center';
+        const sx = rm.x + rm.w * (spots[spotKey] ?? 0.5) + (rIdx - 0.5) * 6;
+        return {
+          ...r,
+          apt,
+          x: sx,
+          y: baseY + BLDG.winH - 4,
+          targetX: sx,
+          facing: rIdx % 2 === 0 ? 1 : -1,
+          speed: (0.48 + Math.random() * 0.18) * (r.scale < 0.8 ? 0.85 : 1),
+          state: 'acting',
+          activity: r.startActivity,
+          pose: r.startPose,
+          timer: 280 + Math.floor(Math.random() * 1400),
+          carrying: null,
+          queue: [],
+          walkPhase: Math.random() * 12,
+          hidden: false,
+          levitateY: 0,
+          collapsed: false
+        };
+      });
+
+      return apt;
+    });
+  }
+
+  _buildStars() {
+    return Array.from({ length: 120 }, () => ({
+      x: -140 + Math.random() * (VIEW_W + 280),
+      y: -30 + Math.random() * 240,
+      phase: Math.random() * Math.PI * 2,
+      size: Math.random() < 0.18 ? 2 : 1.2,
+      bright: 0.25 + Math.random() * 0.75
+    }));
+  }
+
+  _buildClouds() {
+    return Array.from({ length: 9 }, (_, i) => ({
+      x: -200 + i * 240 + Math.random() * 90,
+      y: 25 + Math.random() * 110,
+      w: 180 + Math.random() * 200,
+      h: 26 + Math.random() * 28,
+      speed: 0.04 + Math.random() * 0.05
+    }));
+  }
+
+  _buildSkyline() {
+    const out = [];
+    let sx = -180;
+    while (sx < VIEW_W + 180) {
+      const w = 48 + Math.floor(Math.random() * 76);
+      const h = 140 + Math.floor(Math.random() * 260);
+      const dots = [];
+      for (let dy = 14; dy < h - 18; dy += 14) {
+        for (let dx = 8; dx < w - 10; dx += 12) {
+          if (Math.random() < 0.24) {
+            dots.push({ dx, dy, warm: Math.random() < 0.68, alpha: 0.18 + Math.random() * 0.28 });
+          }
+        }
+      }
+      out.push({ x: sx, w, h, dots, hasAntenna: Math.random() < 0.22 });
+      sx += w - 6;
+    }
+    return out;
+  }
+
+  _buildSideBuildings() {
+    const makeNeighbor = (x, y, w, h, cols, rows, hue) => {
+      const wins = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          wins.push({
+            rx: 24 + c * 74,
+            ry: 32 + r * 76,
+            lit: Math.random() < 0.28,
+            warm: Math.random() < 0.75,
+            timer: 800 + Math.floor(Math.random() * 2600)
+          });
+        }
+      }
+      return { x, y, w, h, hue, wins };
+    };
+    return [
+      makeNeighbor(-68, 175, 360, 609, 4, 7, '#1d181e'),
+      makeNeighbor(1308, 152, 360, 632, 4, 7, '#1a1921')
+    ];
+  }
+
+  _buildRain() {
+    return Array.from({ length: 240 }, () => ({
+      x: Math.random() * VIEW_W,
+      y: Math.random() * VIEW_H,
+      len: 10 + Math.random() * 14,
+      speed: 7 + Math.random() * 5,
+      alpha: 0.1 + Math.random() * 0.18
+    }));
+  }
+
+  _buildSnow() {
+    return Array.from({ length: 190 }, () => ({
+      x: Math.random() * VIEW_W,
+      y: Math.random() * VIEW_H,
+      r: 0.9 + Math.random() * 1.9,
+      speed: 0.55 + Math.random() * 0.95,
+      drift: Math.random() * Math.PI * 2,
+      alpha: 0.35 + Math.random() * 0.5
+    }));
+  }
+
+  _buildLeaves() {
+    const colors = ['#d97706', '#c2410c', '#eab308', '#9a3412', '#b45309'];
+    return Array.from({ length: 55 }, () => ({
+      x: Math.random() * VIEW_W,
+      y: Math.random() * VIEW_H,
+      speed: 0.8 + Math.random() * 0.9,
+      phase: Math.random() * Math.PI * 2,
+      size: 2.5 + Math.random() * 2.5,
+      color: colors[Math.floor(Math.random() * colors.length)]
+    }));
+  }
+
+  _buildFireflies() {
+    return Array.from({ length: 28 }, () => ({
+      x: 40 + Math.random() * (VIEW_W - 80),
+      y: 660 + Math.random() * 140,
+      phase: Math.random() * Math.PI * 2,
+      vx: (Math.random() - 0.5) * 0.35
+    }));
+  }
+
+  getRoomAt(apt, x) {
+    let best = apt.rooms[0], bestDist = Infinity;
+    for (const r of apt.rooms) {
+      const d = Math.abs(x - (r.x + r.w * 0.5));
+      if (d < bestDist) { bestDist = d; best = r; }
+    }
+    return best;
+  }
+
+  roomSpotX(apt, roomType, spotName) {
+    const r = apt.rooms.find(rm => rm.type === roomType) || apt.rooms[0];
+    const ratio = ROOM_TYPES[r.type].spots[spotName] ?? 0.5;
+    return { room: r, x: r.x + r.w * ratio };
+  }
+
+  pickRoutineChain(res) {
+    const apt = res.apt;
+    const has = (t) => apt.rooms.some(r => r.type === t);
+
+    // Filter matching solo behaviors from our 100+ catalog
+    const eligible = BEHAVIOR_CATALOG.solo.filter(b => {
+      if (!has(b.room)) return false;
+      if (b.winterMenorahOnly && !(this.season === 'winter' && apt.decor.menorah >= 0)) return false;
+      if (b.winterTreeOnly && !(this.season === 'winter' && apt.decor.xmasTree >= 0)) return false;
+      if (res.scale < 0.8 && (b.id === 'cook_stove' || b.id === 'work_monitor' || b.id === 'make_coffee' || b.id === 'iron_clothes')) return false;
+      return true;
+    });
+
+    // Build realistic multi-room continuity chains (cook -> carry plate -> eat/watch TV)
+    const roll = Math.random();
+    if (roll < 0.28 && has('kitchen') && has('living') && res.scale >= 0.85) {
+      return [
+        { room: 'kitchen', spot: 'fridge', pose: 'reach', label: 'Getting ingredients from fridge', dur: [140, 240], fridge: true },
+        { room: 'kitchen', spot: 'stove', pose: 'cook', label: 'Cooking dinner at stove', dur: [420, 740], carryAfter: 'plate' },
+        { room: 'living', spot: 'couch', pose: 'sit', label: 'Eating & watching late-night TV', dur: [820, 1450], tv: true, dropCarry: true }
+      ];
+    }
+    if (roll < 0.44 && has('kitchen') && has('living')) {
+      return [
+        { room: 'kitchen', spot: 'counter', pose: 'cook', label: 'Brewing warm tea', dur: [180, 320], carryAfter: 'mug' },
+        { room: 'living', spot: 'window', pose: 'window', label: 'Sipping tea by the window', dur: [440, 820], dropCarry: true }
+      ];
+    }
+    if (roll < 0.55 && has('kitchen') && has('dining') && res.scale >= 0.85) {
+      return [
+        { room: 'kitchen', spot: 'stove', pose: 'cook', label: 'Plating a late meal', dur: [280, 480], carryAfter: 'plate' },
+        { room: 'dining', spot: 'table', pose: 'sit', label: 'Eating quietly at dining table', dur: [600, 1080], dropCarry: true }
+      ];
+    }
+    if (roll < 0.64 && apt.residents.length >= 2 && has('living')) {
+      const socialLabel = BEHAVIOR_CATALOG.social[Math.floor(Math.random() * BEHAVIOR_CATALOG.social.length)];
+      return [{ room: 'living', spot: 'center', pose: Math.random() < 0.4 ? 'sway' : 'sit', label: socialLabel, dur: [540, 960] }];
+    }
+    if (roll < 0.70 && has('living')) {
+      const qLabel = BEHAVIOR_CATALOG.quirky[Math.floor(Math.random() * BEHAVIOR_CATALOG.quirky.length)];
+      return [{ room: 'living', spot: 'center', pose: 'window', label: qLabel, dur: [320, 560] }];
+    }
+
+    const chosen = eligible[Math.floor(Math.random() * eligible.length)] || BEHAVIOR_CATALOG.solo[0];
+    return [{ ...chosen }];
+  }
+
+  setTicker(msg) {
+    this.lastTicker = msg;
+  }
+
+  hasEmergencyArriving() {
+    return (this.fireTruck && this.fireTruck.state === 'arriving')
+      || (this.policeUnit && this.policeUnit.state === 'arriving')
+      || (this.ambulance && this.ambulance.state === 'arriving');
+  }
+
+  triggerEvent(kind, preferredAptId = null) {
+    const weighted = ['delivery', 'delivery', 'pizza', 'fire', 'murder', 'medical', 'argument', 'burglary', 'ufo', 'fuse', 'disco', 'blackout', 'telescope'];
+    if (kind === 'random') kind = weighted[Math.floor(Math.random() * weighted.length)];
+
+    const available = this.apartments.filter(a => !a.event);
+    if (!available.length) return;
+
+    let apt = preferredAptId ? available.find(a => a.id === preferredAptId) : null;
+    if (!apt) {
+      if (kind === 'argument' || kind === 'murder') {
+        const c = available.filter(a => a.residents.length >= 2);
+        apt = c[Math.floor(Math.random() * c.length)];
+      } else if (kind === 'fire') {
+        const c = available.filter(a => a.rooms.some(r => r.type === 'kitchen'));
+        apt = c[Math.floor(Math.random() * c.length)];
+      } else if (kind === 'ufo') {
+        const c = available.filter(a => a.floor === 0);
+        apt = c[Math.floor(Math.random() * c.length)];
+      } else if (kind === 'burglary') {
+        const c = available.filter(a => a.residents.length === 1);
+        apt = c[Math.floor(Math.random() * c.length)];
+      } else if (kind === 'medical') {
+        const c = available.filter(a => a.residents.length >= 2);
+        apt = c[Math.floor(Math.random() * c.length)];
+      }
+      if (!apt) apt = available[Math.floor(Math.random() * available.length)];
+    }
+
+    const lobbyX = BLDG.x + BLDG.w * 0.5;
+
+    if (kind === 'delivery' || kind === 'pizza') {
+      if (this.deliveryVan) return;
+      const entryRoom = apt.col === 0 ? apt.rooms[2] : apt.rooms[0];
+      const unboxRoom = apt.rooms[1];
+      const isPizza = kind === 'pizza';
+      apt.event = { type: 'delivery', isPizza, stage: 0, timer: 240, entryRoom, unboxRoom, res: apt.residents[0] };
+      this.deliveryVan = {
+        x: -170,
+        targetX: lobbyX - 115,
+        lobbyX,
+        isPizza,
+        state: 'arriving',
+        apt,
+        courier: null,
+        lobbyBox: false
+      };
+      this.setTicker(isPizza
+        ? `Street: Late-night pizza delivery pulling up for APT ${apt.id}`
+        : `Street: Delivery van pulling up with parcel for APT ${apt.id}`);
+    } else if (kind === 'fire') {
+      const k = apt.rooms.find(r => r.type === 'kitchen') || apt.rooms[0];
+      const safeRoom = apt.rooms.find(r => r !== k) || apt.rooms[1];
+      apt.event = { type: 'fire', stage: 0, timer: 210, room: k, safeRoom };
+      k.light = 'fire'; k.smoke = 0.55;
+      apt.residents.forEach((r, i) => {
+        r.queue = []; r.targetX = k.x + 36 + i * 14;
+        r.activity = 'Stove catches fire — calling 911!'; r.pose = 'wave';
+      });
+      this.setTicker(`APT ${apt.id}: Kitchen fire breaks out!`);
+    } else if (kind === 'murder') {
+      const [r0, r1, r2] = apt.rooms;
+      apt.event = { type: 'murder', stage: 0, timer: 160, r0, r1, r2 };
+      r1.light = 'warm';
+      apt.residents[0].queue = []; apt.residents[0].targetX = r1.x + 28; apt.residents[0].activity = 'Sudden violent struggle!'; apt.residents[0].pose = 'argue';
+      if (apt.residents[1]) {
+        apt.residents[1].queue = []; apt.residents[1].targetX = r1.x + 54; apt.residents[1].activity = 'Struggle in living room!'; apt.residents[1].pose = 'argue';
+      }
+      this.setTicker(`APT ${apt.id}: Sudden struggle breaks out in living room...`);
+    } else if (kind === 'medical') {
+      const liv = apt.rooms[1];
+      apt.event = { type: 'medical', stage: 0, timer: 170, room: liv };
+      liv.light = 'warm';
+      apt.residents[0].queue = []; apt.residents[0].targetX = liv.x + 34; apt.residents[0].collapsed = true; apt.residents[0].activity = 'Sudden medical emergency';
+      if (apt.residents[1]) {
+        apt.residents[1].queue = []; apt.residents[1].targetX = liv.x + 56; apt.residents[1].pose = 'phone'; apt.residents[1].activity = 'Calling ambulance on phone!';
+      }
+      this.setTicker(`APT ${apt.id}: Emergency call placed — ambulance dispatched`);
+    } else if (kind === 'argument') {
+      const liv = apt.rooms[1], otherRoom = apt.rooms[2];
+      apt.event = { type: 'argument', stage: 0, timer: 300, liv, otherRoom };
+      apt.residents.slice(0, 2).forEach((r, i) => {
+        r.queue = []; r.targetX = liv.x + (i === 0 ? 28 : 58); r.activity = 'Heated argument'; r.pose = 'argue';
+      });
+      liv.light = 'warm';
+      this.setTicker(`APT ${apt.id}: Heated argument erupts`);
+    } else if (kind === 'burglary') {
+      apt.rooms.forEach(rm => { rm.light = 'off'; rm.tvOn = false; rm.monitorOn = false; });
+      apt.residents.forEach(r => {
+        r.queue = []; r.x = apt.rooms[2].x + apt.rooms[2].w * 0.66; r.targetX = r.x;
+        r.pose = 'sleep'; r.activity = 'Sleeping (unaware of intruder)';
+      });
+      apt.visitors = [{
+        kind: 'burglar', x: apt.rooms[0].x + 16, targetX: apt.rooms[1].x + 62,
+        dir: 1, speed: 0.65, pose: 'search'
+      }];
+      apt.event = { type: 'burglary', timer: 520 };
+      this.setTicker(`APT ${apt.id}: Flashlight sweeps darkened apartment...`);
+    } else if (kind === 'ufo') {
+      const targetRoom = apt.rooms[1], victim = apt.residents[0];
+      victim.queue = []; victim.targetX = targetRoom.x + targetRoom.w * 0.5;
+      victim.activity = 'Pulled toward eerie green beam!'; victim.pose = 'wave';
+      apt.event = { type: 'ufo', timer: 420, room: targetRoom, victim };
+      this.ufo = { apt, room: targetRoom, x: targetRoom.x + targetRoom.w * 0.5, y: -50, targetY: 46, beamAlpha: 0 };
+      this.setTicker(`APT ${apt.id}: Unexplained green beam descends on rooftop!`);
+    } else if (kind === 'fuse') {
+      apt.event = { type: 'fuse', timer: 320 };
+      apt.powerOut = 300;
+      apt.rooms[0].sparks = 50;
+      apt.rooms.forEach(rm => { rm.light = 'off'; rm.tvOn = false; rm.monitorOn = false; });
+      apt.residents.forEach(r => { r.queue = []; r.targetX = apt.rooms[0].x + 28; r.activity = 'Checking blown breaker box'; r.pose = 'reach'; });
+      this.setTicker(`APT ${apt.id}: Fuse blown — unit plunges dark`);
+    } else if (kind === 'disco') {
+      const liv = apt.rooms[1];
+      apt.event = { type: 'disco', timer: 420, room: liv };
+      liv.light = 'disco';
+      apt.residents.forEach((r, i) => {
+        r.queue = []; r.targetX = liv.x + 24 + i * 20; r.activity = 'Late-night living room party'; r.pose = 'dance';
+      });
+      this.setTicker(`APT ${apt.id}: Late-night music & strobe lights`);
+    } else if (kind === 'blackout') {
+      const floorIdx = apt.floor;
+      const floorApts = this.apartments.filter(a => a.floor === floorIdx && !a.event);
+      floorApts.forEach(fa => {
+        fa.event = { type: 'fuse', timer: 240 };
+        fa.powerOut = 230;
+        fa.rooms[0].sparks = 30;
+        fa.rooms.forEach(rm => { rm.light = 'off'; rm.tvOn = false; rm.monitorOn = false; });
+      });
+      this.setTicker(`Floor ${8 - floorIdx}: Brief power flicker knocks out entire floor`);
+    } else if (kind === 'telescope') {
+      const liv = apt.rooms[1];
+      liv.telescope = true;
+      liv.light = 'dim';
+      apt.event = { type: 'telescope', timer: 420, room: liv };
+      apt.residents[0].queue = [];
+      apt.residents[0].targetX = liv.x + liv.w * 0.52;
+      apt.residents[0].pose = 'window';
+      apt.residents[0].activity = 'Peering right back across street with telescope';
+      this.setTicker(`APT ${apt.id}: Neighbor sets up telescope aimed back at you...`);
+    }
+  }
+
+  // Advance simulation by 1 tick
+  step() {
+    this.frame++;
+    this.simTime += 0.015;
+    if (this.simTime >= 24 * 60) this.simTime -= 24 * 60;
+
+    // 1. Spaced-out, almost imperceptible anti-burn-in camera shift!
+    if (this.burnInProtection) {
+      this.camTimer--;
+      if (this.camState === 'hold' && this.camTimer <= 0) {
+        this.camState = 'shifting';
+        this.camFromX = this.camX;
+        this.camFromY = this.camY;
+        // Pick a fresh offset at least 26px away horizontally so pixels truly rotate out
+        let nextX = (Math.random() * 2 - 1) * 48;
+        if (Math.abs(nextX - this.camX) < 24) nextX = this.camX > 0 ? -36 : 36;
+        this.camTargetX = nextX;
+        this.camTargetY = (Math.random() * 2 - 1) * 11;
+        this.camDuration = 1260; // ~21 seconds ultra-gentle glide
+        this.camTimer = this.camDuration;
+      } else if (this.camState === 'shifting') {
+        const t = 1 - Math.max(0, this.camTimer) / this.camDuration;
+        // Quintic smoothstep: imperceptible acceleration & deceleration
+        const ease = t * t * t * (t * (t * 6 - 15) + 10);
+        this.camX = this.camFromX + (this.camTargetX - this.camFromX) * ease;
+        this.camY = this.camFromY + (this.camTargetY - this.camFromY) * ease;
+        if (this.camTimer <= 0) {
+          this.camX = this.camTargetX;
+          this.camY = this.camTargetY;
+          this.camState = 'hold';
+          this.camTimer = 2800 + Math.floor(Math.random() * 1800); // ~46–76s rock-steady hold
+        }
+      }
+    } else {
+      this.camX += (0 - this.camX) * 0.06;
+      this.camY += (0 - this.camY) * 0.06;
+    }
+
+    // 2. Clouds & Storm Lightning
+    for (const cl of this.clouds) {
+      cl.x += cl.speed;
+      if (cl.x > VIEW_W + 240) cl.x = -cl.w - 180;
+    }
+    if (this.activeWeather() === 'storm' && Math.random() < 0.003) {
+      this.lightningFlash = 16;
+    }
+    if (this.lightningFlash > 0) this.lightningFlash--;
+
+    // 3. Neighboring brownstones gently toggle occasional lights
+    for (const sb of this.sideBuildings) {
+      for (const w of sb.wins) {
+        w.timer--;
+        if (w.timer <= 0) {
+          w.lit = Math.random() < 0.3;
+          w.timer = 1400 + Math.floor(Math.random() * 3400);
+        }
+      }
+    }
+
+    // 4. Street traffic & occasional quiet pedestrians
+    if (Math.random() < 0.0035 && this.cars.length < 3) {
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      const palette = ['#2f3845', '#522c2c', '#2a3c52', '#474338', '#3c4552', '#5c5448'];
+      this.cars.push({
+        x: dir === 1 ? -140 : VIEW_W + 140,
+        y: dir === 1 ? 854 : 828,
+        dir,
+        speed: (2.2 + Math.random() * 1.4) * dir,
+        w: 62 + Math.floor(Math.random() * 14),
+        color: palette[Math.floor(Math.random() * palette.length)]
+      });
+    }
+    for (let i = this.cars.length - 1; i >= 0; i--) {
+      this.cars[i].x += this.cars[i].speed;
+      if (this.cars[i].x < -220 || this.cars[i].x > VIEW_W + 220) this.cars.splice(i, 1);
+    }
+
+    if (Math.random() < 0.0022 && this.pedestrians.length < 2) {
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      this.pedestrians.push({
+        x: dir === 1 ? -40 : VIEW_W + 40,
+        y: 804,
+        dir,
+        speed: (0.42 + Math.random() * 0.2) * dir,
+        coat: ['#2b3445', '#423638', '#333d38', '#4f4438'][Math.floor(Math.random() * 4)],
+        umbrella: this.activeWeather() === 'rain' || this.activeWeather() === 'storm',
+        phase: Math.random() * 10
+      });
+    }
+    for (let i = this.pedestrians.length - 1; i >= 0; i--) {
+      const p = this.pedestrians[i];
+      p.x += p.speed;
+      p.phase += 0.14;
+      if (p.x < -80 || p.x > VIEW_W + 80) this.pedestrians.splice(i, 1);
+    }
+
+    // 5. Street service & emergency vehicles
+    if (this.deliveryVan) {
+      const dv = this.deliveryVan;
+      if (dv.state === 'arriving') {
+        dv.x += Math.min(2.6, dv.targetX - dv.x);
+        if (Math.abs(dv.targetX - dv.x) < 1.5) {
+          dv.x = dv.targetX; dv.state = 'dropping';
+          dv.courier = { x: dv.x + 86, targetX: dv.lobbyX + 4, hasBox: true, dir: 1, returning: false, phase: 0 };
+        }
+      } else if (dv.state === 'dropping' && dv.courier) {
+        const c = dv.courier, dx = c.targetX - c.x;
+        if (Math.abs(dx) > 1.5) {
+          c.x += Math.sign(dx) * 0.9; c.dir = Math.sign(dx); c.phase += 0.2;
+        } else if (!c.returning) {
+          c.hasBox = false; c.returning = true; dv.lobbyBox = true; c.targetX = dv.x + 76;
+          const apt = dv.apt;
+          if (apt.event && apt.event.type === 'delivery' && apt.event.stage === 0) {
+            apt.event.stage = 1; apt.event.timer = 150;
+            const er = apt.event.entryRoom;
+            apt.event.res.queue = [];
+            apt.event.res.targetX = apt.col === 0 ? er.x + er.w - 14 : er.x + 14;
+            apt.event.res.activity = dv.isPizza ? 'Answering door for pizza' : 'Checking door for delivery';
+            apt.event.res.pose = 'stand'; er.light = 'warm';
+            this.setTicker(`APT ${apt.id}: ${dv.isPizza ? 'Pizza' : 'Package'} left at entrance — checking door`);
+          }
+        } else { dv.courier = null; dv.state = 'leaving'; }
+      } else if (dv.state === 'leaving') {
+        dv.x += 2.6;
+        if (dv.x > VIEW_W + 180) this.deliveryVan = null;
+      }
+    }
+
+    if (this.fireTruck) {
+      const ft = this.fireTruck;
+      if (ft.state === 'arriving') {
+        ft.x += Math.min(3.1, ft.targetX - ft.x);
+        if (Math.abs(ft.targetX - ft.x) < 2) { ft.x = ft.targetX; ft.state = 'parked'; }
+      } else if (ft.state === 'leaving') {
+        ft.x += 2.6;
+        if (ft.x > VIEW_W + 220) this.fireTruck = null;
+      }
+    }
+
+    if (this.policeUnit) {
+      const pu = this.policeUnit;
+      if (pu.state === 'arriving') {
+        pu.x += Math.min(3.4, pu.targetX - pu.x);
+        if (Math.abs(pu.targetX - pu.x) < 2) { pu.x = pu.targetX; pu.state = 'parked'; }
+      } else if (pu.state === 'leaving') {
+        pu.x += 2.9;
+        if (pu.x > VIEW_W + 180) this.policeUnit = null;
+      }
+    }
+
+    if (this.ambulance) {
+      const am = this.ambulance;
+      if (am.state === 'arriving') {
+        am.x += Math.min(3.2, am.targetX - am.x);
+        if (Math.abs(am.targetX - am.x) < 2) { am.x = am.targetX; am.state = 'parked'; }
+      } else if (am.state === 'leaving') {
+        am.x += 2.7;
+        if (am.x > VIEW_W + 190) this.ambulance = null;
+      }
+    }
+
+    // 6. Calm rare-event director
+    this.autoEventCooldown--;
+    if (this.autoEventCooldown <= 0) {
+      this.triggerEvent('random');
+      this.autoEventCooldown = 2900 + Math.floor(Math.random() * 2400);
+    }
+
+    // 7. Update all 24 apartments & 43 residents
+    for (const apt of this.apartments) {
+      if (apt.powerOut > 0) apt.powerOut--;
+      for (const rm of apt.rooms) {
+        if (rm.fridgeOpen > 0) rm.fridgeOpen--;
+        if (rm.sparks > 0) rm.sparks--;
+        if (rm.cameraFlash > 0) rm.cameraFlash--;
+        if (rm.smoke > 0 && (!apt.event || apt.event.type !== 'fire' || apt.event.stage >= 2)) {
+          rm.smoke = Math.max(0, rm.smoke - 0.006);
+        }
+      }
+
+      for (const v of apt.visitors) {
+        const dx = v.targetX - v.x;
+        if (Math.abs(dx) > 1.2) {
+          v.x += Math.sign(dx) * Math.min(Math.abs(dx), v.speed);
+          v.dir = Math.sign(dx);
+          v.walkPhase = (v.walkPhase || 0) + 0.18;
+          v.moving = true;
+        } else v.moving = false;
+      }
+
+      if (apt.event) {
+        this._stepApartmentEvent(apt);
+      }
+
+      for (const res of apt.residents) {
+        if (res.hidden || res.collapsed) continue;
+        const dx = res.targetX - res.x;
+        if (Math.abs(dx) > 1.2) {
+          res.x += Math.sign(dx) * Math.min(Math.abs(dx), res.speed);
+          res.facing = Math.sign(dx);
+          res.walkPhase += 0.16;
+          res.state = 'walking';
+          if (apt.powerOut <= 0 && (!apt.event || apt.event.type === 'argument' || apt.event.type === 'delivery')) {
+            const curRoom = this.getRoomAt(apt, res.x);
+            if (curRoom.light === 'off') curRoom.light = 'warm';
+          }
+        } else {
+          res.state = 'acting';
+          if (!apt.event) {
+            res.timer--;
+            if (res.timer <= 0) {
+              if (res.currentStep && res.currentStep.carryAfter) res.carrying = res.currentStep.carryAfter;
+              if (res.queue.length === 0) res.queue = this.pickRoutineChain(res);
+              const next = res.queue.shift();
+              res.currentStep = next;
+              const { room, x } = this.roomSpotX(apt, next.room, next.spot);
+              res.targetX = x + (Math.random() * 10 - 5);
+              res.pose = next.pose;
+              res.activity = next.label;
+              res.timer = next.dur[0] + Math.floor(Math.random() * (next.dur[1] - next.dur[0]));
+              if (next.dropCarry) res.carrying = null;
+              if (next.fridge) room.fridgeOpen = 110;
+              if (next.toggleBlinds) room.blinds = room.blinds > 0.25 ? 0.08 : 0.42;
+              if (apt.powerOut <= 0) {
+                room.tvOn = !!next.tv;
+                if (next.monitor) room.monitorOn = true;
+                room.light = next.dimRoom
+                  ? (apt.decor.menorah === room.idx && this.season === 'winter' ? 'dim' : 'off')
+                  : (next.tv ? 'tv' : (next.monitor ? 'monitor' : 'warm'));
+              }
+            }
+          }
+        }
+      }
+
+      if (!apt.event && apt.powerOut <= 0) {
+        for (const rm of apt.rooms) {
+          const occupied = apt.residents.some(r => !r.hidden && this.getRoomAt(apt, r.x) === rm);
+          if (!occupied) {
+            rm.lightTimer++;
+            if (rm.lightTimer > 320 && rm.light !== 'off') {
+              rm.light = (this.season === 'winter' && apt.decor.menorah === rm.idx) ? 'dim' : 'off';
+              rm.tvOn = false;
+              rm.lightTimer = 0;
+            }
+          } else rm.lightTimer = 0;
+        }
+      }
+    }
+  }
+
+  _stepApartmentEvent(apt) {
+    const ev = apt.event;
+    ev.timer--;
+
+    if (ev.type === 'delivery') {
+      if (ev.stage === 1 && ev.res.state === 'acting') {
+        if (this.deliveryVan && this.deliveryVan.apt === apt) this.deliveryVan.lobbyBox = false;
+        ev.stage = 2; ev.timer = 280;
+        ev.res.carrying = ev.isPizza ? 'pizza' : 'box';
+        ev.res.targetX = ev.unboxRoom.x + ev.unboxRoom.w * 0.48;
+        ev.res.activity = ev.isPizza ? 'Carrying pizza box to living room' : 'Carrying parcel to living room';
+        ev.unboxRoom.light = 'warm';
+      } else if (ev.stage === 2 && ev.res.state === 'acting') {
+        ev.stage = 3; ev.timer = 260;
+        ev.res.carrying = null; ev.res.pose = 'unbox';
+        ev.res.activity = ev.isPizza ? 'Opening pizza box' : 'Opening delivered package!';
+        ev.unboxRoom.packageProp = { x: ev.res.x + ev.res.facing * 12, opened: false, isPizza: ev.isPizza };
+        this.setTicker(`APT ${apt.id}: ${ev.res.name} is opening their ${ev.isPizza ? 'pizza' : 'delivery'}`);
+      } else if (ev.stage === 3) {
+        if (ev.timer === 140 && ev.unboxRoom.packageProp) {
+          ev.unboxRoom.packageProp.opened = true;
+          ev.res.activity = ev.isPizza ? 'Grabbing a hot slice' : 'Inspecting new item from box';
+          ev.res.pose = 'reach';
+        }
+        if (ev.timer <= 0) {
+          ev.unboxRoom.packageProp = null; ev.res.timer = 110; apt.event = null;
+        }
+      }
+    } else if (ev.type === 'fire') {
+      if (ev.stage === 0) {
+        ev.room.smoke = Math.min(1, ev.room.smoke + 0.015);
+        if (ev.timer === 130) {
+          apt.residents.forEach((r, i) => {
+            r.targetX = ev.safeRoom.x + 28 + i * 16; r.activity = 'Retreating from kitchen smoke'; r.pose = 'phone';
+          });
+          ev.safeRoom.light = 'warm';
+        }
+        if (ev.timer <= 0) {
+          ev.stage = 1; ev.timer = 220;
+          this.fireTruck = { x: -200, targetX: Math.max(320, Math.min(1080, apt.x + 40)), state: 'arriving', apt };
+          this.setTicker(`APT ${apt.id}: Fire truck pulls up outside!`);
+        }
+      } else if (ev.stage === 1) {
+        ev.room.smoke = Math.min(1, ev.room.smoke + 0.01);
+        if (this.fireTruck && this.fireTruck.state === 'parked' && apt.visitors.length === 0) {
+          apt.visitors.push(
+            { kind: 'firefighter', x: ev.safeRoom.x + 42, targetX: ev.room.x + 44, dir: ev.room.x < ev.safeRoom.x ? -1 : 1, speed: 0.62, pose: 'spray' },
+            { kind: 'firefighter', x: ev.safeRoom.x + 26, targetX: ev.room.x + 62, dir: ev.room.x < ev.safeRoom.x ? -1 : 1, speed: 0.56, pose: 'stand' }
+          );
+          this.setTicker(`APT ${apt.id}: Firefighters enter to extinguish stove`);
+        }
+        if (ev.timer <= 0) {
+          ev.stage = 2; ev.timer = 240; ev.room.light = 'warm';
+          apt.residents.forEach(r => { r.activity = 'Watching firefighters ventilate kitchen'; r.pose = 'stand'; });
+          this.setTicker(`APT ${apt.id}: Fire extinguished — ventilating smoke`);
+        }
+      } else if (ev.stage === 2) {
+        if (ev.timer === 90) apt.visitors.forEach(v => { v.pose = 'stand'; v.targetX = ev.safeRoom.x + 44; });
+        if (ev.timer <= 0) {
+          apt.visitors = [];
+          if (this.fireTruck && this.fireTruck.apt === apt) this.fireTruck.state = 'leaving';
+          apt.event = null; apt.residents.forEach(r => r.timer = 90);
+          this.setTicker(`APT ${apt.id}: Fire truck departs — scene safe`);
+        }
+      }
+    } else if (ev.type === 'murder') {
+      if (ev.stage === 0 && ev.timer <= 0) {
+        ev.stage = 1; ev.timer = 240; ev.r1.light = 'dim'; ev.r0.light = 'dim';
+        if (apt.residents[1]) { apt.residents[1].hidden = true; apt.residents[1].activity = '(Victim)'; }
+        apt.residents[0].carrying = 'rug'; apt.residents[0].targetX = ev.r0.x + 22;
+        apt.residents[0].activity = 'Dragging rolled rug across rooms...';
+        this.setTicker(`APT ${apt.id}: Silhouette drags heavy rolled rug across rooms...`);
+      } else if (ev.stage === 1 && ev.timer <= 0) {
+        ev.stage = 2; ev.timer = 160; apt.residents[0].carrying = null; apt.residents[0].hidden = true; apt.residents[0].activity = '(Fled scene)';
+        ev.r0.light = 'off'; ev.r1.light = 'off';
+        this.policeUnit = { x: -150, targetX: Math.max(330, Math.min(1140, apt.x + 70)), state: 'arriving', apt };
+        this.setTicker(`APT ${apt.id}: Police cruiser arrives on scene`);
+      } else if (ev.stage === 2 && ev.timer <= 0) {
+        ev.stage = 3; ev.timer = 520;
+        apt.rooms.forEach(rm => { rm.light = 'inspect'; rm.crimeTape = true; });
+        apt.visitors = [
+          { kind: 'detective', x: ev.r0.x + 30, targetX: ev.r1.x + 38, dir: 1, speed: 0.48, pose: 'inspect', wayIdx: 0, waypoints: [ev.r1.x + 38, ev.r0.x + 28, ev.r2.x + 40, ev.r1.x + 56] },
+          { kind: 'police', x: ev.r2.x + 48, targetX: ev.r1.x + 64, dir: -1, speed: 0.52, pose: 'notes', wayIdx: 0, waypoints: [ev.r1.x + 64, ev.r2.x + 32, ev.r0.x + 54] }
+        ];
+        this.setTicker(`APT ${apt.id}: Police & detectives inspecting rooms`);
+      } else if (ev.stage === 3) {
+        for (const v of apt.visitors) {
+          if (!v.moving && this.frame % 105 === 0) {
+            v.wayIdx = (v.wayIdx + 1) % v.waypoints.length; v.targetX = v.waypoints[v.wayIdx];
+          }
+          if (v.kind === 'detective' && !v.moving && this.frame % 75 === 0) {
+            this.getRoomAt(apt, v.x).cameraFlash = 12;
+          }
+        }
+        if (ev.timer <= 0) {
+          apt.visitors = [];
+          apt.rooms.forEach(rm => { rm.crimeTape = false; rm.light = 'off'; });
+          if (this.policeUnit && this.policeUnit.apt === apt) this.policeUnit.state = 'leaving';
+          apt.residents.forEach((r, idx) => {
+            r.hidden = false; r.x = apt.rooms[Math.min(idx + 1, 2)].x + 42; r.targetX = r.x;
+            r.pose = 'sleep'; r.activity = 'Unit quiet after investigation'; r.timer = 320;
+          });
+          apt.event = null;
+          this.setTicker(`APT ${apt.id}: Inspectors depart — scene cleared`);
+        }
+      }
+    } else if (ev.type === 'medical') {
+      if (ev.stage === 0 && ev.timer <= 0) {
+        ev.stage = 1; ev.timer = 260;
+        this.ambulance = { x: -160, targetX: Math.max(330, Math.min(1120, apt.x + 60)), state: 'arriving', apt };
+        this.setTicker(`APT ${apt.id}: Ambulance pulls up outside`);
+      } else if (ev.stage === 1) {
+        if (this.ambulance && this.ambulance.state === 'parked' && apt.visitors.length === 0) {
+          apt.visitors.push({ kind: 'medic', x: ev.room.x + 16, targetX: ev.room.x + 40, dir: 1, speed: 0.6, pose: 'crouch' });
+          this.setTicker(`APT ${apt.id}: Paramedic assisting resident inside`);
+        }
+        if (ev.timer <= 0) {
+          apt.residents[0].collapsed = false; apt.residents[0].pose = 'sit'; apt.residents[0].activity = 'Recovering on sofa';
+          apt.visitors = [];
+          if (this.ambulance && this.ambulance.apt === apt) this.ambulance.state = 'leaving';
+          apt.event = null; apt.residents.forEach(r => r.timer = 140);
+          this.setTicker(`APT ${apt.id}: Ambulance departs — resident stabilized`);
+        }
+      }
+    } else if (ev.type === 'argument') {
+      if (ev.stage === 0 && ev.timer <= 140) {
+        ev.stage = 1;
+        if (apt.residents[1]) {
+          apt.residents[1].targetX = ev.otherRoom.x + 44; apt.residents[1].activity = 'Stormed into next room'; apt.residents[1].pose = 'window';
+        }
+        apt.residents[0].activity = 'Cooling off after argument'; apt.residents[0].pose = 'window';
+      }
+      if (ev.timer <= 0) { apt.event = null; apt.residents.forEach(r => r.timer = 120); }
+    } else if (ev.type === 'fuse') {
+      if (ev.timer <= 0) {
+        apt.rooms[0].light = 'warm'; apt.rooms[1].light = 'warm';
+        apt.event = null; apt.residents.forEach(r => r.timer = 120);
+      }
+    } else if (ev.type === 'disco') {
+      if (ev.timer <= 0) { ev.room.light = 'warm'; apt.event = null; apt.residents.forEach(r => r.timer = 120); }
+    } else if (ev.type === 'burglary') {
+      const b = apt.visitors[0];
+      if (b && !b.moving) b.targetX = b.dir > 0 ? apt.rooms[0].x + 18 : apt.rooms[1].x + 64;
+      if (ev.timer <= 0) {
+        apt.visitors = []; apt.event = null; apt.residents.forEach(r => r.timer = 160);
+        this.setTicker(`APT ${apt.id}: Intruder slips back into the night`);
+      }
+    } else if (ev.type === 'ufo') {
+      if (this.ufo) {
+        if (ev.timer > 330) { this.ufo.y += (this.ufo.targetY - this.ufo.y) * 0.06; this.ufo.beamAlpha = Math.min(1, this.ufo.beamAlpha + 0.03); }
+        else if (ev.timer > 100) { this.ufo.beamAlpha = 0.85 + Math.sin(this.frame * 0.22) * 0.15; ev.room.light = 'ufo'; ev.victim.levitateY = Math.min(18, ev.victim.levitateY + 0.14); }
+        else { this.ufo.beamAlpha = Math.max(0, this.ufo.beamAlpha - 0.035); this.ufo.y -= 1.4; ev.victim.levitateY = Math.max(0, ev.victim.levitateY - 0.35); ev.room.light = 'warm'; }
+      }
+      if (ev.timer <= 0) {
+        ev.victim.levitateY = 0; ev.victim.timer = 140; apt.event = null; this.ufo = null;
+        this.setTicker(`APT ${apt.id}: Unexplained beam vanishes into night sky`);
+      }
+    } else if (ev.type === 'telescope') {
+      if (ev.timer <= 0) {
+        ev.room.telescope = false; apt.event = null; apt.residents[0].timer = 140;
+      }
+    }
+  }
+}
+
+
+// === renderer.js ===
+
+
+class VoyeurRenderer {
+  constructor(canvas, sim) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.sim = sim;
+    this.hoveredAptId = null;
+    this.selectedAptId = null;
+    this.facadeCache = this._bakeBrickFacade();
+    this.crescentCache = this._bakeCrescentMoon();
+    this.grainCache = this._bakeSubtleGrain();
+  }
+
+  // Pre-bake seamless crescent moon using destination-out so no dark circle shows over the glow halo
+  _bakeCrescentMoon() {
+    const off = document.createElement('canvas');
+    off.width = 64; off.height = 64;
+    const c = off.getContext('2d');
+    c.fillStyle = '#eaf2ff';
+    c.beginPath(); c.arc(32, 32, 16, 0, Math.PI * 2); c.fill();
+    c.globalCompositeOperation = 'destination-out';
+    c.beginPath(); c.arc(39, 28, 14.5, 0, Math.PI * 2); c.fill();
+    return off;
+  }
+
+  // Subtle nocturnal photographic grain overlay (tiled cheaply for distant filmic realism)
+  _bakeSubtleGrain() {
+    const off = document.createElement('canvas');
+    off.width = 160; off.height = 160;
+    const c = off.getContext('2d');
+    const img = c.createImageData(160, 160);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = Math.random() > 0.5 ? 255 : 0;
+      img.data[i] = v; img.data[i + 1] = v; img.data[i + 2] = v;
+      img.data[i + 3] = 7; // ultra-subtle ~2.7% filmic texture
+    }
+    c.putImageData(img, 0, 0);
+    return off;
+  }
+
+  // Pre-bake weathered brownstone/urban brick masonry, stone lintels, sills & recessed window cutouts
+  _bakeBrickFacade() {
+    const off = document.createElement('canvas');
+    off.width = BLDG.w + 40;
+    off.height = BLDG.h + 40;
+    const c = off.getContext('2d');
+    const ox = 20, oy = 20;
+
+    c.save();
+    c.beginPath();
+    c.rect(ox, oy, BLDG.w, BLDG.h);
+    for (const apt of this.sim.apartments) {
+      for (const rm of apt.rooms) {
+        c.rect(ox + (rm.x - BLDG.x), oy + (rm.y - BLDG.y), rm.w, rm.h);
+      }
+    }
+    c.clip('evenodd');
+
+    // Deep atmospheric masonry base
+    const baseGrad = c.createLinearGradient(0, oy, 0, oy + BLDG.h);
+    baseGrad.addColorStop(0, '#2e2226');
+    baseGrad.addColorStop(0.45, '#261c20');
+    baseGrad.addColorStop(0.86, '#1d161a');
+    baseGrad.addColorStop(1, '#19171e');
+    c.fillStyle = baseGrad;
+    c.fillRect(ox, oy, BLDG.w, BLDG.h);
+
+    // Weathered individual bricks with organic mortar variation
+    const brickH = 6;
+    const brickW = 16;
+    for (let row = 0; row < Math.ceil((BLDG.lobbyY - BLDG.y) / brickH); row++) {
+      const by = oy + row * brickH;
+      const stagger = (row % 2) * (brickW / 2);
+      for (let bx = ox - stagger; bx < ox + BLDG.w; bx += brickW) {
+        const hash = Math.sin(bx * 12.9898 + by * 78.233) * 43758.5453;
+        const frac = hash - Math.floor(hash);
+        const shade = Math.floor((frac - 0.5) * 20);
+        const warmShift = frac > 0.72 ? 5 : 0;
+        c.fillStyle = `rgb(${44 + shade + warmShift}, ${31 + Math.floor(shade * 0.65)}, ${34 + Math.floor(shade * 0.65)})`;
+        c.fillRect(bx + 1, by + 1, brickW - 1.2, brickH - 1.1);
+      }
+      c.fillStyle = 'rgba(8, 6, 10, 0.34)';
+      c.fillRect(ox, by, BLDG.w, 1);
+    }
+
+    // Subtle side edge ambient occlusion & pilaster shadows
+    const leftEdge = c.createLinearGradient(ox, 0, ox + 26, 0);
+    leftEdge.addColorStop(0, 'rgba(0,0,0,0.42)');
+    leftEdge.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = leftEdge; c.fillRect(ox, oy, 26, BLDG.h);
+
+    const rightEdge = c.createLinearGradient(ox + BLDG.w, 0, ox + BLDG.w - 26, 0);
+    rightEdge.addColorStop(0, 'rgba(0,0,0,0.42)');
+    rightEdge.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = rightEdge; c.fillRect(ox + BLDG.w - 26, oy, 26, BLDG.h);
+
+    // Subtle vertical pilasters between the 3 apartment stacks
+    for (let col = 1; col < 3; col++) {
+      const gx = ox + BLDG.sideMargin + col * (3 * BLDG.winW + 2 * BLDG.innerPillar) + (col - 1) * BLDG.aptGap;
+      const colGrad = c.createLinearGradient(gx, 0, gx + BLDG.aptGap, 0);
+      colGrad.addColorStop(0, 'rgba(0,0,0,0.28)');
+      colGrad.addColorStop(0.5, 'rgba(255,255,255,0.035)');
+      colGrad.addColorStop(1, 'rgba(0,0,0,0.28)');
+      c.fillStyle = colGrad;
+      c.fillRect(gx, oy, BLDG.aptGap, BLDG.lobbyY - BLDG.y);
+    }
+
+    // Ground-floor cut limestone rusticated base
+    const lobTop = oy + (BLDG.lobbyY - BLDG.y);
+    const stoneGrad = c.createLinearGradient(0, lobTop, 0, oy + BLDG.h);
+    stoneGrad.addColorStop(0, '#322e36');
+    stoneGrad.addColorStop(1, '#1d1b22');
+    c.fillStyle = stoneGrad;
+    c.fillRect(ox, lobTop, BLDG.w, oy + BLDG.h - lobTop);
+    c.fillStyle = 'rgba(255,255,255,0.09)';
+    c.fillRect(ox - 3, lobTop, BLDG.w + 6, 3);
+    c.fillStyle = 'rgba(0,0,0,0.5)';
+    c.fillRect(ox, lobTop + 3, BLDG.w, 4);
+    for (let sy = lobTop + 14; sy < oy + BLDG.h; sy += 14) {
+      c.fillStyle = 'rgba(0,0,0,0.28)';
+      c.fillRect(ox, sy, BLDG.w, 1);
+      for (let sx = ox + ((sy % 28 === 0) ? 0 : 18); sx < ox + BLDG.w; sx += 36) {
+        c.fillRect(sx, sy, 1, 14);
+      }
+    }
+
+    // Architectural stone belt courses on key floors
+    for (let f = 0; f < BLDG.floors; f++) {
+      const ly = oy + BLDG.topPad + f * BLDG.floorH + BLDG.winH + 3;
+      if (f === 0 || f === 3 || f === 7) {
+        c.fillStyle = '#403942';
+        c.fillRect(ox - 4, ly + 2, BLDG.w + 8, 4);
+        c.fillStyle = 'rgba(255,255,255,0.07)';
+        c.fillRect(ox - 4, ly + 2, BLDG.w + 8, 1);
+        c.fillStyle = 'rgba(0,0,0,0.48)';
+        c.fillRect(ox - 2, ly + 6, BLDG.w + 4, 4);
+      }
+    }
+
+    // Window stone lintels, recessed jambs, sills & subtle rain streaks
+    for (const apt of this.sim.apartments) {
+      for (const rm of apt.rooms) {
+        const wx = ox + (rm.x - BLDG.x);
+        const wy = oy + (rm.y - BLDG.y);
+        // Keystone lintel above window
+        c.fillStyle = '#3e3740';
+        c.fillRect(wx - 4, wy - 6, rm.w + 8, 5);
+        c.fillStyle = '#4a424d';
+        c.fillRect(wx + rm.w * 0.5 - 5, wy - 7, 10, 6);
+        c.fillStyle = 'rgba(255,255,255,0.08)';
+        c.fillRect(wx - 4, wy - 6, rm.w + 8, 1);
+        // Stone sill below window
+        c.fillStyle = '#453d46';
+        c.fillRect(wx - 4, wy + rm.h, rm.w + 8, 4);
+        c.fillStyle = 'rgba(0,0,0,0.52)';
+        c.fillRect(wx - 3, wy + rm.h + 4, rm.w + 6, 3);
+        const grime = c.createLinearGradient(0, wy + rm.h + 4, 0, wy + rm.h + 15);
+        grime.addColorStop(0, 'rgba(6,4,8,0.3)');
+        grime.addColorStop(1, 'rgba(6,4,8,0)');
+        c.fillStyle = grime;
+        c.fillRect(wx, wy + rm.h + 4, rm.w, 11);
+      }
+    }
+
+    // Ornate rooftop stone cornice
+    c.fillStyle = '#3d353e';
+    c.fillRect(ox - 10, oy - 12, BLDG.w + 20, 12);
+    c.fillStyle = '#524954';
+    c.fillRect(ox - 12, oy - 15, BLDG.w + 24, 4);
+    c.fillStyle = 'rgba(0,0,0,0.58)';
+    c.fillRect(ox - 8, oy, BLDG.w + 16, 7);
+    c.fillStyle = '#29232a';
+    for (let bx = ox + 6; bx < ox + BLDG.w - 6; bx += 22) {
+      c.fillRect(bx, oy - 7, 6, 7);
+    }
+
+    c.restore();
+    return off;
+  }
+
+  render() {
+    const ctx = this.ctx;
+    const sim = this.sim;
+
+    ctx.clearRect(0, 0, VIEW_W, VIEW_H);
+
+    // 1. Nocturnal sky, clean crescent/harvest moon, clouds & parallax skyline
+    this._drawSkyAndSkyline(ctx);
+
+    // 2. World space translated by the spaced-out anti-burn-in camera offset
+    ctx.save();
+    ctx.translate(-sim.camX, -sim.camY);
+
+    this._drawSideBuildings(ctx);
+    this._drawRooftopAndBacking(ctx);
+
+    // Render all 24 multi-window apartments (interiors + avatars + visitors behind brick)
+    for (const apt of sim.apartments) {
+      for (const rm of apt.rooms) {
+        this._drawRoomInterior(ctx, apt, rm);
+      }
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(apt.x, apt.y, apt.w, apt.h);
+      ctx.clip();
+      for (const res of apt.residents) this._drawAvatar(ctx, res);
+      for (const v of apt.visitors) this._drawVisitor(ctx, apt, v);
+      ctx.restore();
+    }
+
+    // Pre-baked weathered brick facade overlay
+    ctx.drawImage(this.facadeCache, BLDG.x - 20, BLDG.y - 20);
+
+    // Ground-floor storefronts & warm residential lobby
+    this._drawGroundLobby(ctx);
+
+    // Window glass reflections, curtains, blinds, exterior seasonal accents, fire escapes & warm bloom
+    this._drawWindowOverlayAndDetails(ctx);
+    this._drawFireEscapes(ctx);
+
+    // Sidewalk, realistic wet-asphalt shimmer reflections, streetlamps, traffic & service vehicles
+    this._drawStreetAndVehicles(ctx);
+
+    if (sim.ufo) this._drawUFO(ctx, sim.ufo);
+
+    ctx.restore();
+
+    // 3. Atmospheric weather, photographic grain & gentle vignette
+    this._drawWeatherAndAtmosphere(ctx);
+  }
+
+  _drawSkyAndSkyline(ctx) {
+    const sim = this.sim;
+    const palettes = {
+      winter:    ['#050914', '#0b1428', '#14223d', '#1c2b48'],
+      halloween: ['#090512', '#160d26', '#261438', '#331c3d'],
+      spring:    ['#060a16', '#0c152b', '#15223d', '#1d2c48'],
+      summer:    ['#060b1a', '#0e1832', '#182647', '#243459']
+    };
+    const p = palettes[sim.season] || palettes.winter;
+    const grad = ctx.createLinearGradient(0, 0, 0, VIEW_H * 0.88);
+    grad.addColorStop(0, p[0]);
+    grad.addColorStop(0.32, p[1]);
+    grad.addColorStop(0.68, p[2]);
+    grad.addColorStop(1, p[3]);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+
+    // Ambient urban horizon haze
+    const glow = ctx.createRadialGradient(VIEW_W * 0.5, 760, 120, VIEW_W * 0.5, 760, 960);
+    glow.addColorStop(0, sim.season === 'halloween' ? 'rgba(185, 95, 50, 0.17)' : 'rgba(225, 160, 100, 0.14)');
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 180, VIEW_W, 680);
+
+    if (sim.lightningFlash > 0) {
+      ctx.fillStyle = `rgba(215, 232, 255, ${(sim.lightningFlash / 32).toFixed(3)})`;
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
+
+    ctx.save();
+    ctx.translate(-sim.camX * 0.35, -sim.camY * 0.25);
+
+    for (const s of sim.stars) {
+      const a = (0.2 + 0.65 * (0.5 + 0.5 * Math.sin(sim.frame * 0.018 + s.phase))) * s.bright;
+      ctx.fillStyle = `rgba(218, 232, 255, ${a.toFixed(2)})`;
+      ctx.fillRect(s.x, s.y, s.size, s.size);
+    }
+
+    // Cleanly composited Moon (zero dark disc artifact!)
+    const mx = 1390, my = 62;
+    const moonHalo = ctx.createRadialGradient(mx, my, 4, mx, my, 82);
+    if (sim.season === 'halloween') {
+      moonHalo.addColorStop(0, 'rgba(255, 182, 86, 0.38)');
+      moonHalo.addColorStop(0.45, 'rgba(240, 130, 45, 0.12)');
+      moonHalo.addColorStop(1, 'rgba(255, 140, 40, 0)');
+      ctx.fillStyle = moonHalo;
+      ctx.beginPath(); ctx.arc(mx, my, 82, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#f8c170';
+      ctx.beginPath(); ctx.arc(mx, my, 21, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(185, 110, 40, 0.32)';
+      ctx.beginPath(); ctx.arc(mx - 6, my - 4, 5, 0, Math.PI * 2); ctx.arc(mx + 7, my + 5, 4, 0, Math.PI * 2); ctx.fill();
+    } else {
+      moonHalo.addColorStop(0, 'rgba(205, 224, 255, 0.24)');
+      moonHalo.addColorStop(0.45, 'rgba(155, 188, 235, 0.08)');
+      moonHalo.addColorStop(1, 'rgba(140, 175, 225, 0)');
+      ctx.fillStyle = moonHalo;
+      ctx.beginPath(); ctx.arc(mx, my, 82, 0, Math.PI * 2); ctx.fill();
+      ctx.drawImage(this.crescentCache, mx - 32, my - 32);
+    }
+
+    for (const cl of sim.clouds) {
+      const cg = ctx.createRadialGradient(cl.x + cl.w * 0.5, cl.y, 10, cl.x + cl.w * 0.5, cl.y, cl.w * 0.55);
+      cg.addColorStop(0, 'rgba(42, 54, 82, 0.22)');
+      cg.addColorStop(1, 'rgba(20, 28, 48, 0)');
+      ctx.fillStyle = cg;
+      ctx.fillRect(cl.x, cl.y - cl.h, cl.w, cl.h * 2);
+    }
+
+    // Distant skyline silhouettes
+    for (const b of sim.skyline) {
+      const by = 785 - b.h;
+      ctx.fillStyle = sim.season === 'halloween' ? '#120d1c' : '#0b111f';
+      ctx.fillRect(b.x, by, b.w, b.h + 40);
+      for (const d of b.dots) {
+        ctx.fillStyle = d.warm
+          ? `rgba(248, 206, 132, ${d.alpha.toFixed(2)})`
+          : `rgba(155, 205, 248, ${(d.alpha * 0.85).toFixed(2)})`;
+        ctx.fillRect(b.x + d.dx, by + d.dy, 4, 6);
+      }
+      if (b.hasAntenna) {
+        ctx.fillStyle = '#182033';
+        ctx.fillRect(b.x + b.w * 0.5, by - 36, 2, 36);
+        if (Math.floor(sim.frame / 45 + b.x) % 2 === 0) {
+          ctx.fillStyle = '#ff3b3b';
+          ctx.beginPath(); ctx.arc(b.x + b.w * 0.5 + 1, by - 36, 2.2, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  _drawSideBuildings(ctx) {
+    const sim = this.sim;
+    const snowy = sim.season === 'winter' || sim.activeWeather() === 'snow';
+    for (const sb of sim.sideBuildings) {
+      const g = ctx.createLinearGradient(sb.x, sb.y, sb.x, sb.y + sb.h);
+      g.addColorStop(0, sb.hue);
+      g.addColorStop(1, '#111017');
+      ctx.fillStyle = g;
+      ctx.fillRect(sb.x, sb.y, sb.w, sb.h);
+      // Subtle cornice
+      ctx.fillStyle = '#2d2730';
+      ctx.fillRect(sb.x - 4, sb.y - 8, sb.w + 8, 8);
+      if (snowy) {
+        ctx.fillStyle = 'rgba(215, 228, 245, 0.78)';
+        ctx.fillRect(sb.x - 4, sb.y - 10, sb.w + 8, 3);
+      }
+      for (const w of sb.wins) {
+        const wx = sb.x + w.rx, wy = sb.y + w.ry;
+        // Dark night-glass sky reflection on unlit neighbor windows
+        const glass = ctx.createLinearGradient(wx, wy, wx, wy + 46);
+        glass.addColorStop(0, '#131a2b');
+        glass.addColorStop(1, '#090c14');
+        ctx.fillStyle = glass;
+        ctx.fillRect(wx, wy, 42, 46);
+        if (w.lit) {
+          const wg = ctx.createRadialGradient(wx + 21, wy + 16, 4, wx + 21, wy + 24, 34);
+          wg.addColorStop(0, w.warm ? 'rgba(242, 186, 108, 0.52)' : 'rgba(130, 188, 238, 0.38)');
+          wg.addColorStop(1, w.warm ? 'rgba(120, 74, 38, 0.16)' : 'rgba(50, 82, 125, 0.12)');
+          ctx.fillStyle = wg;
+          ctx.fillRect(wx + 2, wy + 2, 38, 42);
+        }
+        ctx.strokeStyle = '#141118'; ctx.lineWidth = 2;
+        ctx.strokeRect(wx, wy, 42, 46);
+        ctx.fillStyle = 'rgba(16, 14, 20, 0.65)';
+        ctx.fillRect(wx, wy + 22, 42, 1.5);
+        ctx.fillStyle = '#332d36';
+        ctx.fillRect(wx - 2, wy + 46, 46, 3);
+      }
+    }
+  }
+
+  _drawRooftopAndBacking(ctx) {
+    const sim = this.sim;
+    const snowy = sim.season === 'winter' || sim.activeWeather() === 'snow';
+
+    // Rooftop water tower
+    const wtX = BLDG.x + 76, wtY = BLDG.y - 14;
+    ctx.strokeStyle = '#1b1f2b'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(wtX + 8, wtY); ctx.lineTo(wtX + 12, wtY - 22);
+    ctx.moveTo(wtX + 52, wtY); ctx.lineTo(wtX + 48, wtY - 22);
+    ctx.moveTo(wtX + 30, wtY); ctx.lineTo(wtX + 30, wtY - 22);
+    ctx.stroke();
+    ctx.fillStyle = '#262126';
+    ctx.fillRect(wtX + 6, wtY - 64, 48, 42);
+    ctx.fillStyle = '#17151a';
+    ctx.fillRect(wtX + 6, wtY - 54, 48, 2); ctx.fillRect(wtX + 6, wtY - 40, 48, 2); ctx.fillRect(wtX + 6, wtY - 28, 48, 2);
+    ctx.fillStyle = '#1f2430';
+    ctx.beginPath();
+    ctx.moveTo(wtX + 2, wtY - 64); ctx.lineTo(wtX + 30, wtY - 82); ctx.lineTo(wtX + 58, wtY - 64);
+    ctx.closePath(); ctx.fill();
+    if (snowy) {
+      ctx.strokeStyle = 'rgba(220, 234, 250, 0.85)'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(wtX + 4, wtY - 65); ctx.lineTo(wtX + 30, wtY - 82); ctx.lineTo(wtX + 56, wtY - 65); ctx.stroke();
+    }
+
+    // Stairwell bulkhead & rooftop steam vent (classic cold-night urban detail!)
+    ctx.fillStyle = '#211c22'; ctx.fillRect(BLDG.x + 430, BLDG.y - 44, 120, 32);
+    ctx.fillStyle = '#2f2933'; ctx.fillRect(BLDG.x + 426, BLDG.y - 47, 128, 4);
+    ctx.fillStyle = '#1d2433'; ctx.fillRect(BLDG.x + 489, BLDG.y - 84, 2, 38);
+    if (Math.floor(sim.frame / 42) % 2 === 0) {
+      ctx.fillStyle = '#ff3b3b';
+      ctx.beginPath(); ctx.arc(BLDG.x + 490, BLDG.y - 84, 3, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Gentle steam wisps rising from rooftop vent pipe in winter/spring/autumn
+    const vx = BLDG.x + 792, vy = BLDG.y - 36;
+    if (sim.season !== 'summer') {
+      for (let i = 0; i < 6; i++) {
+        const age = ((sim.frame * 0.25 + i * 18) % 108) / 108;
+        const sx = vx + age * 26 + Math.sin(age * 5 + i) * 6;
+        const sy = vy - age * 46;
+        const alpha = (1 - age) * 0.11;
+        ctx.fillStyle = `rgba(210, 224, 245, ${alpha.toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(sx, sy, 5 + age * 14, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    ctx.fillStyle = '#1d222e';
+    ctx.fillRect(BLDG.x + 760, BLDG.y - 34, 66, 22);
+    ctx.fillRect(BLDG.x + 855, BLDG.y - 26, 44, 14);
+    if (snowy) {
+      ctx.fillStyle = 'rgba(220, 234, 250, 0.82)';
+      ctx.fillRect(BLDG.x - 12, BLDG.y - 17, BLDG.w + 24, 3);
+      ctx.fillRect(BLDG.x + 426, BLDG.y - 49, 128, 2.5);
+      ctx.fillRect(BLDG.x + 760, BLDG.y - 36, 66, 2.5);
+    }
+
+    ctx.fillStyle = '#070910';
+    ctx.fillRect(BLDG.x + 2, BLDG.y + 2, BLDG.w - 4, BLDG.h - 4);
+  }
+
+  _drawRoomInterior(ctx, apt, rm) {
+    const sim = this.sim;
+    const { x, y, w, h } = rm;
+    const props = ROOM_TYPES[rm.type];
+    const lit = rm.light !== 'off';
+
+    let wallCol = '#0d121f';
+    let lightGlow = null;
+    if (rm.light === 'warm') {
+      wallCol = props.wall;
+      lightGlow = ['rgba(255, 206, 132, 0.44)', 'rgba(225, 148, 72, 0.14)', 'rgba(25, 16, 10, 0)'];
+    } else if (rm.light === 'dim') {
+      wallCol = '#1b1d28';
+      lightGlow = ['rgba(245, 185, 105, 0.18)', 'rgba(180, 120, 60, 0.06)', 'rgba(0, 0, 0, 0)'];
+    } else if (rm.light === 'inspect') {
+      wallCol = '#313c4d';
+      lightGlow = ['rgba(220, 238, 255, 0.46)', 'rgba(155, 195, 240, 0.16)', 'rgba(0, 0, 0, 0)'];
+    } else if (rm.light === 'tv') {
+      wallCol = '#182334';
+      const p = 0.32 + 0.14 * Math.sin(sim.frame * 0.2 + x);
+      lightGlow = [`rgba(120, 200, 255, ${p.toFixed(2)})`, 'rgba(60, 125, 205, 0.12)', 'rgba(0, 0, 0, 0)'];
+    } else if (rm.light === 'monitor') {
+      wallCol = '#16252f';
+      lightGlow = ['rgba(125, 240, 232, 0.30)', 'rgba(55, 145, 155, 0.10)', 'rgba(0, 0, 0, 0)'];
+    } else if (rm.light === 'disco') {
+      wallCol = '#281736';
+      const cols = ['rgba(255,65,205,0.45)', 'rgba(55,225,255,0.45)', 'rgba(255,205,55,0.45)'];
+      lightGlow = [cols[Math.floor(sim.frame / 10 + rm.idx) % cols.length], 'rgba(90, 30, 120, 0.14)', 'rgba(0,0,0,0)'];
+    } else if (rm.light === 'fire') {
+      wallCol = '#472116';
+      const f = 0.48 + 0.2 * Math.sin(sim.frame * 0.45);
+      lightGlow = [`rgba(255, 115, 32, ${f.toFixed(2)})`, 'rgba(220, 50, 15, 0.2)', 'rgba(0,0,0,0)'];
+    } else if (rm.light === 'ufo') {
+      wallCol = '#143325';
+      lightGlow = ['rgba(75, 255, 150, 0.45)', 'rgba(20, 145, 75, 0.18)', 'rgba(0,0,0,0)'];
+    }
+
+    if (sim.season === 'halloween' && apt.decor.spookyGlow && rm.light === 'warm' && rm.idx === 1) {
+      lightGlow = ['rgba(198, 102, 255, 0.36)', 'rgba(255, 130, 45, 0.14)', 'rgba(0,0,0,0)'];
+    }
+
+    ctx.fillStyle = wallCol;
+    ctx.fillRect(x, y, w, h);
+
+    // Subtle interior perspective depth
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w - 7, y + 6); ctx.lineTo(x + 7, y + 6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+    ctx.fillRect(x, y, 6, h); ctx.fillRect(x + w - 6, y, 6, h);
+    ctx.fillStyle = lit ? props.floor : '#080b12';
+    ctx.fillRect(x, y + h - 7, w, 7);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(x + 5, y + h - 8, w - 10, 1);
+
+    if (lightGlow) {
+      const lx = rm.light === 'tv' ? x + w * 0.78 : (rm.light === 'monitor' ? x + w * 0.72 : x + w * 0.5);
+      const ly = rm.light === 'tv' || rm.light === 'monitor' ? y + h * 0.56 : y + 6;
+      const rg = ctx.createRadialGradient(lx, ly, 3, lx, ly, w * 0.75);
+      rg.addColorStop(0, lightGlow[0]);
+      rg.addColorStop(0.55, lightGlow[1]);
+      rg.addColorStop(1, lightGlow[2]);
+      ctx.fillStyle = rg;
+      ctx.fillRect(x, y, w, h);
+    }
+
+    if (rm.light === 'warm' || rm.light === 'inspect') {
+      ctx.fillStyle = rm.light === 'inspect' ? '#edf6ff' : '#fff0bd';
+      ctx.fillRect(x + w * 0.5 - 6, y + 2, 12, 2.5);
+    }
+
+    const darkW = lit ? '#453023' : '#121622';
+    const midW = lit ? '#634632' : '#171c2b';
+    const fab = lit ? '#593d4a' : '#141926';
+    const metal = lit ? '#7f8c99' : '#19202e';
+
+    if (rm.type === 'kitchen') {
+      ctx.fillStyle = darkW; ctx.fillRect(x + 6, y + 8, 44, 10);
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x + 20, y + 8, 1, 10); ctx.fillRect(x + 35, y + 8, 1, 10);
+      ctx.fillStyle = metal; ctx.fillRect(x + 7, y + h - 22, 20, 15);
+      ctx.fillStyle = '#181c24'; ctx.fillRect(x + 10, y + h - 18, 14, 8);
+      if (rm.light === 'fire') {
+        const fh = 11 + Math.sin(sim.frame * 0.4) * 4;
+        ctx.fillStyle = '#ff4d1a'; ctx.beginPath(); ctx.ellipse(x + 17, y + h - 24, 9, fh * 0.65, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffd54f'; ctx.beginPath(); ctx.ellipse(x + 17, y + h - 23, 5, fh * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+      } else if (apt.residents.some(r => r.pose === 'cook' && sim.getRoomAt(apt, r.x) === rm)) {
+        ctx.fillStyle = '#ff9233'; ctx.fillRect(x + 12, y + h - 23, 8, 2);
+      }
+      ctx.fillStyle = midW; ctx.fillRect(x + 27, y + h - 22, 26, 15);
+      ctx.fillStyle = lit ? '#b8b0a4' : '#202636'; ctx.fillRect(x + 27, y + h - 23, 26, 2);
+      ctx.fillStyle = lit ? '#aebac4' : '#1e2536'; ctx.fillRect(x + 58, y + h - 34, 18, 27);
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(x + 58, y + h - 23, 18, 1);
+      if (rm.fridgeOpen > 0) {
+        const fg = ctx.createLinearGradient(x + 58, 0, x + 36, 0);
+        fg.addColorStop(0, 'rgba(220, 246, 255, 0.72)'); fg.addColorStop(1, 'rgba(180, 230, 255, 0)');
+        ctx.fillStyle = fg; ctx.fillRect(x + 36, y + h - 32, 22, 24);
+      }
+    } else if (rm.type === 'living') {
+      ctx.fillStyle = lit ? '#6e5844' : '#141826'; ctx.fillRect(x + 18, y + 10, 22, 13);
+      ctx.fillStyle = lit ? '#8e7863' : '#192030'; ctx.fillRect(x + 20, y + 12, 18, 9);
+      ctx.fillStyle = darkW; ctx.fillRect(x + 9, y + h - 30, 2, 23);
+      ctx.fillStyle = lit ? '#f2d08a' : '#1a2030'; ctx.fillRect(x + 6, y + h - 35, 8, 6);
+      ctx.fillStyle = fab; ctx.fillRect(x + 15, y + h - 19, 34, 12);
+      ctx.fillStyle = lit ? '#6e4e5c' : '#192030'; ctx.fillRect(x + 15, y + h - 24, 34, 6);
+      ctx.fillStyle = darkW; ctx.fillRect(x + 58, y + h - 15, 20, 8);
+      ctx.fillStyle = '#0d1018'; ctx.fillRect(x + 60, y + h - 28, 16, 12);
+      if (rm.tvOn || rm.light === 'tv') {
+        ctx.fillStyle = Math.floor(sim.frame / 10) % 2 === 0 ? '#85dcff' : '#b2ebff';
+        ctx.fillRect(x + 61, y + h - 27, 14, 10);
+      }
+    } else if (rm.type === 'bedroom' || rm.type === 'kids') {
+      ctx.fillStyle = midW; ctx.fillRect(x + 9, y + h - 20, 18, 13);
+      if (lit) { ctx.fillStyle = '#ffdf96'; ctx.fillRect(x + 15, y + h - 27, 6, 5); ctx.fillStyle = darkW; ctx.fillRect(x + 17, y + h - 22, 2, 2); }
+      ctx.fillStyle = darkW; ctx.fillRect(x + 39, y + h - 17, 36, 10);
+      ctx.fillStyle = lit ? (rm.type === 'kids' ? '#4f7a7a' : '#536885') : '#151c2e'; ctx.fillRect(x + 41, y + h - 20, 32, 8);
+      ctx.fillStyle = lit ? '#dfd9cb' : '#20283b'; ctx.fillRect(x + 63, y + h - 22, 9, 4);
+      if (rm.type === 'kids') {
+        ctx.fillStyle = darkW; ctx.fillRect(x + 39, y + h - 36, 2, 29); ctx.fillRect(x + 73, y + h - 36, 2, 29);
+        ctx.fillRect(x + 39, y + h - 31, 36, 4);
+        ctx.fillStyle = lit ? '#6e5c82' : '#181e30'; ctx.fillRect(x + 41, y + h - 33, 30, 3);
+      }
+    } else if (rm.type === 'office') {
+      ctx.fillStyle = darkW; ctx.fillRect(x + 8, y + h - 35, 18, 28);
+      if (lit) { ctx.fillStyle = '#8c4e4e'; ctx.fillRect(x + 10, y + h - 32, 4, 5); ctx.fillStyle = '#4e788c'; ctx.fillRect(x + 15, y + h - 32, 5, 5); ctx.fillStyle = '#8c7d4e'; ctx.fillRect(x + 10, y + h - 24, 6, 5); }
+      ctx.fillStyle = midW; ctx.fillRect(x + 44, y + h - 18, 32, 11);
+      ctx.fillStyle = '#0e131c'; ctx.fillRect(x + 49, y + h - 30, 22, 11);
+      if (rm.monitorOn || rm.light === 'monitor') { ctx.fillStyle = '#7bf0e6'; ctx.fillRect(x + 50, y + h - 29, 9, 8); ctx.fillRect(x + 61, y + h - 29, 9, 8); }
+    } else if (rm.type === 'sewing') {
+      ctx.fillStyle = midW; ctx.fillRect(x + 11, y + h - 18, 32, 11);
+      ctx.fillStyle = lit ? '#cfd6de' : '#1e2533'; ctx.fillRect(x + 18, y + h - 25, 12, 7);
+      if (lit) { ctx.fillStyle = '#ffe99e'; ctx.fillRect(x + 34, y + h - 28, 5, 4); }
+      ctx.fillStyle = lit ? '#8c4b32' : '#1c1824'; ctx.fillRect(x + 60, y + h - 15, 11, 8);
+      ctx.fillStyle = lit ? '#3f7a4a' : '#13241f'; ctx.beginPath(); ctx.arc(x + 65, y + h - 20, 7, 0, Math.PI * 2); ctx.fill();
+    } else if (rm.type === 'studio') {
+      ctx.strokeStyle = midW; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x + 18, y + h - 7); ctx.lineTo(x + 25, y + h - 35); ctx.lineTo(x + 33, y + h - 7); ctx.stroke();
+      ctx.fillStyle = lit ? '#e5dec9' : '#1d2433'; ctx.fillRect(x + 16, y + h - 34, 18, 16);
+      if (lit) { ctx.fillStyle = '#c85a48'; ctx.fillRect(x + 18, y + h - 31, 10, 7); ctx.fillStyle = '#4e7ea3'; ctx.fillRect(x + 22, y + h - 25, 9, 5); }
+      ctx.fillStyle = darkW; ctx.fillRect(x + 54, y + h - 22, 20, 15);
+    } else if (rm.type === 'dining') {
+      ctx.fillStyle = midW; ctx.fillRect(x + 24, y + h - 18, 36, 11);
+      ctx.fillStyle = darkW; ctx.fillRect(x + 16, y + h - 22, 7, 15); ctx.fillRect(x + 61, y + h - 22, 7, 15);
+    }
+
+    // --- SEASONAL & HOLIDAY INTERIOR DECORATIONS ---
+    // 1. Layered Realistic Pine Christmas Tree (warm twinkling micro-lights)
+    if (sim.season === 'winter' && apt.decor.xmasTree === rm.idx) {
+      const tx = x + 53, ty = y + h - 7;
+      ctx.fillStyle = '#3b2416'; ctx.fillRect(tx - 1.5, ty - 4, 3, 4);
+      const pine = lit ? '#194a2d' : '#0f2e1c';
+      const pineHi = lit ? '#23633c' : '#143c24';
+      // 4 overlapping bough tiers (realistic pine silhouette)
+      const tiers = [
+        { y: ty - 4, w: 12, h: 10 },
+        { y: ty - 11, w: 10, h: 9 },
+        { y: ty - 18, w: 7.5, h: 8 },
+        { y: ty - 24, w: 4.5, h: 8 }
+      ];
+      tiers.forEach((tr, ti) => {
+        ctx.fillStyle = ti % 2 === 0 ? pine : pineHi;
+        ctx.beginPath();
+        ctx.moveTo(tx, tr.y - tr.h);
+        ctx.lineTo(tx - tr.w, tr.y);
+        ctx.lineTo(tx + tr.w, tr.y);
+        ctx.closePath(); ctx.fill();
+      });
+      // Soft golden tree ambient glow
+      const tg = ctx.createRadialGradient(tx, ty - 17, 2, tx, ty - 17, 23);
+      tg.addColorStop(0, 'rgba(255, 218, 130, 0.36)');
+      tg.addColorStop(1, 'rgba(255, 190, 90, 0)');
+      ctx.fillStyle = tg; ctx.fillRect(tx - 24, ty - 38, 48, 36);
+      // Warm star topper
+      ctx.fillStyle = '#fef08a'; ctx.beginPath(); ctx.arc(tx, ty - 33, 1.8, 0, Math.PI * 2); ctx.fill();
+      // Subtle twinkling lights
+      const tw = Math.floor(sim.frame / 22 + apt.floor) % 4;
+      const bulbs = [[-6, -7, '#ffdf85'], [5, -8, '#ef4444'], [-3, -13, '#fef08a'], [4, -15, '#38bdf8'], [-2, -20, '#ef4444'], [2, -22, '#fef08a'], [0, -10, '#4ade80'], [-1, -27, '#fffbeb']];
+      bulbs.forEach(([ox, oy, col], i) => {
+        ctx.fillStyle = i % 4 === tw ? '#ffffff' : col;
+        ctx.fillRect(tx + ox, ty + oy, 1.7, 1.7);
+      });
+    }
+
+    // 2. Properly Scaled Tabletop Hanukkah Menorah (Hanukkiah) in Jewish households (no tree!)
+    if (sim.season === 'winter' && apt.decor.menorah === rm.idx) {
+      const mx = x + w * 0.5, my = y + h - 7;
+      // Small wooden window table supporting the menorah
+      ctx.fillStyle = '#422c20';
+      ctx.fillRect(mx - 13, my - 7, 26, 2);
+      ctx.fillRect(mx - 10, my - 5, 2, 5);
+      ctx.fillRect(mx + 8, my - 5, 2, 5);
+
+      // Soft warm candlelight halo + gentle blue-silver holiday aura
+      const mh = ctx.createRadialGradient(mx, my - 15, 2, mx, my - 15, 24);
+      mh.addColorStop(0, 'rgba(255, 224, 120, 0.48)');
+      mh.addColorStop(0.55, 'rgba(130, 185, 255, 0.14)');
+      mh.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = mh; ctx.fillRect(mx - 26, my - 36, 52, 34);
+
+      const base = my - 7;
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(mx - 3.5, base - 1.5, 7, 1.5); // base foot
+      ctx.fillRect(mx - 0.7, base - 8, 1.4, 6.5); // center stem
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 1.1;
+      for (const span of [2.5, 5, 7.5, 10]) {
+        ctx.beginPath();
+        ctx.arc(mx, base - 7.5, span, 0, Math.PI, false);
+        ctx.stroke();
+      }
+      // 9 delicate candles + flickering golden flames
+      const positions = [-10, -7.5, -5, -2.5, 0, 2.5, 5, 7.5, 10];
+      positions.forEach((dx, idx) => {
+        const isShamash = dx === 0;
+        const ch = isShamash ? 5.2 : 3.6;
+        const cy = base - 7.5 - ch;
+        ctx.fillStyle = isShamash ? '#f8fafc' : (idx % 2 === 0 ? '#93c5fd' : '#e2e8f0');
+        ctx.fillRect(mx + dx - 0.55, cy, 1.1, ch);
+        const flick = Math.sin(sim.frame * 0.22 + idx * 1.7) * 0.45;
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath(); ctx.ellipse(mx + dx, cy - 1.5 + flick * 0.35, 0.9, 1.6, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(mx + dx - 0.4, cy - 1.1, 0.8, 0.9);
+      });
+    }
+
+    // 3. Halloween Jack-o'-lantern & subtle cutouts
+    if (sim.season === 'halloween' && apt.decor.pumpkin === rm.idx) {
+      const px = x + 16, py = y + h - 13;
+      const ph = ctx.createRadialGradient(px + 5, py + 4, 2, px + 5, py + 4, 18);
+      ph.addColorStop(0, 'rgba(255, 145, 30, 0.42)'); ph.addColorStop(1, 'rgba(255, 120, 20, 0)');
+      ctx.fillStyle = ph; ctx.fillRect(px - 10, py - 10, 32, 26);
+      ctx.fillStyle = '#ea580c';
+      ctx.beginPath(); ctx.ellipse(px + 5, py + 4, 6, 4.8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#15803d'; ctx.fillRect(px + 4.3, py - 2, 1.6, 2.5);
+      ctx.fillStyle = Math.floor(sim.frame / 10 + rm.x) % 2 === 0 ? '#fef08a' : '#facc15';
+      ctx.fillRect(px + 2.5, py + 2.5, 1.6, 1.6); ctx.fillRect(px + 6, py + 2.5, 1.6, 1.6); ctx.fillRect(px + 2.5, py + 5.8, 5, 1.2);
+
+      if (apt.floor % 2 === 0) {
+        ctx.fillStyle = 'rgba(235, 242, 255, 0.62)';
+        ctx.beginPath(); ctx.arc(x + 66, y + 15, 4.5, Math.PI, 0); ctx.lineTo(x + 70.5, y + 22); ctx.lineTo(x + 61.5, y + 22); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#0f172a'; ctx.fillRect(x + 64, y + 14, 1.3, 1.3); ctx.fillRect(x + 67, y + 14, 1.3, 1.3);
+      } else {
+        ctx.fillStyle = '#09090d';
+        ctx.beginPath(); ctx.moveTo(x + 66, y + 16); ctx.lineTo(x + 59, y + 12.5); ctx.lineTo(x + 62.5, y + 18.5); ctx.lineTo(x + 66, y + 17.5); ctx.lineTo(x + 69.5, y + 18.5); ctx.lineTo(x + 73, y + 12.5); ctx.closePath(); ctx.fill();
+      }
+    }
+
+    if (rm.telescope) {
+      ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(x + 48, y + h - 7); ctx.lineTo(x + 54, y + h - 22); ctx.lineTo(x + 60, y + h - 7); ctx.stroke();
+      ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 2.8;
+      ctx.beginPath(); ctx.moveTo(x + 47, y + h - 20); ctx.lineTo(x + 62, y + h - 26); ctx.stroke();
+    }
+
+    if (rm.packageProp) {
+      const bx = rm.packageProp.x, by = y + h - 14;
+      if (rm.packageProp.isPizza) {
+        ctx.fillStyle = '#e5e0d5'; ctx.fillRect(bx - 7, by + 3, 14, 4);
+        ctx.fillStyle = '#dc2626'; ctx.fillRect(bx - 4, by + 4, 8, 1.5);
+      } else {
+        ctx.fillStyle = '#b47b44'; ctx.fillRect(bx - 6, by, 12, 8);
+        if (rm.packageProp.opened) {
+          ctx.fillStyle = '#d49b63'; ctx.fillRect(bx - 9, by - 3, 5, 2.5); ctx.fillRect(bx + 4, by - 3, 5, 2.5);
+          ctx.fillStyle = '#60a5fa'; ctx.fillRect(bx - 2, by - 3, 4, 3);
+        } else {
+          ctx.fillStyle = '#855528'; ctx.fillRect(bx - 6, by + 3, 12, 1.5);
+        }
+      }
+    }
+
+    if (rm.smoke > 0.04) {
+      for (let i = 0; i < 8; i++) {
+        const sx = x + 12 + ((i * 11 + sim.frame * 0.4) % (w - 24));
+        const sy = y + h - 16 - ((sim.frame * 0.45 + i * 9) % (h - 14));
+        ctx.fillStyle = `rgba(175, 182, 195, ${(rm.smoke * 0.34).toFixed(2)})`;
+        ctx.beginPath(); ctx.arc(sx, sy, 6 + (i % 4) * 2, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    if (rm.sparks > 0 && Math.random() < 0.65) {
+      ctx.fillStyle = '#fff380';
+      ctx.fillRect(x + 12 + Math.random() * 14, y + 18 + Math.random() * 14, 3, 2);
+    }
+
+    if (rm.cameraFlash > 0) {
+      ctx.fillStyle = `rgba(255, 255, 255, ${(rm.cameraFlash / 13).toFixed(2)})`;
+      ctx.fillRect(x, y, w, h);
+    }
+  }
+
+  _drawAvatar(ctx, res) {
+    if (res.hidden) return;
+    const sim = this.sim;
+    const rm = sim.getRoomAt(res.apt, res.x);
+    const inDark = rm.light === 'off';
+    const sc = res.scale || 1;
+    const x = res.x;
+    const y = res.y - res.levitateY;
+
+    const skin = inDark ? '#202636' : res.skin;
+    const hair = inDark ? '#10141f' : res.hair;
+    const shirt = inDark ? '#181f2e' : res.shirt;
+    const pants = inDark ? '#111622' : res.pants;
+
+    if (res.collapsed) {
+      ctx.fillStyle = pants; ctx.fillRect(x - 10, y - 4, 11, 4);
+      ctx.fillStyle = shirt; ctx.fillRect(x + 1, y - 5, 9, 5);
+      ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(x + 12, y - 3, 3, 0, Math.PI * 2); ctx.fill();
+      return;
+    }
+
+    if (res.pose === 'sleep' && res.state === 'acting') {
+      ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(x + 9, y - 16, 3.3 * sc, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = hair; ctx.beginPath(); ctx.arc(x + 10.5, y - 16.5, 3.2 * sc, -Math.PI * 0.6, Math.PI * 0.5); ctx.fill();
+      return;
+    }
+
+    const isSit = (res.pose === 'sit' || res.pose === 'type' || res.pose === 'sew' || res.pose === 'read' || res.pose === 'slump' || res.pose === 'instrument') && res.state === 'acting';
+    const isCrouch = (res.pose === 'unbox' || res.pose === 'crouch' || res.pose === 'yoga') && res.state === 'acting';
+    const walkBob = res.state === 'walking' ? Math.abs(Math.sin(res.walkPhase)) * 1.8 : 0;
+    const sway = (res.pose === 'sway' || res.pose === 'dance') && res.state === 'acting' ? Math.sin(sim.frame * 0.08 + x) * 1.5 : 0;
+    const baseY = y - (isSit ? 2 : 0) + (isCrouch ? 5 : 0) - walkBob;
+
+    if (!inDark) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.24)';
+      ctx.beginPath(); ctx.ellipse(x + 1.5, y, 5 * sc, 2, 0, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Natural tapered legs
+    ctx.strokeStyle = pants;
+    ctx.lineWidth = 2.4 * sc;
+    ctx.lineCap = 'round';
+    const hipY = baseY - 12 * sc;
+    if (isSit) {
+      ctx.beginPath();
+      ctx.moveTo(x - 1, hipY); ctx.lineTo(x + res.facing * 6 * sc, hipY + 2); ctx.lineTo(x + res.facing * 7 * sc, baseY - 1);
+      ctx.stroke();
+    } else if (res.state === 'walking') {
+      const str = Math.sin(res.walkPhase) * 4.5 * sc;
+      ctx.beginPath();
+      ctx.moveTo(x - 1, hipY); ctx.lineTo(x - 1 + str, baseY - 1);
+      ctx.moveTo(x + 1, hipY); ctx.lineTo(x + 1 - str, baseY - 1);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(x - 1.8 * sc, hipY); ctx.lineTo(x - 1.8 * sc, baseY - 1);
+      ctx.moveTo(x + 1.8 * sc, hipY); ctx.lineTo(x + 1.8 * sc, baseY - 1);
+      ctx.stroke();
+    }
+
+    // Tapered shoulders/torso with subtle light shading
+    const torsoH = 11 * sc;
+    const shY = hipY - torsoH;
+    ctx.fillStyle = shirt;
+    ctx.beginPath();
+    ctx.moveTo(x - 4.2 * sc + sway * 0.4, shY + 1);
+    ctx.lineTo(x + 4.2 * sc + sway * 0.4, shY + 1);
+    ctx.lineTo(x + 3.2 * sc + sway * 0.2, hipY + 1);
+    ctx.lineTo(x - 3.2 * sc + sway * 0.2, hipY + 1);
+    ctx.closePath(); ctx.fill();
+
+    // Subtle rim highlight from room light (TV/monitor/lamp)
+    if (!inDark) {
+      ctx.fillStyle = rm.light === 'tv' || rm.light === 'monitor' ? 'rgba(155, 230, 255, 0.22)' : 'rgba(255, 225, 165, 0.18)';
+      ctx.fillRect(x + (res.facing > 0 ? 1.5 : -3.5) * sc, shY + 1, 1.6 * sc, torsoH - 1);
+    }
+
+    // Arms & activity props
+    ctx.strokeStyle = skin;
+    ctx.lineWidth = 1.9 * sc;
+    if (res.pose === 'argue' || res.pose === 'wave' || res.pose === 'workout') {
+      const a = Math.sin(sim.frame * 0.25 + x) * 5 * sc;
+      ctx.beginPath();
+      ctx.moveTo(x - 3 * sc, shY + 2); ctx.lineTo(x - 7 * sc, shY - 3 + a);
+      ctx.moveTo(x + 3 * sc, shY + 2); ctx.lineTo(x + 7 * sc, shY - 3 - a);
+      ctx.stroke();
+    } else if (res.pose === 'phone') {
+      ctx.beginPath();
+      ctx.moveTo(x + res.facing * 3 * sc, shY + 2); ctx.lineTo(x + res.facing * 4 * sc, shY - 3);
+      ctx.stroke();
+    } else if (res.pose === 'type' || res.pose === 'sew' || res.pose === 'cook' || res.pose === 'paint' || res.pose === 'unbox' || res.pose === 'clean') {
+      const mv = Math.sin(sim.frame * 0.14) * 1.8;
+      ctx.beginPath();
+      ctx.moveTo(x + res.facing * 2.5 * sc, shY + 2.5);
+      ctx.lineTo(x + res.facing * 7.5 * sc, shY + 5 + mv);
+      ctx.stroke();
+    } else if (res.pose === 'instrument') {
+      ctx.fillStyle = '#8c5330';
+      ctx.beginPath(); ctx.ellipse(x + res.facing * 3, shY + 7, 4, 2.5, 0.2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#63381e'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(x + res.facing * 3, shY + 7); ctx.lineTo(x + res.facing * 10, shY + 4); ctx.stroke();
+    } else if (res.carrying === 'box' || res.carrying === 'pizza') {
+      const bx = x + res.facing * 5 * sc;
+      ctx.fillStyle = res.carrying === 'pizza' ? '#e5e0d5' : '#b47b44';
+      ctx.fillRect(bx - 4, shY + 2, 9, res.carrying === 'pizza' ? 3 : 6);
+    } else if (res.carrying === 'plate' || res.carrying === 'mug') {
+      ctx.fillStyle = res.carrying === 'plate' ? '#e6e2d5' : '#d6a456';
+      ctx.fillRect(x + res.facing * 6 * sc - 2, shY + 4, 5, 2.5);
+    } else if (res.carrying === 'rug') {
+      ctx.fillStyle = '#6e3235';
+      ctx.beginPath(); ctx.roundRect(x - res.facing * 16, baseY - 7, 19, 6, 3); ctx.fill();
+    } else if (res.pose === 'dance') {
+      const d = Math.sin(sim.frame * 0.18) * 4;
+      ctx.beginPath();
+      ctx.moveTo(x - 3 * sc, shY + 2); ctx.lineTo(x - 7 * sc, shY - 2 + d);
+      ctx.moveTo(x + 3 * sc, shY + 2); ctx.lineTo(x + 7 * sc, shY - 2 - d);
+      ctx.stroke();
+    } else {
+      const armSw = res.state === 'walking' ? Math.sin(res.walkPhase) * 3.5 * sc : 0;
+      ctx.beginPath();
+      ctx.moveTo(x - 3.5 * sc, shY + 2); ctx.lineTo(x - 3.5 * sc - armSw, shY + 9 * sc);
+      ctx.moveTo(x + 3.5 * sc, shY + 2); ctx.lineTo(x + 3.5 * sc + armSw, shY + 9 * sc);
+      ctx.stroke();
+    }
+
+    const headY = shY - 4.0 * sc;
+    ctx.fillStyle = skin;
+    ctx.beginPath(); ctx.arc(x + sway * 0.5, headY, 3.4 * sc, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = hair;
+    ctx.beginPath(); ctx.arc(x + sway * 0.5 - res.facing * 0.5, headY - 0.8, 3.5 * sc, Math.PI * 0.85, Math.PI * 2.15); ctx.fill();
+  }
+
+  _drawVisitor(ctx, apt, v) {
+    const sim = this.sim;
+    const x = v.x, y = apt.y + apt.h - 4;
+    const bob = v.moving ? Math.abs(Math.sin(v.walkPhase || 0)) * 1.5 : 0;
+    const by = y - bob;
+
+    if (v.kind === 'burglar') {
+      const fg = ctx.createLinearGradient(x + v.dir * 4, by - 16, x + v.dir * 48, by - 16);
+      fg.addColorStop(0, 'rgba(255, 248, 190, 0.52)'); fg.addColorStop(1, 'rgba(255, 240, 150, 0)');
+      ctx.fillStyle = fg;
+      ctx.beginPath(); ctx.moveTo(x + v.dir * 4, by - 16); ctx.lineTo(x + v.dir * 48, by - 28); ctx.lineTo(x + v.dir * 48, by - 4); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#070a12'; ctx.fillRect(x - 3.5, by - 24, 7, 24);
+      ctx.beginPath(); ctx.arc(x, by - 27, 3.5, 0, Math.PI * 2); ctx.fill();
+    } else if (v.kind === 'firefighter') {
+      ctx.fillStyle = '#1f242d'; ctx.fillRect(x - 4, by - 24, 8, 24);
+      ctx.fillStyle = '#facc15'; ctx.fillRect(x - 4, by - 14, 8, 2); ctx.fillRect(x - 4, by - 6, 8, 1.5);
+      ctx.fillStyle = '#e5be9e'; ctx.beginPath(); ctx.arc(x, by - 27, 3.3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#dc2626'; ctx.beginPath(); ctx.arc(x, by - 28.5, 4.2, Math.PI, 0); ctx.fill();
+      ctx.fillRect(x - 5.5, by - 28.5, 11, 1.8);
+      if (!v.moving && v.pose === 'spray') {
+        const sg = ctx.createLinearGradient(x - 4, by - 18, x - 34, by - 20);
+        sg.addColorStop(0, 'rgba(210, 242, 255, 0.8)'); sg.addColorStop(1, 'rgba(180, 225, 255, 0.12)');
+        ctx.fillStyle = sg;
+        ctx.beginPath();
+        ctx.moveTo(x - 4, by - 18); ctx.lineTo(x - 32, by - 24 + Math.sin(sim.frame * 0.5) * 2);
+        ctx.lineTo(x - 32, by - 14 + Math.sin(sim.frame * 0.5) * 2); ctx.closePath(); ctx.fill();
+      }
+    } else if (v.kind === 'police') {
+      ctx.fillStyle = '#182847'; ctx.fillRect(x - 3.8, by - 24, 7.6, 24);
+      ctx.fillStyle = '#facc15'; ctx.fillRect(x + v.dir * 1.5, by - 19, 1.8, 1.8);
+      ctx.fillStyle = '#e5bc9c'; ctx.beginPath(); ctx.arc(x, by - 27, 3.3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#12203b'; ctx.fillRect(x - 4, by - 31, 8, 2.5);
+    } else if (v.kind === 'detective') {
+      const dg = ctx.createLinearGradient(x + v.dir * 4, by - 16, x + v.dir * 38, by - 16);
+      dg.addColorStop(0, 'rgba(255, 248, 200, 0.36)'); dg.addColorStop(1, 'rgba(255, 240, 160, 0)');
+      ctx.fillStyle = dg;
+      ctx.beginPath(); ctx.moveTo(x + v.dir * 4, by - 16); ctx.lineTo(x + v.dir * 38, by - 24); ctx.lineTo(x + v.dir * 38, by - 4); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#2d2824'; ctx.fillRect(x - 3.5, by - 10, 7, 10);
+      ctx.fillStyle = '#a69072'; ctx.fillRect(x - 5, by - 24, 10, 16);
+      ctx.fillStyle = '#e5bc9c'; ctx.beginPath(); ctx.arc(x, by - 27, 3.3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#5c4c3c'; ctx.fillRect(x - 5.5, by - 30, 11, 2); ctx.fillRect(x - 3.5, by - 32.5, 7, 2.5);
+    } else if (v.kind === 'medic') {
+      ctx.fillStyle = '#1e3a5f'; ctx.fillRect(x - 3.8, by - 18, 7.6, 18);
+      ctx.fillStyle = '#e2e8f0'; ctx.fillRect(x - 3.8, by - 16, 7.6, 2);
+      ctx.fillStyle = '#e5bc9c'; ctx.beginPath(); ctx.arc(x, by - 21, 3.2, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  _drawGroundLobby(ctx) {
+    const sim = this.sim;
+    const cx = BLDG.x + BLDG.w * 0.5;
+    const ly = BLDG.lobbyY;
+    const lh = BLDG.streetY - ly;
+
+    // Left ground-floor storefront: dimly lit late-night Bookshop / Espresso Bar
+    const lx = BLDG.x + 56, lw = 280;
+    ctx.fillStyle = '#0d1018';
+    ctx.fillRect(lx, ly + 12, lw, lh - 14);
+    const cafeG = ctx.createRadialGradient(lx + 110, ly + 28, 10, lx + 140, ly + 36, 140);
+    cafeG.addColorStop(0, 'rgba(255, 194, 115, 0.28)');
+    cafeG.addColorStop(1, 'rgba(30, 20, 14, 0.05)');
+    ctx.fillStyle = cafeG; ctx.fillRect(lx + 4, ly + 16, lw - 8, lh - 22);
+    // Interior bookshelves & tiny pendant lights
+    ctx.fillStyle = '#261b16';
+    ctx.fillRect(lx + 16, ly + 22, 72, lh - 28);
+    ctx.fillRect(lx + 170, ly + 28, 92, lh - 34);
+    for (const px of [lx + 65, lx + 145, lx + 220]) {
+      ctx.fillStyle = '#fde68a'; ctx.beginPath(); ctx.arc(px, ly + 22, 2.2, 0, Math.PI * 2); ctx.fill();
+    }
+    // Storefront awning + mullions
+    ctx.fillStyle = '#2c1e24'; ctx.fillRect(lx - 6, ly + 8, lw + 12, 8);
+    ctx.strokeStyle = '#18161f'; ctx.lineWidth = 2.5;
+    ctx.strokeRect(lx, ly + 12, lw, lh - 14);
+    ctx.fillStyle = '#18161f';
+    ctx.fillRect(lx + 96, ly + 12, 3, lh - 14); ctx.fillRect(lx + 190, ly + 12, 3, lh - 14);
+
+    // Right ground-floor storefront: glowing late-night Corner Bodega / Laundromat
+    const rx = BLDG.x + BLDG.w - 336, rw = 280;
+    ctx.fillStyle = '#0c111a';
+    ctx.fillRect(rx, ly + 12, rw, lh - 14);
+    const shopG = ctx.createRadialGradient(rx + 140, ly + 26, 10, rx + 140, ly + 36, 145);
+    shopG.addColorStop(0, 'rgba(175, 225, 245, 0.24)');
+    shopG.addColorStop(1, 'rgba(18, 28, 42, 0.04)');
+    ctx.fillStyle = shopG; ctx.fillRect(rx + 4, ly + 16, rw - 8, lh - 22);
+    // Faint warm neon "OPEN" sign + interior shelves
+    ctx.fillStyle = '#1a2433'; ctx.fillRect(rx + 24, ly + 28, 120, lh - 34);
+    ctx.fillStyle = 'rgba(248, 113, 113, 0.65)'; ctx.fillRect(rx + 204, ly + 26, 28, 6);
+    ctx.fillStyle = '#1f2b3a'; ctx.fillRect(rx - 6, ly + 8, rw + 12, 8);
+    ctx.strokeStyle = '#18161f'; ctx.lineWidth = 2.5;
+    ctx.strokeRect(rx, ly + 12, rw, lh - 14);
+    ctx.fillStyle = '#18161f';
+    ctx.fillRect(rx + 94, ly + 12, 3, lh - 14); ctx.fillRect(rx + 188, ly + 12, 3, lh - 14);
+
+    // Center illuminated residential lobby entrance (unobstructed!)
+    ctx.fillStyle = '#16141b';
+    ctx.fillRect(cx - 64, ly + 6, 128, lh - 6);
+    const lobGlow = ctx.createRadialGradient(cx, ly + 24, 6, cx, ly + 38, 72);
+    lobGlow.addColorStop(0, 'rgba(255, 218, 145, 0.72)');
+    lobGlow.addColorStop(0.6, 'rgba(215, 142, 65, 0.28)');
+    lobGlow.addColorStop(1, 'rgba(40, 22, 12, 0.06)');
+    ctx.fillStyle = lobGlow;
+    ctx.fillRect(cx - 54, ly + 14, 108, lh - 14);
+
+    // Double glass vestibule doors + brass mullions + house number
+    ctx.strokeStyle = '#5c4b3a'; ctx.lineWidth = 2;
+    ctx.strokeRect(cx - 26, ly + 18, 26, lh - 18);
+    ctx.strokeRect(cx, ly + 18, 26, lh - 18);
+    ctx.fillStyle = '#d4b47c';
+    ctx.fillRect(cx - 4, ly + 36, 2, 7); ctx.fillRect(cx + 2, ly + 36, 2, 7);
+
+    // Canopy awning
+    ctx.fillStyle = '#241b22';
+    ctx.fillRect(cx - 72, ly + 4, 144, 10);
+    ctx.fillStyle = '#9c7c4e';
+    ctx.fillRect(cx - 72, ly + 12, 144, 2);
+
+    // Subtle brass building address "418" on canopy
+    ctx.fillStyle = '#f5deb3';
+    ctx.font = 'bold 8px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('418', cx, ly + 11);
+    ctx.textAlign = 'left';
+
+    // Winter wreath flanking lobby door
+    if (sim.season === 'winter') {
+      for (const wx of [cx - 42, cx + 42]) {
+        ctx.strokeStyle = '#166534'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(wx, ly + 32, 5.5, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = '#ef4444'; ctx.fillRect(wx - 1.5, ly + 36, 3, 2.5);
+      }
+    }
+  }
+
+  _drawWindowOverlayAndDetails(ctx) {
+    const sim = this.sim;
+
+    if (sim.season === 'winter') {
+      const cols = ['#fde047', '#ef4444', '#38bdf8', '#4ade80', '#fffbeb'];
+      for (let lx = BLDG.x + 8; lx < BLDG.x + BLDG.w - 8; lx += 18) {
+        const c = cols[(Math.floor(lx / 18) + Math.floor(sim.frame / 32)) % cols.length];
+        ctx.fillStyle = c;
+        ctx.beginPath(); ctx.arc(lx, BLDG.y + 3 + Math.sin(lx * 0.09) * 2, 1.6, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    for (const apt of sim.apartments) {
+      for (const rm of apt.rooms) {
+        const { x, y, w, h } = rm;
+
+        if (rm.curtains) {
+          ctx.fillStyle = 'rgba(20, 22, 32, 0.52)';
+          ctx.fillRect(x, y, 8, h); ctx.fillRect(x + w - 8, y, 8, h);
+        }
+
+        const bh = Math.round(h * rm.blinds);
+        if (bh > 2) {
+          ctx.fillStyle = 'rgba(18, 22, 32, 0.82)';
+          ctx.fillRect(x, y, w, bh);
+          ctx.fillStyle = 'rgba(120, 128, 145, 0.24)';
+          for (let sy = y + 3; sy < y + bh; sy += 3) ctx.fillRect(x, sy, w, 1);
+        }
+
+        if (rm.crimeTape) {
+          ctx.fillStyle = '#facc15'; ctx.fillRect(x + 1, y + h - 14, w - 2, 3);
+          ctx.fillStyle = '#111827';
+          for (let tx = x + 4; tx < x + w - 4; tx += 10) ctx.fillRect(tx, y + h - 14, 4, 3);
+        }
+
+        // Subtle exterior night-sky reflection on unlit glass panes!
+        if (rm.light === 'off') {
+          const refl = ctx.createLinearGradient(x, y, x + w * 0.4, y + h);
+          refl.addColorStop(0, 'rgba(95, 130, 185, 0.14)');
+          refl.addColorStop(0.5, 'rgba(45, 65, 105, 0.04)');
+          refl.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = refl; ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+        }
+
+        // Window sash, recessed shadow & mullions
+        ctx.strokeStyle = '#131017'; ctx.lineWidth = 2.5;
+        ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+        ctx.fillStyle = 'rgba(18, 15, 22, 0.78)';
+        ctx.fillRect(x + w * 0.5 - 1, y, 2, h);
+        ctx.fillRect(x, y + h * 0.48, w, 2);
+
+        // Glass specular glare
+        const sheen = ctx.createLinearGradient(x, y, x + 28, y + 28);
+        sheen.addColorStop(0, 'rgba(205, 228, 255, 0.09)');
+        sheen.addColorStop(1, 'rgba(205, 228, 255, 0)');
+        ctx.fillStyle = sheen;
+        ctx.beginPath(); ctx.moveTo(x + 2, y + 2); ctx.lineTo(x + 30, y + 2); ctx.lineTo(x + 2, y + 28); ctx.closePath(); ctx.fill();
+
+        // Seasonal exterior details
+        if (sim.season === 'winter' && apt.decor.xmasLights && rm.idx === 1) {
+          const cols = ['#fde047', '#ef4444', '#4ade80'];
+          for (let gx = x + 5; gx < x + w - 4; gx += 12) {
+            ctx.fillStyle = cols[(gx + Math.floor(sim.frame / 28)) % 3];
+            ctx.beginPath(); ctx.arc(gx, y + 2.5, 1.4, 0, Math.PI * 2); ctx.fill();
+          }
+        }
+        if (sim.season === 'spring' && apt.decor.flowers === rm.idx) {
+          ctx.fillStyle = '#5c3a28'; ctx.fillRect(x + 12, y + h - 4, 44, 6);
+          ctx.fillStyle = '#22c55e'; ctx.fillRect(x + 14, y + h - 8, 40, 4);
+          ctx.fillStyle = '#f472b6'; ctx.fillRect(x + 18, y + h - 9, 4, 3); ctx.fillRect(x + 38, y + h - 9, 4, 3);
+          ctx.fillStyle = '#fde047'; ctx.fillRect(x + 28, y + h - 9, 4, 3);
+        }
+        if (sim.season === 'summer' && apt.decor.ac === rm.idx) {
+          ctx.fillStyle = '#7c8b9c'; ctx.fillRect(x + w - 24, y + h - 14, 21, 14);
+          ctx.fillStyle = '#2a3342'; ctx.fillRect(x + w - 21, y + h - 11, 15, 8);
+        }
+        if (sim.season === 'winter' || sim.activeWeather() === 'snow') {
+          ctx.fillStyle = 'rgba(218, 232, 248, 0.72)';
+          ctx.fillRect(x - 3, y + h - 1, w + 6, 2.5);
+        }
+
+        // Soft additive bloom spilling onto surrounding brick & sill
+        const hasMenorahGlow = sim.season === 'winter' && apt.decor.menorah === rm.idx;
+        if (rm.light !== 'off' || hasMenorahGlow) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          const bgCol = rm.light === 'tv' ? 'rgba(95, 185, 255, 0.14)'
+            : rm.light === 'monitor' ? 'rgba(105, 230, 225, 0.12)'
+            : rm.light === 'inspect' ? 'rgba(200, 228, 255, 0.18)'
+            : rm.light === 'fire' ? 'rgba(255, 95, 25, 0.28)'
+            : rm.light === 'ufo' ? 'rgba(60, 255, 135, 0.24)'
+            : rm.light === 'disco' ? 'rgba(255, 85, 210, 0.18)'
+            : 'rgba(255, 192, 108, 0.15)';
+          const sg = ctx.createRadialGradient(x + w * 0.5, y + h * 0.6, 8, x + w * 0.5, y + h * 0.6, w * 0.82);
+          sg.addColorStop(0, bgCol); sg.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = sg;
+          ctx.fillRect(x - 18, y - 10, w + 36, h + 30);
+          ctx.restore();
+        }
+      }
+
+      if (sim.xrayMode) {
+        ctx.strokeStyle = 'rgba(110, 231, 183, 0.72)'; ctx.lineWidth = 1.5;
+        ctx.strokeRect(apt.x - 4, apt.y - 4, apt.w + 8, apt.h + 8);
+        ctx.fillStyle = 'rgba(110, 231, 183, 0.45)';
+        for (let i = 0; i < 2; i++) {
+          const px = apt.rooms[i].x + apt.rooms[i].w;
+          ctx.fillRect(px + 2, apt.y + apt.h - 28, BLDG.innerPillar - 4, 24);
+        }
+        ctx.fillStyle = 'rgba(8, 14, 24, 0.88)'; ctx.fillRect(apt.x - 4, apt.y - 18, 36, 13);
+        ctx.fillStyle = '#6ee7b7'; ctx.font = 'bold 10px ui-monospace, monospace';
+        ctx.fillText(apt.id, apt.x, apt.y - 8);
+      }
+
+      const activeId = this.hoveredAptId || this.selectedAptId;
+      if (apt.id === activeId) {
+        ctx.strokeStyle = apt.id === this.selectedAptId ? '#fbbf24' : 'rgba(251, 191, 36, 0.65)';
+        ctx.lineWidth = 2; ctx.strokeRect(apt.x - 4, apt.y - 4, apt.w + 8, apt.h + 8);
+      }
+    }
+  }
+
+  _drawFireEscapes(ctx) {
+    ctx.strokeStyle = 'rgba(16, 15, 20, 0.92)';
+    ctx.fillStyle = 'rgba(14, 13, 18, 0.94)';
+    const unitW = 3 * BLDG.winW + 2 * BLDG.innerPillar;
+    for (let col = 1; col <= 2; col++) {
+      const fx = BLDG.x + BLDG.sideMargin + col * unitW + (col - 1) * BLDG.aptGap - 14;
+      const fw = BLDG.aptGap + 28;
+      for (let f = 0; f < BLDG.floors; f++) {
+        const fy = BLDG.y + BLDG.topPad + f * BLDG.floorH + BLDG.winH + 2;
+        ctx.fillRect(fx, fy, fw, 3);
+        ctx.lineWidth = 1.4; ctx.strokeRect(fx + 1, fy - 14, fw - 2, 14);
+        for (let rx = fx + 7; rx < fx + fw - 4; rx += 7) {
+          ctx.beginPath(); ctx.moveTo(rx, fy - 14); ctx.lineTo(rx, fy); ctx.stroke();
+        }
+        if (f < BLDG.floors - 1) {
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(fx + 10, fy); ctx.lineTo(fx + fw - 10, fy + BLDG.floorH - 12);
+          ctx.moveTo(fx + 16, fy); ctx.lineTo(fx + fw - 4, fy + BLDG.floorH - 12);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  _drawStreetAndVehicles(ctx) {
+    const sim = this.sim;
+    const snowy = sim.season === 'winter' || sim.activeWeather() === 'snow';
+    const wet = sim.activeWeather() === 'rain' || sim.activeWeather() === 'storm' || snowy;
+
+    // Sidewalk & curb with building base shadow
+    ctx.fillStyle = snowy ? '#394356' : '#1f222d';
+    ctx.fillRect(-140, BLDG.streetY, VIEW_W + 280, 26);
+    if (snowy) {
+      ctx.fillStyle = 'rgba(220, 234, 248, 0.36)';
+      ctx.fillRect(-140, BLDG.streetY, VIEW_W + 280, 6);
+    }
+    const baseShadow = ctx.createLinearGradient(0, BLDG.streetY, 0, BLDG.streetY + 12);
+    baseShadow.addColorStop(0, 'rgba(0,0,0,0.45)'); baseShadow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = baseShadow; ctx.fillRect(BLDG.x - 10, BLDG.streetY, BLDG.w + 20, 12);
+
+    ctx.fillStyle = '#14161f';
+    ctx.fillRect(-140, BLDG.streetY + 24, VIEW_W + 280, 4);
+
+    // Wet dark asphalt road
+    const roadGrad = ctx.createLinearGradient(0, BLDG.streetY + 28, 0, VIEW_H + 30);
+    roadGrad.addColorStop(0, '#131722');
+    roadGrad.addColorStop(0.55, '#0c0f18');
+    roadGrad.addColorStop(1, '#070910');
+    ctx.fillStyle = roadGrad;
+    ctx.fillRect(-140, BLDG.streetY + 28, VIEW_W + 280, 120);
+
+    // Photorealistic wet-asphalt specular reflections (soft organic water streaks, never crosswalk-like)
+    if (wet) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const spots = [
+        { x: BLDG.x + 196, w: 190, col: 'rgba(255, 192, 115, 0.055)' },
+        { x: BLDG.x + BLDG.w * 0.5, w: 120, col: 'rgba(255, 212, 136, 0.11)' },
+        { x: BLDG.x + BLDG.w - 196, w: 190, col: 'rgba(155, 215, 245, 0.055)' }
+      ];
+      for (const sp of spots) {
+        const bg = ctx.createRadialGradient(sp.x, BLDG.streetY + 36, 12, sp.x, BLDG.streetY + 58, sp.w * 0.72);
+        bg.addColorStop(0, sp.col);
+        bg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = bg;
+        ctx.fillRect(sp.x - sp.w, BLDG.streetY + 28, sp.w * 2, 86);
+      }
+      ctx.restore();
+    }
+
+    // Road center lane markings
+    ctx.fillStyle = 'rgba(205, 172, 82, 0.24)';
+    for (let rx = -120; rx < VIEW_W + 140; rx += 64) {
+      ctx.fillRect(rx, BLDG.streetY + 62, 30, 2.2);
+    }
+
+    // Urban streetlamps placed cleanly FLANKING the lobby (never blocking the front doors!) with soft volumetric glow
+    const lamps = [120, 325, 625, 975, 1275, 1480];
+    for (const lx of lamps) {
+      ctx.fillStyle = '#1b1f2b';
+      ctx.fillRect(lx - 2, BLDG.streetY - 76, 4, 80);
+      ctx.fillRect(lx - 9, BLDG.streetY - 78, 18, 3.5);
+      ctx.fillStyle = '#fff0bd';
+      ctx.beginPath(); ctx.arc(lx, BLDG.streetY - 73, 3.8, 0, Math.PI * 2); ctx.fill();
+
+      // Soft radial atmospheric lamp halo + warm ground pool (no hard geometric triangles!)
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const halo = ctx.createRadialGradient(lx, BLDG.streetY - 72, 3, lx, BLDG.streetY - 56, 72);
+      halo.addColorStop(0, 'rgba(255, 224, 152, 0.32)');
+      halo.addColorStop(0.45, 'rgba(255, 188, 102, 0.09)');
+      halo.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(lx, BLDG.streetY - 56, 72, 0, Math.PI * 2); ctx.fill();
+
+      const pool = ctx.createRadialGradient(lx, BLDG.streetY + 14, 6, lx, BLDG.streetY + 26, 95);
+      pool.addColorStop(0, 'rgba(255, 200, 118, 0.16)');
+      pool.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = pool;
+      ctx.fillRect(lx - 95, BLDG.streetY - 12, 190, 72);
+      ctx.restore();
+    }
+
+    // Sidewalk pedestrians
+    for (const p of sim.pedestrians) {
+      const bob = Math.abs(Math.sin(p.phase)) * 1.5;
+      ctx.fillStyle = p.coat; ctx.fillRect(p.x - 3, p.y - 22 - bob, 6, 16);
+      ctx.fillStyle = '#141720'; ctx.fillRect(p.x - 2.5, p.y - 7, 2, 7); ctx.fillRect(p.x + 0.5, p.y - 7, 2, 7);
+      ctx.fillStyle = '#d9b59a'; ctx.beginPath(); ctx.arc(p.x, p.y - 25 - bob, 3, 0, Math.PI * 2); ctx.fill();
+      if (p.umbrella) { ctx.fillStyle = '#1e293b'; ctx.beginPath(); ctx.arc(p.x, p.y - 29 - bob, 11, Math.PI, 0); ctx.fill(); }
+    }
+
+    for (const c of sim.cars) this._drawSedan(ctx, c);
+    if (sim.deliveryVan) this._drawDeliveryVan(ctx, sim.deliveryVan);
+    if (sim.fireTruck) this._drawFireTruck(ctx, sim.fireTruck);
+    if (sim.policeUnit) this._drawPoliceCruiser(ctx, sim.policeUnit);
+    if (sim.ambulance) this._drawAmbulance(ctx, sim.ambulance);
+
+    if (sim.season === 'summer' && sim.activeWeather() === 'clear') {
+      for (const f of sim.fireflies) {
+        f.x += f.vx; if (f.x < 20 || f.x > VIEW_W - 20) f.vx *= -1;
+        const a = 0.2 + 0.65 * (0.5 + 0.5 * Math.sin(sim.frame * 0.05 + f.phase));
+        ctx.fillStyle = `rgba(225, 255, 130, ${a.toFixed(2)})`;
+        ctx.beginPath(); ctx.arc(f.x, f.y + Math.sin(sim.frame * 0.03 + f.phase) * 6, 1.8, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+
+  _drawSedan(ctx, c) {
+    const x = c.x, y = c.y, w = c.w;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const hx = c.dir > 0 ? x + w : x;
+    const hg = ctx.createLinearGradient(hx, y + 6, hx + c.dir * 95, y + 6);
+    hg.addColorStop(0, 'rgba(255, 245, 200, 0.36)'); hg.addColorStop(1, 'rgba(255, 245, 200, 0)');
+    ctx.fillStyle = hg;
+    ctx.beginPath();
+    ctx.moveTo(hx, y + 4); ctx.lineTo(hx + c.dir * 95, y - 5); ctx.lineTo(hx + c.dir * 95, y + 19); ctx.lineTo(hx, y + 10);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = c.color;
+    ctx.beginPath(); ctx.roundRect(x, y, w, 13, 3); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(x + w * 0.2, y - 8, w * 0.56, 9, 3); ctx.fill();
+    ctx.fillStyle = 'rgba(130, 165, 200, 0.32)'; ctx.fillRect(x + w * 0.24, y - 6, w * 0.48, 5);
+    ctx.fillStyle = '#090b10';
+    ctx.beginPath(); ctx.arc(x + 13, y + 13, 5, 0, Math.PI * 2); ctx.arc(x + w - 13, y + 13, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff5cc'; ctx.fillRect(c.dir > 0 ? x + w - 3 : x, y + 4, 3, 3.5);
+    ctx.fillStyle = '#ff2a38'; ctx.fillRect(c.dir > 0 ? x : x + w - 3, y + 4, 3, 3.5);
+  }
+
+  _drawDeliveryVan(ctx, dv) {
+    const x = dv.x, y = 804, isPizza = dv.isPizza;
+    // Soft ground contact shadow + headlights
+    ctx.fillStyle = 'rgba(0,0,0,0.52)';
+    ctx.beginPath(); ctx.ellipse(x + 53, y + 23, 56, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const hg = ctx.createLinearGradient(x + 106, y + 10, x + 178, y + 10);
+    hg.addColorStop(0, 'rgba(255, 242, 198, 0.28)'); hg.addColorStop(1, 'rgba(255, 242, 198, 0)');
+    ctx.fillStyle = hg;
+    ctx.beginPath(); ctx.moveTo(x + 106, y + 7); ctx.lineTo(x + 178, y - 2); ctx.lineTo(x + 178, y + 22); ctx.lineTo(x + 106, y + 15); ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    // Shaded dark-slate van body
+    const bodyG = ctx.createLinearGradient(0, y - 10, 0, y + 20);
+    bodyG.addColorStop(0, isPizza ? '#8c3518' : '#2a3a4f');
+    bodyG.addColorStop(1, isPizza ? '#591f0c' : '#182230');
+    ctx.fillStyle = bodyG;
+    ctx.beginPath(); ctx.roundRect(x, y - 10, 96, 30, 4); ctx.fill();
+    ctx.fillStyle = isPizza ? '#7c2d12' : '#243347';
+    ctx.beginPath(); ctx.roundRect(x + 76, y - 6, 30, 26, 5); ctx.fill();
+    ctx.fillStyle = 'rgba(130, 190, 235, 0.55)'; ctx.fillRect(x + 87, y - 2, 15, 10);
+
+    // Subtle sleek curved smile arrow (authentic delivery van silhouette!)
+    if (isPizza) {
+      ctx.fillStyle = '#facc15'; ctx.fillRect(x + 42, y - 16, 18, 6);
+    } else {
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x + 24, y + 6);
+      ctx.quadraticCurveTo(x + 46, y + 13, x + 66, y + 4);
+      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + 62, y + 3.5); ctx.lineTo(x + 67, y + 4); ctx.lineTo(x + 64, y + 8); ctx.stroke();
+    }
+    ctx.fillStyle = '#090c12';
+    ctx.beginPath(); ctx.arc(x + 20, y + 20, 7, 0, Math.PI * 2); ctx.arc(x + 84, y + 20, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#475569';
+    ctx.beginPath(); ctx.arc(x + 20, y + 20, 3, 0, Math.PI * 2); ctx.arc(x + 84, y + 20, 3, 0, Math.PI * 2); ctx.fill();
+
+    if (dv.state === 'dropping' && Math.floor(this.sim.frame / 16) % 2 === 0) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.beginPath(); ctx.arc(x + 2, y + 10, 3.5, 0, Math.PI * 2); ctx.arc(x + 104, y + 10, 3.5, 0, Math.PI * 2); ctx.fill();
+    }
+    if (dv.lobbyBox) {
+      ctx.fillStyle = isPizza ? '#e5e0d5' : '#b47b44';
+      ctx.fillRect(dv.lobbyX - 4, BLDG.streetY - 6, 11, isPizza ? 4 : 8);
+    }
+    if (dv.courier) {
+      const c = dv.courier, bob = Math.abs(Math.sin(c.phase)) * 1.5;
+      ctx.fillStyle = isPizza ? '#991b1b' : '#1e3a5f';
+      ctx.fillRect(c.x - 3.5, BLDG.streetY - 12 - bob, 7, 16);
+      if (!isPizza) { ctx.fillStyle = '#38bdf8'; ctx.fillRect(c.x - 3.5, BLDG.streetY - 7 - bob, 7, 4); }
+      ctx.fillStyle = '#e5bc9c'; ctx.beginPath(); ctx.arc(c.x, BLDG.streetY - 15 - bob, 3.3, 0, Math.PI * 2); ctx.fill();
+      if (c.hasBox) { ctx.fillStyle = isPizza ? '#e5e0d5' : '#b47b44'; ctx.fillRect(c.x + c.dir * 5 - 3, BLDG.streetY - 10 - bob, 10, isPizza ? 4 : 7); }
+    }
+  }
+
+  _drawFireTruck(ctx, ft) {
+    const x = ft.x, y = 798, flash = Math.floor(this.sim.frame / 7) % 2 === 0;
+    // Contact shadow + warm headlight cone
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath(); ctx.ellipse(x + 76, y + 27, 78, 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const hg = ctx.createLinearGradient(x + 152, y + 14, x + 240, y + 14);
+    hg.addColorStop(0, 'rgba(255, 244, 204, 0.34)'); hg.addColorStop(1, 'rgba(255, 244, 204, 0)');
+    ctx.fillStyle = hg;
+    ctx.beginPath(); ctx.moveTo(x + 152, y + 10); ctx.lineTo(x + 240, y + 1); ctx.lineTo(x + 240, y + 26); ctx.lineTo(x + 152, y + 19); ctx.closePath(); ctx.fill();
+    ctx.restore();
+
+    // Night-shaded crimson engine body + metallic compartments
+    const bodyG = ctx.createLinearGradient(0, y - 12, 0, y + 24);
+    bodyG.addColorStop(0, '#b52222');
+    bodyG.addColorStop(0.55, '#8a1717');
+    bodyG.addColorStop(1, '#590e10');
+    ctx.fillStyle = bodyG; ctx.beginPath(); ctx.roundRect(x, y - 10, 146, 34, 3); ctx.fill();
+    ctx.fillStyle = '#a31d1d'; ctx.beginPath(); ctx.roundRect(x + 112, y - 12, 40, 36, 4); ctx.fill();
+    // Equipment roll-up doors
+    ctx.fillStyle = 'rgba(180, 195, 210, 0.25)';
+    ctx.fillRect(x + 16, y - 2, 24, 18); ctx.fillRect(x + 48, y - 2, 26, 18); ctx.fillRect(x + 82, y - 2, 22, 18);
+    ctx.fillStyle = 'rgba(147, 197, 253, 0.55)'; ctx.fillRect(x + 132, y - 7, 16, 13);
+    ctx.fillStyle = 'rgba(248, 250, 252, 0.8)'; ctx.fillRect(x + 4, y + 7, 144, 2.5);
+    ctx.fillStyle = '#94a3b8'; ctx.fillRect(x + 10, y - 15, 98, 4);
+    ctx.fillStyle = '#090c12';
+    ctx.beginPath(); ctx.arc(x + 26, y + 24, 8, 0, Math.PI * 2); ctx.arc(x + 126, y + 24, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#64748b';
+    ctx.beginPath(); ctx.arc(x + 26, y + 24, 3.5, 0, Math.PI * 2); ctx.arc(x + 126, y + 24, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = flash ? '#ff2a3c' : '#ffffff'; ctx.beginPath(); ctx.arc(x + 126, y - 15, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = flash ? '#ffffff' : '#ff2a3c'; ctx.beginPath(); ctx.arc(x + 16, y - 13, 3.2, 0, Math.PI * 2); ctx.fill();
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const wg = ctx.createRadialGradient(x + 85, y - 20, 20, x + 85, y - 180, 440);
+    wg.addColorStop(0, flash ? 'rgba(255, 35, 45, 0.28)' : 'rgba(255, 220, 195, 0.14)');
+    wg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = wg;
+    ctx.fillRect(BLDG.x - 40, BLDG.y + 80, BLDG.w + 80, VIEW_H - BLDG.y);
+    // Wet asphalt red puddle reflection beneath truck
+    const rw = ctx.createRadialGradient(x + 76, y + 36, 10, x + 76, y + 40, 120);
+    rw.addColorStop(0, flash ? 'rgba(255, 40, 50, 0.24)' : 'rgba(255, 200, 180, 0.1)');
+    rw.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rw; ctx.fillRect(x - 40, y + 24, 240, 56);
+    ctx.restore();
+  }
+
+  _drawPoliceCruiser(ctx, pu) {
+    const x = pu.x, y = 816, redPhase = Math.floor(this.sim.frame / 6) % 2 === 0;
+    ctx.fillStyle = 'rgba(0,0,0,0.52)';
+    ctx.beginPath(); ctx.ellipse(x + 39, y + 19, 44, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#141c29'; ctx.beginPath(); ctx.roundRect(x, y, 78, 16, 4); ctx.fill();
+    ctx.fillStyle = '#cbd5e1'; ctx.beginPath(); ctx.roundRect(x + 18, y - 10, 38, 11, 4); ctx.fill();
+    ctx.fillStyle = 'rgba(130, 175, 215, 0.45)'; ctx.fillRect(x + 22, y - 8, 30, 6);
+    ctx.fillStyle = '#090c12';
+    ctx.beginPath(); ctx.arc(x + 16, y + 16, 6, 0, Math.PI * 2); ctx.arc(x + 62, y + 16, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = redPhase ? '#ff2438' : '#2480ff'; ctx.fillRect(x + 31, y - 14, 14, 4);
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const pg = ctx.createRadialGradient(x + 38, y - 14, 16, x + 38, y - 170, 460);
+    pg.addColorStop(0, redPhase ? 'rgba(255, 32, 58, 0.28)' : 'rgba(38, 128, 255, 0.28)');
+    pg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = pg;
+    ctx.fillRect(BLDG.x - 40, BLDG.y + 60, BLDG.w + 80, VIEW_H - BLDG.y);
+    // Wet asphalt crimson/blue reflection beneath cruiser
+    const pr = ctx.createRadialGradient(x + 39, y + 26, 8, x + 39, y + 28, 110);
+    pr.addColorStop(0, redPhase ? 'rgba(255, 36, 60, 0.24)' : 'rgba(40, 130, 255, 0.24)');
+    pr.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = pr; ctx.fillRect(x - 60, y + 14, 200, 52);
+    ctx.restore();
+  }
+
+  _drawAmbulance(ctx, am) {
+    const x = am.x, y = 804, flash = Math.floor(this.sim.frame / 7) % 2 === 0;
+    ctx.fillStyle = '#e2e8f0'; ctx.beginPath(); ctx.roundRect(x, y - 10, 104, 30, 4); ctx.fill();
+    ctx.fillStyle = '#dc2626'; ctx.fillRect(x + 2, y + 4, 100, 5);
+    ctx.fillRect(x + 34, y - 4, 12, 3); ctx.fillRect(x + 38.5, y - 8, 3, 11);
+    ctx.fillStyle = '#93c5fd'; ctx.fillRect(x + 84, y - 5, 16, 10);
+    ctx.fillStyle = '#090c12';
+    ctx.beginPath(); ctx.arc(x + 20, y + 20, 7, 0, Math.PI * 2); ctx.arc(x + 84, y + 20, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = flash ? '#ff2a3c' : '#ffffff'; ctx.beginPath(); ctx.arc(x + 82, y - 13, 3.8, 0, Math.PI * 2); ctx.fill();
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const ag = ctx.createRadialGradient(x + 60, y - 14, 16, x + 60, y - 140, 340);
+    ag.addColorStop(0, flash ? 'rgba(255, 40, 55, 0.2)' : 'rgba(240, 248, 255, 0.14)');
+    ag.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = ag; ctx.fillRect(BLDG.x - 40, BLDG.y + 120, BLDG.w + 80, VIEW_H - BLDG.y);
+    ctx.restore();
+  }
+
+  _drawUFO(ctx, u) {
+    if (u.beamAlpha > 0.02) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const bg = ctx.createLinearGradient(0, u.y, 0, u.room.y + u.room.h);
+      bg.addColorStop(0, `rgba(70, 255, 150, ${(u.beamAlpha * 0.42).toFixed(2)})`);
+      bg.addColorStop(1, `rgba(40, 225, 120, ${(u.beamAlpha * 0.14).toFixed(2)})`);
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      ctx.moveTo(u.x - 16, u.y + 8); ctx.lineTo(u.x - 52, u.room.y + u.room.h); ctx.lineTo(u.x + 52, u.room.y + u.room.h); ctx.lineTo(u.x + 16, u.y + 8);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle = '#5c6b7a'; ctx.beginPath(); ctx.ellipse(u.x, u.y + 4, 42, 10, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#9bb0c2'; ctx.beginPath(); ctx.ellipse(u.x, u.y - 2, 22, 8, 0, Math.PI, 0); ctx.fill();
+    const lOff = Math.floor(this.sim.frame / 6) % 5;
+    for (let i = 0; i < 5; i++) {
+      ctx.fillStyle = i === lOff ? '#ffffff' : '#4ade80';
+      ctx.beginPath(); ctx.arc(u.x - 28 + i * 14, u.y + 5, 2.3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  _drawWeatherAndAtmosphere(ctx) {
+    const sim = this.sim;
+    const w = sim.activeWeather();
+
+    if (w === 'rain' || w === 'storm') {
+      const mult = w === 'storm' ? 1.55 : 1;
+      ctx.lineWidth = w === 'storm' ? 1.3 : 1;
+      for (const r of sim.raindrops) {
+        r.y += r.speed * mult; r.x -= r.speed * (w === 'storm' ? 0.36 : 0.16);
+        if (r.y > VIEW_H) { r.y = -15; r.x = Math.random() * (VIEW_W + 240); }
+        if (r.x < -20) r.x = VIEW_W + 20;
+        ctx.strokeStyle = `rgba(180, 210, 245, ${(r.alpha * (w === 'storm' ? 1.3 : 1)).toFixed(2)})`;
+        ctx.beginPath(); ctx.moveTo(r.x, r.y); ctx.lineTo(r.x - (w === 'storm' ? 4.5 : 2), r.y + r.len); ctx.stroke();
+      }
+    } else if (w === 'snow') {
+      for (const s of sim.snowflakes) {
+        s.y += s.speed; s.x += Math.sin(sim.frame * 0.015 + s.drift) * 0.55 - 0.15;
+        if (s.y > VIEW_H + 4) { s.y = -4; s.x = Math.random() * VIEW_W; }
+        if (s.x < -4) s.x = VIEW_W + 4; if (s.x > VIEW_W + 4) s.x = -4;
+        ctx.fillStyle = `rgba(235, 244, 255, ${s.alpha.toFixed(2)})`;
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+      }
+    } else if (w === 'leaves') {
+      for (const l of sim.leaves) {
+        l.y += l.speed; l.x += 1.1 + Math.sin(sim.frame * 0.035 + l.phase) * 0.9;
+        if (l.y > VIEW_H + 6) { l.y = -6; l.x = Math.random() * VIEW_W; }
+        if (l.x > VIEW_W + 10) l.x = -8;
+        ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(sim.frame * 0.04 + l.phase);
+        ctx.fillStyle = l.color; ctx.beginPath(); ctx.ellipse(0, 0, l.size, l.size * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Subtle filmic grain pattern across scene for distant photographic realism
+    const pat = ctx.createPattern(this.grainCache, 'repeat');
+    if (pat) {
+      ctx.fillStyle = pat;
+      ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
+
+    // Gentle edge vignette
+    const vig = ctx.createRadialGradient(VIEW_W * 0.5, VIEW_H * 0.5, VIEW_W * 0.36, VIEW_W * 0.5, VIEW_H * 0.5, VIEW_W * 0.72);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(2, 4, 10, 0.38)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  }
+
+  hitTestApartment(clientX, clientY) {
+    const rect = this.canvas.getBoundingClientRect();
+    const scaleX = VIEW_W / rect.width;
+    const scaleY = VIEW_H / rect.height;
+    const wx = (clientX - rect.left) * scaleX + this.sim.camX;
+    const wy = (clientY - rect.top) * scaleY + this.sim.camY;
+    for (const apt of this.sim.apartments) {
+      if (wx >= apt.x - 4 && wx <= apt.x + apt.w + 4 && wy >= apt.y - 4 && wy <= apt.y + apt.h + 4) {
+        return apt.id;
+      }
+    }
+    return null;
+  }
+}
+
+
+// === main ===
+
+    const hashRaw = (location.hash || '').replace(/^#/, '');
+    const hashParams = new URLSearchParams(hashRaw);
+    const params = new URLSearchParams(location.search);
+    const hostMode = hashParams.get('host') || '';
+    const isEmbed = hashRaw === 'embed' || hashParams.has('embed') || hostMode === 'saver';
+    const isConfig = hostMode === 'config';
+
+    if (isEmbed || isConfig) {
+      document.body.classList.add('embed');
+    }
+
+    const canvas = document.getElementById('scene');
+    const hud = document.getElementById('hud');
+    const clockEl = document.getElementById('clockReadout');
+    const speedBtn = document.getElementById('speedBtn');
+    const seasonSelect = document.getElementById('seasonSelect');
+    const weatherSelect = document.getElementById('weatherSelect');
+    const burnInBtn = document.getElementById('burnInBtn');
+    const xrayBtn = document.getElementById('xrayBtn');
+    const audioBtn = document.getElementById('audioBtn');
+    const fullBtn = document.getElementById('fullBtn');
+    const eventSelect = document.getElementById('eventSelect');
+    const triggerBtn = document.getElementById('triggerBtn');
+    const inspectorText = document.getElementById('inspectorText');
+    const eventTicker = document.getElementById('eventTicker');
+
+    const sim = new VoyeurSimulation();
+    // Persist user settings between runs (so /c Settings in Windows Screen Saver carries into /s!)
+    const PREF_KEY = 'windowsAcross.prefs.v1';
+    try {
+      const saved = JSON.parse(localStorage.getItem(PREF_KEY) || 'null');
+      if (saved) {
+        if (saved.season) {
+          seasonSelect.value = saved.season;
+          sim.season = saved.season === 'calendar' ? detectCalendarSeason() : saved.season;
+        }
+        if (saved.weather) { sim.weatherMode = saved.weather; weatherSelect.value = saved.weather; }
+        if (typeof saved.burnIn === 'boolean') {
+          sim.burnInProtection = saved.burnIn;
+          burnInBtn.textContent = sim.burnInProtection ? 'Anti-Burn: Spaced' : 'Anti-Burn: Off';
+          burnInBtn.classList.toggle('active', sim.burnInProtection);
+        }
+      }
+    } catch {}
+
+    function savePrefs() {
+      try {
+        localStorage.setItem(PREF_KEY, JSON.stringify({
+          season: seasonSelect.value,
+          weather: sim.weatherMode,
+          burnIn: sim.burnInProtection
+        }));
+      } catch {}
+    }
+
+    const renderer = new VoyeurRenderer(canvas, sim);
+    const audio = new AmbientAudio();
+
+    if (params.get('season')) {
+      seasonSelect.value = params.get('season');
+      sim.season = params.get('season') === 'calendar' ? detectCalendarSeason() : params.get('season');
+    }
+    if (params.get('weather')) {
+      sim.weatherMode = params.get('weather');
+      weatherSelect.value = sim.weatherMode;
+    }
+    if (params.get('xray') === '1') { sim.xrayMode = true; xrayBtn.classList.add('active'); }
+    if (isEmbed || params.get('hud') === '0') {
+      hud.classList.add('hidden');
+      document.body.classList.add('idle');
+    }
+    if (params.get('event')) {
+      sim.triggerEvent(params.get('event'), params.get('apt') || null);
+      const advance = parseInt(params.get('advance') || '0', 10);
+      for (let i = 0; i < advance; i++) sim.step();
+    }
+
+    let idleTimer = null;
+    function wakeUi() {
+      if (isEmbed || params.get('hud') === '0') return;
+      document.body.classList.remove('idle');
+      hud.classList.remove('hidden');
+      clearTimeout(idleTimer);
+      if (!isConfig) {
+        idleTimer = setTimeout(() => {
+          if (!hud.matches(':hover')) {
+            hud.classList.add('hidden');
+            document.body.classList.add('idle');
+          }
+        }, 6500);
+      }
+    }
+    if (!isEmbed) {
+      window.addEventListener('mousemove', wakeUi);
+      window.addEventListener('mousedown', wakeUi);
+      wakeUi();
+    }
+
+    function updateReadouts() {
+      const hrs = String(Math.floor(sim.simTime / 60)).padStart(2, '0');
+      const mins = String(Math.floor(sim.simTime % 60)).padStart(2, '0');
+      clockEl.textContent = hrs + ':' + mins;
+      eventTicker.textContent = sim.lastTicker;
+
+      const targetId = renderer.hoveredAptId || renderer.selectedAptId;
+      if (!targetId) {
+        const shiftLabel = sim.burnInProtection
+          ? (sim.camState === 'shifting' ? 'Micro-shifting view' : 'View steady')
+          : 'Drift off';
+        inspectorText.textContent = '8 floors · 24 units · 41 residents (' + shiftLabel + ') — hover/click any unit';
+        return;
+      }
+      const apt = sim.apartments.find(a => a.id === targetId);
+      if (!apt) return;
+      const roomsStr = apt.rooms.map(r => r.type).join(' · ');
+      const resStr = apt.residents.map(r => r.name + ': ' + r.activity).join(' | ');
+      const visStr = apt.visitors.length ? ' | Responders: ' + apt.visitors.map(v => v.kind).join(', ') : '';
+      inspectorText.textContent = 'APT ' + apt.id + ' (' + apt.label + ') [' + roomsStr + '] — ' + resStr + visStr;
+    }
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (isEmbed) return;
+      renderer.hoveredAptId = renderer.hitTestApartment(e.clientX, e.clientY);
+      canvas.style.cursor = renderer.hoveredAptId ? 'pointer' : 'default';
+      updateReadouts();
+    });
+    canvas.addEventListener('mouseleave', () => { renderer.hoveredAptId = null; updateReadouts(); });
+    canvas.addEventListener('click', (e) => {
+      if (isEmbed) return;
+      const hit = renderer.hitTestApartment(e.clientX, e.clientY);
+      renderer.selectedAptId = hit === renderer.selectedAptId ? null : hit;
+      updateReadouts();
+    });
+
+    speedBtn.addEventListener('click', () => {
+      sim.simSpeed = sim.simSpeed === 1 ? 3 : 1;
+      speedBtn.textContent = sim.simSpeed + 'x';
+      speedBtn.classList.toggle('active', sim.simSpeed > 1);
+    });
+    seasonSelect.addEventListener('change', () => {
+      sim.season = seasonSelect.value === 'calendar' ? detectCalendarSeason() : seasonSelect.value;
+      const labels = {
+        winter: 'Winter · Holidays (Christmas trees & Hanukkah menorahs)',
+        halloween: 'Autumn · Halloween decorations & harvest moon',
+        spring: 'Spring · Flower boxes & evening rain',
+        summer: 'Summer · Clear starry night & fireflies'
+      };
+      sim.setTicker(labels[sim.season] || '');
+      savePrefs();
+      updateReadouts();
+    });
+    weatherSelect.addEventListener('change', () => { sim.weatherMode = weatherSelect.value; savePrefs(); });
+    burnInBtn.addEventListener('click', () => {
+      sim.burnInProtection = !sim.burnInProtection;
+      burnInBtn.textContent = sim.burnInProtection ? 'Anti-Burn: Spaced' : 'Anti-Burn: Off';
+      burnInBtn.classList.toggle('active', sim.burnInProtection);
+      savePrefs();
+    });
+    xrayBtn.addEventListener('click', () => {
+      sim.xrayMode = !sim.xrayMode;
+      xrayBtn.classList.toggle('active', sim.xrayMode);
+      xrayBtn.textContent = sim.xrayMode ? 'Layouts: On' : 'Layouts';
+    });
+    audioBtn.addEventListener('click', () => {
+      const on = audio.toggle();
+      audioBtn.textContent = on ? 'Sound: On' : 'Sound: Off';
+      audioBtn.classList.toggle('active', on);
+    });
+    fullBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+      else document.exitFullscreen?.();
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && hostMode === 'saver') {
+        try { window.chrome?.webview?.postMessage('exit'); } catch {}
+      }
+      if (isEmbed) return;
+      if (e.key === 'f' || e.key === 'F') fullBtn.click();
+      if (e.key === 'h' || e.key === 'H') {
+        hud.classList.toggle('hidden');
+        document.body.classList.toggle('idle', hud.classList.contains('hidden'));
+      }
+    });
+    triggerBtn.addEventListener('click', () => { sim.triggerEvent(eventSelect.value); updateReadouts(); });
+
+    let notifiedReady = false;
+    function loop() {
+      for (let i = 0; i < sim.simSpeed; i++) sim.step();
+      renderer.render();
+      if (!notifiedReady) {
+        notifiedReady = true;
+        try { window.chrome?.webview?.postMessage('ready'); } catch {}
+      }
+      audio.update(sim.activeWeather(), sim.hasEmergencyArriving(), sim.frame / 60);
+      if (sim.frame % 12 === 0) updateReadouts();
+      if (params.get('still') !== '1') requestAnimationFrame(loop);
+    }
+
+    updateReadouts();
+    loop();
+
+})();
+  </script>
+</body>
+</html>

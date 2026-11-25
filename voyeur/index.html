@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Across the Street (tech demo)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #04050a; overflow: hidden; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #e9e4d8; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  body.idle { cursor: none; }
+  #hud { position: fixed; left: 22px; bottom: 18px; right: 22px; pointer-events: none; text-shadow: 0 1px 3px #000, 0 0 12px #000; }
+  #clockbox { position: fixed; top: 62px; right: 22px; text-align: right; pointer-events: none; text-shadow: 0 1px 3px #000, 0 0 14px #000; line-height: 1.25; }
+  #ctime { font-size: 34px; font-weight: 300; letter-spacing: .02em; opacity: .92; }
+  #ctime small { font-size: 15px; opacity: .8; }
+  #cdate { font-size: 14px; letter-spacing: .05em; opacity: .85; }
+  #cmore { font-size: 12px; letter-spacing: .07em; opacity: .65; text-transform: uppercase; margin-top: 2px; }
+  #cap { margin-top: 5px; font-size: 15px; opacity: .92; max-width: 70ch; line-height: 1.4; }
+  #cap b { font-weight: 600; color: #ffd9a0; }
+  #toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); padding: 7px 14px; border-radius: 6px; background: rgba(10, 12, 18, .6); font-size: 14px; transition: opacity .8s; opacity: 0; pointer-events: none; backdrop-filter: blur(4px); }
+  #tag { position: fixed; bottom: 16px; right: 20px; font-size: 12px; opacity: .45; letter-spacing: .08em; text-transform: uppercase; pointer-events: none; }
+  #help { position: fixed; right: 20px; top: 40px; width: 300px; padding: 12px 16px; border-radius: 8px; background: rgba(10, 12, 18, .78); font-size: 13px; line-height: 1.6; display: none; backdrop-filter: blur(6px); }
+  #help.show { display: block; }
+  #help kbd { display: inline-block; min-width: 18px; padding: 0 5px; margin-right: 6px; border-radius: 3px; background: #2a2f3a; text-align: center; font-family: inherit; font-size: 12px; }
+  body.idle #tag { opacity: 0; }
+  body { padding-top: 0 !important; }
+  .site-topbar { transition: opacity .8s; }
+  body.idle .site-topbar { opacity: 0; pointer-events: none; }
+  #tag { bottom: 16px; }
+  #help { top: 150px; }
+  #toast { top: 66px; }
+</style>
+<link rel="stylesheet" href="/site-nav.css">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"}}</script>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<canvas id="view"></canvas>
+<div id="tag">Across the Street · tech demo · H for keys</div>
+<div id="toast"></div>
+<div id="clockbox"><div id="ctime"></div><div id="cdate"></div><div id="cmore"></div></div>
+<div id="hud"><div id="cap"></div></div>
+<div id="help">
+  <div><b>One day passes per real hour.</b> People walk, sit and climb stairs at real speed.</div>
+  <div style="margin-top:6px"><kbd>1</kbd>parcel delivery</div>
+  <div><kbd>2</kbd>someone orders pizza</div>
+  <div><kbd>3</kbd>someone calls a ride out</div>
+  <div><kbd>4</kbd>medical emergency</div>
+  <div><kbd>6</kbd>kitchen fire</div>
+  <div><kbd>7</kbd>break-in (needs an empty apartment)</div>
+  <div><kbd>8</kbd>throw a party</div>
+  <div><kbd>9</kbd>cycle weather (clear, overcast, rain, storm, snow)</div>
+  <div><kbd>0</kbd>jump to the next holiday (Halloween, Thanksgiving, December, Christmas Eve and morning, New Year's, July 4th)</div>
+  <div><kbd>D</kbd>deli delivery truck · <kbd>G</kbd>garbage truck</div>
+  <div><kbd>B</kbd>a birthday party now · <kbd>W</kbd>skip to Saturday morning</div>
+  <div><kbd>5</kbd>cycle season (date, winter, Halloween, summer, spring)</div>
+  <div><kbd>F</kbd>hold to fast-forward ×30</div>
+  <div><kbd>T</kbd>skip ahead an hour</div>
+  <div><kbd>N</kbd>next camera shot · <kbd>C</kbd>hold the wide shot</div>
+  <div><kbd>I</kbd>captions · click a window to look in</div>
+  <div style="margin-top:6px;opacity:.7">URL: ?t=21:30 &amp; date=2026-12-20 &amp; season=winter &amp; weather=storm &amp; seed=7</div>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

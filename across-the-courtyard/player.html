@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Across the Courtyard</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#07090b;color:#f7f1e8;font:15px system-ui,sans-serif}
+canvas{display:block;width:100%;height:100%}nav{position:fixed;right:20px;bottom:18px;display:flex;align-items:end;gap:8px;transition:opacity .35s}
+button,summary,select{font:inherit;color:inherit}button,summary,fieldset{border:1px solid #867e7266;border-radius:8px;background:#1e211fee}
+button,summary{cursor:pointer;padding:8px 13px}summary{list-style:none}fieldset{position:absolute;right:0;bottom:43px;width:252px;margin:0;padding:16px;display:grid;gap:13px}
+label{display:flex;align-items:center;justify-content:space-between;gap:8px}select{background:#30312f;border:1px solid #777;border-radius:4px;padding:2px}
+body.quiet{cursor:none}body.quiet nav:not(:has(:focus-visible)){opacity:0;pointer-events:none}
+#status{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#171917ed;padding:12px 18px;border-radius:6px}
+</style></head><body>
+<canvas id="view" aria-label="Twenty open apartment windows looking across a Brooklyn courtyard"></canvas>
+<div id="status" role="status">Opening the courtyard…</div>
+<nav aria-label="Playback"><details id="menu"><summary>Settings</summary><fieldset>
+<label>Weather <select id="weather"><option>Changing weather</option><option>Clear</option><option>Drizzle</option><option>Rain</option><option>Thunderstorm</option><option>Fog</option><option>Snow</option></select></label>
+<label>Active apartments <input id="density" type="number" min="2" max="10" value="7" style="width:46px"></label>
+<label>Include crime scenes <input id="mysteries" type="checkbox" checked></label>
+</fieldset></details><button type="button" id="full">Full screen</button></nav>
+<script src="playback/catalog.js"></script><script src="source/player.js"></script></body></html>

@@ -437,6 +437,103 @@ window.SLOPWARE = {
     }
    ]
   },
+  "voyeur": {
+   "visits": 0,
+   "prompts": 11,
+   "tokens": 1238238,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-24T06:31:27-07:00",
+     "note": "Voyeur-style screensaver tech demo",
+     "prompts": 2,
+     "tokens": 543144
+    },
+    {
+     "n": 2,
+     "date": "2026-11-24T07:13:21-07:00",
+     "note": "polish before going live",
+     "prompts": 3,
+     "tokens": 86065
+    },
+    {
+     "n": 3,
+     "date": "2026-11-24T07:30:21-07:00",
+     "note": "kitchen fires and break-ins",
+     "prompts": 1,
+     "tokens": 125881
+    },
+    {
+     "n": 4,
+     "date": "2026-11-24T07:44:06-07:00",
+     "note": "six floors, parties, a smoking teen, better people",
+     "prompts": 0,
+     "tokens": 149039
+    },
+    {
+     "n": 5,
+     "date": "2026-11-24T07:55:01-07:00",
+     "note": "weather, rain and thunderstorms",
+     "prompts": 1,
+     "tokens": 53700
+    },
+    {
+     "n": 6,
+     "date": "2026-11-24T08:06:07-07:00",
+     "note": "holidays",
+     "prompts": 1,
+     "tokens": 96707
+    },
+    {
+     "n": 7,
+     "date": "2026-11-24T08:19:00-07:00",
+     "note": "day and night routines",
+     "prompts": 1,
+     "tokens": 52654
+    },
+    {
+     "n": 8,
+     "date": "2026-11-24T08:29:35-07:00",
+     "note": "dogs, commutes, birthdays, weekends, corner clock",
+     "prompts": 1,
+     "tokens": 76006
+    },
+    {
+     "n": 9,
+     "date": "2026-11-24T08:35:36-07:00",
+     "note": "deli delivery trucks and garbage trucks",
+     "prompts": 1,
+     "tokens": 55042
+    }
+   ]
+  },
+  "windows-across": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-24T07:56:06-07:00",
+     "note": "Add Windows Across the Street screensaver, card, and .scr build"
+    }
+   ]
+  },
+  "across-the-courtyard": {
+   "visits": 0,
+   "prompts": null,
+   "tokens": null,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-24T08:44:25-07:00",
+     "note": "publish the browser player and Windows screensaver"
+    }
+   ]
+  },
   "matrix": {
    "visits": 62,
    "prompts": 5,
@@ -2002,23 +2099,16 @@ window.SLOPWARE = {
   },
   "stay-with-me": {
    "visits": 0,
-   "prompts": 6,
-   "tokens": 20605591,
+   "prompts": 4,
+   "tokens": 14069873,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
      "date": "2026-11-24T06:54:54-07:00",
      "note": "a realistic paramedic sim with a drivable town",
-     "prompts": 2,
-     "tokens": 14031861
-    },
-    {
-     "n": 2,
-     "date": "2026-11-25T04:50:55-07:00",
-     "note": "realism pass across people, town, vehicles, interiors and gear",
      "prompts": 4,
-     "tokens": 6573730
+     "tokens": 14069873
     }
    ]
   }
