@@ -440,7 +440,7 @@ window.SLOPWARE = {
   "voyeur": {
    "visits": 0,
    "prompts": 11,
-   "tokens": 1238238,
+   "tokens": 1243608,
    "sharedWith": null,
    "versions": [
     {
@@ -504,7 +504,7 @@ window.SLOPWARE = {
      "date": "2026-11-24T08:35:36-07:00",
      "note": "deli delivery trucks and garbage trucks",
      "prompts": 1,
-     "tokens": 55042
+     "tokens": 60412
     }
    ]
   },
@@ -2099,16 +2099,23 @@ window.SLOPWARE = {
   },
   "stay-with-me": {
    "visits": 0,
-   "prompts": 4,
-   "tokens": 14069873,
+   "prompts": 7,
+   "tokens": 20610990,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
      "date": "2026-11-24T06:54:54-07:00",
      "note": "a realistic paramedic sim with a drivable town",
-     "prompts": 4,
-     "tokens": 14069873
+     "prompts": 2,
+     "tokens": 14031861
+    },
+    {
+     "n": 2,
+     "date": "2026-11-25T04:50:55-07:00",
+     "note": "realism pass across people, town, vehicles, interiors and gear",
+     "prompts": 5,
+     "tokens": 6579129
     }
    ]
   }
