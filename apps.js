@@ -2049,6 +2049,13 @@ window.SLOPWARE = {
      "note": "charred and squashed dead, beam x-rays, hens and rats, Hoard leave prompt",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 22,
+     "date": "2026-11-25T13:06:26-07:00",
+     "note": "feather puffs settle on the ground, dancing steers redrawn",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
