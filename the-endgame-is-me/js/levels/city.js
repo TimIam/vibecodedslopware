@@ -62,6 +62,8 @@ export const kinds = {
   city_rubble: { r: 3, push: true, fill: 2, value: { pts: 0, venge: 0, chaos: 0 } },
 };
 export const critters = {
+  // rats: smaller than a hen, black or brown, quick, and nowhere near worth the chase
+  rat: { r: 1, hp: 4, spd: 7, flee: 42, fear: 30, value: { pts: 15, venge: 0.01, chaos: 0.04 } },
   city_folk: { r: 2, hp: 15, spd: 12, flee: 34, fear: 44, raise: 'skeleton', value: { pts: 35, venge: 0.025, chaos: 0.1 } },
 };
 
@@ -88,6 +90,26 @@ function placeRun(g, rng, P, x0, x1, y0, y1) {
     const kind = r < 0.42 ? 'city_house' : r < 0.72 ? 'city_shop' : 'city_pub';
     addBuilding(g, P, kind, x, y0, w, y1 - y0);
     x += w + 2 + Math.floor(rng() * 3);
+  }
+}
+
+// Hens in front of a third of the townhouses, and rats running along the bottoms of the walls of any building (also
+// used by the castle). foots: the solid buildings' footprints, so nothing is put inside one.
+export function cityHensAndRats(g, rng, P, foots, hens = true, rats = 12) {
+  const clear = (x, y) => !foots.some(f => x > f.x0 - 2 && x < f.x1 + 2 && y > f.y0 - 2 && y < f.y1 + 2) && !P.isWater(g, x, y);
+  if (hens) for (const p of g.props) {
+    if (p.kind !== 'city_house' || rng() > 0.35) continue;
+    for (let n = 1 + Math.floor(rng() * 2); n > 0; n--) {
+      const x = p.x + (rng() - 0.5) * (p.w - 4), y = p.y + p.h / 2 + 3 + rng() * 4;
+      if (clear(x, y)) P.addCritter(g, 'chicken', x, y);
+    }
+  }
+  const walls = g.props.filter(p => p.w && P.KINDS[p.kind].solid);
+  for (let n = 0, tries = 0; n < rats && tries < 400 && walls.length; tries++) {
+    const p = walls[Math.floor(rng() * walls.length)], x = p.x + (rng() - 0.5) * p.w, y = p.y + p.h / 2 + 2;
+    if (!clear(x, y)) continue;
+    P.addCritter(g, 'rat', x, y, { col: rng() < 0.5 ? 0 : 1 });
+    n++;
   }
 }
 
@@ -178,6 +200,8 @@ function build(g, rng, P) {
     P.addCritter(g, 'city_folk', x, y, { col: Math.floor(rng() * 6) });
     n++;
   }
+  // hens out front of some of the townhouses, rats along the foot of any building
+  cityHensAndRats(g, rng, P, foots);
   // the castle front: one solid piece per section of wall, tower and gate, across the top of the map
   const front = FRONT_SECS.map(([x0, x1, kind]) => {
     const hh = kind === 'cf_tower' ? FRONT.bot + 6 : FRONT.bot, hp = kinds[kind].hp;
@@ -911,10 +935,29 @@ const props = {
   cf_wall: drawFront, cf_tower: drawFront, cf_gate: drawFront,
 };
 
+// a rat: tiny (smaller than a hen), black or brown, a pink tail; it stretches out as it scurries
+const RAT_COL = [['#1c1a1c', '#3a363a'], ['#5a3c26', '#7a5636']];
+function drawRat(ctx, c, g) {
+  const x = Math.round(c.x), y = Math.round(c.y), f = c.fx < 0 ? -1 : 1, [body, hi] = RAT_COL[c.col || 0];
+  const run = c.moving && Math.floor(c.walk * 3) % 2;
+  ctx.fillStyle = 'rgba(8,10,6,.35)'; ctx.fillRect(x - 1, y + 1, 3, 1);
+  ctx.fillStyle = c.hitT > 0 ? '#ffffff' : body;
+  ctx.fillRect(x - 1, y, 3, 1); ctx.fillRect(x + f, y - 1, 1, 1);   // body, head
+  if (run) ctx.fillRect(x + 2 * f, y, 1, 1);                         // stretched out at a run
+  ctx.fillStyle = hi; ctx.fillRect(x, y - 1, 1, 1);                  // the ear
+  ctx.fillStyle = '#c98a8a'; ctx.fillRect(x - 2 * f, y - (run ? 0 : 1), 1, 1);   // the tail
+}
+function drawRatCorpse(ctx, c) {
+  const x = Math.round(c.x), y = Math.round(c.y), [body] = RAT_COL[c.col || 0];
+  ctx.fillStyle = body; ctx.fillRect(x - 1, y - 1, 3, 1);
+  ctx.fillStyle = '#c98a8a'; ctx.fillRect(x + 2, y, 1, 1); ctx.fillRect(x - 1, y - 2, 1, 1); ctx.fillRect(x + 1, y - 2, 1, 1);
+  ctx.fillStyle = '#a3201a'; ctx.fillRect(x, y, 1, 1);
+}
+
 export default {
   n: 6, id: 'city', name: 'INSIDE THE WALLS', sub: 'GO NORTH TO THE CASTLE. BREAK YOUR WAY IN.', mode: 'timed',
   kinds, critters,
   build(g, rng, P) { return build(g, rng, P); },
   update, hud, shooters, surface,
-  art: { ground, under, props, critters: { city_folk: drawFolk }, corpses: { city_folk: drawFolkBody }, canopy: false, theme: { leash: false } },
+  art: { ground, under, props, critters: { city_folk: drawFolk, rat: drawRat }, corpses: { city_folk: drawFolkBody, rat: drawRatCorpse }, canopy: false, theme: { leash: false } },
 };

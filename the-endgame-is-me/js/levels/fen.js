@@ -22,7 +22,8 @@ export const WAVES = 10;
 const WADE = 0.6, MUD = 0.55;         // how fast the boss goes in shallow water, and in a crater
 const BOOM = { r: 40, boss: 330, fuse: 0.12, crater: 7, shake: 0.15, maxShake: 1 };   // (v20: three times the damage, twice the reach; craters unchanged)
 const STEER = { hp: 50, spd: 9, spdWave: 0.7, near: 4 };
-const MINO = { hp: 10 * 110, r: 6, spd: 17, swing: 70, swingT: 1.3, reach: 6, atk: 0.5, strike: 0.22, charge: { every: 7, wind: 0.8, spd: 125, time: 0.9, dmg: 220, stun: 1.5, min: 34, max: 140 }, roar: { every: 11, wind: 0.6, range: 120, slow: 4 } };
+// (v21: three times the damage it used to do, twice the health)
+const MINO = { hp: 2 * 10 * 110, r: 6, spd: 17, swing: 3 * 70, swingT: 1.3, reach: 6, atk: 0.5, strike: 0.22, charge: { every: 7, wind: 0.8, spd: 125, time: 0.9, dmg: 3 * 220, stun: 1.5, min: 34, max: 140 }, roar: { every: 11, wind: 0.6, range: 120, slow: 4 } };
 const wrap = (v, n) => ((v % n) + n) % n;
 
 // ---------------------------------------------------------------------------------------------- the herd
@@ -38,6 +39,7 @@ export const critters = {
 
 // a steer plods at the boss; close enough to touch it, it goes off there and then
 function steerAi(g, c, dt) {
+  if (g.boss.dead) { steerDance(g, c, dt); return; }
   const b = g.boss, dx = b.x - c.x, dy = b.y - c.y, d = Math.hypot(dx, dy) || 1;
   const sp = (STEER.spd + STEER.spdWave * (g.fen?.wave || 1)) * (shallowAt(g, c.x, c.y) ? 0.7 : 1);
   c.x += (dx / d + Math.sin(g.t * 1.3 + c.seed) * 0.35) * sp * dt; c.y += (dy / d + Math.cos(g.t * 1.1 + c.seed) * 0.35) * sp * dt;
@@ -47,8 +49,52 @@ function steerAi(g, c, dt) {
   for (const o of g.critters) if (o !== c && !o.dead && o.kind === 'fen_steer') { const ex = c.x - o.x, ey = c.y - o.y, e = Math.hypot(ex, ey); if (e < 6 && e > 0.01) { c.x += ex / e * (6 - e) * 0.5; c.y += ey / e * (6 - e) * 0.5; } }
 }
 
+// The boss is down: every steer stops where it is, stands up on its hind legs and dances. Two that end up close take
+// each other by the hoof (c.partner: the other's id) and sway together.
+function steerDance(g, c, dt) {
+  c.moving = false;
+  if (!c.dance) {
+    c.dance = { t: g.rng() * 2 };
+    let best = null, bd = 11;
+    for (const o of g.critters) {
+      if (o === c || o.dead || o.kind !== 'fen_steer' || o.dance?.partner != null) continue;
+      const d = Math.hypot(o.x - c.x, o.y - c.y);
+      if (d < bd) { bd = d; best = o; }
+    }
+    if (best) {
+      best.dance ||= { t: c.dance.t };
+      c.dance.partner = best.id; best.dance.partner = c.id; best.dance.t = c.dance.t;
+      // shuffle into step: side by side, a few pixels apart
+      const mx = (c.x + best.x) / 2, my = (c.y + best.y) / 2, left = c.x <= best.x ? c : best, right = left === c ? best : c;
+      left.x = mx - 3.5; right.x = mx + 3.5; left.y = right.y = my;
+      left.fx = 1; right.fx = -1;
+    }
+  }
+  c.dance.t += dt;
+}
+
 // the Minotaur: walks you down and swings his axe, now and then lowers his horns and charges, now and then roars.
 // c.face is the way he is facing (8 ways round, for the art); m.atk times the swing, which lands partway through it.
+const MINO_TAUNTS = ['TOO SLOW, FUZZY', 'MY BOG. MY RULES', 'GO HOME TO YOUR ROCKS', 'WHO IS THE BOSS NOW?', 'SNORT. PATHETIC',
+  'NICE HORNS. SHAME', 'MOO-HA-HA-HA', 'RESPAWN AND TRY AGAIN', 'THE STEERS SAY HI', 'BETTER LUCK NEXT RESET'];
+function minoGloat(g, c, m, dt) {
+  const V = g.cam, on = c.x > V.x - 10 && c.x < V.x + 330 && c.y > V.y - 10 && c.y < V.y + 190;
+  if (!on) return;
+  m.atk = null; m.state = 'gloat';
+  m.gloatT = (m.gloatT ?? 0.3) - dt;
+  m.laugh = (m.laugh || 0) + dt;   // (the art shakes him with laughter)
+  if (m.gloatT > 0) return;
+  if (!m.laughed) {
+    m.laughed = true; m.gloatT = 1.6;
+    API?.text(g, c.x, c.y - 30, 'HAR HAR HAR', 'red', 1.8);
+    API?.sound(g, 'minohurt');
+    return;
+  }
+  m.gloatT = 1.7;
+  m.taunt = ((m.taunt ?? Math.floor(g.rng() * MINO_TAUNTS.length)) + 1) % MINO_TAUNTS.length;
+  API?.text(g, c.x, c.y - 30, MINO_TAUNTS[m.taunt], 'red', 1.6);
+}
+
 function minoAi(g, c, dt) {
   const b = g.boss, m = c.mino ||= { state: 'enter', t: 0, chargeT: 4, roarT: 8, swingT: 1 };
   const dx = b.x - c.x, dy = b.y - c.y, d = Math.hypot(dx, dy) || 1;
@@ -60,6 +106,7 @@ function minoAi(g, c, dt) {
     c.x += ex / e * s; c.y += ey / e * s; c.walk += s * 0.4; c.moving = s > 0.01; face(Math.atan2(ey, ex));
   };
   if (c.face == null) face(Math.atan2(dy, dx));
+  if (b.dead) { minoGloat(g, c, m, dt); face(Math.atan2(dy, dx)); return; }
   if (m.atk != null) {
     // the swing: up, over, and down onto whatever is in front of him
     const was = m.atk;
@@ -290,7 +337,40 @@ function over(ctx, g, h) {
 }
 
 // the steers: the farm's cows, black and white
-function drawSteer(ctx, c, g, h) { drawCow(ctx, { ...c, seed: 0 }, g, h); }
+function drawSteer(ctx, c, g, h) {
+  if (c.dance) { drawDancer(ctx, c, g); return; }
+  drawCow(ctx, { ...c, seed: 0 }, g, h);
+}
+// A steer up on its hind legs, facing you: horns, face, a pale belly, arms out, two legs. It sways from foot to foot
+// and waves its arms; holding hooves with a partner, the arm on that side reaches across to theirs and stays there.
+const DANCE_PAL = { h: '#e6d9b8', H: '#835233', e: INK, n: '#d89a84', B: '#a06a43', W: '#e8e0cc', D: '#5a3622', l: '#3a2418', a: '#2a2420' };
+const DANCE = [
+  ['h.....h', '.HHHHH.', '.HeHeH.', '..nnn..', '..BBB..', '.BWWWB.', '.BWWWB.', '..DDD..', '..l.l..', '.al..l.'],
+  ['h.....h', '.HHHHH.', '.HeHeH.', '..nnn..', '..BBB..', '.BWWWB.', '.BWWWB.', '..DDD..', '..l.l..', '..l..la'],
+];
+function drawDancer(ctx, c, g) {
+  const t = c.dance.t, fr = Math.floor(t * 4) % 2, x = Math.round(c.x), y = Math.round(c.y);
+  const sway = fr ? 1 : -1, bob = Math.floor(t * 8) % 2;
+  const rows = DANCE[fr], X = x - 3 + (c.dance.partner != null ? 0 : sway), Y = y - rows.length + 1 - bob;
+  ctx.fillStyle = 'rgba(8,10,6,.35)'; ctx.fillRect(x - 2, y + 1, 5, 1);
+  for (let j = 0; j < rows.length; j++) for (let i = 0; i < rows[j].length; i++) {
+    const k = rows[j][i];
+    if (k === '.' || k === 'a') continue;
+    ctx.fillStyle = DANCE_PAL[k]; ctx.fillRect(X + i, Y + j, 1, 1);
+  }
+  // the feet (the hooves on whichever leg is down this beat)
+  ctx.fillStyle = DANCE_PAL.a;
+  ctx.fillRect(X + (fr ? 2 : 1), Y + 9, 1, 1); ctx.fillRect(X + (fr ? 5 : 4), Y + 9, 1, 1);
+  // the arms: out and up and down by turns; the one towards a partner held out level to meet theirs
+  const partner = c.dance.partner != null && g.critters.find(o => o.id === c.dance.partner && !o.dead);
+  const toward = partner ? (partner.x > c.x ? 1 : -1) : 0;
+  for (const side of [-1, 1]) {
+    const ax = side < 0 ? X : X + 6, held = side === toward;
+    const up = held ? 0 : (fr ? side > 0 : side < 0) ? -2 : 0;
+    ctx.fillStyle = DANCE_PAL.B; ctx.fillRect(ax, Y + 5 + up, 1, 1); ctx.fillRect(ax, Y + 4 + up, 1, held ? 1 : 1);
+    ctx.fillStyle = DANCE_PAL.a; ctx.fillRect(ax + (held ? side : 0), Y + (held ? 5 : 3 + up), 1, 1);
+  }
+}
 
 // ---------------------------------------------------------------------------------------------- art: the Minotaur
 
@@ -412,6 +492,10 @@ export function minoStill(h, dir = 2, pose = 'walk', frame = 0) { return minoSpr
 export { MS as MINO_SIZE, FOOT as MINO_FOOT };
 
 export default {
+  thoughts: ['SQUELCH', 'WET FEET', 'WHY IS IT MOOING', 'SO MUCH MUD', 'BOG. BOG EVERYWHERE', 'SMELLS LIKE COW', 'REEDS IN MY FUR',
+    'WHERE DID THE ROCKS GO', 'IS THAT FOG OR ME', 'MOO?', 'DO NOT HUG THE COWS', 'THAT COW IS TICKING', 'A FROG JUDGED ME', 'DEEPER THAN IT LOOKS',
+    'NOBODY ELSE HERE', 'TOO QUIET', 'SOMETHING HAS HORNS', 'BIGGER HORNS THAN MINE', 'UDDERLY WRONG', 'MARSH GAS. NOT ME', 'FEN IN MY TOES',
+    'WHO FARMS A BOG', 'HOOFPRINTS. BIG ONES', 'STOP EXPLODING, COWS', 'MUD UP TO MY KNEES'],
   n: 5, id: 'fen', name: 'THE UDDERLY SECRET LEVEL', sub: 'SOMETHING IS MOOING IN THE DARK', mode: 'timed', noHeroes: true, secret: true,
   critters,
   build(g, rng) { return build(g, rng); },

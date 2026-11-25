@@ -167,6 +167,7 @@ export function createAppearance({ audio, onLook, onName }) {
     },
     hide() { clearInterval(timer); timer = 0; },
     nudgeFur: (dh, dl) => fur.nudge(dh, dl),
+    steerFur: (dx, dy, dh) => fur.steer(dx, dy, dh),
     // anything different from what is saved, whether typed, clicked or rolled
     dirty: () => (name.trim() || saved.name) !== saved.name || !same(look, saved.look),
     save() {

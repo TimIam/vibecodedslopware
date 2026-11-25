@@ -32,8 +32,8 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     if (go === 'continue') return info ? `Level ${info.level}, ${fmt(info.score)} points${info.ng ? `, New Game +${info.ng > 1 ? info.ng : ''}` : ''}.` : 'Nothing saved yet.';
     if (go === 'plus') return 'Every ability you own, back at the rocks. The heroes have been practising.';
     if (go === 'quit') return 'Back to the desktop. Your save stays where it is.';
-    if (go === 'controls') return 'Keyboard or controller, and what goes on which key.';
-    return 'Your name, sound, music, and which horns.';
+    if (go === 'controls') return 'What goes on which key and button, sound, music and the rest.';
+    return 'Your name, your colour, and which horns.';
   }
   // The hint shows at once whenever it changes, and stays up while the mouse is on a menu item; with the mouse
   // anywhere else it fades out over 2 s (#menuHint.fade in index.html).
@@ -115,7 +115,9 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     for (const p of document.querySelectorAll('#panel .panelBody')) p.hidden = p.dataset.panel !== name;
     $('panelTitle').textContent = TITLES[name];
     $('panelCard').classList.toggle('wide', name === 'settings' || name === 'humanstiary' || name === 'controls');
-    if (name === 'settings') { forgetArmed = false; refresh(); appearance.show(); } else appearance.hide();
+    $('panelCard').classList.toggle('xwide', name === 'controls');   // (keys, buttons, sound and game all on one screen)
+    if (name === 'settings') appearance.show(); else appearance.hide();
+    if (name === 'controls') { forgetArmed = false; refresh(); }
     if (name === 'humanstiary') humans.open(0);
     if (name === 'handbook') drawKeys();
     capture = null;
@@ -156,8 +158,8 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     else { $('paused').hidden = false; $(PAUSE_BTN[was] || 'pausedSettings').focus({ preventScroll: true }); }
   }
   $('panelBack').addEventListener('click', () => { audio.play('menuGo'); close(); });
-  $('openHandbook').addEventListener('click', () => { audio.play('menuGo'); open('handbook', 'settings'); });
-  $('openCredits').addEventListener('click', () => { audio.play('menuGo'); open('credits', 'settings'); });
+  $('openHandbook').addEventListener('click', () => { audio.play('menuGo'); open('handbook', 'controls'); });
+  $('openCredits').addEventListener('click', () => { audio.play('menuGo'); open('credits', 'controls'); });
   $('openHumanstiary').addEventListener('click', () => { audio.play('menuGo'); open('humanstiary', 'handbook'); });
 
   // ------------------------------------------------------------------------------------------------ sound
@@ -313,6 +315,7 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     if (panel) return !ask.hidden ? ask : !pick.hidden ? pick : $('panelCard');
     if (mode === 'title') return shown && title().done ? list : null;
     if (mode === 'paused') return $('paused').hidden ? null : $('paused');
+    if (mode === 'store' && !$('store').hidden) return !$('leaveAsk').hidden ? $('leaveAsk') : !$('slotPick').hidden ? $('slotPick') : $('store');
     if (mode === 'store' || mode === 'over' || mode === 'won') return $(mode).hidden ? null : $(mode);
     return null;
   }
@@ -344,6 +347,8 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     if (panel && !ask.hidden) { answer('keep'); return true; }
     if (panel && !pick.hidden) { closePick(true); return true; }
     if (nav.adjusting) { nav.drop(); return true; }
+    if (mode === 'store' && !$('leaveAsk').hidden) { $('leaveBack').click(); return true; }
+    if (mode === 'store' && !$('slotPick').hidden) { $('slotPick').dispatchEvent(new Event('popclose')); return true; }
     if (panel) { audio.play('menuGo'); close(); return true; }
     if (mode === 'paused') { actions.resume(); return true; }
     return false;
@@ -387,7 +392,7 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
     }
     if (e.code === 'Escape' || (e.code === 'Backspace' && !typing && panel)) { e.preventDefault(); intent('back', mode); return true; }
     if (typing) return true;   // letters, M and the rest belong to the name box
-    if (e.code === 'KeyM') { audio.toggleMute(); if (panel === 'settings') refresh(); return true; }
+    if (e.code === 'KeyM') { audio.toggleMute(); if (panel === 'controls') refresh(); return true; }
     if (mode === 'paused' && !panel && e.code === 'KeyP') { actions.resume(); return true; }
     return !!panel || mode === 'title' || mode === 'paused';
   }
@@ -397,6 +402,7 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
   // called every frame with the pad already polled: binding first, then the D-pad or left stick walk the cursor
   // (held, it repeats), A picks, B goes back, Select is fullscreen anywhere
   let padDir = null, padRep = 0;
+  const FUR_SLIDE = 26, FUR_TURN = 110;   // picker pixels a second across the triangle; degrees a second round the ring
   function pad(mode, dt) {
     if (capture?.kind === 'pad') {
       if (controls.gamepad.frame <= capture.frame) return true;
@@ -413,7 +419,22 @@ export function createMenu({ audio, title, actions, saves, appearance, clearBest
       return true;
     }
     if (!activeRoot(mode)) { padDir = null; return false; }
-    const [sx, sy] = stick('left');
+    // the fur picker, picked up: the D-pad and the left stick slide the point about the triangle, the triggers, the
+    // bumpers and the right stick turn the ring; A or B puts it down again
+    if (nav.adjusting && document.activeElement?.id === 'furPick') {
+      if (hit(PAD_A) || hit(PAD_B)) { nav.drop(); audio.play('menuMove'); padDir = 'held'; return true; }
+      const [lx, ly] = stick('left'), [rx] = stick('right');
+      const dx = lx + (held(15) ? 1 : 0) - (held(14) ? 1 : 0), dy = ly + (held(13) ? 1 : 0) - (held(12) ? 1 : 0);
+      const turn = rx + (held(7) || held(5) ? 1 : 0) - (held(6) || held(4) ? 1 : 0);
+      const v = Math.min(1, Math.hypot(dx, dy)) / (Math.hypot(dx, dy) || 1);
+      if (dx || dy || turn) appearance.steerFur(dx * v * FUR_SLIDE * dt, dy * v * FUR_SLIDE * dt, Math.max(-1, Math.min(1, turn)) * FUR_TURN * dt);
+      return true;
+    }
+    // the Hoard, on a controller: any face button on an ability mutates it there and then
+    const el = document.activeElement;
+    if (mode === 'store' && el?.matches?.('#abilList .item[data-sel]') && [PAD_A, 2, 3].some(hit)) { el.dispatchEvent(new CustomEvent('padbuy', { bubbles: true })); return true; }
+    let [sx, sy] = stick('left');
+    if (Math.hypot(sx, sy) < 0.5) [sx, sy] = stick('right');   // either stick walks the menus
     let d = held(12) ? 'up' : held(13) ? 'down' : held(14) ? 'left' : held(15) ? 'right' : null;
     if (!d && Math.hypot(sx, sy) > 0.5) d = Math.abs(sx) > Math.abs(sy) ? (sx > 0 ? 'right' : 'left') : (sy > 0 ? 'down' : 'up');
     if (d !== padDir) { padDir = d; padRep = 0.38; if (d) intent(d, mode); }

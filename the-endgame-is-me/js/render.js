@@ -122,7 +122,7 @@ export function createRenderer() {
     }
     if (g.loot?.length) for (const l of g.loot) if (onScreen(l.x, l.y, 8)) list.push({ y: l.y - (l.z > 0 ? 0 : 30), f: () => drawLoot(ctx, l, g.t) });
     if (g.stuck?.length) for (const o of g.stuck) if (onScreen(o.x, o.y, 12)) list.push({ y: o.y, f: () => drawLanded(ctx, o) });
-    for (const c of g.critters) if (onScreen(c.x, c.y)) list.push({ y: c.y, f: () => (CRITTER_ART[c.kind] || drawCritter)(ctx, c, g, H_ART) });
+    for (const c of g.critters) if (onScreen(c.x, c.y)) list.push({ y: c.y, f: () => drawCritterNow(ctx, c, g) });
     if (g.balls) for (const o of g.balls) if (onScreen(o.x, o.y, 8)) list.push({ y: o.y + 1, f: () => drawBall(ctx, o, g) });
     list.push({ y: g.boss.y + 2, f: () => drawBoss(ctx, g) });
     list.sort((a, b) => a.y - b.y);
@@ -865,6 +865,10 @@ function wardSprite(glow) {
 }
 
 function drawUnit(ctx, u, g) {
+  if (u.zapT > g.t && !u.dead) { zapped(ctx, k => drawUnitBody(k, u, g), Math.round(u.x), Math.round(u.y), g.t + u.id * 0.03, u.fx || 1); return; }
+  drawUnitBody(ctx, u, g);
+}
+function drawUnitBody(ctx, u, g) {
   const b = g.boss;
   const x = Math.round(u.x), y = Math.round(u.y) - (u.dance ? Math.floor(u.dance * 7) % 2 : 0);
   const fx = u.moving ? u.fx : (b.x > u.x ? 1 : -1);
@@ -1063,29 +1067,111 @@ function char(c, k) {
   return '#' + ch.map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
+// A scratch canvas for drawing one small thing on its own, so it can be tinted (charred, or blacked out under the
+// beam) without touching anything around it. (x, y) lands at SC_C in it.
+const SC_W = 64, SC_H = 48, SC_X = 32, SC_Y = 36;
+let scratchCv = null;
+function alone(draw, x, y) {
+  scratchCv ||= newCanvas(SC_W, SC_H);
+  const c = scratchCv.getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalCompositeOperation = 'source-over';
+  c.clearRect(0, 0, SC_W, SC_H);
+  c.translate(SC_X - x, SC_Y - y);
+  draw(c);
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  return c;
+}
+// paints over whatever was drawn in the scratch canvas, keeping its shape
+function tint(c, col, a = 1) {
+  c.globalCompositeOperation = 'source-atop';
+  c.globalAlpha = a; c.fillStyle = col; c.fillRect(0, 0, SC_W, SC_H);
+  c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+}
+
+// Burnt: whatever the thing looked like dead, blackened, flecked with grey ash, and a last ember for a while.
+// (Livestock bring their own charred art; anything else is charred this way.)
+function charredArt(ctx, draw, x, y, t) {
+  const c = alone(draw, x, y);
+  tint(c, '#1c1814', 0.9);
+  const d = c.getImageData(0, 0, SC_W, SC_H).data;
+  for (let j = 0; j < SC_H; j++) for (let i = 0; i < SC_W; i++) {
+    if (d[(j * SC_W + i) * 4 + 3] < 128) continue;
+    const h = hash(i + x * 3, j + y * 7);
+    if (h > 0.8) { c.fillStyle = h > 0.93 ? '#6a655a' : '#4a463e'; c.fillRect(i, j, 1, 1); }
+    else if (t < 6 && h < 0.03 && Math.floor(t * 3 + i) % 3 === 0) { c.fillStyle = PAL.fire1; c.fillRect(i, j, 1, 1); }
+  }
+  ctx.drawImage(scratchCv, x - SC_X, y - SC_Y);
+}
+
+// The beam holding something: it flickers between itself lit up white and a cartoon x-ray, a black body with its
+// little skeleton showing (skull at the head end, spine, ribs, leg bones), as if it were being electrocuted.
+function zapped(ctx, draw, x, y, t, fx = 1) {
+  const c = alone(draw, x, y);
+  if (Math.floor(t * 18) % 2) { tint(c, '#ffffff', 0.85); ctx.drawImage(scratchCv, x - SC_X, y - SC_Y); return; }
+  const d = c.getImageData(0, 0, SC_W, SC_H).data;
+  let x0 = SC_W, y0 = SC_H, x1 = -1, y1 = -1;
+  for (let j = 0; j < SC_H; j++) for (let i = 0; i < SC_W; i++) if (d[(j * SC_W + i) * 4 + 3] > 127) { if (i < x0) x0 = i; if (i > x1) x1 = i; if (j < y0) y0 = j; if (j > y1) y1 = j; }
+  tint(c, '#14100c');
+  if (x1 >= 0) {
+    const bone = '#f4ecd2', w = x1 - x0 + 1, h = y1 - y0 + 1;
+    c.fillStyle = bone;
+    if (w >= h) {
+      // something on four legs (or none): a spine along it, ribs, legs, the skull at its front
+      const my = y0 + Math.max(1, Math.floor(h * 0.4)), head = fx < 0 ? x0 : x1;
+      c.fillRect(x0 + 1, my, Math.max(1, w - 2), 1);
+      for (let i = x0 + 2; i < x1 - 1; i += 2) c.fillRect(i, my - 1, 1, 3);
+      if (h > 3) for (const lx of [x0 + 1, x1 - 1]) c.fillRect(lx, my + 1, 1, y1 - my);
+      c.fillRect(head - (fx < 0 ? 0 : 1), y0, 2, 2);
+    } else {
+      // someone standing: skull, spine, arms out, legs
+      const mx = x0 + (w >> 1);
+      c.fillRect(mx, y0, 1, 1);
+      c.fillRect(mx, y0 + 1, 1, Math.max(1, h - 3));
+      if (w > 2) c.fillRect(x0, y0 + 2, w, 1);
+      c.fillRect(x0, y1, 1, 1); c.fillRect(x1, y1, 1, 1);
+    }
+  }
+  ctx.drawImage(scratchCv, x - SC_X, y - SC_Y);
+}
+
+// a critter, as it looks this frame (lit up and x-rayed while the beam has it)
+function drawCritterNow(ctx, c, g) {
+  const art = CRITTER_ART[c.kind] || drawCritter;
+  if (c.zapT > g.t) zapped(ctx, k => art(k, c, g, H_ART), Math.round(c.x), Math.round(c.y), g.t, c.fx || 1);
+  else art(ctx, c, g, H_ART);
+}
+
 function drawCorpse(ctx, c) {
   const a = c.t > 30 ? (40 - c.t) / 10 : 1;
-  ctx.globalAlpha = Math.max(0, a) * 0.85;
   const x = Math.round(c.x), y = Math.round(c.y);
-  if (c.charred) {
-    // burnt to a crisp: a black husk with grey ash and a last ember, no blood
-    ctx.fillStyle = '#1e1a16'; ctx.fillRect(x - 1, y - 1, 3, 1);
-    px(ctx, x + 2, y - 1, '#2b2520'); px(ctx, x - 1, y, '#4a463e'); px(ctx, x + 1, y, '#5e5a50');
-    if (c.t < 6 && Math.floor(c.t * 3 + x) % 3 === 0) px(ctx, x, y - 1, PAL.fire1);
-    ctx.globalAlpha = 1;
-    return;
+  // squashed flat by a claw, a foot or a charge: a pool of blood under it, and the body spread wide and low
+  if (c.squish) {
+    ctx.globalAlpha = Math.max(0, a) * 0.75;
+    ctx.fillStyle = PAL.blood;
+    const s = c.critter ? 4 : 3;
+    ctx.fillRect(x - s, y - 1, s * 2 + 1, 2); ctx.fillRect(x - s + 1, y + 1, s * 2 - 1, 1); ctx.fillRect(x - s - 1, y, 1, 1);
   }
-  if (c.critter) {
-    if (CORPSE_ART[c.critter]) CORPSE_ART[c.critter](ctx, c, H_ART);
-    else { ctx.fillStyle = PAL.brown; ctx.fillRect(x - 1, y - 1, 3, 1); px(ctx, x, y, PAL.blood); }
-    ctx.globalAlpha = 1;
-    return;
-  }
-  const small = CLASS[c.cls].pet || c.cls === 'pet';
-  ctx.fillStyle = PAL[CLASS[c.cls].col]; ctx.fillRect(x - 1, y - 1, small ? 2 : 3, 1);
-  px(ctx, x + 2, y - 1, small ? PAL.brown : PAL.skin);
-  px(ctx, x, y, PAL.blood);
-  if (c.t < 8) px(ctx, x - 1, y, PAL.blood);
+  ctx.globalAlpha = Math.max(0, a) * 0.85;
+  const draw = k => {
+    if (c.critter) {
+      if (CORPSE_ART[c.critter]) CORPSE_ART[c.critter](k, c, H_ART);
+      else { k.fillStyle = PAL.brown; k.fillRect(x - 1, y - 1, 3, 1); px(k, x, y, PAL.blood); }
+      return;
+    }
+    const small = CLASS[c.cls].pet || c.cls === 'pet';
+    k.fillStyle = PAL[CLASS[c.cls].col]; k.fillRect(x - 1, y - 1, small ? 2 : 3, 1);
+    px(k, x + 2, y - 1, small ? PAL.brown : PAL.skin);
+    if (!c.charred) { px(k, x, y, PAL.blood); if (c.t < 8) px(k, x - 1, y, PAL.blood); }
+  };
+  const flat = k => {
+    if (!c.squish) { draw(k); return; }
+    k.save(); k.translate(x, y); k.scale(1.45, 0.6); k.translate(-x, -y); draw(k); k.restore();
+  };
+  if (c.charred && !(c.critter && CORPSE_ART[c.critter]?.charred)) {
+    const t = c.t - (c.charAt || 0);
+    charredArt(ctx, flat, x, y, t);
+  } else flat(ctx);
   ctx.globalAlpha = 1;
 }
 

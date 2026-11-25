@@ -16,12 +16,12 @@ const KB_SPARE = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRig
 // the menus and the game need these, so nothing can be bound to them
 const KB_RESERVED = /^(Escape|Tab|Enter|NumpadEnter|KeyP|KeyM|F\d+|Meta|OS|Context|Alt|Control)/;
 
-// controller: standard-mapping button numbers. Slots 1 and 2 on the bumpers (L1, R1), then the left trigger, the
-// left stick click and the right trigger
-export const PAD_DEFAULT = { slot0: 4, slot1: 5, slot2: 6, slot3: 10, slot4: 7, space: 0, pause: 9 };
+// controller: standard-mapping button numbers. Swipe and Fire Breath (slots 1 and 2) on the triggers (L2, R2), slots
+// 3 and 4 on the bumpers (L1, R1), slot 5 on the right stick click; Roar / Shake on the left stick click
+export const PAD_DEFAULT = { slot0: 6, slot1: 7, slot2: 4, slot3: 5, slot4: 11, space: 10, pause: 9 };
 export const STICK_DEFAULT = { left: 'move', right: 'aim' };
-// what the defaults were before v20: a save still on exactly these moves to the new ones
-const PAD_OLD = { slot0: 10, slot1: 11, slot2: 5, slot3: 4, slot4: 7, space: 0, pause: 9 };
+// what the defaults were before (v19 and older, then v20): a save still on exactly one of these moves to the new ones
+const PAD_OLD = [{ slot0: 10, slot1: 11, slot2: 5, slot3: 4, slot4: 7, space: 0, pause: 9 }, { slot0: 4, slot1: 5, slot2: 6, slot3: 10, slot4: 7, space: 0, pause: 9 }];
 // (shoulders as L1/R1 and triggers as L2/R2, the way the Steam Deck marks them)
 export const PAD_NAMES = ['A', 'B', 'X', 'Y', 'L1', 'R1', 'L2', 'R2', 'Select', 'Start', 'L3', 'R3', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right', 'Home'];
 const PAD_SHORT = ['A', 'B', 'X', 'Y', 'L1', 'R1', 'L2', 'R2', 'SEL', 'STA', 'L3', 'R3', 'DU', 'DD', 'DL', 'DR', 'HM'];
@@ -36,7 +36,7 @@ try {
   if (s.mode === 'pad' || s.mode === 'keyboard') state.mode = s.mode;
   for (const a in KB_DEFAULT) if (typeof s.kb?.[a] === 'string' && !KB_RESERVED.test(s.kb[a])) state.kb[a] = s.kb[a];
   const old = (s.v || 1) < 2;
-  const oldPad = old && s.pad && Object.keys(PAD_OLD).every(a => s.pad[a] === PAD_OLD[a]);
+  const oldPad = (s.v || 1) < 3 && s.pad && PAD_OLD.some(o => Object.keys(o).every(a => s.pad[a] === o[a]));
   if (!oldPad) for (const a in PAD_DEFAULT) if (Number.isInteger(s.pad?.[a]) && s.pad[a] >= 0 && s.pad[a] < 17 && s.pad[a] !== PAD_SELECT) state.pad[a] = s.pad[a];
   const oldSticks = old && (!s.sticks || (s.sticks.left === 'move' && s.sticks.right === 'tank'));
   if (!oldSticks) for (const k in STICK_DEFAULT) if (STICK_ROLES[s.sticks?.[k]]) state.sticks[k] = s.sticks[k];
@@ -45,7 +45,7 @@ try {
 
 const listeners = new Set();
 function changed() {
-  try { localStorage.setItem(KEY, JSON.stringify({ v: 2, ...state })); } catch {}
+  try { localStorage.setItem(KEY, JSON.stringify({ v: 3, ...state })); } catch {}
   rebuild();
   for (const f of listeners) f();
 }

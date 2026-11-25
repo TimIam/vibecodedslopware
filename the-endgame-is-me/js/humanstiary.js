@@ -104,6 +104,7 @@ const CRITTER = {
   cow: ['Cow', 'Stands in a field being a cow until you arrive. Can be stood back up afterwards, bones only, which nobody asked for.'],
   pig: ['Pig', 'Round, loud, and slower than it thinks.'],
   chicken: ['Chicken', 'Small, fast and worth less than the effort. You will chase it anyway.'],
+  rat: ['Rat', 'Lives in the walls of the city and the castle, and has outlived every king so far. Black or brown, smaller than a hen, and gone before you have turned round.'],
 };
 const STOCK_CRITTER = 'Lives here. Would rather you did not.';
 // the secret level's lot: not in the book, so as not to give it away
@@ -227,8 +228,8 @@ function others() {
   out.push({ name: 'The quiet man\'s horse', tag: 'Accomplice', abil: 'Carries him in. Waits. Carries him out again if there is anything left to carry.',
     stats: 'No health bar. Faster than you. Cannot be stepped on, and you have tried.',
     desc: 'It did not help. It would like it noted that it did not help.', shot: () => isolate(AT.x, AT.y, c => drawThing.horse(c, horse, g)) });
-  for (const k of ['cart', 'horse', 'pig', 'chicken']) add(k);
-  for (const k of Object.keys(CRITTERS)) if (!['villager', 'cart', 'horse', 'pig', 'chicken'].includes(k)) add(k);
+  for (const k of ['cart', 'horse', 'pig', 'chicken', 'rat']) add(k);
+  for (const k of Object.keys(CRITTERS)) if (!['villager', 'cart', 'horse', 'pig', 'chicken', 'rat'].includes(k)) add(k);
   for (const [cls, c] of Object.entries(CLASS)) {
     if (!isPet(c)) continue;
     const [name, desc] = PETS[cls] || [title(cls), STOCK_PET];

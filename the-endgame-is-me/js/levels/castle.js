@@ -19,7 +19,7 @@
 
 import * as P from '../props.js';
 import { newCanvas } from '../art.js';
-import { INK, STONEP, ROOF_PAL, rubbleSprite, steerHeroes, shade, paintGround, fillZone, sideWall } from './city.js';
+import { INK, STONEP, ROOF_PAL, rubbleSprite, steerHeroes, shade, paintGround, fillZone, sideWall, cityHensAndRats } from './city.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
@@ -197,6 +197,8 @@ function build(g, rng) {
   for (const y of [408, 428]) { P.addProp(g, 'city_lamp', 136, y); P.addProp(g, 'city_lamp', 188, y); }
   for (let i = 0; i < 10; i++) P.addCritter(g, 'city_folk', 100 + rng() * 120, 200 + rng() * 110, { col: Math.floor(rng() * 6) });
   for (let i = 0; i < 6; i++) P.addCritter(g, 'city_folk', 30 + rng() * 260, 402 + rng() * 26, { col: Math.floor(rng() * 6) });
+  // rats, along the foot of the walls and the keep
+  cityHensAndRats(g, rng, P, g.props.filter(p => p.w && P.KINDS[p.kind].solid).map(p => ({ x0: p.x - p.w / 2, y0: p.y - p.h / 2, x1: p.x + p.w / 2, y1: p.y + p.h / 2 })), false, 10);
 
   const water = P.makeWater(MW, MH);
   P.setWater(water, 0, MOAT.y0, MW, MOAT.y1 - 1, 1);

@@ -201,7 +201,7 @@ export function bossTouch(g, ox, oy, dt) {
   }
   for (const c of g.critters) {
     if (c.dead || Math.hypot(c.x - b.x, c.y - b.y) > b.r + c.r) continue;
-    if (CRITTERS[c.kind].trample) hurtCritter(g, c, 999);
+    if (CRITTERS[c.kind].trample) hurtCritter(g, c, 999, 'melee');
   }
   return blocked;
 }
@@ -305,8 +305,10 @@ export function addCritter(g, kind, x, y, extra = {}) {
   return c;
 }
 
-// fire: it was fire that did it (people it kills lie there charred)
-export function hurtCritter(g, c, dmg, fire = false) {
+// cause: true or 'fire' for fire, 'beam', 'melee', or nothing (then whatever the world has set in g.cause). Fire and the
+// beam leave the dead charred; melee leaves them squashed in a pool of blood.
+export function hurtCritter(g, c, dmg, cause = null) {
+  cause = cause === true ? 'fire' : cause || g.cause || null;
   if (c.dead) return;
   c.hp -= dmg; c.hitT = 0.12; c.scared = 4;
   if (c.hp > 0) return;
@@ -319,8 +321,14 @@ export function hurtCritter(g, c, dmg, fire = false) {
   if (v.chaos) API.chaos(g, v.chaos);
   API.sound(g, d.cry || 'kill');
   for (let i = 0; i < 6; i++) { const a = g.rng() * TAU, s = 10 + g.rng() * 25; API.part(g, c.x, c.y - 1, Math.cos(a) * s, Math.sin(a) * s, 0.35, d.bits || 'blood'); }
-  const charred = fire && d.raise === 'skeleton';   // (the townsfolk: the ones that come back as plain skeletons)
-  if (!d.leaves && !d.noCorpse) g.corpses.push({ u: null, critter: c.kind, x: c.x, y: c.y, cls: null, t: 0, fx: c.fx, charred });
+  const charred = cause === 'fire' || cause === 'beam', squish = !charred && cause === 'melee';
+  if (!d.leaves && !d.noCorpse) g.corpses.push({ u: null, critter: c.kind, x: c.x, y: c.y, cls: null, t: 0, fx: c.fx, charred, squish });
+  // a chicken goes up in a puff of feathers (or of embers, if it was fire) that drift down around it
+  if (d.feathers) for (let i = 0; i < 16; i++) {
+    const a = g.rng() * TAU, s = 8 + g.rng() * 26, burnt = charred;
+    if (g.parts.length < 400) g.parts.push({ x: c.x + (g.rng() - 0.5) * 2, y: c.y - 2, vx: Math.cos(a) * s, vy: -10 - g.rng() * 22, t: 0, life: 1.6 + g.rng() * 1.6, float: true, seed: g.rng() * 9,
+      kind: burnt ? (g.rng() < 0.5 ? 'ember' : 'flame') : g.rng() < 0.7 ? '#f2efe2' : '#c8c0ac' });
+  }
   d.onDie?.(g, c);   // (the secret level's steers go off like bombs)
 }
 
@@ -331,6 +339,7 @@ function updateCritters(g, dt) {
     const d = CRITTERS[c.kind];
     c.hitT = Math.max(0, c.hitT - dt);
     c.scared = Math.max(0, c.scared - dt);
+    if (c.zapT > g.t) { c.moving = false; continue; }   // the beam has it: rattling on the spot
     // a critter with a mind of its own (the secret level's steers and its Minotaur) runs its own update
     if (d.ai) { d.ai(g, c, dt); if (!d.ghost) solidPush(g, c, c.r); continue; }
     const db = Math.hypot(c.x - b.x, c.y - b.y);

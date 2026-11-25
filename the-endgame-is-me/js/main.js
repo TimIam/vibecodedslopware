@@ -306,7 +306,8 @@ function overNote() {
 function gameOver() {
   mode = 'over';
   const killer = Object.entries(g.blame).sort((a, b) => b[1] - a[1])[0][0];
-  const [a, b] = LINES[killer];
+  // (on the secret level nobody saw what happened)
+  const [a, b] = g.map.level?.id === 'fen' ? ['The Kingdom saw you disappear without a trace.', "You'll be back after the reset."] : LINES[killer];
   $('overBy').textContent = a;
   $('overSub').textContent = b;
   const newBest = g.score > best;
@@ -424,6 +425,7 @@ function openStore(opts = {}) {
 }
 function closeStore() {
   cancelAnimationFrame(demoRaf);
+  $('leaveAsk').hidden = true; closeSlotPick(false);
   $('store').hidden = true;
   if (storeDebug) { const d = storeDebug; storeDebug = null; mode = 'paused'; d.back(); return; }
   nextMap(g);
@@ -546,28 +548,144 @@ function paintDemo() {
 
 function drawSlots() {
   const owned = ABILITIES.filter(a => !a.passive && !a.space && g.owned.has(a.id));
-  // each choice shows the key it is already on, to the left of its name; a slot can be changed but never emptied
-  // (a slot is only empty while there is not yet anything to put in it)
+  // each choice shows the key it is already on, to the left of its name. Moving an ability from another slot leaves
+  // that one (EMPTY). data-pop: pressing it from a controller opens the Hoard's own list (openSlotPick)
   const keyOf = id => { const j = g.slots.indexOf(id); return j >= 0 ? slotLabel(j) : ''; };
   const pad = Math.max(...SLOTS.map((_, i) => slotLabel(i).length));
   const label = a => `${(keyOf(a.id) || '').padEnd(pad, ' ')} ${a.name}`;
-  $('tabSlots').innerHTML = `<p class="hint">Five slots. Pick what goes where; picking something already on another key swaps them, and the key each one is on shows on its left. Roar needs no slot: it is always on <kbd>${spaceLabel(true)}</kbd>, which shakes your fur instead while somebody is in it.</p>` +
+  $('tabSlots').innerHTML = `<p class="hint">Five slots. Pick what goes where; the key each one is already on shows on its left, and taking one off another key leaves that key empty. Roar needs no slot: it is always on <kbd>${spaceLabel(true)}</kbd>, which shakes your fur instead while somebody is in it.</p>` +
     g.slots.map((id, i) => `<label class="slot"><kbd>${slotLabel(i, true)}</kbd>${icon(id || 'empty')}
-      <select data-slot="${i}" ${owned.length ? '' : 'disabled'}>${id ? '' : '<option value="" selected disabled hidden>(empty)</option>'}${owned.map(a => `<option value="${a.id}" ${a.id === id ? 'selected' : ''}>${label(a)}</option>`).join('')}</select></label>`).join('');
+      <select data-slot="${i}" data-pop ${owned.length ? '' : 'disabled'}>${id ? '' : '<option value="" selected disabled hidden>(EMPTY)</option>'}${owned.map(a => `<option value="${a.id}" ${a.id === id ? 'selected' : ''}>${label(a)}</option>`).join('')}</select></label>`).join('');
 }
+
+// ---------------------------------------------------------------------------------------------- leaving the Hoard
+
+// Next level asks first. The line it asks with is picked at random from these, never one of the last LEAVE_FRESH
+// shown (remembered across sessions), so they stay fresh.
+const LEAVE_LINES = [
+  'The gold will still be here. Probably.',
+  'Points do not spend themselves. Well, they do, but only when you are not looking.',
+  'There is a whole raid out there that has not been stepped on yet.',
+  'The next level has fewer shiny things in it and more people with swords.',
+  'Done shopping? The heroes have been gearing up while you browsed.',
+  'Last chance to grow something horrible before the next lot turns up.',
+  'Unspent points earn no interest. The Hoard checked.',
+  'Leaving with points in your pocket is how bosses end up as rugs.',
+  'Are you sure? The adventurers never are, and look at them.',
+  'The Hoard will miss you. It will not say so.',
+  'Your loadout looks fine. Loadouts always look fine until they are not.',
+  'Somewhere out there, a hunter\'s pet is already pulling.',
+  'Rock and Other Rock send their regards. Mind them on the way out.',
+  'The next lot has watched a guide about you. Twice.',
+  'No more mutating until the next Hoard. Horns do not grow on trees.',
+  'A boss with unspent points is just a large, angry savings account.',
+  'Ready? The healers say they are. The healers are lying.',
+  'The way out is that way. So is the fire.',
+  'Did you check the Loadout? A Swipe on the wrong button makes for a long day.',
+  'One more look at the shelves would not hurt anyone. The next level will.',
+  'Out there it is all walls, wizards and people typing GG. In here it is quiet.',
+];
+const LEAVE_FRESH = 7, LEAVE_KEY = 'bosshours.leaveLines';
+function leaveLine() {
+  let recent = [];
+  try { recent = JSON.parse(localStorage.getItem(LEAVE_KEY) || '[]').filter(Number.isInteger); } catch {}
+  const pool = LEAVE_LINES.map((_, i) => i).filter(i => !recent.includes(i));
+  const i = pool[Math.floor(Math.random() * pool.length)];
+  try { localStorage.setItem(LEAVE_KEY, JSON.stringify([...recent, i].slice(-LEAVE_FRESH))); } catch {}
+  return LEAVE_LINES[i];
+}
+function askLeave() {
+  if (storeDebug) { closeStore(); return; }   // (the debug Hoard just goes back to the level)
+  closeSlotPick(false);
+  $('leaveText').textContent = leaveLine();
+  $('leaveAsk').hidden = false;
+  $('leaveBack').focus({ preventScroll: true });
+  audio.play('menuGo');
+}
+function leaveAnswer(go) {
+  $('leaveAsk').hidden = true;
+  audio.play(go ? 'menuGo' : 'menuMove');
+  if (go) closeStore(); else $('storeGo').focus({ preventScroll: true });
+}
+$('leaveBack').addEventListener('click', () => leaveAnswer(false));
+$('leaveGo').addEventListener('click', () => leaveAnswer(true));
+
+// ---------------------------------------------------------------------------------------------- the Loadout's own list
+
+// A controller can't open a real pull-down, so pressing on a Loadout slot from the controller (or the keyboard's menu
+// cursor) opens this list instead, right under the slot: pick the ability for that slot straight away.
+let slotPickFor = null;
+function openSlotPick(s) {
+  const i = +s.dataset.slot, list = $('slotPick'), card = $('store').querySelector('.card');
+  const owned = ABILITIES.filter(a => !a.passive && !a.space && g.owned.has(a.id));
+  if (!owned.length) return;
+  slotPickFor = i;
+  list.innerHTML = owned.map(a => {
+    const j = g.slots.indexOf(a.id);
+    return `<button type="button" class="pickOpt" role="option" data-pick="${a.id}" aria-selected="${j === i}">${icon(a.id)}<span>${a.name}</span><small>${j >= 0 && j !== i ? 'on ' + slotLabel(j) : ''}</small></button>`;
+  }).join('');
+  const r = s.getBoundingClientRect(), c = card.getBoundingClientRect();
+  // beside the slot, where there is room, so it never pushes the card into scrolling
+  list.style.left = Math.round(r.right - c.left + card.scrollLeft + 10) + 'px';
+  list.style.top = Math.round(r.top - c.top + card.scrollTop) + 'px';
+  list.hidden = false;
+  (list.querySelector('[aria-selected="true"]') || list.querySelector('button')).focus({ preventScroll: true });
+  audio.play('menuMove');
+}
+function closeSlotPick(refocus = true) {
+  const list = $('slotPick');
+  if (list.hidden) return;
+  list.hidden = true;
+  const i = slotPickFor;
+  slotPickFor = null;
+  if (refocus) $('tabSlots').querySelector(`select[data-slot="${i}"]`)?.focus({ preventScroll: true });
+}
+$('slotPick').addEventListener('popclose', () => closeSlotPick(true));
+$('slotPick').addEventListener('click', e => {
+  const b = e.target.closest('[data-pick]');
+  if (!b) return;
+  const i = slotPickFor;
+  closeSlotPick(false);
+  setSlot(g, i, b.dataset.pick);
+  audio.play('menuGo');
+  drawStore();
+  $('tabSlots').querySelector(`select[data-slot="${i}"]`)?.focus({ preventScroll: true });
+});
+$('store').addEventListener('popopen', e => { const s = e.target.closest('select[data-slot]'); if (s && !s.disabled) openSlotPick(s); });
+document.addEventListener('pointerdown', e => { if (!e.target.closest('#slotPick')) closeSlotPick(false); });
+
+// ---------------------------------------------------------------------------------------------- buying from a controller
+
+// On a controller the ability list is the whole shop: walking onto an ability shows it, and pressing any face button
+// on it mutates it there and then (the keyboard and mouse still pick it, then press Mutate)
+function mutate(id) {
+  const o = abilityOffer(g, id);
+  const ok = o.buyCost != null ? buyAbility(g, id, !!storeDebug) : upgradeAbility(g, id, !!storeDebug);
+  if (ok) showDemo();
+  return ok;
+}
+$('store').addEventListener('padbuy', e => {
+  const t = e.target.closest('[data-sel]');
+  if (!t) return;
+  if (sel !== t.dataset.sel) { sel = t.dataset.sel; showDemo(); }
+  if (mutate(sel)) { audio.play('buy'); redraw(drawStore); }
+  else { audio.play('menuMove'); redraw(drawAbilities); }
+});
+$('store').addEventListener('focusin', e => {
+  const t = e.target.closest?.('.item[data-sel]');
+  if (!t || controls.mode !== 'pad' || t.dataset.sel === sel) return;
+  sel = t.dataset.sel; showDemo(); redraw(drawAbilities);
+});
 
 $('store').addEventListener('click', e => {
   const t = e.target.closest('button');
   if (!t || t.getAttribute('aria-disabled') === 'true') return;
-  if (t.dataset.tab) { tab = t.dataset.tab; redraw(drawStore); return; }
-  if (t.id === 'storeGo') { closeStore(); return; }
+  if (t.closest('#slotPick, #leaveAsk')) return;
+  if (t.dataset.tab) { tab = t.dataset.tab; closeSlotPick(false); redraw(drawStore); return; }
+  if (t.id === 'storeGo') { askLeave(); return; }
   if (t.dataset.sel) { sel = t.dataset.sel; showDemo(); redraw(drawAbilities); return; }
   let ok = false;
-  if (t.id === 'abilMutate') {
-    const o = abilityOffer(g, sel);
-    ok = o.buyCost != null ? buyAbility(g, sel, !!storeDebug) : upgradeAbility(g, sel, !!storeDebug);
-    if (ok) showDemo();
-  }
+  if (t.id === 'abilMutate') ok = mutate(sel);
   if (t.id === 'abilUnmutate' && storeDebug) { ok = unmutateAbility(g, sel); if (ok) showDemo(); }
   if (t.id === 'healBtn') ok = healBoss(g, !!storeDebug);
   if (ok) { audio.play('buy'); redraw(drawStore); }

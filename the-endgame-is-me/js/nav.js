@@ -82,6 +82,8 @@ export function createNav() {
   // and a canvas that takes arrows (the fur picker) is picked up or put down
   function press(root, el) {
     if (!el || !items(root).includes(el)) { const all = items(root); focus(all[0]); return; }
+    // a pull-down that has its own pop-up list (the Hoard's Loadout slots) opens it, like a click would
+    if (el.tagName === 'SELECT' && el.dataset.pop != null) { el.dispatchEvent(new CustomEvent('popopen', { bubbles: true })); return; }
     if (el.tagName === 'SELECT') { cycle(el, 1); return; }
     if (el.type === 'range') return;
     if (el.tagName === 'INPUT' && (el.type === 'text' || !el.type)) { move(root, 'down'); return; }

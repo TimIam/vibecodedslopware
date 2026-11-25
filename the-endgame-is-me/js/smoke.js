@@ -76,6 +76,7 @@ function puff(s, g, x, y, r, d) {
 // how hard something burns over its life: it catches, roars, then dies down
 const roar = k => k < 0.15 ? 0.4 + k * 4 : k > 0.8 ? Math.max(0.3, (1 - k) * 5) : 1;
 
+const CHAR_SMOKE = 9;
 function emit(s, g, dt) {
   const rng = s.rng;
   for (const p of g.props) {
@@ -98,6 +99,14 @@ function emit(s, g, dt) {
     if (k > 0.95) continue;
     f.smokeAcc = (f.smokeAcc || 0) + (0.7 + f.r * 0.12) * (k > 0.7 ? 0.5 : 1) * dt;
     if (f.smokeAcc >= 1) { f.smokeAcc -= 1; puff(s, g, f.x + (rng() - 0.5) * f.r, f.y - 2, 1.6 + rng() * 1.2, 0.22 + rng() * 0.12); }
+  }
+  // the charred dead smoke for a while, like any small thing that has burnt (thinning out over CHAR_SMOKE seconds)
+  for (const c of g.corpses) {
+    if (!c.charred) continue;
+    const k = (c.t - (c.charAt || 0)) / CHAR_SMOKE;
+    if (k > 1) continue;
+    c.smokeAcc = (c.smokeAcc || 0) + (c.critter ? 1.3 : 0.9) * (1 - k) * dt;
+    if (c.smokeAcc >= 1) { c.smokeAcc -= 1; puff(s, g, c.x + (rng() - 0.5) * 3, c.y - 3, 1.3 + rng() * 0.9, 0.25 + 0.15 * (1 - k)); }
   }
   // fresh ash smoulders for a few seconds
   if (g.ashes.length < s.ashSeen) s.ashSeen = 0;

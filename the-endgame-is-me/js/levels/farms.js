@@ -26,7 +26,7 @@ export const kinds = {
 export const critters = {
   cow: { r: 3.5, hp: 60, spd: 6, flee: 17, fear: 42, raise: 'skel_cow', cry: 'kill', value: { pts: 200, venge: 0.15, chaos: 0.6 } },
   pig: { r: 2.5, hp: 40, spd: 8, flee: 21, fear: 40, raise: 'skel_pig', value: { pts: 150, venge: 0.1, chaos: 0.4 } },
-  chicken: { r: 1.5, hp: 10, spd: 10, flee: 30, fear: 34, bits: 'cream', value: { pts: 60, venge: 0.05, chaos: 0.12 } },
+  chicken: { r: 1.5, hp: 10, spd: 10, flee: 30, fear: 34, bits: 'cream', feathers: true, value: { pts: 60, venge: 0.05, chaos: 0.12 } },
 };
 
 // what a necromancer makes of them
@@ -462,11 +462,29 @@ const COW_DEAD = ['..l.l..l.l...', '..l.l..l.l...', '.LLLLLLLLHH..', 'tBWWBBBBWH
 const PIG_DEAD = ['..l.l..l.l', '.LLLLLLLE.', 'tPPPPPPPeS', '.DDPPPPDDS', '..rr.rr...'];
 const HEN_DEAD = ['W..w.', '.WWr.', 'w.rWy', '.r...'];
 const DEAD_PAL = { r: '#a3201a' };
+// Burnt livestock: the same carcass, every colour turned to charcoal by how light it was (the lightest parts to grey
+// ash), and the blood to soot. render.js sees .charred on the drawing function and leaves the charring to it.
+const CHAR_SHADES = ['#15110d', '#221c17', '#2e2620', '#3d352d', '#565048'];
+function charPal(pal) {
+  const out = {};
+  for (const [k, col] of Object.entries(pal)) {
+    const n = parseInt(String(col).slice(1), 16), l = ((n >> 16) * 0.3 + (n >> 8 & 255) * 0.59 + (n & 255) * 0.11) / 255;
+    out[k] = CHAR_SHADES[Math.min(CHAR_SHADES.length - 1, Math.floor(l * CHAR_SHADES.length))];
+  }
+  out.r = '#2e2620';
+  return out;
+}
 function corpse(key, rows, pal) {
-  return (ctx, c, h) => {
-    const spr = mapSprite(h, key, rows, { ...pal, ...DEAD_PAL }, c.fx < 0);
-    ctx.drawImage(spr, Math.round(c.x) - (spr.width >> 1), Math.round(c.y) - spr.height + 3);
+  const burnt = charPal({ ...pal, ...DEAD_PAL });
+  const f = (ctx, c, h) => {
+    const spr = mapSprite(h, key + (c.charred ? 'c' : ''), rows, c.charred ? burnt : { ...pal, ...DEAD_PAL }, c.fx < 0);
+    const X = Math.round(c.x) - (spr.width >> 1), Y = Math.round(c.y) - spr.height + 3;
+    ctx.drawImage(spr, X, Y);
+    // a last ember or two in the char for a while after
+    if (c.charred && c.t - (c.charAt || 0) < 6 && Math.floor((c.t + c.x) * 3) % 4 === 0) { ctx.fillStyle = '#ff9a2e'; ctx.fillRect(X + (spr.width >> 1), Y + spr.height - 3, 1, 1); }
   };
+  f.charred = true;
+  return f;
 }
 
 // bone cows and bone pigs: ribs you can see the grass through, skulls with a green glow in the sockets
@@ -560,7 +578,7 @@ export default {
     ground,
     props: { barn: drawBarn, hut: drawHut, hay: drawHay, wheat: drawCrop, cabbage: drawCrop, fence: drawFence },
     critters: { cow: drawCow, pig: drawPig, chicken: drawHen },
-    corpses: { cow: (ctx, c, h) => corpse(`fm-cowd${0}`, COW_DEAD, COW_PAL)(ctx, c, h), pig: corpse('fm-pigd', PIG_DEAD, PIG_PAL), chicken: corpse('fm-hend', HEN_DEAD, HEN_PAL) },
+    corpses: { cow: corpse('fm-cowd0', COW_DEAD, COW_PAL), pig: corpse('fm-pigd', PIG_DEAD, PIG_PAL), chicken: corpse('fm-hend', HEN_DEAD, HEN_PAL) },
     adds: { skel_cow: drawSkel('fm-skcow', SKEL_COW, SKEL_COW_BITE), skel_pig: drawSkel('fm-skpig', SKEL_PIG, SKEL_PIG_BITE) },
     canopy: false, theme: { leash: false },
   },

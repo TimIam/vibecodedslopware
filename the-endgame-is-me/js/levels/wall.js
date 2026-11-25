@@ -130,6 +130,11 @@ function build(g, rng, P) {
     const k = rng(), up = s.y < roadY(s.x);
     const kind = !up ? (k < 0.6 ? 'wl_cottage' : 'wl_house') : k < 0.34 ? 'wl_cottage' : k < 0.72 ? 'wl_house' : k < 0.86 ? 'wl_barn' : 'wl_watch';
     const p = P.addProp(g, kind, Math.round(s.x), Math.round(s.y));
+    // the outskirts keep hens: a few round the cottages and houses
+    if ((kind === 'wl_cottage' || kind === 'wl_house') && rng() < 0.45) {
+      const dy = (kinds[kind].h || 12) / 2 + 4;
+      for (let n = 1 + Math.floor(rng() * 2); n > 0; n--) P.addCritter(g, 'chicken', p.x + (rng() - 0.5) * 20, p.y + (up ? dy : -dy) + (rng() - 0.5) * 4);
+    }
     // a cobbled path from the front door to the street (houses north of it), or from the back (south of it)
     const d = kinds[kind], foot = up ? p.y + (d.h || d.r * 2) / 2 + 1 : p.y - (d.h || d.r * 2) / 2 - 7;
     paths.push({ x: p.x + (rng() - 0.5) * 6, y0: Math.min(foot, roadY(p.x)), y1: Math.max(foot, roadY(p.x)), w: 1 + Math.floor(rng() * 2), wob: rng() * 10 });

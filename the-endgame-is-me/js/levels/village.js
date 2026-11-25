@@ -78,6 +78,8 @@ function build(g, rng, P) {
       for (let k = 0; k < 2; k++) {
         const fx = sx < 0 ? [cx - 100, cx - 22] : [cx + 22, cx + 100], fy = sy < 0 ? [cy - 70, cy - 20] : [cy + 20, cy + 60];
         const c = tryPlace('cottage', fx[0], fy[0], fx[1], fy[1], 4);
+        // a few hens in the yard
+        if (c && rng() < 0.75) for (let n = 1 + Math.floor(rng() * 2); n > 0; n--) P.addCritter(g, 'chicken', c.x + (rng() - 0.5) * 22, c.y + (sy < 0 ? 12 : -12) + (rng() - 0.5) * 6);
         // a cabbage patch behind some of them
         if (c && rng() < 0.55) {
           const gx0 = c.x - 12 + (rng() - 0.5) * 8, gy0 = sy < 0 ? c.y - 36 : c.y + 15, gd = { x0: gx0, y0: gy0, x1: gx0 + 24, y1: gy0 + 16 };

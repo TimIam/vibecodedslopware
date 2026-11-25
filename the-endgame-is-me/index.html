@@ -68,6 +68,10 @@ dd em{font-style:normal;color:#ffd75a;font-size:11px;margin-left:6px}
 .setLinks.center{justify-content:center}
 .askWrap{position:fixed;inset:52px 0 0;z-index:12;display:grid;place-items:center;background:rgba(10,12,8,.7)}
 .askWrap[hidden]{display:none}
+#store .card{position:relative}
+.slotPick{position:absolute;z-index:5;width:260px}
+.slotPick .pickOpt{grid-template-columns:16px 1fr auto}
+.slotPick .pickOpt[aria-selected=true]{background:#6e4229}
 .ask{width:min(520px,94vw)}
 .ask h2{color:#ffd75a}
 .humNav{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:12px}
@@ -201,8 +205,20 @@ input[type=range]:focus-visible{outline:2px solid #ffd75a;outline-offset:4px}
 .setRow .val{color:#ffd75a}
 .setLinks{display:flex;gap:10px;margin-top:14px}
 .setLinks button{margin:0;padding:8px 14px 6px;font-size:12px}
-.lookTop{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
-.lookTop #preview{width:168px;height:168px}
+/* Phenotype is all looks: the boss and the colour picker on the left, the parts in two columns on the right */
+.lookCols{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px 28px;align-items:start}
+@media (max-width:820px){.lookCols{grid-template-columns:1fr}}
+.lookTop{display:grid;gap:14px;justify-items:center;align-content:start}
+.lookTop #preview{width:232px;height:232px}
+#lookRows{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 22px;align-content:start}
+@media (max-width:1000px){#lookRows{grid-template-columns:1fr}}
+/* Controls: keyboard and controller side by side (their rows line up), sound and game on the right */
+.ctlCols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,300px);gap:8px 22px;align-items:start}
+@media (max-width:1000px){.ctlCols{grid-template-columns:1fr 1fr}.ctlSide{grid-column:1/-1}}
+@media (max-width:640px){.ctlCols{grid-template-columns:1fr}}
+.ctlSide .slRow{grid-template-columns:88px 1fr auto}
+.ctlSide .setLinks{flex-wrap:wrap}
+.panelCard.xwide{width:min(1240px,98vw)}
 fieldset.part{border:0;padding:0;margin:0 0 7px;min-width:0}
 fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
 .radio{display:inline-flex;gap:6px;align-items:center;font-size:12px;padding:2px 12px 2px 2px;cursor:pointer;color:#d2cfbd}
@@ -308,33 +324,23 @@ fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
     </div>
     <div class="panelBody" data-panel="settings" hidden>
       <div class="nameRow"><label for="bossName">Boss name</label><button id="nameDie" class="die" type="button" aria-label="Pick a random name" title="Random name"></button><input id="bossName" maxlength="26" autocomplete="off" spellcheck="false"></div>
-      <div class="setCols">
-        <div>
-          <h3>Sound</h3>
-          <div class="slRow"><label for="volMusic">Music</label><input id="volMusic" type="range" min="0" max="10" step="1"><label class="chk"><input id="muteMusic" type="checkbox"><span>Mute</span></label></div>
-          <div id="musicPick"><span>Music select</span><button id="musicBtn" class="pickBtn" type="button" aria-haspopup="listbox" aria-expanded="false"><span></span><i aria-hidden="true">▼</i></button><div id="musicList" class="pickList" role="listbox" aria-label="Music select" hidden></div></div>
-          <div class="slRow"><label for="volSfx">Sound effects</label><input id="volSfx" type="range" min="0" max="10" step="1"><label class="chk"><input id="muteSfx" type="checkbox"><span>Mute</span></label></div>
-          <h3>Game</h3>
-          <label class="chk"><input id="setShake" type="checkbox"><span>Screen shake</span></label>
-          <button id="setForget" type="button" class="setRow"><span class="lbl">Forget best shift</span><span class="val"></span></button>
-          <div class="setLinks"><button id="openHandbook" type="button" class="quiet">Handbook</button><button id="openCredits" type="button" class="quiet">Credits</button></div>
-        </div>
-        <div>
-          <h3>Appearance</h3>
-          <div class="lookTop">
-            <canvas id="preview" width="280" height="280" aria-label="Your boss, turning slowly"></canvas>
+      <h3>Appearance</h3>
+      <div class="lookCols">
+        <div class="lookTop">
+          <canvas id="preview" width="280" height="280" aria-label="Your boss, turning slowly"></canvas>
+          <div class="furRow">
             <canvas id="furPick" width="72" height="72" tabindex="0" aria-label="Fur colour: hue ring and saturation and lightness triangle"></canvas>
             <div class="furSide"><span id="furSwatch"></span><button type="button" class="opt" id="furNatural">Natural brown</button>
             <label class="chk" id="cowRow" hidden><input id="furCow" type="checkbox"><span>Cow Skin</span></label>
             <div class="lookDice"><button id="lookDie" class="die" type="button" aria-label="Randomize the whole appearance" title="Random appearance"></button><button id="lookRevert" class="revert" type="button" hidden>revert!!</button></div></div>
           </div>
-          <div id="lookRows"></div>
         </div>
+        <div id="lookRows"></div>
       </div>
     </div>
     <div class="panelBody" data-panel="controls" hidden>
       <div class="ctlMode"><span id="padStatus" class="note"></span></div>
-      <div class="setCols ctlCols">
+      <div class="ctlCols">
         <div>
           <h3>Keyboard</h3>
           <div id="kbRows"></div>
@@ -348,8 +354,17 @@ fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
           <p class="note">Pick one, then press the button for it. Esc or Select cancels. Turn and walk: left and right turn the boss, up and down walk it forward and back. The D-pad also moves unless it is bound. Select is fullscreen.</p>
           <button id="padReset" type="button" class="setRow"><span class="lbl">Reset controller</span><span class="val"></span></button>
         </div>
+        <div class="ctlSide">
+          <h3>Sound</h3>
+          <div class="slRow"><label for="volMusic">Music</label><input id="volMusic" type="range" min="0" max="10" step="1"><label class="chk"><input id="muteMusic" type="checkbox"><span>Mute</span></label></div>
+          <div id="musicPick"><span>Music select</span><button id="musicBtn" class="pickBtn" type="button" aria-haspopup="listbox" aria-expanded="false"><span></span><i aria-hidden="true">▼</i></button><div id="musicList" class="pickList" role="listbox" aria-label="Music select" hidden></div></div>
+          <div class="slRow"><label for="volSfx">Sound effects</label><input id="volSfx" type="range" min="0" max="10" step="1"><label class="chk"><input id="muteSfx" type="checkbox"><span>Mute</span></label></div>
+          <h3>Game</h3>
+          <label class="chk"><input id="setShake" type="checkbox"><span>Screen shake</span></label>
+          <button id="setForget" type="button" class="setRow"><span class="lbl">Forget best shift</span><span class="val"></span></button>
+          <div class="setLinks"><button id="ctlFull" type="button" class="quiet">Fullscreen</button><button id="openHandbook" type="button" class="quiet">Handbook</button><button id="openCredits" type="button" class="quiet">Credits</button></div>
+        </div>
       </div>
-      <button id="ctlFull" type="button" class="setRow"><span class="lbl">Fullscreen</span><span class="val">Select</span></button>
     </div>
     <div class="panelBody" data-panel="credits" hidden>
       <dl class="creditRows">
@@ -396,6 +411,14 @@ fieldset.part legend{padding:0;font-size:12px;color:#aeac9b;margin-bottom:3px}
     <div id="tabSlots" class="tab" hidden></div>
     <div id="storeHeal"><span id="healTxt"></span><button type="button" class="mutate" id="healBtn"><span>Heal <small id="healWhat"></small></span><b id="healCost"></b></button></div>
     <button id="storeGo" type="button">Next level</button>
+    <div id="slotPick" class="pickList slotPick" role="listbox" aria-label="Ability for this slot" hidden></div>
+  </div>
+  <div id="leaveAsk" class="askWrap" hidden>
+    <div class="card ask" role="alertdialog" aria-labelledby="leaveTitle" aria-describedby="leaveText">
+      <h2 id="leaveTitle">Leave the Hoard?</h2>
+      <p id="leaveText"></p>
+      <div class="wonBtns"><button id="leaveBack" type="button" class="quiet">Go back</button><button id="leaveGo" type="button">Lumber on</button></div>
+    </div>
   </div>
 </div>
 

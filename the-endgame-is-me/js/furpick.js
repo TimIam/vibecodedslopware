@@ -112,6 +112,21 @@ export function createFurPicker(cv, onPick) {
     draw();
     onPick(hex());
   }
+  // a controller, held: the point in the triangle slides by (dx, dy) of the picker's own pixels (it stops at the
+  // edges), and the ring turns by dh degrees. Only reported when the colour actually changes.
+  let last = hex();
+  function steer(dx, dy, dh) {
+    if (dh) h = ((h + dh) % 360 + 360) % 360;
+    if (dx || dy) {
+      const [x1, y1] = CORNER[0], [x2, y2] = CORNER[1], [x3, y3] = CORNER[2], k = 1 - a - w;
+      let [ba, bw, bk] = bary(a * x1 + w * x2 + k * x3 + dx, a * y1 + w * y2 + k * y3 + dy);
+      ba = Math.max(0, ba); bw = Math.max(0, bw); bk = Math.max(0, bk);
+      const t = ba + bw + bk; a = ba / t; w = bw / t;
+    }
+    draw();
+    const now = hex();
+    if (now !== last) { last = now; onPick(now); }
+  }
   draw();
-  return { set, nudge, get value() { return hex(); } };
+  return { set, nudge, steer, get value() { return hex(); } };
 }
