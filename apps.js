@@ -2042,6 +2042,13 @@ window.SLOPWARE = {
      "note": "loot and /rolls, burning heroes, a paged Humanstiary",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 21,
+     "date": "2026-11-25T10:21:58-07:00",
+     "note": "charred and squashed dead, beam x-rays, hens and rats, Hoard leave prompt",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
@@ -2099,8 +2106,8 @@ window.SLOPWARE = {
   },
   "stay-with-me": {
    "visits": 0,
-   "prompts": 7,
-   "tokens": 20610990,
+   "prompts": 8,
+   "tokens": 20623842,
    "sharedWith": null,
    "versions": [
     {
@@ -2114,8 +2121,8 @@ window.SLOPWARE = {
      "n": 2,
      "date": "2026-11-25T04:50:55-07:00",
      "note": "realism pass across people, town, vehicles, interiors and gear",
-     "prompts": 5,
-     "tokens": 6579129
+     "prompts": 6,
+     "tokens": 6591981
     }
    ]
   }
