@@ -2002,16 +2002,23 @@ window.SLOPWARE = {
   },
   "stay-with-me": {
    "visits": 0,
-   "prompts": 3,
-   "tokens": 14044097,
+   "prompts": 6,
+   "tokens": 20605591,
    "sharedWith": null,
    "versions": [
     {
      "n": 1,
      "date": "2026-11-24T06:54:54-07:00",
      "note": "a realistic paramedic sim with a drivable town",
-     "prompts": 3,
-     "tokens": 14044097
+     "prompts": 2,
+     "tokens": 14031861
+    },
+    {
+     "n": 2,
+     "date": "2026-11-25T04:50:55-07:00",
+     "note": "realism pass across people, town, vehicles, interiors and gear",
+     "prompts": 4,
+     "tokens": 6573730
     }
    ]
   }
