@@ -3,12 +3,14 @@
 // props the levels registered in props.js), so a new class or animal turns up here by itself, with a stock
 // description until somebody writes it a better one. The secret level's creatures stay out of it. No scroll bar: the
 // entries are laid out in pages that fit the screen, turned with Prev and Next. Portraits are the game's own sprites,
-// drawn alone and blown up (or shrunk, for the big buildings).
+// drawn alone and blown up (or shrunk, for the big buildings). Under each portrait of something that can die or fall
+// down: how many of it the boss has killed or wrecked, over every run (tally.js; an entry's `n` is its key there).
 
 import { CLASS, ROCK_R, TOUCH, createGame, newParty, mkUnit, jumpToLevel } from './world.js';
 import { CRITTERS, KINDS, addProp } from './props.js';
 import { drawThing, createRenderer } from './render.js';
 import { PAL, newCanvas } from './art.js';
+import { count } from './tally.js';
 
 const $ = id => document.getElementById(id);
 const title = s => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -190,7 +192,7 @@ function heroes() {
   for (const [cls, c] of Object.entries(CLASS)) {
     if (isPet(c)) continue;
     const [abil, desc] = HERO[cls] || [ROLE_ABIL[c.role] || 'Unknown.', STOCK_HERO];
-    out.push({ name: cls === 'rider' ? 'The quiet man' : cls === 'king' ? 'The king' : title(cls), tag: ROLE[c.role] || title(c.role), abil, stats: heroStats(c), desc, shot: () => unitShot(g, cls) });
+    out.push({ n: 'u:' + cls, name: cls === 'rider' ? 'The quiet man' : cls === 'king' ? 'The king' : title(cls), tag: ROLE[c.role] || title(c.role), abil, stats: heroStats(c), desc, shot: () => unitShot(g, cls) });
   }
   return out;
 }
@@ -220,7 +222,7 @@ function others() {
     const d = CRITTERS[kind];
     if (!d || SECRET.has(kind)) return;
     const [name, desc] = CRITTER[kind] || [title(kind), STOCK_CRITTER];
-    out.push({ name, tag: d.leaves ? 'Leaves if it can' : 'Bystander', abil: d.raise ? 'Runs away. Can be raised from the dead.' : 'Runs away.',
+    out.push({ n: 'c:' + kind, name, tag: d.leaves ? 'Leaves if it can' : 'Bystander', abil: d.raise ? 'Runs away. Can be raised from the dead.' : 'Runs away.',
       stats: `HP ${d.hp} · speed ${d.spd}, ${d.flee} when it has seen you${d.value.pts ? ` · worth ${d.value.pts} points` : ''}`, desc, shot: () => critterShot(g, kind) });
   };
   add('villager');
@@ -233,7 +235,7 @@ function others() {
   for (const [cls, c] of Object.entries(CLASS)) {
     if (!isPet(c)) continue;
     const [name, desc] = PETS[cls] || [title(cls), STOCK_PET];
-    out.push({ name, tag: 'Pet', abil: c.bolt ? `Throws ${c.bolt}s from behind its owner.` : 'Bites. Goes in before anyone said go.', stats: heroStats(c), desc, shot: () => unitShot(g, cls) });
+    out.push({ n: 'u:' + cls, name, tag: 'Pet', abil: c.bolt ? `Throws ${c.bolt}s from behind its owner.` : 'Bites. Goes in before anyone said go.', stats: heroStats(c), desc, shot: () => unitShot(g, cls) });
   }
   const rock = other => () => isolate(AT.x, AT.y, c => drawThing.rock(c, AT.x, AT.y, other));
   out.push({ name: 'The Rock', tag: 'Rock', abil: 'Being at one end of the path.',
@@ -280,14 +282,14 @@ function plants() {
   const g = specimenGame();
   return Object.keys(PLANT).filter(k => KINDS[k]).map(k => {
     const d = KINDS[k], [name, latin, where, desc] = PLANT[k] || STOCK_PLANT;
-    return { name, tag: latin, abil: `Grows in ${where}.`, stats: `HP ${d.hp} · ${d.flammable ? 'burns' : 'does not burn'}${d.value.pts ? ` · worth ${d.value.pts} points` : ''}`, desc, shot: () => propShot(g, k) };
+    return { n: 'p:' + k, name, tag: latin, abil: `Grows in ${where}.`, stats: `HP ${d.hp} · ${d.flammable ? 'burns' : 'does not burn'}${d.value.pts ? ` · worth ${d.value.pts} points` : ''}`, desc, shot: () => propShot(g, k) };
   });
 }
 function buildings() {
   const g = specimenGame();
   return Object.keys(BUILDING).filter(k => KINDS[k]).map(k => {
     const d = KINDS[k], [name, where, desc] = BUILDING[k] || STOCK_BUILDING;
-    return { name, tag: where, abil: 'Why it is there:', stats: `HP ${d.hp} · ${d.flammable ? 'burns' : 'stone: knock it down'}${d.value.pts ? ` · worth ${d.value.pts} points` : ''}`, desc, shot: () => propShot(g, k) };
+    return { n: 'p:' + k, name, tag: where, abil: 'Why it is there:', stats: `HP ${d.hp} · ${d.flammable ? 'burns' : 'stone: knock it down'}${d.value.pts ? ` · worth ${d.value.pts} points` : ''}`, desc, shot: () => propShot(g, k) };
   });
 }
 
@@ -302,7 +304,8 @@ export function createHumanstiary() {
   const body = $('humBody'), prev = $('humPrev'), next = $('humNext'), label = $('humPage');
   let pages = [], at = 0, builtFor = '';
 
-  const entry = e => `<div class="hum"><canvas width="72" height="72" aria-hidden="true"></canvas><div><b class="nm">${e.name}</b><span class="tag">${e.tag}</span>` +
+  const entry = e => `<div class="hum"><figure class="pic"><canvas width="72" height="72" aria-hidden="true"></canvas>` +
+    (e.n ? `<figcaption class="cnt" title="How many you have killed or destroyed">${count(e.n).toLocaleString()}</figcaption>` : '') + `</figure><div><b class="nm">${e.name}</b><span class="tag">${e.tag}</span>` +
     `<span class="abil">${e.abil}</span><span class="stat">${e.stats}</span><span class="desc">${e.desc}</span></div></div>`;
   const pageHTML = (sec, items, first) => `<p class="humLead"><b>${sec.name}.</b> ${sec.lead}</p>` + (first && sec.extra ? sec.extra() : '') +
     '<div class="humList">' + items.map(entry).join('') + '</div>';

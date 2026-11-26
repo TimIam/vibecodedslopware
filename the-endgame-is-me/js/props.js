@@ -22,6 +22,8 @@ export function registerKinds(kinds = {}, critters = {}) {
 }
 
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+import { tally } from './tally.js';
+
 const TAU = Math.PI * 2;
 
 // ---------------------------------------------------------------------------------------------- props
@@ -89,6 +91,7 @@ export function near(g, x, y, r) {
 function pay(g, p, frac, fire) {
   frac = Math.min(frac, 1 - p.paid);
   if (frac <= 0) return;
+  if (!p.paid) tally(g, 'p:' + p.kind);   // the first time it goes down or burns counts it destroyed
   p.paid += frac;
   const d = KINDS[p.kind], v = d.value;
   if (v.pts) {
@@ -313,6 +316,7 @@ export function hurtCritter(g, c, dmg, cause = null) {
   c.hp -= dmg; c.hitT = 0.12; c.scared = 4;
   if (c.hp > 0) return;
   c.dead = true;
+  tally(g, 'c:' + c.kind);
   const d = CRITTERS[c.kind], v = d.value;
   const pts = Math.round(v.pts * g.mult);
   API.addScore(g, pts);

@@ -3,6 +3,7 @@
 
 import * as P from './props.js';
 import { updateSmoke } from './smoke.js';
+import { tally } from './tally.js';
 import { LEVELS, SECRET, levelFor, lastLevel } from './levels/index.js';
 
 export const W = 320, H = 180;   // the screen; a level's world can be bigger and scrolls (g.map.w, g.map.h)
@@ -1265,8 +1266,9 @@ function updateBalls(g, dt) {
       if (va > vc) { const m = (va + vc) / 2; a.vx += (m - va) * nx; a.vy += (m - va) * ny; c.vx += (m - vc) * nx; c.vy += (m - vc) * ny; }
     }
     for (const o of bs) {
-      // water puts it out: a cloud of steam where it went in
-      if (P.isWater(g, o.x, o.y)) {
+      // water puts it out: a cloud of steam where it went in (a level with water of its own, the fen's marsh and
+      // flooded craters, says where with level.wet)
+      if (P.isWater(g, o.x, o.y) || g.map.level?.wet?.(g, o.x, o.y)) {
         o.done = true;
         g.steam.push({ x: o.x, y: o.y, t: 0, life: BALL.steam, seed: o.seed });
         sound(g, 'splash');
@@ -2265,6 +2267,7 @@ function kill(g, u) {
   const pts = Math.round(base * g.mult);
   addScore(g, pts);
   g.kills++;
+  tally(g, 'u:' + u.cls);
   text(g, u.x, u.y - 6, `+${pts}`, u.role === 'rider' ? 'gold' : 'cream', u.role === 'rider' ? 1.6 : 0.9);
   g.events.push(u.role === 'rider' ? 'riderdie' : 'kill');
   // anyone fire finished off lies there charred, for good (and doesn't bleed)

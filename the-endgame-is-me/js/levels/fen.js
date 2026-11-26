@@ -198,6 +198,12 @@ function shallowAt(g, x, y) {
   if (!M) return false;
   return M.a[wrap(Math.floor(y / CS), M.rows) * M.cols + wrap(Math.floor(x / CS), M.cols)] === 1;
 }
+// water: the marsh's shallows, and the middle of a crater once it has flooded (as far as under() paints it)
+function wet(g, x, y) {
+  if (shallowAt(g, x, y)) return true;
+  for (const k of g.craters) if (Math.hypot(x - k.x, (y - k.y) * 1.3) / k.r < 0.6 * Math.min(1, k.t / 2) + 0.1) return true;
+  return false;
+}
 function bossSlow(g, x, y) {
   for (const k of g.craters) if (Math.hypot(x - k.x, y - k.y) < k.r) return MUD;
   return shallowAt(g, x, y) ? WADE : 1;
@@ -519,6 +525,6 @@ export default {
   n: 5, id: 'fen', name: 'THE UDDERLY SECRET LEVEL', sub: 'SOMETHING IS MOOING IN THE DARK', mode: 'timed', noHeroes: true, secret: true,
   critters,
   build(g, rng) { return build(g, rng); },
-  update, hud, bossSlow,
+  update, hud, bossSlow, wet,
   art: { ground, under, over, critters: { fen_steer: drawSteer, fen_mino: drawMino }, canopy: false, theme: { leash: false } },
 };

@@ -245,6 +245,7 @@ function start(next) {
   ending = null;
   setScene(null);   // the ending's lullaby hands back to the stage music
   g = next;
+  g.counts = true;   // this one is really being played: its kills go in the Humanstiary's counts (tally.js)
   R.reset();
   acc = 0;
   mode = 'play';
