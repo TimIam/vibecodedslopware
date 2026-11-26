@@ -1292,6 +1292,21 @@ window.SLOPWARE = {
     }
    ]
   },
+  "toil-and-trouble": {
+   "visits": 0,
+   "prompts": 3,
+   "tokens": 2671130,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-26T14:27:07-07:00",
+     "note": "a witches-and-cauldrons 16-bit side-scroller",
+     "prompts": 3,
+     "tokens": 2671130
+    }
+   ]
+  },
   "ceasefire": {
    "visits": 0,
    "prompts": 5,
