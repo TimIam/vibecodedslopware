@@ -6,6 +6,7 @@
 <script type="module">
 // Dev tool: every sprite at 4×, for checking the puppets. Open /toil-and-trouble/tools/sheet.html?s=4
 import * as S from '../js/sprites.js';
+await S.loadArt();
 const k = +(new URLSearchParams(location.search).get('s') || 4);
 const rows = [];
 const poses = ['idle', 'walk', 'run', 'jump', 'fall', 'float', 'roll', 'carryIdle', 'carryWalk', 'throw', 'slap', 'skid', 'hurt', 'victory', 'cart', 'ride', 'rideDash', 'rideBack'];

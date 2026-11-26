@@ -130,6 +130,8 @@ export function drawWorld(ctx, g, v, opts = {}) {
   ctx.globalCompositeOperation = 'source-over';
   ctx.restore();
   if (v.bg && v.bg.drawFront) v.bg.drawFront(ctx, Math.max(0, cx), Math.max(0, cy), t);
+  if (!g.def.rail) foreground(ctx, g.def.theme, cx, cy, g.map.hpx);
+  if (!opts.noGrade) grade(ctx, g.def.theme);
   if (!opts.noHud) drawHud(ctx, g, opts);
 }
 
@@ -196,7 +198,8 @@ function drawEnemy(ctx, g, e, glows) {
     for (let i = 0; i < 3; i++) { const a = g.frame / 8 + i * 2.1; ctx.fillStyle = '#ffe070'; ctx.fillRect(Math.round(x + Math.cos(a) * 7), Math.round(e.y - 3 + Math.sin(a) * 2), 1, 1); }
   }
   if (kind === 'acolyte') {
-    const tx = x + e.dir * (st.throwing ? 3 : 6), ty = y - (st.throwing ? 27 : 21) - 1;
+    const am = S.artMeta('acolyte'), tip = am && am.candleTip && am.candleTip[st.throwing ? 'throw' : 'idle'];
+    const tx = x + e.dir * (tip ? tip[0] - am.ox : st.throwing ? 3 : 6), ty = y - (tip ? am.oy - tip[1] : st.throwing ? 27 : 21) - 1;
     if (!st.throwing || e.throwT > 10) { flame(ctx, tx, ty, g.frame); glows.push(['#ff9a3a', tx, ty - 2, 18]); }
   }
   if (kind === 'rider') {
@@ -462,3 +465,91 @@ export function drawHud(ctx, g, opts = {}) {
 }
 
 export { spr, sprRot };
+
+// ---------------------------------------------------------------------------------------------------------------
+// Atmosphere: dark foreground silhouettes sliding past faster than the camera, then a per-theme grade
+// (soft-light tint from the sky down, multiplied vignette) so sprites, tiles and backdrop sit in one light.
+const GRADE = {
+  wood: ['#4a2440', '#ffb47a'], bog: ['#16302c', '#c8e8a8'], mine: ['#2a0e0a', '#ff9a5a'], belfry: ['#141a3a', '#b8ccff'],
+  village: ['#141a36', '#ffd49a'], keep: ['#160f1c', '#ffb878'], bonus: ['#240c48', '#e8b8ff'],
+};
+const gradeCache = {};
+function gradeLayers(theme) {
+  if (gradeCache[theme]) return gradeCache[theme];
+  const [shadow, lightC] = GRADE[theme] || GRADE.wood;
+  const vig = document.createElement('canvas'); vig.width = W; vig.height = H;
+  let x = vig.getContext('2d');
+  const rg = x.createRadialGradient(W / 2, H * 0.45, H * 0.35, W / 2, H * 0.5, W * 0.62);
+  rg.addColorStop(0, '#ffffff'); rg.addColorStop(1, shadow);
+  x.fillStyle = rg; x.fillRect(0, 0, W, H);
+  const tint = document.createElement('canvas'); tint.width = W; tint.height = H;
+  x = tint.getContext('2d');
+  const lg = x.createLinearGradient(0, 0, 0, H);
+  lg.addColorStop(0, lightC); lg.addColorStop(0.55, '#808080'); lg.addColorStop(1, shadow);
+  x.fillStyle = lg; x.fillRect(0, 0, W, H);
+  return (gradeCache[theme] = { vig, tint });
+}
+function grade(ctx, theme) {
+  const L = gradeLayers(theme);
+  ctx.save();
+  ctx.globalAlpha = 0.5; ctx.globalCompositeOperation = 'soft-light'; ctx.drawImage(L.tint, 0, 0);
+  ctx.globalAlpha = 0.85; ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(L.vig, 0, 0);
+  ctx.restore();
+}
+
+const FG_W = 1024, fgCache = {};
+function foregroundStrip(theme) {
+  if (fgCache[theme] !== undefined) return fgCache[theme];
+  const c = document.createElement('canvas'); c.width = FG_W; c.height = 70;
+  const x = c.getContext('2d');
+  const dark = { wood: '#120814', bog: '#06120e', mine: '#0c0606', belfry: '#080a18', village: '#0a0c1c', keep: '#0a070e', bonus: '#120628' }[theme] || '#0a0a0a';
+  const rim = { wood: '#5a2a3a', bog: '#2a4a3a', mine: '#5a2010', belfry: '#2a3a6a', village: '#3a4a7a', keep: '#3a2a3a', bonus: '#5a3a9a' }[theme] || '#333';
+  let s = theme.length * 977;
+  const rnd = () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
+  const blob = (fill) => { x.fillStyle = fill; x.fill(); };
+  for (let i = 0; i < 7; i++) {
+    const bx = 40 + i * (FG_W / 7) + rnd() * 60, kind = rnd();
+    x.beginPath();
+    if (theme === 'wood' || theme === 'bog' || theme === 'bonus') {
+      // fern / reed clump: fronds fanning up from the bottom
+      const n = 5 + Math.floor(rnd() * 4);
+      for (let k = 0; k < n; k++) {
+        const a = -Math.PI / 2 + (k / (n - 1) - 0.5) * 2.2, len = 34 + rnd() * 30;
+        const ex = bx + Math.cos(a) * len, ey = 70 + Math.sin(a) * len;
+        x.moveTo(bx - 3, 70); x.quadraticCurveTo(bx + Math.cos(a) * len * 0.5 - 6, 70 + Math.sin(a) * len * 0.6, ex, ey);
+        x.quadraticCurveTo(bx + Math.cos(a) * len * 0.5 + 6, 70 + Math.sin(a) * len * 0.6, bx + 3, 70);
+      }
+      if (theme === 'bog' && kind > 0.5) { x.rect(bx + 14, 18, 2, 52); x.ellipse(bx + 15, 16, 2.5, 6, 0, 0, Math.PI * 2); }
+    } else if (theme === 'mine') {
+      x.moveTo(bx - 40, 70); x.lineTo(bx - 26, 40); x.lineTo(bx - 6, 30); x.lineTo(bx + 18, 44); x.lineTo(bx + 40, 70);
+      if (kind > 0.5) { x.rect(bx + 50, 10, 6, 60); x.rect(bx + 40, 14, 26, 5); }
+    } else if (theme === 'village') {
+      for (let k = 0; k < 5; k++) x.rect(bx + k * 12, 36 - (k % 2) * 4, 5, 40);
+      x.rect(bx - 4, 46, 64, 4); x.rect(bx - 4, 60, 64, 4);
+    } else {
+      // keep / belfry: column bases and rubble
+      if (kind > 0.4) { x.rect(bx, 40, 16, 30); x.rect(bx - 3, 36, 22, 5); x.rect(bx - 5, 64, 26, 6); }
+      x.moveTo(bx + 60, 70); x.lineTo(bx + 70, 56); x.lineTo(bx + 84, 60); x.lineTo(bx + 92, 70);
+    }
+    blob(dark);
+    // faint rim light on top edges
+    x.globalCompositeOperation = 'source-atop'; x.fillStyle = rim;
+    x.fillRect(bx - 60, 0, 140, 2);
+    x.globalCompositeOperation = 'source-over';
+  }
+  // quantise alpha to hard edges
+  const d = x.getImageData(0, 0, FG_W, 70);
+  for (let i = 3; i < d.data.length; i += 4) d.data[i] = d.data[i] > 110 ? 255 : 0;
+  x.putImageData(d, 0, 0);
+  return (fgCache[theme] = c);
+}
+function foreground(ctx, theme, camX, camY, levelH) {
+  const strip = foregroundStrip(theme);
+  if (!strip) return;
+  // only show when the camera is near the bottom of the level, so it never covers play higher up
+  const fromBottom = levelH - (camY + H);
+  if (fromBottom > 40) return;
+  const ox = -Math.floor((camX * 1.35) % FG_W);
+  const y = H - 46 + Math.max(0, fromBottom);
+  ctx.drawImage(strip, ox, y); ctx.drawImage(strip, ox + FG_W, y);
+}

@@ -9,6 +9,39 @@ function cached(key, make) {
   return c;
 }
 const R = (h, n = 5, s = 1) => ramp(h, n, s);
+
+// ---------------------------------------------------------------------------------------------------------------
+// Pre-rendered sheets from Blender (tools/blender/build_*.py write art/<name>.png + .json). When a sheet is present
+// its frames replace the code-drawn puppets below, which stay as the fallback (and for ?art=0).
+const ART = {};
+const ART_NAMES = ['mags', 'pip', 'friar', 'deacon', 'bishop', 'acolyte', 'hedgehog', 'slug', 'crow', 'wasp', 'rider', 'finder', 'boss', 'boss_arm',
+  'pots', 'cannon', 'check', 'goal', 'rack', 'cart', 'cards', 'deck', 'broom'];
+export async function loadArt(base = new URL('../art/', import.meta.url).href) {
+  if (typeof location !== 'undefined' && new URLSearchParams(location.search).get('art') === '0') return;
+  await Promise.all(ART_NAMES.map(async (n) => {
+    try {
+      const r = await fetch(base + n + '.json');
+      if (!r.ok) return;
+      const meta = await r.json();
+      const img = new Image(); img.src = base + n + '.png'; await img.decode();
+      ART[n] = { meta, img };
+    } catch { /* missing sheet: keep the drawn sprite */ }
+  }));
+}
+export function hasArt(n) { return !!ART[n]; }
+function artFrame(name, anim, i) {
+  const a = ART[name];
+  if (!a) return null;
+  const an = a.meta.anims[anim];
+  if (!an) return null;
+  i = ((Math.floor(i) % an.frames) + an.frames) % an.frames;
+  return cached(`art:${name}:${anim}:${i}`, () => {
+    const c = document.createElement('canvas'); c.width = a.meta.w; c.height = a.meta.h;
+    c.getContext('2d').drawImage(a.img, i * a.meta.w, an.row * a.meta.h, a.meta.w, a.meta.h, 0, 0, a.meta.w, a.meta.h);
+    return c;
+  });
+}
+export function artMeta(n) { return ART[n] ? ART[n].meta : null; }
 const SS = 4; // supersampling for the rendered look
 const cloth = (h) => Object.assign(R(h), { spec: 0.1, shin: 7 });
 const skin = (h) => Object.assign(R(h), { spec: 0.26, shin: 14 });
@@ -301,6 +334,8 @@ function drawBall(P, st, C, big) {
 
 export const WITCH_FRAMES = { idle: 4, walk: 8, run: 8, carryWalk: 8, skid: 1, jump: 1, carryJump: 1, fall: 2, float: 2, roll: 8, blast: 8, carryIdle: 2, throw: 1, slap: 3, hurt: 2, dead: 2, victory: 2, cart: 2, flee: 1, ride: 6, rideDash: 2, rideBack: 6 };
 export function witchSprite(kind, pose, fi) {
+  const art = artFrame(kind, pose, fi);
+  if (art) return art;
   const n = WITCH_FRAMES[pose] || 1;
   fi = ((fi % n) + n) % n;
   return cached(`w:${kind}:${pose}:${fi}`, () => {
@@ -538,6 +573,9 @@ function cartBody(P, wood, iron) {
 
 export const ENEMY_FRAMES = { friar: 8, deacon: 8, hedgehog: 6, slug: 6, bishop: 8, acolyte: 2, crow: 2, wasp: 2, rider: 1 };
 export function enemySprite(kind, fi, st = {}) {
+  const anim = kind === 'bishop' ? (st.bald ? 'bald' : 'walk') : kind === 'acolyte' ? (st.throwing ? 'throw' : 'idle') : kind === 'crow' || kind === 'wasp' ? 'fly' : kind === 'rider' ? 'idle' : 'walk';
+  const art = artFrame(kind, anim, fi);
+  if (art) return art;
   const n = ENEMY_FRAMES[kind] || 1;
   fi = ((fi % n) + n) % n;
   const key = `e:${kind}:${fi}:${st.bald ? 1 : 0}:${st.throwing ? 1 : 0}`;
@@ -553,6 +591,23 @@ export function enemySprite(kind, fi, st = {}) {
 // the Witchfinder in his Ducking Engine (boss) — 96×80, origin bottom centre
 const FIN = { coat: R('#2a2638'), skin: R('#e4b896'), hat: R('#18161f'), wood: R('#8a5a32'), dark: R('#4a2e1a'), iron: R('#7a7e8c'), bell: R('#d8a840'), seat: R('#7a2a34') };
 export function bossSprite(fi, st = {}) {
+  if (ART.boss && ART.boss_arm) {
+    const ai = Math.max(0, Math.min(8, Math.round((st.arm || 0) * 4)));
+    return cached(`artboss:${fi % 8}:${ai}:${st.hurt ? 1 : 0}:${st.laugh ? 1 : 0}`, () => {
+      const m = ART.boss.meta, am = ART.boss_arm.meta;
+      const c = document.createElement('canvas'); c.width = m.w; c.height = m.h;
+      const x = c.getContext('2d');
+      const piv = m.armPivot || m.pivot || [84, 56];
+      x.drawImage(artFrame('boss_arm', 'arm', ai), piv[0] - am.ox, piv[1] - am.oy);
+      x.drawImage(artFrame('boss', st.laugh && m.anims.laugh ? 'laugh' : 'body', fi), 0, 0);
+      if (st.hurt) {
+        const d = x.getImageData(0, 0, m.w, m.h);
+        for (let i = 0; i < d.data.length; i += 4) if (d.data[i + 3]) { d.data[i] = Math.min(255, d.data[i] * 0.5 + 140); d.data[i + 1] *= 0.6; d.data[i + 2] *= 0.6; }
+        x.putImageData(d, 0, 0);
+      }
+      return c;
+    });
+  }
   const key = `boss:${fi}:${st.arm ? Math.round(st.arm * 4) : 0}:${st.hurt ? 1 : 0}:${st.laugh ? 1 : 0}`;
   return cached(key, () => {
     const P = new Painter(140, 96, 70, 92, SS);
@@ -612,6 +667,8 @@ export function bossSprite(fi, st = {}) {
 }
 // the Witchfinder on foot, fleeing (for the ending)
 export function finderSprite(fi) {
+  const art = artFrame('finder', 'run', fi);
+  if (art) return art;
   return cached(`finder:${fi % 4}`, () => {
     const P = new Painter(40, 48, 20, 44, SS);
     const C = FIN;
@@ -639,6 +696,8 @@ const POT = {
   partner: { body: R('#b0683a'), rim: R('#c88a52'), brew: R('#f08ab0') },
 };
 export function potSprite(kind, fi = 0, who = null) {
+  const art = artFrame('pots', kind === 'partner' ? 'partner_' + (who || 'mags') : kind, fi);
+  if (art) return art;
   return cached(`pot:${kind}:${fi % 4}:${who}`, () => {
     const P = new Painter(28, 28, 14, 25, SS);
     const C = POT[kind];
@@ -682,6 +741,8 @@ export function potSprite(kind, fi = 0, who = null) {
 
 // blast cauldron, lying on its side, mouth pointing along ang (16 directions). kind: 'cannon' | 'bonus'
 export function cannonSprite(dirIdx, kind = 'cannon') {
+  const art = artFrame('cannon', kind, dirIdx);
+  if (art) return art;
   return cached(`can:${kind}:${dirIdx}`, () => {
     const P = new Painter(36, 36, 18, 18, SS);
     const a = (dirIdx / 16) * Math.PI * 2;
@@ -706,6 +767,8 @@ export function cannonSprite(dirIdx, kind = 'cannon') {
 }
 
 export function checkSprite(on) {
+  const art = artFrame('check', on ? 'on' : 'off', 0);
+  if (art) return art;
   return cached(`check:${on}`, () => {
     const P = new Painter(32, 32, 16, 30, SS);
     // logs
@@ -722,6 +785,8 @@ export function checkSprite(on) {
   });
 }
 export function goalSprite(fi) {
+  const art = artFrame('goal', 'swirl', fi);
+  if (art) return art;
   return cached(`goal:${fi % 6}`, () => {
     const P = new Painter(48, 40, 24, 38, SS);
     for (const x of [-11, 11]) P.capsule(x, -2, x * 1.15, -6, 2, 2, R('#3a3446'));
@@ -784,6 +849,8 @@ function drawCardShape(P, cx, cy, sx, sym, tilt = 0) {
 }
 export const CARD_FRAMES = 12;
 export function cardSprite(fi, sym = 0) {
+  const art = artFrame('cards', 'sym' + (sym & 3), fi);
+  if (art) return art;
   fi = ((fi % CARD_FRAMES) + CARD_FRAMES) % CARD_FRAMES;
   return cached(`card:${fi}:${sym & 3}`, () => {
     const P = new Painter(16, 20, 8, 18, SS);
@@ -795,6 +862,8 @@ export function cardSprite(fi, sym = 0) {
 }
 // a fanned hand of five: worth ten
 export function deckSprite(fi) {
+  const art = artFrame('deck', 'fan', fi);
+  if (art) return art;
   return cached(`deck:${fi % 8}`, () => {
     const P = new Painter(26, 24, 13, 22, SS);
     const wob = Math.sin((fi / 8) * Math.PI * 2) * 0.6;
@@ -808,10 +877,14 @@ export function deckSprite(fi) {
 }
 // a loose broom (knocked off it, it spins away)
 export function broomSprite() {
+  const art = artFrame('broom', 'spin', 0);
+  if (art) return art;
   return cached('broom', () => { const P = new Painter(32, 12, 16, 6, SS); drawBroom(P, (x, y) => [x, y], 0, 0, 1.2); P.outline(0.5); return P.toCanvas(); });
 }
 // broom rack: a besom leaning in a little stand with a ribbon. Touch it to ride.
 export function broomRackSprite(fi) {
+  const art = artFrame('rack', 'sway', fi);
+  if (art) return art;
   return cached(`rack:${fi % 6}`, () => {
     const P = new Painter(28, 40, 14, 38, SS);
     const wood = gloss('#7a4e2c'), straw = cloth('#d8a84a'), ribbon = gloss('#d84a8a');
@@ -904,6 +977,8 @@ export function shardSprite(kind, i) {
 
 // cart for the rail level: an iron cauldron on wheels
 export function cartSprite(fi) {
+  const art = artFrame('cart', 'roll', fi);
+  if (art) return art;
   return cached(`cart:${fi % 4}`, () => {
     const P = new Painter(36, 28, 18, 26, SS);
     const metal = R('#5a6070');

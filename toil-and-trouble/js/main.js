@@ -5,6 +5,7 @@ import { createView, drawWorld, setBackgroundFactory } from './render.js';
 import { initInput, readInput, onAnyPress } from './input.js';
 import * as SCR from './screens.js';
 import { drawText } from './pix.js';
+import { loadArt } from './sprites.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -262,7 +263,8 @@ document.addEventListener('fullscreenchange', () => { document.body.classList.to
 if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) document.body.classList.add('touch');
 canvas.focus();
 
-Promise.allSettled([audioReady, bgReady]).then(() => requestAnimationFrame(frame));
+const artReady = loadArt().catch((e) => console.warn('art unavailable', e));
+Promise.allSettled([audioReady, bgReady, artReady]).then(() => requestAnimationFrame(frame));
 
 // --- test hooks -----------------------------------------------------------------------------------------------------
 const q = new URLSearchParams(location.search);
@@ -287,4 +289,4 @@ window.__tt = {
   reset() { save = freshSave(); writeSave(); },
   mode: setMode,
 };
-if (q.get('level')) { bgReady.then(() => window.__tt.start(q.get('level'), { x: q.get('x') ? +q.get('x') : undefined, y: q.get('y') ? +q.get('y') : undefined })); }
+if (q.get('level')) { Promise.allSettled([bgReady, artReady]).then(() => window.__tt.start(q.get('level'), { x: q.get('x') ? +q.get('x') : undefined, y: q.get('y') ? +q.get('y') : undefined })); }

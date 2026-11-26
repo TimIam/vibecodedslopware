@@ -1,0 +1,96 @@
+{
+ "w": 56,
+ "h": 56,
+ "ox": 28,
+ "oy": 50,
+ "anims": {
+  "idle": {
+   "row": 0,
+   "frames": 4
+  },
+  "walk": {
+   "row": 1,
+   "frames": 8
+  },
+  "run": {
+   "row": 2,
+   "frames": 8
+  },
+  "carryWalk": {
+   "row": 3,
+   "frames": 8
+  },
+  "skid": {
+   "row": 4,
+   "frames": 1
+  },
+  "jump": {
+   "row": 5,
+   "frames": 1
+  },
+  "carryJump": {
+   "row": 6,
+   "frames": 1
+  },
+  "fall": {
+   "row": 7,
+   "frames": 2
+  },
+  "float": {
+   "row": 8,
+   "frames": 2
+  },
+  "roll": {
+   "row": 9,
+   "frames": 8
+  },
+  "blast": {
+   "row": 10,
+   "frames": 8
+  },
+  "carryIdle": {
+   "row": 11,
+   "frames": 2
+  },
+  "throw": {
+   "row": 12,
+   "frames": 1
+  },
+  "slap": {
+   "row": 13,
+   "frames": 3
+  },
+  "hurt": {
+   "row": 14,
+   "frames": 2
+  },
+  "dead": {
+   "row": 15,
+   "frames": 2
+  },
+  "victory": {
+   "row": 16,
+   "frames": 2
+  },
+  "cart": {
+   "row": 17,
+   "frames": 2
+  },
+  "flee": {
+   "row": 18,
+   "frames": 1
+  },
+  "ride": {
+   "row": 19,
+   "frames": 6
+  },
+  "rideDash": {
+   "row": 20,
+   "frames": 2
+  },
+  "rideBack": {
+   "row": 21,
+   "frames": 6
+  }
+ }
+}

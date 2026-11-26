@@ -1,0 +1,16 @@
+{
+ "w": 36,
+ "h": 36,
+ "ox": 18,
+ "oy": 18,
+ "anims": {
+  "cannon": {
+   "row": 0,
+   "frames": 16
+  },
+  "bonus": {
+   "row": 1,
+   "frames": 16
+  }
+ }
+}

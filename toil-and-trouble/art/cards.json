@@ -1,0 +1,24 @@
+{
+ "w": 16,
+ "h": 20,
+ "ox": 8,
+ "oy": 18,
+ "anims": {
+  "sym0": {
+   "row": 0,
+   "frames": 12
+  },
+  "sym1": {
+   "row": 1,
+   "frames": 12
+  },
+  "sym2": {
+   "row": 2,
+   "frames": 12
+  },
+  "sym3": {
+   "row": 3,
+   "frames": 12
+  }
+ }
+}

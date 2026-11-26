@@ -166,49 +166,74 @@ function crack(px, py) {
   return a || b;
 }
 
-function material(theme, th, px, py, dp, seed) {
-  const depth = Math.min(1, dp / 44);
-  const n = fbm(px / 18, py / 18, seed, 3);
-  const n2 = vnoise(px / 5, py / 5, seed + 9);
-  let l = 0.78 - depth * 0.62 + (n - 0.5) * 0.35 + (n2 - 0.5) * 0.12;
-  switch (theme) {
-    case 'wood': case 'bog': {
-      // pebbles and roots in soil
-      const st = vnoise(px / 7, py / 6, seed + 41);
-      if (st > 0.78 && dp > 3) return pick(th.stone, 0.95 - depth * 0.55 - (st - 0.78) * 1.2, px, py);
-      const root = Math.abs(Math.sin(px / 9 + vnoise(px / 30, py / 30, seed + 7) * 6) * 9 - (py % 24) + 12) < 0.7 && dp > 4 && dp < 30;
-      if (root && theme === 'wood') return pick(th.deep, 0.6 - depth * 0.3, px, py);
-      return pick(depth > 0.6 ? th.deep : th.fill, depth > 0.6 ? l + 0.45 : l, px, py);
-    }
-    case 'mine': {
-      const vein = Math.abs(fbm(px / 26, py / 26, seed + 5, 2) - 0.5) < 0.018;
-      if (vein && dp > 4) return pick(th.accent, 0.6 + n2 * 0.3, px, py);
-      const crys = vnoise(px / 6, py / 6, seed + 77) > 0.86 && dp > 6;
-      if (crys) return pick(R('#5ad8e8'), 0.9 - depth * 0.5, px, py);
-      // strata
-      l += Math.sin(py / 5 + n * 4) * 0.06;
-      return pick(depth > 0.65 ? th.deep : th.fill, depth > 0.65 ? l + 0.5 : l, px, py);
-    }
-    case 'belfry': case 'village': case 'keep': {
-      const bw = theme === 'keep' ? 16 : 12, bh = theme === 'keep' ? 8 : 6;
-      const mo = mortar(px, py, bw, bh);
-      const row = Math.floor(py / bh), col = Math.floor((px + (row % 2) * (bw / 2)) / bw);
-      const bt = hash2(col, row, seed) * 0.22 - 0.11;
-      if (mo) return pick(th.deep, 0.62 - depth * 0.4, px, py);
-      // bevel: lighter top-left of each brick
-      const lx = (px + (row % 2) * (bw / 2)) % bw, ly = py % bh;
-      const bev = ly === 1 ? 0.12 : ly === bh - 1 ? -0.1 : lx === 1 ? 0.06 : 0;
-      if (theme === 'keep' && hash2(col, row, seed + 3) > 0.92 && n2 > 0.55) return pick(R('#4a7a4a'), 0.6 - depth * 0.4, px, py); // moss
-      return pick(depth > 0.7 ? th.deep : th.fill, (depth > 0.7 ? l + 0.45 : l) + bt + bev, px, py);
-    }
-    case 'bonus': {
-      const f = (Math.floor(px / 8) + Math.floor(py / 8)) % 2;
-      const sp = hash2(px, py, 3) > 0.985;
-      if (sp) return th.accent[0];
-      return pick(th.fill, l + f * 0.08, px, py);
-    }
-    default: return pick(th.fill, l, px, py);
+// Sculpted cliff faces: a height field is lit from the upper left (so earth and rock read as relief, the way a
+// rendered backdrop does), with stones set into the soil as little domes, then darkened with depth into the hill.
+function rockCell(px, py, sx, sy, seed) {
+  // nearest jittered cell centre: returns [distance/radius, dx, dy, id] or null
+  const cx = Math.floor(px / sx), cy = Math.floor(py / sy);
+  let best = null;
+  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+    const gx = cx + i, gy = cy + j, id = hash2(gx, gy, seed);
+    if (id < 0.74) continue;
+    const ox = (gx + 0.2 + hash2(gx, gy, seed + 1) * 0.6) * sx, oy = (gy + 0.2 + hash2(gx, gy, seed + 2) * 0.6) * sy;
+    const r = (0.3 + hash2(gx, gy, seed + 3) * 0.32) * Math.min(sx, sy);
+    const dx = (px - ox) / r, dy = (py - oy) / (r * 0.8), d = Math.hypot(dx, dy);
+    if (d < 1 && (!best || d < best[0])) best = [d, dx, dy, id];
   }
+  return best;
+}
+const LIGHT = [-0.55, -0.75, 0.38];
+function material(theme, th, px, py, dp, seed) {
+  const depth = Math.min(1, dp / 46);
+  const shadeDepth = (l) => l - depth * 0.5;
+  if (theme === 'wood' || theme === 'bog' || theme === 'mine') {
+    // relief: soft lumps plus strata
+    const h = (x, y) => fbm(x / 11, y / 9, seed, 3) * 1.0 + vnoise(x / 3.2, y / 3, seed + 5) * 0.28 + (theme === 'mine' ? Math.sin(y / 4.5 + fbm(x / 30, y / 30, seed + 8, 2) * 5) * 0.12 : 0);
+    const nx = (h(px - 1, py) - h(px + 1, py)) * 2.2, ny = (h(px, py - 1) - h(px, py + 1)) * 2.2;
+    const nn = Math.hypot(nx, ny, 1);
+    let lam = (nx * LIGHT[0] + ny * LIGHT[1] + LIGHT[2]) / nn;
+    let l = 0.42 + lam * 0.55 + (h(px, py) - 0.6) * 0.25;
+    const stone = dp > 2 && rockCell(px, py, theme === "mine" ? 15 : 14, theme === "mine" ? 13 : 11, seed + 41);
+    if (stone) {
+      const [d, dx, dy, id] = stone, nz = Math.sqrt(Math.max(0, 1 - d * d));
+      const sl = 0.35 + (dx * LIGHT[0] + dy * LIGHT[1] + nz * 0.7) * 0.5 + (id - 0.7) * 0.4;
+      const spec = Math.pow(Math.max(0, dx * -0.4 + dy * -0.6 + nz * 0.7), 12) * 0.35;
+      const ring = d > 0.86 ? -0.25 : 0;
+      const base = theme === 'mine' && id > 0.93 ? R('#5ad8e8', 6) : th.stone;
+      const c = smooth(base, shadeDepth(sl + ring), px, py);
+      return c.map((v) => Math.min(255, v + spec * 255));
+    }
+    if (theme === 'mine') {
+      const vein = Math.abs(fbm(px / 26, py / 26, seed + 5, 2) - 0.5) < 0.016;
+      if (vein && dp > 4) return smooth(th.accent, 0.75, px, py);
+    }
+    if (theme === 'wood') {
+      // roots threading through the soil, lit like little cylinders
+      const rr = Math.sin(px / 9 + vnoise(px / 30, py / 30, seed + 7) * 6) * 9 - (py % 24) + 12;
+      if (Math.abs(rr) < 1.1 && dp > 3 && dp < 34) return smooth(th.plank, shadeDepth(0.55 - rr * 0.25), px, py);
+    }
+    // ambient occlusion in the crevices
+    l -= Math.max(0, 0.55 - h(px, py)) * 0.5;
+    return smooth(depth > 0.6 ? th.deep : th.fill, depth > 0.6 ? l + 0.25 - depth * 0.2 : shadeDepth(l), px, py);
+  }
+  if (theme === 'belfry' || theme === 'village' || theme === 'keep') {
+    const bw = theme === 'keep' ? 16 : 12, bh = theme === 'keep' ? 8 : 6;
+    const row = Math.floor(py / bh), off = (row % 2) * (bw / 2);
+    const col = Math.floor((px + off) / bw);
+    const lx = (px + off) % bw, ly = py % bh;
+    // each brick is a pillow: lit from the upper left, rounded at its edges, mortar sunk in between
+    const ex = Math.min(lx, bw - 1 - lx) / 2.2, ey = Math.min(ly, bh - 1 - ly) / 1.6;
+    if (lx === 0 || ly === 0) return smooth(th.deep, shadeDepth(0.32), px, py);
+    const nx = lx < 2.2 ? -(1 - ex) : bw - 1 - lx < 2.2 ? 1 - ex : 0, ny = ly < 1.6 ? -(1 - ey) : bh - 1 - ly < 1.6 ? 1 - ey : 0;
+    const lam = (nx * LIGHT[0] + ny * LIGHT[1] + LIGHT[2]) / Math.hypot(nx, ny, 1);
+    const tone = hash2(col, row, seed) * 0.22 - 0.11 + (vnoise(px / 3, py / 3, seed + 4) - 0.5) * 0.12;
+    if (theme === 'keep' && hash2(col, row, seed + 3) > 0.9 && vnoise(px / 4, py / 4, seed) > 0.5) return smooth(R('#4a7a4a', 6), shadeDepth(0.3 + lam * 0.5), px, py);
+    return smooth(depth > 0.75 ? th.deep : th.fill, shadeDepth(0.25 + lam * 0.62 + tone) + (depth > 0.75 ? 0.3 : 0), px, py);
+  }
+  // bonus: crystal blocks
+  const f = (Math.floor(px / 8) + Math.floor(py / 8)) % 2;
+  if (hash2(px, py, 3) > 0.985) return th.accent[0];
+  return smooth(th.fill, 0.55 + f * 0.1 - depth * 0.4 + (vnoise(px / 4, py / 4, seed) - 0.5) * 0.2, px, py);
 }
 
 // The floor's top face, seen from a little above: it starts BACK px behind the walking line and runs FACE_FRONT px toward

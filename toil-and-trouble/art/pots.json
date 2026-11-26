@@ -1,0 +1,28 @@
+{
+ "w": 28,
+ "h": 28,
+ "ox": 14,
+ "oy": 25,
+ "anims": {
+  "clay": {
+   "row": 0,
+   "frames": 4
+  },
+  "iron": {
+   "row": 1,
+   "frames": 4
+  },
+  "brew": {
+   "row": 2,
+   "frames": 4
+  },
+  "partner_mags": {
+   "row": 3,
+   "frames": 4
+  },
+  "partner_pip": {
+   "row": 4,
+   "frames": 4
+  }
+ }
+}
