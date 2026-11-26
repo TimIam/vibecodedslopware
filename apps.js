@@ -2056,6 +2056,13 @@ window.SLOPWARE = {
      "note": "feather puffs settle on the ground, dancing steers redrawn",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 23,
+     "date": "2026-11-25T18:36:49-07:00",
+     "note": "lifetime kill counts in the Humanstiary, fen water puts out fireballs",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
