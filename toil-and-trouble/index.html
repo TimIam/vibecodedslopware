@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Toil &amp; Trouble</title>
+<meta name="description" content="A 16-bit witches-and-cauldrons platformer. Mags and Pip tag-team through six worlds to win back their coven's stolen cauldron hoard: blast cauldrons, throwing cauldrons, a cauldron rail ride, letters, bonus rooms and the Witchfinder's Ducking Engine.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧙</text></svg>">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#07050b;color:#e8e6dc;font:14px/1.4 "Segoe UI",system-ui,sans-serif;-webkit-user-select:none;user-select:none;overscroll-behavior:none;-webkit-touch-callout:none}
+#wrap{position:fixed;left:0;right:0;top:52px;bottom:0;display:grid;place-items:center}
+body.full #wrap{top:0}
+body.full .site-topbar{display:none}
+#game{display:block;outline:none;touch-action:none;background:#000;image-rendering:pixelated;image-rendering:crisp-edges;box-shadow:0 0 0 1px #211830,0 10px 40px #000}
+.site-topbar .mute{margin-left:auto;margin-right:8px;padding:0 10px;border:1px solid #8c7aa8;border-radius:999px}
+.site-topbar .fs{margin-right:8px;padding:0 10px;border:1px solid #8c7aa8;border-radius:999px}
+@media(max-width:600px){.site-topbar .fs{display:none}}
+#pad{display:none;position:fixed;left:0;right:0;bottom:0;height:0;pointer-events:none}
+body.touch #pad{display:block}
+#pad .b{position:fixed;pointer-events:auto;touch-action:none;width:64px;height:64px;border-radius:50%;background:rgba(40,24,60,.45);border:2px solid rgba(200,170,255,.35);color:#e8dcff;font:700 15px/60px system-ui;text-align:center;-webkit-tap-highlight-color:transparent}
+#pad .b.on{background:rgba(140,240,90,.35);border-color:#8cf05a}
+#pad .l{left:14px;bottom:22px}#pad .r{left:90px;bottom:22px}#pad .d{left:52px;bottom:92px;width:52px;height:52px;line-height:48px}
+#pad .j{right:14px;bottom:22px;width:74px;height:74px;line-height:70px}#pad .a{right:98px;bottom:30px}#pad .t{right:30px;bottom:108px;width:52px;height:52px;line-height:48px}
+#pad .p{right:14px;top:62px;width:44px;height:30px;border-radius:8px;line-height:26px;font-size:12px}
+</style>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <button class="mute" id="mute" type="button" aria-label="Toggle sound">♪ Sound on</button>
+  <button class="fs" id="fs" type="button" aria-label="Full screen">⛶ Full screen</button>
+  <a class="site-coffee" style="margin-left:0" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<div id="wrap"><canvas id="game" width="384" height="216" tabindex="0" aria-label="Toil and Trouble"></canvas></div>
+<div id="pad" aria-hidden="true">
+  <div class="b l" data-btn="left">◀</div><div class="b r" data-btn="right">▶</div><div class="b d" data-btn="down">▼</div>
+  <div class="b j" data-btn="jump">JUMP</div><div class="b a" data-btn="act">RUN</div><div class="b t" data-btn="tag">SWAP</div>
+  <div class="b p" data-btn="pause">II</div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
