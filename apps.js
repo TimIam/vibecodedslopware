@@ -1294,8 +1294,8 @@ window.SLOPWARE = {
   },
   "toil-and-trouble": {
    "visits": 0,
-   "prompts": 8,
-   "tokens": 4228805,
+   "prompts": 10,
+   "tokens": 7534213,
    "sharedWith": null,
    "versions": [
     {
@@ -1310,7 +1310,14 @@ window.SLOPWARE = {
      "date": "2026-11-26T15:16:34-07:00",
      "note": "Blender pre-rendered sprites, sculpted cliffs, colour grade and foreground",
      "prompts": 5,
-     "tokens": 1559498
+     "tokens": 1558453
+    },
+    {
+     "n": 3,
+     "date": "2026-11-26T16:09:36-07:00",
+     "note": "seven holiday worlds, rolling terrain, cauldron rides, controller support",
+     "prompts": 2,
+     "tokens": 3306453
     }
    ]
   },
