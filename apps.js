@@ -1294,8 +1294,8 @@ window.SLOPWARE = {
   },
   "toil-and-trouble": {
    "visits": 0,
-   "prompts": 3,
-   "tokens": 2671130,
+   "prompts": 8,
+   "tokens": 4228805,
    "sharedWith": null,
    "versions": [
     {
@@ -1303,7 +1303,14 @@ window.SLOPWARE = {
      "date": "2026-11-26T14:27:07-07:00",
      "note": "a witches-and-cauldrons 16-bit side-scroller",
      "prompts": 3,
-     "tokens": 2671130
+     "tokens": 2669307
+    },
+    {
+     "n": 2,
+     "date": "2026-11-26T15:16:34-07:00",
+     "note": "Blender pre-rendered sprites, sculpted cliffs, colour grade and foreground",
+     "prompts": 5,
+     "tokens": 1559498
     }
    ]
   },

@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Toil &amp; Trouble sprite sheet</title>
+<style>body{margin:0;background:#2a2234}canvas{image-rendering:pixelated;display:block}</style>
+<canvas id="c"></canvas>
+<script type="module">
+// Dev tool: every sprite at 4×, for checking the puppets. Open /toil-and-trouble/tools/sheet.html?s=4
+import * as S from '../js/sprites.js';
+const k = +(new URLSearchParams(location.search).get('s') || 4);
+const rows = [];
+const poses = ['idle', 'walk', 'run', 'jump', 'fall', 'float', 'roll', 'carryIdle', 'carryWalk', 'throw', 'slap', 'skid', 'hurt', 'victory', 'cart', 'ride', 'rideDash', 'rideBack'];
+for (const kind of ['mags', 'pip']) {
+  const r = [];
+  for (const p of poses) r.push(S.witchSprite(kind, p, p === 'walk' || p === 'run' ? 2 : p === 'roll' ? 1 : p === 'slap' ? 2 : 0));
+  rows.push(r);
+  rows.push([0, 1, 2, 3, 4, 5, 6, 7].map((i) => S.witchSprite(kind, 'run', i)));
+}
+rows.push(['friar', 'deacon', 'hedgehog', 'slug', 'bishop', 'acolyte', 'crow', 'wasp', 'rider'].map((e) => S.enemySprite(e, 1)).concat([S.enemySprite('bishop', 1, { bald: true })]));
+rows.push([S.potSprite('clay', 0), S.potSprite('iron', 0), S.potSprite('brew', 0), S.potSprite('partner', 0, 'pip'), S.potSprite('partner', 0, 'mags'), S.cannonSprite(0), S.cannonSprite(2), S.cannonSprite(12), S.cannonSprite(0, 'bonus'), S.checkSprite(false), S.checkSprite(true), S.goalSprite(0), S.shroomSprite('wood', 0), S.shroomSprite('belfry', 0)]);
+rows.push([S.cardSprite(0), S.cardSprite(2, 1), S.deckSprite(0), S.broomRackSprite(0), S.catSprite(0), S.pageSprite(0), S.letterSprite(0, 0), S.letterSprite(1, 0), S.letterSprite(2, 0), S.letterSprite(3, 0), S.cartSprite(0), S.finderSprite(0), S.shotSprite('torch'), S.shotSprite('flask')]);
+rows.push([S.bossSprite(0, {}), S.bossSprite(0, { arm: 1 }), S.bossSprite(0, { arm: 2, laugh: 1 })]);
+const pad = 4;
+const W = Math.max(...rows.map((r) => r.reduce((a, c) => a + c.width + pad, pad)));
+const H = rows.reduce((a, r) => a + Math.max(...r.map((c) => c.height)) + pad, pad);
+const cv = document.getElementById('c');
+cv.width = W * k; cv.height = H * k;
+const x = cv.getContext('2d');
+x.imageSmoothingEnabled = false;
+x.scale(k, k);
+let y = pad;
+for (const r of rows) {
+  let xx = pad;
+  const h = Math.max(...r.map((c) => c.height));
+  for (const c of r) { x.fillStyle = '#3a3048'; x.fillRect(xx, y, c.width, c.height); x.drawImage(c, xx, y); xx += c.width + pad; }
+  y += h + pad;
+}
+</script>
