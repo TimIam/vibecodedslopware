@@ -47,6 +47,13 @@ function partialWave(ac, amps) {
   amps.forEach((v, i) => { im[i + 1] = v; });
   return ac.createPeriodicWave(re, im);
 }
+// Plucked-string spectrum: harmonic k falls off as |sin(k*pi*p)| / k^tilt,
+// where p is the pluck point along the string (small p = bright and twangy).
+function pluckWave(ac, p, tilt, n = 32) {
+  const amps = [];
+  for (let k = 1; k <= n; k++) amps.push(Math.abs(Math.sin(k * Math.PI * p)) / Math.pow(k, tilt));
+  return partialWave(ac, amps);
+}
 const WAVE_ALIAS = { saw: 'sawtooth', tri: 'triangle', sq: 'square', sine: 'sine', square: 'square', sawtooth: 'sawtooth', triangle: 'triangle' };
 function setWave(g, osc, type) {
   const nat = WAVE_ALIAS[type];
@@ -62,6 +69,8 @@ function setWave(g, osc, type) {
     else if (type === 'reed') w = partialWave(ac, [1, 0.05, 0.6, 0.04, 0.35, 0.03, 0.2, 0.02, 0.1, 0, 0.05]);
     else if (type === 'flute') w = partialWave(ac, [1, 0.18, 0.06, 0.02]);
     else if (type === 'brass') w = partialWave(ac, [1, 0.8, 0.62, 0.5, 0.38, 0.28, 0.2, 0.14, 0.1, 0.07, 0.05, 0.03]);
+    else if (type === 'harpsi') w = pluckWave(ac, 0.13, 0.8);
+    else if (type === 'banjo') w = pluckWave(ac, 0.06, 0.62);
     else { osc.type = 'sine'; return; }
     g.waves[type] = w;
   }
@@ -375,6 +384,35 @@ function drum(g, ch, t, kind, V, music) {
       break;
     case 'th':
       noise(g, ch, t, { lp: 320, d: 0.16, v: 0.5 * V }, music);
+      break;
+    // holiday-world percussion
+    case 'sr': // snare buzz roll swelling into the next written hit
+      noise(g, ch, t, { hp: 1200, lp: 8500, a: 0.44, d: 0.08, v: 0.26 * V, trem: 0.85, trr: 31 }, music);
+      break;
+    case 'fs': // firework shell: rising whistle and hiss
+      voice(g, ch, t, { type: 'sine', f: 900, f2: 2600, gl: 0.46, a: 0.03, d: 0.3, s: 0.8, dur: 0.44, r: 0.04, v: 0.045 * V, vib: 35, vr: 13 }, music);
+      noise(g, ch, t, { bp: 3000, bp2: 6500, sw: 0.45, bq: 2, a: 0.1, d: 0.3, v: 0.05 * V }, music);
+      break;
+    case 'fw': // firework burst: thump, spray, then a trail of crackles
+      voice(g, ch, t, { type: 'sine', f: 60, pe: 14, pt: 0.07, d: 0.5, v: 0.42 * V }, music);
+      noise(g, ch, t, { lp: 2600, lp2: 500, sw: 0.7, a: 0.004, d: 0.7, v: 0.24 * V }, music);
+      for (let i = 0; i < 6; i++) noise(g, ch, t + 0.14 + i * 0.09 + rnd(0, 0.06), { bp: rnd(2000, 6000), bq: 3, d: 0.02, v: rnd(0.08, 0.15) * V }, music);
+      break;
+    case 'bd': // bodhran, low open stroke
+      voice(g, ch, t, { type: 'sine', f: 88, pe: 5, pt: 0.05, d: 0.3, v: 0.55 * V }, music);
+      noise(g, ch, t, { lp: 650, d: 0.05, v: 0.22 * V }, music);
+      break;
+    case 'bt': // bodhran, high tipped stroke
+      voice(g, ch, t, { type: 'sine', f: 170, pe: 4, pt: 0.03, d: 0.12, v: 0.32 * V }, music);
+      noise(g, ch, t, { bp: 1300, bq: 1, d: 0.03, v: 0.14 * V }, music);
+      break;
+    case 'sl': // sleigh bells
+      noise(g, ch, t, { hp: 5600, lp: 13000, a: 0.002, d: 0.17, v: 0.14 * V, trem: 0.9, trr: 37 }, music);
+      break;
+    case 'bi': // spring bird chirp
+      voice(g, ch, t, { type: 'sine', f: 2900, f2: 4300, gl: 0.05, a: 0.004, d: 0.06, v: 0.055 * V }, music);
+      voice(g, ch, t + 0.08, { type: 'sine', f: 3300, f2: 2500, gl: 0.06, a: 0.004, d: 0.07, v: 0.05 * V }, music);
+      voice(g, ch, t + 0.17, { type: 'sine', f: 3000, f2: 4600, gl: 0.07, a: 0.004, d: 0.08, v: 0.05 * V, vib: 60, vr: 30 }, music);
       break;
     default: break;
   }
@@ -1183,6 +1221,419 @@ TRACKS.life = {
     },
   },
   form: ['A'],
+};
+
+// ---------------------------------------------------------------- holiday worlds
+// Seven holiday worlds, their map, a second cart ride and a second boss. Every
+// tune below is an original composition; the holidays are evoked only through
+// instrumentation, tempo and style. New drum kinds: sr snare roll, fs/fw
+// firework launch/burst, bd/bt bodhran low/tip, sl sleigh bells, bi bird chirp.
+const AT = (len, ...at) => { const a = new Array(len).fill('.'); for (const i of at) a[i] = 'x'; return a.join(''); };
+const HP = {
+  harpsi: { role: 'arp', ring: true, type: 'harpsi', det: 6, v: 0.065, a: 0.002, d: 0.42, s: 0, r: 0.2, lp: 4500, fe: 0.5, fd: 0.1, rev: 0.3, dly: 0.12, pan: -0.2 },
+  theremin: { role: 'mel', type: 'soft', v: 0.16, a: 0.08, d: 0.3, s: 0.9, r: 0.3, lp: 3000, pe: -1, pt: 0.12, vib: 40, vr: 6.3, vd: 0.06, rev: 0.5, dly: 0.28, pan: 0.08 },
+  fiddle: { role: 'mel', type: 'square', v: 0.065, a: 0.018, d: 0.12, s: 0.8, r: 0.06, lp: 2900, fe: 0.6, fd: 0.08, q: 0.9, vib: 14, vr: 6.2, vd: 0.16, rev: 0.25, dly: 0.1, gate: 0.95 },
+  drone: { role: 'mel', type: 'reed', v: 0.03, a: 0.5, d: 0.4, s: 1, r: 0.6, lp: 900, q: 0.5, rev: 0.35, gate: 1 },
+  banjo: { role: 'arp', ring: true, type: 'banjo', v: 0.055, a: 0.001, d: 0.22, s: 0, r: 0.1, lp: 3200, fe: 1.4, fd: 0.05, q: 1.6, rev: 0.18, dly: 0.1, pan: 0.3 },
+  mallet: { role: 'arp', k: 'bell', ratio: 4, idx: 0.8, idxEnd: 0.05, md: 0.12, d: 0.45, v: 0.085, rev: 0.3, dly: 0.15, pan: 0.2 },
+  brassStab: { role: 'stab', type: 'brass', det: 6, v: 0.026, a: 0.01, d: 0.12, s: 0.3, r: 0.06, lp: 1500, fe: 1, fd: 0.06, rev: 0.25, gate: 0.5 },
+  tuba: { role: 'bass', type: 'brass', v: 0.15, a: 0.012, d: 0.2, s: 0.6, r: 0.06, lp: 480, fe: 1, fd: 0.1, gate: 0.6 },
+  strum: { role: 'stab', type: 'saw', v: 0.04, a: 0.003, d: 0.25, s: 0, r: 0.1, lp: 1700, fe: 2, fd: 0.08, q: 1, rev: 0.25, pan: 0.25, gate: 0.6 },
+  strings: { role: 'arp', type: 'saw', det: 10, v: 0.034, a: 0.008, d: 0.12, s: 0.5, r: 0.06, lp: 2400, q: 0.6, rev: 0.35, pan: 0.25, gate: 0.55 },
+  brassRiff: { role: 'mel', type: 'brass', det: 6, v: 0.085, a: 0.006, d: 0.1, s: 0.55, r: 0.05, lp: 1200, fe: 1.6, fd: 0.05, q: 1.2, rev: 0.18, gate: 0.8 },
+};
+
+// Halloween: B minor, 132 bpm, swung. Harpsichord plucks, a theremin lead with
+// wide vibrato and scooped attacks, pizzicato bass, a low tolling bell.
+const HW_A = 'f#5:6 g5:2 f#5:4 d5:4 | b4:6 c#5:2 d5:4 e5:4 | g5:8 f#5:2 e5:2 d5:4 | c#5:6 e5:2 a#4:8 | f#5:4 b5:4 a#5:2 b5:2 d6:4 | e6:6 d6:2 b5:4 g5:4 | g5:4 e5:4 c#5:4 b4:2 c#5:2 | a#4:4 c#5:4 e5:4 f#5:4';
+const HW_B = 'b4:2 d5:2 g5:2 d5:2 b5:2 a5:2 g5:2 d5:2 | c#5:2 e5:2 a5:2 e5:2 c#6:2 b5:2 a5:2 e5:2 | d5:2 f#5:2 b5:2 a#5:2 b5:2 d6:2 c#6:2 b5:2 | a#5:4 f#5:2 c#5:2 a#4:4 r:4 | g5:2 b5:2 e6:2 b5:2 g5:2 e5:2 g5:2 b5:2 | d6:2 b5:2 g5:2 d5:2 b4:2 d5:2 g5:2 a5:2 | g#5:2 e#5:2 c#5:2 b4:2 c#5:2 e#5:2 g#5:2 b5:2 | a#5:2 g#5:2 f#5:2 e5:2 c#5:2 a#4:2 f#4:4';
+TRACKS.halloween = {
+  bpm: 132, swing: 0.25, fb: 0.4,
+  inst: {
+    ther: I(HP.theremin, {}),
+    hpsi: I(HP.harpsi, {}),
+    hlead: I(HP.harpsi, { role: 'mel', v: 0.075, d: 0.32, pan: 0.15, dly: 0.18 }),
+    bass: I(P.pizzBass, { v: 0.3 }),
+    organ: I(P.organ, { v: 0.016, lp: 1400, tr: -12 }),
+    choir: I(P.choir, { v: 0.028 }),
+    toll: I(P.bell, { role: 'arp', tr: -12, v: 0.06, d: 3 }),
+    dr: I(P.drums, { kit: { k: 0.5, r: 0.5, h: 0.3, cl: 0.4, t: 0.55, T: 0.55, c: 0.4 } }),
+  },
+  intro: ['I'],
+  sec: {
+    I: {
+      chords: 'Bm F#7', hpsi: '0.1.2.1.3.1.2.1.', bass: 'R.......5.......', toll: '0' + '.'.repeat(31),
+      dr: { k: 'x.......x.......', cl: '..............x.' },
+    },
+    A: {
+      chords: 'Bm Bm/A G F#7 Bm Em C#m7b5 F#7', ther: HW_A, hpsi: '0.1.2.1.3.1.2.1.', bass: 'R...5...O...5...', toll: '0' + '.'.repeat(63),
+      dr: { k: 'x.......x.......', r: '....x.......x...', h: 'x.x.x.x.x.x.x.x.', cl: '..............x.' },
+      fill: { k: 'x.......x.......', r: '....x...........', t: '........x.x.....', T: '............x.x.' },
+    },
+    B: {
+      chords: 'G A Bm F#/A# Em G C#7 F#7', hlead: HW_B, organ: 1, bass: 'R...3...5...3...',
+      ther: 'd5:12 c#5:4 | e5:16 | f#5:12 e5:4 | c#5:16 | g5:12 f#5:4 | d5:16 | e#5:8 g#5:8 | a#5:8 c#6:8',
+      dr: { k: 'x.....x.x.......', r: '....x.......x...', h: 'x.x.x.x.x.x.x.x.', cl: '......x.......x.' },
+    },
+    A2: {
+      from: 'A', choir: 1, hpsi: '0.1.2.3.4.3.2.1.',
+      dr: { k: 'x.......x..x....', r: '....x.......x...', h: 'x.xxx.x.x.xxx.x.', cl: '......x.......x.', c: CR(8) },
+      fill: { k: 'x.......x.......', r: '....x...x.x.xxxx', t: '..........x.....', T: '............x.x.' },
+    },
+  },
+  form: ['A', 'B', 'A2'],
+};
+
+// Fourth of July: B flat major march, 120 bpm. Brass lead, tuba and brass
+// oom-pah, fife descant, field snare with buzz rolls, fireworks on the beat.
+const JL_A = 'f4:3 bb4:1 d5:4 f5:4 d5:4 | eb5:3 d5:1 c5:4 g5:6 eb5:2 | f5:3 d5:1 bb4:4 d5:3 f5:1 bb5:4 | a5:6 g5:2 f5:4 r:4 | d5:3 f5:1 bb5:4 a5:3 g5:1 f5:4 | g5:3 f5:1 eb5:4 bb4:4 eb5:4 | e5:3 f5:1 g5:4 bb5:4 g5:4 | a5:4 c6:4 a5:4 f5:2 eb5:2';
+const JL_B = 'g5:8 f5:4 eb5:4 | c6:8 bb5:4 ab5:4 | g5:6 ab5:2 bb5:4 eb5:4 | f5:12 r:4 | g5:8 eb5:4 c5:4 | ab5:6 g5:2 f5:4 c6:4 | a5:6 c6:2 eb6:4 c6:4 | c6:4 a5:2 f5:2 eb5:4 c5:4';
+const JL_FIFE = 'd6:4 f6:4 bb5:4 d6:4 | eb6:4 g6:4 bb5:4 eb6:4 | f6:4 d6:4 bb5:4 f6:4 | eb6:4 c6:4 a5:2 bb5:2 c6:2 eb6:2 | f6:8 d6:8 | eb6:8 g6:8 | g6:4 e6:4 c6:4 bb5:4 | a5:4 c6:4 f6:8';
+TRACKS.july = {
+  bpm: 120,
+  inst: {
+    brass: I(P.brass, { v: 0.12, lp: 1100 }),
+    fife: I(P.whistle, { v: 0.065, vib: 12, rev: 0.25, pan: 0.2 }),
+    stab: I(HP.brassStab, {}),
+    tuba: I(HP.tuba, {}),
+    glock: I(P.celesta, { role: 'arp', v: 0.045, tr: 12 }),
+    dr: I(P.drums, { kit: { k: 0.6, s: 0.55, sr: 1, c: 0.5, fw: 1, fs: 1 } }),
+  },
+  sec: {
+    A: {
+      chords: 'Bb Eb/Bb Bb F7 Bb Eb C7 F7', brass: JL_A, tuba: 'R...5...R...5...', stab: '..x...x...x...x.',
+      dr: { k: 'x.......x.......', s: '....x..g..g.x.gg', sr: AT(32, 24), c: CR(8), fs: AT(128, 60), fw: AT(128, 64) },
+    },
+    B: {
+      chords: 'Eb Ab/Eb Eb Bb7 Cm Ab F7 F7', brass: JL_B, tuba: 'R...5...R...5...', stab: '..x...x...x...x.', glock: '0...............',
+      dr: { k: 'x.......x.......', s: 'x..gx.g.x..gx.xx', sr: AT(64, 56), c: CR(4), fs: AT(128, 124), fw: AT(128, 0, 64) },
+      fill: { k: 'x.......x.......', s: '....x...x.x.xxxx', sr: 'x...............' },
+    },
+    A2: {
+      from: 'A', fife: JL_FIFE, glock: '0.......2.......',
+      dr: { k: 'x.......x.......', s: '....x..g..g.x.gg', sr: AT(32, 8, 24), c: CR(4), fs: AT(128, 60), fw: AT(128, 64, 120) },
+      fill: { k: 'x.......x...x...', s: 'X...x...xxxxXXXX', sr: '....x...........', c: '............x...' },
+    },
+  },
+  form: ['A', 'B', 'A2'],
+};
+
+// St Patrick's: D mixolydian jig in 6/8 (bar of 12 sixteenths), 156 bpm.
+// Square-wave fiddle, tin whistle doubling, reed drones, bodhran, strummed chords.
+const PT_A = 'd5:4 f#5:2 a5:2 f#5:2 d5:2 | b5:4 a5:2 g5:2 b5:2 d6:2 | a5:2 f#5:2 d5:2 f#5:2 e5:2 d5:2 | e5:2 g5:2 c6:2 b5:2 g5:2 e5:2 | f#5:4 a5:2 d6:4 a5:2 | b5:2 a5:2 f#5:2 d5:4 f#5:2 | g5:2 b5:2 g5:2 e5:2 c#5:2 e5:2 | d5:4 a4:2 d5:4 e5:2';
+const PT_B = 'f#5:2 a5:2 d6:4 c#6:2 d6:2 | e6:4 d6:2 c6:2 g5:2 e5:2 | f#5:2 a5:2 d6:2 e6:2 f#6:4 | g6:2 f#6:2 e6:2 d6:2 b5:2 g5:2 | f#5:4 b5:2 d6:4 b5:2 | c6:2 b5:2 a5:2 g5:2 e5:2 g5:2 | b5:4 g5:2 a5:4 e5:2 | d5:2 f#5:2 a5:2 d6:6';
+TRACKS.patrick = {
+  bpm: 156, bar: 12,
+  inst: {
+    fid: I(HP.fiddle, { v: 0.055 }),
+    wh: I(P.whistle, { v: 0.09, vib: 10, vd: 0.2, a: 0.015, rev: 0.3, pan: -0.2 }),
+    dr1: I(HP.drone, {}),
+    dr2: I(HP.drone, { v: 0.022, pan: 0.2 }),
+    strum: I(HP.strum, {}),
+    bass: I(P.bass, { v: 0.2, gate: 0.6 }),
+    drm: I(P.drums, { kit: { bd: 0.6, bt: 0.75 } }),
+  },
+  intro: ['I'],
+  sec: {
+    I: { chords: 'D D', dr1: 'd3:24', dr2: 'a3:24', drm: { bd: 'X.g.g.x.g.g.', bt: '..........x.' } },
+    A: {
+      chords: 'D G D C D Bm G:6 A:6 D', fid: PT_A, dr1: 'd3:96', dr2: 'a3:96', strum: 'x...g.x...g.', bass: 'R.....5.....',
+      drm: { bd: 'X.g.g.x.g.g.', bt: '..........x.' },
+    },
+    A2: {
+      from: 'A', wh: PT_A,
+      drm: { bd: 'X.g.g.x.g.g.', bt: '..x.....x.x.' },
+      fill: { bd: 'X.g.g.X.x.x.', bt: '......xxxxxx' },
+    },
+    B: {
+      chords: 'D C D G Bm C G:6 A:6 D', fid: PT_B, dr1: 'd3:96', dr2: 'a3:96', strum: 'x...g.x...g.', bass: 'R.....5.....',
+      drm: { bd: 'X.g.g.X.g.g.', bt: '....x.....x.' },
+    },
+    B2: {
+      from: 'B', wh: PT_B,
+      drm: { bd: 'X.g.g.X.g.g.', bt: '..x.x...x.x.' },
+      fill: { bd: 'X.....X.x.x.', bt: '..xxxx..xxxx' },
+    },
+    A3: {
+      from: 'A', wh: PT_A, strum: 'x.g.g.x.g.g.',
+      drm: { bd: 'X.g.g.X.g.g.', bt: '..x.x...x.x.' },
+      fill: { bd: 'X.g.g.X.....', bt: '..x.x.xxxxxx' },
+    },
+  },
+  form: ['A', 'A2', 'B', 'B2', 'A3'],
+};
+
+// Easter: G major, 116 bpm. Flute tune over staccato mallets, a bouncing
+// clarinet, pizzicato bass, shaker, woodblock and the odd bird.
+const ES_A = 'd5:2 r:2 g5:2 r:2 b5:4 a5:2 g5:2 | e5:2 r:2 g5:2 r:2 c6:6 b5:2 | b5:2 a5:2 g5:2 d5:2 g5:2 a5:2 b5:2 d6:2 | a5:8 f#5:4 r:4 | g5:2 r:2 b5:2 r:2 e6:4 d6:2 b5:2 | c6:2 r:2 a5:2 r:2 g5:4 e5:4 | e5:2 a5:2 c6:2 a5:2 d6:2 c6:2 a5:2 f#5:2 | g5:6 r:2 d5:2 e5:2 f#5:2 r:2';
+const ES_B = 'g5:6 e5:2 c6:8 | a5:6 f#5:2 d6:8 | b5:4 d6:4 f#6:4 e6:2 d6:2 | e6:12 r:4 | c6:4 b5:2 a5:2 e5:4 a5:4 | f#5:4 a5:2 d6:2 c6:4 a5:4 | b5:4 d6:4 e6:4 g6:4 | e6:4 c6:4 d6:2 c6:2 a5:2 f#5:2';
+TRACKS.easter = {
+  bpm: 116,
+  inst: {
+    fl: I(P.flute, { v: 0.13, a: 0.03, d: 0.15, gate: 0.85, vib: 14 }),
+    bsn: I(P.clar, { role: 'arp', tr: -12, v: 0.085, lp: 1300, gate: 0.35, s: 0.4, vib: 0, pan: 0.25 }),
+    mal: I(HP.mallet, { tr: 12 }),
+    bass: I(P.pizzBass, { v: 0.26 }),
+    chop: I(P.chop, { v: 0.04, lp: 2200 }),
+    pad: I(P.warmPad, { v: 0.026 }),
+    dr: I(P.drums, { kit: { k: 0.45, sh: 0.5, w: 0.45, r: 0.4, bi: 1, t: 0.4 } }),
+  },
+  sec: {
+    A: {
+      chords: 'G C G D Em C Am:8 D7:8 G', fl: ES_A, mal: '0.2.1.2.0.2.1.2.', bass: 'R...5...R...5...', chop: '..x...x...x...x.',
+      dr: { k: 'x.......x.......', sh: '..x...x...x...x.', w: '......x.......x.', bi: AT(128, 46, 110) },
+    },
+    B: {
+      chords: 'C D Bm Em Am D G:8 Em:8 Am:8 D7:8', fl: ES_B, bsn: '0.1.2.1.0.1.2.1.', pad: 1, bass: 'R.......5.......',
+      dr: { k: 'x.......x.......', r: '....x.......x...', sh: 'x.x.x.x.x.x.x.x.', bi: AT(128, 62) },
+    },
+    A2: {
+      from: 'A', bsn: '0.2.1.2.0.2.1.2.', pad: 1,
+      dr: { k: 'x.......x.....x.', r: '....x.......x...', sh: 'x.x.x.x.x.x.x.x.', w: '......x.......x.', bi: AT(128, 30, 94) },
+      fill: { k: 'x.......x.......', r: '....x...x.x.x.x.', t: '..........x.x...', sh: 'x.x.x.x.x.x.x.x.' },
+    },
+  },
+  form: ['A', 'B', 'A2'],
+};
+
+// Valentine's: E flat major waltz, 126 bpm. A crooning reed lead with scoops,
+// soft bells in sixths, warm pads, harp sweeps and a line-cliche turnaround.
+const VL_A = 'g5:8 f5:2 eb5:2 | g5:4 b5:8 | c6:8 bb5:2 g5:2 | db6:8 c6:2 bb5:2 | c6:4 ab5:4 eb5:4 | cb6:8 bb5:2 ab5:2 | g5:4 bb5:4 eb6:4 | d6:6 c6:2 bb5:2 ab5:2';
+const VL_H = 'eb5:8 d5:2 c5:2 | eb5:4 g5:8 | g5:8 g5:2 eb5:2 | bb5:8 ab5:2 g5:2 | ab5:4 eb5:4 c5:4 | ab5:8 gb5:2 eb5:2 | eb5:4 g5:4 bb5:4 | bb5:6 ab5:2 f5:2 d5:2';
+const VL_B = 'eb6:8 d6:2 c6:2 | d6:4 b5:4 g5:4 | c6:8 bb5:2 g5:2 | a5:8 c6:4 | ab5:4 c6:4 eb6:4 | d6:6 c6:2 bb5:2 ab5:2 | bb5:8 g5:2 eb5:2 | f5:4 ab5:4 d6:4';
+TRACKS.valentine = {
+  bpm: 126, bar: 12, fb: 0.38,
+  inst: {
+    lead: I(P.clar, { v: 0.13, lp: 2400, vib: 20, vr: 5.2, vd: 0.14, pe: -0.7, pt: 0.08, a: 0.04, r: 0.2, rev: 0.4, dly: 0.2 }),
+    bells: I(P.celesta, { v: 0.075, d: 1.4, idx: 1.2, pan: 0.2 }),
+    cel: I(P.celesta, { role: 'arp', v: 0.045, tr: 12, idx: 1, pan: -0.2 }),
+    harp: I(P.harp, { v: 0.075, d: 0.42 }),
+    pad: I(P.warmPad, { v: 0.04, r: 0.4 }),
+    pad2: I(P.pad, { v: 0.015, lp: 1400, r: 0.35 }),
+    bass: I(P.pizzBass, { v: 0.28 }),
+    chop: I(P.chop, { type: 'tri', v: 0.05, lp: 1500 }),
+    dr: I(P.drums, { kit: { k: 0.35, b: 0.6, sh: 0.4, c: 0.3 } }),
+  },
+  sec: {
+    A: {
+      chords: 'Eb Ebaug Eb6 Eb7 Ab Abm Eb/Bb Bb7', lead: VL_A, pad: 1, bass: 'R...........', chop: '....x...x...',
+      dr: { k: 'x...........', b: '....x...x...' },
+    },
+    B: {
+      chords: 'Cm G7/B Cm/Bb F/A Fm7 Bb7 Eb Bb7', lead: VL_B, pad: 1, pad2: 1, harp: '0.1.2.3.2.1.', bass: 'R...........', chop: '....x...x...',
+      dr: { k: 'x...........', b: '....x...x...', sh: '..x...x...x.' },
+    },
+    A2: {
+      from: 'A', bells: VL_H, cel: '0...1...2...', harp: '.'.repeat(84) + '0123456789ab',
+      dr: { k: 'x...........', b: '....x...x...', sh: '..x...x...x.', c: CR(8, 12) },
+    },
+    B2: {
+      from: 'B', cel: '0...2...1...', harp: '0.1.2.3.4.3.',
+      dr: { k: 'x...........', b: '....x.x.x...', sh: '..x...x...x.' },
+    },
+  },
+  form: ['A', 'B', 'A2', 'B2'],
+};
+
+// Thanksgiving: D major folk, 104 bpm. Banjo rolls, harmonica-ish reed lead,
+// a sawing fiddle harmony, strummed guitar, accordion and upright bass.
+const TH_A = 'f#5:4 e5:2 d5:2 a4:4 d5:4 | b4:4 d5:4 g5:6 f#5:2 | f#5:4 a5:4 f#5:2 e5:2 d5:4 | e5:12 r:4 | f#5:4 e5:2 d5:2 b4:4 d5:4 | g5:6 a5:2 b5:4 a5:2 g5:2 | f#5:4 d5:4 e5:4 c#5:4 | d5:12 r:4';
+const TH_H = 'd5:4 c#5:2 a4:2 f#4:4 a4:4 | g4:4 b4:4 d5:6 d5:2 | d5:4 f#5:4 d5:2 c#5:2 a4:4 | c#5:12 r:4 | d5:4 c#5:2 b4:2 f#4:4 b4:4 | d5:6 f#5:2 g5:4 f#5:2 d5:2 | d5:4 a4:4 c#5:4 a4:4 | a4:12 r:4';
+const TH_B = 'b5:4 a5:2 g5:2 d5:4 g5:4 | a5:6 g5:2 e5:4 c#5:4 | c#6:4 a5:2 f#5:2 e5:4 f#5:4 | d6:12 r:4 | b5:4 d6:4 b5:2 a5:2 g5:4 | a5:4 c#6:4 e6:4 c#6:4 | d6:4 a5:4 b5:4 f#5:4 | g5:4 e5:4 c#5:4 e5:4';
+TRACKS.thanks = {
+  bpm: 104, fb: 0.3,
+  inst: {
+    lead: I(P.clar, { v: 0.13, lp: 2100, vib: 10, trem: 0.12, trr: 5.5, rev: 0.32 }),
+    fid: I(HP.fiddle, { type: 'saw', v: 0.055, lp: 2200, pan: -0.25 }),
+    banjo: I(HP.banjo, {}),
+    strum: I(HP.strum, {}),
+    acc: I(P.organ, { type: 'reed', det: 14, v: 0.018, lp: 1700 }),
+    bass: I(P.pizzBass, { v: 0.28 }),
+    dr: I(P.drums, { kit: { k: 0.45, b: 0.6, sh: 0.4, r: 0.35, t: 0.4 } }),
+  },
+  sec: {
+    A: {
+      chords: 'D G D A Bm G D:8 A:8 D', lead: TH_A, banjo: '0240240202402402', strum: '....x.......x...', bass: 'R.......5.......',
+      dr: { k: 'x.......x.......', b: '....x.......x...', sh: '..x...x...x...x.' },
+    },
+    B: {
+      chords: 'G A F#m Bm G A D:8 Bm:8 Em:8 A7:8', lead: TH_B, banjo: '0240240202402402', acc: 1, strum: '....x.......x...', bass: 'R...5...R...5...',
+      dr: { k: 'x.......x.......', b: '....x.......x...', sh: 'x.x.x.x.x.x.x.x.' },
+    },
+    A2: {
+      from: 'A', fid: TH_H, acc: 1, banjo: '0240240204202420',
+      dr: { k: 'x.......x.....x.', b: '....x.......x...', sh: 'x.x.x.x.x.x.x.x.', r: '..............x.' },
+      fill: { k: 'x.......x.......', b: '....x...x.x.x.x.', t: '..........x.x...' },
+    },
+  },
+  form: ['A', 'B', 'A2'],
+};
+
+// Christmas: E minor lifting to E major, 108 bpm. Music-box lead, harp,
+// choir and strings, sleigh bells, a flute counter-line and timpani at the lift.
+const XM_A = 'b5:4 e6:4 g6:4 f#6:2 e6:2 | e6:4 g5:4 c6:6 b5:2 | d6:4 b5:4 g5:4 b5:2 d6:2 | f#6:8 e6:4 d6:4 | g6:4 f#6:2 e6:2 b5:4 e6:4 | c6:4 e6:4 a6:4 g6:2 e6:2 | e6:4 f#6:4 d#6:4 a5:4 | e6:8 b5:4 g5:4';
+const XM_B = 'g#5:4 b5:4 e6:6 d#6:2 | c#6:4 e6:4 a6:6 g#6:2 | g#6:4 f#6:2 e6:2 b5:8 | d#6:4 f#6:4 b6:8 | g#6:6 e6:2 c#6:4 e6:4 | a6:4 e6:4 c#6:4 a5:4 | a5:4 c#6:4 d#6:4 f#6:4 | e6:12 r:4';
+TRACKS.christmas = {
+  bpm: 108, fb: 0.42,
+  inst: {
+    box: I(P.celesta, { v: 0.12, d: 1.3, rev: 0.5 }),
+    harp: I(P.harp, { v: 0.07 }),
+    fl: I(P.flute, { v: 0.09, lp: 2400 }),
+    choir: I(P.choir, { v: 0.034, r: 0.35 }),
+    pad: I(P.pad, { v: 0.018, lp: 1100, r: 0.35 }),
+    bass: I(P.pizzBass, { v: 0.26 }),
+    timp: I(P.timp, { v: 0.22 }),
+    dr: I(P.drums, { kit: { sl: 1, k: 0.4, T: 0.5, c: 0.35 } }),
+  },
+  sec: {
+    A: {
+      chords: 'Em C G D Em Am B7sus4:8 B7:8 Em', box: XM_A, pad: 1, harp: '0.1.2.1.0.1.2.1.', bass: 'R.......5.......',
+      dr: { sl: 'x...x...x...x...', k: 'x.........x.....' },
+    },
+    A2: {
+      from: 'A', choir: 1, pad: 0,
+      fl: 'g4:8 b4:8 | c5:8 e5:8 | d5:8 b4:8 | a4:8 f#4:8 | e5:8 g5:8 | e5:8 c5:8 | e5:8 d#5:8 | e5:16',
+      dr: { sl: 'X.x.x.x.X.x.x.x.', k: 'x.........x.....' },
+      fill: { sl: 'X.x.x.x.X.xxxxxx', k: 'x.........x.....', T: '............x.x.' },
+    },
+    B: {
+      chords: 'E A/E E B C#m A F#m7:8 B7:8 E', box: XM_B, choir: 1, harp: '0.1.2.3.4.3.2.1.', bass: 'R...5...O...5...', timp: 'R...............',
+      fl: 'e5:8 g#5:8 | a5:8 c#6:8 | b5:8 g#5:8 | f#5:8 d#5:8 | e5:8 c#5:8 | e5:8 a5:8 | f#5:8 a5:8 | g#5:16',
+      dr: { sl: 'X.xgx.xgX.xgx.xg', k: 'x.......x.......', c: CR(8) },
+      fill: { sl: 'X.xgx.xgX.xxxxxx', k: 'x.......x.......', T: '........x.x.x.x.' },
+    },
+  },
+  form: ['A', 'A2', 'B'],
+};
+
+// The seven-worlds map: C major with lydian and mixolydian colour, 116 bpm.
+// Brass theme over driving strings, horns, choir, celesta and timpani.
+const WD_A = 'c5:6 g5:2 g5:4 e5:4 | f#5:6 a5:2 d6:8 | b5:4 a5:2 g5:2 d5:4 g5:4 | f5:4 bb5:4 d6:6 c6:2 | c6:6 a5:2 f5:8 | e5:4 g5:4 c6:4 e6:4 | d6:6 c6:2 c6:4 d6:4 | e6:8 r:4 g5:4';
+const WD_B = 'e5:4 a5:4 c6:6 b5:2 | a5:4 f5:4 c6:8 | g5:4 e5:4 c6:4 e6:4 | d6:12 b5:4 | c6:4 a5:4 e6:6 d6:2 | c6:6 a5:2 f5:4 a5:4 | g5:4 a5:4 f#5:4 a5:4 | b5:4 d6:4 f6:4 d6:4';
+TRACKS.worlds = {
+  bpm: 116, fb: 0.34,
+  inst: {
+    brass: I(P.brass, { v: 0.12, lp: 1100 }),
+    horn: I(P.brass, { v: 0.065, tr: -12, lp: 700, pan: -0.2 }),
+    str: I(HP.strings, {}),
+    pad: I(P.pad, { v: 0.02, r: 0.35 }),
+    choir: I(P.choir, { v: 0.03, r: 0.35 }),
+    bell: I(P.celesta, { role: 'arp', v: 0.05, tr: 12 }),
+    bass: I(P.subBass, { v: 0.16 }),
+    timp: I(P.timp, { v: 0.26 }),
+    dr: I(P.drums, { kit: { k: 0.6, s: 0.5, c: 0.5, T: 0.55, t: 0.55, sr: 0.7 } }),
+  },
+  intro: ['I'],
+  sec: {
+    I: {
+      chords: 'C D/C', brass: 'g4:3 g4:1 c5:4 e5:4 g5:4 | f#5:8 a5:8', str: '0120120120120120', timp: 'R.......R.....R.',
+      dr: { T: 'x...............x...x...x...x.x.', sr: AT(32, 24) },
+    },
+    A: {
+      chords: 'C D/C G/B Bb F C/E Dm7:8 G7sus4:8 C', brass: WD_A, str: '0120120120120120', pad: 1, bass: 'R-------5-------', timp: 'R...............',
+      dr: { k: 'x.......x.......', s: '....x.......x...', c: CR(8) },
+    },
+    B: {
+      chords: 'Am F C G Am F Dsus4:8 D:8 G7', brass: WD_B, str: '0.1.2.1.0.1.2.1.', choir: 1, bell: '0.......2.......', bass: 'R-------O-------', timp: 'R.......5.......',
+      dr: { k: 'x.....x.x.......', s: '....x.......x...', T: '............x.x.', c: CR(4) },
+      fill: { k: 'x.....x.x.......', s: '....x...x.x.x.x.', sr: '........x.......' },
+    },
+    A2: {
+      from: 'A', horn: WD_A, choir: 1, pad: 0, bell: '0...2...4...2...',
+      dr: { k: 'x.......x.x.....', s: '....x.......x...', sr: AT(64, 56), c: CR(4) },
+      fill: { k: 'x.......x.......', s: '....x...xxxxXXXX', T: 'x.......x...x.x.' },
+    },
+  },
+  form: ['A', 'B', 'A2'],
+};
+
+// Second cauldron ride: F sharp minor, 168 bpm. Tresillo bass and stabs,
+// four-on-the-floor kick, offbeat open hats, a pulse lead doubled low in saw.
+const RD_A = 'c#5:2 f#5:2 a5:3 g#5:3 f#5:2 e5:2 f#5:2 | d5:3 f#5:3 a5:2 d6:4 c#6:2 a5:2 | b5:3 g#5:3 e5:2 b4:2 e5:2 g#5:2 b5:2 | a5:6 c#6:2 f#6:8 | f#5:2 a5:2 c#6:3 b5:3 a5:2 g#5:2 a5:2 | f#5:3 a5:3 d6:2 f#6:4 e6:2 d6:2 | e6:3 d6:3 b5:2 g#5:4 e5:4 | e#5:2 g#5:2 b5:2 c#6:2 e#6:4 g#6:4';
+const RD_B = 'a5:6 f#5:2 d6:4 a5:4 | b5:6 g#5:2 e6:4 b5:4 | c#6:6 g#5:2 e6:4 c#6:4 | f#6:8 e6:4 c#6:4 | d6:3 c#6:3 b5:2 f#5:4 b5:4 | g#5:3 a5:3 b5:2 e6:8 | c#6:3 b5:3 a5:2 e5:4 a5:4 | g#5:2 b5:2 c#6:2 e#6:2 g#6:4 e#6:4';
+TRACKS.ride = {
+  bpm: 168,
+  inst: {
+    lead: I(P.lead, { v: 0.13, lp: 3400, vib: 9, vr: 6.5, vd: 0.12 }),
+    lead2: I(P.lead, { type: 'saw', v: 0.045, tr: -12, lp: 1600, vib: 0, pan: 0.3, dly: 0.1 }),
+    arp: I(P.pluck, { tr: 12, v: 0.065, lp: 800 }),
+    bass: I(P.sawBass, { v: 0.14, lp: 600 }),
+    stab: I(P.stab, { v: 0.036 }),
+    pad: I(P.pad, { v: 0.016, lp: 1600, r: 0.3 }),
+    dr: I(P.drums, { kit: { k: 0.55, s: 0.55, h: 0.35, o: 0.75, c: 0.45, t: 0.55, T: 0.55 } }),
+  },
+  intro: ['I'],
+  sec: {
+    I: {
+      chords: 'F#m F#m', bass: 'R..R..R.R..R..O.',
+      dr: { k: 'x...x...x...x...', h: '..o...o...o...o.', t: AT(32, 24, 26, 28), T: AT(32, 29, 30, 31) },
+    },
+    A: {
+      chords: 'F#m D E F#m F#m D E C#7', lead: RD_A, bass: 'R..R..R.R..R..O.', stab: 'X..x..x.....x...',
+      dr: { k: 'x...x...x...x...', s: '....x.......x...', h: 'x.o.x.o.x.o.x.o.', c: CR(8) },
+    },
+    A2: {
+      from: 'A', lead2: RD_A, arp: '0123321001233210',
+      fill: { k: 'x...x...x...x...', s: '....x...x.xxxxXX', T: '........x.x.x.x.' },
+    },
+    B: {
+      chords: 'D E C#m F#m Bm E A C#7', lead: RD_B, pad: 1, bass: 'R..R..R.R..R..O.', stab: 'X.......X..x..x.',
+      dr: { k: 'x...x...x...x...', s: '....x..x....x...', h: 'xxo.xxo.xxo.xxo.', c: CR(4) },
+    },
+    B2: {
+      from: 'B', lead2: RD_B, arp: '0.1.2.3.4.3.2.1.',
+      fill: { k: 'x...x...x...x...', s: '....x...xxxxXXXX', t: '........x.x.....', T: '............x.x.' },
+    },
+  },
+  form: ['A', 'A2', 'B', 'B2'],
+};
+
+// Second boss: F minor with a Neapolitan G flat, 184 bpm. A low brass ostinato
+// with tritone kicks, screaming pulse lead, choir, harpsichord, tolling bell.
+const BS_RIFF = 'f3:2 f3:1 f3:1 ab3:2 f3:2 b3:2 c4:2 ab3:2 g3:2 | f3:2 f3:1 f3:1 ab3:2 f3:2 c4:2 db4:2 c4:2 bb3:2 | db4:2 db4:1 db4:1 f4:2 db4:2 ab3:2 f3:2 ab3:2 c4:2 | c4:2 c4:1 c4:1 e4:2 c4:2 g3:2 e3:2 g3:2 bb3:2 | f3:2 f3:1 f3:1 ab3:2 f3:2 b3:2 c4:2 ab3:2 g3:2 | f3:2 f3:1 f3:1 ab3:2 f3:2 c4:2 db4:2 c4:2 bb3:2 | gb3:2 gb3:1 gb3:1 bb3:2 gb3:2 db4:2 c4:2 bb3:2 db4:2 | c4:2 c4:1 c4:1 e4:2 g4:2 bb4:2 c5:2 bb4:2 g4:2';
+const BS_LEAD = 'f5:4 ab5:4 c6:8 | b5:8 c6:4 db6:4 | f6:8 eb6:4 db6:4 | e6:12 c6:4 | f6:4 eb6:2 db6:2 c6:4 ab5:4 | b5:4 c6:4 db6:4 e6:4 | gb6:8 f6:4 db6:4 | e6:4 c6:4 bb5:4 g5:4';
+const BS_B = 'bb5:6 c6:2 db6:8 | db6:4 bb5:4 gb5:8 | ab5:6 bb5:2 c6:8 | f6:8 eb6:4 db6:4 | db6:6 eb6:2 f6:8 | gb6:6 f6:2 db6:8 | e6:4 g6:4 c6:4 e6:4 | bb5:2 c6:2 e6:2 g6:2 bb6:4 g6:4';
+TRACKS.boss2 = {
+  bpm: 184,
+  inst: {
+    riff: I(HP.brassRiff, {}),
+    lead: I(P.lead, { type: 'p12', v: 0.13, lp: 4000, vib: 16, vr: 7, vd: 0.1, rev: 0.3 }),
+    hpsi: I(HP.harpsi, { ring: false, d: 0.16, r: 0.06, v: 0.05, tr: 12, gate: 0.9, pan: 0.25 }),
+    choir: I(P.choir, { v: 0.038, r: 0.22 }),
+    sub: I(P.subBass, { v: 0.12 }),
+    bass: I(P.sawBass, { v: 0.14, lp: 480 }),
+    stab: I(P.stab, { v: 0.04 }),
+    toll: I(P.bell, { role: 'arp', tr: -12, v: 0.07, d: 2.6 }),
+    timp: I(P.timp, { v: 0.24, d: 0.8 }),
+    dr: I(P.drums, { kit: { k: 0.45, s: 0.6, h: 0.35, c: 0.5, T: 0.6, t: 0.6 } }),
+  },
+  intro: ['I'],
+  sec: {
+    I: {
+      chords: 'Fm C7', riff: 'f3:2 f3:1 f3:1 ab3:2 f3:2 b3:2 c4:2 ab3:2 g3:2 | c4:2 c4:1 c4:1 e4:2 g4:2 bb4:2 c5:2 bb4:2 g4:2',
+      toll: '0...............0...............', timp: 'R.......R.......',
+      dr: { k: 'x...x...x...x...', t: AT(32, 24, 26, 28), T: AT(32, 29, 30, 31) },
+    },
+    A: {
+      chords: 'Fm Fm Db C Fm Fm Gb C7', riff: BS_RIFF, choir: 1, hpsi: '0123012301230123', sub: 'R-------R-------', timp: '........R.......',
+      dr: { k: 'x..x..x.x..x..x.', s: '....x.......x...', h: 'x.x.x.x.x.x.x.x.', c: CR(8) },
+    },
+    A2: {
+      from: 'A', lead: BS_LEAD, toll: '0' + '.'.repeat(127),
+      dr: { k: 'x.xx..x.x.xx..x.', s: '....x.......x...', h: 'x.x.x.x.x.xxx.x.', c: CR(8) },
+      fill: { k: 'x...x...x.x.x.x.', s: '....x...x.x.x.xX', T: '........x...x...' },
+    },
+    B: {
+      chords: 'Bbm Gb Fm Db Bbm Gb C C7', lead: BS_B, choir: 1, bass: 'R.R.R.R.O.R.R.R.', timp: '........R.......',
+      dr: { k: 'x..x....x.x.....', s: '........x.......', h: '..x.x.x.x.x.x.x.', T: '..............x.', c: CR(8) },
+    },
+    B2: {
+      from: 'B', choir: 0, stab: 'x...x...X..x..x.', hpsi: '0.1.2.3.0.1.2.3.', toll: '0' + '.'.repeat(63),
+      dr: { k: 'x.xx..x.x.xx..x.', s: '....x.......x...', h: 'x.x.x.x.x.xxx.x.', c: CR(8) },
+      fill: { k: 'x...x...x.x.x.x.', s: '....x...x.x.x.xX', t: '........x.x.....', T: '............x...' },
+    },
+  },
+  form: ['A', 'A2', 'B', 'B2'],
 };
 
 // ---------------------------------------------------------------- sound effects

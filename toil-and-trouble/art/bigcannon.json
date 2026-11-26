@@ -1,0 +1,72 @@
+{
+ "w": 56,
+ "h": 56,
+ "ox": 28,
+ "oy": 28,
+ "anims": {
+  "d0": {
+   "row": 0,
+   "frames": 4
+  },
+  "d1": {
+   "row": 1,
+   "frames": 4
+  },
+  "d2": {
+   "row": 2,
+   "frames": 4
+  },
+  "d3": {
+   "row": 3,
+   "frames": 4
+  },
+  "d4": {
+   "row": 4,
+   "frames": 4
+  },
+  "d5": {
+   "row": 5,
+   "frames": 4
+  },
+  "d6": {
+   "row": 6,
+   "frames": 4
+  },
+  "d7": {
+   "row": 7,
+   "frames": 4
+  },
+  "d8": {
+   "row": 8,
+   "frames": 4
+  },
+  "d9": {
+   "row": 9,
+   "frames": 4
+  },
+  "d10": {
+   "row": 10,
+   "frames": 4
+  },
+  "d11": {
+   "row": 11,
+   "frames": 4
+  },
+  "d12": {
+   "row": 12,
+   "frames": 4
+  },
+  "d13": {
+   "row": 13,
+   "frames": 4
+  },
+  "d14": {
+   "row": 14,
+   "frames": 4
+  },
+  "d15": {
+   "row": 15,
+   "frames": 4
+  }
+ }
+}

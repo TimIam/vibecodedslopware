@@ -1,0 +1,20 @@
+{
+ "w": 56,
+ "h": 40,
+ "ox": 28,
+ "oy": 38,
+ "anims": {
+  "post": {
+   "row": 0,
+   "frames": 1
+  },
+  "chains": {
+   "row": 1,
+   "frames": 1
+  },
+  "cart": {
+   "row": 2,
+   "frames": 1
+  }
+ }
+}

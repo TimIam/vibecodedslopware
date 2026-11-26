@@ -1,6 +1,6 @@
 // render.js — draws a world: parallax backdrop, tile layer, animated water, every entity, the trailing partner,
 // particles, glows, foreground atmosphere and the HUD. Reads the world, never changes it.
-import { T, W, H, WATER, STATS } from './world.js';
+import { T, W, H, WATER, STATS, groundY, solidPx } from './world.js';
 import { buildTileLayer, repaint, themeColors } from './tiles.js';
 import * as S from './sprites.js';
 import { drawText, ramp, hex, css, BAYER4 } from './pix.js';
@@ -12,7 +12,7 @@ const WATER_COL = {
   wood: ['#3a6a7a', '#7ac0d0'], bog: ['#2e4a2a', '#8ab860'], mine: ['#c8401a', '#ffd060'], belfry: ['#2a3a6a', '#8aa8e0'],
   village: ['#2a3a5a', '#a0c0f0'], keep: ['#1e2a4a', '#6a8ac8'], bonus: ['#4a2a8a', '#c0a0ff'],
 };
-const DROP_COL = { brew: '#8cf05a', pink: '#ff9ac8', holy: '#a8e8ff', wood: '#9ad0e0', bog: '#9ac870', mine: '#ffb040', belfry: '#a0b8f0', village: '#b0d0ff', keep: '#8aa8e0', bonus: '#d0b0ff' };
+const DROP_COL = { gravy: '#9a6a3a', brew: '#8cf05a', pink: '#ff9ac8', holy: '#a8e8ff', wood: '#9ad0e0', bog: '#9ac870', mine: '#ffb040', belfry: '#a0b8f0', village: '#b0d0ff', keep: '#8aa8e0', bonus: '#d0b0ff' };
 
 export function createView(g) {
   const v = { layer: buildTileLayer(g), bg: null, t0: g.frame, glow: {} };
@@ -81,7 +81,13 @@ export function drawWorld(ctx, g, v, opts = {}) {
       case 'cannon': {
         const n = Math.round((((e.ang % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI * 2) * 16) % 16;
         const k = e.kick > 0 ? Math.sin(e.kick) * 1.5 : 0;
-        spr(ctx, S.cannonSprite(n, e.room !== null ? 'bonus' : 'cannon'), e.x + e.w / 2 - Math.cos(e.ang) * k, e.y + e.h / 2 - Math.sin(e.ang) * k, 18, 18);
+        const ccx = e.x + e.w / 2, ccy = e.y + e.h / 2;
+        drawMount(ctx, g, e, ccx, ccy);
+        const big = e.room === null ? S.artFrame('bigcannon', 'd' + n, Math.floor(g.frame / 6)) : null;
+        if (big) spr(ctx, big, ccx - Math.cos(e.ang) * k, ccy - Math.sin(e.ang) * k, 28, 28);
+        else spr(ctx, S.cannonSprite(n, e.room !== null ? 'bonus' : 'cannon'), ccx - Math.cos(e.ang) * k, ccy - Math.sin(e.ang) * k, 18, 18);
+        if (e.room === null) glows.push(['#7aff6a', ccx, ccy, 18]);
+        if (e.magic || e.mount === 'magic') { glows.push(['#b060ff', ccx, ccy, 26]); if (g.frame % 2 === 0) magic(g, e); }
         if (e.room !== null) { glows.push(['#c080ff', e.x + e.w / 2, e.y + e.h / 2, 20]); if (g.frame % 8 === 0) sparkle(g, e); }
         if (g.p.cannon === e && g.p.state === 'cannon' && !e.auto && e.room === null) {
           // aim guide: a few blinking dots along the barrel's line
@@ -100,6 +106,16 @@ export function drawWorld(ctx, g, v, opts = {}) {
     switch (e.type) {
       case 'card': { const y = e.by + Math.sin(g.frame / 16 + e.ph) * 1.5; spr(ctx, S.cardSprite(Math.floor(g.frame / 4 + e.ph * 3), Math.floor(e.x / 16 + e.y / 16)), e.x + 5, y + 16, 8, 18); glows.push(['#f0c060', e.x + 5, y + 7, 10]); break; }
       case 'deck': { const y = e.by + Math.sin(g.frame / 16) * 1.5; spr(ctx, S.deckSprite(Math.floor(g.frame / 6)), e.x + 7, y + 16, 13, 22); glows.push(['#f0c060', e.x + 7, y + 8, 16]); break; }
+      case 'block': { const a = S.artFrame('obstacles', e.world, 0); if (a) spr(ctx, a, e.x + e.w / 2, e.y + e.h + 1, 24, 38); else { ctx.fillStyle = '#7a4a2a'; ctx.fillRect(e.x, e.y, e.w, e.h); } break; }
+      case 'beam': { const a = S.artFrame('beams', e.world, 0); if (a) spr(ctx, a, e.x + e.w / 2, e.y + e.h / 2, 32, 12); else { ctx.fillStyle = '#5a3a2a'; ctx.fillRect(e.x, e.y, e.w, e.h); } break; }
+      case 'bell': { const a = S.artFrame('bell', e.rung ? 'ring' : 'still', Math.floor(e.rung / 5)); if (a) spr(ctx, a, e.x + e.w / 2, e.y - 2, 12, 4); else { ctx.fillStyle = '#d8a840'; ctx.fillRect(e.x + 4, e.y + 4, 12, 14); } if (!e.rung) glows.push(['#ffd060', e.x + 10, e.y + 12, 14]); break; }
+      case 'gate': {
+        const lift = Math.min(30, e.open) / 30;
+        const a = S.artFrame('gate', lift > 0 ? 'open' : 'shut', Math.min(3, Math.floor(lift * 4)));
+        if (a) spr(ctx, a, e.x + e.w / 2, e.y + e.h + 2, 16, 54); else if (lift < 1) { ctx.fillStyle = '#3a3646'; ctx.fillRect(e.x, e.y - lift * e.h, e.w, e.h); }
+        if (!e.open) glows.push(['#7aff6a', e.x + 8, e.y + e.h / 2, 16]);
+        break;
+      }
       case 'rack': { spr(ctx, S.broomRackSprite(Math.floor(g.frame / 8)), e.x + 7, e.y + e.h, 14, 38); glows.push(['#ff8ac8', e.x + 7, e.y + 4, 14]); if (g.frame % 9 === 0) sparkle(g, e); break; }
       case 'letter': { const y = e.by + Math.sin(g.frame / 14) * 2; spr(ctx, S.letterSprite(e.i, Math.floor(g.frame / 5)), e.x + 6, y + 15, 10, 18); glows.push(['#f0c040', e.x + 6, y + 8, 14]); break; }
       case 'cat': { const y = e.by + Math.sin(g.frame / 14) * 2; spr(ctx, S.catSprite(Math.floor(g.frame / 5)), e.x + 7, y + 15, 10, 18); glows.push(['#f0c040', e.x + 7, y + 8, 14]); break; }
@@ -145,6 +161,31 @@ function fire(ctx, x, y, f) {
   }
 }
 function steam(g, e) { g.fx.push({ k: 'smoke', x: e.x + 8 + Math.random() * 16, y: e.y + 2, vx: (Math.random() - 0.5) * 0.3, vy: -0.4, t: 0, life: 40, g: 0, a: 0, spin: 0, s: 1, c: 'steam' }); }
+function magic(g, e) {
+  // sparkly purple magic swirling round anything that moves by itself
+  const a = Math.random() * Math.PI * 2, r = e.w * 0.55;
+  g.fx.push({ k: 'magic', x: e.x + e.w / 2 + Math.cos(a) * r, y: e.y + e.h / 2 + Math.sin(a) * r * 0.7, vx: -Math.sin(a) * 0.6, vy: Math.cos(a) * 0.4 - 0.2, t: 0, life: 22 + Math.random() * 14, g: 0, a: 0, spin: 0 });
+}
+function drawMount(ctx, g, e, cx, cy) {
+  if (e.room !== null) return;
+  if (e.mount === 'post') {
+    const gy = groundY(g, cx, cy + 16, cy + 160, true, 1);
+    const bot = gy < Infinity ? gy : cy + 120;
+    ctx.fillStyle = '#2a2632'; ctx.fillRect(Math.round(cx) - 3, Math.round(cy + 10), 7, Math.round(bot - cy - 10));
+    ctx.fillStyle = '#5a5668'; ctx.fillRect(Math.round(cx) - 2, Math.round(cy + 10), 2, Math.round(bot - cy - 10));
+    const m = S.artFrame('mounts', 'post', 0);
+    if (m) spr(ctx, m, cx, bot + 1, 28, 38);
+    else { ctx.fillStyle = '#3a3646'; ctx.fillRect(Math.round(cx) - 8, Math.round(bot) - 4, 16, 4); }
+  } else if (e.mount === 'chains') {
+    // chains up to the ceiling or off the top of the screen
+    let top = cy - 14;
+    while (top > cy - 200 && !solidPx(g, cx, top - 1)) top -= 4;
+    ctx.fillStyle = '#6a6678';
+    for (const dx of [-9, 0, 9]) for (let y = Math.round(top); y < cy - 10; y += 3) { ctx.fillRect(Math.round(cx + dx * (1 - (y - top) / (cy - top) * 0.3)), y, 1, 2); }
+    const m = S.artFrame('mounts', 'chains', 0);
+    if (m) spr(ctx, m, cx, top + 4, 28, 0);
+  } else if (e.mount === 'magic' && g.frame % 3 === 0) magic(g, e);
+}
 function sparkle(g, e) { g.fx.push({ k: 'star', x: e.x + Math.random() * e.w, y: e.y + Math.random() * e.h, vx: 0, vy: -0.3, t: 0, life: 18, g: 0, a: 0, spin: 0 }); }
 
 function drawPlat(ctx, g, e) {
@@ -229,6 +270,14 @@ function drawShot(ctx, g, e, glows) {
       for (let i = 0; i < 4; i++) ctx.fillRect(Math.round(e.x + ((g.frame * 0.7 + i * 7) % e.w)), Math.round(e.y + 2 - ((g.frame + i * 9) % 6) / 2), 1, 1);
       glows.push(['#80d0ff', e.x + e.w / 2, e.y + 4, 14]);
     } else { sprRot(ctx, S.shotSprite('flask'), e.x + 4, e.y + 4, 8, 12, g.frame * 0.25); glows.push(['#80d0ff', e.x + 4, e.y + 4, 10]); }
+  } else if (e.kind === 'lob' || e.kind === 'arrow') {
+    const x = Math.round(e.x + 4), y = Math.round(e.y + 4);
+    const col = { seed: ['#f0a030', '#fff0a0'], rocket: ['#d83a3a', '#ffe070'], coin: ['#e8b030', '#fff4b0'], egg: ['#a8d8f0', '#ffb0d8'], gravy: ['#7a4a22', '#b07a40'], arrow: ['#ff5a8a', '#ffe0ec'] }[e.kind === 'arrow' ? 'arrow' : e.art] || ['#ccc', '#fff'];
+    if (e.landed) { if (e.art === 'gravy') { ctx.fillStyle = col[0]; ctx.fillRect(Math.round(e.x), Math.round(e.y + 2), e.w, 4); ctx.fillStyle = col[1]; ctx.fillRect(Math.round(e.x) + 3, Math.round(e.y + 2), e.w - 6, 1); } return; }
+    if (e.kind === 'arrow') { const a = Math.atan2(e.vy, e.vx); ctx.fillStyle = '#c8a070'; for (let i = 0; i < 8; i++) ctx.fillRect(Math.round(x - Math.cos(a) * i), Math.round(y - Math.sin(a) * i), 1, 1); ctx.fillStyle = col[0]; ctx.fillRect(x - 1, y - 1, 3, 3); glows.push(['#ff6a9a', x, y, 8]); return; }
+    ctx.fillStyle = col[0]; ctx.fillRect(x - 3, y - 2, 6, 5); ctx.fillRect(x - 2, y - 3, 4, 7);
+    ctx.fillStyle = col[1]; ctx.fillRect(x - 2, y - 2, 2, 2);
+    if (e.art === 'rocket') { glows.push(['#ff8a3a', x, y + 4, 10]); if (g.frame % 2 === 0) g.fx.push({ k: 'spark', x, y: y + 4, vx: -e.vx * 0.3, vy: 0.5, t: 0, life: 10, g: 0, a: 0, spin: 0 }); }
   } else if (e.kind === 'boom') {
     const k = 1 - e.life / 24;
     ctx.fillStyle = `rgba(255,${200 - k * 120},80,${0.6 * (1 - k)})`;
@@ -239,6 +288,18 @@ function drawShot(ctx, g, e, glows) {
 }
 
 function drawBoss(ctx, g, b) {
+  const sheet = b.kind && b.kind !== 'engine' ? 'boss_' + b.kind : null;
+  if (sheet && S.artMeta(sheet)) {
+    const moving = ['roll', 'swoop', 'hit'].includes(b.mode) || (b.mode === 'hop' && b.onGround);
+    const anim = b.inv > 0 && b.mode === 'hit' ? 'hurt' : !b.onGround && !b.B.fly ? 'jump' : moving ? 'move' : b.mode === 'intro' || b.mode === 'slam' && b.modeT < 18 ? 'idle' : ['spit', 'rockets', 'coins', 'eggs', 'gravy', 'flask', 'arrows', 'smash', 'arm'].includes(b.mode) ? 'attack' : 'idle';
+    const c = S.artFrame(sheet, anim, Math.floor(g.frame / (anim === 'move' ? 5 : 8)));
+    const x = b.x + b.w / 2, y = b.y + b.h + (b.B.fly ? 10 : 0);
+    if (b.inv > 0 && (g.frame >> 2) % 2 === 0) ctx.globalAlpha = 0.55;
+    spr(ctx, c, x + (b.dying ? Math.sin(g.frame * 0.8) * 2 : 0), y, 64, 108, b.dir);
+    ctx.globalAlpha = 1;
+    if (b.B.fly) for (let i = 0; i < 2; i++) if (g.frame % 3 === 0) magic(g, b);
+    return;
+  }
   const fi = Math.floor((b.x / 4) % 8 + 8) % 8;
   const hurt = b.inv > 0 && (g.frame >> 2) % 2 === 0;
   const c = S.bossSprite(fi, { arm: b.arm, hurt, laugh: b.laugh > 0 });
@@ -259,9 +320,13 @@ function drawParty(ctx, g, glows) {
   const cx = p.x + p.w / 2, by = p.y + p.h;
   if (p.state === 'cart') {
     const fi = Math.floor(g.frame / 6);
-    if (g.partner) spr(ctx, S.witchSprite(g.partner, 'cart', Math.floor(g.frame / 10) + 1), cx - 7, by - 9, 28, 50, 1);
-    spr(ctx, S.witchSprite(p.kind, 'cart', Math.floor(g.frame / 10)), cx + 3, by - 9, 28, 50, 1);
-    spr(ctx, S.cartSprite(fi), cx, by + 1, 18, 26, 1);
+    const lift = S.artMeta('ridepot') ? 20 : 9;
+    if (g.partner) spr(ctx, S.witchSprite(g.partner, 'cart', Math.floor(g.frame / 10) + 1), cx - 8, by - lift, 28, 50, 1);
+    spr(ctx, S.witchSprite(p.kind, 'cart', Math.floor(g.frame / 10)), cx + 4, by - lift - 1, 28, 50, 1);
+    const pot = S.artFrame('ridepot', p.onGround ? 'slide' : 'air', Math.floor(g.frame / 5));
+    if (pot) spr(ctx, pot, cx, by + 3, 26, 42, 1); else spr(ctx, S.cartSprite(fi), cx, by + 1, 18, 26, 1);
+    glows.push(['#7aff6a', cx, by - 4, 22]);
+    if (p.onGround && g.frame % 2 === 0) g.fx.push({ k: 'goo', x: cx - 14 + Math.random() * 6, y: by - 2, vx: -1.2 - Math.random(), vy: -0.6 - Math.random() * 0.8, t: 0, life: 22, g: 0.15, a: 0, spin: 0 });
     return;
   }
   if (p.mount && p.state !== 'dead') {
@@ -319,13 +384,8 @@ function shadow(ctx, x, y, w) {
 }
 // floor height under a body, if any within 64 px (shadows shrink with height)
 function groundBelow(g, b) {
-  const c = Math.floor((b.x + b.w / 2) / T);
-  for (let r = Math.floor((b.y + b.h - 1) / T); r < Math.floor((b.y + b.h + 64) / T) + 1; r++) {
-    if (r < 0 || r >= g.map.rows || c < 0 || c >= g.map.cols) continue;
-    const t = g.map.t[r * g.map.cols + c];
-    if (t === 1 || t === 5 || t === 2 || t === 6) { const y = r * T; if (y >= b.y + b.h - 1) return y; }
-  }
-  return null;
+  const y = groundY(g, b.x + b.w / 2, b.y + b.h - 1, b.y + b.h + 64, true, 1);
+  return y < Infinity ? y : null;
 }
 const ENEMY_FLY = { crow: 1, wasp: 1 };
 function drawCarried(ctx, g, p) {
@@ -351,6 +411,22 @@ function drawFx(ctx, g, glows) {
         const col = k < 0.5 ? '#fff8d0' : '#f0c040';
         ctx.fillStyle = col; ctx.fillRect(x, y, 1, 1);
         if (k < 0.6) { ctx.fillRect(x - 1, y, 3, 1); ctx.fillRect(x, y - 1, 1, 3); }
+        break;
+      }
+      case 'splash': {
+        const a = S.artFrame('splash', 'pop', Math.floor(k * 8));
+        if (a) spr(ctx, a, x, y, 28, 44);
+        else { ctx.fillStyle = `rgba(122,255,106,${0.8 * (1 - k)})`; const r = 4 + k * 12; ctx.fillRect(Math.round(x - r), Math.round(y - r * 0.6), Math.round(r * 2), Math.round(r)); }
+        if (k < 0.5) glows.push(['#7aff6a', x, y - 8, 22]);
+        break;
+      }
+      case 'goo': ctx.fillStyle = k < 0.5 ? '#b8ff9a' : '#5ad84a'; ctx.fillRect(x, y, k < 0.6 ? 2 : 1, 2); break;
+      case 'magic': {
+        const tw = (f.t >> 1) % 3;
+        ctx.fillStyle = tw === 0 ? '#f0d8ff' : tw === 1 ? '#c080ff' : '#8a40e8';
+        ctx.fillRect(x, y, 1, 1);
+        if (k < 0.5 && tw === 0) { ctx.fillRect(x - 1, y, 3, 1); ctx.fillRect(x, y - 1, 1, 3); }
+        if (k < 0.3) glows.push(['#a050ff', x, y, 6]);
         break;
       }
       case 'drop': ctx.fillStyle = DROP_COL[f.c] || '#9ad0e0'; ctx.fillRect(x, y, 1, k < 0.6 ? 2 : 1); break;
@@ -406,6 +482,9 @@ function drawWater(ctx, g, cx, cy, t) {
 function hexA(h, a) { const [r, gg, b] = hex(h); return `rgba(${r},${gg},${b},${a})`; }
 
 function fallbackBack(ctx, theme, cx, cy) {
+  const pre = theme.split('_')[0];
+  const HC = { hallo: ['#1a0e24', '#e07a3a'], july: ['#0e1430', '#4a3a6a'], pat: ['#7ac8f0', '#d8f0d0'], easter: ['#b8e0ff', '#fff0f8'], val: ['#5a2a5a', '#ffa0a0'], thanks: ['#3a2a4a', '#ffb060'], xmas: ['#0a1430', '#3a5a8a'] }[pre];
+  if (HC) { const gr = ctx.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, HC[0]); gr.addColorStop(1, HC[1]); ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H); return; }
   const top = { wood: '#3a2448', bog: '#1e3a34', mine: '#1a1418', belfry: '#141a3a', village: '#141a30', keep: '#1a1624', bonus: '#2a1050' }[theme] || '#222';
   const bot = { wood: '#e08a4a', bog: '#6a8a5a', mine: '#3a2420', belfry: '#4a5a8a', village: '#3a3a5a', keep: '#3a3048', bonus: '#6a3ac0' }[theme] || '#444';
   const gr = ctx.createLinearGradient(0, 0, 0, H);
@@ -474,9 +553,10 @@ const GRADE = {
   village: ['#141a36', '#ffd49a'], keep: ['#160f1c', '#ffb878'], bonus: ['#240c48', '#e8b8ff'],
 };
 const gradeCache = {};
+const GRADE_PRE = { hallo: ['#2a1030', '#ffa060'], july: ['#14183a', '#ffd0a0'], pat: ['#1a3020', '#fff0c0'], easter: ['#4a3a5a', '#fff4e0'], val: ['#3a1030', '#ffc0c8'], thanks: ['#2a1810', '#ffc070'], xmas: ['#101a3a', '#d0e0ff'] };
 function gradeLayers(theme) {
   if (gradeCache[theme]) return gradeCache[theme];
-  const [shadow, lightC] = GRADE[theme] || GRADE.wood;
+  const [shadow, lightC] = GRADE[theme] || GRADE_PRE[theme.split('_')[0]] || GRADE.wood;
   const vig = document.createElement('canvas'); vig.width = W; vig.height = H;
   let x = vig.getContext('2d');
   const rg = x.createRadialGradient(W / 2, H * 0.45, H * 0.35, W / 2, H * 0.5, W * 0.62);
@@ -502,7 +582,8 @@ function foregroundStrip(theme) {
   if (fgCache[theme] !== undefined) return fgCache[theme];
   const c = document.createElement('canvas'); c.width = FG_W; c.height = 70;
   const x = c.getContext('2d');
-  const dark = { wood: '#120814', bog: '#06120e', mine: '#0c0606', belfry: '#080a18', village: '#0a0c1c', keep: '#0a070e', bonus: '#120628' }[theme] || '#0a0a0a';
+  const pre = theme.split('_')[0];
+  const dark = { hallo_out: '#0e0610', july_out: '#060a12', pat_out: '#061008', easter_out: '#1a1020', val_out: '#14060e', thanks_out: '#140a06', xmas_out: '#060a16', wood: '#120814', bog: '#06120e', mine: '#0c0606', belfry: '#080a18', village: '#0a0c1c', keep: '#0a070e', bonus: '#120628' }[theme] || '#0a0a0a';
   const rim = { wood: '#5a2a3a', bog: '#2a4a3a', mine: '#5a2010', belfry: '#2a3a6a', village: '#3a4a7a', keep: '#3a2a3a', bonus: '#5a3a9a' }[theme] || '#333';
   let s = theme.length * 977;
   const rnd = () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296);
@@ -510,7 +591,8 @@ function foregroundStrip(theme) {
   for (let i = 0; i < 7; i++) {
     const bx = 40 + i * (FG_W / 7) + rnd() * 60, kind = rnd();
     x.beginPath();
-    if (theme === 'wood' || theme === 'bog' || theme === 'bonus') {
+    const outdoor = /_out$/.test(theme);
+    if (theme === 'wood' || theme === 'bog' || theme === 'bonus' || outdoor) {
       // fern / reed clump: fronds fanning up from the bottom
       const n = 5 + Math.floor(rnd() * 4);
       for (let k = 0; k < n; k++) {

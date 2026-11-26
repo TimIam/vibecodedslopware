@@ -53,7 +53,10 @@ export function parseLevel(def) {
   // order spawns in play order so per-instance option lists (cannons, movers, bonus) line up
   if (def.order === 'y') spawns.sort((a, b) => b.r - a.r || a.c - b.c);
   else spawns.sort((a, b) => a.c - b.c || a.r - b.r);
-  return { cols, rows: nr, t, chars, spawns, wpx: cols * T, hpx: nr * T };
+  const m = { cols, rows: nr, t, chars, spawns, wpx: cols * T, hpx: nr * T };
+  let sd = 7; for (const ch of String(def.id || def.name || 'x')) sd = (sd * 31 + ch.charCodeAt(0)) % 9973;
+  buildTerrain(m, sd, def.rolling ?? 1);
+  return m;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -98,6 +101,10 @@ export function createWorld(def, run, opts = {}) {
         if (!g.letters[i]) add(g, { type: 'letter', i, x: x + 2, y: y + 1, w: 12, h: 14, by: y + 1 });
         break;
       }
+      case 'Z': add(g, { type: 'block', x: x - 5, y: y - 4, w: 26, h: 20, world: def.world || 'hallo' }); break;
+      case 'L': add(g, { type: 'beam', x: x - 22, y: y + 2, w: 60, h: 12, world: def.world || 'hallo' }); break;
+      case 'Q': add(g, { type: 'bell', x: x - 2, y: y, w: 20, h: 24, rung: 0 }); break;
+      case 'V': add(g, { type: 'gate', x: x, y: y - 2 * T, w: 16, h: 3 * T, open: 0 }); break;
       case 'B': add(g, { type: 'rack', x: x + 1, y: y - 8, w: 14, h: 24 }); break;
       case '@': add(g, { type: 'cat', x: x + 1, y: y + 1, w: 14, h: 14, by: y + 1 }); break;
       case 'p': add(g, { type: 'page', x: x + 2, y: y + 1, w: 12, h: 14, by: y + 1, hidden: !!g.bonus && g.bonus.kind !== 'reach' }); break;
@@ -112,10 +119,11 @@ export function createWorld(def, run, opts = {}) {
         const isB = ch === '?';
         const o = (isB ? def.bonus : def.cannons)?.[isB ? ord.bonus++ : ord.cannon++] || {};
         add(g, {
-          type: 'cannon', x: x - 2, y: y - 2, w: 20, h: 20, x0: x - 2, y0: y - 2,
+          type: 'cannon', x: x - 12, y: y - 12, w: 40, h: 40, x0: x - 12, y0: y - 12,
+          mount: o.mount || (o.move ? 'magic' : 'post'), magic: !!(o.move || o.spin || o.sweep || o.step || o.mount === 'magic'),
           ang: ((o.dir ?? (isB ? -90 : 0)) * Math.PI) / 180, auto: !!o.auto, spin: o.spin || 0,
           sweep: o.sweep || null, move: o.move || null, room: isB ? (o.room ?? 0) : null, cool: 0, kick: 0,
-          step: o.step || 0, delay: o.delay ?? 14,
+          step: o.step || 0, delay: o.delay ?? 14, aim: o.aim ? [o.aim[0] * T + 8, o.aim[1] * T + 8] : null,
         });
         break;
       }
@@ -129,10 +137,14 @@ export function createWorld(def, run, opts = {}) {
         } else add(g, { type: 'plat', kind: 'faller', x, y, x0: x, y0: y, w: n * T, h: 8, dx: 0, dy: 0, plat: true, fall: 0, vy: 0 });
         break;
       }
-      case 'X': g.boss = add(g, makeBoss(x, y)); break;
+      case 'X': g.boss = add(g, makeBoss(x, y, def.boss || 'engine')); break;
       case 'D': add(g, { type: 'dropper', x, y, w: 16, h: 16 }); break;
       default: break;
     }
+  }
+  for (const e of g.ents) if (e.type === 'check' || e.type === 'goal' || e.type === 'shroom' || e.type === 'rack') {
+    const gy = groundY(g, e.x + e.w / 2, e.y + e.h - 4, e.y + e.h + 12, true, 8);
+    if (gy < Infinity) e.y = gy - e.h + (e.type === 'check' ? 0 : 0);
   }
   if (!start) start = { x: 40, y: map.hpx - 3 * T };
   const sp = opts.checkpoint || start;
@@ -185,66 +197,143 @@ export function tileAt(g, c, r) {
 }
 function setTile(g, c, r, v) { const m = g.map; if (c >= 0 && r >= 0 && c < m.cols && r < m.rows) { m.t[r * m.cols + c] = v; g.tilesDirty = true; } }
 
+// --- rolling terrain ---------------------------------------------------------------------------------------------
+// Ground that is connected to the bottom of the level is "terrain": instead of square tiles it has a continuous
+// surface height H[x] per pixel column. One-tile steps become ramps, and the surface rolls gently (it only ever
+// dips below a tile top, never rises above it, except on ramps). Everything else (floating blocks, ceilings,
+// cracked walls, ledges, rails) stays tile-based.
+const STEP_UP = 7, SNAP_DOWN = 8, RAMP = 13, ROLL = 6;
+export function buildTerrain(m, seed = 1, rolling = 1) {
+  const { cols, rows } = m;
+  const terr = new Uint8Array(cols * rows), surf = new Int16Array(cols).fill(-1);
+  for (let c = 0; c < cols; c++) {
+    let r = rows - 1;
+    if (m.t[r * cols + c] !== SOLID) continue;
+    while (r >= 0 && m.t[r * cols + c] === SOLID) { terr[r * cols + c] = 1; r--; }
+    surf[c] = r + 1;
+  }
+  const W = m.wpx, H = new Float32Array(W).fill(Infinity);
+  const s1 = (seed * 13.37) % 6.28, s2 = (seed * 7.11) % 6.28, s3 = (seed * 3.3) % 6.28;
+  for (let x = 0; x < W; x++) {
+    const c = (x / T) | 0;
+    if (surf[c] < 0) continue;
+    let top = surf[c] * T;
+    const lx = x - c * T;
+    // ramps across one-row steps
+    if (lx < RAMP && c > 0 && surf[c - 1] >= 0 && Math.abs(surf[c - 1] - surf[c]) === 1) {
+      const k = 0.5 + lx / (2 * RAMP), s = k * k * (3 - 2 * k);
+      top = surf[c - 1] * T + (surf[c] * T - surf[c - 1] * T) * s;
+    } else if (lx >= T - RAMP && c + 1 < cols && surf[c + 1] >= 0 && Math.abs(surf[c + 1] - surf[c]) === 1) {
+      const k = (lx - (T - RAMP)) / (2 * RAMP), s = k * k * (3 - 2 * k);
+      top = surf[c] * T + (surf[c + 1] * T - surf[c] * T) * s;
+    }
+    // gentle roll, tapering to the true tile top near drops so jump distances stay as designed
+    let edge = 99;
+    for (let d = 1; d <= 10; d++) {
+      const a = ((x - d * 1) / T) | 0, b = ((x + d) / T) | 0;
+      if ((x - d >= 0 && (surf[a] < 0 || surf[a] > surf[c] + 1)) || (x + d < W && (surf[b] < 0 || surf[b] > surf[c] + 1))) { edge = d; break; }
+    }
+    const roll = (Math.sin(x / 41 + s1) * 0.5 + 0.5) * 0.55 + (Math.sin(x / 17 + s2) * 0.5 + 0.5) * 0.3 + (Math.sin(x / 7.3 + s3) * 0.5 + 0.5) * 0.15;
+    H[x] = top + roll * ROLL * rolling * Math.min(1, edge / 10);
+  }
+  m.terr = terr; m.surf = surf; m.H = H;
+}
+
+export function solidPx(g, px, py) {
+  const m = g.map;
+  if (px < 0 || px >= m.wpx) return py < m.hpx;
+  if (py >= m.H[px | 0]) return true;
+  const c = (px / T) | 0, r = Math.floor(py / T);
+  if (r < 0 || r >= m.rows) return false;
+  const i = r * m.cols + c;
+  if (m.terr[i]) return false;
+  const t = m.t[i];
+  return t === SOLID || t === BREAK;
+}
+// highest surface (terrain, solid tile top, ledge or rail) at column px between fromY (minus a step) and toY
+export function groundY(g, px, fromY, toY, allowTop = true, stepUp = 0.5) {
+  const m = g.map;
+  if (px < 0 || px >= m.wpx) return Infinity;
+  let best = Infinity;
+  const h = m.H[px | 0];
+  if (h >= fromY - stepUp && h <= toY) best = h;
+  const c = (px / T) | 0;
+  for (let r = Math.max(0, Math.floor((fromY - stepUp) / T)); r <= Math.min(m.rows - 1, Math.floor(toY / T)); r++) {
+    const top = r * T;
+    if (top >= best || top < fromY - stepUp || top > toY) continue;
+    const i = r * m.cols + c;
+    if (m.terr[i]) continue;
+    const t = m.t[i];
+    if (t === SOLID || t === BREAK) { if (!solidPx(g, px, top - 1)) best = top; }
+    else if ((t === ONEWAY || t === RAIL) && allowTop && fromY <= top + 0.5 + (stepUp > 1 ? 4 : 0)) best = top;
+  }
+  return best;
+}
+function hitsColumn(g, ex, y0, y1) {
+  for (let py = y0; py < y1; py += 5) if (solidPx(g, ex, py)) return py;
+  return solidPx(g, ex, y1) ? y1 : null;
+}
+
 function moveBody(g, b, opts = {}) {
   b.hitWall = 0; b.hitCeil = false; b.wallTile = null;
   const wasGround = b.onGround;
   b.onGround = false;
   const prevBottom = b.y + b.h;
-  if (b.vx > 14) b.vx = 14; else if (b.vx < -14) b.vx = -14; // never skip a tile
-  // X
+  if (b.vx > 14) b.vx = 14; else if (b.vx < -14) b.vx = -14;
+  // X: sample the leading edge from head to just above the feet (feet may climb gentle slopes)
   if (b.vx) {
     let nx = b.x + b.vx;
-    const r0 = Math.floor(b.y / T), r1 = Math.floor((b.y + b.h - 0.01) / T);
-    if (b.vx > 0) {
-      const c = Math.floor((nx + b.w - 0.01) / T);
-      for (let r = r0; r <= r1; r++) if (isSolid(tileAt(g, c, r))) { nx = c * T - b.w; b.hitWall = 1; b.wallTile = [c, r]; break; }
-    } else {
-      const c = Math.floor(nx / T);
-      for (let r = r0; r <= r1; r++) if (isSolid(tileAt(g, c, r))) { nx = (c + 1) * T; b.hitWall = -1; b.wallTile = [c, r]; break; }
+    const dir = Math.sign(b.vx);
+    const edge = (x) => (dir > 0 ? x + b.w - 0.01 : x);
+    const y0 = b.y + 1, y1 = b.y + b.h - (wasGround ? STEP_UP + 1 : 2);
+    let hy = hitsColumn(g, edge(nx), y0, y1);
+    if (hy !== null) {
+      const wt = [Math.floor(edge(nx) / T), Math.floor(hy / T)];
+      let k = 0;
+      while (k < 18 && hitsColumn(g, edge(nx), y0, y1) !== null) { nx -= dir; k++; }
+      if (k >= 18) nx = b.x;
+      b.hitWall = dir; b.wallTile = wt;
     }
     b.x = nx;
   }
   // Y
-  let ny = b.y + b.vy;
-  const c0 = Math.floor(b.x / T), c1 = Math.floor((b.x + b.w - 0.01) / T);
   b.ride = null;
   if (b.vy >= 0) {
-    const r = Math.floor((ny + b.h - 0.001) / T);
-    const top = r * T;
-    for (let c = c0; c <= c1; c++) {
-      const tt = tileAt(g, c, r);
-      if (isSolid(tt) || (isTop(tt) && !opts.noTop && prevBottom <= top + 0.5 + (wasGround ? 4 : 0))) {
-        ny = top - b.h; b.vy = 0; b.onGround = true; break;
-      }
-    }
+    const newB = prevBottom + b.vy, lookTo = newB + (wasGround ? SNAP_DOWN : 0);
+    const step = wasGround ? STEP_UP : 0.5;
+    let gy = Infinity;
+    for (const fx of [b.x + 2, b.x + b.w / 2, b.x + b.w - 2]) gy = Math.min(gy, groundY(g, fx, prevBottom, lookTo, !opts.noTop, step));
     if (!opts.noPlat) {
       for (const e of g.ents) {
         if (!e.plat || e === b || e.state === 'held' || e.dead) continue;
         if (b.x + b.w <= e.x + 1 || b.x >= e.x + e.w - 1) continue;
         const pt = e.y;
-        if (prevBottom <= pt + 0.5 + Math.max(0, e.dy || 0) + (wasGround && b.rideId === e.id ? 4 : 0) && ny + b.h >= pt) {
-          ny = pt - b.h; b.vy = 0; b.onGround = true; b.ride = e; break;
-        }
+        if (prevBottom <= pt + 0.5 + Math.max(0, e.dy || 0) + (wasGround && b.rideId === e.id ? 4 : 0) && newB >= pt && pt < gy) { gy = pt; b.ride = e; }
       }
     }
+    if (gy <= lookTo && (gy <= newB || b.vy < 2)) { b.y = gy - b.h; b.vy = 0; b.onGround = true; }
+    else { b.y += b.vy; b.ride = null; }
   } else {
-    const r = Math.floor(ny / T);
-    for (let c = c0; c <= c1; c++) if (isSolid(tileAt(g, c, r))) { ny = (r + 1) * T; b.vy = 0; b.hitCeil = true; break; }
+    const ny = b.y + b.vy;
+    let hit = false;
+    for (const fx of [b.x + 1, b.x + b.w / 2, b.x + b.w - 1]) if (solidPx(g, fx, ny)) hit = true;
+    if (hit) {
+      let y = ny, k = 0;
+      while (k < 18 && [b.x + 1, b.x + b.w / 2, b.x + b.w - 1].some((fx) => solidPx(g, fx, y))) { y += 1; k++; }
+      b.y = Math.min(b.y, y); b.vy = 0; b.hitCeil = true;
+    } else b.y = ny;
   }
-  b.y = ny;
   b.rideId = b.ride ? b.ride.id : 0;
 }
 
 function overlap(a, b, m = 0) { return a.x + m < b.x + b.w && a.x + a.w - m > b.x && a.y + m < b.y + b.h && a.y + a.h - m > b.y; }
 function boxFree(g, x, y, w, h) {
-  const c0 = Math.floor(x / T), c1 = Math.floor((x + w - 0.01) / T), r0 = Math.floor(y / T), r1 = Math.floor((y + h - 0.01) / T);
-  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) if (isSolid(tileAt(g, c, r))) return false;
+  for (let py = y + 1; py < y + h - 1; py += 5) for (const px of [x + 1, x + w / 2, x + w - 1]) if (solidPx(g, px, py)) return false;
   return true;
 }
 function groundAhead(g, b, dir) {
-  const fx = dir > 0 ? b.x + b.w + 1 : b.x - 1;
-  const t = tileAt(g, Math.floor(fx / T), Math.floor((b.y + b.h + 2) / T));
-  return isSolid(t) || isTop(t);
+  const fx = dir > 0 ? b.x + b.w + 1 : b.x - 1, by = b.y + b.h;
+  return groundY(g, fx, by - 1, by + 12, true, STEP_UP) < Infinity;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -297,6 +386,8 @@ export function step(g, input) {
       case 'shot': updateShot(g, e); break;
       case 'shroom': if (e.sq > 0) e.sq--; break;
       case 'rack': if (e.wait && !overlap(g.p, e)) e.wait = false; break;
+      case 'gate': if (e.open && e.open < 30) e.open += e.late ? 0.5 : 1; break;
+      case 'bell': if (e.rung) e.rung++; break;
       case 'boss': updateBoss(g, e); break;
       case 'partnerPop': updatePop(g, e); break;
       default: break;
@@ -620,7 +711,7 @@ function enterCannon(g, c, silent) {
   p.state = 'cannon'; p.cannon = c; p.vx = 0; p.vy = 0; p.stateT = 0;
   p.x = c.x + c.w / 2 - p.w / 2; p.y = c.y + c.h / 2 - p.h / 2;
   c.fireT = c.auto ? c.delay : -1; c.kick = 8;
-  if (!silent) sfx(g, 'blastEnter');
+  if (!silent) { sfx(g, 'blastEnter'); sfx(g, 'splash'); fx(g, 'splash', c.x + c.w / 2, c.y + c.h / 2 + 6, { life: 32 }); burst(g, 'goo', c.x + c.w / 2, c.y + 8, 10, 2.2, { up: 1.5, g: 0.2, life: 30 }); }
   if (c.room !== null) c.warpT = 24;
 }
 function updateCannon(g, c, press) {
@@ -633,6 +724,7 @@ function updateCannon(g, c, press) {
     c.x = c.x0 + (c.move.dx || 0) * T * k; c.y = c.y0 + (c.move.dy || 0) * T * k;
   }
   if (c.spin) c.ang += (c.spin * Math.PI) / 180 / 60;
+  if (c.aim) c.ang = Math.atan2(c.aim[1] - (c.y + c.h / 2), c.aim[0] - (c.x + c.w / 2)); // magic keeps it swivelled on its target
   if (c.sweep) {
     const [a0, a1, sec] = c.sweep;
     const k = (1 - Math.cos((g.frame / (sec * 60)) * Math.PI * 2)) / 2;
@@ -656,10 +748,13 @@ function fire(g, c) {
   const v = 7.2;
   p.vx = Math.cos(c.ang) * v; p.vy = Math.sin(c.ang) * v;
   p.face = Math.cos(c.ang) < -0.1 ? -1 : Math.cos(c.ang) > 0.1 ? 1 : p.face;
-  p.x = c.x + c.w / 2 - p.w / 2 + Math.cos(c.ang) * 10; p.y = c.y + c.h / 2 - p.h / 2 + Math.sin(c.ang) * 10;
+  p.x = c.x + c.w / 2 - p.w / 2 + Math.cos(c.ang) * 18; p.y = c.y + c.h / 2 - p.h / 2 + Math.sin(c.ang) * 18;
   c.cool = 24; c.kick = 10; p.cannon = null; p.jumping = false; p.floatT = 0;
   sfx(g, 'blastFire'); g.shake = 4;
-  burst(g, 'smoke', c.x + c.w / 2 + Math.cos(c.ang) * 12, c.y + c.h / 2 + Math.sin(c.ang) * 12, 8, 1.2, { life: 26 });
+  burst(g, 'smoke', c.x + c.w / 2 + Math.cos(c.ang) * 20, c.y + c.h / 2 + Math.sin(c.ang) * 20, 8, 1.2, { life: 26 });
+  fx(g, 'splash', c.x + c.w / 2 + Math.cos(c.ang) * 18, c.y + c.h / 2 + Math.sin(c.ang) * 18 + 10, { life: 32 });
+  burst(g, 'goo', c.x + c.w / 2 + Math.cos(c.ang) * 18, c.y + c.h / 2 + Math.sin(c.ang) * 18, 12, 2.6, { g: 0.2, life: 30 });
+  sfx(g, 'splash');
 }
 export function fireCannonExternally(g, c) { fire(g, c); }
 function updateBlast(g, p) {
@@ -672,7 +767,8 @@ function updateBlast(g, p) {
   if (p.onGround && vy0 >= -0.1 && Math.abs(vy0) < 0.5) { p.vy = vy0; p.onGround = false; }
   p.stateT++;
   // captured by another cannon
-  for (const e of g.ents) if (e.type === 'cannon' && e.cool <= 0 && overlap(p, e, 4)) { enterCannon(g, e); return; }
+  for (const e of g.ents) if (e.type === 'cannon' && e.cool <= 0 && overlap(p, e, 3)) { enterCannon(g, e); return; }
+  for (const e of g.ents) if (e.type === 'boss' && overlap(p, e, 2)) { touchBoss(g, e); if (p.state !== 'blast') return; }
   if (hit || p.blastT <= 0) {
     p.state = 'normal';
     if (!hit) { p.vx = vx0 * 0.55; p.vy = vy0 * 0.45; } else if (p.hitWall) p.vx = 0;
@@ -802,6 +898,19 @@ function updateShot(g, s) {
       burst(g, 'drop', s.x + 12, s.y + 4, 10, 2, { up: 1.5, g: 0.15, life: 24, c: 'holy' });
     }
     if (s.y > g.map.hpx + 20) s.dead = true;
+  } else if (s.kind === 'lob') {
+    if (s.landed) { if (s.life <= 0) s.dead = true; return; }
+    s.vy += 0.2; s.x += s.vx; s.y += s.vy; s.spin = (s.spin || 0) + 0.3;
+    if (solidPx(g, s.x + 4, s.y + 8)) {
+      s.landed = true; s.life = s.art === 'gravy' ? 70 : 1; s.y = groundY(g, s.x + 4, s.y - 8, s.y + 16, true, 8) - 6; s.h = 6; s.x -= 8; s.w = 24;
+      sfx(g, s.art === 'rocket' ? 'explosion' : 'cauldronBreak');
+      if (s.art === 'rocket') { burst(g, 'fire', s.x + 12, s.y, 14, 2.2, { life: 22 }); s.life = 18; s.y -= 14; s.h = 20; }
+      else burst(g, 'drop', s.x + 12, s.y + 4, 8, 2, { up: 1.5, g: 0.15, life: 24, c: s.art === 'gravy' ? 'gravy' : 'brew' });
+    }
+    if (s.y > g.map.hpx + 20) s.dead = true;
+  } else if (s.kind === 'arrow') {
+    s.x += s.vx; s.y += s.vy;
+    if (solidPx(g, s.x + 4, s.y + 3) || s.life <= 0 || s.x < -20 || s.x > g.map.wpx + 20) { s.dead = true; burst(g, 'star', s.x + 4, s.y + 3, 4, 1, { life: 10 }); }
   } else if (s.kind === 'boom') {
     if (s.life <= 0) s.dead = true;
   }
@@ -950,6 +1059,29 @@ function interact(g, press) {
         burst(g, 'star', e.x + 6, e.y + 7, 10, 1.6, { life: 22 });
         if (g.letters.every(Boolean)) { g.run.lives++; sfx(g, 'letterComplete'); g.hud.lives = 160; fx(g, 'text', e.x + 6, e.y - 4, { txt: 'B-R-E-W! 1UP', life: 90, vy: -0.4 }); }
         break;
+      case 'block':
+        if (p.vy > 0.3 && p.prevBottom <= e.y + 6) { p.vy = g.inp.jump ? -6.4 : -4.6; p.jumping = true; sfx(g, 'stomp'); burst(g, 'shard', e.x + 13, e.y + 6, 8, 2.4, { g: 0.25, life: 40, kind: 'clay' }); e.dead = true; break; }
+        e.dead = true; sfx(g, 'cauldronBreak'); g.shake = 10;
+        burst(g, 'shard', e.x + 13, e.y + 10, 10, 2.8, { g: 0.25, life: 40, kind: 'clay' });
+        if (p.state === 'cart') p.cartSpd *= 0.35;
+        hurt(g, 'crash', e);
+        break;
+      case 'beam': hurt(g, 'beam', e); if (p.state === 'cart' && p.vy < 0) p.vy = 1; break;
+      case 'bell':
+        if (!e.rung) {
+          e.rung = 1; sfx(g, 'bell'); burst(g, 'star', e.x + 10, e.y + 12, 10, 1.6, { life: 22 });
+          for (const o of g.ents) if (o.type === 'gate' && o.x > e.x && o.x < e.x + 50 * T) o.open = 1;
+          g.ev.push({ k: 'bell' });
+        }
+        break;
+      case 'gate':
+        if (!e.open) {
+          // slam into a shut gate: the cauldron stops dead and you take the hit; then it grudgingly lifts
+          if (p.state === 'cart') { p.cartSpd = -1.2; p.x = e.x - p.w - 1; }
+          else { p.vx = -2; p.x = e.x - p.w - 1; }
+          sfx(g, 'ironClang'); g.shake = 12; hurt(g, 'gate', e); e.open = 1; e.late = 1;
+        }
+        break;
       case 'rack':
         if (!e.wait && !p.mount && !p.carry && (p.state === 'normal' || p.state === 'roll')) mountBroom(g, e);
         break;
@@ -997,7 +1129,7 @@ function interact(g, press) {
         break;
       case 'enemy': touchEnemy(g, e); break;
       case 'shot':
-        if (e.kind === 'torch' || e.kind === 'flask') hurt(g, 'shot');
+        if (e.kind === 'torch' || e.kind === 'flask' || e.kind === 'arrow' || (e.kind === 'lob' && (!e.landed || e.art === 'gravy' || e.art === 'rocket'))) hurt(g, 'shot', e);
         break;
       case 'boss': touchBoss(g, e); break;
       default: break;
@@ -1072,88 +1204,170 @@ function revealPage(g) {
 }
 
 // boss ----------------------------------------------------------------------------------------------------------
-function makeBoss(x, y) {
-  return { type: 'boss', x: x - 16, y: y - 20, w: 46, h: 36, vx: 0, vy: 0, hp: 6, maxHp: 6, dir: -1, mode: 'intro', modeT: 0, inv: 0, atk: 0, arm: 0, dying: false, onGround: false, plat: true, dx: 0, dy: 0 };
+// One controller drives every boss from a small table: how fast, how tough, which moves, what it throws. Every boss
+// is hurt by thrown cauldrons (its slams knock fresh ones loose from the droppers); Cupidity flies, so the arena
+// gives you blast cauldrons and a blast into her counts as a hit.
+export const BOSSES = {
+  engine: { name: 'The Ducking Engine', hp: 6, w: 46, h: 36, spd: 0.8, moves: ['roll', 'arm', 'flask', 'slam'], shot: 'flask' },
+  gourd: { name: 'The Gourdfather', hp: 5, w: 40, h: 64, spd: 0.75, moves: ['roll', 'spit', 'slam'], shot: 'seed' },
+  kaboom: { name: 'Colonel Kaboom', hp: 5, w: 44, h: 58, spd: 0.7, moves: ['roll', 'rockets', 'slam'], shot: 'rocket' },
+  goldgrip: { name: 'Seamus Goldgrip', hp: 5, w: 46, h: 56, spd: 0.8, moves: ['hop', 'coins', 'slam'], shot: 'coin' },
+  egg: { name: 'The Eggsecutioner', hp: 5, w: 42, h: 60, spd: 0.85, moves: ['hop', 'smash', 'eggs', 'slam'], shot: 'egg' },
+  cupid: { name: 'Cupidity', hp: 5, w: 40, h: 40, spd: 1.0, fly: true, moves: ['swoop', 'arrows'], shot: 'arrow', blastHits: true },
+  gobble: { name: 'Gobblezilla', hp: 6, w: 50, h: 62, spd: 0.9, moves: ['roll', 'gravy', 'hop', 'slam'], shot: 'gravy' },
+  sleigh: { name: "The Witchfinder's Naughty Sleigh", hp: 7, w: 56, h: 44, spd: 0.9, moves: ['roll', 'flask', 'hop', 'slam'], shot: 'flask' },
+};
+function makeBoss(x, y, kind = 'engine') {
+  const B = BOSSES[kind] || BOSSES.engine;
+  return { type: 'boss', kind, B, x: x + 8 - B.w / 2, y: y + T - B.h, w: B.w, h: B.h, vx: 0, vy: 0, hp: B.hp, maxHp: B.hp, dir: -1, mode: 'intro', modeT: 0, inv: 0, atk: 0, arm: 0, dying: false, onGround: false, plat: !B.fly, dx: 0, dy: 0, homeY: y + T - B.h };
 }
 function updateBoss(g, b) {
   const ox = b.x, oy = b.y;
   bossThink(g, b);
   b.dx = b.x - ox; b.dy = b.y - oy;
 }
+function bossShot(g, b, tx, kind, vy0 = -6) {
+  const sx = b.x + b.w / 2, sy = b.y + 6;
+  const dx = tx - sx;
+  if (kind === 'arrow') {
+    const ty = g.p.y + g.p.h / 2, d = Math.hypot(dx, ty - sy) || 1;
+    add(g, { type: 'shot', kind: 'arrow', x: sx - 4, y: sy, w: 8, h: 6, vx: (dx / d) * 3.2, vy: ((ty - sy) / d) * 3.2, life: 240, straight: true });
+  } else add(g, { type: 'shot', kind: kind === 'flask' ? 'flask' : 'lob', art: kind, x: sx - 4, y: sy - 6, w: 8, h: 8, vx: dx / 60, vy: vy0, life: 300 });
+  sfx(g, kind === 'rocket' ? 'torch' : 'throw');
+}
+function dropPot(g, b) {
+  const drops = g.ents.filter((e) => e.type === 'dropper');
+  const pots = g.ents.filter((e) => e.type === 'pot' && !e.dead).length;
+  if (!drops.length || pots >= 2) return;
+  const far = drops.slice().sort((a, c) => Math.abs(c.x - b.x) - Math.abs(a.x - b.x));
+  const d = far[(b.atk + g.frame) % Math.min(2, far.length)];
+  const mercy = !g.partner && !g.ents.some((e) => e.type === 'pot' && e.kind === 'partner') && b.atk % 2 === 1;
+  const pot = addPot(g, mercy ? 'partner' : b.atk % 3 === 2 ? 'brew' : 'clay', d.x, d.y);
+  pot.state = 'thrown'; pot.dropped = true; pot.vx = 0; pot.vy = 0;
+}
 function bossThink(g, b) {
   b.modeT++;
   if (b.inv > 0) b.inv--;
-  const p = g.p;
-  const spd = 0.8 + (b.maxHp - b.hp) * 0.18;
-  const phase2 = b.hp <= 3;
-  b.vy += 0.4;
+  const p = g.p, B = b.B;
+  const hurtK = (b.maxHp - b.hp) / b.maxHp;
+  const spd = B.spd * (1 + hurtK * 0.9);
+  const phase2 = b.hp <= Math.ceil(b.maxHp / 2);
+  const px = p.x + p.w / 2, bx = b.x + b.w / 2;
+  if (B.fly) b.vy = 0; else { b.vy += 0.4; if (b.vy > 7) b.vy = 7; }
   if (b.dying) {
-    b.vx = 0; moveBody(g, b);
+    b.vx = 0; if (B.fly) b.y += 1.5; else moveBody(g, b, { noPlat: true });
     if (b.modeT % 6 === 0) { burst(g, 'fire', b.x + rnd(g) * b.w, b.y + rnd(g) * b.h, 5, 1.6, { life: 20 }); sfx(g, 'explosion'); g.shake = 6; }
-    if (b.modeT === 150) { sfx(g, 'bossDie'); burst(g, 'smoke', b.x + 24, b.y + 20, 24, 2, { life: 50 }); fx(g, 'flee', b.x + 24, b.y + 10, { kind: 'finder', face: 1, vx: 2.4, vy: -5, g: 0.2, life: 160 }); }
+    if (b.modeT === 150) { sfx(g, 'bossDie'); burst(g, 'smoke', bx, b.y + 20, 24, 2, { life: 50 }); }
     if (b.modeT === 200) {
       b.dead = true;
-      add(g, { type: 'goal', x: Math.min(g.map.wpx - 64, Math.max(32, b.x + 8)), y: b.y + b.h - 26, w: 32, h: 26, hoard: true });
+      const gy = groundY(g, bx, b.y + b.h - 4, g.map.hpx, false, 8);
+      add(g, { type: 'goal', x: Math.min(g.map.wpx - 64, Math.max(32, bx - 16)), y: (gy < Infinity ? gy : g.map.hpx - 2 * T) - 26, w: 32, h: 26, hoard: true });
     }
     return;
   }
-  if (b.mode === 'intro') { b.vx = 0; moveBody(g, b); if (b.modeT > 90) setMode(b, 'roll'); return; }
-  if (b.mode === 'roll') {
-    b.vx = b.dir * spd;
-    moveBody(g, b);
-    if (b.hitWall) { b.dir = -b.dir; g.shake = 5; sfx(g, 'ironClang'); b.turnT = 24; }
-    if (b.turnT > 0) { b.turnT--; b.vx = 0; }
-    if (b.modeT > (phase2 ? 100 : 130)) {
-      const pots = g.ents.filter((e) => e.type === 'pot' && !e.dead).length;
-      const near = Math.abs(p.x - b.x - b.w / 2) < 90;
-      setMode(b, pots === 0 ? 'slam' : near ? 'arm' : (b.atk++ % 2 ? 'flask' : 'slam'));
-    }
-  } else if (b.mode === 'arm') {
-    b.vx = 0; moveBody(g, b);
-    b.dir = p.x + p.w / 2 > b.x + b.w / 2 ? 1 : -1;
-    b.arm = b.modeT < 40 ? b.modeT / 40 : b.modeT < 56 ? 1 + (b.modeT - 40) / 16 : Math.max(0, 2 - (b.modeT - 56) / 20);
-    if (b.modeT === 46) sfx(g, 'throw');
-    if (b.modeT > 44 && b.modeT < 58) {
-      const ax = b.dir > 0 ? b.x + b.w : b.x - 44;
-      if (overlap(p, { x: ax, y: b.y + 8, w: 44, h: 26 })) hurt(g, 'boss');
-    }
-    if (b.modeT > (phase2 && !b.second ? 70 : 80)) { if (phase2 && !b.second) { b.second = true; setMode(b, 'arm'); } else { b.second = false; setMode(b, 'roll'); } }
-  } else if (b.mode === 'flask') {
-    b.vx = 0; moveBody(g, b);
-    const n = phase2 ? 5 : 3;
-    if (b.modeT % 18 === 0 && b.modeT / 18 <= n) {
-      const k = b.modeT / 18;
-      const tx = p.x + p.w / 2 + (k - (n + 1) / 2) * 40;
-      const dx = tx - (b.x + b.w / 2);
-      add(g, { type: 'shot', kind: 'flask', x: b.x + b.w / 2 - 4, y: b.y - 6, w: 8, h: 8, vx: dx / 60, vy: -6, life: 300 });
-      sfx(g, 'throw');
-    }
-    if (b.modeT > 18 * n + 40) setMode(b, 'roll');
-  } else if (b.mode === 'slam') {
-    b.vx = 0;
-    if (b.modeT === 20) b.vy = -5;
-    moveBody(g, b);
-    if (b.modeT > 22 && b.onGround && !b.slammed) {
-      b.slammed = true; g.shake = 16; sfx(g, 'bossHit');
-      burst(g, 'dust', b.x + b.w / 2, b.y + b.h, 14, 2, { life: 24 });
-      const drops = g.ents.filter((e) => e.type === 'dropper');
-      const pots = g.ents.filter((e) => e.type === 'pot' && !e.dead).length;
-      if (drops.length && pots < 2) {
-        const far = drops.slice().sort((a, c) => Math.abs(c.x - b.x) - Math.abs(a.x - b.x));
-        const d = far[(b.atk + g.frame) % Math.min(2, far.length)];
-        const mercy = !g.partner && !g.ents.some((e) => e.type === 'pot' && e.kind === 'partner') && b.atk % 2 === 1;
-        const pot = addPot(g, mercy ? 'partner' : b.atk % 3 === 2 ? 'brew' : 'clay', d.x, d.y);
-        pot.state = 'thrown'; pot.dropped = true; pot.vx = 0; pot.vy = 0;
+  const next = () => {
+    const pots = g.ents.filter((e) => e.type === 'pot' && !e.dead).length;
+    const opts = B.moves.filter((m) => m !== 'roll' && m !== 'swoop' && (m !== 'arm' || Math.abs(px - bx) < 100));
+    let m;
+    if (B.moves.includes('slam') && pots === 0) m = 'slam';
+    else if (B.fly) m = b.atk % 3 === 2 ? 'arrows' : 'swoop';
+    else m = opts[(b.atk + (phase2 ? 1 : 0)) % opts.length];
+    b.atk++;
+    setMode(b, m);
+  };
+  const ground = () => { if (B.fly) { b.y += (b.homeY - 40 + Math.sin(g.frame / 30) * 10 - b.y) * 0.05; b.x += b.vx; b.x = Math.max(16, Math.min(g.map.wpx - 16 - b.w, b.x)); } else moveBody(g, b, { noPlat: true }); };
+  switch (b.mode) {
+    case 'intro': b.vx = 0; ground(); if (b.modeT > 90) setMode(b, B.fly ? 'swoop' : B.moves[0] === 'hop' ? 'hop' : 'roll'); break;
+    case 'roll':
+      b.vx = b.dir * spd; ground();
+      if (b.hitWall) { b.dir = -b.dir; g.shake = 5; sfx(g, 'ironClang'); b.turnT = 24; }
+      if (b.turnT > 0) { b.turnT--; b.vx = 0; }
+      if (b.modeT > (phase2 ? 100 : 130)) next();
+      break;
+    case 'hop':
+      if (b.modeT === 1) { b.dir = px > bx ? 1 : -1; }
+      if (b.modeT === 16 && b.onGround) { b.vy = -7.5; b.vx = b.dir * Math.min(3.2, Math.abs(px - bx) / 38); sfx(g, 'jump'); }
+      if (b.modeT < 16) b.vx = 0;
+      ground();
+      if (b.hitWall) b.vx = 0;
+      if (b.modeT > 20 && b.onGround) {
+        b.vx = 0; g.shake = 10; sfx(g, 'stomp'); burst(g, 'dust', bx, b.y + b.h, 12, 2, { life: 22 });
+        if (p.onGround && p.ride !== b && Math.abs(px - bx) < 48) hurt(g, 'boss', b);
+        if (p.ride === b) { p.vy = -6; p.onGround = false; }
+        if (b.atk % 2 === 0 || !B.moves.includes('slam')) dropPot(g, b);
+        b.hops = (b.hops || 0) + 1;
+        if (b.hops >= (phase2 ? 3 : 2)) { b.hops = 0; next(); } else setMode(b, 'hop');
       }
-      // shockwave hurts if grounded and close
-      if (p.ride === b) { p.vy = -6; p.onGround = false; p.vx = (p.x + p.w / 2 < b.x + b.w / 2 ? -1 : 1) * 2.5; }
-      else if (p.onGround && Math.abs(p.x + p.w / 2 - b.x - b.w / 2) < 70) hurt(g, 'boss');
+      break;
+    case 'arm': {
+      b.vx = 0; ground();
+      b.dir = px > bx ? 1 : -1;
+      b.arm = b.modeT < 40 ? b.modeT / 40 : b.modeT < 56 ? 1 + (b.modeT - 40) / 16 : Math.max(0, 2 - (b.modeT - 56) / 20);
+      if (b.modeT === 46) sfx(g, 'throw');
+      if (b.modeT > 44 && b.modeT < 58) {
+        const ax = b.dir > 0 ? b.x + b.w : b.x - 44;
+        if (overlap(p, { x: ax, y: b.y + 8, w: 44, h: 26 })) hurt(g, 'boss', b);
+      }
+      if (b.modeT > 80) setMode(b, 'roll');
+      break;
     }
-    if (b.modeT > 70) { b.slammed = false; setMode(b, 'roll'); }
-  } else if (b.mode === 'hit') {
-    b.vx = -b.dir * 2.2 * Math.max(0, 1 - b.modeT / 30); moveBody(g, b);
-    if (b.modeT > 50) { b.dir = p.x > b.x ? 1 : -1; setMode(b, 'slam'); }
+    case 'spit': case 'rockets': case 'coins': case 'eggs': case 'gravy': case 'flask': case 'arrows': {
+      b.vx = 0; ground();
+      b.dir = px > bx ? 1 : -1;
+      const n = (phase2 ? 5 : 3) + (b.mode === 'coins' ? 2 : 0);
+      const gap = b.mode === 'arrows' ? 26 : 16;
+      if (b.modeT % gap === 0 && b.modeT / gap <= n) {
+        const k = b.modeT / gap;
+        const spread = b.mode === 'rockets' ? 54 : 40;
+        bossShot(g, b, px + (k - (n + 1) / 2) * spread, B.shot, b.mode === 'rockets' ? -7.5 : -6);
+      }
+      if (b.modeT > gap * n + 40) setMode(b, B.fly ? 'swoop' : B.moves.includes('hop') && !B.moves.includes('roll') ? 'hop' : 'roll');
+      break;
+    }
+    case 'smash': {
+      b.vx = 0; ground(); b.dir = px > bx ? 1 : -1;
+      if (b.modeT === 36) {
+        g.shake = 12; sfx(g, 'bossHit');
+        const ax = b.dir > 0 ? b.x + b.w : b.x - 40;
+        burst(g, 'dust', ax + 20, b.y + b.h, 10, 2, { life: 20 });
+        if (overlap(p, { x: ax, y: b.y, w: 40, h: b.h })) hurt(g, 'boss', b);
+      }
+      if (b.modeT > 70) setMode(b, 'hop');
+      break;
+    }
+    case 'swoop': {
+      // fly to the far side high up, then dive across at the witch's height and climb back
+      const k = b.modeT;
+      if (k === 1) { b.dir = px > bx ? 1 : -1; b.sy = b.y; }
+      const dive = Math.sin(Math.min(1, k / 110) * Math.PI);
+      b.x += b.dir * spd * 2.2;
+      b.y = b.homeY - 52 + dive * (Math.min(p.y, b.homeY) - (b.homeY - 52) - 6);
+      if (b.x < 16 || b.x > g.map.wpx - 16 - b.w) { b.x = Math.max(16, Math.min(g.map.wpx - 16 - b.w, b.x)); b.dir = -b.dir; }
+      if (k > 110) next();
+      break;
+    }
+    case 'slam': {
+      b.vx = 0;
+      if (B.fly) { setMode(b, 'swoop'); break; }
+      if (b.modeT === 20) b.vy = -5;
+      ground();
+      if (b.modeT > 22 && b.onGround && !b.slammed) {
+        b.slammed = true; g.shake = 16; sfx(g, 'bossHit');
+        burst(g, 'dust', bx, b.y + b.h, 14, 2, { life: 24 });
+        dropPot(g, b);
+        if (p.ride === b) { p.vy = -6; p.onGround = false; p.vx = (px < bx ? -1 : 1) * 2.5; }
+        else if (p.onGround && Math.abs(px - bx) < 56) hurt(g, 'boss', b);
+      }
+      if (b.modeT > 70) { b.slammed = false; next(); }
+      break;
+    }
+    case 'hit':
+      b.vx = -b.dir * 2.2 * Math.max(0, 1 - b.modeT / 30); ground();
+      if (b.modeT > 50) { b.dir = px > bx ? 1 : -1; setMode(b, B.moves.includes('slam') ? 'slam' : 'swoop'); }
+      break;
+    default: setMode(b, 'roll');
   }
+  if (B.fly && g.frame % 40 === 0 && g.ents.filter((e) => e.type === 'pot' && !e.dead).length === 0) dropPot(g, b);
 }
 function setMode(b, m) { b.mode = m; b.modeT = 0; b.arm = 0; }
 function bossHit(g, b) {
@@ -1168,6 +1382,7 @@ function bossHit(g, b) {
 function touchBoss(g, b) {
   const p = g.p;
   if (b.dying) return;
+  if (p.state === 'blast' && b.B.blastHits) { bossHit(g, b); p.state = 'normal'; p.vx = -Math.sign(p.vx) * 2; p.vy = -3; return; }
   if (p.ride === b) return;
   if (p.invuln > 0) { p.x += Math.sign(p.x + p.w / 2 - b.x - b.w / 2 || 1) * 2.5; return; }
   const stomp = p.vy > 0.3 && p.prevBottom <= b.y + 10;

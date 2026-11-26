@@ -1,0 +1,28 @@
+{
+ "w": 128,
+ "h": 112,
+ "ox": 64,
+ "oy": 108,
+ "anims": {
+  "idle": {
+   "row": 0,
+   "frames": 4
+  },
+  "move": {
+   "row": 1,
+   "frames": 6
+  },
+  "attack": {
+   "row": 2,
+   "frames": 4
+  },
+  "hurt": {
+   "row": 3,
+   "frames": 1
+  },
+  "jump": {
+   "row": 4,
+   "frames": 1
+  }
+ }
+}

@@ -1,8 +1,11 @@
 // main.js — boot, the screen state machine (title → map → level → results), saving, audio wiring and test hooks.
 import { createWorld, step, snapCam, W, H, T, STATS } from './world.js';
-import { LEVELS } from './levels.js';
+import { WORLDS, allLevels } from './worlds.js';
+const LEVELS = allLevels();
+const firstOf = (wi) => LEVELS.findIndex((l) => l.wi === wi);
+const levelsOf = (wi) => LEVELS.filter((l) => l.wi === wi);
 import { createView, drawWorld, setBackgroundFactory } from './render.js';
-import { initInput, readInput, onAnyPress } from './input.js';
+import { initInput, readInput, onAnyPress, controlsHint, rumble } from './input.js';
 import * as SCR from './screens.js';
 import { drawText } from './pix.js';
 import { loadArt } from './sprites.js';
@@ -14,21 +17,26 @@ ctx.imageSmoothingEnabled = false;
 // --- audio and backdrops load as optional modules -------------------------------------------------------------
 let A = { initAudio() {}, sfx() {}, playMusic() {}, stopMusic() {}, duckMusic() {}, setMuted() {}, isMuted: () => false, setPaused() {} };
 const audioReady = import('./audio.js').then((m) => { A = m; syncMute(); if (wantMusic) A.playMusic(wantMusic); }).catch((e) => console.warn('audio unavailable', e));
-const bgReady = import('./backgrounds.js').then((m) => setBackgroundFactory(m.makeBackground)).catch((e) => console.warn('backgrounds unavailable', e));
+const bgMods = [];
+const bgReady = Promise.allSettled([import('./backgrounds.js'), import('./bg_holidays_a.js'), import('./bg_holidays_b.js')]).then((rs) => {
+  for (const r of rs) if (r.status === 'fulfilled') bgMods.push(r.value);
+  setBackgroundFactory((theme, o) => { const m = bgMods.find((mm) => mm.THEMES.includes(theme)); return m ? m.makeBackground(theme, o) : null; });
+});
 let wantMusic = null;
 function music(n, o) { wantMusic = n; A.playMusic(n, o); }
 
 // --- save ---------------------------------------------------------------------------------------------------------
-const SAVE_KEY = 'toil.save.v1';
-function freshSave() { return { v: 1, reached: 0, cleared: {}, pages: {}, brew: {}, lives: 5, cards: 0 }; }
-function loadSave() { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.v === 1) return { ...freshSave(), ...s }; } catch {} return freshSave(); }
+const SAVE_KEY = 'toil.save.v2';
+function freshSave() { return { v: 2, reached: 0, cleared: {}, pages: {}, brew: {}, lives: 5, cards: 0 }; }
+function loadSave() { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.v === 2) return { ...freshSave(), ...s }; } catch {} return freshSave(); }
 function writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch {} }
 let save = loadSave();
+save.totalPages = LEVELS.filter((l) => l.rooms?.length || l.rows.join('').includes('p')).length; save.totalBrew = LEVELS.filter((l) => !l.isBoss).length;
 
 // --- state --------------------------------------------------------------------------------------------------------
 const st = {
   mode: 'title', t: 0, frame: 0,
-  map: { node: 0, walk: null, face: 1 },
+  map: { node: 0, walk: null, face: 1 }, wsel: 0,
   L: null, levelIdx: 0, world: null, view: null, main: null, mainView: null, bonusIdx: -1,
   run: null, attempt: null, fade: 0, fadeDir: 0, fadeThen: null, pauseSel: 0, deadT: 0, clearT: 0, resT: 0, frozen: false,
 };
@@ -114,9 +122,10 @@ function update() {
   switch (st.mode) {
     case 'title':
       music('title');
-      if (st.t > 0.6 && (pressed('jump') || pressed('pause') || pressed('act'))) { A.sfx('menuSelect'); fadeTo(() => { setMode('map'); music('map'); }); }
+      if (st.t > 0.6 && (pressed('jump') || pressed('pause') || pressed('act'))) { A.sfx('menuSelect'); fadeTo(() => { st.wsel = currentWorld(); setMode('worlds'); music('worlds'); }); }
       break;
     case 'map': updateMap(); break;
+    case 'worlds': updateWorlds(); break;
     case 'card':
       if (st.t > 1.7 || (st.t > 0.4 && pressed('jump'))) setMode('play');
       break;
@@ -126,8 +135,9 @@ function update() {
       st.resT += 1 / 60;
       if (st.resT > 1.8 && (pressed('jump') || pressed('pause'))) {
         A.sfx('menuSelect');
-        if (st.L.boss) fadeTo(() => { setMode('ending'); music('title'); });
-        else fadeTo(() => { st.map.node = st.levelIdx + 1; setMode('map'); music('map'); });
+        if (st.L.isBoss && st.L.wi === WORLDS.length - 1) fadeTo(() => { setMode('ending'); music('title'); });
+        else if (st.L.isBoss) fadeTo(() => { st.wsel = Math.min(WORLDS.length - 1, st.L.wi + 1); setMode('worlds'); music('worlds'); });
+        else fadeTo(() => { st.map.node = st.L.li + 2; setMode('map'); music('map'); });
       }
       break;
     case 'gameover':
@@ -139,21 +149,35 @@ function update() {
   }
 }
 
+function currentWorld() { return Math.min(WORLDS.length - 1, LEVELS[Math.min(save.reached, LEVELS.length - 1)].wi); }
+function updateWorlds() {
+  if (st.fadeDir) return;
+  if (pressed('right')) { st.wsel = Math.min(WORLDS.length - 1, st.wsel + 1); A.sfx('menuMove'); }
+  if (pressed('left')) { st.wsel = Math.max(0, st.wsel - 1); A.sfx('menuMove'); }
+  if ((pressed('jump') || pressed('pause')) && firstOf(st.wsel) <= save.reached) {
+    A.sfx('menuSelect');
+    fadeTo(() => { st.map.node = 0; st.map.walk = null; setMode('map'); music(WORLDS[st.wsel].music); });
+  }
+  if (pressed('act')) fadeTo(() => setMode('title'));
+}
 function updateMap() {
-  const m = st.map;
+  const m = st.map, wl = levelsOf(st.wsel), f0 = firstOf(st.wsel);
+  const nodes = SCR.worldNodes(WORLDS[st.wsel], wl.length);
   if (m.walk) {
-    m.walk.t += 0.035;
-    if (m.walk.t >= 1) { m.node = m.walk.to; m.face = SCR.MAP_NODES[m.walk.to].x >= SCR.MAP_NODES[m.walk.from].x ? 1 : -1; m.walk = null; }
+    m.walk.t += 0.04;
+    if (m.walk.t >= 1) { m.node = m.walk.to; m.face = nodes[m.walk.to].x >= nodes[m.walk.from].x ? 1 : -1; m.walk = null; }
     return;
   }
   if (st.fadeDir) return;
-  const open = (n) => n === 0 || n - 1 <= save.reached;
-  const go = (d) => { const n = m.node + d; if (n >= 0 && n < SCR.MAP_NODES.length && n <= LEVELS.length && open(n)) { m.walk = { from: m.node, to: n, t: 0 }; A.sfx('menuMove'); } };
+  if (m.node > wl.length) m.node = wl.length;
+  const open = (n) => n === 0 || f0 + n - 1 <= save.reached;
+  const go = (d) => { const n = m.node + d; if (n >= 0 && n <= wl.length && open(n)) { m.walk = { from: m.node, to: n, t: 0 }; A.sfx('menuMove'); } };
   if (pressed('right') || pressed('up')) go(1);
   else if (pressed('left') || pressed('down')) go(-1);
-  else if ((pressed('jump') || pressed('pause')) && m.node > 0 && LEVELS[m.node - 1]) {
+  else if (pressed('act')) { A.sfx('menuMove'); fadeTo(() => { setMode('worlds'); music('worlds'); }); }
+  else if ((pressed('jump') || pressed('pause')) && m.node > 0) {
     A.sfx('menuSelect');
-    const i = m.node - 1;
+    const i = f0 + m.node - 1;
     st.run = { lives: save.lives, cards: save.cards, letters: {} };
     fadeTo(() => startLevel(i));
   }
@@ -176,8 +200,9 @@ function updatePlay() {
 }
 function handleEvent(g, e) {
   switch (e.k) {
-    case 'sfx': A.sfx(e.n, e.o || {}); break;
-    case 'dying': music('death'); break;
+    case 'sfx': A.sfx(e.n, e.o || {}); if (e.n === 'explosion') rumble(0.9, 0.7, 260); else if (e.n === 'blastFire') rumble(0.5, 0.3, 120); else if (e.n === 'bossHit') rumble(0.7, 0.5, 180); break;
+    case 'lost': case 'dismount': rumble(0.8, 0.6, 240); break;
+    case 'dying': music('death'); rumble(1, 1, 450); break;
     case 'dead': fadeTo(() => restartFromDeath(), 0.06); break;
     case 'clear': music('clear'); break;
     case 'bonus': fadeTo(() => enterBonus(e.room), 0.1); break;
@@ -202,7 +227,7 @@ function updatePause() {
     else if (st.pauseSel === 1) {
       A.setPaused(false);
       save.lives = st.run.lives; save.cards = st.run.cards; writeSave();
-      fadeTo(() => { st.map.node = st.levelIdx + 1; setMode('map'); music('map'); });
+      fadeTo(() => { st.map.node = st.L.li + 1; setMode('map'); music(WORLDS[st.wsel].music); });
     } else { A.setMuted(!A.isMuted()); syncMute(); }
   }
 }
@@ -211,12 +236,13 @@ function updatePause() {
 function draw() {
   ctx.imageSmoothingEnabled = false;
   switch (st.mode) {
-    case 'title': SCR.drawTitle(ctx, st.t, { hint: 'ARROWS MOVE  Z JUMP  X RUN/ROLL/GRAB  C SWAP' }); break;
-    case 'map': SCR.drawMap(ctx, st.map, LEVELS, save, st.t); break;
+    case 'title': SCR.drawTitle(ctx, st.t, { hint: controlsHint() }); break;
+    case 'map': SCR.drawMap(ctx, st.map, WORLDS[st.wsel], levelsOf(st.wsel), firstOf(st.wsel), save, st.t); break;
+    case 'worlds': SCR.drawWorlds(ctx, st.wsel, WORLDS, LEVELS, save, st.t); break;
     case 'card': drawWorld(ctx, st.world, st.view, { noHud: true }); SCR.drawCard(ctx, st.L, Math.min(1, st.t / 1.7)); break;
     case 'play': drawWorld(ctx, st.world, st.view); break;
     case 'pause': drawWorld(ctx, st.world, st.view, { paused: true }); SCR.drawPause(ctx, st.pauseSel, PAUSE_ITEMS()); break;
-    case 'results': drawWorld(ctx, st.world, st.view, { noHud: true }); SCR.drawResults(ctx, st.L, { cards: (st.run.got || 0) - st.attempt.got0, letters: st.world.letters, page: st.attempt.page || st.world.pageGot, hasPage: !!(st.L.rooms?.length || st.L.page) }, st.resT); break;
+    case 'results': drawWorld(ctx, st.world, st.view, { noHud: true }); SCR.drawResults(ctx, st.L, { cards: (st.run.got || 0) - st.attempt.got0, letters: st.world.letters, page: st.attempt.page || st.world.pageGot, hasPage: !!(st.L.rooms?.length || st.L.rows.join('').includes('p')) }, st.resT); break;
     case 'gameover': SCR.drawGameOver(ctx, st.t); break;
     case 'ending': SCR.drawEnding(ctx, st.t, save); break;
   }
@@ -272,7 +298,8 @@ window.__tt = {
   get st() { return st; }, get save() { return save; }, LEVELS,
   get g() { return st.world; },
   start(id, opts = {}) {
-    const i = typeof id === 'number' ? id : LEVELS.findIndex((l) => l.id === id);
+    const i = typeof id === 'number' ? id : LEVELS.findIndex((l) => l.id === id || l.id === ({ wood: 'x', bog: 'x', mine: 'hallo5', village: 'xmas3', boss: 'xmasB' })[id]);
+    st.wsel = LEVELS[i].wi;
     st.run = { lives: save.lives, cards: save.cards, letters: {} };
     startLevel(i); if (opts.play !== false) setMode('play');
     if (opts.x != null) { const p = st.world.p; p.x = opts.x * T; p.y = (opts.y ?? 10) * T - p.h; snapCam(st.world); }
@@ -286,6 +313,7 @@ window.__tt = {
   freeze(b = true) { st.frozen = b; },
   draw,
   unlockAll() { save.reached = LEVELS.length - 1; writeSave(); },
+  worlds: WORLDS,
   reset() { save = freshSave(); writeSave(); },
   mode: setMode,
 };

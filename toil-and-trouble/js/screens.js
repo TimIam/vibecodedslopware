@@ -2,7 +2,9 @@
 import { W, H } from './world.js';
 import { Painter, ramp, hex, css, drawText, textWidth, fbm, hash2, vnoise, BAYER4 } from './pix.js';
 import * as S from './sprites.js';
+import * as S_ from './sprites.js';
 import { spr } from './render.js';
+import { label } from './input.js';
 
 const R = (h, n = 6) => ramp(h, n);
 let titleBg = null, mapBg = null;
@@ -86,154 +88,149 @@ function logo(ctx, x, y, t) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// world map
-export const MAP_NODES = [
-  { id: 'home', x: 34, y: 190, name: 'Coven Cottage' },
-  { id: 'wood', x: 78, y: 168 },
-  { id: 'bog', x: 132, y: 150 },
-  { id: 'mine', x: 160, y: 96 },
-  { id: 'belfry', x: 232, y: 124 },
-  { id: 'village', x: 282, y: 166 },
-  { id: 'keep', x: 322, y: 104 },
-  { id: 'boss', x: 344, y: 62 },
-];
-function paintMap() {
+// world select and the per-world maps
+const WSTYLE = {
+  hallo: { land: '#5a4a3a', grass: '#4a5a2a', sea: '#1e1a3a', sand: '#8a7a5a', accent: '#ff8a2a', icon: 'pumpkin' },
+  july: { land: '#5a8a3a', grass: '#3a7a2e', sea: '#1e3a7a', sand: '#d8c890', accent: '#e84a4a', icon: 'rocket' },
+  pat: { land: '#3ab050', grass: '#1e8a3a', sea: '#2a5a8a', sand: '#d8d0a0', accent: '#f0d040', icon: 'clover' },
+  easter: { land: '#9ad880', grass: '#6ab86a', sea: '#7ab8e8', sand: '#f8e8c8', accent: '#ff9ad0', icon: 'egg' },
+  val: { land: '#d88a9a', grass: '#b85a7a', sea: '#7a3a6a', sand: '#f8d8d0', accent: '#ff3a6a', icon: 'heart' },
+  thanks: { land: '#c89a3a', grass: '#9a6a22', sea: '#3a4a6a', sand: '#e8c890', accent: '#ff6a2a', icon: 'leaf' },
+  xmas: { land: '#e8f0ff', grass: '#b8c8e0', sea: '#2a3a6a', sand: '#c8d8f0', accent: '#d82a3a', icon: 'tree' },
+};
+function icon(ctx, kind, x, y, s = 1, col) {
+  // tiny pixel emblem for a world
+  x = Math.round(x); y = Math.round(y);
+  const P = (dx, dy, c, w = 1, h = 1) => { ctx.fillStyle = c; ctx.fillRect(x + dx * s, y + dy * s, w * s, h * s); };
+  switch (kind) {
+    case 'pumpkin': P(-4, -3, '#e86a1a', 9, 7); P(-3, -4, '#e86a1a', 7, 9); P(0, -6, '#3a6a2a', 1, 2); P(-2, -1, '#ffe070', 1, 1); P(2, -1, '#ffe070', 1, 1); P(-2, 2, '#ffe070', 5, 1); break;
+    case 'rocket': P(-1, -6, '#e84a4a', 3, 9); P(-1, -7, '#f0f0f0', 3, 1); P(-3, 2, '#3a5ad8', 2, 3); P(2, 2, '#3a5ad8', 2, 3); P(0, 4, '#ffd040', 1, 3); break;
+    case 'clover': P(-3, -4, '#2ec84a', 3, 3); P(1, -4, '#2ec84a', 3, 3); P(-3, 0, '#2ec84a', 3, 3); P(1, 0, '#2ec84a', 3, 3); P(0, 2, '#1e8a3a', 1, 4); break;
+    case 'egg': P(-3, -4, '#ffb0d8', 7, 9); P(-2, -5, '#ffb0d8', 5, 11); P(-3, -1, '#8ad0ff', 7, 2); P(-2, 2, '#fff0a0', 5, 1); break;
+    case 'heart': P(-4, -3, '#ff3a6a', 4, 4); P(1, -3, '#ff3a6a', 4, 4); P(-3, 0, '#ff3a6a', 7, 3); P(-1, 3, '#ff3a6a', 3, 2); P(-3, -2, '#ffc0d0', 1, 1); break;
+    case 'leaf': P(-3, -3, '#e86a1a', 7, 6); P(-1, -5, '#f0a030', 3, 10); P(0, 4, '#7a4a22', 1, 3); break;
+    case 'tree': P(-1, -6, '#2a8a3a', 3, 3); P(-3, -3, '#2a8a3a', 7, 3); P(-4, 0, '#2a8a3a', 9, 3); P(0, 3, '#7a4a22', 1, 3); P(0, -7, '#ffd040', 1, 1); P(-2, -1, '#ff3a3a', 1, 1); P(2, 1, '#4ab8ff', 1, 1); break;
+    case 'castle': P(-5, -3, '#4a4458', 11, 8); P(-5, -5, '#4a4458', 2, 2); P(-1, -5, '#4a4458', 2, 2); P(3, -5, '#4a4458', 2, 2); P(-1, 1, '#1a1020', 3, 4); P(-1, -8, col || '#d83a3a', 1, 3); break;
+    case 'house': P(-4, -1, '#c8b090', 9, 5); P(-5, -2, '#6a3a8a', 11, 1); P(-3, -4, '#6a3a8a', 7, 2); P(0, 1, '#ffd060', 1, 2); break;
+    default: break;
+  }
+}
+const mapCache = {};
+export function worldNodes(w, n) {
+  // home, n stages, the boss castle: a winding road across the map
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    out.push({ x: Math.round(30 + t * 320), y: Math.round(150 - Math.sin(t * Math.PI * 1.6 + w.id.length) * 46 - t * 30) });
+  }
+  return out;
+}
+function paintWorldMap(w, nodes) {
   const P = new Painter(W, H);
-  const sea = R('#2a4a7a'), grass = R('#5a8a3a'), forest = R('#2e5a2a'), bogc = R('#4a6a4a'), rock = R('#7a7488'), snow = R('#e8eef8'), road = R('#c8a878');
+  const S = WSTYLE[w.id];
+  const land = R(S.land), grass = R(S.grass), sea = R(S.sea), sand = R(S.sand);
+  const seed = w.id.length * 11;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const n = fbm(x / 70, y / 70, 3, 4);
+    const n = fbm(x / 70, y / 70, seed, 4);
     const edge = Math.min(x, W - x, y + 30, H - y) / 60;
-    const land = n * 0.9 + Math.min(1, edge) * 0.55;
-    if (land < 0.62) { const l = 0.4 + (land - 0.45) * 2 + (Math.sin(x / 6 + y / 9) > 0.92 ? 0.25 : 0); P.set(x, y, P.pick(sea, Math.max(0.1, l), x, y)); continue; }
-    if (land < 0.65) { P.set(x, y, P.pick(R('#d8c890'), 0.7, x, y)); continue; }
-    // regions
-    const mtn = Math.max(0, 1 - Math.hypot(x - 175, y - 70) / 70) + Math.max(0, 1 - Math.hypot(x - 260, y - 40) / 60) * 0.6;
-    const bogk = Math.max(0, 1 - Math.hypot(x - 128, y - 150) / 34);
-    const wood = Math.max(0, 1 - Math.hypot(x - 72, y - 160) / 50);
-    let col;
-    const d = fbm(x / 14, y / 14, 9, 3);
-    if (mtn > 0.35 + d * 0.2) {
-      const hgt = mtn + d * 0.3;
-      col = hgt > 0.95 ? P.pick(snow, 0.8 + d * 0.2, x, y) : P.pick(rock, 0.3 + hgt * 0.5 + (fbm(x / 5, y / 5, 4) - 0.5) * 0.6, x, y);
-    } else if (bogk > 0.2 + d * 0.3) col = P.pick(bogc, 0.4 + d * 0.4, x, y);
-    else if (wood > 0.15 + d * 0.3) col = P.pick(forest, 0.35 + vnoise(x / 3, y / 3, 5) * 0.5, x, y);
-    else col = P.pick(grass, 0.45 + d * 0.4, x, y);
-    P.set(x, y, col);
+    const v = n * 0.9 + Math.min(1, edge) * 0.55;
+    if (v < 0.62) { P.set(x, y, P.pick(sea, Math.max(0.1, 0.4 + (v - 0.45) * 2 + (Math.sin(x / 6 + y / 9) > 0.92 ? 0.25 : 0)), x, y)); continue; }
+    if (v < 0.65) { P.set(x, y, P.pick(sand, 0.7, x, y)); continue; }
+    const d = fbm(x / 14, y / 14, seed + 9, 3);
+    P.set(x, y, d > 0.55 ? P.pick(grass, 0.35 + vnoise(x / 3, y / 3, seed) * 0.5, x, y) : P.pick(land, 0.45 + d * 0.4, x, y));
   }
-  // trees in the forest
-  for (let i = 0; i < 70; i++) {
-    const a = hash2(i, 1) * 6.28, r = Math.sqrt(hash2(i, 2)) * 44;
-    const x = 72 + Math.cos(a) * r, y = 160 + Math.sin(a) * r * 0.7;
-    P.ellipse(x, y - 3, 2.6, 3.4, R('#2a6a2a'));
-    P.set(x, y + 1, hex('#3a2418'));
+  // themed scatter
+  for (let i = 0; i < 40; i++) {
+    const x = 20 + hash2(i, 1, seed) * (W - 40), y = 40 + hash2(i, 2, seed) * (H - 70);
+    if (nodes.some((n) => Math.hypot(n.x - x, n.y - y) < 14)) continue;
+    P.ellipse(x, y - 2, 2.4, 3, R(S.grass), { flat: 0.3 + hash2(i, 3) * 0.3 });
   }
-  // bog pools
-  for (let i = 0; i < 10; i++) { const x = 118 + hash2(i, 4) * 28, y = 140 + hash2(i, 5) * 22; P.ellipse(x, y, 3 + hash2(i, 6) * 3, 1.6, R('#4a7a6a'), { flat: 0.7 }); }
-  // mine mouth
-  P.ellipse(160, 100, 6, 5, R('#1a1418'), { flat: 0.2, clip: (x, y) => y < 101 });
-  P.rect(154, 100, 13, 2, hex('#7a5434'));
-  // belfry town: steeples
-  for (let i = 0; i < 6; i++) {
-    const x = 220 + i * 6, y = 128 - (i % 3) * 3;
-    P.poly([[x - 2, y], [x + 2, y], [x, y - 10 - (i % 2) * 5]], R('#4a4a6a'), { flat: 0.4 });
-    P.rect(x - 2, y, 5, 6, hex('#7a6a6a'));
+  // road
+  const road = R('#c8a878');
+  for (let i = 1; i < nodes.length; i++) {
+    const a = nodes[i - 1], b = nodes[i], n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 5);
+    for (let k = 1; k < n; k++) { const t = k / n, x = a.x + (b.x - a.x) * t + Math.sin(t * Math.PI) * (i % 2 ? 6 : -6), y = a.y + (b.y - a.y) * t; P.rect(Math.round(x) - 1, Math.round(y) - 1, 2, 2, road[1]); P.set(Math.round(x), Math.round(y), road[4]); }
   }
-  // village roofs
-  for (let i = 0; i < 9; i++) {
-    const x = 270 + (i % 5) * 7, y = 162 + Math.floor(i / 5) * 8;
-    P.poly([[x - 4, y], [x + 4, y], [x, y - 5]], R('#a04a3a'), { flat: 0.5 });
-    P.rect(x - 3, y, 7, 4, hex('#d8c8a0'));
-    P.set(x, y + 2, hex('#ffd060'));
-  }
-  // the keep on its hill
-  P.ellipse(330, 96, 26, 14, R('#5a5a4a'), { flat: 0.5 });
-  for (const [x, w, h] of [[316, 6, 22], [326, 10, 30], [338, 6, 24], [346, 5, 16]]) {
-    P.rect(x - w / 2, 92 - h, w, h, hex('#6a6878'));
-    for (let k = 0; k < w; k += 2) P.set(x - w / 2 + k, 91 - h, hex('#6a6878'));
-    P.set(x, 92 - h + 6, hex('#ffd060'));
-  }
-  P.poly([[322, 62], [330, 62], [326, 52]], R('#8a2a3a'), { flat: 0.5 });
-  // cottage
-  P.poly([[26, 186], [42, 186], [34, 177]], R('#6a3a8a'), { flat: 0.5 });
-  P.rect(28, 186, 13, 8, hex('#c8b090'));
-  P.set(34, 189, hex('#ffd060'));
-  P.capsule(38, 180, 38, 176, 1, 1, R('#4a4a4a'));
-  // paths
-  for (let i = 1; i < MAP_NODES.length; i++) {
-    const a = MAP_NODES[i - 1], b = MAP_NODES[i];
-    const n = Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 5);
-    for (let k = 1; k < n; k++) {
-      const t = k / n, x = a.x + (b.x - a.x) * t + Math.sin(t * Math.PI) * ((i % 2) ? 6 : -6), y = a.y + (b.y - a.y) * t;
-      P.rect(Math.round(x) - 1, Math.round(y) - 1, 2, 2, road[1]);
-      P.set(Math.round(x), Math.round(y), road[4]);
-    }
-  }
-  // parchment frame
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const e = Math.min(x, y, W - 1 - x, H - 1 - y);
-    if (e < 4) P.set(x, y, e < 1 ? hex('#1a1020') : e < 3 ? hex('#6a4a2a') : hex('#c8a060'));
-  }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const e = Math.min(x, y, W - 1 - x, H - 1 - y); if (e < 4) P.set(x, y, e < 1 ? hex('#1a1020') : e < 3 ? hex('#6a4a2a') : hex('#c8a060')); }
   return P.toCanvas();
 }
-export function nodePath(a, b, t) {
-  const A = MAP_NODES[a], B = MAP_NODES[b];
-  const i = Math.max(a, b);
-  const tt = a < b ? t : 1 - t;
-  const P0 = a < b ? A : B, P1 = a < b ? B : A;
-  return { x: P0.x + (P1.x - P0.x) * tt + Math.sin(tt * Math.PI) * ((i % 2) ? 6 : -6), y: P0.y + (P1.y - P0.y) * tt };
+export function nodePath(nodes, a, b, t) {
+  const i = Math.max(a, b), tt = a < b ? t : 1 - t, P0 = nodes[Math.min(a, b)], P1 = nodes[Math.max(a, b)];
+  return { x: P0.x + (P1.x - P0.x) * tt + Math.sin(tt * Math.PI) * (i % 2 ? 6 : -6), y: P0.y + (P1.y - P0.y) * tt };
 }
-export function drawMap(ctx, st, levels, save, t) {
-  if (!mapBg) mapBg = paintMap();
-  ctx.drawImage(mapBg, 0, 0);
-  // nodes
-  for (let i = 1; i < MAP_NODES.length; i++) {
-    const n = MAP_NODES[i], L = levels[i - 1];
-    if (!L) continue;
-    const open = i - 1 <= save.reached;
-    const done = !!save.cleared[L.id];
-    const x = n.x, y = n.y;
-    ctx.fillStyle = '#170c1e'; ctx.fillRect(x - 5, y - 3, 11, 7);
-    ctx.fillStyle = done ? '#8cf05a' : open ? '#f0c040' : '#5a5060'; ctx.fillRect(x - 4, y - 2, 9, 5);
-    ctx.fillStyle = done ? '#e8ff9a' : open ? '#fff0a0' : '#7a7080'; ctx.fillRect(x - 4, y - 2, 9, 1);
-    if (open && !done && Math.floor(t * 3) % 2 === 0) { ctx.fillStyle = '#fff6c8'; ctx.fillRect(x, y - 7, 1, 3); }
+// st: { node, walk, face }; wl: this world's levels (stages then boss); first: global index of its first level
+export function drawMap(ctx, st, w, wl, first, save, t) {
+  const nodes = worldNodes(w, wl.length);
+  if (!mapCache[w.id]) mapCache[w.id] = paintWorldMap(w, nodes);
+  ctx.drawImage(mapCache[w.id], 0, 0);
+  const S = WSTYLE[w.id];
+  icon(ctx, 'house', nodes[0].x, nodes[0].y, 1);
+  for (let i = 1; i < nodes.length; i++) {
+    const L = wl[i - 1], gi = first + i - 1, n = nodes[i];
+    const open = gi <= save.reached, done = !!save.cleared[L.id];
+    if (L.isBoss) { icon(ctx, 'castle', n.x, n.y, 1, done ? '#8cf05a' : S.accent); continue; }
+    ctx.fillStyle = '#170c1e'; ctx.fillRect(n.x - 5, n.y - 3, 11, 7);
+    ctx.fillStyle = done ? '#8cf05a' : open ? '#f0c040' : '#5a5060'; ctx.fillRect(n.x - 4, n.y - 2, 9, 5);
+    ctx.fillStyle = done ? '#e8ff9a' : open ? '#fff0a0' : '#7a7080'; ctx.fillRect(n.x - 4, n.y - 2, 9, 1);
+    if (open && !done && Math.floor(t * 3) % 2 === 0) { ctx.fillStyle = '#fff6c8'; ctx.fillRect(n.x, n.y - 7, 1, 3); }
   }
-  // witch on the path
-  const pos = st.walk ? nodePath(st.walk.from, st.walk.to, st.walk.t) : MAP_NODES[st.node];
+  const pos = st.walk ? nodePath(nodes, st.walk.from, st.walk.to, st.walk.t) : nodes[st.node];
   const moving = !!st.walk;
-  const face = st.walk ? (MAP_NODES[st.walk.to].x >= MAP_NODES[st.walk.from].x ? 1 : -1) : st.face || 1;
+  const face = st.walk ? (nodes[st.walk.to].x >= nodes[st.walk.from].x ? 1 : -1) : st.face || 1;
   ctx.save(); ctx.translate(Math.round(pos.x), Math.round(pos.y + 2)); ctx.scale(0.75, 0.75);
-  spr(ctx, S.witchSprite('pip', moving ? 'walk' : 'idle', Math.floor(t * (moving ? 10 : 3))), -10 * face, 0, 28, 50, face);
-  spr(ctx, S.witchSprite('mags', moving ? 'walk' : 'idle', Math.floor(t * (moving ? 10 : 3))), 2 * face, 0, 28, 50, face);
+  spr(ctx, S_.witchSprite('pip', moving ? 'walk' : 'idle', Math.floor(t * (moving ? 10 : 3))), -10 * face, 0, 28, 50, face);
+  spr(ctx, S_.witchSprite('mags', moving ? 'walk' : 'idle', Math.floor(t * (moving ? 10 : 3))), 2 * face, 0, 28, 50, face);
   ctx.restore();
   // info panel
-  const i = st.walk ? null : st.node;
-  ctx.fillStyle = 'rgba(18,8,24,0.82)'; ctx.fillRect(6, 6, W - 12, 26);
+  ctx.fillStyle = 'rgba(18,8,24,0.84)'; ctx.fillRect(6, 6, W - 12, 26);
   ctx.fillStyle = '#c8a060'; ctx.fillRect(6, 31, W - 12, 1);
-  if (i === 0) {
-    drawText(ctx, 'COVEN COTTAGE', 14, 11, '#fff6c8', { outline: true });
-    drawText(ctx, 'HOME. THE CAULDRON SHELF IS EMPTY.', 14, 21, '#b8a8d0', { shadow: null });
-  } else if (i != null) {
-    const L = levels[i - 1];
+  const i = st.walk ? null : st.node;
+  if (i === 0 || i == null) {
+    drawText(ctx, w.name.toUpperCase(), 14, 11, '#fff6c8', { outline: true });
+    drawText(ctx, w.holiday.toUpperCase(), 14, 21, '#b8a8d0', { shadow: null });
+  } else {
+    const L = wl[i - 1];
     drawText(ctx, L.name.toUpperCase(), 14, 11, '#fff6c8', { outline: true });
-    drawText(ctx, L.blurb ? L.blurb.toUpperCase() : '', 14, 21, '#b8a8d0', { shadow: null });
-    // completion marks
-    let x = W - 14;
-    const pg = !!save.pages[L.id], brew = !!save.brew[L.id];
-    if (L.boss) { drawText(ctx, save.cleared[L.id] ? 'DEFEATED' : '', x, 15, '#8cf05a', { align: 'right' }); }
-    else {
-      drawText(ctx, pg ? 'PAGE' : 'PAGE', x, 15, pg ? '#ff9af0' : '#4a3a5a', { align: 'right', shadow: pg ? '#120818' : null });
-      x -= 30;
+    drawText(ctx, (L.blurb || '').toUpperCase(), 14, 21, '#b8a8d0', { shadow: null });
+    if (!L.isBoss) {
+      let x = W - 14;
+      const pg = !!save.pages[L.id], brew = !!save.brew[L.id];
+      if (L.rooms?.length || L.id === 'hallo5') { drawText(ctx, 'PAGE', x, 15, pg ? '#ff9af0' : '#4a3a5a', { align: 'right', shadow: pg ? '#120818' : null }); x -= 30; }
       drawText(ctx, 'BREW', x, 15, brew ? '#f0c040' : '#4a3a5a', { align: 'right', shadow: brew ? '#120818' : null });
-      x -= 30;
-      if (save.cleared[L.id]) drawText(ctx, 'CLEARED', x, 15, '#8cf05a', { align: 'right' });
-    }
+    } else if (save.cleared[L.id]) drawText(ctx, 'DEFEATED', W - 14, 15, '#8cf05a', { align: 'right' });
   }
-  // footer
-  const pages = Object.keys(save.pages).length;
   ctx.fillStyle = 'rgba(18,8,24,0.75)'; ctx.fillRect(6, H - 18, W - 12, 12);
-  drawText(ctx, `PAGES ${pages}/6`, 12, H - 16, '#ff9af0', { shadow: null });
-  drawText(ctx, `LIVES ${save.lives}   CARDS ${save.cards}`, W / 2, H - 16, '#d8f4ff', { align: 'center', shadow: null });
-  drawText(ctx, 'JUMP: ENTER', W - 12, H - 16, '#8a7aa8', { align: 'right', shadow: null });
+  drawText(ctx, `PAGES ${Object.keys(save.pages).length}`, 12, H - 16, '#ff9af0', { shadow: null });
+  drawText(ctx, `LIVES ${save.lives}  CARDS ${save.cards}`, 86, H - 16, '#fff0c0', { shadow: null });
+  drawText(ctx, `${label('ok')} PLAY  ${label('back')} BACK`, W - 12, H - 16, '#8a7aa8', { align: 'right', shadow: null });
+}
+export function drawWorlds(ctx, sel, worlds, levels, save, t) {
+  if (!titleBg) titleBg = paintTitleBg();
+  ctx.drawImage(titleBg, 0, 0);
+  ctx.fillStyle = 'rgba(8,4,14,0.55)'; ctx.fillRect(0, 0, W, H);
+  drawText(ctx, 'CHOOSE A WORLD', W / 2, 18, '#fff6c8', { align: 'center', scale: 2, outline: true });
+  let first = 0;
+  worlds.forEach((w, i) => {
+    const wl = levels.filter((l) => l.wi === i);
+    const gi0 = levels.indexOf(wl[0]);
+    const open = gi0 <= save.reached;
+    const done = wl.filter((l) => save.cleared[l.id]).length;
+    const x = 30 + i * 54, y = 92 + (i === sel ? -6 + Math.sin(t * 4) * 1.5 : 0);
+    const S = WSTYLE[w.id];
+    ctx.fillStyle = i === sel ? '#fff6c8' : '#2a1c34'; ctx.fillRect(x - 21, y - 21, 42, 42);
+    ctx.fillStyle = open ? S.land : '#3a3044'; ctx.fillRect(x - 19, y - 19, 38, 38);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x - 19, y + 9, 38, 10);
+    if (open) icon(ctx, S.icon, x, y - 2, 2);
+    else drawText(ctx, '?', x, y - 8, '#8a7a9a', { align: 'center', scale: 2 });
+    drawText(ctx, `${done}/${wl.length}`, x, y + 24, done === wl.length ? '#8cf05a' : '#b8a8d0', { align: 'center', shadow: null });
+    first += wl.length;
+  });
+  const w = worlds[sel];
+  drawText(ctx, w.name.toUpperCase(), W / 2, 142, '#ffe070', { align: 'center', scale: 2, outline: true });
+  drawText(ctx, w.holiday.toUpperCase(), W / 2, 162, '#b8a8d0', { align: 'center', outline: true });
+  const gi0 = levels.findIndex((l) => l.wi === sel);
+  if (gi0 > save.reached) drawText(ctx, 'BEAT THE WORLD BEFORE IT TO OPEN THIS ONE', W / 2, 180, '#8a7a9a', { align: 'center', shadow: null });
+  else if (Math.floor(t * 2) % 2 === 0) drawText(ctx, `PRESS ${label('ok')}`, W / 2, 184, '#fff6c8', { align: 'center', outline: true });
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -274,7 +271,7 @@ export function drawResults(ctx, L, st, t) {
     drawText(ctx, a, W / 2 - 90, 90 + i * 18, '#b8a8d0', { outline: true });
     drawText(ctx, b, W / 2 + 90, 90 + i * 18, c, { align: 'right', outline: true });
   });
-  if (t > 1.8 && Math.floor(t * 2) % 2 === 0) drawText(ctx, 'PRESS JUMP', W / 2, 170, '#fff6c8', { align: 'center', outline: true });
+  if (t > 1.8 && Math.floor(t * 2) % 2 === 0) drawText(ctx, `PRESS ${label('ok')}`, W / 2, 170, '#fff6c8', { align: 'center', outline: true });
 }
 export function drawGameOver(ctx, t) {
   ctx.fillStyle = '#0a0610'; ctx.fillRect(0, 0, W, H);
@@ -305,8 +302,8 @@ export function drawEnding(ctx, t, save) {
   lines.forEach((l, i) => { if (t > 1 + i * 1.4) drawText(ctx, l, W / 2, 40 + i * 14, '#fff6c8', { align: 'center', outline: true }); });
   if (t > 5.5) {
     const pages = Object.keys(save.pages).length, brew = Object.keys(save.brew).length;
-    drawText(ctx, `SPELLBOOK PAGES ${pages}/6    BREW SPELLED ${brew}/6`, W / 2, 96, pages === 6 ? '#ff9af0' : '#b8a8d0', { align: 'center', outline: true });
-    if (pages === 6) drawText(ctx, 'THE SPELLBOOK IS WHOLE AGAIN. NICE BREWING.', W / 2, 110, '#ffe070', { align: 'center', outline: true });
+    drawText(ctx, `SPELLBOOK PAGES ${pages}/${save.totalPages || pages}    BREW SPELLED ${brew}/${save.totalBrew || brew}`, W / 2, 96, pages === 6 ? '#ff9af0' : '#b8a8d0', { align: 'center', outline: true });
+    if (save.totalPages && pages >= save.totalPages) drawText(ctx, 'THE SPELLBOOK IS WHOLE AGAIN. NICE BREWING.', W / 2, 110, '#ffe070', { align: 'center', outline: true });
   }
   if (t > 7) drawText(ctx, 'THE END', W / 2, 128, '#8cf05a', { align: 'center', scale: 2, outline: true });
 }

@@ -107,6 +107,7 @@ function paintRegion(layer, g, c0, r0, c1, r1) {
       continue;
     }
     if (!solidT(t)) continue;
+    if (m.terr && m.terr[r * m.cols + c]) continue;
     const up = solidT(tt(c, r - 1)), dn = solidT(tt(c, r + 1)), lf = solidT(tt(c - 1, r)), rt = solidT(tt(c + 1, r));
     const dist = layer.dist[r * m.cols + c];
     for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) {
@@ -141,6 +142,8 @@ function paintRegion(layer, g, c0, r0, c1, r1) {
     // underside drips/roots
     if (!dn && r + 1 < m.rows) underside(th, theme, c, r, put, empty, seed);
   }
+  if (m.H) paintTerrain(m, th, theme, X0, Y0, w, h, put, seed);
+  CUR_H = m.H;
   // pass 2: ledges, rails, spikes, decoration
   for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
     const t = tt(c, r);
@@ -186,14 +189,15 @@ const LIGHT = [-0.55, -0.75, 0.38];
 function material(theme, th, px, py, dp, seed) {
   const depth = Math.min(1, dp / 46);
   const shadeDepth = (l) => l - depth * 0.5;
-  if (theme === 'wood' || theme === 'bog' || theme === 'mine') {
+  const ms = matStyle(theme);
+  if (ms === 'earth' || ms === 'mud' || ms === 'rock') {
     // relief: soft lumps plus strata
-    const h = (x, y) => fbm(x / 11, y / 9, seed, 3) * 1.0 + vnoise(x / 3.2, y / 3, seed + 5) * 0.28 + (theme === 'mine' ? Math.sin(y / 4.5 + fbm(x / 30, y / 30, seed + 8, 2) * 5) * 0.12 : 0);
+    const h = (x, y) => fbm(x / 11, y / 9, seed, 3) * 1.0 + vnoise(x / 3.2, y / 3, seed + 5) * 0.28 + (ms === 'rock' ? Math.sin(y / 4.5 + fbm(x / 30, y / 30, seed + 8, 2) * 5) * 0.12 : 0);
     const nx = (h(px - 1, py) - h(px + 1, py)) * 2.2, ny = (h(px, py - 1) - h(px, py + 1)) * 2.2;
     const nn = Math.hypot(nx, ny, 1);
     let lam = (nx * LIGHT[0] + ny * LIGHT[1] + LIGHT[2]) / nn;
     let l = 0.42 + lam * 0.55 + (h(px, py) - 0.6) * 0.25;
-    const stone = dp > 2 && rockCell(px, py, theme === "mine" ? 15 : 14, theme === "mine" ? 13 : 11, seed + 41);
+    const stone = dp > 2 && rockCell(px, py, ms === "rock" ? 15 : 14, ms === "rock" ? 13 : 11, seed + 41);
     if (stone) {
       const [d, dx, dy, id] = stone, nz = Math.sqrt(Math.max(0, 1 - d * d));
       const sl = 0.35 + (dx * LIGHT[0] + dy * LIGHT[1] + nz * 0.7) * 0.5 + (id - 0.7) * 0.4;
@@ -203,11 +207,11 @@ function material(theme, th, px, py, dp, seed) {
       const c = smooth(base, shadeDepth(sl + ring), px, py);
       return c.map((v) => Math.min(255, v + spec * 255));
     }
-    if (theme === 'mine') {
+    if (ms === 'rock' && theme === 'mine') {
       const vein = Math.abs(fbm(px / 26, py / 26, seed + 5, 2) - 0.5) < 0.016;
       if (vein && dp > 4) return smooth(th.accent, 0.75, px, py);
     }
-    if (theme === 'wood') {
+    if (ms === 'earth') {
       // roots threading through the soil, lit like little cylinders
       const rr = Math.sin(px / 9 + vnoise(px / 30, py / 30, seed + 7) * 6) * 9 - (py % 24) + 12;
       if (Math.abs(rr) < 1.1 && dp > 3 && dp < 34) return smooth(th.plank, shadeDepth(0.55 - rr * 0.25), px, py);
@@ -216,7 +220,7 @@ function material(theme, th, px, py, dp, seed) {
     l -= Math.max(0, 0.55 - h(px, py)) * 0.5;
     return smooth(depth > 0.6 ? th.deep : th.fill, depth > 0.6 ? l + 0.25 - depth * 0.2 : shadeDepth(l), px, py);
   }
-  if (theme === 'belfry' || theme === 'village' || theme === 'keep') {
+  if (ms === 'brick') {
     const bw = theme === 'keep' ? 16 : 12, bh = theme === 'keep' ? 8 : 6;
     const row = Math.floor(py / bh), off = (row % 2) * (bw / 2);
     const col = Math.floor((px + off) / bw);
@@ -367,7 +371,8 @@ function underside(th, theme, c, r, put, empty, seed) {
   }
 }
 
-function ledge(th, theme, c, r, put, joinL, joinR) {
+function ledge(th, theme0, c, r, put, joinL, joinR) {
+  const st = styleOf(theme0), theme = st === 'grass' || st === 'mud' ? 'wood' : st === 'snow' ? 'village' : st === 'flag' && !/_in$/.test(theme0) ? 'keep' : theme0;
   const x0 = c * T, y0 = r * T;
   for (let y = y0 - 4; y < y0; y++) {
     const v = (y - (y0 - 4)) / 4, inset = Math.round((1 - v) * 3);
@@ -434,7 +439,8 @@ function rail(th, c, r, put, empty, tt) {
   }
 }
 
-function spikes(th, theme, c, r, put) {
+function spikes(th, theme0, c, r, put) {
+  const st = styleOf(theme0), theme = st === 'grass' || st === 'mud' ? 'wood' : theme0;
   const x0 = c * T, y0 = r * T;
   if (theme === 'wood' || theme === 'bog') {
     // bramble: tangled thorny vine
@@ -458,7 +464,7 @@ function spikes(th, theme, c, r, put) {
 function decor(th, theme, c, r, put, empty, seed) {
   const hh = hash2(c, r, seed + 101);
   if (hh < 0.55) return;
-  const x0 = c * T + Math.floor(hash2(c, r, 5) * 9) + 2, gy = (r + 1) * T - FACE_BACK + 2;
+  const x0 = c * T + Math.floor(hash2(c, r, 5) * 9) + 2, gy = Math.floor(CUR_H && isFinite(CUR_H[c * T + 8]) ? Math.min(CUR_H[c * T + 8], (r + 1) * T + 8) : (r + 1) * T) - FACE_BACK + 2;
   const kind = Math.floor(hash2(c, r, seed + 7) * 4);
   const set = (x, y, col) => { if (empty(x, y)) put(x, y, col); };
   if (theme === 'wood') {
@@ -492,3 +498,126 @@ function decor(th, theme, c, r, put, empty, seed) {
     if (kind === 0) for (let i = -2; i <= 2; i++) { const hgt = 2 + Math.floor(hash2(c * 7 + i, r, 3) * 3); for (let y = 0; y < hgt; y++) set(x0 + i, gy - 2 - y, hex('#5a7a5a')); }
   }
 }
+
+let CUR_H = null;
+// --- terrain painting: the ground follows H[x], one pixel column at a time ----------------------------------------
+function faceColor(theme, th, F, px, y, v, tz, seed) {
+  const l = 0.5 + v * 0.18;
+  const n = fbm(px / 7, tz * 2.2, seed + 1, 3), n2 = vnoise(px / 2.6, tz * 5, seed + 2);
+  switch (styleOf(theme)) {
+    case 'grass': {
+      const grass = v < 0.2 + n * 0.25 || (v > 0.9 && n2 > 0.55);
+      if (grass) return smooth(F.alt, 0.55 + v * 0.25 + n * 0.2, px, y);
+      if (n2 > 0.84) return smooth(F.stone, 0.75 + v * 0.1, px, y);
+      return smooth(F.base, l + (n - 0.5) * 0.35, px, y);
+    }
+    case 'mud': {
+      if (fbm(px / 14, tz * 1.4, seed + 9, 2) > 0.62) return smooth(F.stone, 0.45 + v * 0.3 + Math.sin(px / 3 + tz) * 0.05, px, y);
+      return smooth(v < 0.25 + n * 0.2 ? F.alt : F.base, l + (n - 0.5) * 0.4, px, y);
+    }
+    case 'gravel': return smooth(n2 > 0.78 ? F.stone : F.base, l + (n2 - 0.5) * 0.5, px, y);
+    case 'snow': {
+      const thin = n > 0.62 && v > 0.3;
+      if (!thin && n2 > 0.93) return [255, 255, 255];
+      return smooth(thin ? F.alt : F.base, thin ? 0.55 + v * 0.2 : 0.72 + v * 0.22 + (n - 0.5) * 0.12, px, y);
+    }
+    case 'flag': {
+      const row = Math.floor(tz / 1.1), off = (row % 2) * 9;
+      const joint = Math.abs(tz / 1.1 - Math.round(tz / 1.1)) < 0.06 * (0.6 + v) || (px + off) % 18 === 0;
+      const tone = hash2(Math.floor((px + off) / 18), row, seed) * 0.16;
+      if (joint) return smooth(F.alt, 0.3 + v * 0.1, px, y);
+      if (v > 0.35 && n2 > 0.9) return smooth(F.stone, 0.95, px, y);
+      return smooth(F.base, l + tone + (n - 0.5) * 0.15, px, y);
+    }
+    case 'boards': {
+      // floorboards running toward the camera: seams converge a little toward the back
+      const seam = Math.abs(((px - 192) * (0.75 + v * 0.25) + 192) % 11) < 0.9;
+      const plank = Math.floor(((px - 192) * (0.75 + v * 0.25) + 192) / 11);
+      if (seam) return smooth(F.alt, 0.28 + v * 0.1, px, y);
+      return smooth(F.base, l + hash2(plank, 3, seed) * 0.18 - 0.09 + (n - 0.5) * 0.1 + Math.sin(px * 0.9 + plank) * 0.02, px, y);
+    }
+    default: {
+      const gl = (Math.floor(tz) + Math.floor(px / 12)) % 2;
+      if (n2 > 0.95) return smooth(F.stone, 1, px, y);
+      return smooth(F.base, l + gl * 0.1 + (n - 0.5) * 0.2, px, y);
+    }
+  }
+}
+function paintTerrain(m, th, theme, X0, Y0, w, h, put, seed) {
+  const F = FLOOR[theme] || FLOOR.wood;
+  const H = m.H, W = m.wpx;
+  const Hat = (x) => (x < 0 || x >= W ? -Infinity : H[x]);
+  const style = styleOf(theme);
+  for (let px = X0; px < X0 + w; px++) {
+    const hy = H[px];
+    if (!isFinite(hy)) continue;
+    // distance to a drop on each side (for the inset ends of the top face and the cliff shading)
+    let dl = 99, dr = 99;
+    for (let k = 1; k <= 8; k++) { if (dl === 99 && Hat(px - k) > hy + 10) dl = k; if (dr === 99 && Hat(px + k) > hy + 10) dr = k; }
+    const top = Math.floor(hy);
+    // body: from the front lip down
+    for (let py = Math.max(Y0, top + FACE_FRONT); py < Y0 + h; py++) {
+      let dh = 99;
+      for (let k = 1; k <= 12; k++) if (Hat(px - k) > py || Hat(px + k) > py) { dh = k; break; }
+      const dv = py - (top + FACE_FRONT);
+      let col = material(theme, th, px, py, Math.min(dv + 1, dh - 1), seed);
+      if (dh === 1) col = th.deep[th.deep.length - 1];
+      else if (dv < 4) col = col.map((ch) => ch * (0.55 + dv * 0.11));
+      put(px, py, col.map(Math.round));
+    }
+    // top face: FACE_BACK behind the walking line to FACE_FRONT in front of it
+    const y0 = top - FACE_BACK, depth = FACE_BACK + FACE_FRONT;
+    for (let y = Math.max(Y0, y0); y < Math.min(Y0 + h, top + FACE_FRONT); y++) {
+      const v = (y - y0) / (depth - 1), tz = 9 / (0.42 + v);
+      const inset = Math.round((1 - v) * 4);
+      if (dl <= inset || dr <= inset) continue;
+      let col = faceColor(theme, th, F, px, y, v, tz, seed);
+      if (v < 0.12) col = col.map((ch, i) => ch * 0.78 + [30, 26, 44][i] * 0.22);
+      if (y >= top + FACE_FRONT - 2) col = col.map((ch) => Math.min(255, ch * (y === top + FACE_FRONT - 1 ? 0.62 : 1.16)));
+      if (dl === inset + 1 || dr === inset + 1) col = col.map((ch) => ch * 0.7);
+      put(px, y, col.map(Math.round));
+    }
+    // fringe on the far edge and the lip
+    if (dl > 4 && dr > 4) {
+      const hs = hash2(px, 5, seed + 11);
+      if (style === 'grass' || style === 'mud') {
+        const hgt = hs > 0.45 ? 1 + Math.floor(hs * 3) : 0;
+        for (let k = 1; k <= hgt; k++) put(px, y0 - k, smooth(th.top, 0.9 - k * 0.1, px, y0 - k).map(Math.round));
+        if (hash2(px, 9, 19) > 0.6) put(px, top + FACE_FRONT, smooth(th.top2, 0.45, px, 1).map(Math.round));
+      } else if (style === 'snow') {
+        const s = Math.round(Math.sin(px / 3.1 + seed) * 1.1 + 1.1);
+        for (let k = 1; k <= s; k++) put(px, y0 - k, smooth(F.base, 0.85, px, y0 - k).map(Math.round));
+        if (hs > 0.82) for (let k = 0; k < 3; k++) put(px, top + FACE_FRONT + k, smooth(F.stone, 0.9 - k * 0.15, px, k).map(Math.round));
+      }
+    }
+  }
+}
+
+// Holiday world themes: ground palette (cliff fill/deep, surface tops, stones, accents, ledge wood), the floor's
+// top-face palette, the top-face style and the cliff material style.
+const HOLI = {
+  hallo_out: { style: 'grass', mat: 'earth', fill: '#4e3828', deep: '#1c1018', top: '#6e7a3a', top2: '#3e4a26', stone: '#6e6a78', accent: '#ff8a2a', plank: '#5a3a26', spike: '#3a2440', back: '#1a1020', floor: ['#7a5a3e', '#56622e', '#9a8a86'] },
+  hallo_in: { style: 'boards', mat: 'brick', fill: '#4a3a44', deep: '#160e16', top: '#6a5a62', top2: '#3a2a34', stone: '#5a4a56', accent: '#ffb04a', plank: '#4a3024', spike: '#8a8a96', back: '#1a1218', floor: ['#5e3e2c', '#2e1c16', '#8a6a4a'] },
+  july_out: { style: 'grass', mat: 'earth', fill: '#5a4430', deep: '#1e1418', top: '#58a83e', top2: '#2e6a2e', stone: '#8a8a96', accent: '#ff4a4a', plank: '#7a5434', spike: '#5a3a40', back: '#1a1a2a', floor: ['#9a7a52', '#4a9a3a', '#b0aab0'] },
+  july_in: { style: 'flag', mat: 'brick', fill: '#6a5a52', deep: '#1e1a22', top: '#8a8a92', top2: '#5a5a66', stone: '#7a7a88', accent: '#f0c040', plank: '#8a6a3a', spike: '#a0a0b0', back: '#1e1a22', floor: ['#8a8a8e', '#5a5a60', '#c0c0c8'] },
+  july_rocket: { style: 'flag', mat: 'brick', fill: '#5a6070', deep: '#181c2a', top: '#9aa2b4', top2: '#6a7286', stone: '#8a92a6', accent: '#ff5a4a', plank: '#8a8a96', spike: '#a0a0b0', back: '#141826', floor: ['#9aa2b2', '#6a7288', '#d0d8e8'] },
+  pat_out: { style: 'grass', mat: 'earth', fill: '#5a4a32', deep: '#1a1a16', top: '#3ec85a', top2: '#1e7a36', stone: '#a0a2a6', accent: '#f0d040', plank: '#6a4a2e', spike: '#2a4a2a', back: '#14201a', floor: ['#8a7048', '#2eaa48', '#b8b8b8'] },
+  pat_in: { style: 'flag', mat: 'brick', fill: '#4a5a44', deep: '#141c14', top: '#6a7a62', top2: '#3e4e38', stone: '#7a8a6a', accent: '#f0c840', plank: '#7a5434', spike: '#c8a840', back: '#141a14', floor: ['#6a7466', '#3a463a', '#f0d060'] },
+  easter_out: { style: 'grass', mat: 'earth', fill: '#7a5e48', deep: '#2a1e24', top: '#8ad870', top2: '#4a9a50', stone: '#c8b8d8', accent: '#ffb0d0', plank: '#9a7a5a', spike: '#6a4a6a', back: '#2a2030', floor: ['#c8a878', '#7ac862', '#e8d8f0'] },
+  easter_in: { style: 'flag', mat: 'brick', fill: '#6a4232', deep: '#22140e', top: '#8a5a42', top2: '#5a3424', stone: '#a87a5a', accent: '#ffd0e0', plank: '#7a4a30', spike: '#a0a0b0', back: '#22140e', floor: ['#e8d8c8', '#a88a7a', '#ffffff'] },
+  val_out: { style: 'gravel', mat: 'earth', fill: '#5e3a40', deep: '#200e18', top: '#5aa058', top2: '#2e6a3a', stone: '#c8a0a8', accent: '#ff5a8a', plank: '#7a4a3a', spike: '#5a2a3a', back: '#200e18', floor: ['#d8a8a8', '#a87878', '#f8e0e8'] },
+  val_in: { style: 'boards', mat: 'brick', fill: '#7a3a4e', deep: '#220a16', top: '#a05a6e', top2: '#6a2a3e', stone: '#c87a8e', accent: '#ffd040', plank: '#6a3a2a', spike: '#c8c0d0', back: '#22101a', floor: ['#8a4a3a', '#4a2018', '#d89a7a'] },
+  thanks_out: { style: 'grass', mat: 'earth', fill: '#5e422a', deep: '#1e1410', top: '#c8a03a', top2: '#8a6a22', stone: '#9a8a7a', accent: '#ff7a2a', plank: '#7a4e2a', spike: '#5a3a24', back: '#20140e', floor: ['#9a7044', '#b8902e', '#c0b098'] },
+  thanks_in: { style: 'boards', mat: 'brick', fill: '#6a4a36', deep: '#1e120c', top: '#8a6a4a', top2: '#5a3e2a', stone: '#9a7a5a', accent: '#ffb04a', plank: '#6a4224', spike: '#a0a0b0', back: '#1e120c', floor: ['#9a6a3e', '#4a2c18', '#d8a870'] },
+  xmas_out: { style: 'snow', mat: 'rock', fill: '#5a6278', deep: '#141a2a', top: '#eef4ff', top2: '#b8c8e8', stone: '#8a96ae', accent: '#ff4a4a', plank: '#6a4a34', spike: '#a8c8e8', back: '#141a2a', floor: ['#eef4ff', '#8a7a6a', '#d0e0ff'] },
+  xmas_in: { style: 'boards', mat: 'brick', fill: '#6a3a36', deep: '#1a0e0e', top: '#8a5a4a', top2: '#5a2e28', stone: '#9a6a5a', accent: '#4ac86a', plank: '#7a4a2a', spike: '#c0c0c8', back: '#1a0e0e', floor: ['#9a5e36', '#4a2a16', '#e0a870'] },
+};
+for (const [k, v] of Object.entries(HOLI)) {
+  THEMES[k] = { fill: R(v.fill), deep: R(v.deep), top: R(v.top), top2: R(v.top2), stone: R(v.stone), accent: R(v.accent), plank: R(v.plank), spike: R(v.spike), back: R(v.back) };
+  FLOOR[k] = { base: R(v.floor[0], 7), alt: R(v.floor[1], 6), stone: R(v.floor[2], 6) };
+}
+const LEGACY_STYLE = { wood: 'grass', bog: 'mud', mine: 'gravel', belfry: 'flag', village: 'snow', keep: 'flag', bonus: 'default' };
+const LEGACY_MAT = { wood: 'earth', bog: 'mud', mine: 'rock', belfry: 'brick', village: 'brick', keep: 'brick', bonus: 'crystal' };
+function styleOf(theme) { return HOLI[theme] ? HOLI[theme].style : LEGACY_STYLE[theme] || 'default'; }
+function matStyle(theme) { return HOLI[theme] ? HOLI[theme].mat : LEGACY_MAT[theme] || 'earth'; }
+export function isIndoor(theme) { return /_in$/.test(theme) || theme === 'keep' || theme === 'mine'; }

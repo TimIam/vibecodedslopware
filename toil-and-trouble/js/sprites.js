@@ -15,7 +15,9 @@ const R = (h, n = 5, s = 1) => ramp(h, n, s);
 // its frames replace the code-drawn puppets below, which stay as the fallback (and for ?art=0).
 const ART = {};
 const ART_NAMES = ['mags', 'pip', 'friar', 'deacon', 'bishop', 'acolyte', 'hedgehog', 'slug', 'crow', 'wasp', 'rider', 'finder', 'boss', 'boss_arm',
-  'pots', 'cannon', 'check', 'goal', 'rack', 'cart', 'cards', 'deck', 'broom'];
+  'pots', 'cannon', 'check', 'goal', 'rack', 'cart', 'cards', 'deck', 'broom',
+  'bigcannon', 'ridepot', 'splash', 'mounts', 'obstacles', 'beams', 'bell', 'gate',
+  'boss_gourd', 'boss_kaboom', 'boss_goldgrip', 'boss_egg', 'boss_cupid', 'boss_gobble', 'boss_sleigh'];
 export async function loadArt(base = new URL('../art/', import.meta.url).href) {
   if (typeof location !== 'undefined' && new URLSearchParams(location.search).get('art') === '0') return;
   await Promise.all(ART_NAMES.map(async (n) => {
@@ -29,7 +31,7 @@ export async function loadArt(base = new URL('../art/', import.meta.url).href) {
   }));
 }
 export function hasArt(n) { return !!ART[n]; }
-function artFrame(name, anim, i) {
+export function artFrame(name, anim, i) {
   const a = ART[name];
   if (!a) return null;
   const an = a.meta.anims[anim];

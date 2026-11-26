@@ -6,7 +6,8 @@
 //
 // Prints, per level: solved or not, frames, cards, letters, whether the partner survived, and where it got stuck.
 import { createWorld, step, STATS } from '../js/world.js';
-import { LEVELS } from '../js/levels.js';
+import { allLevels } from '../js/worlds.js';
+const LEVELS = allLevels();
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i < 0 ? d : args[i + 1]; };
@@ -81,12 +82,12 @@ function solve(L) {
   return { ok: false, g: best.g, path: best.path, n };
 }
 
-const list = ids.length ? LEVELS.filter((l) => ids.includes(l.id)) : LEVELS.filter((l) => !l.boss);
+const list = ids.length ? LEVELS.filter((l) => ids.includes(l.id) || ids.includes(l.world)) : LEVELS.filter((l) => !l.isBoss);
 for (const L of list) {
   const t0 = Date.now();
   const r = solve(L);
   const p = r.g.p;
   const where = `col ${Math.floor((p.x + p.w / 2) / 16)} row ${Math.floor((p.y + p.h - 1) / 16)}`;
   console.log(`${L.id.padEnd(8)} ${r.ok ? 'SOLVED' : 'STUCK '} frames ${String(r.g.frame).padStart(5)}  cards ${String(r.g.run.cards).padStart(3)}  letters ${r.g.letters.map((x) => (x ? 1 : 0)).join('')}  partner ${r.g.partner || '-'}  ${r.ok ? '' : 'furthest ' + where}  (${r.n} sims, ${((Date.now() - t0) / 1000).toFixed(1)}s)`);
-  if (verbose && !r.ok) console.log('  state', p.state, p.kind, 'x', p.x.toFixed(1), 'y', p.y.toFixed(1));
+  if (verbose && !r.ok) console.log('  state', p.state, p.kind, 'x', p.x.toFixed(1), 'y', p.y.toFixed(1), 'boss hp', (r.g.ents.find((e) => e.type === 'boss') || {}).hp, 'pots', r.g.ents.filter((e) => e.type === 'pot').map((e) => e.state + '@' + Math.round(e.x) + ',' + Math.round(e.y)).join(' '));
 }
