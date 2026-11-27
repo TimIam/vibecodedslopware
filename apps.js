@@ -2121,6 +2121,13 @@ window.SLOPWARE = {
      "note": "walls repaint on respawn, arrow and ballista death lines, keep tower waits for its base",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 25,
+     "date": "2026-11-27T11:48:55-07:00",
+     "note": "rubble heaps on the keep's square base as its drum is chopped",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
