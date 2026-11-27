@@ -854,12 +854,47 @@ function drawPlinth(ctx, p, g, h) {
   ctx.drawImage(spr, x, y);
   if (p.hitT > 0) { ctx.globalAlpha = 0.5; ctx.drawImage(h.tinted(spr, '#ffffff'), x, y); ctx.globalAlpha = 1; }
 }
+// What the chopping has knocked off the drum, heaped on the plinth's roof round its foot: under every wedge that is cut
+// through, a ragged mound of the drum's stone and timbers (like the heap the whole drum leaves when the tower goes),
+// spilling a little way out past where the wall stood. cy0 is the middle of the drum's footprint. Painted in two goes:
+// all of it but the front foot before the drum (whatever of the drum is left, its rooms included, hides that), then
+// (over = true) the foot of the front of the cut over it, so the rubble lies piled in the mouth of the cut.
+function drumDebris(c, h, cut, CX, cy0, R, over, seed) {
+  const foot = (dy, d) => dy >= 0 && d >= R - 4;
+  const inSq = (x, y) => x >= 1 && x <= 38 && y >= cy0 - 19 && y <= cy0 + 18;
+  // gravel first: the floor of the cut, and a skirt round it
+  for (let y = cy0 - R - 4; y <= cy0 + R + 4; y++) for (let x = 0; x < 40; x++) {
+    const dx = x + 0.5 - CX, dy = y + 0.5 - cy0, d = Math.hypot(dx, dy);
+    if (foot(dy, d) !== over || d > R + 4 || !inSq(x, y) || !cut(Math.atan2(dy, dx))) continue;
+    if (h.hash(x * 5 + seed, y) > 1.15 - d / (R + 4) * 0.6) continue;
+    const z = Math.round(Math.max(0, 1 - d / (R + 5)) * 3);
+    put(c, x, y - z, h.hash(x, y * 3 + seed) < 0.3 ? '#2a2620' : STONEP[clamp(1 + Math.floor(h.hash(y + 3, x + seed) * 3) + (dx + dy < 0 ? 1 : 0), 0, 5)]);
+  }
+  // then the lumps and a few timbers, more of them toward the middle of the mound
+  for (let k = 0; k < SECT; k++) {
+    const a0 = (k + 0.5) / SECT * TAU;
+    if (!cut(a0)) continue;
+    for (let i = 0; i < 5; i++) {
+      const a = (k + h.hash(i, k + seed)) / SECT * TAU, r = (0.25 + h.hash(k, i + seed) * 1.0) * R, z0 = Math.round((1 - r / (R + 5)) * 4);
+      if (foot(Math.sin(a), r) !== over) continue;
+      const x = Math.round(CX + Math.cos(a) * r), y = Math.round(cy0 + Math.sin(a) * r) - z0, z = 1 + (h.hash(i + k, 8) > 0.55 ? 1 : 0);
+      if (!inSq(x, y + z0)) continue;
+      rect(c, x - 1, y - 1, z + 2, z + 2, INK); rect(c, x, y, z, z, STONEP[2 + ((i + k) % 3)]); put(c, x, y, STONEP[5]);
+    }
+    if (k % 3 === 0 && !over) {
+      const a = a0, r = R * 0.6, x0 = Math.round(CX + Math.cos(a) * r) - 3, y0 = Math.round(cy0 + Math.sin(a) * r) - 2, up = k % 2 ? 1 : -1;
+      for (let j = 0; j < 7; j++) if (inSq(x0 + j, y0)) { put(c, x0 + j, y0 + Math.round(j * 0.35 * up) + 1, INK); put(c, x0 + j, y0 + Math.round(j * 0.35 * up), j % 3 ? '#6e4a2a' : '#5a3a22'); }
+    }
+  }
+}
 function drumSprite(h, mask, stump = false, back = false) {
   const W = 40, D = 40, OY = stump ? STUB + 2 : 0;
   return h.sprite(`cdrum|${mask}|${stump ? (back ? 2 : 1) : 0}`, W, OY + BASE_LIFT + D, c => {
     const seed = 53, cut = a => mask[sectorOf(a)] === '1';
     const R = DRUM_R, CX = 20, cyT = OY + 20, py = OY + DRUM;
     paintPlinth(c, h, py, seed);
+    const rubble = !stump && mask.includes('1');   // (a stump stands in its own rubble already: the drum came down)
+    if (rubble) drumDebris(c, h, cut, CX, py + 20, R, false, seed);
 
     // the rooms inside the drum, painted flat, then bent round it wherever the cut lays them open
     const band = newCanvas(W, DRUM), bc = band.getContext('2d');
@@ -913,6 +948,7 @@ function drumSprite(h, mask, stump = false, back = false) {
         if (Math.abs(odx) <= R && cut(Math.atan2(ohh, odx))) for (let y = Math.floor(cyT + hh); y < cyT + hh + DRUM - 1; y++) if (h.hash(x + seed, y) > 0.3) put(c, x, y, '#1c1814');
       }
     }
+    if (rubble) drumDebris(c, h, cut, CX, py + 20, R, true, seed);   // (the foot of the heap, over the drum)
     if (!stump) return;
     // a stump has been through a lot: cracks down what is left of the face
     for (let i = 0; i < 5; i++) {
