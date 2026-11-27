@@ -1295,7 +1295,7 @@ window.SLOPWARE = {
   "augmented-treality": {
    "visits": 0,
    "prompts": 0,
-   "tokens": 702787,
+   "tokens": 714853,
    "sharedWith": null,
    "versions": [
     {
@@ -1303,7 +1303,14 @@ window.SLOPWARE = {
      "date": "2026-11-27T03:24:36-07:00",
      "note": "build a Christmas tree, stand it in your room in AR",
      "prompts": 0,
-     "tokens": 702787
+     "tokens": 701758
+    },
+    {
+     "n": 2,
+     "date": "2026-11-27T03:27:12-07:00",
+     "note": "WebXR and Quick Look test harnesses",
+     "prompts": 0,
+     "tokens": 13095
     }
    ]
   },
