@@ -1,0 +1,897 @@
+// The page: input, the fixed-step loop, scaling the 320×180 buffer to the window, the between-maps store,
+// overlays, saves and the best score.
+
+import { createGame, step, nextMap, W, H, ABILITIES, abilityOffer, buyAbility, upgradeAbility, unmutateAbility, setSlot, createDemo, demoSet, demoStep, newGamePlus, createEnding, endingStep, jumpToLevel, migrate, healOffer, healBoss, HEAL_STEP, HEAL_COST } from './world.js';
+import { createRenderer, setCalm } from './render.js';
+import { ICONS, PAL, drawText } from './art.js';
+import { createAudio } from './audio.js';
+import { setScene, ENDING_TRACK } from './music.js';
+import { createTitle } from './title.js';
+import { createMenu } from './menu.js';
+import { createAttract } from './attract.js';
+import { createAppearance, currentLook, bossName } from './appearance.js';
+import { writeSave, readSave, saveInfo, clearSave, unlockPlus, plusData, unlockCow } from './save.js';
+import { createDebug, isSecretName } from './debug.js';
+import { controls, keyAction, poll, hit, held, stick, dpad, slotLabel, spaceLabel, onChange, setMode, padName, SLOTS, PAD_A, PAD_B } from './controls.js';
+
+const canvas = document.getElementById('game');
+const out = canvas.getContext('2d');
+const R = createRenderer();
+const audio = createAudio();
+const $ = id => document.getElementById(id);
+const fmt = n => Math.floor(n).toLocaleString('en-US');
+
+// ---------------------------------------------------------------------------------------------- saved things
+
+const BEST_KEY = 'bosshours.best.v1';
+let best = 0;
+try { best = Number(JSON.parse(localStorage.getItem(BEST_KEY) || '{}').score) || 0; } catch {}
+function showBest() { $('best').textContent = best ? `Best shift: ${fmt(best)} points` : ''; }
+showBest();
+
+let g = createGame(undefined, currentLook());
+let mode = 'title';   // title | play | store | paused | ending | won | over
+let ending = null;    // the walk home after the castle falls
+const DT = 1 / 60;
+let acc = 0, last = performance.now();
+let frozen = false;   // tests only: stop the clock so a screenshot shows exactly the stepped state
+const thud = name => audio.play(name);
+let title = createTitle({ instant: matchMedia('(prefers-reduced-motion: reduce)').matches, onThud: thud });
+const attract = createAttract(currentLook);
+// Launch order: the sound gate if the browser needs it, the studio splash, then the logo and the music together.
+let booted = false;
+
+// a throwaway context tells us whether this browser will play sound without being clicked first
+async function soundBlocked() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC || (navigator.webdriver && !/[?&]gate=1/.test(location.search))) return false;
+  const probe = new AC();
+  const allowed = await Promise.race([probe.resume().then(() => true, () => false), new Promise(r => setTimeout(r, 300, false))]);
+  const running = allowed && probe.state === 'running';
+  probe.close().catch(() => {});
+  return !running;
+}
+// browsers keep every page silent until it's been clicked, so when that's in force, one press comes first
+function soundGate() {
+  return new Promise(done => {
+    const gate = $('soundGate'), EVENTS = ['pointerdown', 'pointerup', 'click', 'touchend', 'keydown'];
+    gate.hidden = false;
+    $('soundGo').focus({ preventScroll: true });
+    let raf = 0;
+    const go = () => {
+      cancelAnimationFrame(raf);
+      for (const ev of EVENTS) removeEventListener(ev, hear, true);
+      audio.arm();
+      gate.hidden = true;
+      done();
+    };
+    const hear = e => {
+      e.stopImmediatePropagation();
+      if (e.type === 'keydown' && (e.repeat || e.ctrlKey || e.altKey || e.metaKey || /^(Escape|Tab|Shift|Control|Alt|Meta|F\d+)$/.test(e.key))) return;
+      if (e.cancelable) e.preventDefault();
+      if (e.type === 'pointerdown') return;   // on touch the press only counts when the finger lifts
+      go();
+    };
+    for (const ev of EVENTS) addEventListener(ev, hear, true);
+    // any controller button or stick gets past it too. A browser doesn't count that as permission to play sound, so
+    // there the game stays silent until the first key or click (audio.js listens for it); the desktop build never
+    // asks. The splash after this ignores the button until it is let go, so one press doesn't skip both.
+    const pads = window.SlopwareSplash?.padWatch?.();
+    if (pads) (function watch() { if (pads()) go(); else raf = requestAnimationFrame(watch); })();
+  });
+}
+(async () => {
+  if (await soundBlocked()) await soundGate();
+  await window.SlopwareSplash?.start();
+  poll();   // a button still held from skipping the splash is not a fresh press on the title
+  booted = true;
+  last = performance.now();
+  audio.unlock();
+})();
+
+let calm = false;
+try { calm = localStorage.getItem('bosshours.calm') === '1'; } catch {}
+setCalm(calm); title.calm = calm;
+
+const appearance = createAppearance({
+  audio,
+  onLook(look) { g.look = look; attract.g.look = look; if (demo) demo.look = look; },
+  onName(name) { g.boss.name = name; secretHint(); },
+});
+const menu = createMenu({
+  audio, appearance, title: () => title,
+  actions: {
+    newGame: () => newRun(),
+    plus: () => newRun(plusData()),
+    cont: () => { const s = readSave(); if (s) resumeFrom(s); else menu.refreshTitle(); },
+    resume: () => resume(),
+    saveQuit: () => { saveNow(); goTitle(); },
+    quit: () => goTitle(),
+  },
+  saves: { info: saveInfo, plus: plusData },
+  clearBest() { best = 0; try { localStorage.removeItem(BEST_KEY); } catch {} showBest(); },
+  hasBest: () => best > 0,
+  slots: () => g.slots.map(id => id && ABILITIES.find(a => a.id === id)?.name),
+  calm: {
+    get: () => calm,
+    set(on) { calm = on; setCalm(on); title.calm = on; try { localStorage.setItem('bosshours.calm', on ? '1' : '0'); } catch {} },
+  },
+});
+audio.setStage(1);
+
+// debug.js stops the level and inspects it; this is all it needs from the page
+const debug = createDebug({
+  canvas,
+  host: {
+    game: () => g,
+    can: () => (mode === 'play' || mode === 'paused') && !menu.open,
+    freeze() { const was = mode; if (mode === 'play') pause(); $('paused').hidden = true; return was; },
+    thaw(was) { if (was === 'play') resume(); else { $('paused').hidden = false; $('resume').focus({ preventScroll: true }); } },
+    jump(n) { jumpToLevel(g, n); R.reset(); audio.setStage(g.map.n); },
+    store(t, back) { openStore({ tab: t, debug: { back } }); },
+    closeStore: () => closeStore(),
+    get storeOpen() { return mode === 'store'; },
+  },
+});
+// a boss named after the debug keys cannot be hurt, and is told the keys on the pause screen
+const unkillable = () => isSecretName(bossName());
+function secretHint() {
+  const on = unkillable();
+  $('pausedSecret').hidden = !on;
+  $('pausedSecret').textContent = on ? 'Nothing can hurt you. Hold Shift and Ctrl, press , then . to see why.' : '';
+}
+
+// ---------------------------------------------------------------------------------------------- input
+
+const keys = new Set();
+const mouse = { x: W / 2 + 40, y: H / 2, l: false };
+const press = {};
+// which key does what lives in controls.js (rebindable); 'space' roars, or shakes while somebody is in the fur (world.js decides)
+const WALK = new Set(['up', 'down', 'left', 'right']);
+
+addEventListener('keydown', e => {
+  if (!/^(Shift|Control|Alt|Meta)/.test(e.code)) setMode('keyboard');   // keyboard and controller both work; the labels follow the last one
+  if (debug.key(e)) return;
+  if (menu.key(e, mode)) return;
+  if (mode === 'over' && e.code === 'KeyR') { e.preventDefault(); respawn(); return; }
+  if (e.target.closest?.('a, button, select')) return;
+  if (mode === 'over' && e.code === 'Enter') { e.preventDefault(); respawn(); return; }
+  if (mode === 'won' && e.code === 'Enter') { e.preventDefault(); newRun(plusData()); return; }
+  if (mode === 'ending') {   // any key at all (bar the modifiers, the F keys and browser shortcuts) moves the ending on
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || /^(Shift|Control|Alt|Meta|CapsLock|Tab|F\d+)$/.test(e.key)) return;
+    if (['Enter', 'Space', 'Escape'].includes(e.code)) e.preventDefault();
+    endingDone();
+    return;
+  }
+  if (e.code === 'KeyM') { audio.toggleMute(); return; }
+  if (mode === 'store') return;
+  if (e.code === 'Escape' || e.code === 'KeyP') { if (mode === 'play') pause(); else if (mode === 'paused') resume(); return; }
+  if (mode === 'paused' && e.code === 'Space') { e.preventDefault(); resume(); return; }
+  const a = keyAction(e.code);
+  if (a || ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+  if (!e.repeat && a && !WALK.has(a)) press[a] = true;
+  keys.add(e.code);
+});
+addEventListener('keyup', e => keys.delete(e.code));
+addEventListener('blur', () => { keys.clear(); mouse.l = false; if (mode === 'play') pause(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && mode === 'play') pause(); });
+
+function toBuffer(e) {
+  const r = canvas.getBoundingClientRect();
+  mouse.x = (e.clientX - r.left) / r.width * W;
+  mouse.y = (e.clientY - r.top) / r.height * H;
+}
+let lastPt = null;
+addEventListener('pointermove', e => {
+  toBuffer(e);
+  // a real nudge of the mouse hands the boss's gaze back to it (not the odd stray event while a stick is in use)
+  if (lastPt && Math.hypot(e.clientX - lastPt[0], e.clientY - lastPt[1]) > 6) setMode('keyboard');
+  lastPt = [e.clientX, e.clientY];
+});
+canvas.addEventListener('pointerdown', e => {
+  toBuffer(e);
+  setMode('keyboard');
+  canvas.focus();
+  if (debug.on) { if (e.button === 0) debug.click(mouse.x, mouse.y); return; }
+  if (mode === 'ending') { endingDone(); return; }
+  if (mode !== 'play') return;
+  if (e.button === 0) { press.slot0 = true; mouse.l = true; }
+  if (e.button === 2) press.slot1 = true;
+});
+addEventListener('pointerup', e => { if (e.button === 0) mouse.l = false; });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+// no long-press or right-click menu anywhere but the name box (a Steam Deck's trackpad right-clicks easily)
+addEventListener('contextmenu', e => { if (!e.target.closest?.('input')) e.preventDefault(); });
+
+// With a controller the boss has no mouse to look at, so it looks ahead of itself: the aim point sits AIM_AT pixels
+// out along its facing, nudged round by a "turn and walk" stick (TURN radians a second at full tilt; world.js turns
+// the boss toward it at its own rate) or set outright by a "face" stick.
+const TURN = 3.4, AIM_AT = 40;
+function readInput() {
+  const b = g.boss;
+  let r = false, l = false, u = false, d = false, slot0 = mouse.l;
+  for (const c of keys) {
+    const a = keyAction(c);
+    if (a === 'right') r = true; else if (a === 'left') l = true; else if (a === 'down') d = true; else if (a === 'up') u = true; else if (a === 'slot0') slot0 = true;
+  }
+  let ax = (r ? 1 : 0) - (l ? 1 : 0), ay = (d ? 1 : 0) - (u ? 1 : 0);
+  let mx = mouse.x + g.cam.x, my = mouse.y + g.cam.y;   // aim in world pixels; the screen scrolls on later levels
+  if (controls.gamepad.connected) {   // the controller works alongside the keys; it only steers the gaze when it was used last
+    let turn = 0, face = null;
+    for (const s of ['left', 'right']) {
+      const [x, y] = stick(s), role = controls.sticks[s];
+      if (role === 'move') { ax += x; ay += y; }
+      else if (role === 'tank') { turn += x; ax -= Math.cos(b.face) * y; ay -= Math.sin(b.face) * y; }
+      else if (role === 'aim' && (x || y)) face = Math.atan2(y, x);
+    }
+    const [px, py] = dpad();
+    ax += px; ay += py;
+    if (controls.mode === 'pad') {
+      const ang = face ?? b.face + Math.max(-1, Math.min(1, turn)) * TURN * DT;
+      mx = b.x + Math.cos(ang) * AIM_AT; my = b.y + Math.sin(ang) * AIM_AT;
+    }
+    if (held(controls.pad.slot0)) slot0 = true;
+  }
+  // every way of walking at once (keys, sticks, D-pad) still only adds up to walking: never faster than one of them
+  const len = Math.hypot(ax, ay);
+  if (len > 1) { ax /= len; ay /= len; }
+  return { mx, my, ax, ay, press: { ...press }, hold: { slot0 } };
+}
+
+// ---------------------------------------------------------------------------------------------- flow
+
+function start(next) {
+  audio.unlock();
+  ending = null;
+  setScene(null);   // the ending's lullaby hands back to the stage music
+  g = next;
+  g.counts = true;   // this one is really being played: its kills go in the Humanstiary's counts (tally.js)
+  R.reset();
+  acc = 0;
+  mode = 'play';
+  for (const id of ['title', 'over', 'paused', 'store', 'won', 'panel']) $(id).hidden = true;
+  audio.setStage(g.map.n);
+  canvas.focus();
+}
+// a new run, or New Game+ when handed the build carried over from a win; either way it is saved from the first step
+function newRun(plus) {
+  const run = plus ? newGamePlus(plus, currentLook()) : createGame(undefined, currentLook());
+  run.boss.name = bossName();
+  start(run);
+  writeSave(g);
+}
+function saveNow() {
+  if (g.boss.dead || g.over) return false;
+  return writeSave(g, mode === 'store' ? 'store' : 'play');
+}
+// back into a saved run: at the Hoard if that's where it left off, otherwise on break so nobody gets jumped
+function resumeFrom({ g: run, phase }) {
+  migrate(run);   // a save from before Roar moved to Space, or from before fireballs
+  run.look = currentLook();
+  run.boss.name = bossName();
+  start(run);
+  if (phase === 'store') openStore(); else pause();
+}
+function respawn() {
+  const s = readSave();
+  if (s) resumeFrom(s); else newRun();
+}
+// back to the menu from a pause, a defeat or a win; the logo doesn't replay
+function goTitle() {
+  audio.setCombat(false);
+  ending = null;
+  setScene(null);
+  audio.setStage(1);
+  acc = 0;
+  mode = 'title';
+  for (const id of ['over', 'paused', 'store', 'won', 'panel']) $(id).hidden = true;
+  showBest();
+  title = createTitle({ instant: true, onThud: thud });
+  title.calm = calm;
+  menu.reset();
+  $('title').hidden = false;
+  menu.reveal();
+}
+function pause() { mode = 'paused'; secretHint(); $('paused').hidden = false; $('resume').focus({ preventScroll: true }); }
+function resume() { mode = 'play'; $('paused').hidden = true; last = performance.now(); canvas.focus(); }
+
+const LINES = {
+  raid: ['by a raid.', 'They are arguing about who gets your fur.'],
+  dungeon: ['by five people who met an hour ago.', 'One of them was AFK for most of it.'],
+  rider: ['by a quiet man on a horse.', 'The horse did not help.'],
+};
+// R or Enter respawns from the keyboard; with a controller, A on the Respawn button (it has the focus)
+function overNote() {
+  $('overNote').textContent = `Bosses respawn on reset. Reset is whenever you press ${controls.mode === 'pad' ? padName(PAD_A) : 'R'}.`;
+}
+function gameOver() {
+  mode = 'over';
+  const killer = Object.entries(g.blame).sort((a, b) => b[1] - a[1])[0][0];
+  // (on the secret level nobody saw what happened)
+  const [a, b] = g.map.level?.id === 'fen' ? ['The Kingdom saw you disappear without a trace.', "You'll be back after the reset."] : LINES[killer];
+  $('overBy').textContent = a;
+  $('overSub').textContent = b;
+  const newBest = g.score > best;
+  if (newBest) { best = Math.floor(g.score); try { localStorage.setItem(BEST_KEY, JSON.stringify({ score: best, at: Date.now() })); } catch {} }
+  const m = Math.floor(g.t / 60), s = String(Math.floor(g.t % 60)).padStart(2, '0');
+  $('stats').innerHTML = [
+    ['Score', fmt(g.score) + (newBest ? ' <em>new best</em>' : '')],
+    ['Shift length', `${m}:${s}`],
+    ['Levels cleared', g.maps],
+    ['Laps between rocks', g.laps],
+    ['Adventurers eaten', g.kills],
+    ['Raids wiped', g.wipes.raid + g.wipes.final],
+    ['5-mans wiped', g.wipes.dungeon],
+    ['Horse guys', g.wipes.rider],
+    ['Points spent', fmt(g.spent)],
+    ['Adds summoned', g.summoned],
+  ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  showBest();
+  overNote();
+  $('over').hidden = false;
+  $('again').focus();
+}
+
+// the castle is down: the run is over, so the save goes and New Game+ opens. First the walk home, then the card
+function gameWon() {
+  clearSave();
+  unlockPlus(g);
+  audio.setCombat(false);
+  setScene(ENDING_TRACK);   // the walk home and the card after it get their own lullaby, whatever the jukebox says
+  audio.setStage(1);   // back in the Clearing, so its tune is next once the lullaby hands back
+  mode = 'ending';
+  ending = createEnding(g.look);
+  R.reset();
+  acc = 0;
+}
+// The ending never moves on by itself: it takes a key, a click or a tap, and only once its last part (the boss patting
+// its rocks) is looping. A press before that skips ahead to the last part instead. Behind the card the loop carries on.
+const ENDING_PROMPT = 5, ENDING_HOLD = 0.5;   // seconds into the loop: when "any key" fades up, and when a press first counts
+function endingDone() {
+  if (mode !== 'ending') return;
+  const en = ending.end;
+  if (en.phase !== 'home') {
+    if (en.t < 1) return;
+    const { A, B } = ending.map;
+    Object.assign(ending.boss, { x: (A.x + B.x) / 2, y: A.y + 3, face: Math.PI / 2, act: null, queue: null });
+    Object.assign(en, { phase: 'home', at: en.t, caption: 'TOGETHER AGAIN. AS IT SHOULD BE.', capT: 0 });
+    return;
+  }
+  if (en.t - en.at < ENDING_HOLD) return;   // a press meant as a skip must not also dismiss the scene
+  showWon();
+}
+function showWon() {
+  mode = 'won';
+  const newBest = g.score > best;
+  if (newBest) { best = Math.floor(g.score); try { localStorage.setItem(BEST_KEY, JSON.stringify({ score: best, at: Date.now() })); } catch {} }
+  const m = Math.floor(g.t / 60), s = String(Math.floor(g.t % 60)).padStart(2, '0');
+  $('wonStats').innerHTML = [
+    ['Score', fmt(g.score) + (newBest ? ' <em>new best</em>' : '')],
+    ['Time', `${m}:${s}`],
+    ...(g.ng ? [['Round', `New Game +${g.ng > 1 ? g.ng : ''}`]] : []),
+    ['Adventurers eaten', g.kills],
+    ['Raids wiped', g.wipes.raid + g.wipes.final],
+    ['Points spent', fmt(g.spent)],
+  ].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+  showBest();
+  $('wonPlus').textContent = g.ng ? `New Game +${g.ng + 1}` : 'New Game +';
+  $('won').hidden = false;
+  $('wonPlus').focus();
+}
+
+$('wonAgain').addEventListener('click', () => newRun());
+$('wonPlus').addEventListener('click', () => newRun(plusData()));
+$('again').addEventListener('click', respawn);
+$('resume').addEventListener('click', resume);
+
+// ---------------------------------------------------------------------------------------------- the store, between maps
+
+let tab = 'abil', sel = 'summon', demo = null, demoRaf = 0;
+const PR = createRenderer();   // the demo reel's own renderer
+
+// The debug mode can open the Hoard (or its Loadout tab) over a stopped level at any time: there everything is free,
+// mutations can be taken back off, nothing is saved, and the button goes back to the level instead of on to the next.
+let storeDebug = null;   // while the debug mode has the Hoard open: { back() }
+function openStore(opts = {}) {
+  storeDebug = opts.debug || null;
+  mode = 'store';
+  keys.clear(); mouse.l = false;
+  $('storeSub').dataset.text ??= $('storeSub').innerHTML;
+  $('storeSub').innerHTML = storeDebug ? `Debug: level ${g.map.n} is on hold. Everything here is free, and Unmutate takes a level back off.` : $('storeSub').dataset.text;
+  $('storeMap') && ($('storeMap').textContent = g.map.n);
+  tab = opts.tab || 'abil';
+  if (!ABILITIES.some(a => a.id === sel)) sel = 'summon';
+  demo ||= createDemo(g.look);
+  showDemo();
+  drawStore();
+  $('store').classList.toggle('dbg', !!storeDebug);
+  $('storeGo').dataset.label ??= $('storeGo').innerHTML;
+  $('storeGo').innerHTML = storeDebug ? 'Back to the level' : $('storeGo').dataset.label;
+  $('store').hidden = false;
+  drawHeal();   // (again, now it can be measured)
+  ($('abilList').querySelector('.item.sel') || $('storeGo')).focus({ preventScroll: true });
+  if (!storeDebug) writeSave(g, 'store');
+  cancelAnimationFrame(demoRaf);
+  let then = performance.now(), acc = 0;
+  const tick = now => {
+    if (mode !== 'store') return;
+    acc = Math.min(0.25, acc + (now - then) / 1000); then = now;
+    if (tab === 'abil') {
+      while (acc >= DT) { demoStep(demo, DT); acc -= DT; }
+      paintDemo();
+    } else acc = 0;
+    demoRaf = requestAnimationFrame(tick);
+  };
+  demoRaf = requestAnimationFrame(tick);
+}
+function closeStore() {
+  cancelAnimationFrame(demoRaf);
+  $('leaveAsk').hidden = true; closeSlotPick(false);
+  $('store').hidden = true;
+  if (storeDebug) { const d = storeDebug; storeDebug = null; mode = 'paused'; d.back(); return; }
+  nextMap(g);
+  R.reset();
+  mode = 'play';
+  audio.setStage(g.map.n);
+  writeSave(g);
+  last = performance.now();
+  canvas.focus();
+}
+
+function icon(id) {
+  const rows = ICONS[id] || ICONS.empty;
+  return `<svg class="ico" viewBox="0 0 8 8" aria-hidden="true">${rows.map((r, y) => [...r].map((c, x) => c === '#' ? `<rect x="${x}" y="${y}" width="1" height="1"/>` : '').join('')).join('')}</svg>`;
+}
+
+// the Hoard's lists are drawn again after every pick, so whatever had focus is found again by name afterwards
+function redraw(draw) {
+  const k = menu.nav.keyOf(document.activeElement);
+  draw();
+  menu.nav.restore(k, $('store'));
+  menu.nav.restore(`[data-sel="${sel}"]`, $('store'));
+}
+function drawStore() {
+  $('storePts').textContent = fmt(g.points);
+  for (const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected', b.dataset.tab === tab);
+  $('tabAbil').hidden = tab !== 'abil'; $('tabSlots').hidden = tab !== 'slots';
+  if (tab === 'abil') drawAbilities();
+  if (tab === 'slots') drawSlots();
+  $('storeHeal').hidden = tab !== 'abil';   // (not on the Loadout tab)
+  drawHeal();
+}
+// health carries over between levels; points buy it back here, a quarter of the bar at a time
+function drawHeal() {
+  const b = g.boss, o = healOffer(g), hp = storeDebug ? o.hp : o.afford;
+  $('healTxt').textContent = `Health ${Math.ceil(b.hp)} / ${b.maxhp}`;
+  $('healWhat').textContent = o.missing <= 0 ? 'already full' : hp > 0 ? `+${hp} health` : "can't afford";
+  $('healCost').textContent = o.missing <= 0 ? '' : storeDebug ? 'FREE' : fmt(Math.max(o.cost, 1));
+  $('healBtn').setAttribute('aria-disabled', o.missing <= 0 || hp <= 0 ? 'true' : 'false');
+  sizeHeal(o);
+}
+// The button is as wide as the widest thing it can say: "Heal +N health" at the most it can ever cost, or "Heal
+// already full". It is measured once it is on screen, so it doesn't jump about as the numbers change.
+function sizeHeal(o) {
+  const btn = $('healBtn');
+  if (!btn.offsetParent) return;
+  const step = Math.round(g.boss.maxhp * HEAL_STEP), key = `${step}|${!!storeDebug}`;
+  if (btn.dataset.sized === key) return;
+  const what = $('healWhat'), cost = $('healCost'), keep = [what.textContent, cost.textContent];
+  btn.style.minWidth = '';
+  let w = 0;
+  for (const [a, b] of [[`+${step} health`, storeDebug ? 'FREE' : fmt(Math.ceil(step * HEAL_COST))], ['already full', ''], ["can't afford", fmt(Math.ceil(step * HEAL_COST))]]) {
+    what.textContent = a; cost.textContent = b;
+    w = Math.max(w, btn.getBoundingClientRect().width);
+  }
+  [what.textContent, cost.textContent] = keep;
+  btn.style.minWidth = Math.ceil(w) + 'px';
+  btn.dataset.sized = key;
+}
+
+// what the Mutate button would buy for one ability: its price, and the level the demo should show
+function mutateOffer(id) {
+  const o = abilityOffer(g, id);
+  if (o.buyCost != null) return { o, cost: o.buyCost, what: 'Learn it', show: 0 };
+  if (o.upCost != null) return { o, cost: o.upCost, what: o.upText, show: o.it.passive ? o.lvl : o.lvl + 1 };
+  return { o, cost: null, what: 'Fully mutated', show: o.lvl };
+}
+
+function drawAbilities() {
+  $('abilList').innerHTML = ABILITIES.map(a => {
+    const { o, cost } = mutateOffer(a.id);
+    const pips = `<span class="pips">${Array.from({ length: o.max }, (_, i) => `<i class="${i < o.lvl ? 'on' : ''}"></i>`).join('')}</span>`;
+    const owned = o.owned || (a.passive && o.lvl > 0);
+    const line = cost == null ? '<span class="cost dim">maxed</span>' : `<span class="cost ${g.points < cost && !storeDebug ? 'dim' : ''}">${owned ? 'upgrade' : 'learn'} ${storeDebug ? 'free' : fmt(cost)}</span>`;
+    return `<button type="button" class="item ${owned ? 'owned' : ''} ${a.id === sel ? 'sel' : ''}" data-sel="${a.id}" aria-pressed="${a.id === sel}">${icon(a.id)}<b class="nm">${a.name}</b>${pips}${line}</button>`;
+  }).join('');
+  sizeInfo();
+  $('abilInfo').innerHTML = infoHTML(sel);
+}
+// the right-hand panel for one ability: what it is, and the Mutate button
+function infoHTML(id) {
+  const { o, cost: price, what } = mutateOffer(id), a = o.it;
+  const cost = storeDebug && price != null ? 0 : price;
+  const back = storeDebug && o.lvl > 0 ? `<button type="button" class="mutate" id="abilUnmutate"><span>Unmutate <small>debug: one level back off</small></span><b>${o.lvl}</b></button>` : '';
+  const tag = a.passive ? (o.lvl ? `level ${o.lvl}` : 'not grown') : a.space ? `always on ${spaceLabel(true).toUpperCase()}` : o.owned ? (g.slots.includes(a.id) ? `on ${slotLabel(g.slots.indexOf(a.id), true)}` : 'owned, not slotted') : 'not owned';
+  const desc = a.id === 'summon' && o.owned && o.lvl > 0 ? a.ups[o.lvl - 1] : a.desc;
+  return `<b class="nm">${icon(a.id)} ${a.name}</b><span class="up">${tag}</span><span class="desc">${desc}</span>` +
+    (cost == null ? `<span class="up">Fully mutated${a.ups && !a.passive && a.id !== 'summon' ? ': ' + a.ups[a.ups.length - 1][0].toLowerCase() + a.ups[a.ups.length - 1].slice(1) : ''}. Nothing left to grow.</span>`
+      : `<button type="button" class="mutate" id="abilMutate" ${g.points < cost ? 'aria-disabled="true"' : ''}><span>Mutate <small>${what}</small></span><b>${storeDebug ? 'FREE' : fmt(cost)}</b></button>`) + back;
+}
+// The panel is as tall as the tallest ability's (measured once per width), so picking one ability after another
+// never shoves the Heal and Next level buttons about (on a Steam Deck the whole card would jump)
+function sizeInfo() {
+  const el = $('abilInfo');
+  if (!el.offsetParent) return;
+  // (measured again after a purchase changes the texts, but only ever grows while the width stays the same)
+  const key = `${el.clientWidth}|${g.spent}|${!!storeDebug}`;
+  if (el.dataset.sized === key) return;
+  const sameW = el.dataset.sized?.split('|')[0] === String(el.clientWidth);
+  let h = sameW ? parseFloat(el.style.minHeight) || 0 : 0;
+  el.style.minHeight = '';
+  for (const a of ABILITIES) { el.innerHTML = infoHTML(a.id); h = Math.max(h, el.offsetHeight); }
+  el.style.minHeight = h + 'px';
+  el.dataset.sized = key;
+}
+
+// the demo reel: the selected ability (at the level Mutate would give you), cast on a loop at a 5-man
+function showDemo() {
+  const { show } = mutateOffer(sel);
+  demoSet(demo, sel, show, g.look);
+  for (let i = 0; i < 20; i++) demoStep(demo, DT);
+  paintDemo();
+}
+function paintDemo() {
+  const buf = PR.render(demo, { bare: true });
+  const cv = $('demo'), c = cv.getContext('2d');
+  c.imageSmoothingEnabled = false;
+  c.drawImage(buf, 10, 28, 240, 135, 0, 0, cv.width, cv.height);
+}
+
+function drawSlots() {
+  const owned = ABILITIES.filter(a => !a.passive && !a.space && g.owned.has(a.id));
+  // each choice shows the key it is already on, to the left of its name. Moving an ability from another slot leaves
+  // that one (EMPTY). data-pop: pressing it from a controller opens the Hoard's own list (openSlotPick)
+  const keyOf = id => { const j = g.slots.indexOf(id); return j >= 0 ? slotLabel(j) : ''; };
+  const pad = Math.max(...SLOTS.map((_, i) => slotLabel(i).length));
+  const label = a => `${(keyOf(a.id) || '').padEnd(pad, ' ')} ${a.name}`;
+  $('tabSlots').innerHTML = `<p class="hint">Five slots. Pick what goes where; the key each one is already on shows on its left, and taking one off another key leaves that key empty. Roar needs no slot: it is always on <kbd>${spaceLabel(true)}</kbd>, which shakes your fur instead while somebody is in it.</p>` +
+    g.slots.map((id, i) => `<label class="slot"><kbd>${slotLabel(i, true)}</kbd>${icon(id || 'empty')}
+      <select data-slot="${i}" data-pop ${owned.length ? '' : 'disabled'}>${id ? '' : '<option value="" selected disabled hidden>(EMPTY)</option>'}${owned.map(a => `<option value="${a.id}" ${a.id === id ? 'selected' : ''}>${label(a)}</option>`).join('')}</select></label>`).join('');
+}
+
+// ---------------------------------------------------------------------------------------------- leaving the Hoard
+
+// Next level asks first. The line it asks with is picked at random from these, never one of the last LEAVE_FRESH
+// shown (remembered across sessions), so they stay fresh.
+const LEAVE_LINES = [
+  'The gold will still be here. Probably.',
+  'Points do not spend themselves. Well, they do, but only when you are not looking.',
+  'There is a whole raid out there that has not been stepped on yet.',
+  'The next level has fewer shiny things in it and more people with swords.',
+  'Done shopping? The heroes have been gearing up while you browsed.',
+  'Last chance to grow something horrible before the next lot turns up.',
+  'Unspent points earn no interest. The Hoard checked.',
+  'Leaving with points in your pocket is how bosses end up as rugs.',
+  'Are you sure? The adventurers never are, and look at them.',
+  'The Hoard will miss you. It will not say so.',
+  'Your loadout looks fine. Loadouts always look fine until they are not.',
+  'Somewhere out there, a hunter\'s pet is already pulling.',
+  'Rock and Other Rock send their regards. Mind them on the way out.',
+  'The next lot has watched a guide about you. Twice.',
+  'No more mutating until the next Hoard. Horns do not grow on trees.',
+  'A boss with unspent points is just a large, angry savings account.',
+  'Ready? The healers say they are. The healers are lying.',
+  'The way out is that way. So is the fire.',
+  'Did you check the Loadout? A Swipe on the wrong button makes for a long day.',
+  'One more look at the shelves would not hurt anyone. The next level will.',
+  'Out there it is all walls, wizards and people typing GG. In here it is quiet.',
+];
+const LEAVE_FRESH = 7, LEAVE_KEY = 'bosshours.leaveLines';
+function leaveLine() {
+  let recent = [];
+  try { recent = JSON.parse(localStorage.getItem(LEAVE_KEY) || '[]').filter(Number.isInteger); } catch {}
+  const pool = LEAVE_LINES.map((_, i) => i).filter(i => !recent.includes(i));
+  const i = pool[Math.floor(Math.random() * pool.length)];
+  try { localStorage.setItem(LEAVE_KEY, JSON.stringify([...recent, i].slice(-LEAVE_FRESH))); } catch {}
+  return LEAVE_LINES[i];
+}
+function askLeave() {
+  if (storeDebug) { closeStore(); return; }   // (the debug Hoard just goes back to the level)
+  closeSlotPick(false);
+  $('leaveText').textContent = leaveLine();
+  $('leaveAsk').hidden = false;
+  $('leaveBack').focus({ preventScroll: true });
+  audio.play('menuGo');
+}
+function leaveAnswer(go) {
+  $('leaveAsk').hidden = true;
+  audio.play(go ? 'menuGo' : 'menuMove');
+  if (go) closeStore(); else $('storeGo').focus({ preventScroll: true });
+}
+$('leaveBack').addEventListener('click', () => leaveAnswer(false));
+$('leaveGo').addEventListener('click', () => leaveAnswer(true));
+
+// ---------------------------------------------------------------------------------------------- the Loadout's own list
+
+// A controller can't open a real pull-down, so pressing on a Loadout slot from the controller (or the keyboard's menu
+// cursor) opens this list instead, right under the slot: pick the ability for that slot straight away.
+let slotPickFor = null;
+function openSlotPick(s) {
+  const i = +s.dataset.slot, list = $('slotPick'), card = $('store').querySelector('.card');
+  const owned = ABILITIES.filter(a => !a.passive && !a.space && g.owned.has(a.id));
+  if (!owned.length) return;
+  slotPickFor = i;
+  list.innerHTML = owned.map(a => {
+    const j = g.slots.indexOf(a.id);
+    return `<button type="button" class="pickOpt" role="option" data-pick="${a.id}" aria-selected="${j === i}">${icon(a.id)}<span>${a.name}</span><small>${j >= 0 && j !== i ? 'on ' + slotLabel(j) : ''}</small></button>`;
+  }).join('');
+  const r = s.getBoundingClientRect(), c = card.getBoundingClientRect();
+  // beside the slot, where there is room, so it never pushes the card into scrolling
+  list.style.left = Math.round(r.right - c.left + card.scrollLeft + 10) + 'px';
+  list.style.top = Math.round(r.top - c.top + card.scrollTop) + 'px';
+  list.hidden = false;
+  (list.querySelector('[aria-selected="true"]') || list.querySelector('button')).focus({ preventScroll: true });
+  audio.play('menuMove');
+}
+function closeSlotPick(refocus = true) {
+  const list = $('slotPick');
+  if (list.hidden) return;
+  list.hidden = true;
+  const i = slotPickFor;
+  slotPickFor = null;
+  if (refocus) $('tabSlots').querySelector(`select[data-slot="${i}"]`)?.focus({ preventScroll: true });
+}
+$('slotPick').addEventListener('popclose', () => closeSlotPick(true));
+$('slotPick').addEventListener('click', e => {
+  const b = e.target.closest('[data-pick]');
+  if (!b) return;
+  const i = slotPickFor;
+  closeSlotPick(false);
+  setSlot(g, i, b.dataset.pick);
+  audio.play('menuGo');
+  drawStore();
+  $('tabSlots').querySelector(`select[data-slot="${i}"]`)?.focus({ preventScroll: true });
+});
+$('store').addEventListener('popopen', e => { const s = e.target.closest('select[data-slot]'); if (s && !s.disabled) openSlotPick(s); });
+document.addEventListener('pointerdown', e => { if (!e.target.closest('#slotPick')) closeSlotPick(false); });
+
+// ---------------------------------------------------------------------------------------------- buying from a controller
+
+// On a controller the ability list is the whole shop: walking onto an ability shows it, and pressing any face button
+// on it mutates it there and then (the keyboard and mouse still pick it, then press Mutate)
+function mutate(id) {
+  const o = abilityOffer(g, id);
+  const ok = o.buyCost != null ? buyAbility(g, id, !!storeDebug) : upgradeAbility(g, id, !!storeDebug);
+  if (ok) showDemo();
+  return ok;
+}
+$('store').addEventListener('padbuy', e => {
+  const t = e.target.closest('[data-sel]');
+  if (!t) return;
+  if (sel !== t.dataset.sel) { sel = t.dataset.sel; showDemo(); }
+  if (mutate(sel)) { audio.play('buy'); redraw(drawStore); }
+  else { audio.play('menuMove'); redraw(drawAbilities); }
+});
+$('store').addEventListener('focusin', e => {
+  const t = e.target.closest?.('.item[data-sel]');
+  if (!t || controls.mode !== 'pad' || t.dataset.sel === sel) return;
+  sel = t.dataset.sel; showDemo(); redraw(drawAbilities);
+});
+
+$('store').addEventListener('click', e => {
+  const t = e.target.closest('button');
+  if (!t || t.getAttribute('aria-disabled') === 'true') return;
+  if (t.closest('#slotPick, #leaveAsk')) return;
+  if (t.dataset.tab) { tab = t.dataset.tab; closeSlotPick(false); redraw(drawStore); return; }
+  if (t.id === 'storeGo') { askLeave(); return; }
+  if (t.dataset.sel) { sel = t.dataset.sel; showDemo(); redraw(drawAbilities); return; }
+  let ok = false;
+  if (t.id === 'abilMutate') ok = mutate(sel);
+  if (t.id === 'abilUnmutate' && storeDebug) { ok = unmutateAbility(g, sel); if (ok) showDemo(); }
+  if (t.id === 'healBtn') ok = healBoss(g, !!storeDebug);
+  if (ok) { audio.play('buy'); redraw(drawStore); }
+});
+$('store').addEventListener('change', e => {
+  const s = e.target.closest('select[data-slot]');
+  if (s && s.value) { setSlot(g, +s.dataset.slot, s.value); redraw(drawStore); }
+});
+// a controller turning up mid-shop changes every key label in it
+onChange(() => { if (mode === 'store') redraw(drawStore); if (mode === 'over') overNote(); });
+
+// ---------------------------------------------------------------------------------------------- loop
+
+function fit() {
+  const dpr = window.devicePixelRatio || 1;
+  const bar = document.querySelector(".site-topbar") ? 52 : 0;   // the desktop build has no site bar
+  const availW = innerWidth, availH = innerHeight - bar;
+  const fitScale = Math.min(availW / W, availH / H);
+  // whole-number scales in device pixels keep the pixels square; fall back to a plain fit on tiny screens
+  let s = Math.floor(fitScale * dpr);
+  if (s < 1) s = 1;
+  canvas.width = W * s; canvas.height = H * s;
+  const cssW = s / dpr >= 1 ? W * s / dpr : W * fitScale;
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssW * H / W + 'px';
+  const root = document.documentElement.style;
+  root.setProperty('--cw', cssW + 'px'); root.setProperty('--ch', cssW * H / W + 'px'); root.setProperty('--u', cssW / W);
+  out.imageSmoothingEnabled = false;
+}
+addEventListener('resize', fit);
+fit();
+
+function drain() {
+  for (const e of g.events) {
+    if (e === 'over') gameOver();
+    else if (e === 'store') openStore();
+    else if (e === 'won') gameWon();
+    else if (e === 'stage') { audio.setStage(g.map.n); R.reset(); writeSave(g); }   // a level changed without the Hoard (the secret level's way in and out)
+    else if (e === 'cowunlock') unlockCow();
+    else audio.play(e);
+  }
+  g.events.length = 0;
+}
+
+// the ending: the clearing, the boss, its rocks, hearts, and a line of narration letterboxed at the bottom
+const HEART = ['.#.#.', '#####', '#####', '.###.', '..#..'];
+function paintEnding(card = false) {
+  const buf = R.render(ending, { bare: true }), c = buf.getContext('2d'), en = ending.end;
+  for (const h of en.hearts) {
+    if (h.t < 0) continue;
+    c.globalAlpha = h.t > 1.6 ? Math.max(0, (2.4 - h.t) / 0.8) : 1;
+    const x = Math.round(h.x - ending.cam.x) - 2, y = Math.round(h.y - ending.cam.y) - 2;
+    c.fillStyle = PAL.ink; HEART.forEach((r, j) => { for (let i = 0; i < 5; i++) if (r[i] === '#') c.fillRect(x + i - 1, y + j, 3, 1); });
+    HEART.forEach((r, j) => { for (let i = 0; i < 5; i++) if (r[i] === '#') { c.fillStyle = i === 1 && j === 1 ? '#ffd0dc' : '#e2486a'; c.fillRect(x + i, y + j, 1, 1); } });
+  }
+  c.globalAlpha = 1;
+  const warm = Math.min(0.32, en.t * 0.012);
+  if (card) { c.globalAlpha = warm; c.fillStyle = '#ff9a4a'; c.fillRect(0, 0, W, H); c.globalAlpha = 1; out.drawImage(buf, 0, 0, canvas.width, canvas.height); return; }
+  // letterbox bars, the caption typed out, and a warm wash that deepens toward the end
+  const k = Math.min(1, en.t / 1.2);
+  c.fillStyle = '#0a0806'; c.fillRect(0, 0, W, Math.round(16 * k)); c.fillRect(0, H - Math.round(22 * k), W, 22);
+  c.globalAlpha = warm; c.fillStyle = '#ff9a4a'; c.fillRect(0, 16, W, H - 38); c.globalAlpha = 1;
+  if (en.caption) drawText(c, en.caption.slice(0, Math.floor(en.capT * 28)), W / 2, H - 15, PAL.cream, { align: 'center' });
+  if (en.phase !== 'home') { if (en.t > 2) drawText(c, 'CLICK TO SKIP', W - 4, 5, '#6b665c', { align: 'right', shadow: false }); }
+  else {
+    // the last part loops until the player moves on: the prompt fades up in the lower right corner 5 s into the loop
+    const a = Math.min(1, (en.t - en.at - ENDING_PROMPT) / 1.5);
+    if (a > 0) drawText(c, 'ANY KEY TO CONTINUE...', W - 4, H - 8, PAL.cream, { align: 'right', alpha: a });
+  }
+  out.imageSmoothingEnabled = false;
+  out.drawImage(buf, 0, 0, canvas.width, canvas.height);
+}
+
+function paint() {
+  if (mode === 'title' && !booted && !frozen) {   // nothing shows until the gate and the splash are done
+    out.fillStyle = '#000';
+    out.fillRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
+  if (mode === 'title') {
+    const buf = R.render(attract.g, { bare: true }), c = buf.getContext('2d');
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    // the fights stay in the background at 35% brightness, with a quick fade in at each cut
+    c.globalAlpha = 0.65 + 0.35 * Math.max(0, 1 - attract.t / 0.14);
+    c.fillStyle = '#000';
+    c.fillRect(0, 0, W, H);
+    c.globalAlpha = 1;
+    if (booted || frozen) title.draw(c);
+    out.imageSmoothingEnabled = false;
+    out.drawImage(buf, 0, 0, canvas.width, canvas.height);
+    return;
+  }
+  // with a controller the crosshair marks where the boss is facing instead of where the mouse is
+  const b = g.boss, pad = controls.mode === 'pad';
+  const cx = pad ? b.x + Math.cos(b.face) * AIM_AT - g.cam.x : mouse.x, cy = pad ? b.y + Math.sin(b.face) * AIM_AT - g.cam.y : mouse.y;
+  const buf = R.render(g, { mx: cx, my: cy, cursor: mode === 'play', muted: audio.muted });
+  debug.draw(buf);
+  out.imageSmoothingEnabled = false;
+  out.drawImage(buf, 0, 0, canvas.width, canvas.height);
+}
+
+// the controller, once a frame: the menus get first say (walking, picking, binding, fullscreen); otherwise its
+// buttons go to the boss, or move the ending on
+function padFrame(dt) {
+  poll();
+  if (debug.on || menu.pad(mode, dt)) return;
+  if (mode === 'play') {
+    for (const a of [...SLOTS, 'space']) if (hit(controls.pad[a])) press[a] = true;
+    if (hit(controls.pad.pause)) pause();
+  }
+  if (mode === 'ending' && (hit(PAD_A) || hit(PAD_B) || hit(controls.pad.pause))) endingDone();
+}
+
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  if (booted) padFrame(dt);
+  menu.draw(mode);
+  if (mode === 'play' && !frozen) {
+    acc += dt;
+    while (acc >= DT && mode === 'play') {
+      if (unkillable()) g.boss.hp = g.boss.maxhp;
+      step(g, readInput(), DT);
+      for (const k in press) delete press[k];
+      acc -= DT;
+      drain();
+    }
+    audio.setCombat(g.parties.some(p => p.engaged));
+  }
+  if (mode === 'title' && !frozen) {
+    attract.update(dt);
+    if (booted) {
+      title.update(dt);
+      if (title.done) menu.reveal();
+    }
+  }
+  if (mode === 'won' && ending) {
+    endingStep(ending, Math.min(dt, 0.05));
+    ending.events.length = 0;
+    paintEnding(true); requestAnimationFrame(frame); return;
+  }
+  if (mode === 'ending') {
+    acc += dt;
+    while (acc >= DT && mode === 'ending') {
+      endingStep(ending, DT);   // (it never ends by itself: see endingDone)
+      for (const e of ending.events) audio.play(e);
+      ending.events.length = 0;
+      acc -= DT;
+    }
+    if (mode === 'ending') { paintEnding(); requestAnimationFrame(frame); return; }
+  }
+  paint();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// leaving the page keeps your place
+addEventListener('pagehide', () => { if (mode === 'play' || mode === 'paused' || mode === 'store') saveNow(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && (mode === 'play' || mode === 'paused' || mode === 'store')) saveNow(); });
+
+// headless test hooks
+if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+  window.__bh = {
+    get g() { return g; },
+    get mode() { return mode; },
+    debug,
+    get title() { return title; },
+    goTitle,
+    start,
+    win: () => gameWon(),
+    get booted() { return booted; },
+    get ending() { return ending; },
+    newRun,
+    respawn,
+    attract,
+    saveNow,
+    readSave,
+    saveInfo,
+    unlockCow: () => import('./save.js').then(m => m.unlockCow()),
+    audio,
+    openStore, closeStore,
+    tab(t) { tab = t; drawStore(); },
+    freeze(on = true) { frozen = on; },
+    // covers the page with a magnified crop of the buffer (w buffer px wide), for close-up screenshots
+    zoom(cx, cy, w = 100) {
+      let z = document.getElementById('bhzoom');
+      if (!cx && z) { z.remove(); return; }
+      if (!z) { z = document.createElement('canvas'); z.id = 'bhzoom'; z.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;z-index:99;image-rendering:pixelated'; document.body.appendChild(z); }
+      z.width = 1200; z.height = 900;
+      const c = z.getContext('2d'), s = canvas.width / W, h = w * 0.75;
+      c.imageSmoothingEnabled = false;
+      c.drawImage(canvas, (cx - w / 2) * s, (cy - h / 2) * s, w * s, h * s, 0, 0, 1200, 900);
+    },
+    aim(x, y) { mouse.x = x; mouse.y = y; },
+    input: () => readInput(),
+    controls: () => import('./controls.js'),
+    menu,
+    // steps n frames with the given input (and renders once at the end)
+    step(n = 60, inp = {}) {
+      for (let i = 0; i < n; i++) { if (unkillable()) g.boss.hp = g.boss.maxhp; step(g, { mx: g.boss.x + 30, my: g.boss.y, ax: 0, ay: 0, press: {}, hold: {}, ...inp }, DT); inp = { ...inp, press: {} }; }
+      drain();
+      paint();
+      return { t: g.t, score: Math.round(g.score), hp: Math.round(g.boss.hp), units: g.units.length, mult: g.mult };
+    },
+    world: () => import('./world.js'),
+    level: async n => { (await import('./world.js')).jumpToLevel(g, n); R.reset(); audio.setStage(g.map.n); paint(); return g.map.name; },
+  };
+}

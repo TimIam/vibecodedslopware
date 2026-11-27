@@ -1294,8 +1294,8 @@ window.SLOPWARE = {
   },
   "augmented-treality": {
    "visits": 0,
-   "prompts": 0,
-   "tokens": 714853,
+   "prompts": 1,
+   "tokens": 863393,
    "sharedWith": null,
    "versions": [
     {
@@ -1309,8 +1309,8 @@ window.SLOPWARE = {
      "n": 2,
      "date": "2026-11-27T03:27:12-07:00",
      "note": "WebXR and Quick Look test harnesses",
-     "prompts": 0,
-     "tokens": 13095
+     "prompts": 1,
+     "tokens": 161635
     }
    ]
   },
@@ -2112,6 +2112,13 @@ window.SLOPWARE = {
      "n": 23,
      "date": "2026-11-25T18:36:49-07:00",
      "note": "lifetime kill counts in the Humanstiary, fen water puts out fireballs",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 24,
+     "date": "2026-11-27T10:59:30-07:00",
+     "note": "walls repaint on respawn, arrow and ballista death lines, keep tower waits for its base",
      "prompts": 0,
      "tokens": 0
     }
