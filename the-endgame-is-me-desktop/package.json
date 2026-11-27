@@ -52,7 +52,8 @@
       "icon": "build/icon.png",
       "category": "public.app-category.games",
       "identity": null,
-      "hardenedRuntime": false
+      "hardenedRuntime": false,
+      "x64ArchFiles": "Contents/Resources/app.asar.unpacked/node_modules/steamworks.js/dist/osx/*"
     }
   },
   "dependencies": {
