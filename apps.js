@@ -2128,6 +2128,13 @@ window.SLOPWARE = {
      "note": "rubble heaps on the keep's square base as its drum is chopped",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 26,
+     "date": "2026-11-27T13:12:10-07:00",
+     "note": "51 Steam achievements",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
