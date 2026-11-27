@@ -15,7 +15,7 @@ TEST_SUBJECT,name,Test Subject
 TEST_SUBJECT,description,Mutate all abilities.
 LIFE_FINDS_A_WAY,name,"Life, Uh, Finds A Way"
 LIFE_FINDS_A_WAY,description,Change your loadout.
-ITS_EVOLUTION,name,"Its Evolution, Baby"
+ITS_EVOLUTION,name,"It's Evolution, Baby"
 ITS_EVOLUTION,description,Mutate an ability to max level.
 BECOME_DEATH,name,I Am Become Death
 BECOME_DEATH,description,Mutate all abilities to max level.
@@ -57,7 +57,7 @@ VROOM_VROOM,name,"Vroom, Vroom!"
 VROOM_VROOM,description,Trample 20 humans in one charge of Zoomies.
 BURNINATE,name,BURNINATE!
 BURNINATE,description,Consummate flames!
-WHIP_IT_GOOD,name,Whip it good!
+WHIP_IT_GOOD,name,Whip It Good!
 WHIP_IT_GOOD,description,Strike 10 or more humans with one cast of Tail Whip.
 STOMP_STOMP,name,Stomp Stomp!
 STOMP_STOMP,description,Use one Stomp on 25 or more humans.

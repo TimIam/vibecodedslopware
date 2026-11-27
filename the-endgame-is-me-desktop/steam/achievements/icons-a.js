@@ -126,7 +126,7 @@ function frames(c, k, cols, rows, cw, ch, x0, y0, skull) {
 }
 
 // a castle keep seen from the front: two towers and a wall between, w wide, base on y
-function keep(c, k, x, y) {
+function keep(c, k, x, y, ruined = false) {
   const P = k.PAL, cv = off(), x2 = cv.getContext('2d');
   const st = (i, j) => { const h = k.hash(i, j * 3); return h < 0.15 ? P.rock1 : h < 0.75 ? P.rock2 : P.rock3; };
   const block = (bx, by, w, h) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const brick = (j % 3 === 2) || ((i + (Math.floor(j / 3) % 2) * 2) % 5 === 0); k.put(x2, bx + i, by + j, brick ? P.rock1 : st(bx + i, by + j)); } };
@@ -140,6 +140,21 @@ function keep(c, k, x, y) {
   for (let i = 0; i < 8; i += 2) k.rect(x2, 28 + i, 33, 1, 13, '#3a2414');
   k.rect(x2, 27, 31, 10, 1, P.rock1);
   for (const [wx, wy] of [[9, 18], [9, 28], [53, 18], [53, 28], [31, 8]]) { k.rect(x2, wx, wy, 2, 4, P.ink); }
+  if (ruined) {
+    // how far down each column is knocked (y in the 64×46 sprite): the left tower chipped, the keep broken in half,
+    // the right tower and the right of the wall down to stumps, a breach left of the gate
+    const brk = i => i < 10 ? 13 + (i > 6 ? 2 : 0) : i < 22 ? 22 + Math.round(k.hash(i, 4) * 3) + (i > 13 && i < 19 ? 9 : 0)
+      : i < 42 ? 10 + Math.round(Math.abs(i - 30) * 0.7 + k.hash(i, 5) * 3) : i < 47 ? 30 + Math.round(k.hash(i, 6) * 3) : 33 + Math.round(k.hash(i, 7) * 4);
+    for (let i = 0; i < 64; i++) x2.clearRect(i, 0, 1, brk(i));
+    // cracks
+    for (const [cx, cy, len, d] of [[6, 20, 9, 1], [26, 22, 7, -1], [36, 18, 8, 1], [49, 36, 5, -1]]) for (let j = 0; j < len; j++) k.put(x2, cx + Math.round(j * 0.4 * d) + (j % 2), cy + j, P.ink);
+    // rubble heaped against the foot
+    for (let n = 0; n < 70; n++) {
+      const rx = 4 + k.hash(n, 11) * 56, near = Math.abs(rx - 16) < 7 || rx > 40, ry = 44 - k.hash(n, 12) * (near ? 9 : 4);
+      const w = 2 + Math.floor(k.hash(n, 13) * 3);
+      k.rect(x2, rx, ry, w, 2, P.ink); k.rect(x2, rx, ry, w - 1, 1, k.hash(n, 14) < 0.5 ? P.rock2 : P.rock3);
+    }
+  }
   inkAround(c, k, cv, x - 32, y - 46);
   c.drawImage(cv, x - 32, y - 46);
 }
@@ -184,9 +199,12 @@ export const ICONS = {
     }
     for (const [x, y] of ring) { k.rect(c, x - 1, y - 1, 3, 3, '#4a3a24'); }
     ring.forEach(([x, y], i) => { if (i % 4 === 0) k.put(c, x, y, P.dirt3); });
-    stone(c, k, 13, 31, 7, 13, 2);
-    stone(c, k, 44, 31, 7, 13, 5);
-    k.label(c, 'X5', 32, 44, P.gold, 3);
+    k.rock(c, false, 17, 27, 1);
+    k.rock(c, true, 47, 27, 1);
+    // a lower-case x (the font only has capitals), then the 5 at the size it always was
+    for (const [dx, dy, col] of [[0, 3, P.ink], [3, 3, P.ink], [0, 0, P.gold]])
+      ['#.#', '.#.', '#.#'].forEach((r, j) => [...r].forEach((ch, i) => { if (ch === '#') k.rect(c, 20 + i * 3 + dx, 50 + j * 3 + dy, 3, 3, col); }));
+    k.drawText(c, '5', 32, 44, P.gold, { scale: 3 });
   },
 
   // vengeance at full: the boss roaring out of a wall of fire
@@ -206,37 +224,16 @@ export const ICONS = {
     k.label(c, 'X5', 32, 49, P.fire3, 2);
   },
 
-  // a practice dummy, clawed
+  // the five melee abilities, as their HUD icons in slots: Swipe, Stomp, Stun Charge over Tail Sweep, Zoomies
   DO_YOU_PRACTICE: (c, k) => {
     const P = k.PAL;
     k.backdrop(c, '#4a3a26', '#18120a', '#6a5638');
-    k.rect(c, 4, 54, 56, 8, '#3a2c1a');
-    // post and crossbar
-    k.rect(c, 29, 30, 6, 28, P.ink); k.rect(c, 30, 30, 4, 28, '#6a4422'); k.rect(c, 30, 30, 1, 28, '#8a5a32');
-    k.rect(c, 11, 25, 42, 6, P.ink); k.rect(c, 12, 26, 40, 4, '#6a4422'); k.rect(c, 12, 26, 40, 1, '#8a5a32');
-    // sack body
-    spr(c, k, [
-      '...ssssssss...',
-      '..ssssssssss..',
-      '.ssshssssssss.',
-      'sssshsssssssst',
-      'sssshsssssssst',
-      'ssssssssssssst',
-      'ssssssssssssst',
-      'ssssssssssssst',
-      'ssssssssssssst',
-      '.sssssssssstt.',
-      '..ssssssssst..',
-      '...rrrrrrrr...',
-      '....ssssss....',
-      '.....tttt.....',
-    ], 22, 26, { s: '#c8a86a', h: '#e2c88a', t: '#9a7c48', r: '#7a5a30' }, 2, { ink: true });
-    // head
-    spr(c, k, ['..sssss..', '.sssssss.', 'sskssskss', 'ssskskss.', 'sskssskst', 'sssssssst', '.sssssst.', '..sttts..'], 23, 6, { s: '#c8a86a', k: '#3a2a14', t: '#9a7c48' }, 2, { ink: true });
-    k.rect(c, 26, 7, 12, 1, '#e2c88a');
-    // straw poking out
-    for (const [x, y] of [[20, 36], [18, 40], [46, 44], [47, 49], [24, 54]]) k.put(c, x, y, P.yellow);
-    slashes(c, k, 23, 31, 20, 7);
+    const slot = (x, y, id) => {
+      k.rect(c, x, y, 18, 18, P.ink); k.rect(c, x + 1, y + 1, 16, 16, '#241c14');
+      k.abilIcon(c, id, x + 1, y + 1, 2, P.cream);
+    };
+    slot(4, 11, 'swipe'); slot(23, 11, 'stomp'); slot(42, 11, 'charge');
+    slot(13, 35, 'tail'); slot(33, 35, 'haste');
   },
 
   // beat the game melee-only: the king's crown, clawed off his head
@@ -302,38 +299,26 @@ export const ICONS = {
     k.abilIcon(c, 'breath', 31, 6, 3, P.fire3);
     glow(c, k, 43, 18, 16, P.fire2, 0.5);
     k.abilIcon(c, 'breath', 31, 6, 3, P.fire3);
-    for (let i = 0; i < 3; i++) { k.rect(c, 34 + i * 7, 39, 5, 5, P.ink); k.rect(c, 35 + i * 7, 40, 3, 3, P.heal); }
-    k.label(c, 'MAX', 45, 50, P.heal, 1);
   },
 
-  // a mushroom cloud with horns
+  // Test Subject's flask, with a jawless skull over it, red-eyed
   BECOME_DEATH: (c, k) => {
     const P = k.PAL;
-    k.backdrop(c, '#3a4a1a', '#100a14', '#5a6a2a');
-    const cv = off(), x = cv.getContext('2d');
-    // stem and base
-    for (let y = 26; y < 56; y++) { const w = 4 + Math.max(0, y - 46) * 1.2 + Math.sin(y * 0.7) * 0.6; k.rect(x, 32 - w, y, w * 2, 1, '#c86a2a'); }
-    k.disc(x, 22, 54, 6, '#8a6a5a'); k.disc(x, 42, 54, 6, '#8a6a5a'); k.disc(x, 32, 53, 7, '#a07a5a');
-    // cap
-    for (const [cx, cy, r] of [[32, 18, 13], [21, 21, 8], [43, 21, 8], [26, 12, 8], [38, 12, 8], [32, 25, 9]]) k.disc(x, cx, cy, r, '#d8a070');
-    // horns curling up out of the cap
-    const horn = (sx, dir) => { for (let i = 0; i < 12; i++) { const a = i / 11; k.disc(x, sx + dir * (a * 9), 14 - a * 11 + a * a * 3, Math.round(3 - a * 2), i > 8 ? P.hornD : P.horn); } };
-    horn(19, -1); horn(45, 1);
-    const sh = (cx, cy, r, col) => k.disc(x, cx, cy, r, col);
-    // shading: lighter top, hot core under the cap
-    for (const [cx, cy, r] of [[30, 10, 5], [24, 14, 3], [38, 9, 3]]) sh(cx, cy, r, '#f2d0a0');
-    k.rect(x, 26, 28, 12, 6, '#ffa22b');
-    // the skull's face
-    spr(x, k, ['kkk...kkk', 'kkkk.kkkk', '.kk...kk.', '....k....', '...kkk...', '.........', '.k.k.k.k.'], 28 - 4 + 4, 16, { k: '#2a1410' }, 1);
-    // the face again, bigger: eyes
-    k.rect(x, 24, 16, 5, 4, '#2a1410'); k.rect(x, 35, 16, 5, 4, '#2a1410'); k.put(x, 26, 17, P.heal); k.put(x, 37, 17, P.heal);
-    k.rect(x, 31, 21, 2, 2, '#2a1410');
-    for (let i = 0; i < 5; i++) k.rect(x, 26 + i * 3, 25, 2, 2, '#2a1410');
-    inkAround(c, k, cv, 0, 0);
-    c.drawImage(cv, 0, 0);
-    // ground
-    k.rect(c, 2, 58, 60, 4, '#1a1408');
-    glow(c, k, 32, 58, 14, P.fire2, 0.5);
+    ICONS.TEST_SUBJECT(c, k);
+    glow(c, k, 25, 35, 5, '#ff2a1a', 0.7); glow(c, k, 39, 35, 5, '#ff2a1a', 0.7);
+    spr(c, k, [
+      '....bbbbb....',
+      '..bbbbbbbbb..',
+      '.bbbbbbbbbbd.',
+      'bbbbbbbbbbbbd',
+      'bbbbbbbbbbbbd',
+      'bkkkbbbbbkkkd',
+      'bkRkbbbbbkRkd',
+      'bkkkbbkbbkkkd',
+      '.bbbbkkkbbbd.',
+      '..bbbbbbbdd..',
+      '..b.b.b.b.d..',
+    ], 19, 24, { b: P.bone, d: '#a89a7a', k: P.ink, R: '#ff3a24' }, 2, { ink: true });
   },
 
   // ---------------------------------------------------------------- the levels
@@ -342,8 +327,8 @@ export const ICONS = {
   LEVEL_1: (c, k) => {
     const P = k.PAL;
     k.backdrop(c, '#36502a', '#121c0c', '#56703e');
-    stone(c, k, 5, 32, 6, 14, 3);
-    stone(c, k, 53, 32, 6, 14, 6);
+    k.rock(c, false, 9, 27, 1);
+    k.rock(c, true, 55, 27, 1);
     k.boss(c, 32, 25, 1, { dir: 8, mouth: true });
     k.hero(c, 'warrior', 14, 54, 2);
     k.hero(c, 'mage', 32, 56, 2);
@@ -434,14 +419,11 @@ export const ICONS = {
   LEVEL_7: (c, k) => {
     const P = k.PAL;
     k.backdrop(c, '#4a4a50', '#141418', '#6a6a72');
-    keep(c, k, 32, 52);
-    // the king's banners
-    const flag = (x, y, flip) => {
-      k.rect(c, x, y, 1, 9, P.ink);
-      spr(c, k, ['rrrrr', 'rryrr', 'ryyyr', 'rryrr', 'rrrr.', 'rrr..'], flip ? x - 5 : x + 1, y, { r: '#a8261e', y: P.gold }, 1, { ink: true, flip });
-    };
-    flag(31, 2, false); flag(9, 9, true); flag(54, 9, false);
     k.rect(c, 2, 52, 60, 10, '#2a2a20');
+    keep(c, k, 32, 52, true);
+    // one banner left, stuck in the top of the broken keep
+    k.rect(c, 31, 6, 1, 12, P.ink);
+    spr(c, k, ['rrrrr', 'rryrr', 'ryyyr', 'rryrr', 'rrrr.', 'rrr..'], 32, 6, { r: '#a8261e', y: P.gold }, 1, { ink: true });
     tab(c, k, 7);
   },
 

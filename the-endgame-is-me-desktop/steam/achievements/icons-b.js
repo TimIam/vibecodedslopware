@@ -389,22 +389,20 @@ export const ICONS = {
   ALL_OF_IT: (c, k) => {
     bd(c, k, '#4a5260', '#101216', '#9aa4b0');
     const st = ['#3a3a36', '#7f7f74', '#aeac9b'];
-    // the stumps of towers and curtains along the horizon
+    // the stumps of towers and curtains, and the rubble, up on the far bank
     for (let x = 2; x < 62; x++) {
       const tower = [10, 31, 52].some(t => Math.abs(x - t) < 5);
       const h = tower ? 9 + Math.floor(k.hash(x, 1) * 6) : 2 + Math.floor(k.hash(x, 2) * 4);
-      for (let y = 34 - h; y < 34; y++) k.put(c, x, y, (y % 3 === 0 || (x + (y >> 1)) % 5 === 0) ? st[0] : st[tower ? 2 : 1]);
+      for (let y = 22 - h; y < 22; y++) k.put(c, x, y, (y % 3 === 0 || (x + (y >> 1)) % 5 === 0) ? st[0] : st[tower ? 2 : 1]);
     }
-    k.rect(c, 2, 34, 60, 28, '#3a3428');
-    for (let i = 0; i < 40; i++) { const x = 2 + k.hash(i, 5) * 58, y = 30 + k.hash(i, 6) * 10; k.rect(c, x, y, 3, 2, st[1 + (i % 2)]); k.put(c, x, y + 2, st[0]); }
-    // where it all stood: the wall and its towers, dotted in like a ghost
-    const ghost = (x, y) => { if ((x + y) % 2 === 0) k.put(c, x, y, '#c8d0dc'); };
-    for (const t of [10, 31, 52]) {
-      for (let y = 8; y < 26; y++) { ghost(t - 6, y); ghost(t + 6, y); }
-      for (let x = t - 6; x <= t + 6; x++) ghost(x, 8);
-      for (const x of [t - 6, t - 2, t + 2, t + 6]) for (let y = 5; y < 8; y++) ghost(x, y);
-    }
-    for (const [a, b] of [[2, 4], [16, 25], [37, 46], [58, 62]]) for (let x = a; x < b; x++) { ghost(x, 16); if (x % 4 === 0) { ghost(x, 15); ghost(x, 14); } }
+    k.rect(c, 2, 22, 60, 40, '#3a3428');
+    for (let i = 0; i < 40; i++) { const x = 2 + k.hash(i, 5) * 58, y = 18 + k.hash(i, 6) * 10; k.rect(c, x, y, 3, 2, st[1 + (i % 2)]); k.put(c, x, y + 2, st[0]); }
+    // the moat, between it and him
+    k.rect(c, 2, 30, 60, 1, '#1a1610');
+    k.rect(c, 2, 31, 60, 6, '#2a4a6a');
+    k.rect(c, 2, 31, 60, 1, '#4a7aa0');
+    for (let i = 0; i < 9; i++) k.rect(c, 4 + k.hash(i, 8) * 52, 33 + Math.floor(k.hash(i, 9) * 3), 3, 1, '#5a8ab0');
+    k.rect(c, 2, 37, 60, 1, '#1a1610');
     heroAt(c, k, 'warrior', 20, 52, 2, { outline: k.PAL.ink });
     k.label(c, '?!', 34, 42, k.PAL.gold, 2);
     reframe(c, k);

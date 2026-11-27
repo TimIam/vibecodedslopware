@@ -104,3 +104,5 @@ export function abilIcon(c, id, x, y, scale, col, shadow = PAL.ink) {
 }
 // the game's pixel font (4 px a letter at scale 1), centred on cx
 export function label(c, s, cx, y, col = PAL.cream, scale = 1) { drawText(c, s, Math.round(cx), y, col, { scale, align: 'center' }); }
+// the boss's two rocks from level 1, as the game draws them (other: the mossier Other Rock), centred on (cx, cy)
+export function rock(c, other, cx, cy, scale = 1) { return stamp(c, x => drawThing.rock(x, 100, 100, other), cx, cy, scale); }
