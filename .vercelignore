@@ -34,3 +34,7 @@ whelp-addon/
 # Storefront analytics: database migrations and operator docs (the dashboard itself is admin/ + api/)
 supabase/
 docs/
+
+# Augmented Treality: native app projects (Capacitor, Xcode, Gradle) and the web app's dev tools
+augmented-treality-app/
+augmented-treality/tools/

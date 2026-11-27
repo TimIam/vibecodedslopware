@@ -1,0 +1,23 @@
+{
+  "name": "augmented-treality-app",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Augmented Treality as native iPhone and Android apps (Capacitor). The app is the web builder in ../augmented-treality plus a native AR viewer.",
+  "type": "module",
+  "scripts": {
+    "stage": "node scripts/stage.mjs",
+    "sync": "node scripts/stage.mjs && npx cap sync",
+    "android": "node scripts/stage.mjs && npx cap sync android && npx cap open android",
+    "ios": "node scripts/stage.mjs && npx cap sync ios && npx cap open ios",
+    "apk": "node scripts/stage.mjs && npx cap sync android && cd android && gradlew.bat assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.6.3",
+    "@capacitor/core": "8.6.3",
+    "@capacitor/ios": "8.6.3",
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.3"
+  }
+}

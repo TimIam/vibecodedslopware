@@ -1,0 +1,11 @@
+{
+  "appId": "com.vibecodedslopware.augmentedtreality",
+  "appName": "Augmented Treality",
+  "webDir": "www",
+  "backgroundColor": "#1b130d",
+  "ios": { "contentInset": "never", "backgroundColor": "#1b130d" },
+  "android": { "backgroundColor": "#1b130d" },
+  "plugins": {
+    "SystemBars": { "style": "DARK", "insetsHandling": "css" }
+  }
+}

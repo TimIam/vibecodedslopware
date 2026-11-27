@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
+<title>Augmented Treality</title>
+<meta name="description" content="Build a Christmas tree on your phone, then stand it in your living room through the camera. Lights, garland, ornaments, a topper and presents, at real size in AR on iPhone and Android.">
+<meta name="theme-color" content="#1b130d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Treality">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="/site-nav.css">
+<link rel="stylesheet" href="css/app.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <a class="site-coffee" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+
+<div id="app">
+  <header id="bar">
+    <button id="menu" class="icon" aria-label="My trees" title="My trees">☰</button>
+    <h1>Augmented <span>Treality</span></h1>
+    <button id="undo" class="icon" aria-label="Undo" title="Undo" disabled>↶</button>
+  </header>
+  <main id="stage">
+    <canvas id="c" aria-label="Your Christmas tree. Drag to look around, tap to decorate."></canvas>
+    <div id="hint" hidden></div>
+    <div id="readout"></div>
+    <div id="side">
+      <button id="dim" class="round" aria-label="Turn the room lights off and on" title="Room lights">🌙</button>
+      <button id="photo" class="round" aria-label="Take a picture" title="Take a picture">📷</button>
+    </div>
+    <button id="ar" class="arbtn"><span class="i" aria-hidden="true">📱</span><span class="l">See it in your room</span></button>
+    <div id="toast" role="status" aria-live="polite" hidden></div>
+  </main>
+  <nav id="tabs" aria-label="Decorate"></nav>
+  <section id="panel" aria-live="polite"></section>
+</div>
+
+<div id="ar-overlay" hidden>
+  <div id="ar-status"></div>
+  <div class="ar-panel top">
+    <button id="ar-done" class="pill">✕ Done</button>
+  </div>
+  <div id="ar-tools" class="ar-panel bottom" hidden>
+    <button id="ar-rl" class="pill round" aria-label="Turn left">⟲</button>
+    <button id="ar-move" class="pill">↔ Move</button>
+    <button id="ar-size" class="pill">Real size</button>
+    <button id="ar-lights" class="pill">💡 Lights</button>
+    <button id="ar-snow" class="pill">❄ Snow</button>
+    <button id="ar-rr" class="pill round" aria-label="Turn right">⟳</button>
+  </div>
+</div>
+
+<div id="busy" hidden><div class="spin"></div><p></p></div>
+<div id="modal" hidden></div>
+
+<div id="title">
+  <div class="snowfall" aria-hidden="true"></div>
+  <div class="inner">
+    <div class="logo" aria-hidden="true">🎄</div>
+    <h2>Augmented<br><span>Treality</span></h2>
+    <p>Build a Christmas tree. Stand it in your living room through your phone's camera.<br><em>No needles in the carpet.</em></p>
+    <button id="start" class="btn primary big">Start decorating</button>
+    <small>Works in AR on iPhone (Safari) and Android (Chrome).</small>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
