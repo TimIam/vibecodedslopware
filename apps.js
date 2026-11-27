@@ -1292,10 +1292,25 @@ window.SLOPWARE = {
     }
    ]
   },
+  "augmented-treality": {
+   "visits": 0,
+   "prompts": 0,
+   "tokens": 702787,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-27T03:24:36-07:00",
+     "note": "build a Christmas tree, stand it in your room in AR",
+     "prompts": 0,
+     "tokens": 702787
+    }
+   ]
+  },
   "toil-and-trouble": {
    "visits": 0,
    "prompts": 10,
-   "tokens": 7534213,
+   "tokens": 7540189,
    "sharedWith": null,
    "versions": [
     {
@@ -1317,7 +1332,7 @@ window.SLOPWARE = {
      "date": "2026-11-26T16:09:36-07:00",
      "note": "seven holiday worlds, rolling terrain, cauldron rides, controller support",
      "prompts": 2,
-     "tokens": 3306453
+     "tokens": 3312429
     }
    ]
   },
