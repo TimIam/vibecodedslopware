@@ -4,13 +4,14 @@
 // the keep's tower included, and every hero left runs for it: the game is won.
 //
 // What counts toward that 90% (see SHARE and setShares) is a fixed amount per thing, added up, with no cap: raze the
-// lot and it comes to well over 300%. Each of the nine outer towers is 10%, the keep's tower 60% (paid all at once when
-// it is felled: it can't be hit itself, so the round drum it stands on is chopped through like a tree until it goes
-// over, see baseHit; the drum pays nothing itself), each of the seven
+// lot and it comes to well over 300%. Each of the nine outer towers is 10%, the keep's tower 60% with its square base
+// (45% all at once when the tower is felled: it can't be hit itself, so the round drum it stands on is chopped through
+// like a tree, every wedge of it, before it goes over, see baseHit; then 15% for battering down the square plinth it
+// leaves, which counts as it is knocked about), each of the seven
 // buildings in the yard 3%, each segment of the curtain wall 1% (a segment is one block along the wall, both blocks of
 // its thickness: the slice that opens a breach when it goes), the gatehouse 2% (it stands in two segments' place), and
 // each block of the keep round the tower 1%. However far the count has got, the game is not won while the keep's tower
-// stands; once past 90% with it still up, the HUD says only SEIZE YOUR VENGEANCE! DESTROY THE KEEP!
+// or its square base stands; once past 90% with it still up, the HUD says only SEIZE YOUR VENGEANCE! DESTROY THE KEEP!
 //
 // It is held: a 5-man stands guard at the foot of every tower (and one at the drawbridge, and a couple along the
 // walls), a 40-man waits in front of the keep, and the king himself hides behind them in gold plate that a stomp, a
@@ -31,13 +32,14 @@ const X0 = 40, Y0 = 64, C = 10, COLS = 24, ROWS = 28;          // the castle gri
 const MOAT = { y0: 378, y1: 396 }, BRIDGE = { x0: 144, x1: 180 };
 export const WIN_PCT = 90;      // more than this, shown as a whole percent, and the keep's tower down
 // what each thing is worth when it is down (1 = 100%); they add up, with no cap
-export const SHARE = { tower: 0.10, keepTower: 0.60, base: 0, house: 0.03, wallSeg: 0.01, gate: 0.02, keep: 0.01 };
-const SHARE_V = 2;              // bumped when the shares change: a save with another number has its shares recomputed
+export const SHARE = { tower: 0.10, keepTower: 0.45, plinth: 0.15, base: 0, house: 0.03, wallSeg: 0.01, gate: 0.02, keep: 0.01 };
+const SHARE_V = 3;              // bumped when the shares change: a save with another number has its shares recomputed
 const YARD_BUILDINGS = { city_chapel: 1, city_inn: 1, city_shop: 1, city_pub: 1, city_house: 1 };
 // The keep's tower stands on a round drum, which stands on a square plinth as high as the keep's roof. The tower can't be
 // hit; the drum is chopped like a tree trunk: it is SECT wedges round, each hit bites the wedge facing whoever hit it (or
-// the nearest one still there), and once more than half of them are gone the tower falls toward the cut, leaving the
-// rest of the drum as a stump of broken rooms (and, when it went over the back, a bit of clean tower wall on top).
+// the nearest one still there), and once every one of them is gone the tower falls the way the last blow cut, leaving
+// the square plinth heaped with what was the drum (castle_plinth), to be battered down for the rest of the keep's share.
+// (Saves from before v24 can still hold a castle_stump: the drum left standing when the tower went at half cut.)
 const DONJON_HP = 800, DONJON_L = 22, DONJON_W = 28;
 const PLINTH = 12, DRUM = 14, BASE_LIFT = PLINTH + DRUM, DRUM_R = 19, STUB = 6;
 const SECT = 16, SECT_HP = 150;
@@ -62,8 +64,9 @@ export const kinds = {
   // the drum (and its plinth) under the keep's tower: half of what that tower was worth (the tower itself pays the other
   // half). Its hit points are only for show: it comes down by its wedges (see baseHit)
   castle_base: { ...BLOCK, w: 40, h: 40, hp: DONJON_HP, rubbleN: 4, value: { pts: 450, venge: 0.175, chaos: 2 }, onHit: baseHit },
-  // what is left once the tower is felled: the rest of the drum, which caves in to a heap on the plinth (castle_plinth),
-  // which in turn can be battered down to its footprint. Neither counts toward the castle's share.
+  // what is left once the tower is felled: the square plinth heaped with the drum (castle_plinth), which can be battered
+  // down to its footprint for the last 15% of the keep's share. (castle_stump, the half-cut drum that used to be left
+  // standing, only turns up in old saves: it caves in to the plinth.)
   castle_stump: { r: DRUM_R, solid: true, hp: 1400, rubble: 'castle_rubble', rubbleN: 6, value: { pts: 400, venge: 0.12, chaos: 0 }, onDown: stumpDown },
   castle_plinth: { w: 40, h: 40, solid: true, hp: 1100, rubble: 'castle_rubble', rubbleN: 10, value: { pts: 300, venge: 0.1, chaos: 0 }, onDown: plinthDown },
   castle_gate: { ...BLOCK, w: 20, h: 20, hp: 1040, flammable: true, burnTime: 10, value: { pts: 600, venge: 0.3, chaos: 2 } },
@@ -77,10 +80,16 @@ function blockDown(g, p) {
 }
 // the drum's stump caves in: a cloud of dust, and the plinth under it, heaped with what it was
 function stumpDown(g, p) {
-  const q = P.addProp(g, 'castle_plinth', p.x, p.y, { sortY: 20 });
-  q.maxhp = q.hp;
+  addPlinth(g, p);
   g.shake = Math.max(g.shake, 0.5);
   for (let i = 0; i < 18; i++) { const a = g.rng() * TAU; g.cs?.dust.push({ x: p.x + Math.cos(a) * 12, y: p.y - PLINTH - 6 + Math.sin(a) * 8, vx: Math.cos(a) * 16, vy: Math.sin(a) * 8 - 6, t: 0, life: 1 + g.rng() * 0.8 }); }
+}
+// the square plinth the keep's tower stood on, heaped with the drum: the last of the keep's share (cs.plinth)
+function addPlinth(g, p) {
+  const q = P.addProp(g, 'castle_plinth', p.x, p.y, { sortY: 20 });
+  q.maxhp = q.hp;
+  if (g.cs) g.cs.plinth = q;
+  return q;
 }
 // the plinth goes: its footprint, and rubble all over it and round it
 function plinthDown(g, p) {
@@ -114,6 +123,7 @@ function baseHit(g, p, dmg, ang) {
   cuts[k] -= dmg;
   p.hitT = 0.12;
   p.hp = p.maxhp * cuts.reduce((s, v) => s + Math.max(0, v), 0) / (SECT * SECT_HP);
+  if (cuts[k] <= 0) p.lastCut = k;
   (g.cs.chips ||= []).push({ k, broke: cuts[k] <= 0 });
   return true;
 }
@@ -123,7 +133,7 @@ function cutAngle(cuts) {
   for (let k = 0; k < SECT; k++) if (cuts[k] <= 0) { const a = (k + 0.5) / SECT * TAU; sx += Math.cos(a); sy += Math.sin(a); }
   return Math.atan2(sy, sx);
 }
-// the chips flying off the drum, and the fall once more than half of it is cut through
+// the chips flying off the drum, and the fall once it is cut right through
 function chopDrum(g, api) {
   const cs = g.cs, p = cs.base;
   if (!cs.chips?.length || !p) return;
@@ -134,13 +144,12 @@ function chopDrum(g, api) {
     if (c.broke) g.shake = Math.max(g.shake, 0.15);
   }
   cs.chips.length = 0;
-  if (p.felled || p.state !== 'up' || cutCount(cutsOf(p)) <= SECT / 2) return;
-  // timber
-  const ang = cutAngle(p.cuts), t = keepTower(cs);
+  if (p.felled || p.state !== 'up' || cutCount(cutsOf(p)) < SECT) return;
+  // timber: it goes the way the last wedge was cut, and the drum comes down with it onto the plinth
+  const ang = p.lastCut != null ? (p.lastCut + 0.5) / SECT * TAU : cutAngle(p.cuts), t = keepTower(cs);
   p.felled = true;
-  const st = P.addProp(g, 'castle_stump', p.x, p.y, { cuts: p.cuts.slice(), fellA: ang, back: Math.sin(ang) < -0.5, sortY: 20 });
-  st.maxhp = st.hp;
   P.knockDown(g, p, ang);
+  addPlinth(g, p);
   if (t && t.state === 'up') P.knockDown(g, t, ang);
   g.shake = Math.max(g.shake, 0.6);
   api.text(g, p.x, p.y - 46, 'TIMBER!', 'gold', 2.2);
@@ -296,6 +305,7 @@ function setShares(g) {
       : p.kind === 'castle_gate' ? SHARE.gate : p.kind === 'castle_keep' ? SHARE.keep : 0;
   }
   for (const p of cs.houses) p.share = SHARE.house;
+  cs.plinth ||= g.props.find(p => p.kind === 'castle_plinth') || null;
   cs.shareV = SHARE_V;
 }
 // how much of a thing is down: by its hit points, so the count moves as it is knocked about. The keep's tower pays
@@ -308,10 +318,12 @@ export function castleShare(g) {
   let down = 0;
   for (const p of cs.blocks) down += shareOf(cs, p) * downFrac(p);
   for (const p of cs.houses || []) down += shareOf(cs, p) * downFrac(p);
+  if (cs.plinth) down += SHARE.plinth * downFrac(cs.plinth);
   return down;
 }
 const keepTower = cs => cs.donjon || cs.blocks.find(p => p.donjon);
-const keepStands = cs => { const t = keepTower(cs); return !!t && t.state === 'up'; };
+// the keep's tower counts as standing until its square base is down too
+const keepStands = cs => { const t = keepTower(cs); return (!!t && t.state === 'up') || cs.plinth?.state === 'up'; };
 const pct = s => Math.floor(s * 100 + 1e-6);
 // past the line: more than 90%, as the HUD shows it
 const pastLine = s => pct(s) > WIN_PCT;
@@ -420,7 +432,7 @@ function update(g, dt, api) {
       for (let s = t.r * 0.6; s <= t.len; s += 4) {
         const x = t.x + ca * s, y = t.y + sa * s;
         for (const q of P.near(g, x, y, 10)) {
-          if (q.state !== 'up' || done.has(q) || !P.touches(q, x, y, 7)) continue;
+          if (q.state !== 'up' || done.has(q) || (t.donjon && q === cs.plinth) || !P.touches(q, x, y, 7)) continue;   // (not the plinth it stood on)
           done.add(q);
           if (P.KINDS[q.kind].solid) P.hitProp(g, q, t.donjon ? 520 : 420, t.ang);
           else P.knockDown(g, q, t.ang);

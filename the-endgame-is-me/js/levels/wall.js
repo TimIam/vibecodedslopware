@@ -614,6 +614,9 @@ function under(ctx, g, h) {
   const m = g.map, V = h.VIEW, W = h.W;
   const tex = h.sprite(`wl-tex-${m.key}`, TEXW, TH, c => { for (const s of m.wall) { paintSection(c, s, 0, h); s.drawn = 0; } });
   const tc = tex.getContext('2d');
+  // the texture outlives a run: a respawn (or any other load) brings back sections that have never been painted on it,
+  // so a texture last painted for another wall starts again from scratch
+  if (tex.owner !== m.wall) { tex.owner = m.wall; for (const s of m.wall) s.drawn = -1; }
   // (a breach is painted knowing whether its neighbours are down too: no broken ends between two holes)
   for (const s of m.wall) {
     const st = stageOf(s), open = st >= 4 ? (stageOf(m.wall[s.prev] || {}) >= 4 ? 1 : 0) + (stageOf(m.wall[s.next] || {}) >= 4 ? 2 : 0) : 0, key = st * 4 + open;

@@ -810,6 +810,8 @@ export const SHOT = {
 };
 const SHOT_TALL = 15;   // how high off the ground a shot can still hit the boss
 const WALL_U = { party: { type: 'raid' } };
+// the same, with the shot named, so a killing blow from the wall gets a game over line of its own (g.deathBy)
+const WALL_SHOT = { arrow: { party: WALL_U.party, shot: 'arrow' }, bolt: { party: WALL_U.party, shot: 'bolt' } };
 function updateShots(g, dt) {
   const b = g.boss, L = g.map.level, cd = (g.shotCd ||= { arrow: 1, bolt: 4 });
   const live = L.shooters && !b.dead && !g.clear && !g.won && !g.walkoff && !g.scene && !g.lull && !g.entering && !b.evade;
@@ -844,7 +846,7 @@ function updateShots(g, dt) {
     // where it went in, in the boss's own frame, so it stays stuck there as the boss turns
     const dx = o.x - b.x, dy = o.y - b.y, c = Math.cos(-b.face), s = Math.sin(-b.face);
     const hit = { lx: (dx * c - dy * s) * 0.8, ly: (dx * s + dy * c) * 0.8, a: o.a - b.face, t: 0 };
-    hurtBoss(g, D.dmg, WALL_U);
+    hurtBoss(g, D.dmg, WALL_SHOT[o.kind] || WALL_U);
     if (o.kind === 'arrow') {
       b.arrows.push({ ...hit, life: D.stick });
       if (b.arrows.length > 14) b.arrows.shift();
@@ -1364,6 +1366,7 @@ function hurtBoss(g, amt, u) {
   let dmg = amt * (1 + NG_HIT * g.ng);
   // the bone priests' ward takes it first
   if (b.ward > 0) { const w = Math.min(b.ward, dmg); b.ward -= w; dmg -= w; b.wardHit = 0.15; }
+  const before = b.hp;
   b.hp -= dmg;
   if (dmg > 0) b.flash = 0.06;
   b.calmT = 0;
@@ -1371,6 +1374,8 @@ function hurtBoss(g, amt, u) {
   u.party.hitT = g.t;
   if (b.hp <= 0) {
     b.hp = 0; b.dead = true; b.act = null; b.taunt = null;
+    // what landed the last blow, when it was something the game over screen has a line for
+    g.deathBy = u.shot ? { kind: u.shot, dmg: Math.round(dmg), left: Math.max(1, Math.ceil(before)) } : null;
     g.events.push('bossdie');
     g.shake = 0.6;
     for (const p of g.parties) for (const v of alive(p)) if (g.rng() < 0.15) bark(g, v, pick(g, BARK.dance));

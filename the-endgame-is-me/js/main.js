@@ -300,6 +300,19 @@ const LINES = {
   dungeon: ['by five people who met an hour ago.', 'One of them was AFK for most of it.'],
   rider: ['by a quiet man on a horse.', 'The horse did not help.'],
 };
+// killed by the wall itself: a line of its own, and the arrow most of all (9 damage a go: it should hardly ever be
+// the one that does it)
+const SHOT_LINES = {
+  arrow: [
+    ['by one arrow, fired off the city wall.', d => `It did ${d.dmg} damage. You had ${d.left} left. That archer will never pay for a drink in this town again.`],
+    ['by a single arrow from the wall.', d => `${d.dmg} damage, out of the ${d.left} you had left. They are already carving it over the gate.`],
+    ['by an arrow. One arrow.', () => 'The archer says he was aiming at a pigeon. He is getting a statue anyway.'],
+  ],
+  bolt: [
+    ['by a ballista bolt from the city wall.', d => `A tree with a point on one end. ${d.dmg} damage. The crew had been winding that thing up since breakfast.`],
+    ['by a ballista bolt.', () => 'Somebody on the wall finally read the instructions on the side of the ballista.'],
+  ],
+};
 // R or Enter respawns from the keyboard; with a controller, A on the Respawn button (it has the focus)
 function overNote() {
   $('overNote').textContent = `Bosses respawn on reset. Reset is whenever you press ${controls.mode === 'pad' ? padName(PAD_A) : 'R'}.`;
@@ -308,7 +321,9 @@ function gameOver() {
   mode = 'over';
   const killer = Object.entries(g.blame).sort((a, b) => b[1] - a[1])[0][0];
   // (on the secret level nobody saw what happened)
-  const [a, b] = g.map.level?.id === 'fen' ? ['The Kingdom saw you disappear without a trace.', "You'll be back after the reset."] : LINES[killer];
+  const shot = g.deathBy && SHOT_LINES[g.deathBy.kind];
+  const pickShot = () => { const [x, y] = shot[Math.floor(Math.random() * shot.length)]; return [x, y(g.deathBy)]; };
+  const [a, b] = g.map.level?.id === 'fen' ? ['The Kingdom saw you disappear without a trace.', "You'll be back after the reset."] : shot ? pickShot() : LINES[killer];
   $('overBy').textContent = a;
   $('overSub').textContent = b;
   const newBest = g.score > best;
