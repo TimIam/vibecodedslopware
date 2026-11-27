@@ -32,6 +32,9 @@
       "package.json"
     ],
     "asar": true,
+    "asarUnpack": [
+      "node_modules/steamworks.js/dist/**"
+    ],
     "compression": "normal",
     "win": {
       "target": "dir",
@@ -51,5 +54,8 @@
       "identity": null,
       "hardenedRuntime": false
     }
+  },
+  "dependencies": {
+    "steamworks.js": "^0.4.0"
   }
 }

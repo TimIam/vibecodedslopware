@@ -1,0 +1,70 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Endgame achievement icons</title>
+<style>
+  body { background: #0a0806; color: #f4ecd2; font: 12px/1.3 monospace; margin: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, 280px); gap: 14px; }
+  .cell { background: #1c1610; padding: 8px; }
+  .cell canvas { image-rendering: pixelated; display: inline-block; vertical-align: top; }
+  .big { width: 256px; height: 256px; }
+  .small { width: 64px; height: 64px; margin-left: 4px; }
+  .id { color: #aeac9b; } .err { color: #ff6a5a; }
+  #bar { margin-bottom: 12px; }
+</style>
+<div id="bar">?only=ID,ID shows just those. ?locked=1 also shows the locked versions. <span id="count"></span></div>
+<div class="grid" id="grid"></div>
+<script type="module">
+  // Every icon module exports ICONS = { API_NAME: (ctx, kit) => { ...draw on a 64×64 context... } }.
+  // Previews: the icon at ×4 (what Steam gets), and at ×1 (about how it shows in the Steam overlay).
+  import { ACHIEVEMENTS } from '/the-endgame-is-me/js/achievements.js';
+  import * as kit from './kit.js';
+  const mods = await Promise.all(['./icons-a.js', './icons-b.js'].map(m => import(m + '?t=' + Date.now()).catch(e => ({ ICONS: {}, err: m + ': ' + e.message }))));
+  const ALL = Object.assign({}, ...mods.map(m => m.ICONS));
+  const q = new URLSearchParams(location.search), only = q.get('only')?.split(','), showLocked = q.get('locked');
+  const grid = document.getElementById('grid');
+  for (const m of mods) if (m.err) grid.insertAdjacentHTML('beforeend', `<div class="cell err">${m.err}</div>`);
+
+  // locked: the same picture greyed and darkened, as Steam's own generator does, a touch darker
+  function locked(src) {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+    const c = cv.getContext('2d'); c.drawImage(src, 0, 0);
+    const d = c.getImageData(0, 0, 64, 64), a = d.data;
+    for (let i = 0; i < a.length; i += 4) { const l = (a[i] * 0.3 + a[i + 1] * 0.59 + a[i + 2] * 0.11) * 0.55; a[i] = a[i + 1] = a[i + 2] = l; }
+    c.putImageData(d, 0, 0);
+    return cv;
+  }
+  function up(src) { const cv = document.createElement('canvas'); cv.width = cv.height = 256; const c = cv.getContext('2d'); c.imageSmoothingEnabled = false; c.drawImage(src, 0, 0, 256, 256); return cv; }
+
+  const out = {};
+  let n = 0;
+  for (const a of ACHIEVEMENTS) {
+    if (only && !only.includes(a.id)) continue;
+    const cell = document.createElement('div'); cell.className = 'cell';
+    cell.innerHTML = `<div><b>${a.name}</b> <span class="id">${a.id}</span></div><div>${a.desc}</div>`;
+    const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+    const c = cv.getContext('2d');
+    try {
+      if (!ALL[a.id]) throw new Error('not drawn yet');
+      ALL[a.id](c, kit); n++;
+    } catch (e) { cell.insertAdjacentHTML('beforeend', `<div class="err">${e.message}</div>`); grid.append(cell); continue; }
+    const big = up(cv); big.className = 'big';
+    const sm = document.createElement('canvas'); sm.width = sm.height = 64; sm.getContext('2d').drawImage(cv, 0, 0); sm.className = 'small';
+    cell.append(big, sm);
+    if (showLocked) { const lk = up(locked(cv)); lk.className = 'big'; cell.append(lk); }
+    grid.append(cell);
+    out[a.id] = { icon: big, locked: up(locked(cv)) };
+  }
+  document.getElementById('count').textContent = `${n} of ${ACHIEVEMENTS.length} drawn`;
+  // saves every icon through save.mjs (node save.mjs, port 3192) into png/, named the way Steamworks' bulk upload
+  // links them: <API_NAME>_ACHIEVED.png and <API_NAME>_UNACHIEVED.png
+  window.saveAll = async () => {
+    const res = [];
+    for (const [id, v] of Object.entries(out)) for (const [suffix, cv] of [['_ACHIEVED', v.icon], ['_UNACHIEVED', v.locked]]) {
+      const blob = await new Promise(r => cv.toBlob(r, 'image/png'));
+      const r = await fetch(`http://127.0.0.1:3192/${id}${suffix}.png`, { method: 'POST', body: blob });
+      res.push(r.ok);
+    }
+    return { saved: res.filter(Boolean).length, failed: res.filter(x => !x).length };
+  };
+  window.iconsReady = true;
+</script>

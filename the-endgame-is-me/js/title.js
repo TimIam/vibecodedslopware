@@ -467,7 +467,7 @@ function makeChips(me, seed) {
 
 // ------------------------------------------------------------------------------------------------ raid chat
 
-const CHANNELS = { L: ['LFG', '#8fd16a'], R: ['RAID', '#ff9a4a'], T: ['TRADE', '#d2cfbd'], G: ['GUILD', '#9fd8ff'] };
+const CHANNELS = { L: ['LFG', '#8fd16a'], R: ['RAID', '#ff9a4a'], T: ['TRADE', '#6fa6e0'], G: ['GUILD', '#9fd8ff'] };
 // every line has to fit the panel beside its channel name: 18 characters at most
 const CHAT = [
   ['L', 'NEED TANK + HEALER'], ['R', 'WAIT FOR THE TIMER'], ['R', 'HE IS JUST WALKING'], ['R', 'WHY IS HE WALKING'],

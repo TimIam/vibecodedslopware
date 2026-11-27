@@ -64,7 +64,7 @@ export const kinds = {
 export const critters = {
   // rats: smaller than a hen, black or brown, quick, and nowhere near worth the chase
   rat: { r: 1, hp: 4, spd: 7, flee: 42, fear: 30, value: { pts: 15, venge: 0.01, chaos: 0.04 } },
-  city_folk: { r: 2, hp: 15, spd: 12, flee: 34, fear: 44, raise: 'skeleton', value: { pts: 35, venge: 0.025, chaos: 0.1 } },
+  city_folk: { human: true, r: 2, hp: 15, spd: 12, flee: 34, fear: 44, raise: 'skeleton', value: { pts: 35, venge: 0.025, chaos: 0.1 } },
 };
 
 // a stone building that comes down leaves the stubs of its walls behind, drawn under everything

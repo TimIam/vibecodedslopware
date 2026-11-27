@@ -12,6 +12,7 @@ import { createAttract } from './attract.js';
 import { createAppearance, currentLook, bossName } from './appearance.js';
 import { writeSave, readSave, saveInfo, clearSave, unlockPlus, plusData, unlockCow } from './save.js';
 import { createDebug, isSecretName } from './debug.js';
+import { achieve, achieveNow, syncAll } from './achievements.js';
 import { controls, keyAction, poll, hit, held, stick, dpad, slotLabel, spaceLabel, onChange, setMode, padName, SLOTS, PAD_A, PAD_B } from './controls.js';
 
 const canvas = document.getElementById('game');
@@ -26,7 +27,9 @@ const fmt = n => Math.floor(n).toLocaleString('en-US');
 const BEST_KEY = 'bosshours.best.v1';
 let best = 0;
 try { best = Number(JSON.parse(localStorage.getItem(BEST_KEY) || '{}').score) || 0; } catch {}
-function showBest() { $('best').textContent = best ? `Best shift: ${fmt(best)} points` : ''; }
+syncAll();
+if (best >= 1e6) achieveNow('MEGA');
+function showBest() { $('best').textContent = best ? `Best shift: ${fmt(best)}` : ''; }
 showBest();
 
 let g = createGame(undefined, currentLook());
@@ -313,12 +316,19 @@ const SHOT_LINES = {
     ['by a ballista bolt.', () => 'Somebody on the wall finally read the instructions on the side of the ballista.'],
   ],
 };
+// Danse Moocabre: blown up by a Suicide Steer, with two or more of the herd still on screen to dance round the body
+function danseMoocabre() {
+  if (g.map.level?.id !== 'fen' || g.lastBlow !== 'steer') return;
+  const x0 = g.cam.x, y0 = g.cam.y, on = g.critters.filter(c => c.kind === 'fen_steer' && !c.dead && c.x >= x0 && c.x <= x0 + W && c.y >= y0 && c.y <= y0 + H);
+  if (on.length >= 2) achieve(g, 'DANSE_MOOCABRE');
+}
 // R or Enter respawns from the keyboard; with a controller, A on the Respawn button (it has the focus)
 function overNote() {
   $('overNote').textContent = `Bosses respawn on reset. Reset is whenever you press ${controls.mode === 'pad' ? padName(PAD_A) : 'R'}.`;
 }
 function gameOver() {
   mode = 'over';
+  danseMoocabre();
   const killer = Object.entries(g.blame).sort((a, b) => b[1] - a[1])[0][0];
   // (on the secret level nobody saw what happened)
   const shot = g.deathBy && SHOT_LINES[g.deathBy.kind];
@@ -328,6 +338,7 @@ function gameOver() {
   $('overSub').textContent = b;
   const newBest = g.score > best;
   if (newBest) { best = Math.floor(g.score); try { localStorage.setItem(BEST_KEY, JSON.stringify({ score: best, at: Date.now() })); } catch {} }
+  if (best >= 1e6) achieveNow('MEGA');
   const m = Math.floor(g.t / 60), s = String(Math.floor(g.t % 60)).padStart(2, '0');
   $('stats').innerHTML = [
     ['Score', fmt(g.score) + (newBest ? ' <em>new best</em>' : '')],
@@ -379,6 +390,7 @@ function showWon() {
   mode = 'won';
   const newBest = g.score > best;
   if (newBest) { best = Math.floor(g.score); try { localStorage.setItem(BEST_KEY, JSON.stringify({ score: best, at: Date.now() })); } catch {} }
+  if (best >= 1e6) achieveNow('MEGA');
   const m = Math.floor(g.t / 60), s = String(Math.floor(g.t % 60)).padStart(2, '0');
   $('wonStats').innerHTML = [
     ['Score', fmt(g.score) + (newBest ? ' <em>new best</em>' : '')],
@@ -740,7 +752,7 @@ function drain() {
     else if (e === 'store') openStore();
     else if (e === 'won') gameWon();
     else if (e === 'stage') { audio.setStage(g.map.n); R.reset(); writeSave(g); }   // a level changed without the Hoard (the secret level's way in and out)
-    else if (e === 'cowunlock') unlockCow();
+    else if (e === 'cowunlock') { unlockCow(); achieve(g, 'MOO'); }
     else audio.play(e);
   }
   g.events.length = 0;

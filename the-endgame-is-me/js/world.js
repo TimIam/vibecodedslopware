@@ -4,6 +4,7 @@
 import * as P from './props.js';
 import { updateSmoke } from './smoke.js';
 import { tally } from './tally.js';
+import { achieve, bump } from './achievements.js';
 import { LEVELS, SECRET, levelFor, lastLevel } from './levels/index.js';
 
 export const W = 320, H = 180;   // the screen; a level's world can be bigger and scrolls (g.map.w, g.map.h)
@@ -425,6 +426,8 @@ export function step(g, inp, dt) {
   updatePoison(g, dt);
   updateBalls(g, dt);
   updateShots(g, dt);
+  razeCheck(g, dt);
+  iceCheck(g);
   updateFx(g, dt);
   updateSmoke(g, dt);
   g.units = g.units.filter(u => !u.dead && !u.gone);
@@ -457,6 +460,7 @@ function vengeance(g, v) {
   if (g.map.mode === 'patrol') return;
   g.mult = Math.min(MULT_MAX, g.mult + v);
   g.vengeT = 0;
+  if (g.mult >= MULT_MAX) achieve(g, 'BURNING_RAGE');
 }
 function addChaos(g, c) {
   if (g.map.mode !== 'chaos') return;
@@ -471,7 +475,7 @@ function sound(g, e) {
   g.sndT[e] = g.t;
   g.events.push(e);
 }
-P.setWorldApi({ addScore, text, part, hurt: (g, u, a) => hurt(g, u, a), sound, vengeance, chaos: addChaos });
+P.setWorldApi({ addScore, text, part, hurt: (g, u, a) => hurt(g, u, a), sound, vengeance, chaos: addChaos, critterDown: (g, c) => critterDown(g, c) });
 
 // what a level's own update() can do
 const LAPI = {
@@ -604,6 +608,7 @@ function updateBoss(g, inp, dt) {
     const pts = Math.round(100 * g.mult);
     addScore(g, pts);
     g.mult = Math.min(MULT_MAX, g.mult + MULT_STEP);
+    if (g.mult >= MULT_MAX) achieve(g, 'AIMLESS');
     text(g, R.x, R.y - 14, `+${pts}`, 'gold');
     text(g, R.x, R.y - 20, `AIMLESS X${g.mult.toFixed(2)}`, 'cream', 1.6);
     g.events.push('lap');
@@ -664,6 +669,8 @@ function trampleUnder(g, ox, oy) {
     if (d > 0.5 && (dx * mx + dy * my) / (d * ml) < TRAMPLE.cone) continue;
     u.trampT = g.t + TRAMPLE.cd;
     n++;
+    if (b.haste > 0 && !isPet(u) && (g.zoomies = (g.zoomies || 0) + 1) >= 20) achieve(g, 'VROOM_VROOM');
+    if (u.role === 'king') g.flatKing = true;
     for (let i = 0; i < 4; i++) part(g, u.x, u.y, (g.rng() - 0.5) * 40, (g.rng() - 0.5) * 40, 0.35, 'dust');
     if (u.role === 'tank') {
       hurt(g, u, Math.max(0, Math.min(u.maxhp * TRAMPLE.tank, u.hp - 1)));
@@ -965,6 +972,7 @@ function tryCast(g, k) {
   const d = g.abil[k];
   // n counts the strikes of an ability that hits more than once; balls and ballT are the last Fire Breath's fireballs
   b.act = { kind: k, t: 0, fired: false, tick: 0, fireT: 0, n: 0, balls: 0, ballT: 0 };
+  if (RANGED[k]) g.usedRanged = true;   // (Do You Fight?: a loop won without any of these)
   b.cd[k] = d.cd;
   g.events.push('wind_' + k);
   // everybody sees the telegraph and decides whether they will move
@@ -988,7 +996,20 @@ function tryCast(g, k) {
   return true;
 }
 
+// Everything the boss's own cast touches while it runs goes in its record (act.rec, through g.rec: hurt, hurtCritter,
+// hitProp and ignite add to it), so a cast can be judged on how much it caught, for the achievements.
+const RANGED = { breath: 1, beam: 1, ice: 1, summon: 1 };
+const REC_GOAL = { swipe: ['hum', 10, 'SLASHY'], tail: ['hum', 10, 'WHIP_IT_GOOD'], stomp: ['hum', 25, 'STOMP_STOMP'], charge: ['hum', 15, 'STUNNING'], beam: ['all', 40, 'ZAP'], breath: ['lit', 41, 'BURNINATE'] };
 function advanceAct(g, dt) {
+  const a = g.boss.act;
+  if (!g.counts) return advanceAct0(g, dt);
+  const rec = a.rec ||= { hum: new Set(), all: new Set(), lit: new Set() };
+  g.rec = rec;
+  try { advanceAct0(g, dt); } finally { g.rec = null; }
+  const goal = REC_GOAL[a.kind];
+  if (goal && rec[goal[0]].size >= goal[1]) achieve(g, goal[2]);
+}
+function advanceAct0(g, dt) {
   const b = g.boss, a = b.act, d = g.abil[a.kind];
   a.t += dt;
   if (!a.fired && a.t >= d.wind) { a.fired = true; fire(g, a.kind); }
@@ -1137,6 +1158,7 @@ function fire(g, k) {
     for (const p of g.parties) if (p.engaged && p.type !== 'rider' && g.rng() < 0.6) { const u = alive(p)[2]; if (u) bark(g, u, pick(g, BARK.ice)); }
   } else if (k === 'haste') {
     b.haste = d.time;
+    g.zoomies = 0;   // trampled this Zoomies (Vroom, Vroom!)
     text(g, b.x, b.y - 20, 'ZOOMIES', 'gold', 1.2);
   } else if (k === 'beam') {
     g.shake = 0.3;
@@ -1800,6 +1822,7 @@ function finishParty(g, p) {
 function mapCleared(g, esc) {
   if (g.clear) return;
   g.clear = { t: 0 };
+  beatLevel(g);
   const pts = esc ? 0 : Math.round(WIPE.final * g.mult);
   if (pts) { addScore(g, pts); g.wipes.final++; }
   banner(g, 'LEVEL CLEARED', pts ? `+${pts}. THE HOARD OPENS IN A MOMENT.` : 'SOME GOT AWAY. THE HOARD OPENS IN A MOMENT.', 5);
@@ -1811,6 +1834,7 @@ function mapCleared(g, esc) {
 function levelCleared(g, title = 'LEVEL CLEARED', sub = 'THE HOARD OPENS IN A MOMENT.') {
   if (g.clear || g.won) return;
   g.clear = { t: 0 };
+  beatLevel(g);
   banner(g, title, sub, 5);
   g.events.push('clear');
   sendHome(g);
@@ -1820,6 +1844,8 @@ function levelCleared(g, title = 'LEVEL CLEARED', sub = 'THE HOARD OPENS IN A MO
 function winGame(g) {
   if (g.won) return;
   g.won = true; g.winT = 0; g.dir.final = true;
+  beatLevel(g);
+  wonLoop(g);
   banner(g, 'THE KINGDOM IS RUBBLE', 'EVERY HERO LEFT IS RUNNING. YOU WIN.', 7);
   g.events.push('clear');
   sendHome(g);
@@ -2130,7 +2156,7 @@ function updateRider(g, u, dt) {
       ride(tx, ty, HORSE_SPD * 1.15);
       if (Math.hypot(u.x - b.x, u.y - b.y) < b.r + 4 && !b.evade) {
         // grab the fur
-        u.state = 'climb'; u.mounted = false; u.grip = 100;
+        u.state = 'climb'; u.mounted = false; u.grip = 100; u.grabbed = true;
         const dx = u.x - b.x, dy = u.y - b.y, c = Math.cos(-b.face), s = Math.sin(-b.face);
         let lx = dx * c - dy * s, ly = dx * s + dy * c;
         const l = Math.hypot(lx, ly) || 1; lx = lx / l * 9; ly = ly / l * 8;
@@ -2258,6 +2284,7 @@ function withCause(g, cause, f) {
 
 function hurt(g, u, amt) {
   if (!hittable(u)) return;
+  if (g.rec) { g.rec.all.add('u' + u.id); if (!isPet(u)) g.rec.hum.add('u' + u.id); }
   if (u.role === 'rider' && u.state === 'stun') amt *= 2;
   u.hp -= amt;
   if (amt > 5) u.hit = 0.12;
@@ -2273,6 +2300,7 @@ function kill(g, u) {
   addScore(g, pts);
   g.kills++;
   tally(g, 'u:' + u.cls);
+  killed(g, u);
   text(g, u.x, u.y - 6, `+${pts}`, u.role === 'rider' ? 'gold' : 'cream', u.role === 'rider' ? 1.6 : 0.9);
   g.events.push(u.role === 'rider' ? 'riderdie' : 'kill');
   // anyone fire finished off lies there charred, for good (and doesn't bleed)
@@ -2300,10 +2328,12 @@ function kill(g, u) {
 // A Spitter's spit: the one it hits takes the hit, and it and everyone close by are poisoned for a few seconds
 // (u.poison = { t, dps }: a fresh dose tops it back up rather than stacking)
 export const SPIT_COL = '#9ae03a';
-function splashPoison(g, tgt, P0) {
+function splashPoison(g, tgt, P0, hitOther = 0) {
   if (!P0) return;
+  let n = hitOther;   // (Ugh, It's Everywhere: everyone one spit gets, the one it hit and the splash)
   for (const u of g.units) {
     if (!hittable(u) || Math.hypot(u.x - tgt.x, u.y - tgt.y) > P0.r) continue;
+    if (++n === 4) achieve(g, 'UGH_EVERYWHERE');
     u.poison = { t: Math.max(u.poison?.t || 0, P0.t), dps: Math.max(u.poison?.dps || 0, P0.dps) };
   }
   for (let i = 0; i < 14; i++) { const a = g.rng() * TAU, r = g.rng() * P0.r; part(g, tgt.x + Math.cos(a) * r, tgt.y + Math.sin(a) * r * 0.6, Math.cos(a) * 6, -4 - g.rng() * 6, 0.6 + g.rng() * 0.4, SPIT_COL); }
@@ -2334,7 +2364,7 @@ function flySpit(g, o, dt) {
   if (!hit && !out) return;
   o.done = true;
   const at = { x: o.x, y: o.y + 3 };
-  splashPoison(g, at, o.poison);
+  splashPoison(g, at, o.poison, hit && !g.units.includes(hit) ? 1 : 0);
   for (let i = 0; i < 4; i++) part(g, o.x, o.y, (g.rng() - 0.5) * 30, (g.rng() - 0.5) * 30, 0.3, SPIT_COL);
 }
 
@@ -2504,6 +2534,7 @@ function summon(g) {
       if (g.adds.filter(a => !isSkel(a)).length >= MAX_ADDS) break;
       spawnAdd(g, k);
     }
+    if (g.adds.filter(a => a.kind === 'gnasher' && !a.dead).length >= MAX_ADDS) achieve(g, 'LITTER');
   }
   g.shake = Math.max(g.shake, 0.2);
 }
@@ -2570,6 +2601,8 @@ function necroRaise(g, a) {
   g.corpses.splice(g.corpses.indexOf(best), 1);
   if (best.u) { const dl = best.u.party.deadList.findIndex(e => e.u === best.u); if (dl >= 0) best.u.party.deadList.splice(dl, 1); }
   spawnAdd(g, bk, best.x, best.y, a.id);
+  if (bk === 'skel_rider') achieve(g, 'FOR_THE_HORSE');
+  if (best.critter && FARM[best.critter]) achieve(g, 'ABOMINATION');
   a.swing = 0.4;
   a.charges--;
   return true;
@@ -2696,6 +2729,7 @@ function updateAdd(g, a, dt) {
         for (let i = 0; i < 4; i++) part(g, b.x + (g.rng() - 0.5) * 14, b.y - 2 + (g.rng() - 0.5) * 8, 0, -10 - g.rng() * 10, 0.6, 'heal');
       } else if (ward < cap) {
         b.ward = Math.min(cap, ward + D.heal);
+        achieve(g, 'UNHOLY');
         a.atk = D.rate; a.swing = 0.3;
         for (let i = 0; i < 4; i++) { const k = g.rng() * TAU; part(g, b.x + Math.cos(k) * 14, b.y + Math.sin(k) * 12, 0, -8, 0.5, 'frost'); }
       }
@@ -2872,6 +2906,7 @@ export function upgradeAbility(g, id, free = false) {
   if (o.upCost == null || !(free || spend(g, o.upCost))) return false;
   g.lvl[id] = (g.lvl[id] || 0) + 1;
   applyLevels(g);
+  mutated(g);
   return true;
 }
 
@@ -2891,7 +2926,12 @@ export function setSlot(g, i, id) {
   // moving an ability off another slot leaves that slot empty (it used to swap the two)
   const j = g.slots.indexOf(id);
   if (j >= 0 && j !== i) g.slots[j] = null;
+  const was = g.slots.join();
   g.slots[i] = id;
+  if (g.slots.join() === was) return;
+  g.loadoutChanged = true;   // (Hatched Perfect: a loop won without this)
+  achieve(g, 'LIFE_FINDS_A_WAY');
+  if (g.slots.some(Boolean) && !g.slots.some(k => RANGED[k])) achieve(g, 'DO_YOU_PRACTICE');
 }
 
 // ---------------------------------------------------------------------------------------------- the store's demo reel
@@ -3005,6 +3045,96 @@ function bark(g, u, s) {
 function banner(g, s, sub, dur = 3.2) { g.banner = { s, sub, t: 0, dur }; }
 
 // New Game+: a fresh run from level 1 with every ability, upgrade and slot from the run you won, and tougher heroes.
+// ---------------------------------------------------------------------------------------------- achievements
+
+const FARM = { cow: 1, pig: 1, chicken: 1, horse: 1 };
+const PET_CLS = cls => !!CLASS[cls]?.pet;
+// someone killed (heroes and pets here; props.js hurtCritter reports animals and townsfolk through critterDown)
+function killed(g, u) {
+  if (!g.counts) return;
+  bump(g, 'creatures');
+  if (!PET_CLS(u.cls)) humanDown(g);
+  if (u.role === 'rider') {
+    achieve(g, 'WHO_WAS_THAT_GUY');
+    if (g.rec && g.boss.act?.kind === 'swipe' && !u.grabbed) achieve(g, 'TOO_SLOW');
+  }
+  if (u.role === 'king') {
+    achieve(g, 'REGICIDE');
+    if (g.flatKing || g.boss.act?.kind === 'charge') achieve(g, 'SHAH_FLOOR_MAT');
+  }
+  g.flatKing = false;
+  // the whole party: a 5-man, a 25-man or the 40-man (pets aside), every one dead (not one got away)
+  const p = u.party, folk = p.units.filter(v => !PET_CLS(v.cls));
+  if (p.type !== 'rider' && !p.wiped && folk.every(v => v.dead)) {
+    p.wiped = true;
+    if (folk.length >= 40) achieve(g, 'FULL_CLEAR');
+    else if (folk.length >= 25) achieve(g, 'RAID_WIPE');
+    else if (folk.length >= 5) achieve(g, 'PARTY_WIPE');
+  }
+}
+// an animal or townsperson killed (props.js hurtCritter)
+export function critterDown(g, c) {
+  if (!g.counts) return;
+  bump(g, 'creatures');
+  if (P.CRITTERS[c.kind]?.human) humanDown(g);
+}
+// a human down, hero or townsperson: counted this loop and for good
+function humanDown(g) {
+  g.humans = (g.humans || 0) + 1;
+  if (g.humans >= 1000) achieve(g, 'KILLING_MACHINE');
+  if (bump(g, 'humans') >= 1000) achieve(g, 'MILLICIDE');
+}
+// a level beaten (the secret one aside)
+function beatLevel(g) {
+  const m = g.map;
+  if (!m.level || m.level.secret || !(m.n >= 1 && m.n <= 7)) return;
+  achieve(g, 'LEVEL_' + m.n);
+}
+// the castle down: the loop is won
+function wonLoop(g) {
+  if (g.ng >= 1) achieve(g, 'NG_PLUS');
+  if (g.ng >= 5) achieve(g, 'NG_PLUS_5');
+  if (g.ng >= 1 && !g.usedRanged) achieve(g, 'DO_YOU_FIGHT');
+  if (!g.loadoutChanged) achieve(g, 'HATCHED_PERFECT');
+}
+// the mutation count: every ability mutated once, one all the way, all of them all the way
+function mutated(g) {
+  const all = ABILITIES.filter(a => !a.passive && !a.space && (a.ups || a.up));
+  const max = a => a.ups ? a.ups.length : 1, lv = a => g.lvl[a.id] || 0;
+  if (all.some(a => lv(a) >= max(a))) achieve(g, 'ITS_EVOLUTION');
+  if (all.every(a => lv(a) >= 1)) achieve(g, 'TEST_SUBJECT');
+  if (all.every(a => lv(a) >= max(a))) achieve(g, 'BECOME_DEATH');
+}
+// once a second on the levels that can be flattened: is everything down? (Level 5: the City Wall itself; 6 and 7:
+// every structure, lamps and all, so not rubble.) Lumbering Nuke wants all three in one loop.
+const RAZE = { wall: 5, city: 6, castle: 7 };
+function razeCheck(g, dt) {
+  const n = RAZE[g.map.level?.id];
+  if (!n || !g.counts || g.map.level.secret) return;
+  g.razeT = (g.razeT || 0) - dt;
+  if (g.razeT > 0) return;
+  g.razeT = 1;
+  let all;
+  if (n === 5) all = (g.map.wall || []).length > 0 && g.map.wall.every(s => s.prop && s.prop.state !== 'up');
+  else all = g.props.every(p => p.state !== 'up' || P.KINDS[p.kind].push);
+  if (n === 6 && g.props.some(p => /^cf_/.test(p.kind)) && g.props.filter(p => /^cf_/.test(p.kind)).every(p => p.state !== 'up')) achieve(g, 'SHAKA');
+  if (!all) return;
+  achieve(g, { 5: 'ALL_OF_IT', 6: 'EVERY_LAST_LAMPPOST', 7: 'TOTAL_ANNIHILATION' }[n]);
+  (g.razed ||= {})[n] = true;
+  if (g.razed[5] && g.razed[6] && g.razed[7]) achieve(g, 'LUMBERING_NUKE');
+}
+// Ice Floor: everyone (human) who stands on one patch while it lasts
+function iceCheck(g) {
+  if (!g.counts) return;
+  for (const ic of g.ice) {
+    const seen = ic.hum ||= new Set();
+    if (seen.size >= 25) continue;
+    for (const u of g.units) if (hittable(u) && !PET_CLS(u.cls) && Math.hypot(u.x - ic.x, u.y - ic.y) < ic.r) seen.add('u' + u.id);
+    for (const c of g.critters) if (!c.dead && P.CRITTERS[c.kind]?.human && Math.hypot(c.x - ic.x, c.y - ic.y) < ic.r) seen.add('c' + c.id);
+    if (seen.size >= 25) achieve(g, 'BRRRRRR');
+  }
+}
+
 export function newGamePlus(prev, look) {
   const g = createGame(undefined, look);
   g.ng = (prev.ng || 0) + 1;

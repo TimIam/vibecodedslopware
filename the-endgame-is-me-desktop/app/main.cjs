@@ -13,6 +13,19 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 // Steam's Linux runtime can't keep chrome-sandbox setuid-root, and Electron refuses to start without it. The game only
 // ever loads its own files from inside the app, so Chromium's sandbox is switched off there.
 if (process.platform === 'linux') app.commandLine.appendSwitch('no-sandbox');
+// Steam: achievements (and the overlay that shows them). Only when Steam itself launched the game (it sets SteamGameId /
+// SteamAppId for whatever it starts), so the very same build run from Epic or itch never touches Steam; --steam forces
+// it for testing. Anything that goes wrong just leaves the game without Steam: unlocks are still kept in the game's
+// own save and handed over the next time Steam is there.
+const STEAM_APP = 5629950;
+let steam = null;
+if (process.env.SteamGameId || process.env.SteamAppId || process.argv.includes('--steam')) {
+  try {
+    const sw = require('steamworks.js');
+    steam = sw.init(STEAM_APP);
+    sw.electronEnableSteamOverlay();
+  } catch (e) { console.warn('Steam not available:', e.message); steam = null; }
+}
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
 
 // window settings (fullscreen or not, and the windowed size) kept beside the saves
@@ -57,6 +70,8 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'windowMenu' }]) : null);
   ipcMain.on('quit', () => app.quit());
   ipcMain.on('fullscreen', (_e, on) => win?.setFullScreen(on == null ? !win.isFullScreen() : !!on));
+  // an achievement earned in the game (API names as in Steamworks); Steam itself ignores one it already has
+  ipcMain.on('achieve', (_e, id) => { try { if (typeof id === 'string' && /^[A-Z0-9_]{1,64}$/.test(id)) steam?.achievement.activate(id); } catch (e) { console.warn('achievement', id, e.message); } });
   create();
 });
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });

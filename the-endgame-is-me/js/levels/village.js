@@ -25,7 +25,7 @@ export const kinds = {
 export const critters = {
   cart: { r: 4, hp: 60, spd: 2, flee: 24, fear: 55, leaves: true, bits: '#8a5a36', cry: 'neigh', value: { pts: 300, venge: 0.15, chaos: 0.6 } },
   horse: { r: 3, hp: 45, spd: 5, flee: 30, fear: 50, leaves: true, bits: 'blood', cry: 'neigh', value: { pts: 250, venge: 0.12, chaos: 0.5 } },
-  villager: { r: 1.5, hp: 15, spd: 7, flee: 20, fear: 40, raise: 'skeleton', value: { pts: 80, venge: 0.06, chaos: 0.2 } },
+  villager: { human: true, r: 1.5, hp: 15, spd: 7, flee: 20, fear: 40, raise: 'skeleton', value: { pts: 80, venge: 0.06, chaos: 0.2 } },
 };
 
 // ---------------------------------------------------------------------------------------------- layout

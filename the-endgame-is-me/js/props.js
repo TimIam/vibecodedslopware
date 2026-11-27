@@ -126,6 +126,7 @@ export function knockDown(g, p, ang = 0) {
 // (a kind's onHit(g, p, dmg, ang) may swallow the hit by returning true: a tower held up by something else, say)
 export function hitProp(g, p, dmg, ang) {
   if (p.state !== 'up') return;
+  g.rec?.all.add('p' + p.id);
   const hook = KINDS[p.kind].onHit;
   if (hook && hook(g, p, dmg, ang)) return;
   p.hp -= dmg;
@@ -138,6 +139,7 @@ export function ignite(g, p) {
   const d = KINDS[p.kind];
   if (!d.flammable || p.burning || p.state === 'gone') return false;
   p.burning = true; p.burnT = 0;
+  g.rec?.lit.add(p.id);
   API.sound(g, 'whoosh');
   return true;
 }
@@ -313,10 +315,12 @@ export function addCritter(g, kind, x, y, extra = {}) {
 export function hurtCritter(g, c, dmg, cause = null) {
   cause = cause === true ? 'fire' : cause || g.cause || null;
   if (c.dead) return;
+  if (g.rec) { g.rec.all.add('c' + c.id); if (CRITTERS[c.kind].human) g.rec.hum.add('c' + c.id); }
   c.hp -= dmg; c.hitT = 0.12; c.scared = 4;
   if (c.hp > 0) return;
   c.dead = true;
   tally(g, 'c:' + c.kind);
+  API.critterDown?.(g, c);
   const d = CRITTERS[c.kind], v = d.value;
   const pts = Math.round(v.pts * g.mult);
   API.addScore(g, pts);

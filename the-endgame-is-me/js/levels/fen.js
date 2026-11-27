@@ -111,7 +111,7 @@ function minoAi(g, c, dt) {
     // the swing: up, over, and down onto whatever is in front of him
     const was = m.atk;
     m.atk += dt;
-    if (was < MINO.strike && m.atk >= MINO.strike && !b.dead && !g.scene && d < b.r + c.r + MINO.reach + 3) { API?.hurtBoss(g, MINO.swing * ngK(g)); API?.sound(g, 'bite'); g.shake = Math.max(g.shake, 0.12); }
+    if (was < MINO.strike && m.atk >= MINO.strike && !b.dead && !g.scene && d < b.r + c.r + MINO.reach + 3) { g.lastBlow = 'mino'; API?.hurtBoss(g, MINO.swing * ngK(g)); API?.sound(g, 'bite'); g.shake = Math.max(g.shake, 0.12); }
     if (m.atk >= MINO.atk) m.atk = null;
   }
   if (b.dead || g.scene) return;
@@ -139,7 +139,7 @@ function minoAi(g, c, dt) {
       if (g.rng() < 0.7) API?.part(g, c.x, c.y + 1, (g.rng() - 0.5) * 30, -5, 0.4, 'splash');
       if (!m.hit && Math.hypot(b.x - c.x, b.y - c.y) < b.r + c.r + 2) {
         m.hit = true;
-        API?.hurtBoss(g, MINO.charge.dmg * ngK(g));
+        g.lastBlow = 'mino'; API?.hurtBoss(g, MINO.charge.dmg * ngK(g));
         API?.stunBoss(g, MINO.charge.stun);
         b.x += Math.cos(m.dir) * 10; b.y += Math.sin(m.dir) * 10;
         g.shake = Math.max(g.shake, 0.5);
@@ -235,7 +235,7 @@ function update(g, dt, api) {
       g.rings.push({ x: k.x, y: k.y, r: 3, max: BOOM.r, t: 0, col: 'dust' });
       for (let i = 0; i < 18; i++) { const a = g.rng() * TAU, s = 20 + g.rng() * 60; api.part(g, k.x, k.y, Math.cos(a) * s, Math.sin(a) * s, 0.5, i % 3 ? 'flame' : 'dust'); }
       for (let i = 0; i < 6; i++) { const a = g.rng() * TAU; api.part(g, k.x, k.y, Math.cos(a) * 40, Math.sin(a) * 40 - 20, 0.7, '#4a3420'); }
-      if (Math.hypot(b.x - k.x, b.y - k.y) < BOOM.r + b.r * 0.3) api.hurtBoss(g, BOOM.boss * ngK(g));
+      if (Math.hypot(b.x - k.x, b.y - k.y) < BOOM.r + b.r * 0.3) { g.lastBlow = 'steer'; api.hurtBoss(g, BOOM.boss * ngK(g)); }
       for (const c of g.critters) if (!c.dead && Math.hypot(c.x - k.x, c.y - k.y) < BOOM.r) api.hurtCritter(g, c, c.kind === 'fen_mino' ? 120 : 1e6);
       g.craters.push({ x: k.x, y: k.y, r: BOOM.crater + g.rng() * 2, seed: Math.floor(g.rng() * 1000), t: 0 });
       if (g.craters.length > 90) g.craters.shift();

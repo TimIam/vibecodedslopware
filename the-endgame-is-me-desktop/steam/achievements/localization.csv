@@ -1,0 +1,103 @@
+api_name (required; must match an api_name from the definitions CSV),field (name or description),english
+THATLL_DO,name,That'll Do
+THATLL_DO,description,Accept whatever came out of the randomizer.
+OH_GOD_NO,name,OH GOD NO
+OH_GOD_NO,description,Some things weren't meant for mortal eyes.
+AIMLESS,name,Aimless
+AIMLESS,description,Achieve full aimlessness.
+BURNING_RAGE,name,Burning Rage
+BURNING_RAGE,description,Achieve full vengeance.
+DO_YOU_PRACTICE,name,Do You Practice?
+DO_YOU_PRACTICE,description,Equip a melee-only build.
+DO_YOU_FIGHT,name,Do You Fight?
+DO_YOU_FIGHT,description,Beat the game with a melee-only build.
+TEST_SUBJECT,name,Test Subject
+TEST_SUBJECT,description,Mutate all abilities.
+LIFE_FINDS_A_WAY,name,"Life, Uh, Finds A Way"
+LIFE_FINDS_A_WAY,description,Change your loadout.
+ITS_EVOLUTION,name,"Its Evolution, Baby"
+ITS_EVOLUTION,description,Mutate an ability to max level.
+BECOME_DEATH,name,I Am Become Death
+BECOME_DEATH,description,Mutate all abilities to max level.
+LEVEL_1,name,They'll Pay For This!
+LEVEL_1,description,Beat Level 1.
+LEVEL_2,name,The Countryside
+LEVEL_2,description,Beat Level 2.
+LEVEL_3,name,The Peasants
+LEVEL_3,description,Beat Level 3.
+LEVEL_4,name,The People In Their Thatched-Roof Cottages
+LEVEL_4,description,Beat Level 4.
+LEVEL_5,name,Pontifex
+LEVEL_5,description,Beat Level 5.
+LEVEL_6,name,A Night On The Town
+LEVEL_6,description,Beat Level 6.
+LEVEL_7,name,Vengeance Is Mine!
+LEVEL_7,description,Beat Level 7.
+NG_PLUS,name,Vengeance Is Mine! Again!
+NG_PLUS,description,Beat NG+
+NG_PLUS_5,name,Vengeance Is For Suckers.
+NG_PLUS_5,description,Beat NG+ 5
+EVERY_LAST_LAMPPOST,name,Every Last Lamppost!
+EVERY_LAST_LAMPPOST,description,Completely raze the Castle Town.
+TOTAL_ANNIHILATION,name,Total Annihilation
+TOTAL_ANNIHILATION,description,Completely level the Castle Keep!
+WHO_WAS_THAT_GUY,name,Who Was That Guy?
+WHO_WAS_THAT_GUY,description,Kill the Horse guy.
+PARTY_WIPE,name,Party Wipe!
+PARTY_WIPE,description,Kill all members of a 5-man party.
+RAID_WIPE,name,Raid Wipe!
+RAID_WIPE,description,Kill all members of a 25-man raid.
+FULL_CLEAR,name,Full Clear!
+FULL_CLEAR,description,Kill all members of a 40-man raid.
+FOR_THE_HORSE,name,This Is For The Horse!
+FOR_THE_HORSE,description,Have your necromancer raise the horse guy.
+STUNNING,name,Stunning!
+STUNNING,description,Use one Stun Charge on 15 or more humans.
+VROOM_VROOM,name,"Vroom, Vroom!"
+VROOM_VROOM,description,Trample 20 humans in one charge of Zoomies.
+BURNINATE,name,BURNINATE!
+BURNINATE,description,Consummate flames!
+WHIP_IT_GOOD,name,Whip it good!
+WHIP_IT_GOOD,description,Strike 10 or more humans with one cast of Tail Whip.
+STOMP_STOMP,name,Stomp Stomp!
+STOMP_STOMP,description,Use one Stomp on 25 or more humans.
+SLASHY,name,Slashy!
+SLASHY,description,Use one Slash attack on 10 or more humans.
+BRRRRRR,name,Brrrrrr!
+BRRRRRR,description,Use one Ice Floor on 25 or more humans.
+ZAP,name,ZAP!
+ZAP,description,Strike 40 of anything with one Lightning Beam.
+LITTER,name,Litter
+LITTER,description,Summon the max number of Gnashers.
+UGH_EVERYWHERE,name,"Ugh, It's Everywhere"
+UGH_EVERYWHERE,description,Have a Spitter spit hit four or more.
+ABOMINATION,name,Abomination
+ABOMINATION,description,Your necromancer raised a farm animal.
+UNHOLY,name,Unholy
+UNHOLY,description,Your necromancer raised a healer that gave you a bubble shield.
+MEGA,name,Mega
+MEGA,description,"Have 1,000,000 points in the Hoard."
+SHAKA,name,Shaka!
+SHAKA,description,Destroy the entire wall at the end of Level 6.
+SHAH_FLOOR_MAT,name,Shah (Floor) Mat!
+SHAH_FLOOR_MAT,description,Flatten His Royal Majesty.
+ALL_OF_IT,name,ALL Of It?!
+ALL_OF_IT,description,Completely destroy the City Wall on Level 5.
+MILLICIDE,name,Milli-cide
+MILLICIDE,description,Kill a total of 1000 humans across all playthroughs.
+KILLING_MACHINE,name,Killing Machine
+KILLING_MACHINE,description,Kill a total of 1000 humans in one playthrough.
+EXTINCTION_LEVEL,name,Extinction-Level Event
+EXTINCTION_LEVEL,description,Kill a total of 50000 creatures across all playthroughs.
+REGICIDE,name,You Have Selected Regicide
+REGICIDE,description,The King is dead! Long Live the King!
+TOO_SLOW,name,Too Slow!
+TOO_SLOW,description,Kill the Horse Guy with a Swipe attack before he grabs your fur.
+HATCHED_PERFECT,name,Hatched Perfect
+HATCHED_PERFECT,description,Beat the game without ever changing Loadout.
+LUMBERING_NUKE,name,Lumbering Nuke
+LUMBERING_NUKE,description,Completely level EVERYTHING.
+MOO,name,Moo.
+MOO,description,Unlock the Secret Cow Skin.
+DANSE_MOOCABRE,name,Danse Moocabre
+DANSE_MOOCABRE,description,Bear witness to the moost evil soirée.

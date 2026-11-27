@@ -80,6 +80,10 @@ Released: v17 (Phenotype menu, remappable keyboard and controller controls, cont
   `repo:TimIam@92952477/vibecodedslopware@1387589836:ref:refs/heads/<branch>`, or the sign-in step fails.
 - macOS: ad-hoc signed only. Fine when Steam installs it; a Developer ID signature and notarization would let it run
   anywhere and are needed if it is ever sold outside Steam.
-- No Steamworks SDK yet: no achievements, no Steam Cloud saves, and the Steam overlay does not draw over Electron.
+- Steam achievements through steamworks.js (app/main.cjs), only when Steam launched the game (SteamGameId/SteamAppId
+  in the environment, or `--steam`), so the same build on Epic or itch never touches Steam. The overlay is switched on
+  too (steamworks.js electronEnableSteamOverlay). The list lives in the game (the-endgame-is-me/js/achievements.js);
+  steam/achievements/ has the icon drawings (icons.html, kit.js, icons-a.js, icons-b.js), save.mjs to write the PNGs,
+  and make-csv.mjs for Steamworks' bulk import. No Steam Cloud saves yet.
 - Controller support is tested with simulated gamepads only, not yet on a real controller or Steam Deck.
 - The app's own version (`package.json`) is still 1.0.0; the game version is the site's stamp (17).

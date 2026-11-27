@@ -2,6 +2,7 @@
 // player says to save them (menu.js asks); until then `saved` is what localStorage holds and name/look are the draft.
 
 import { LOOKS, BOSS_NAMES } from './world.js';
+import { achieveNow } from './achievements.js';
 import { BOSS_SIZE, PAL, hslToHex } from './art.js';
 import { bossPreview, markerPreview } from './render.js';
 import { createFurPicker } from './furpick.js';
@@ -105,6 +106,7 @@ export function createAppearance({ audio, onLook, onName }) {
   });
   revert.addEventListener('click', () => {
     if (!manual) return;
+    achieveNow('OH_GOD_NO');
     look = manual; manual = null;
     focus = null;
     fur.set(look.fur); sync(); commit();
@@ -171,6 +173,7 @@ export function createAppearance({ audio, onLook, onName }) {
     // anything different from what is saved, whether typed, clicked or rolled
     dirty: () => (name.trim() || saved.name) !== saved.name || !same(look, saved.look),
     save() {
+      if (manual) achieveNow('THATLL_DO');   // the dice had the last word, and it was kept
       if (!name.trim()) setName(saved.name);
       name = name.trim();
       saved = { name, look: { ...look } };
