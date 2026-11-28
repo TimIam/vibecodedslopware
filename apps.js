@@ -2149,6 +2149,13 @@ window.SLOPWARE = {
      "note": "snowflake Ice Floor that shatters the frozen, Gnashers in the boss's fur",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 29,
+     "date": "2026-11-27T18:15:54-07:00",
+     "note": "twelve more boss names",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
