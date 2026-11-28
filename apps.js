@@ -4,8 +4,8 @@ window.SLOPWARE = {
  "apps": {
   "3030": {
    "visits": 0,
-   "prompts": 3,
-   "tokens": 1500139,
+   "prompts": 4,
+   "tokens": 1545479,
    "sharedWith": null,
    "versions": [
     {
@@ -21,6 +21,13 @@ window.SLOPWARE = {
      "note": "slower Battlesong with a lead-in to your turn",
      "prompts": 2,
      "tokens": 91470
+    },
+    {
+     "n": 3,
+     "date": "2026-11-28T10:56:34-07:00",
+     "note": "Battlesong goes to twenty rounds with a harder second verse",
+     "prompts": 1,
+     "tokens": 45340
     }
    ]
   },
