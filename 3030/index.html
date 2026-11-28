@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>3030</title>
+<meta name="description" content="A 16-bit album game: twelve minigames, one for every song on Deltron 3030, each set to its own original chiptune, with cinema scenes for the skits in between. A fan tribute.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪐</text></svg>">
+<link rel="stylesheet" href="/site-nav.css">
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#07060c;color:#e8e6dc;font:14px/1.4 "Segoe UI",system-ui,sans-serif;-webkit-user-select:none;user-select:none;overscroll-behavior:none;-webkit-touch-callout:none}
+#wrap{position:fixed;left:0;right:0;top:52px;bottom:0;display:grid;place-items:center}
+body.full #wrap{top:0}
+body.full .site-topbar{display:none}
+body.full{padding-top:0}
+#game{display:block;outline:none;touch-action:none;background:#000;box-shadow:0 0 0 1px #221d33,0 10px 40px #000}
+.site-topbar .mute{margin-left:auto;margin-right:8px;padding:0 10px;border:1px solid #8c9b80;border-radius:999px}
+.site-topbar .fs{margin-right:8px;padding:0 10px;border:1px solid #8c9b80;border-radius:999px}
+@media(max-width:600px){.site-topbar .fs{display:none}}
+/* Touch pad: only on touch devices, drawn over the bottom corners. */
+#pad{position:fixed;left:0;right:0;bottom:0;height:0;pointer-events:none;display:none}
+body.touch #pad{display:block}
+#pad button{position:fixed;pointer-events:auto;border:2px solid #ffffff55;background:#ffffff1c;color:#fff;font:700 15px system-ui;border-radius:50%;touch-action:none;-webkit-tap-highlight-color:transparent}
+#pad button.on{background:#ffffff55}
+#pad .dir{width:54px;height:54px;border-radius:12px}
+#pad .up{left:70px;bottom:128px}#pad .down{left:70px;bottom:16px}
+#pad .left{left:14px;bottom:72px}#pad .right{left:126px;bottom:72px}
+#pad .a{right:18px;bottom:60px;width:70px;height:70px}
+#pad .b{right:100px;bottom:28px;width:62px;height:62px}
+#pad .st{right:24px;bottom:150px;width:64px;height:30px;border-radius:15px;font-size:11px}
+</style>
+</head>
+<body>
+<nav class="site-topbar" aria-label="Site">
+  <a class="site-home" href="/" aria-label="Vibe Coded Slopware home">← <span class="site-long">vibe coded </span>slopware</a>
+  <button class="mute" id="mute" type="button" aria-label="Toggle sound">♪ Sound on</button>
+  <button class="fs" id="fs" type="button" aria-label="Full screen">⛶ Full screen</button>
+  <a class="site-coffee" style="margin-left:0" href="https://buymeacoffee.com/twilliamja0" target="_blank" rel="noopener" aria-label="Support my streams via Buy Me a Coffee (opens in a new tab)" title="Support my streams on Buy Me a Coffee"><span aria-hidden="true">☕</span> Support<span class="site-long"> my streams</span></a>
+</nav>
+<script src="/site-nav.js"></script>
+<div id="wrap"><canvas id="game" width="256" height="224" tabindex="0" aria-label="3030, a 16-bit album game. Arrow keys move, Z is A, X is B, Enter is Start."></canvas></div>
+<div id="pad" aria-hidden="true">
+  <button class="dir up" data-b="up">▲</button><button class="dir down" data-b="down">▼</button>
+  <button class="dir left" data-b="left">◀</button><button class="dir right" data-b="right">▶</button>
+  <button class="a" data-b="a">A</button><button class="b" data-b="b">B</button>
+  <button class="st" data-b="start">START</button>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

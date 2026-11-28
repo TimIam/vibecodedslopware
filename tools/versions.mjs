@@ -32,7 +32,7 @@ const SESSIONS = {
   "binding-order": ["73ca41e4"], "hostile-fauna": ["f0033dac"], shop: ["18796b08"], "park-inspector": ["2108b4e3"],
   wasteland: ["4c2439ef"], antfarm: ["bb8a5495"], snowglobe: ["f7ab5567"], "dit-happens": ["4219778b"],
   arcade: ["81fba3dd"], "puck-around": ["71ed36ab"], reviewbomb: ["116b7a55"], "midnight-snack": ["2cb8b760"],
-  "desert-chase": ["ace570ed"], "tree-planner": ["62fb7fd7"], ceasefire: ["de70cd6f"], voyeur: ["84412326"], "stay-with-me": ["afd934e0"], "toil-and-trouble": ["0ff39d01"], "augmented-treality": ["849be849"],
+  "desert-chase": ["ace570ed"], "tree-planner": ["62fb7fd7"], ceasefire: ["de70cd6f"], voyeur: ["84412326"], "stay-with-me": ["afd934e0"], "toil-and-trouble": ["0ff39d01"], "augmented-treality": ["849be849"], "3030": ["4385f395"],
 };
 // Built in the same session as another game: its prompts and tokens are counted there.
 // Games whose folder was renamed: new name -> old name. History before the move is read from the old folder, and
