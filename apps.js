@@ -2,6 +2,21 @@
 window.SLOPWARE = {
  "visitsSince": "2026-10-07",
  "apps": {
+  "3030": {
+   "visits": 0,
+   "prompts": 1,
+   "tokens": 1409840,
+   "sharedWith": null,
+   "versions": [
+    {
+     "n": 1,
+     "date": "2026-11-28T09:09:52-07:00",
+     "note": "a 16-bit album game, a fan tribute to Deltron 3030",
+     "prompts": 1,
+     "tokens": 1409840
+    }
+   ]
+  },
   "mostly-sword": {
    "visits": 0,
    "prompts": null,
@@ -183,6 +198,11 @@ window.SLOPWARE = {
      "n": 8,
      "date": "2026-11-19T12:14:42-07:00",
      "note": "1.2.1 downloads and rename note"
+    },
+    {
+     "n": 9,
+     "date": "2026-11-28T03:50:21-07:00",
+     "note": "hover pop-up, range gray-out, rez angel"
     }
    ]
   },
