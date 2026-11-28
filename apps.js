@@ -4,8 +4,8 @@ window.SLOPWARE = {
  "apps": {
   "3030": {
    "visits": 0,
-   "prompts": 1,
-   "tokens": 1409840,
+   "prompts": 3,
+   "tokens": 1500139,
    "sharedWith": null,
    "versions": [
     {
@@ -13,7 +13,14 @@ window.SLOPWARE = {
      "date": "2026-11-28T09:09:52-07:00",
      "note": "a 16-bit album game, a fan tribute to Deltron 3030",
      "prompts": 1,
-     "tokens": 1409840
+     "tokens": 1408669
+    },
+    {
+     "n": 2,
+     "date": "2026-11-28T10:23:34-07:00",
+     "note": "slower Battlesong with a lead-in to your turn",
+     "prompts": 2,
+     "tokens": 91470
     }
    ]
   },
