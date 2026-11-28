@@ -24,9 +24,16 @@ function icons() {
     mk(g => { g.drawImage(VINYL, 0, 0, 16, 16, 2, 2, 20, 20); }),
     mk(g => { g.drawImage(HEART, 0, 0, HEART.width, HEART.height, 3, 4, 18, 16); }),
     mk(g => { blob(g, [{ x: 12, y: 8, rx: 6, ry: 6, h: 6 }], RAMP.steel, { rim: P.white }); for (let y = 4; y < 13; y += 2) rect(g, 7, y, 10, 1, P.s1); rect(g, 11, 14, 3, 6, P.s2); rect(g, 7, 20, 11, 2, P.s1); }),
-    mk(g => { g.drawImage(perisphere(7, RAMP.steel, P.cyan), 0, 0); }),
+    // The World's Fair: Trylon spire behind, the Perisphere on its stilts, a curling ramp. Centred.
+    mk(g => {
+      poly(g, [[16.5, 1], [19.5, 21], [13.5, 21]], P.s1); poly(g, [[16.5, 1], [19.5, 21], [16.5, 21]], P.s2); line(g, 16, 2, 16, 20, P.s3);
+      for (const x of [6, 9, 12]) rect(g, x, 17, 1, 4, P.s1);
+      ball(g, 9.5, 11, 7.5, 7.5, RAMP.steel, { rim: P.cyan });
+      for (let k = 0; k <= 1; k += 0.08) px(g, 2.5 + k * 13, 17.5 - k * 3, P.s3);
+      rect(g, 2, 21, 20, 2, P.s1); rect(g, 2, 21, 20, 1, P.s2);
+    }),
     mk(g => { const pts = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 4.5 : 10; pts.push([12 + Math.cos(a) * r, 12.5 + Math.sin(a) * r]); } poly(g, pts, P.gold2); poly(g, pts.slice(0, 5).concat([[12, 12]]), P.gold3); }),
-    mk(g => { ball(g, 12, 12, 7, 7, [P.ink, P.blood, P.red, P.orange, P.amber]); for (let x = 1; x < 23; x++) { const y = 13 + (x - 12) * 0.25; if (Math.abs(x - 12) > 6 || y > 13) px(g, x, y, P.cream); } }),
+    mk(g => { ball(g, 12, 12, 7, 7, [P.ink, P.blood, P.red, P.orange, P.amber]); for (let x = 1; x < 23; x++) { const y = 13 + (x - 12) * 0.25; if (Math.abs(x - 12) > 6 || y > 13) { px(g, x, y, P.brown2); px(g, x, y + 1, P.gold1); } } }),
     mk(g => { ellipse(g, 12, 12, 10.5, 10.5, P.gold0); ellipse(g, 12, 12, 9.5, 9.5, P.gold2); ellipse(g, 12, 12, 7.5, 7.5, P.white); for (let i = 0; i < 12; i++) px(g, 12 + Math.cos(i * 0.5236) * 6, 12 + Math.sin(i * 0.5236) * 6, P.s2); line(g, 12, 12, 12, 6, P.ink); line(g, 12, 12, 16, 13, P.red); px(g, 12, 12, P.ink); px(g, 9, 8, P.gold3); }),
     mk(g => { blob(g, [{ x: 13, y: 12, rx: 10, ry: 4, h: 4 }, { x: 14, y: 9, rx: 4, ry: 3, h: 3, z: 3 }], RAMP.steel, { rim: P.orange }); rect(g, 1, 11, 3, 3, P.cyan); poly(g, [[7, 14], [12, 14], [5, 20]], P.s1); }),
     mk(g => { blob(g, [{ x: 12, y: 13, rx: 9, ry: 10, h: 8 }], [P.ink, P.navy, P.violet, P.purple, P.pink]); blob(g, [{ x: 12, y: 13, rx: 6, ry: 7, h: 6, z: 3 }], RAMP.skinM); rect(g, 9, 12, 2, 1, P.ink); rect(g, 13, 12, 2, 1, P.ink); rect(g, 10, 16, 4, 1, P.red); }),
@@ -37,6 +44,7 @@ function icons() {
   ];
   return ICONS;
 }
+export { icons, NAMES };   // for the card-sheet test
 let BACK = null;
 function cardBack() {
   if (BACK) return BACK;
