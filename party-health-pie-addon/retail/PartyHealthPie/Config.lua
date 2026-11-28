@@ -12,8 +12,10 @@ ns.DEAD_COLOR = Hex("232323")
 ns.OFFLINE_COLOR = Hex("555555")
 ns.BACKING_COLOR = { 0, 0, 0 } -- the drained part of a live wedge
 ns.BACKING_ALPHA = 0.55
-ns.SHIELD_ALPHA = 0.85 -- lets the class color show through a shield
+ns.SHIELD_ALPHA = 0.6 -- the stripes stay faded, so the health under a shield shows through
 ns.HEAL_ALPHA = 0.85
+ns.RANGE_COLOR = Hex("4A4A4A") -- laid over a wedge whose member is out of range
+ns.RANGE_ALPHA = 0.75
 
 -- Indexed by the game's dispel type: magic, curse, disease, poison.
 ns.DISPEL_COLORS = { Hex("33A0FF"), Hex("B04DFF"), Hex("D9A441"), Hex("35C935") }
@@ -62,6 +64,8 @@ ns.METALS = {
 	{ key = "silver", name = "Silver", hi = Hex("F2F3F5"), lo = Hex("A4A7AD") },
 	{ key = "gold", name = "Gold", hi = Hex("FFE27A"), lo = Hex("A8831E") },
 	{ key = "brass", name = "Brass", hi = Hex("D9BE6E"), lo = Hex("7A6228") },
+	-- A plain white circle at the rim and no dividers.
+	{ key = "outline", name = "Outline", outline = true, hi = Hex("FFFFFF"), lo = Hex("FFFFFF") },
 	-- No rim and no dividers: the wedges meet edge to edge.
 	{ key = "none", name = "None", none = true, hi = Hex("C9CED6"), lo = Hex("6C727C") },
 }
@@ -77,6 +81,8 @@ local DEFAULTS = {
 	flash = true,
 	mouseover = true,
 	moveInCombat = true, -- dragging in combat moves the pies where you let go
+	auraPopup = true, -- hovering a wedge lists what you can dispel and your heals over time
+	rangeFade = true, -- grays out the wedges of members too far away to heal
 	roleIcons = true,
 	dispelGlow = true,
 	lowFill = Hex("770000"),

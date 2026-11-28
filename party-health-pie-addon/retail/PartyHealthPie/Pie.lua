@@ -198,9 +198,11 @@ local function NewSlot(pie, i)
 		healWhole = NewTexture(pie, colorLayer, "ARTWORK", -1, "ring_health", Join(full, { healMask })),
 		healClass = NewTexture(pie, colorLayer, "ARTWORK", -1, "ring_health", Join(class, { healMask })),
 		shieldBars = shieldBars,
-		shieldWhole = NewTexture(pie, colorLayer, "ARTWORK", 1, "disk", Join(full, { shieldHole })),
-		shieldClass = NewTexture(pie, colorLayer, "ARTWORK", 1, "disk", Join(class, { shieldHole })),
+		shieldWhole = NewTexture(pie, colorLayer, "ARTWORK", 1, "disk_stripes", Join(full, { shieldHole })),
+		shieldClass = NewTexture(pie, colorLayer, "ARTWORK", 1, "disk_stripes", Join(class, { shieldHole })),
 		backing = NewTexture(pie, colorLayer, "BACKGROUND", 0, "disk", full),
+		-- Over every band but under the role icon: grays the whole wedge while the member is out of range.
+		range = NewTexture(pie, colorLayer, "ARTWORK", 3, "disk", full),
 		healthWhole = NewTexture(pie, colorLayer, "ARTWORK", 0, "sheet_health", full),
 		healthClass = NewTexture(pie, colorLayer, "ARTWORK", 0, "sheet_health", class),
 		-- The pet always runs from the center to the rim and takes that arc from the resource band.
@@ -228,6 +230,8 @@ local function NewSlot(pie, i)
 		roleTimer = colorLayer:CreateFontString(nil, "OVERLAY"),
 		roleMinutes = colorLayer:CreateFontString(nil, "OVERLAY"), -- takes over from the seconds on long debuffs
 	}
+	slot.range:SetVertexColor(ns.RANGE_COLOR[1], ns.RANGE_COLOR[2], ns.RANGE_COLOR[3])
+	slot.range:SetAlpha(0)
 	for _, text in ipairs({ slot.roleTimer, slot.roleMinutes }) do
 		text:SetDrawLayer("OVERLAY", 2)
 		text:SetFont(STANDARD_TEXT_FONT, ROLE_TIMER_MIN, "OUTLINE") -- text set before a font is an error
@@ -355,16 +359,21 @@ local function SlotAt(pie, x, y)
 end
 
 -- The same tooltip Blizzard's unit frames show. UpdateTooltip keeps it current while the pointer rests.
+-- The aura pop-up goes with it; preview wedges have no tooltip but still get a sample pop-up.
 local function ShowUnitTooltip(button)
+	local slot = button.pie and button.pie.slots[button.slot]
 	local unit = button:GetAttribute("unit1")
-	if not unit then return end
-	GameTooltip_SetDefaultAnchor(GameTooltip, button)
-	button.UpdateTooltip = GameTooltip:SetUnit(unit) and ShowUnitTooltip or nil
+	if unit then
+		GameTooltip_SetDefaultAnchor(GameTooltip, button)
+		button.UpdateTooltip = GameTooltip:SetUnit(unit) and ShowUnitTooltip or nil
+	end
+	if not button.isPet then ns.ShowAuraPopup(button, unit, slot) end
 end
 
 local function HideUnitTooltip(button)
 	button.UpdateTooltip = nil
 	GameTooltip:Hide()
+	ns.HideAuraPopup()
 end
 
 -- Addon code can't move a frame holding hover areas in combat, but the game's secure snippets can,
@@ -423,6 +432,7 @@ local function HitButton(pie, index)
 	local button = pie.hitButtons[index]
 	if not button then
 		button = CreateFrame("Button", nil, pie.root, "SecureUnitButtonTemplate,SecureHandlerMouseUpDownTemplate")
+		button.pie = pie
 		button:SetFrameRef("anchor", anchor)
 		button:SetAttribute("_onmousedown", GRAB_SNIPPET)
 		button:SetAttribute("_onmouseup", DROP_SNIPPET)
@@ -750,6 +760,7 @@ local function LayoutPie(pie, px)
 		PlaceSector(s.low, size, start, start + wedge)
 		PlaceSector(s.petOutline, size, petStart, start + wedge)
 		slot.backing:SetSize(size * DISK_FILL, size * DISK_FILL)
+		slot.range:SetSize(size * DISK_FILL, size * DISK_FILL)
 		slot.healthWhole:SetSize(healthQuad, healthQuad)
 		slot.healthClass:SetSize(healthQuad, healthQuad)
 		slot.pet:SetSize(healthQuad, healthQuad)
@@ -822,12 +833,13 @@ function ns.Layout()
 	end
 end
 
--- The rim and the dividers, unless the metal is None.
+-- The rim unless the metal is None, and the dividers unless it is None or Outline.
 function ns.ShowMetal(pie)
-	local on = not ns.Metal().none
-	ShowIf(pie.ring, on)
+	local metal = ns.Metal()
+	ShowIf(pie.ring, not metal.none)
+	local dividers = not (metal.none or metal.outline)
 	for i, spoke in ipairs(pie.spokes) do
-		local shown = on and i <= pie.wedges
+		local shown = dividers and i <= pie.wedges
 		ShowIf(spoke.lit, shown)
 		ShowIf(spoke.shade, shown)
 	end
@@ -839,6 +851,8 @@ function ns.ApplyLook()
 	local target = ns.db.targetColor
 	for _, pie in ipairs(ns.pies) do
 		ns.ShowMetal(pie)
+		-- Outline is flat white; the metals are shaded. Both textures have the same disk edge.
+		pie.ring:SetTexture(TEX .. (metal.outline and "disk" or "metal_disk"))
 		pie.ring:SetVertexColor(metal.hi[1], metal.hi[2], metal.hi[3])
 		for _, spoke in ipairs(pie.spokes) do TintSpoke(spoke, metal) end
 		for _, slot in ipairs(pie.slots) do
@@ -884,6 +898,15 @@ function ns.SetMode(slot, mode)
 	ShowIf(slot.healClass, live and slot.heal == slot.healClass)
 	if not live then ns.SetLowAlpha(slot, 0) end
 	slot.mode = mode
+end
+
+-- inRange is true, false, or a secret boolean the client won't let Lua read; nil means don't gray.
+function ns.SetRange(slot, inRange)
+	if inRange == nil then
+		slot.range:SetAlpha(0)
+	else
+		slot.range:SetAlphaFromBoolean(inRange, 0, ns.RANGE_ALPHA)
+	end
 end
 
 function ns.SetBacking(slot, color, alpha)

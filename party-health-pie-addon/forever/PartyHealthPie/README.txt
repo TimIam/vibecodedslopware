@@ -35,6 +35,12 @@ press a heal key to cast on them or their pet. Middle and side mouse buttons
 work too, if they're bound to an action bar slot, spell, item or macro.
 Left-click a wedge to target them.
 
+A small pop-up by the pointer lists the debuffs you can dispel on them and your
+own heals over time, with time left. A member too far away to heal has their
+wedge grayed out. Both can be turned off under Mouseover Healing.
+While someone casts a resurrection on a dead member, their role symbol turns
+into an angel.
+
 You can drag it in combat too. The game won't let it follow the cursor then, so
 faint discs show where it will go, and it moves when you let go. Turn this off
 under Mouseover Healing in the settings.

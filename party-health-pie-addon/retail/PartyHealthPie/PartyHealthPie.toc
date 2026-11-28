@@ -2,10 +2,11 @@
 ## Title: Heal Pie
 ## Notes: A circular party and raid health and resource meter for Midnight.
 ## Author: timiam
-## Version: 1.2.1
+## Version: 1.3.0
 ## SavedVariables: PartyHealthPieDB
 
 Config.lua
 Pie.lua
 Party.lua
+Popup.lua
 Options.lua

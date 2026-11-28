@@ -102,6 +102,13 @@ for (let slot = 1; slot <= 5; slot++) {
   sectorMask(`mask_pet_${slot}`, start + WEDGE - PET_ARC, start + WEDGE);
 }
 
+// The raid pie's wedges: white on the right half, which is 12 to 6 o'clock clockwise. Turned to a
+// sector's two edges, two of these leave only the sector. Keep in step with PlaceSector in Pie.lua.
+paint('mask_half', 256, 256, (x) => {
+  const v = clamp01(x - 128 + 0.5);
+  return [v, v, v, v];
+});
+
 // ---- Round parts. ----
 const S = 512;
 const C = S / 2;

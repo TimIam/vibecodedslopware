@@ -146,7 +146,7 @@ local function MetalChooser(parent, y)
 	local x = 16
 	for _, metal in ipairs(ns.METALS) do
 		local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-		button:SetSize(80, 24)
+		button:SetSize(74, 24)
 		button:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
 		button:SetText(metal.name)
 		button:SetScript("OnClick", function()
@@ -155,7 +155,7 @@ local function MetalChooser(parent, y)
 			ns.RefreshOptions()
 		end)
 		buttons[metal.key] = button
-		x = x + 86
+		x = x + 80
 	end
 	AddRefresher(function()
 		for key, button in pairs(buttons) do
@@ -267,6 +267,12 @@ local function Build(content)
 	y = y - 30
 	Check(content, 16, y, "Drag it in combat too (it moves when you let go; changes wait for combat to end)",
 		function() return ns.db.moveInCombat end, function(v) ns.db.moveInCombat = v end)
+	y = y - 30
+	Check(content, 16, y, "Hovering a wedge lists what you can dispel and your heals over time on them",
+		function() return ns.db.auraPopup end, function(v) ns.db.auraPopup = v; if not v then ns.HideAuraPopup() end end)
+	y = y - 30
+	Check(content, 16, y, "Gray out the wedges of members too far away to heal",
+		function() return ns.db.rangeFade end, function(v) ns.db.rangeFade = v end)
 	y = y - 40
 
 	Heading(content, "Low Health", y)

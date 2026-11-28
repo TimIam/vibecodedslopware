@@ -205,10 +205,23 @@ local ROLE_OPTIONS = { displayRoleIcon = true, textureMap = ROLE_TEXTURES }
 local ROLE_TINTS = { TANK = ns.TEX .. "role_tank_w", HEALER = ns.TEX .. "role_healer_w", DAMAGER = ns.TEX .. "role_dps_w" }
 local ROLE_TINT_OPTIONS = { displayRoleIcon = true, textureMap = ROLE_TINTS }
 
+local ANGEL = ns.TEX .. "role_angel"
+
+-- True while someone is casting a resurrection on this member. The game's raid frames read the same
+-- answer plainly; if a client ever hides it, no angel shows.
+local function BeingRezzed(slot)
+	if slot.mode == "empty" then return false end
+	if slot.demo then return slot.demo.rez == true end
+	return UnitHasIncomingResurrection ~= nil and Plain(UnitHasIncomingResurrection(slot.unit)) == true
+end
+
 -- Blizzard's helper for addons: it picks the art itself, so Lua never has to compare a secret role.
--- Someone with no role set gets no symbol, the same as on the game's own party frames.
+-- Someone with no role set gets no symbol, the same as on the game's own party frames. An incoming
+-- resurrection swaps in an angel, even for someone with no role or with role symbols turned off.
 local function ApplyRole(slot)
-	if slot.mode == "empty" or not ns.db.roleIcons then
+	if BeingRezzed(slot) then
+		ns.SetRole(slot, ANGEL, true)
+	elseif slot.mode == "empty" or not ns.db.roleIcons then
 		ns.SetRole(slot, nil, false)
 	elseif slot.demo then
 		ns.SetRole(slot, ROLE_TEXTURES[slot.demo.role], true)
@@ -239,6 +252,11 @@ local function Countdown(evaluate, source)
 end
 local function FromDuration(timer, curve) return timer:EvaluateRemainingDuration(curve) end
 local function FromSeconds(seconds, curve) return curve:Evaluate(seconds) end
+
+-- For the hover pop-up, which shows the same countdown and debuff colors in its rows.
+function ns.AuraCountdown(timer) return Countdown(FromDuration, timer) end
+function ns.SecondsCountdown(seconds) return Countdown(FromSeconds, seconds) end
+function ns.DispelColor(unit, id) return C_UnitAuras.GetAuraDispelTypeColor(unit, id, curves.dispel) end
 
 local function TintRole(slot, texture, show)
 	if ns.db.roleIcons then
@@ -279,6 +297,26 @@ local function ApplyDispel(slot)
 	ns.SetDispel(slot, r, g, b, timer:EvaluateRemainingPercent(curves.glow), Countdown(FromDuration, timer))
 end
 
+-- UnitInRange is the game's own healing-range check (about 40 yards), the one its raid frames fade by.
+-- It never checks you, so your own wedge never grays. If the client hides the answer, the secret
+-- boolean still drives the overlay; only the "was it checked" answer has to be plain.
+local function ApplyRange(slot, state)
+	if not ns.db.rangeFade or state == "empty" or state == "offline" then
+		ns.SetRange(slot, nil)
+	elseif slot.demo then
+		if slot.demo.far then ns.SetRange(slot, false) else ns.SetRange(slot, nil) end
+	elseif not slot.unit or slot.unit == "player" then
+		ns.SetRange(slot, nil)
+	else
+		local inRange, checked = UnitInRange(slot.unit)
+		if Plain(checked) == false then
+			ns.SetRange(slot, nil)
+		else
+			ns.SetRange(slot, inRange)
+		end
+	end
+end
+
 -- Works out the wedge's state and shape from facts the game gives as plain values.
 local function ReadMember(slot)
 	if slot.demo then
@@ -313,6 +351,7 @@ local function RefreshSlot(slot)
 		ApplyTarget(slot)
 		ApplyRole(slot)
 		ApplyDispel(slot)
+		ApplyRange(slot, state)
 		return
 	end
 
@@ -349,6 +388,7 @@ local function RefreshSlot(slot)
 	ApplyTarget(slot)
 	ApplyRole(slot)
 	ApplyDispel(slot)
+	ApplyRange(slot, state)
 end
 
 local function RefreshAll()
@@ -523,7 +563,7 @@ local DEMO = {
 	{ state = "live", class = "HUNTER", role = "DAMAGER", powerToken = "MANA", phase = 1.4, pet = 0.8, debuff = { type = 2, seconds = 18 } },
 	{ state = "live", class = "WARRIOR", role = "TANK", powerToken = "RAGE", phase = 2.8, debuff = { type = 4, seconds = 12 } },
 	{ state = "dead", class = "ROGUE", role = "DAMAGER", powerToken = "ENERGY", phase = 0 },
-	{ state = "live", class = "WARLOCK", role = "DAMAGER", powerToken = "MANA", phase = 4.0, pet = 0.5, debuff = { type = 1, seconds = 9 } },
+	{ state = "live", class = "WARLOCK", role = "DAMAGER", powerToken = "MANA", phase = 4.0, pet = 0.5, debuff = { type = 1, seconds = 9 }, far = true },
 }
 
 -- A sample raid: all eight groups, the last one short, built from the party preview's members.
@@ -596,6 +636,7 @@ function ns.StepDemo(now)
 			d.shield = math.max(0, math.sin(now * 0.5 + d.phase * 1.7)) * 0.8
 			d.heal = math.max(0, math.sin(now * 0.8 + d.phase * 2.3)) * 0.3
 			if d.pet then d.pet = 0.5 + 0.5 * math.sin(now * 0.9 + d.phase * 3) end
+			d.rez = d.state == "dead" and now % 8 < 4 -- the angel comes and goes in the preview
 		end
 	end
 	RefreshAll()
@@ -742,7 +783,7 @@ for _, name in ipairs({
 	"ADDON_LOADED", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "UI_SCALE_CHANGED", "DISPLAY_SIZE_CHANGED",
 	"PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_LOGOUT",
 	"UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_POWER_FREQUENT", "UNIT_MAXPOWER", "UNIT_ABSORB_AMOUNT_CHANGED", "UNIT_HEAL_PREDICTION", "PLAYER_TARGET_CHANGED",
-	"UNIT_DISPLAYPOWER", "UNIT_PET", "UNIT_CONNECTION", "UPDATE_BINDINGS",
+	"UNIT_DISPLAYPOWER", "UNIT_PET", "UNIT_CONNECTION", "UPDATE_BINDINGS", "INCOMING_RESURRECT_CHANGED",
 }) do
 	events:RegisterEvent(name)
 end
@@ -805,6 +846,9 @@ events:SetScript("OnEvent", function(_, event, arg1)
 	elseif event == "UNIT_CONNECTION" or event == "UNIT_DISPLAYPOWER" then
 		local slot = SlotFor(arg1)
 		if slot then RefreshSlot(slot) end
+	elseif event == "INCOMING_RESURRECT_CHANGED" then
+		local slot, isPet = SlotFor(arg1)
+		if slot and not isPet then ApplyRole(slot) end
 	elseif event == "PLAYER_TARGET_CHANGED" then
 		for _, slot in ipairs(ns.slots) do ApplyTarget(slot) end
 	elseif event == "UNIT_ABSORB_AMOUNT_CHANGED" then
@@ -907,6 +951,8 @@ SlashCmdList.PARTYHEALTHPIE = function(input)
 		if ns.RefreshOptions then ns.RefreshOptions() end
 	elseif input:lower():match("^%s*debuff") then
 		ReportDebuffs()
+	elseif input:lower():match("^%s*popup") then
+		ns.ReportPopup()
 	else
 		ns.OpenOptions()
 	end

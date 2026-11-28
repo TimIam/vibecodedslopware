@@ -102,6 +102,13 @@ for (let slot = 1; slot <= 5; slot++) {
   sectorMask(`mask_pet_${slot}`, start + WEDGE - PET_ARC, start + WEDGE);
 }
 
+// The raid pie's wedges: white on the right half, which is 12 to 6 o'clock clockwise. Turned to a
+// sector's two edges, two of these leave only the sector. Keep in step with PlaceSector in Pie.lua.
+paint('mask_half', 256, 256, (x) => {
+  const v = clamp01(x - 128 + 0.5);
+  return [v, v, v, v];
+});
+
 // ---- Round parts. ----
 const S = 512;
 const C = S / 2;
@@ -132,6 +139,18 @@ paint('ring_health', 256, 256, (x, y) => {
 });
 
 paint('disk', 256, 256, (x, y) => [1, 1, 1, clamp01(126 - Math.hypot(x - 128, y - 128) + 0.5)]);
+
+// The shield band: diagonal stripes with clear gaps, so the health under a shield still shows. The
+// stripes run the same way in every wedge, since every wedge draws from this one disk.
+const STRIPE_PERIOD = 20; // texels across one stripe and one gap; about 8 px on a 200 px pie
+const STRIPE_GAP_ALPHA = 0.12; // a faint tint between stripes, so the band's extent still reads
+paint('disk_stripes', S, S, (x, y) => {
+  const u = (((x + y) / Math.SQRT2) % STRIPE_PERIOD + STRIPE_PERIOD) % STRIPE_PERIOD;
+  const half = STRIPE_PERIOD / 2;
+  const stripe = clamp01(Math.min(u, half - u) + 0.5);
+  const a = STRIPE_GAP_ALPHA + (1 - STRIPE_GAP_ALPHA) * stripe;
+  return [1, 1, 1, a * clamp01(252 - Math.hypot(x - C, y - C) + 0.5)]; // same edge as disk.tga, at twice the size
+});
 
 // Greyscale with moving highlights, tinted by the chosen metal, so the rim reads as polished.
 paint('metal_disk', S, S, (x, y) => {
@@ -212,6 +231,27 @@ roleSymbol('role_tank_w', WHITE, (x, y) => polygonDist(SHIELD, x, y));
 roleSymbol('role_healer_w', WHITE, (x, y) =>
   Math.min(boxDist(x, y, 0, 0, 0.22, 0.68), boxDist(x, y, 0, 0, 0.68, 0.22)) - 0.05);
 roleSymbol('role_dps_w', WHITE, swordDist);
+
+// Stands in for the role symbol while someone is casting a resurrection on that member:
+// a halo, a head, a robe and two wings swept up and out.
+function ellipseDist(x, y, cx, cy, a, b, tilt) {
+  const c = Math.cos(tilt), s = Math.sin(tilt);
+  const u = (x - cx) * c + (y - cy) * s;
+  const v = -(x - cx) * s + (y - cy) * c;
+  return (Math.hypot(u / a, v / b) - 1) * Math.min(a, b);
+}
+const ROBE = [[-0.1, 0.22], [0.1, 0.22], [0.36, -0.86], [-0.36, -0.86]];
+function angelDist(x, y) {
+  const halo = Math.abs(ellipseDist(x, y, 0, 0.8, 0.3, 0.11, 0)) - 0.045;
+  const head = Math.hypot(x, y - 0.4) - 0.17;
+  const robe = polygonDist(ROBE, x, y);
+  const wings = Math.min(
+    ellipseDist(x, y, 0.42, 0.02, 0.46, 0.2, 0.55),
+    ellipseDist(x, y, -0.42, 0.02, 0.46, 0.2, -0.55),
+  );
+  return Math.min(halo, head, robe, wings);
+}
+roleSymbol('role_angel', [1, 0.86, 0.42], angelDist);
 
 // A soft halo behind the symbol. Normal blending, because additive light vanishes on a white priest wedge.
 paint('role_glow', 128, 128, (x, y) => {
