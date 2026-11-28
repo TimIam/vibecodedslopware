@@ -1,24 +1,51 @@
 // Track 18, "Battlesong": TITLE FIGHT. A call-and-response rap battle. Each round MC Kilowatt
 // spits a one-bar line (a rhythm of buttons); on the next bar you echo it back, on the beat.
-// Timing is judged against the music clock at the moment the key went down. Win the crowd.
+// Every note he raps drops into your lane at once and scrolls a full bar toward the hit ring,
+// so you see the whole line coming, with a 3-2-1 count before your turn. Timing is judged
+// against the music clock at the moment the key went down. Win the crowd.
 import { W, H, P, RAMP, canvas, rect, px, line, poly, ellipse, ring, sky, stars, mix, rng, outline } from '../gfx.js';
 import { text, measure } from '../font.js';
 import { blob, bust, CAST } from '../art.js';
 import { topBar, Particles, Pops, beatLamp } from '../hud.js';
 
 const START = 8, ROUNDS = 10, BTNS = ['up', 'down', 'left', 'right', 'a'];
-const GLYPH = { up: '▲', down: '▼', left: '◀', right: '▶', a: 'A' };
 const COL = { up: P.cyan, down: P.lime, left: P.pink, right: P.amber, a: P.red };
 const PITCH = { up: 7, down: 0, left: 3, right: 5, a: 10 };   // semitones over E: a minor pentatonic voice
-// Rhythm templates (16th steps in a bar), easy to hard.
+// Rhythm templates (16th steps in a bar), easy to hard: quarters, then eighths, and only a
+// few sixteenth pairs in the last rounds.
 const RHYTHMS = [
-  [[0, 4, 8, 12]], [[0, 4, 8, 12], [0, 4, 8, 10, 12]], [[0, 2, 4, 8, 12], [0, 4, 6, 8, 12]],
-  [[0, 3, 6, 8, 12], [0, 2, 4, 8, 12, 14]], [[0, 3, 6, 10, 12], [0, 2, 4, 6, 8, 12]],
-  [[0, 3, 6, 8, 11, 12], [0, 2, 6, 8, 10, 12, 14]], [[0, 2, 3, 6, 8, 12, 14], [0, 3, 4, 6, 8, 11, 12]],
-  [[0, 2, 3, 6, 8, 10, 11, 14], [0, 3, 6, 7, 8, 11, 12, 14]], [[0, 2, 3, 6, 8, 11, 12, 14], [0, 1, 4, 6, 8, 9, 12, 14]],
-  [[0, 2, 3, 5, 6, 8, 10, 11, 14], [0, 3, 4, 6, 8, 9, 11, 12, 14]],
+  [[0, 4, 8, 12]], [[0, 4, 8, 12]], [[0, 4, 6, 8, 12], [0, 4, 8, 10, 12]],
+  [[0, 2, 4, 8, 12], [0, 4, 8, 12, 14]], [[0, 4, 6, 10, 12], [0, 2, 4, 8, 10]],
+  [[0, 3, 6, 8, 12], [0, 4, 6, 8, 12, 14]], [[0, 2, 4, 6, 8, 12], [0, 3, 6, 8, 10, 12]],
+  [[0, 2, 4, 8, 10, 12, 14], [0, 3, 6, 8, 11, 12]], [[0, 2, 4, 6, 8, 10, 12], [0, 2, 3, 6, 8, 12, 14]],
+  [[0, 2, 3, 6, 8, 10, 12, 14], [0, 3, 4, 6, 8, 11, 12, 14]],
 ];
-const WIN = { perfect: 0.075, great: 0.14, ok: 0.24 };
+const WIN = { perfect: 0.09, great: 0.16, ok: 0.26 };
+// The lane: notes scroll left into the hit ring, one bar (4 beats) of lead time.
+const HITX = 34, LANEY = 186, PXB = 52;
+
+// Note icons: a lit disc with the arrow (or A) drawn dead centre. 17x17, centre pixel (8, 8).
+const ICONS = {};
+function icon(btn, state = '') {
+  const k = btn + state;
+  if (ICONS[k]) return ICONS[k];
+  const [c, g] = canvas(17, 17);
+  const base = state === 'miss' ? P.s1 : COL[btn];
+  ellipse(g, 8.5, 8.5, 8.5, 8.5, P.ink);
+  ellipse(g, 8.5, 8.5, 7.5, 7.5, base);
+  ellipse(g, 7.5, 7, 5, 4.5, mix(base, P.white, 0.25));
+  ellipse(g, 8.5, 8.5, 5.5, 5.5, base);
+  px(g, 5, 4, P.white); px(g, 6, 4, P.white); px(g, 4, 5, P.white);
+  const ink = state === 'miss' ? P.s0 : P.ink;
+  const tri = pts => poly(g, pts, ink);
+  // Arrows: a 9 px head plus a 3 px wide stem, centred on pixel (8, 8).
+  if (btn === 'up') { tri([[8.5, 3.5], [13, 8.5], [4, 8.5]]); rect(g, 7, 8, 3, 5, ink); }
+  if (btn === 'down') { tri([[8.5, 13.5], [13, 8.5], [4, 8.5]]); rect(g, 7, 4, 3, 5, ink); }
+  if (btn === 'left') { tri([[3.5, 8.5], [8.5, 4], [8.5, 13]]); rect(g, 8, 7, 5, 3, ink); }
+  if (btn === 'right') { tri([[13.5, 8.5], [8.5, 4], [8.5, 13]]); rect(g, 4, 7, 5, 3, ink); }
+  if (btn === 'a') { text(g, 'A', 6, 5, ink); text(g, 'A', 7, 5, ink); }
+  return (ICONS[k] = c);
+}
 
 // Full-body MCs on the stage, two poses each: mic down, mic up (rapping).
 function mcSprite(kind, rapping) {
@@ -54,9 +81,9 @@ function mcSprite(kind, rapping) {
 
 export default {
   id: 'battle', track: 18, song: 'battlesong', name: 'Battlesong', title: 'TITLE FIGHT',
-  blurb: 'MC Kilowatt spits a line. You echo it back on the next bar, note for note, on the beat. Win the crowd to win the belt.',
-  how: ['WATCH HIS LINE', 'ECHO IT BACK', '◀▲▼▶ Ⓐ IN TIME', 'WIN THE CROWD'],
-  par: [6000, 15000, 24000, 31000],
+  blurb: 'MC Kilowatt spits a line, and every note he raps slides into your lane. After his bar and a 3-2-1, hit each one as it reaches the ring. Win the crowd to win the belt.',
+  how: ['WATCH HIS LINE', 'HIT AT THE RING', '◀▲▼▶ Ⓐ IN TIME', 'WIN THE CROWD'],
+  par: [5000, 14000, 22000, 29000],
   restartSong: true,
   make(ctx) {
     const R = ctx.rng, parts = Particles(), pops = Pops();
@@ -78,7 +105,7 @@ export default {
     }
     let hype = 0.5, score = 0, combo = 0, best = 0, t = 0, cutIn = null, lastRound = -1, done = false, crowdJump = 0;
     const tally = { perfect: 0, great: 0, ok: 0, miss: 0 };
-    let scheduledCall = -1, ended = false, botPress = new Set();
+    let scheduledCall = -1, botPress = new Set();
 
     const judgeLabel = { perfect: 'PERFECT', great: 'GREAT', ok: 'OK', miss: 'MISS' };
     const judgeCol = { perfect: P.amber, great: P.cyan, ok: P.lime, miss: P.red };
@@ -91,16 +118,18 @@ export default {
         score += base + Math.min(combo, 30) * 10;
         hype += { perfect: 0.03, great: 0.02, ok: 0.008 }[kind];
         crowdJump = 1;
-        parts.burst(noteX(n.st), 178, kind === 'perfect' ? 10 : 5, [COL[n.b], P.white], 70, 0.5);
+        parts.burst(HITX, LANEY, kind === 'perfect' ? 12 : 6, [COL[n.b], P.white], 70, 0.5);
+        ringT = 1;
       }
-      pops.add(judgeLabel[kind], noteX(n.st), 156, judgeCol[kind], 0.6);
+      pops.add(judgeLabel[kind], HITX + 26, LANEY - 22, judgeCol[kind], 0.6);
       hype = Math.max(0, Math.min(1, hype));
     }
-    const noteX = st => 30 + st * 12.5;
+    let ringT = 0;
     const curRound = b => Math.max(-1, Math.min(ROUNDS - 1, Math.floor((b - START) / 8)));
 
     const inst = {
       result: null,
+      rounds,   // for tests: the chart
       update(dt) {
         t += dt;
         const b = ctx.beat();
@@ -108,11 +137,16 @@ export default {
         const ri = curRound(b), rd = rounds[ri];
         // New round: cut-in for the rival; at the echo bar, cut-in for Deltron.
         if (ri !== lastRound && ri >= 0) { lastRound = ri; cutIn = { who: 'rival', t: 0 }; }
-        if (rd && b >= rd.echoAt && (!cutIn || cutIn.who !== 'deltron') && b < rd.echoAt + 0.6) cutIn = { who: 'deltron', t: 0 };
+        if (rd && b >= rd.echoAt - 1 && (!cutIn || cutIn.who !== 'deltron') && b < rd.echoAt - 0.5) cutIn = { who: 'deltron', t: 0 };
+        ringT = Math.max(0, ringT - dt * 5);
         if (cutIn) { cutIn.t += dt; if (cutIn.t > 0.7) cutIn = null; }
         // The rival raps: schedule his voice on the beat once per round, reveal notes as he says them.
         if (rd) {
-          if (scheduledCall !== ri) { scheduledCall = ri; for (const n of rd.notes) ctx.A.atBeat('voxBlip', 52 + PITCH[n.b], rd.callAt + n.st / 4, 0.2, 1.2); }
+          if (scheduledCall !== ri) {
+            scheduledCall = ri;
+            for (const n of rd.notes) ctx.A.atBeat('voxBlip', 52 + PITCH[n.b], rd.callAt + n.st / 4, 0.2, 1.2);
+            for (let k = 3; k >= 1; k--) ctx.A.atBeat('sqThin', k === 1 ? 91 : 86, rd.echoAt - k, 0.12, 0.9);
+          }
           for (const n of rd.notes) if (!n.shown && b >= rd.callAt + n.st / 4) { n.shown = true; hype = Math.max(0.02, hype - 0.006); }
         }
         if (!done) {
@@ -128,9 +162,9 @@ export default {
               if (d < bestD) { bestD = d; bestN = n; }
             }
             if (bestN && bestD <= WIN.ok) {
-              if (bestN.b !== btn) { judge(bestN, 'miss'); pops.add('WRONG', noteX(bestN.st), 146, P.red, 0.6); }
+              if (bestN.b !== btn) { judge(bestN, 'miss'); pops.add('WRONG BUTTON', HITX + 40, LANEY - 32, P.red, 0.7); }
               else judge(bestN, bestD <= WIN.perfect ? 'perfect' : bestD <= WIN.great ? 'great' : 'ok');
-            } else if (rd && b >= rd.echoAt - 0.3) { hype = Math.max(0, hype - 0.01); combo = 0; pops.add('OFF BEAT', 128, 140, P.s2, 0.4); }
+            } else if (rd && b >= rd.echoAt - 0.3) { hype = Math.max(0, hype - 0.006); pops.add('OFF BEAT', HITX + 30, LANEY - 22, P.s2, 0.4); }
           }
           // Notes that slipped past.
           for (const r of rounds) for (const n of r.notes) if (!n.hit && b > n.beat + WIN.ok) judge(n, 'miss');
@@ -184,31 +218,50 @@ export default {
         rect(g, 20, 14, mx - 20, 5, P.cyan); rect(g, mx, 14, 236 - mx, 5, P.red);
         rect(g, 20, 14, mx - 20, 1, P.ice); rect(g, mx - 1, 12, 3, 9, P.white);
         rect(g, 127, 12, 1, 9, P.ink);
-        // The bar panel.
+        // The panel: label row, then the lane.
         rect(g, 0, 146, W, 78, P.ink); rect(g, 0, 146, W, 1, P.s1);
-        const label = !rd ? 'GET READY...' : hisTurn ? "KILOWATT'S LINE" : 'YOUR ECHO!';
-        text(g, label, 10, 150, hisTurn ? P.red : rd ? P.cyan : P.s3);
-        text(g, `ROUND ${Math.max(1, ri + 1)}/${ROUNDS}`, 246, 150, P.s3, { align: 'right' });
-        beatLamp(g, 128, 153, b, hisTurn ? P.red : P.cyan);
-        // Track: 16 slots, beat ticks.
-        const ty = 178;
-        rect(g, 22, ty - 1, 206, 3, P.s0);
-        for (let st = 0; st < 16; st++) { const x = noteX(st); rect(g, x, ty - (st % 4 ? 2 : 5), 1, st % 4 ? 5 : 11, st % 4 ? P.s1 : P.s2); }
-        if (rd) {
-          const inBar = hisTurn ? b - rd.callAt : b - rd.echoAt;
-          const hx = noteX(Math.max(0, Math.min(16, inBar * 4)));
-          rect(g, hx, ty - 12, 1, 24, hisTurn ? P.red : P.white);
-          for (const n of rd.notes) {
-            if (!n.shown) continue;
-            const x = noteX(n.st), hit = n.hit;
-            const c = hit === 'miss' ? P.s1 : COL[n.b];
-            ellipse(g, x, ty, 6, 6, P.ink); ellipse(g, x, ty, 5, 5, hit && hit !== 'miss' ? P.white : c);
-            text(g, GLYPH[n.b], x, ty - 3, hit && hit !== 'miss' ? c : P.ink, { align: 'center' });
-            if (myTurn && !hit && Math.abs(b - n.beat) < 0.5) ring(g, x, ty, 8 + (n.beat - b) * 12, c);
-          }
+        const toGo = rd ? rd.echoAt - b : 9;
+        let label = 'GET READY: KILOWATT GOES FIRST', lc2 = P.s3;
+        if (rd && hisTurn) { label = toGo <= 3 ? 'YOUR TURN IN ' + Math.ceil(toGo) + '...' : "KILOWATT'S LINE: WATCH IT"; lc2 = toGo <= 3 ? P.amber : P.red; }
+        else if (rd) { label = 'YOUR ECHO! HIT THEM AT THE RING'; lc2 = P.cyan; }
+        if (rd && myTurn && b - rd.echoAt < 0.75) text(g, 'GO!', 128, 149, P.cyan, { align: 'center', scale: 2, shadow: P.ink });
+        else text(g, label, 8, 150, lc2);
+        text(g, 'ROUND ' + Math.max(1, ri + 1) + '/' + ROUNDS, 248, 150, P.s3, { align: 'right' });
+        // Lane.
+        const top = LANEY - 13, bot = LANEY + 13;
+        rect(g, 0, top, W, bot - top, myTurn ? '#10213a' : '#160d22');
+        rect(g, 0, top, W, 1, myTurn ? P.teal : P.s0); rect(g, 0, bot - 1, W, 1, myTurn ? P.teal : P.s0);
+        // Beat lines scroll with the notes (bar lines brighter).
+        for (let k = Math.floor(b) - 1; k <= b + 5; k++) {
+          const x = Math.round(HITX + (k - b) * PXB);
+          if (x < 0 || x > W) continue;
+          const barLine = ((k - START) % 4 + 4) % 4 === 0;
+          rect(g, x, top + 1, 1, bot - top - 2, barLine ? P.s2 : P.s0);
         }
-        text(g, combo > 2 ? `COMBO ${combo}` : '', 10, 206, P.amber);
-        text(g, `P${tally.perfect} G${tally.great} OK${tally.ok} X${tally.miss}`, 246, 206, P.s2, { align: 'right' });
+        // Where his notes come from: a speaker at the right end.
+        rect(g, 244, top + 2, 12, bot - top - 4, P.blood); rect(g, 245, top + 4, 10, bot - top - 8, P.red);
+        for (let y = top + 6; y < bot - 6; y += 3) rect(g, 247, y, 6, 1, P.blood);
+        // Hit ring.
+        const pulse = (b % 1) < 0.15 ? 1 : 0;
+        ring(g, HITX + 0.5, LANEY + 0.5, 12 + pulse + ringT * 2, myTurn || toGo <= 3 ? P.white : P.s2, 2);
+        ring(g, HITX + 0.5, LANEY + 0.5, 9, myTurn ? P.cyan : P.s1);
+        // Notes in flight: every note he has rapped, sliding toward its echo time.
+        for (const r of rounds) for (const n of r.notes) {
+          if (!n.shown || (n.hit && n.hit !== 'miss')) continue;
+          const x = HITX + (n.beat - b) * PXB;
+          if (x < -10 || x > 244) continue;
+          g.drawImage(icon(n.b, n.hit === 'miss' ? 'miss' : ''), Math.round(x - 8), LANEY - 8);
+        }
+        // Countdown before your bar, GO! on the downbeat.
+        if (rd && hisTurn && toGo <= 3 && toGo > 0) {
+          const nn = Math.ceil(toGo), f = toGo - Math.floor(toGo);
+          // The digit sits inside the ring, popping on each count.
+          const pop = f > 0.8 ? 1 : 0;
+          text(g, String(nn), HITX + 1, LANEY - 6 - pop, P.amber, { align: 'center', scale: 2, shadow: P.ink });
+        }
+        beatLamp(g, 128, 212, b, hisTurn ? P.red : P.cyan);
+        text(g, combo > 2 ? 'COMBO ' + combo : '', 8, 209, P.amber);
+        text(g, 'P' + tally.perfect + ' G' + tally.great + ' OK' + tally.ok + ' X' + tally.miss, 248, 209, P.s2, { align: 'right' });
         parts.draw(g); pops.draw(g);
         // Tecmo cut-in: a slanted panel with the MC's face.
         if (cutIn) {

@@ -206,7 +206,7 @@ export const SONGS = {
 
   // Brass stabs and war drums for the title fight.
   battlesong: {
-    title: 'Battlesong', bpm: 94, key: 'E', mode: 'harm', swing: 0.08,
+    title: 'Battlesong', bpm: 78, key: 'E', mode: 'harm', swing: 0.08,
     ins: { lead: 'fmBrass', lead2: 'choir', bass: 'fmBass', pad: 'fmStab', arp: 'stacc' }, oct: { lead: 4, lead2: 4, bass: 2, pad: 4, arp: 4 },
     parts: {
       in: { chords: '1m 1m', pad: 'X...............', drums: { k: 'x.......x.......', y: 'x...............' } },
