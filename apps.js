@@ -2156,6 +2156,13 @@ window.SLOPWARE = {
      "note": "twelve more boss names",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 30,
+     "date": "2026-11-27T19:10:35-07:00",
+     "note": "legless slug creep, eight more boss names",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
