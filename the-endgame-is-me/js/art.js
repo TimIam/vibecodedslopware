@@ -111,12 +111,33 @@ const GAITS = [
   { at: [5, -8], y: 10.2, size: 1, tent: 1, swing: 1, wriggle: 1, fan: 0 },
   { at: [7.5, -1.25, -10], y: 10.8, size: 0.86, tent: 0.95, swing: 0.72, wriggle: 0.85, fan: 0.15 },
   { at: [8.5, 2.6, -3.3, -9.2], y: 11.2, size: 0.72, tent: 0.88, swing: 0.45, wriggle: 0.65, fan: 0.2 },
+  { at: [], y: 0, size: 1, tent: 1, swing: 0, wriggle: 0, fan: 0 },   // None: no legs; it creeps (see creep)
 ];
+const LEGLESS = 3;
+
+// How a legless boss gets about: like a slug. Over the four walk frames the head end reaches forward while the tail
+// end holds (the middle stretching out and thinning), then the tail end draws up behind (the middle bunching and
+// fattening); the head and tail ends keep their own size and ride along. CREEP gives, per frame, how far the front
+// and the back of the stretching middle (rest length 2 * CREEP_H, centred on CREEP_C, the body's centre) have moved
+// forward. creep() takes a point of the drawn sprite back to where it is on the boss at rest.
+const CREEP = [[0, 0], [2.6, -0.6], [0.8, 0.8], [-0.6, 2.6]], CREEP_C = -2, CREEP_H = 5.5;
+function creep(lx, ly, frame) {
+  const [fs, rs] = CREEP[frame], f1 = CREEP_C + CREEP_H + fs, r1 = CREEP_C - CREEP_H + rs, m = (f1 - r1) / (2 * CREEP_H);
+  let rx, w = 0;
+  if (lx > f1) rx = lx - fs;
+  else if (lx < r1) rx = lx - rs;
+  else { const t = (lx - r1) / (f1 - r1); rx = CREEP_C - CREEP_H + t * 2 * CREEP_H; w = Math.sin(t * Math.PI); }
+  // thinner stretched, fatter bunched, most at the middle and easing off toward the ends
+  return [rx, ly * (1 + (Math.sqrt(m) - 1) * w)];
+}
 
 // What the boss is made of at a boss-local point (x toward the head, y to its right), for one look:
 // L = { head, horns, neck, back, tail, limbs, legs }, each an index into its list in LOOKS in world.js. Any head takes
 // any horns, and any limb style comes in any leg count.
 function material(lx, ly, frame, mouth, L) {
+  // legless: the body creeps; a shell keeps its own size and place over it (its test below uses the unwarped point)
+  const rawX = lx, rawY = ly;
+  if (L.legs === LEGLESS) [lx, ly] = creep(lx, ly, frame);
   const ay = Math.abs(ly);
   const hx = L.neck === 3 ? 4 : 0;   // a long neck pushes the whole head forward
   const X = lx - hx;
@@ -206,9 +227,9 @@ function material(lx, ly, frame, mouth, L) {
       if (e < r) return e < r - 1.1 ? 'plateHi' : 'plate';
     }
   } else if (L.back === 2) {
-    const e = ((lx + 3) / 10.5) ** 2 + (ly / 8.6) ** 2;
+    const e = ((rawX + 3) / 10.5) ** 2 + (rawY / 8.6) ** 2;
     if (e < 1) {
-      const v = ly / 3.3, u = (lx + 3) / 3.8 + (Math.round(v) % 2 ? 0.5 : 0);
+      const v = rawY / 3.3, u = (rawX + 3) / 3.8 + (Math.round(v) % 2 ? 0.5 : 0);
       return e > 0.8 || Math.abs(u - Math.round(u)) > 0.4 || Math.abs(v - Math.round(v)) > 0.4 ? 'shellD' : 'shell';
     }
   } else if (L.back === 3) {

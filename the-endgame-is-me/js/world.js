@@ -82,7 +82,7 @@ export const LOOKS = {
   back: ['Shag', 'Dorsal plates', 'Shell', 'Mushrooms', 'Bat wings'],
   tail: ['Tuft', 'Club', 'Stinger', 'Whip', 'Fox brush', 'Switch'],
   limbs: ['Claws', 'Hooves', 'Talons', 'Tentacles'],
-  legs: ['Four legs', 'Six legs', 'Eight legs'],
+  legs: ['Four legs', 'Six legs', 'Eight legs', 'None'],
   marker: ['Sparkles', 'Black hole', 'TomTom arrow', 'Victim on a cross', 'Disco ball'],
 };
 
@@ -153,7 +153,8 @@ export const NG_HP = 0.6, NG_HIT = 0.4, NG_PACE = 0.25;
 export const BOSS_NAMES = ['GORMUND THE UNBOTHERED', 'OLD BRISTLES', 'GRUBB, WARDEN OF TWO ROCKS', 'HAROLD',
   'MORVAK THE AMBLING', 'THE PACING ONE', 'BIG LOUIS', 'UNGOR, WHO WALKS', 'MIKE', 'USIDORE THE BLUE',
   'SPRUCE BRINGSTEEN', 'HOGG', 'ZA JOY', 'CONNECTICUT YANKEE', 'NICKY LUCIFER', 'VITODON', 'SCICHAEL MOTT', 'SWAN RONSON',
-  'BONTGOMERY MURNS', 'SNRUB', 'SANDY AMBERG', 'ALLORY MARCHER'];
+  'BONTGOMERY MURNS', 'SNRUB', 'SANDY AMBERG', 'ALLORY MARCHER',
+  'RORDON GAMSAY', 'SHWIGHT DRUTE', 'HABBA THE JUTT', 'MACKENZIE', 'GLURMO', 'JERRY', 'CHRIS', 'GARY'];
 
 // what the heroes say. Bubbles are 3×5 font, so keep each line short.
 const BARK = {
