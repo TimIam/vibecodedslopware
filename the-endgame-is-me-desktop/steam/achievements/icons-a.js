@@ -159,6 +159,14 @@ function keep(c, k, x, y, ruined = false) {
   c.drawImage(cv, x - 32, y - 46);
 }
 
+// "x5" centred on cx in the game's font at scale s, with a lower-case x drawn by hand (the font only has capitals)
+function x5(c, k, cx, y, col, s) {
+  const x0 = Math.round(cx - k.textWidth('X5', s) / 2);
+  for (const [dx, dy, cc] of [[0, s, k.PAL.ink], [s, s, k.PAL.ink], [0, 0, col]])
+    ['#.#', '.#.', '#.#'].forEach((r, j) => [...r].forEach((ch, i) => { if (ch === '#') k.rect(c, x0 + i * s + dx, y + (2 + j) * s + dy, s, s, cc); }));
+  k.drawText(c, '5', x0 + 4 * s, y, col, { scale: s });
+}
+
 // ------------------------------------------------------------------------------------------------ icons
 
 export const ICONS = {
@@ -201,10 +209,7 @@ export const ICONS = {
     ring.forEach(([x, y], i) => { if (i % 4 === 0) k.put(c, x, y, P.dirt3); });
     k.rock(c, false, 17, 27, 1);
     k.rock(c, true, 47, 27, 1);
-    // a lower-case x (the font only has capitals), then the 5 at the size it always was
-    for (const [dx, dy, col] of [[0, 3, P.ink], [3, 3, P.ink], [0, 0, P.gold]])
-      ['#.#', '.#.', '#.#'].forEach((r, j) => [...r].forEach((ch, i) => { if (ch === '#') k.rect(c, 20 + i * 3 + dx, 50 + j * 3 + dy, 3, 3, col); }));
-    k.drawText(c, '5', 32, 44, P.gold, { scale: 3 });
+    x5(c, k, 32, 44, P.gold, 3);
   },
 
   // vengeance at full: the boss roaring out of a wall of fire
@@ -221,7 +226,7 @@ export const ICONS = {
     k.boss(c, 32, 30, 1, { dir: 8, mouth: true });
     flames(61, 14, 1.7, [P.fire1, P.fire2, P.fire2, P.fire3]);
     for (let i = 0; i < 14; i++) k.put(c, 4 + k.hash(i, 3) * 56, 4 + k.hash(i, 7) * 30, i % 2 ? P.ember : P.fire2);
-    k.label(c, 'X5', 32, 49, P.fire3, 2);
+    x5(c, k, 32, 49, P.fire3, 2);
   },
 
   // the five melee abilities, as their HUD icons in slots: Swipe, Stomp, Stun Charge over Tail Sweep, Zoomies
@@ -342,13 +347,49 @@ export const ICONS = {
     k.backdrop(c, '#2c4a26', '#0e1a0c', '#4a6a3a');
     k.prop(c, 'oak', 20, 19, 2);
     k.prop(c, 'pine', 47, 21, 2);
-    k.prop(c, 'bush', 53, 50, 2);
-    // a pine snapped off at the stump, lying where it fell
-    spr(c, k, ['.w.ww.', 'wwwwww', 'wsrrsw', 'wsrrsw', 'wssssw', '.wwww.'], 9, 46, { w: P.splinter, s: '#8a5a32', r: '#b08050' }, 2, { ink: true });
-    thick(c, k, 24, 46, 45, 37, 6, P.ink); thick(c, k, 24, 46, 45, 37, 4, '#6a4422'); k.line(c, 24, 45, 45, 36, '#8a5a32');
-    for (const [x, y] of [[36, 34], [42, 31], [46, 36], [38, 42], [44, 41], [49, 33], [33, 38]]) k.disc(c, x, y, 3, P.needle);
-    for (const [x, y] of [[37, 33], [43, 30], [47, 35], [49, 32]]) k.put(c, x, y, '#4a8a5a');
-    for (const [x, y] of [[22, 42], [26, 50], [8, 56], [30, 44]]) k.put(c, x, y, P.splinter);
+    // a pine felled across the clearing: a tapering barked trunk from the splintered stump, the crown a herringbone
+    // of boughs swept back toward the stump, lit along its top edge, with its shadow on the grass
+    const T0 = [16, 50], T1 = [54, 39];              // the cut end and the tip
+    const dx = T1[0] - T0[0], dy = T1[1] - T0[1], len = Math.hypot(dx, dy), ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
+    const at = (t, o = 0) => [T0[0] + dx * t + nx * o, T0[1] + dy * t + ny * o];
+    for (let t = 0.05; t < 1; t += 0.01) { const [x, y] = at(t, 4); k.rect(c, x - 1, y, 3, 2, 'rgba(6,12,4,.45)'); }
+    const tree = off(), tx = tree.getContext('2d');
+    // the trunk, 6 px at the cut down to 2 at the tip, bark darker underneath, a ring of lighter bark every few px
+    for (let i = 0; i <= len; i += 0.5) {
+      const t = i / len, w = 2.5 - t * 1.5;
+      for (let o = -w; o <= w; o += 0.5) {
+        const [x, y] = at(t, o), side = o / w;
+        k.put(tx, x, y, side < -0.4 ? '#8a5a32' : side > 0.45 ? '#3e2814' : (Math.floor(i) % 5 === 0 ? '#7a4e2a' : '#5e3c20'));
+      }
+    }
+    // boughs: pairs of branches either side, swept back toward the stump, each a darker stem with needle tufts,
+    // longest low in the crown, gaps between them so they read as boughs; the upper side lit
+    const NEED = ['#1c3a24', '#24482c', P.needle, '#3e7a4c', '#4a8a5a'];
+    for (let t = 0.95; t > 0.42; t -= 0.09) {
+      const reach = 2 + Math.sin(Math.min(1, (1 - t) / 0.62) * Math.PI * 0.8) * 5;
+      for (const side of [-1, 1]) {
+        const lit = side < 0;
+        for (let r = 0; r <= reach; r += 0.5) {
+          const [bx, by] = at(t - r * 0.05, side * r);
+          k.put(tx, bx, by, NEED[1]);
+          // needle tufts either side of the stem, thinning toward its tip
+          const tuft = r < reach - 1 ? 1 : 0;
+          for (const o of [-1, 1]) if (tuft || o < 0) {
+            const [px, py] = [bx + ux * o * 1.2, by + uy * o * 1.2];
+            const n = (lit ? 3 : 2) + (o > 0 ? 0 : 1) - (k.hash(Math.round(px * 3), Math.round(py * 3)) < 0.25 ? 1 : 0);
+            k.put(tx, px, py, NEED[Math.min(4, n)]);
+          }
+        }
+      }
+    }
+    // a little snow-bright highlight along the top of the crown, the tip's leader
+    { const [x, y] = at(1.02); k.put(tx, x, y, NEED[2]); }
+    inkAround(c, k, tree, 0, 0);
+    c.drawImage(tree, 0, 0);
+    // the stump it came off, and the cut face of the trunk beside it
+    spr(c, k, ['.w.ww.', 'wwwwww', 'wsrrsw', 'wsrrsw', 'wssssw', '.wwww.'], 3, 46, { w: P.splinter, s: '#8a5a32', r: '#b08050' }, 2, { ink: true });
+    k.disc(c, T0[0], T0[1], 2, '#c89a62'); k.put(c, T0[0], T0[1], '#8a5a32');
+    for (const [x, y] of [[18, 56], [8, 44], [22, 45], [14, 58], [26, 54]]) k.put(c, x, y, P.splinter);
     tab(c, k, 2);
   },
 

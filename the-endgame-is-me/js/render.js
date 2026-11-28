@@ -1,6 +1,6 @@
 // Draws a game state into a 320×180 buffer. Everything lands on whole pixels.
 
-import { PAL, drawText, textWidth, ICONS, makeBossSprites, bossKey, BOSS_DIRS, BOSS_SIZE, tinted, hash, newCanvas } from './art.js';
+import { PAL, drawText, textWidth, ICONS, makeBossSprites, bossKey, coatRamp, BOSS_DIRS, BOSS_SIZE, tinted, hash, newCanvas } from './art.js';
 import { W, H, LEASH, CLASS, ADDS, SLOT_KEYS, KEY_HINT, RAID_LAPS, FINAL_LAPS, BALL, angDiff, pathDist, pathNearest, zoneFace, beamEnd, destRock, spaceKey, sigilGlow, SCENE } from './world.js';
 import { LEVELS } from './levels/index.js';
 import { KINDS, CRITTERS } from './props.js';
@@ -456,21 +456,123 @@ function makeShadow() {
 // ------------------------------------------------------------------------------------------------ world bits
 
 
-function drawIce(ctx, i, g) {
-  const fade = i.t < 0.2 ? i.t / 0.2 : i.t > i.life - 1.2 ? Math.max(0, (i.life - i.t) / 1.2) : 1;
-  const R = Math.ceil(i.r), fr = Math.floor(g.t * 4);
+// Ice Floor: a faint frost over the whole patch (where it slows), and on it a snowflake, six arms each branching and
+// branching again, around a hexagonal plate. Built once per patch into a canvas. Where the patch runs into a wall face
+// (the level's iceWall hook gives the wall's foot and top at a column), what lies past the foot is folded up the face,
+// stretched as a wall seen square-on is against the ground, and thinning as it climbs.
+const ICE_UP = 1.5;
+function flakeCanvas(i) {
+  if (i.cv) return i.cv;
+  const R = Math.ceil(i.r), D = R * 2 + 1, cv = newCanvas(D, D), c = cv.getContext('2d');
+  const jit = k => 0.85 + hash(i.seed + k * 17, 3) * 0.3;   // the same for every arm: six-fold symmetric
+  // one arm, along +x, mirrored about it: [x0, y0, x1, y1, half width] (-1: the arm itself, tapering)
+  const segs = [[0, 0, R * 0.97, 0, -1]];
+  [0.28, 0.45, 0.6, 0.74, 0.86].forEach((f, j) => {
+    const L = R * (0.36 * (1 - f) + 0.05) * jit(j), x0 = R * f, ca = 0.5, sa = 0.866;
+    segs.push([x0, 0, x0 + ca * L, sa * L, 0.5 + 0.6 * (1 - f)]);
+    for (const [t, ang, k] of [[0.45, 0, 0.34], [0.45, 2.094, 0.22], [0.75, 0, 0.2]]) {
+      const px = x0 + ca * L * t, py = sa * L * t, l = L * k * jit(j + 7);
+      segs.push([px, py, px + Math.cos(ang) * l, py + Math.sin(ang) * l, 0.45]);
+    }
+  });
+  const dseg = (px, py, q) => {
+    const dx = q[2] - q[0], dy = q[3] - q[1], l2 = dx * dx + dy * dy;
+    const t = Math.max(0, Math.min(1, ((px - q[0]) * dx + (py - q[1]) * dy) / l2));
+    return Math.hypot(px - q[0] - dx * t, py - q[1] - dy * t);
+  };
+  const plate = R * 0.15, rot = [0, 1, 2, 3, 4, 5].map(k => [Math.cos(-k * Math.PI / 3), Math.sin(-k * Math.PI / 3)]);
+  const hexN = [0, 1, 2].map(k => [Math.cos(k * Math.PI / 3 + Math.PI / 6), Math.sin(k * Math.PI / 3 + Math.PI / 6)]);
   for (let py = -R; py <= R; py++) for (let px = -R; px <= R; px++) {
     const d = Math.hypot(px, py) / i.r;
     if (d > 1) continue;
-    const wx = Math.round(i.x) + px, wy = Math.round(i.y) + py;
-    const h = hash(wx * 3 + i.seed, wy * 5);
-    if (d > 0.85 && h < (d - 0.85) * 5) continue;
-    const crack = Math.abs(Math.sin((Math.atan2(py, px) * 5 + i.seed) )) < 0.08 && d > 0.2;
-    ctx.globalAlpha = fade * (crack ? 0.7 : 0.45);
-    ctx.fillStyle = crack ? '#ffffff' : h > 0.82 ? PAL.ice1 : (px + py) & 1 ? PAL.ice0 : PAL.ice2;
-    ctx.fillRect(wx, wy, 1, 1);
-    if (h > 0.996 && (fr + wx) % 3 === 0) { ctx.globalAlpha = fade; ctx.fillStyle = '#ffffff'; ctx.fillRect(wx, wy, 1, 1); }
+    const h = hash(px * 3 + i.seed, py * 5);
+    let best = 9;
+    for (const [ca, sa] of rot) {
+      const x = px * ca - py * sa, y = Math.abs(px * sa + py * ca);
+      if (x < -2) continue;
+      for (const q of segs) { const hw = q[4] < 0 ? 0.6 + 1.5 * (1 - Math.min(1, x / R)) : q[4]; const e = dseg(x, y, q) - hw; if (e < best) best = e; }
+    }
+    const hx = Math.max(...hexN.map(([nx, ny]) => Math.abs(px * nx + py * ny)));
+    let col, al;
+    if (best < -0.7) { col = '#ffffff'; al = 0.85; }
+    else if (best < 0) { col = PAL.ice1; al = 0.72; }
+    else if (Math.abs(hx - plate) < 0.8) { col = PAL.ice1; al = 0.6; }
+    else if (hx < plate) { col = PAL.ice2; al = 0.5; }
+    else if (best < 0.8) { col = PAL.ice0; al = 0.4; }
+    else { if (d > 0.88 && h < (d - 0.88) * 6) continue; col = (px + py) & 1 ? PAL.ice0 : PAL.ice2; al = 0.17; }
+    c.globalAlpha = al; c.fillStyle = col; c.fillRect(px + R, py + R, 1, 1);
   }
+  return i.cv = cv;
+}
+function drawIce(ctx, i, g) {
+  const fade = i.t < 0.2 ? i.t / 0.2 : i.t > i.life - 1.2 ? Math.max(0, (i.life - i.t) / 1.2) : 1;
+  const cv = flakeCanvas(i), R = (cv.width - 1) / 2, x0 = Math.round(i.x) - R, y0 = Math.round(i.y) - R, D = cv.width;
+  const wall = g.map.level?.iceWall;
+  ctx.globalAlpha = fade;
+  if (!wall) ctx.drawImage(cv, x0, y0);
+  else for (let cx = 0; cx < D; cx++) {
+    const f = wall(g, x0 + cx);
+    const cut = f ? Math.min(D, Math.round(f.foot) - y0) : 0;   // rows of this column past the wall's foot
+    if (cut <= 0) { ctx.drawImage(cv, cx, 0, 1, D, x0 + cx, y0, 1, D); continue; }
+    if (cut < D) ctx.drawImage(cv, cx, cut, 1, D - cut, x0 + cx, y0 + cut, 1, D - cut);
+    // up the face: depth past the foot becomes height, stretched, clipped at the top of the wall, fading as it climbs
+    const room = Math.max(0, f.foot - f.top), n = Math.min(cut, Math.floor(room / ICE_UP));
+    for (let k = 0; k < n; k += 2) {
+      const m = Math.min(2, n - k);
+      ctx.globalAlpha = Math.min(1, fade * 1.25 * (1 - (k / Math.max(1, room / ICE_UP)) * 0.45));
+      ctx.drawImage(cv, cx, cut - k - m, 1, m, x0 + cx, Math.round(f.foot - (k + m) * ICE_UP), 1, Math.round(m * ICE_UP));
+    }
+    // a bright seam where the ice turns up the wall
+    if (n > 0) { ctx.globalAlpha = fade * 0.6; ctx.fillStyle = PAL.ice1; ctx.fillRect(x0 + cx, Math.round(f.foot) - 1, 1, 1); }
+    ctx.globalAlpha = fade;
+  }
+  // a glint or two
+  const fr = Math.floor(g.t * 4);
+  ctx.fillStyle = '#ffffff';
+  for (let k = 0; k < 6; k++) {
+    if ((fr + k) % 3) continue;
+    const an = k * Math.PI / 3, d = (0.3 + hash(i.seed + fr, k) * 0.6) * i.r;
+    ctx.fillRect(Math.round(i.x + Math.cos(an) * d), Math.round(i.y + Math.sin(an) * d), 1, 1);
+  }
+  ctx.globalAlpha = 1;
+  if (i.chunks) drawChunks(ctx, i, fade);
+}
+// the chunks of a hero shattered on the ice: a spreading pool of blood under each once it lands, and the chunk itself
+// going from ice blue to blood red over what is left of the patch's life
+function drawChunks(ctx, i, fade) {
+  for (const c of i.chunks) {
+    const x = Math.round(i.x + c.dx), y = Math.round(i.y + c.dy);
+    const k = Math.min(1, (i.t - c.t0) / Math.max(0.5, i.life - c.t0));
+    ctx.globalAlpha = fade;
+    if (c.pool > 0) {
+      const pr = c.pool * (1.5 + c.sz), n = Math.ceil(pr);
+      ctx.fillStyle = PAL.blood;
+      for (let py = -1; py <= 1; py++) for (let px = -n; px <= n; px++)
+        if ((px * px) / (pr * pr + 0.01) + py * py * 0.8 <= 1 && hash(c.seed + px, py) < 0.85) ctx.fillRect(x + px, y + py + 1, 1, 1);
+    }
+    const lift = Math.round(c.z);
+    if (lift) { ctx.fillStyle = 'rgba(8,10,6,.35)'; ctx.fillRect(x, y + 1, c.sz, 1); }
+    ctx.fillStyle = mixHex('#9fd8ee', '#8a1a14', k); ctx.fillRect(x, y - lift, c.sz, c.sz);
+    ctx.fillStyle = mixHex('#e8f8ff', '#c8302a', k); ctx.fillRect(x, y - lift, 1, 1);
+  }
+  ctx.globalAlpha = 1;
+}
+function mixHex(a, b, t) {
+  const p = h => [1, 3, 5].map(j => parseInt(h.slice(j, j + 2), 16)), A = p(a), B = p(b);
+  return '#' + A.map((v, j) => Math.round(v + (B[j] - v) * t).toString(16).padStart(2, '0')).join('');
+}
+// a hero sealed in Ice Floor's block: clear ice round them, its outline bright on the lit sides, shrinking from the top
+// and fading as it melts, with a puddle spreading under it
+function drawIceBlock(ctx, u, g) {
+  const k = Math.max(0, Math.min(1, u.encase / (u.encaseMax || 1)));
+  const x = Math.round(u.x), y = Math.round(u.y) + 1, h = Math.max(2, Math.round(9 * (0.4 + 0.6 * k))), w = 7, L = x - 3, T = y - h;
+  const a = 0.35 + 0.65 * k;
+  ctx.globalAlpha = 0.5 * (1 - k); ctx.fillStyle = PAL.ice2; ctx.fillRect(L - 1, y, w + 2, 1);
+  ctx.globalAlpha = 0.3 * a; ctx.fillStyle = PAL.ice1; ctx.fillRect(L, T, w, h);
+  ctx.globalAlpha = 0.85 * a; ctx.fillStyle = '#ffffff'; ctx.fillRect(L, T, w, 1); ctx.fillRect(L, T, 1, h);
+  ctx.fillStyle = PAL.ice2; ctx.fillRect(L + w - 1, T + 1, 1, h - 1); ctx.fillRect(L + 1, y - 1, w - 1, 1);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(L + 2, T + 2, 1, 1); if (h > 4) ctx.fillRect(L + 3, T + 3, 1, 1);
+  if (k < 0.8 && Math.floor(g.t * 6 + u.id) % 4 === 0) { ctx.fillStyle = PAL.ice0; ctx.fillRect(L + 1 + (u.id % 5), y, 1, 1); }   // a drip
   ctx.globalAlpha = 1;
 }
 
@@ -867,6 +969,7 @@ function wardSprite(glow) {
 function drawUnit(ctx, u, g) {
   if (u.zapT > g.t && !u.dead) { zapped(ctx, k => drawUnitBody(k, u, g), Math.round(u.x), Math.round(u.y), g.t + u.id * 0.03, u.fx || 1); return; }
   drawUnitBody(ctx, u, g);
+  if (u.encase > 0 && !u.dead) drawIceBlock(ctx, u, g);
 }
 function drawUnitBody(ctx, u, g) {
   const b = g.boss;
@@ -1036,6 +1139,13 @@ const ADD_COL = { k: PAL.ink, F: PAL.fur3, f: PAL.fur2, e: PAL.eye, h: PAL.horn,
   P: '#4a2a5e', p: '#2e1a3c', g: PAL.heal, s: PAL.brown, G: PAL.heal, b: PAL.bone,
   S: PAL.steelHi, c: PAL.shadow, W: '#ffffff', V: '#3a3f8e', H: '#2f7a48', T: PAL.tan, Y: PAL.gold, y: '#c8962a', C: '#e0403a', K: '#8a1e18' };
 
+// the summoned gnashers' colours: the add palette with its fur taken from the boss's coat (cached per look)
+let gnCol = null, gnKey = null;
+function gnasherCol(look) {
+  const key = look ? (look.cow ? 'cow' : look.fur || '') : '';
+  if (gnKey !== key || !gnCol) { const R = coatRamp(look || {}); gnCol = { ...ADD_COL, F: R[3], f: R[2] }; gnKey = key; }
+  return gnCol;
+}
 function drawAdd(ctx, a, g) {
   const x = Math.round(a.x), y = Math.round(a.y), flip = a.fx < 0, flash = a.hit > 0;
   ctx.fillStyle = 'rgba(8,10,6,.4)'; ctx.fillRect(x - Math.ceil(a.r), y + 1, Math.ceil(a.r) * 2 + 1, 1);
@@ -1046,7 +1156,8 @@ function drawAdd(ctx, a, g) {
       : a.swing > 0 && frames[2] ? frames[2] : frames[a.moving ? Math.floor(a.walk) % 2 : 0];
     // (a leaping skeleton leaves its shadow on the ground)
     const w = map[0].length, h = map.length, ox = x - Math.floor(w / 2), oy = y - h + 1 - (a.kind === 'gnasher' && a.swing > 0 ? 1 : 0) - Math.round(a.z || 0);
-    map.forEach((row, ry) => { for (let rx = 0; rx < w; rx++) { const ch = row[flip ? w - 1 - rx : rx]; if (ch !== '.') px(ctx, ox + rx, oy + ry, flash ? '#ffffff' : ADD_COL[ch]); } });
+    const col = a.kind === 'gnasher' ? gnasherCol(g.look) : ADD_COL;   // gnashers wear the boss's own fur
+    map.forEach((row, ry) => { for (let rx = 0; rx < w; rx++) { const ch = row[flip ? w - 1 - rx : rx]; if (ch !== '.') px(ctx, ox + rx, oy + ry, flash ? '#ffffff' : col[ch]); } });
     if (a.kind === 'skel_king' && (Math.floor(g.t * 2.3 + a.id) % 5) === 0) px(ctx, x, y - 2, '#ffffff');   // the glint
   }
   // a necromancer's raise charges: two pips over his head, lit when ready

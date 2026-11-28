@@ -1024,6 +1024,8 @@ export default {
   kinds, critters,
   build(g, rng, P) { return build(g, rng, P); },
   update, hud, shooters, surface,
+  // Ice Floor turns up the wall's face where a standing section of it is (render.js drawIce)
+  iceWall(g, x) { for (const p of g.props) if (LABEL[p.kind] && p.state === 'up' && Math.abs(x - p.x) <= p.w / 2) return { foot: WALL_B, top: WALL_B - TH }; return null; },
   art: {
     ground, under,
     critters: { evil_cow: (ctx, c, g, h) => drawCow(ctx, { ...c, seed: 0 }, g, h) },

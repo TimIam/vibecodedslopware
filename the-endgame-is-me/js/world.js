@@ -1102,7 +1102,14 @@ export function beamEnd(g) {
 }
 
 const REGEN_AFTER = 5;
+// the boss's own melee strikes (Swipe, Stomp, Tail Sweep; the Stun Charge and Zoomies' trample go through
+// withCause 'melee'): what shatters a hero frozen in Ice Floor's block
+const STRIKES = { swipe: 1, stomp: 1, tail: 1 };
 function fire(g, k) {
+  g.strike = !!STRIKES[k];
+  try { fire0(g, k); } finally { g.strike = false; }
+}
+function fire0(g, k) {
   const b = g.boss, d = g.abil[k];
   b.calmT = 0;
   g.events.push(k);
@@ -1149,10 +1156,15 @@ function fire(g, k) {
   } else if (k === 'summon') {
     summon(g);
   } else if (k === 'ice') {
-    g.ice.push({ x: b.x, y: b.y, r: d.range, t: 0, life: d.life, seed: Math.floor(g.rng() * 1e6), slow: d.slow, deep: !!d.root });
+    const ice = { x: b.x, y: b.y, r: d.range, t: 0, life: d.life, seed: Math.floor(g.rng() * 1e6), slow: d.slow, deep: !!d.root };
+    g.ice.push(ice);
     if (g.ice.length > 3) g.ice.shift();
-    // the last level: whoever it forms under is stuck fast for a moment (they can still swing and cast)
-    if (d.root) for (const u of g.units) if (hittable(u) && Math.hypot(u.x - b.x, u.y - b.y) < d.range) u.root = d.root;
+    // the last level: whoever it forms under is stuck fast for a moment (they can still swing and cast), sealed in a
+    // block of ice that melts as the moment passes; strike them while they are in it and they shatter (see hurt)
+    if (d.root) for (const u of g.units) if (hittable(u) && Math.hypot(u.x - b.x, u.y - b.y) < d.range) {
+      u.root = d.root;
+      if (u.role !== 'rider') { u.encase = d.root; u.encaseMax = d.root; u.encIce = ice; }
+    }
     g.rings.push({ x: b.x, y: b.y, r: 6, max: d.range, t: 0, col: 'ice' });
     for (let i = 0; i < 30; i++) { const a = g.rng() * TAU, s = 20 + g.rng() * 60; part(g, b.x + Math.cos(a) * 8, b.y + Math.sin(a) * 8, Math.cos(a) * s, Math.sin(a) * s, 0.6, 'frost'); }
     for (const p of g.parties) if (p.engaged && p.type !== 'rider' && g.rng() < 0.6) { const u = alive(p)[2]; if (u) bark(g, u, pick(g, BARK.ice)); }
@@ -1944,6 +1956,7 @@ function updateUnit(g, u, dt) {
   const k = Math.exp(-9 * dt); u.kx *= k; u.ky *= k;
   u.slow = iceSlow(g, u.x, u.y) * (g.props.length ? P.slowAt(g, u.x, u.y) : 1);
   if (u.root > 0) u.root -= dt;
+  if (u.encase > 0) u.encase -= dt;
   if (u.role === 'rider') { updateRider(g, u, dt); return; }
   if (b.dead && !u.burn) { u.moving = false; u.dance = (u.dance || g.rng() * 3) + dt; return; }   // (anyone alight burns on)
 
@@ -2284,6 +2297,7 @@ function withCause(g, cause, f) {
 
 function hurt(g, u, amt) {
   if (!hittable(u)) return;
+  if (u.encase > 0 && (g.cause === 'melee' || g.strike)) { u.shatter = true; amt = u.hp + 1e6; }   // frozen solid: struck, they shatter
   if (g.rec) { g.rec.all.add('u' + u.id); if (!isPet(u)) g.rec.hum.add('u' + u.id); }
   if (u.role === 'rider' && u.state === 'stun') amt *= 2;
   u.hp -= amt;
@@ -2304,22 +2318,46 @@ function kill(g, u) {
   text(g, u.x, u.y - 6, `+${pts}`, u.role === 'rider' ? 'gold' : 'cream', u.role === 'rider' ? 1.6 : 0.9);
   g.events.push(u.role === 'rider' ? 'riderdie' : 'kill');
   // anyone fire finished off lies there charred, for good (and doesn't bleed)
-  const charred = !!u.burn || g.t - (u.fireT ?? -9) < 0.3 || g.cause === 'beam';
+  if (u.shatter) iceChunks(g, u);
+  const charred = !u.shatter && (!!u.burn || g.t - (u.fireT ?? -9) < 0.3 || g.cause === 'beam');
   const squish = !charred && g.cause === 'melee';   // stepped on, clawed or charged flat: squashed, with more blood under them
-  if (!charred) for (let i = 0; i < (squish ? 14 : 7); i++) { const a = g.rng() * TAU, s = 10 + g.rng() * 30; part(g, u.x, u.y - 1, Math.cos(a) * s, Math.sin(a) * s, 0.35, 'blood'); }
+  if (u.shatter) { /* (the chunks bleed instead) */ } else if (!charred) for (let i = 0; i < (squish ? 14 : 7); i++) { const a = g.rng() * TAU, s = 10 + g.rng() * 30; part(g, u.x, u.y - 1, Math.cos(a) * s, Math.sin(a) * s, 0.35, 'blood'); }
   else for (let i = 0; i < 6; i++) part(g, u.x + (g.rng() - 0.5) * 3, u.y - 2, (g.rng() - 0.5) * 6, -8 - g.rng() * 8, 0.8 + g.rng() * 0.6, 'smoke');
   const corpse = { u, x: u.x, y: u.y, cls: u.cls, t: 0, charred, squish, fx: u.fx || 1 };
   u.charred = charred;
-  g.corpses.push(corpse);
-  if (g.corpses.length > 90) g.corpses.shift();
+  if (!u.shatter) { g.corpses.push(corpse); if (g.corpses.length > 90) g.corpses.shift(); }
   if (!isPet(u)) g.ghosts.push({ x: u.x, y: u.y - 2, t: 0, vx: (g.rng() - 0.5) * 6 });
-  p.deadList.push({ u, x: u.x, y: u.y, t: g.t });
+  if (!u.shatter) p.deadList.push({ u, x: u.x, y: u.y, t: g.t });   // (nothing left to raise)
   if (g.boss.taunt?.u === u) g.boss.taunt = null;
   if (p.type !== 'rider' && !isPet(u) && g.rng() < 0.3) bark(g, { x: u.x, y: u.y - 4, dead: true }, pick(g, BARK.died));
   if (u.role === 'rider') {
     const h = u.horse;
     g.ghosts.push({ x: u.x, y: u.y - 2, t: 0, vx: 0 });
     g.parts.push({ horse: true, x: h.x, y: h.y, vx: (h.x < V.x + W / 2 ? -1 : 1) * 70, vy: 0, t: 0, life: 4, face: h.x < V.x + W / 2 ? Math.PI : 0, walk: h.walk });
+  }
+}
+
+// A hero shattered in Ice Floor's block: pale blue chunks of ice-and-hero thrown across the patch. They land, slide on the
+// ice and bleed, reddening as they go, and are gone when the patch is (they live on it, placed relative to it)
+function iceChunks(g, u) {
+  const ic = (u.encIce && g.ice.includes(u.encIce)) ? u.encIce : g.ice.find(i => Math.hypot(u.x - i.x, u.y - i.y) < i.r) || g.ice[g.ice.length - 1];
+  for (let i = 0; i < 14; i++) { const a = g.rng() * TAU, s = 15 + g.rng() * 40; part(g, u.x, u.y - 3, Math.cos(a) * s, Math.sin(a) * s - 10, 0.5, 'frost'); }
+  g.shake = Math.max(g.shake, 0.1);
+  if (!ic) return;
+  const list = ic.chunks ||= [];
+  for (let i = 0; i < 9; i++) {
+    const a = g.rng() * TAU, s = 14 + g.rng() * 34;
+    list.push({ dx: u.x - ic.x + (g.rng() - 0.5) * 3, dy: u.y - ic.y, z: 2 + g.rng() * 5, vx: Math.cos(a) * s, vy: Math.sin(a) * s * 0.7,
+      vz: 15 + g.rng() * 35, sz: i < 3 ? 2 : 1, t0: ic.t, pool: 0, seed: Math.floor(g.rng() * 1e6) });
+  }
+  if (list.length > 60) list.splice(0, list.length - 60);
+}
+function stepChunks(ic, dt) {
+  for (const c of ic.chunks) {
+    if (c.z > 0 || c.vz > 0) { c.z += c.vz * dt; c.vz -= 160 * dt; if (c.z <= 0) { c.z = 0; c.vz = 0; } }
+    c.dx += c.vx * dt; c.dy += c.vy * dt;
+    const f = Math.exp(-(c.z > 0 ? 0.5 : 2.2) * dt); c.vx *= f; c.vy *= f;
+    if (c.z === 0) c.pool = Math.min(1, c.pool + dt * 0.3);
   }
 }
 
@@ -2423,7 +2461,7 @@ function updateFx(g, dt) {
   g.parts = g.parts.filter(p => p.t < p.life);
   for (const f of g.fires) f.t += dt;
   g.fires = g.fires.filter(f => f.t < f.life);
-  for (const i of g.ice) i.t += dt;
+  for (const i of g.ice) { i.t += dt; if (i.chunks) stepChunks(i, dt); }
   g.ice = g.ice.filter(i => i.t < i.life);
   for (const c of g.corpses) c.t += dt;
   g.corpses = g.corpses.filter(c => c.t < 40);

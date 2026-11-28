@@ -959,5 +959,7 @@ export default {
   kinds, critters,
   build(g, rng, P) { return build(g, rng, P); },
   update, hud, shooters, surface,
+  // Ice Floor turns up the castle front's face where a standing piece of it is (render.js drawIce)
+  iceWall(g, x) { for (const p of g.props) if (LABEL[p.kind] && p.state === 'up' && Math.abs(x - p.x) <= p.w / 2) return { foot: FRONT.bot, top: FRONT.face }; return null; },
   art: { ground, under, props, critters: { city_folk: drawFolk, rat: drawRat }, corpses: { city_folk: drawFolkBody, rat: drawRatCorpse }, canopy: false, theme: { leash: false } },
 };

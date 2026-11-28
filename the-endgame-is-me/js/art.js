@@ -331,6 +331,9 @@ export function makeBossSprites(look) {
   };
 }
 
+// the boss's coat as a 5-step ramp, dark to light: the cow skin's white, or the picked fur (natural brown if none)
+export const coatRamp = (look = {}) => look.cow ? COW_WHITE : furRamp(look.fur);
+
 export const bossKey = l => [l.head, l.horns, l.neck, l.back, l.tail, l.limbs, l.legs].map(n => n || 0).join('.') + (l.fur || '') + (l.cow ? 'cow' : '');
 
 // Cow Skin: a white coat, and blobs of the fur colour fixed to the body (boss space, so they turn with him and never
