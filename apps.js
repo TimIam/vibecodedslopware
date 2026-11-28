@@ -2135,6 +2135,20 @@ window.SLOPWARE = {
      "note": "51 Steam achievements",
      "prompts": 0,
      "tokens": 0
+    },
+    {
+     "n": 27,
+     "date": "2026-11-27T15:33:22-07:00",
+     "note": "redrawn icons, title-case renames",
+     "prompts": 0,
+     "tokens": 0
+    },
+    {
+     "n": 28,
+     "date": "2026-11-27T17:22:13-07:00",
+     "note": "snowflake Ice Floor that shatters the frozen, Gnashers in the boss's fur",
+     "prompts": 0,
+     "tokens": 0
     }
    ]
   },
