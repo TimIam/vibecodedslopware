@@ -5,7 +5,7 @@ window.SLOPWARE = {
   "3030": {
    "visits": 0,
    "prompts": 4,
-   "tokens": 1545479,
+   "tokens": 1561034,
    "sharedWith": null,
    "versions": [
     {
@@ -28,6 +28,13 @@ window.SLOPWARE = {
      "note": "Battlesong goes to twenty rounds with a harder second verse",
      "prompts": 1,
      "tokens": 45340
+    },
+    {
+     "n": 4,
+     "date": "2026-11-28T10:58:50-07:00",
+     "note": "fix the World's Fair and planet cards in Memory Loss",
+     "prompts": 0,
+     "tokens": 15555
     }
    ]
   },
