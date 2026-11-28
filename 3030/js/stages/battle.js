@@ -6,9 +6,9 @@
 import { W, H, P, RAMP, canvas, rect, px, line, poly, ellipse, ring, sky, stars, mix, rng, outline } from '../gfx.js';
 import { text, measure } from '../font.js';
 import { blob, bust, CAST } from '../art.js';
-import { topBar, Particles, Pops, beatLamp } from '../hud.js';
+import { topBar, Particles, Pops, beatLamp, banner } from '../hud.js';
 
-const START = 8, ROUNDS = 10, BTNS = ['up', 'down', 'left', 'right', 'a'];
+const START = 8, ROUNDS = 20, VERSE2 = 10, BTNS = ['up', 'down', 'left', 'right', 'a'];
 const COL = { up: P.cyan, down: P.lime, left: P.pink, right: P.amber, a: P.red };
 const PITCH = { up: 7, down: 0, left: 3, right: 5, a: 10 };   // semitones over E: a minor pentatonic voice
 // Rhythm templates (16th steps in a bar), easy to hard: quarters, then eighths, and only a
@@ -19,6 +19,17 @@ const RHYTHMS = [
   [[0, 3, 6, 8, 12], [0, 4, 6, 8, 12, 14]], [[0, 2, 4, 6, 8, 12], [0, 3, 6, 8, 10, 12]],
   [[0, 2, 4, 8, 10, 12, 14], [0, 3, 6, 8, 11, 12]], [[0, 2, 4, 6, 8, 10, 12], [0, 2, 3, 6, 8, 12, 14]],
   [[0, 2, 3, 6, 8, 10, 12, 14], [0, 3, 4, 6, 8, 11, 12, 14]],
+  // Second verse: straight eighths, then sixteenth pairs, runs of three, off-beat starts.
+  [[0, 2, 4, 6, 8, 10, 12, 14], [0, 3, 6, 8, 10, 12, 14]],
+  [[0, 2, 3, 6, 8, 10, 11, 14], [0, 3, 4, 6, 8, 11, 12, 14]],
+  [[0, 1, 2, 4, 8, 9, 10, 12], [0, 2, 4, 5, 6, 8, 12, 13, 14]],
+  [[0, 3, 6, 7, 8, 11, 14, 15], [0, 2, 3, 4, 8, 10, 11, 12]],
+  [[0, 2, 3, 5, 6, 8, 10, 11, 14], [0, 1, 4, 6, 7, 8, 12, 13, 14]],
+  [[0, 2, 3, 4, 6, 8, 9, 10, 12, 14], [0, 3, 4, 6, 7, 10, 11, 12, 14]],
+  [[0, 1, 2, 4, 5, 6, 8, 10, 11, 12, 14], [0, 2, 3, 5, 6, 8, 9, 11, 12, 14]],
+  [[1, 3, 4, 6, 8, 9, 11, 12, 14, 15], [0, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14]],
+  [[0, 1, 2, 3, 6, 8, 9, 10, 11, 14], [0, 2, 3, 5, 6, 7, 8, 10, 12, 13, 14, 15]],
+  [[0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14], [1, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15]],
 ];
 const WIN = { perfect: 0.09, great: 0.16, ok: 0.26 };
 // The lane: notes scroll left into the hit ring, one bar (4 beats) of lead time.
@@ -81,14 +92,14 @@ function mcSprite(kind, rapping) {
 
 export default {
   id: 'battle', track: 18, song: 'battlesong', name: 'Battlesong', title: 'TITLE FIGHT',
-  blurb: 'MC Kilowatt spits a line, and every note he raps slides into your lane. After his bar and a 3-2-1, hit each one as it reaches the ring. Win the crowd to win the belt.',
+  blurb: 'Twenty rounds with MC Kilowatt. Every note he raps slides into your lane; after his bar and a 3-2-1, hit each one at the ring. The second verse gets fast. Win the crowd.',
   how: ['WATCH HIS LINE', 'HIT AT THE RING', '◀▲▼▶ Ⓐ IN TIME', 'WIN THE CROWD'],
-  par: [5000, 14000, 22000, 29000],
+  par: [20000, 38000, 55000, 75000],
   restartSong: true,
   make(ctx) {
     const R = ctx.rng, parts = Particles(), pops = Pops();
     const ME = [mcSprite('me', false), mcSprite('me', true)], HIM = [mcSprite('rival', false), mcSprite('rival', true)];
-    // Build the ten rounds.
+    // Build the rounds. In the second verse the same button rarely repeats back to back.
     const rounds = [];
     for (let r = 0; r < ROUNDS; r++) {
       const tpl = RHYTHMS[r][(R() * RHYTHMS[r].length) | 0];
@@ -96,9 +107,10 @@ export default {
       let last = null;
       const notes = tpl.map(st => {
         let b = pool[(R() * pool.length) | 0];
-        if (r >= 2 && b === last && R() < 0.5) b = pool[(R() * pool.length) | 0];
+        const reroll = r >= VERSE2 ? 0.85 : r >= 2 ? 0.5 : 0;
+        while (b === last && R() < reroll) b = pool[(R() * pool.length) | 0];
         last = b;
-        return { st, b };
+        return { st, b, r };
       });
       const callAt = START + r * 8;
       rounds.push({ callAt, echoAt: callAt + 4, notes: notes.map(n => ({ ...n, beat: callAt + 4 + n.st / 4, hit: null, shown: false })) });
@@ -111,20 +123,21 @@ export default {
     const judgeCol = { perfect: P.amber, great: P.cyan, ok: P.lime, miss: P.red };
     function judge(n, kind) {
       n.hit = kind; tally[kind]++;
-      if (kind === 'miss') { combo = 0; hype -= 0.035; ctx.shake(2); }
+      if (kind === 'miss') { combo = 0; hype -= n.r >= VERSE2 ? 0.05 : 0.035; ctx.shake(2); }
       else {
         combo++; best = Math.max(best, combo);
         const base = { perfect: 300, great: 200, ok: 100 }[kind];
         score += base + Math.min(combo, 30) * 10;
-        hype += { perfect: 0.03, great: 0.02, ok: 0.008 }[kind];
+        // The second verse pays less per hit, so it has to be played well, not coasted.
+        hype += (n.r >= VERSE2 ? { perfect: 0.022, great: 0.012, ok: 0.003 } : { perfect: 0.03, great: 0.02, ok: 0.008 })[kind];
         crowdJump = 1;
         parts.burst(HITX, LANEY, kind === 'perfect' ? 12 : 6, [COL[n.b], P.white], 70, 0.5);
         ringT = 1;
       }
-      pops.add(judgeLabel[kind], HITX + 26, LANEY - 22, judgeCol[kind], 0.6);
-      hype = Math.max(0, Math.min(1, hype));
+      lastJudge = { s: judgeLabel[kind], c: judgeCol[kind], t: 0.45 };
+      hype = Math.max(0, Math.min(0.92, hype));
     }
-    let ringT = 0;
+    let ringT = 0, lastJudge = null;
     const curRound = b => Math.max(-1, Math.min(ROUNDS - 1, Math.floor((b - START) / 8)));
 
     const inst = {
@@ -139,6 +152,7 @@ export default {
         if (ri !== lastRound && ri >= 0) { lastRound = ri; cutIn = { who: 'rival', t: 0 }; }
         if (rd && b >= rd.echoAt - 1 && (!cutIn || cutIn.who !== 'deltron') && b < rd.echoAt - 0.5) cutIn = { who: 'deltron', t: 0 };
         ringT = Math.max(0, ringT - dt * 5);
+        if (lastJudge && (lastJudge.t -= dt) <= 0) lastJudge = null;
         if (cutIn) { cutIn.t += dt; if (cutIn.t > 0.7) cutIn = null; }
         // The rival raps: schedule his voice on the beat once per round, reveal notes as he says them.
         if (rd) {
@@ -147,7 +161,7 @@ export default {
             for (const n of rd.notes) ctx.A.atBeat('voxBlip', 52 + PITCH[n.b], rd.callAt + n.st / 4, 0.2, 1.2);
             for (let k = 3; k >= 1; k--) ctx.A.atBeat('sqThin', k === 1 ? 91 : 86, rd.echoAt - k, 0.12, 0.9);
           }
-          for (const n of rd.notes) if (!n.shown && b >= rd.callAt + n.st / 4) { n.shown = true; hype = Math.max(0.02, hype - 0.006); }
+          for (const n of rd.notes) if (!n.shown && b >= rd.callAt + n.st / 4) { n.shown = true; hype = Math.max(0.02, hype - (ri >= VERSE2 ? 0.009 : 0.006)); }
         }
         if (!done) {
           // Presses: match each to the nearest open note in the echo bar.
@@ -162,9 +176,9 @@ export default {
               if (d < bestD) { bestD = d; bestN = n; }
             }
             if (bestN && bestD <= WIN.ok) {
-              if (bestN.b !== btn) { judge(bestN, 'miss'); pops.add('WRONG BUTTON', HITX + 40, LANEY - 32, P.red, 0.7); }
+              if (bestN.b !== btn) { judge(bestN, 'miss'); lastJudge = { s: 'WRONG BUTTON', c: P.red, t: 0.6 }; }
               else judge(bestN, bestD <= WIN.perfect ? 'perfect' : bestD <= WIN.great ? 'great' : 'ok');
-            } else if (rd && b >= rd.echoAt - 0.3) { hype = Math.max(0, hype - 0.006); pops.add('OFF BEAT', HITX + 30, LANEY - 22, P.s2, 0.4); }
+            } else if (rd && b >= rd.echoAt - 0.3) { hype = Math.max(0, hype - 0.006); lastJudge = { s: 'OFF BEAT', c: P.s2, t: 0.4 }; }
           }
           // Notes that slipped past.
           for (const r of rounds) for (const n of r.notes) if (!n.hit && b > n.beat + WIN.ok) judge(n, 'miss');
@@ -245,8 +259,10 @@ export default {
         const pulse = (b % 1) < 0.15 ? 1 : 0;
         ring(g, HITX + 0.5, LANEY + 0.5, 12 + pulse + ringT * 2, myTurn || toGo <= 3 ? P.white : P.s2, 2);
         ring(g, HITX + 0.5, LANEY + 0.5, 9, myTurn ? P.cyan : P.s1);
-        // Notes in flight: every note he has rapped, sliding toward its echo time.
-        for (const r of rounds) for (const n of r.notes) {
+        // Notes in flight: every note he has rapped, sliding toward its echo time. Later notes
+        // first, so in a dense run the next one to hit is always drawn on top.
+        for (let ri2 = rounds.length - 1; ri2 >= 0; ri2--) for (let ni = rounds[ri2].notes.length - 1; ni >= 0; ni--) {
+          const n = rounds[ri2].notes[ni];
           if (!n.shown || (n.hit && n.hit !== 'miss')) continue;
           const x = HITX + (n.beat - b) * PXB;
           if (x < -10 || x > 244) continue;
@@ -259,6 +275,8 @@ export default {
           const pop = f > 0.8 ? 1 : 0;
           text(g, String(nn), HITX + 1, LANEY - 6 - pop, P.amber, { align: 'center', scale: 2, shadow: P.ink });
         }
+        // One judgement readout just above the lane: always the latest hit.
+        if (lastJudge) text(g, lastJudge.s, HITX + 18, 162, lastJudge.c, { shadow: P.ink });
         beatLamp(g, 128, 212, b, hisTurn ? P.red : P.cyan);
         text(g, combo > 2 ? 'COMBO ' + combo : '', 8, 209, P.amber);
         text(g, 'P' + tally.perfect + ' G' + tally.great + ' OK' + tally.ok + ' X' + tally.miss, 248, 209, P.s2, { align: 'right' });
@@ -278,6 +296,7 @@ export default {
           g.restore();
           if (k > 0.8) text(g, left ? 'ZERO!' : 'KILOWATT!', left ? 12 : W - 12, y0 + h - 12, P.white, { align: left ? 'left' : 'right', scale: 2, shadow: P.ink });
         }
+        if (rounds[VERSE2] && b >= rounds[VERSE2].callAt - 2 && b < rounds[VERSE2].callAt + 1 && (t * 6 | 0) % 2) banner(g, 'SECOND VERSE!', 64, P.amber, P.blood);
         topBar(g, 'TRACK 18  BATTLESONG', score);
       },
       // Bot: press each echo note on its beat.
